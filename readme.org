@@ -268,7 +268,7 @@
    pipe.handle.push(10);
 
    // On the next frame the sig will evaluate to 6
-   pipe.handle.push(-5j);
+   pipe.handle.push(-5);
 #+END_SRC
 
    The stream::iterate is one the most useful and most important things that
