@@ -1,0 +1,82 @@
+
+if target_machine.system() == 'linux'
+    gldep = dependency('gl')
+    x11dep = dependency('x11')
+    xextdep = dependency('xext')
+    system_deps = [gldep, x11dep, xextdep]
+    system_incs = ['glx']
+    system_src = [
+        'glx/glxplatform.cpp',
+        'glx/glxrendercontext.cpp',
+        'glx/glxwindow.cpp',
+        'glx/glxcontext.cpp'
+        ]
+else
+    system_deps = []
+    system_incs = []
+    system_src = []
+endif
+
+threadsdep = dependency('threads')
+asedep = [libeigendep, threadsdep]
+
+incdir = include_directories(
+        '.',
+        '../../include',
+        '../../include/ase',
+        'gl',
+        system_incs
+        )
+
+libasesrc = [
+        'window.cpp',
+        'rendercontext.cpp',
+        'renderable.cpp',
+        'vertexspec.cpp',
+        'namedvertexspec.cpp',
+        'vertexbuffer.cpp',
+        'indexbuffer.cpp',
+        'mesh.cpp',
+        'dispatcher.cpp',
+        'nameduniformbuffer.cpp',
+        'uniformbuffer.cpp',
+        'fragmentshader.cpp',
+        'vertexshader.cpp',
+        'program.cpp',
+        'rendercommand.cpp',
+        'texture.cpp',
+        'rendertarget.cpp',
+        'rendertargetobject.cpp',
+        'pipeline.cpp',
+        'pointerbuttonevent.cpp',
+        'keyevent.cpp',
+        'keycode.cpp',
+        'gl/glplatform.cpp',
+        'gl/glprogram.cpp',
+        'gl/glshader.cpp',
+        'gl/glvertexshader.cpp',
+        'gl/glfragmentshader.cpp',
+        'gl/glbuffer.cpp',
+        'gl/glvertexbuffer.cpp',
+        'gl/glindexbuffer.cpp',
+        'gl/gltexture.cpp',
+        'gl/glerror.cpp',
+        'gl/gltype.cpp',
+        'gl/glblendmode.cpp',
+        'gl/glrendercontext.cpp',
+        'gl/glrendertargetobject.cpp',
+        'gl/glframebuffer.cpp'
+        ]
+
+libase = library('ase',
+        [system_src, libasesrc],
+        dependencies: [system_deps, asedep],
+        include_directories : incdir
+        )
+
+libasedep = declare_dependency(
+        link_with: libase,
+        dependencies: asedep,
+        include_directories: include_directories('../../include')
+        )
+

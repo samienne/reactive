@@ -1,0 +1,15 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: bvg xegl es
+Description: Bvg is a vector graphics library
+Version: 0.0.0
+Libs: -L${libdir} -lbvgxegles
+Cflags: -I${includedir}/bvg/include -I${includedir} \
+	-DEIGEN_DONT_VECTORIZE \
+	-DEIGEN_DISABLE_UNALIGNED_ARRAY_ASSERT \
+	-DBVG_USE_GLES2
+Requires: x11 eigen2 bvg bvgegles
+

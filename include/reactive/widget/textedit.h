@@ -1,0 +1,61 @@
+#pragma once
+
+#include "reactive/widgetfactory.h"
+#include "reactive/sizehint.h"
+
+#include "reactive/signal/inputhandle.h"
+#include "reactive/signaltype.h"
+
+#include <avg/font.h>
+
+#include <string>
+#include <ostream>
+
+namespace reactive
+{
+    namespace widget
+    {
+        struct TextEditState
+        {
+            inline TextEditState(std::string str) :
+                text(std::move(str)),
+                pos(text.size())
+            {
+            }
+
+            inline bool operator==(TextEditState const& rhs)
+            {
+                return text == rhs.text && pos == rhs.pos;
+            }
+
+            inline bool operator!=(TextEditState const& rhs)
+            {
+                return !(*this == rhs);
+            }
+
+            std::string text;
+            size_t pos = 0;
+        };
+
+        inline std::ostream& operator<<(std::ostream& stream,
+                TextEditState const& s)
+        {
+            return stream << s.text << std::endl;
+        }
+
+        struct TextEdit
+        {
+            operator WidgetFactory() const;
+            TextEdit onEnter(Signal<std::function<void()>> cb) &&;
+            TextEdit onEnter(std::function<void()> cb) &&;
+
+            signal::InputHandle<TextEditState> handle_;
+            Signal<TextEditState> state_;
+            std::vector<Signal<std::function<void()>>> onEnter_;
+        };
+
+        TextEdit textEdit(signal::InputHandle<TextEditState> handle,
+                Signal<TextEditState> state);
+    }
+}
+

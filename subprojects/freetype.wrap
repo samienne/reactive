@@ -1,0 +1,4 @@
+[wrap-git]
+directory=freetype
+url=https://github.com/samienne/freetype.git
+revision=1edce5a2df719cc089ee9a611bb1433140a45452

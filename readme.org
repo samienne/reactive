@@ -1,0 +1,353 @@
+* About
+
+  Reactive is a simple to use graphical user interface (GUI) toolkit library
+  that uses functional reactive programming. The library aims to provide an
+  easy and intuitive way to create user interface, without resorting to a
+  external UI specific language, such as QML or XAML. The approach taken was
+  greatly inspired by the Elm programming language.
+
+* Hello World
+
+#+BEGIN_SRC C++
+  #include <reactive/reactive.h>
+
+  int main()
+  {
+      return App()
+            .windows({
+                  window(
+                        signal::constant("Title"),
+                        widget::label(signal::constant("Hello World!"))
+                  )
+            })
+            .run()
+            ;
+  }
+#+END_SRC
+
+  [[docs/images/example01.png]]
+
+* Disclaimer
+
+  This library is in very early stage of development and the library in its
+  current form is nowhere near being production ready. The examples in this
+  readme are currently not all compileable.
+
+* Compilation
+
+  Currently only Linux is supported.
+
+** Linux
+
+   Supported compilers:
+   - GCC5
+   - GCC6
+
+* Architecture
+
+  Currently Reactive composes of several libraries. Btl is a random
+  collection of helpful utilities, avg is a vector graphics library, ase is a
+  simple accelerated graphics api, and Reactive is the main library.
+
+* Functional Reactive Programming
+
+  This library makes use of the functional reactive programming (FRP)
+  paradigm.
+
+** Signals
+
+   Signals used in traditional object oriented GUI-toolkits are very
+   different things than the ones used in functional reactive programming. In
+   object oriented style signal is an object that has a list of callbacks
+   that are called when the signal is fired. The firing can happen on some
+   predetermined event, such as clicking a button, and then the registered
+   click handlers will react to that specific event.
+
+   In functional reactive programming a signal can be thought as a read only
+   variable whose value varies over time. For example if the type Drawing
+   represents some static drawing then Signal<Drawing> represents a drawing
+   that changes over time, in another words an animation.
+
+   Let us say we have a function that takes time as its parameter and returns
+   us a Drawing that represents the state of the animation on that specific
+   time point. We then would like to use the time signal provided by the
+   library to create a Signal<Drawing>. This can easily be done by using the
+   reactive::signal::map function provided by the library. This works by
+   taking any function or function object that does not handle signal
+   parameters into a one that does.
+
+#+BEGIN_SRC C++
+   #include <reactive/reactive.h>
+
+   using std::chrono::milliseconds;
+   using reactive::Signal;
+
+   // Function that maps time to a drawing
+   Drawing draw(milliseconds time);
+
+   Signal<Drawing> getAnimation()
+   {
+      // Get the signal that represents time since stating the program.
+      Signal<milliseconds> time = reactive::signal::time();
+
+      // We map the time signal with the draw function. This will give us the
+      // animation we want.
+      Signal<Drawing> animation = reactive::signal::map(draw, time);
+
+      return animation;
+   }
+#+END_SRC
+
+   For simplicity our example here uses only one parameter but the map
+   function function can handle any number of parameters. When any of the
+   parameter signals change the function is evaluated and the resulting
+   signal value will change accordingly.
+
+   Now we have a function that gives us the animation we wanted. Now the
+   question is: how would you actually use this animation then. The Signal
+   provides a way to evaluate the state the signal is currently in, however
+   this is not really the way it is meant to be used. The library provides a
+   way to plug these signals into a window to actually display it to the
+   user. Evaluating the signal is something the framework will have to do,
+   not the library user.
+
+#+BEGIN_SRC C++
+   #include <reactive/reactive.h>
+
+   // Our vector drawing utility library for the avg::Drawing
+   #include <avg/drawing.h>
+
+   // Our function returning the animation
+   Signal<avg::Drawing> getAnimation();
+
+   int main()
+   {
+      // Create an application and add a single window to it.
+      return App()
+            .windows({
+                  window(
+                        reactive::signal::constant("Drawing app"),
+                        reactive::widget::drawing(getAnimation())
+                  )
+            })
+            .run(); // Run the application
+   }
+#+END_SRC
+
+   [[./docs/images/example02.png]]
+
+   Now that we have seen how to map signals from one type to another, we can
+   see different ways to create new signals. The easiest signal by far is the
+   signal::constant which, as the name suggests, is a constant. The value of
+   the signal will never change. Now the question really is why we actually
+   need this kind of signal. Isn't this just a cumbersome way to have a
+   normal value? The answer is that these constant signals are actually quite
+   handy as we see when we start mapping with functions taking multiple
+   parameters. The map function only takes signals in addition to the
+   function so it is often easier to use constant signals than creating
+   lambda with captures. So instead of writing this
+
+#+BEGIN_SRC C++
+   int mult(int a, int b)
+   {
+      return a * b;
+   }
+
+   Signal<int> myIntSignal = ...
+
+   auto mult10 = [](int a) { return a * 10; };
+
+   reactive::signal::map(mult10, myIntSignal);
+#+END_SRC
+
+   We can just write this
+
+#+BEGIN_SRC C++
+   reactive::signal::map(mult, signal::constant(10), myIntSignal);
+#+END_SRC
+
+   Another useful signal type is the input signal. The input signal is the
+   way to connect from the ordinary world to the FRP world by pushing values
+   into the signal. The reactive::signal::input() function can be used to
+   create a signal-handle pair where the handle is used to push values into
+   the signal.
+
+#+BEGIN_SRC C++
+   // Create input with initial value of 10. The type is automatically
+   // deduced to int but it is possible to give it in the template paramers.
+   auto input1 = reactive::signal::input(10);
+
+   // This is the same thing
+   auto input2 = reactive::signal::input<int>(20);
+
+   // Map the signals. We have to manually clone the signals to help reducing
+   // accidental copying of the signals.
+   reactive::Signal<int> product = reactive::signal::map(mult,
+      input1.signal.clone(), input2.signal.clone()
+      );
+
+   // input1.signal will evaluate to 5 on next frame.
+   input1.handle.set(5);
+#+END_SRC
+
+   The value of the input signal will only update on the next frame. Setting
+   the value multiple times during a frame does not cause multiple
+   evaluations. Signals are always bound to frame boundaries and the
+   evaluation only happens when frame changes from one to another.
+
+** Streams
+
+   A stream is similar to a signal but there are a few differencies between
+   them. As signals are always bound to frames the streams are not and
+   streams never drop values that are sent into them. Signals are very useful
+   for representing the state of the system whereas streams are useful for
+   modeling all kinds of events happening in the system. These events can be
+   events caused by the user, such as clicking an UI element or moving the
+   mouse. or completely synthetic events triggered by timers, etc.
+
+   Streams have two ends, the stream itself and the stream handle. Values are
+   pushed through the handle and read from the stream. The stream-handle pair
+   can be created with the reactive::stream::pipe() function. Unlike signals
+   the streams use push model to handle all the values in the stream. The
+   pushed values are not stored in the stream so there is no direct way to
+   read from the stream. However, there is a way to handle the value by
+   mapping the stream into another. Because of the push model the streams are
+   quite a bit simpler than the signals as streams do not require any kind of
+   framework for evaluation and they can be quite easily used by themselves.
+
+#+BEGIN_SRC C++
+   #include <reactive/reactive.h>
+
+   #include <iostream>
+
+   int main()
+   {
+      auto pipe = reactive::stream::pipe<int>();
+
+      // This will be evaluated whenever a new value is pushed into the
+      // handle, as long as we hold on to str. If the str is destructed the
+      // linkage is dropped and the function will no longer be evaluated.
+      auto str = pipe.stream.fmap([](int i)
+      {
+            std::cout << "Got value: " << i << std::endl;
+      });
+
+      // This will print "Got value: 10");
+      pipe.handle.push(10);
+
+      // This will print "Got value: 20");
+      pipe.handle.push(20);
+   }
+#+END_SRC
+
+   There are a couple of ways to use the streams with signals. The most
+   simple way is to use the reactive::stream::hold() function that will turn
+   the stream into a signal by simply creating a signal that will always
+   evaluate to the latest value put into the stream. Another one is to use
+   the reactive::stream::collect() that will, as the name suggests, collect
+   the values in to an std::vector. The created signal will then evaluate to
+   an std::vector containing all the values pushed since the previous frame.
+
+   The most interesting way to combine streams with signals is to use the
+   reactive::stream::iterate() which will iterate over the values in the
+   stream. The function used to iterate over will get the previous value for
+   the signal as well as any number of additional signals.
+
+#+BEGIN_SRC C++
+   auto pipe = reactive::stream::pipe<int>();
+
+   auto sig = reactive::stream::iterate(
+      [](int previous, int streamValue)
+      {
+            return previous + streamValue;
+      },
+      1 // the initial value
+      );
+
+   // On the next frame the sig will evaluate to 11
+   pipe.handle.push(10);
+
+   // On the next frame the sig will evaluate to 6
+   pipe.handle.push(-5j);
+#+END_SRC
+
+   The stream::iterate is one the most useful and most important things that
+   will be used to handle events and model state in the UIs created with this
+   toolkit.
+
+* Widgets
+
+  All the UI elements in this toolkits are modeled as Widgets. Technically
+  these widgets are just collections of relevant signals containing all the
+  information to display the widget, and handle input. Widgets are only ever
+  created by the framework and never by the library user. The most common
+  case is to use already made WidgetFactories and combine them using
+  different layouts. Getting WidgetFactory on the screen is very
+  straightforward.
+
+#+BEGIN_SRC C++
+  #include <reactive/widget/label.h>
+
+  WidgetFactory helloLabel()
+  {
+      return reactive::widget::label(signal::constant("Hello World");
+  }
+
+  // This will create window from the give widget factory.
+  reactive::Window makeWindow(WidgetFactory factory)
+  {
+      return window(
+            reactive::signal::constant("Hello world"), // Window title
+            factory
+      );
+  }
+
+  int main()
+  {
+      return App()
+            .windows({ makeWindow(helloLabel()) })
+            .run();
+}
+#+END_SRC
+
+  [[./docs/images/example01.png]]
+
+  The example above is extremely simple and not very useful but with minor
+  modifications we can add more functionality into it.
+
+#+BEGIN_SRC C++
+  // This will create a label, when clicked will call the onClick function.
+  WidgetFactory makeButton(std::string text, std::function<void()> onClick)
+  {
+      return reactive::widget::label(signal::constant(text))
+            | reactive::onClick(0, onClick) // 0 = left mouse button
+            ;
+  }
+
+  // This will create a WidgetFactory with '-' button, '+' button and
+  // label with a number. Clicking '+' will increase the number by one
+  // and '-' will decrease the number by one.
+  WidgetFactory makeAdder()
+  {
+      auto events = reactive::stream::pipe<int>();
+
+      Signal<int> state = reactive::stream::iterate(
+            [](int current, int stream)
+            {
+                  return current + stream;
+            }, 0, events.stream);
+
+      Signal<std::string> stateString = signal::map(
+              [](int i) { return std::to_string(i); },
+              state);
+
+      return reactive::hbox({
+            makeButton("-", reactive::send(-1, events.handle)),
+            reactive::widget::label(stateString),
+            makeButton("+", reactive::send(1, events.handle)),
+      });
+  }
+#+END_SRC
+
+  [[./docs/images/example03.png]]
+
