@@ -1,10 +1,9 @@
-incdir = include_directories('../../include')
 
-testapp1 = executable(
-        'testapp1',
+testapp1 = executable('testapp1',
+        'adder.cpp',
+        'spinner.cpp',
+        'testwidget.cpp',
         'main.cpp',
-        include_directories : incdir,
-        link_with : [libase, libavg],
-        dependencies : asedep
+        dependencies : [libbtldep, libasedep, libavgdep, libreactivedep]
         )
 

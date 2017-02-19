@@ -6,7 +6,5 @@ libbtldep = declare_dependency(
 subdir('ase')
 subdir('avg')
 subdir('reactive')
-#subdir('testapp1')
-#subdir('testapp2')
-subdir('testapp3')
+subdir('testapp1')
 
