@@ -290,7 +290,7 @@
 
   WidgetFactory helloLabel()
   {
-      return reactive::widget::label(signal::constant("Hello World");
+      return reactive::widget::label(signal::constant("Hello World"));
   }
 
   // This will create window from the give widget factory.
