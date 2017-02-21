@@ -29,14 +29,10 @@ reactive::WidgetFactory adder()
             signal::IndexSignal index) mutable
         -> WidgetFactory
     {
-        auto size = signal::input(ase::Vector2f(100, 100));
-
-        auto sizeStr = signal::map([](ase::Vector2f size,
-                    std::string const& data) -> std::string
+        auto str = signal::map([](std::string data) -> widget::TextEditState
                 {
-                    return data + "(" + std::to_string(size[0]) + ", "
-                        + std::to_string(size[1]) + ")";
-                }, size.signal, data);
+                    return widget::TextEditState(std::move(data));
+                }, data);
 
         auto remove = [collection](size_t index, ClickEvent const&) mutable
         {
@@ -47,16 +43,12 @@ reactive::WidgetFactory adder()
         auto textState = signal::input(widget::TextEditState(""));
 
         return hbox({
-                //widget::label(sizeStr),
-                widget::textEdit(textState.handle, std::move(sizeStr)),
-                //makeSpinner()
+                widget::textEdit(textState.handle, std::move(str)),
                 hfiller(),
                 widget::label(signal::constant("X"))
                 | widget::frame()
                 | onClick(1, signal::mapFunction(remove, index)),
                 })
-                | trackSize(size.handle)
-                //| widget::focusGroup()
                 ;
     };
 
@@ -98,7 +90,6 @@ reactive::WidgetFactory adder()
     return vbox({
             std::move(items) | widget::focusGroup(),
             hbox({std::move(textEdit), std::move(button)})
-            //| widget::focusGroup()
             })
             | widget::focusGroup()
             ;

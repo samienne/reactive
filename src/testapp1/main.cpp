@@ -31,13 +31,12 @@
 
 using namespace reactive;
 
-int main2()
+int main()
 {
-    auto textState = signal::input(widget::TextEditState{"Jepskuukkuu"});
+    auto textState = signal::input(widget::TextEditState{"Test123"});
 
-#if 1
     auto widgets = hbox({
-        widget::label(signal::constant("Jepskukkuu"))
+        widget::label(signal::constant("TestTest"))
             | widget::frame()
         , vbox({
                 uniformGrid(3, 3)
@@ -45,53 +44,27 @@ int main2()
                     .cell(1, 1, 1, 1, makeSpinner())
                     .cell(2, 2, 1, 1, makeSpinner())
                 , makeSpinner()
-                    | onPointerDown([](ase::PointerButtonEvent const& e) {
-                        std::cout << "Down: " << e << std::endl;
-                        })
-                    | onPointerUp([]() {
-                        std::cout << "Up" << std::endl;
-                        })
-                    | onClick(0, [](ClickEvent const&) {
-                        std::cout << "Click" << std::endl;
-                        })
                     | widget::frame()
-                , widget::label(signal::constant("kokkelis"))
+                , widget::label(signal::constant("AbcTest"))
                     | widget::frame()
                 , widget::textEdit(textState.handle, textState.signal)
-                //, w1
                 })
-        //, makeTestWidget()
-            //| widget::frame()
         , adder()
             | widget::frame()
     });
-#else
-    auto widgets = adder();
-    //auto widgets = makeTestWidget();
-#endif
 
     auto running = signal::input(true);
-
-    std::cout << "KeyboardInput size: " << sizeof(KeyboardInput) << std::endl;
-    std::cout << "Widget size: " << sizeof(Widget) << std::endl;
-    std::cout << "signal::InputHandle<bool> size: " <<
-        sizeof(btl::option<signal::InputHandle<bool>>) << std::endl;
 
     return App()
         .windows({
                 window(
-                    signal::constant("Functional test"),
+                    signal::constant("Test program"),
                     std::move(widgets)
-                    | debug::drawKeyboardInputs()
+                    //| debug::drawKeyboardInputs()
                     | widget::focusGroup()
                     )
                 .onClose(send(false, running.handle))
                 })
         .run(running.signal);
-}
-
-int main()
-{
-    return main2();
 }
 
