@@ -6,7 +6,6 @@
 #include <reactive/connection.h>
 
 #include <btl/pipable.h>
-#include <btl/invoke.h>
 #include <btl/option.h>
 #include <btl/demangle.h>
 #include <btl/apply.h>

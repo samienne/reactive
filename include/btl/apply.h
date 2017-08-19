@@ -1,8 +1,7 @@
 #pragma once
 
-#include "invoke.h"
-
 #include <tuple>
+#include <functional>
 
 namespace btl
 {
@@ -11,13 +10,13 @@ namespace btl
         template <typename TFunc, typename TTuple, size_t... S>
         auto apply_seq(TFunc&& f, TTuple&& data, std::index_sequence<S...>)
         -> decltype(
-                invoke(
+                std::invoke(
                     std::forward<TFunc>(f),
                     std::get<S>(std::forward<TTuple>(data))...
                     )
                 )
         {
-            return invoke(
+            return std::invoke(
                     std::forward<TFunc>(f),
                     std::get<S>(std::forward<TTuple>(data))...
                     );
