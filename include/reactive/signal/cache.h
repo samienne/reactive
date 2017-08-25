@@ -106,6 +106,12 @@ namespace reactive
         {
             return std::move(sig);
         }
+
+        template <typename T, typename U>
+        auto cache(signal2::Signal<T, U>&& sig)
+        {
+            return signal2::wrap(Cache<signal2::Signal<T, U>>(std::move(sig)));
+        }
     }
 }
 

@@ -108,20 +108,23 @@ TEST(signal, cacheOptimizations)
     };
 
     auto s1 = signal::cache(make());
-    static_assert(std::is_same<
+    bool same = std::is_same<
             decltype(s1),
             signal::Cache<signal2::Signal<std::string const&,
                 signal::Constant<std::string>>
-            >>::value, "");
+            >>::value;
+    EXPECT_TRUE(same);
 
     auto s2 = signal::share(make());
 
-    static_assert(std::is_same<
+    same = std::is_same<
             decltype(s2),
             signal::Share<signal::Cache<signal2::Signal<std::string const&,
                 signal::Constant<std::string>>>
             >
-            >::value, "");
+            >::value;
+
+    EXPECT_TRUE(same);
 }
 
 TEST(signal, shareOptimizations)

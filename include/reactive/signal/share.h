@@ -15,12 +15,15 @@ namespace reactive
         {
             struct Data
             {
-                Data(Cache<std::decay_t<TSignal>> sig) :
+                using SigType = std::decay_t<decltype(cache(std::declval<TSignal&&>()))>;
+
+                Data(SigType&& sig) :
                     signal_(std::move(sig))
                 {
                 }
 
-                Cache<std::decay_t<TSignal>> signal_;
+                SigType signal_;
+                //Cache<std::decay_t<TSignal>> signal_;
                 uint64_t frameId_ = 0;
                 uint64_t frameId2_ = 0;
             };
