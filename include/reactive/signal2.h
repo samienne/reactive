@@ -167,12 +167,12 @@ namespace reactive::signal2
 
         TSignal const& signal() const &
         {
-            return sig_;
+            return *sig_;
         }
 
         TSignal&& signal() &&
         {
-            return std::move(sig_);
+            return std::move(*sig_);
         }
 
     private:

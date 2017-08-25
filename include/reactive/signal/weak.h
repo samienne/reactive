@@ -1,5 +1,6 @@
 #pragma once
 
+#include "reactive/signal2.h"
 #include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
@@ -107,9 +108,9 @@ namespace reactive
         };
 
         template <typename T>
-        auto weak(Signal<T> const& sig) -> Weak<T>
+        auto weak(Signal<T> const& sig) // -> Weak<T>
         {
-            return Weak<T>(sig);
+            return signal2::wrap(Weak<T>(sig));
         }
     }
 }

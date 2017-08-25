@@ -3,6 +3,7 @@
 #include "frameinfo.h"
 #include "updateresult.h"
 
+#include <reactive/signal2.h>
 #include <reactive/signaltraits.h>
 #include <reactive/annotation.h>
 #include <reactive/connection.h>
@@ -166,14 +167,14 @@ namespace reactive
         auto tween(std::chrono::microseconds time, float initial,
                 TSignalValue value, TweenType type = TweenType::linear)
         {
-            return Tween<
+            return signal2::wrap(Tween<
                 std::decay_t<TSignalValue>
                     >(
                     time,
                     initial,
                     std::move(value),
                     type
-                    );
+                    ));
         }
     } // signal
 } // reactive

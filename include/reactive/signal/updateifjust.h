@@ -97,10 +97,12 @@ namespace reactive
         >
         auto updateIfJust(TSignal&& signal,
                 typename UpdateIfJust<TSignal>::ValueTypeDecayed initial)
-            -> UpdateIfJust<TSignal>
+            //-> UpdateIfJust<TSignal>
         {
-            return UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
-                    std::move(initial));
+            return signal2::wrap(
+                    UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
+                        std::move(initial))
+                    );
         }
     } // signal
 } // reactive

@@ -96,10 +96,11 @@ namespace reactive
             >
         >
         auto dropRepeats(TSignal signal)
-            -> DropRepeats<std::decay_t<TSignal>>
         {
-            return DropRepeats<std::decay_t<TSignal>>(
-                    std::move(signal));
+            return signal2::wrap(
+                    DropRepeats<std::decay_t<TSignal>>(
+                        std::move(signal))
+                    );
         }
 
         template <typename TSignal, typename = typename

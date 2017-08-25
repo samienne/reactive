@@ -174,7 +174,7 @@ TEST(InputSignal, inputChained)
     auto input2 = signal::input(10);
 
     auto sig1 = Signal<int>(std::move(input1.signal));
-    input2.handle.set(signal::weak(sig1));
+    input2.handle.set(signal::weak(sig1).signal());
 
     input1.handle.set(20);
 

@@ -174,7 +174,9 @@ namespace reactive
         {
             return Iterate<
                 std::decay_t<TFunc>,
-                signal::DropRepeats<std::decay_t<TInitial>>,
+                decltype(signal2::wrap(std::declval<
+                            signal::DropRepeats<std::decay_t<TInitial>>>()
+                            )),
                 T,
                 std::decay_t<TSignals>...
                 >(
