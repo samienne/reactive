@@ -1,22 +1,14 @@
 #pragma once
 
-#include "constant.h"
+#include "reactive/signal2.h"
 #include "reactive/signaltraits.h"
 
-#include <btl/all.h>
 
 namespace reactive
 {
     namespace signal
     {
-        template <typename TSignal/*, typename =
-            std::enable_if_t<
-                btl::All<
-                    IsSignal<TSignal>,
-                    IsSignal<SignalType<TSignal>>
-                >::value
-            >*/
-        >
+        template <typename TSignal>
         class Join
         {
         public:
@@ -131,21 +123,12 @@ namespace reactive
             bool changed_ = false;
         };
 
-        static_assert(IsSignal<Join<Constant<Constant<int>>>>::value,
-                "Join is not a signal");
-
-        template <typename TSignal, typename =
-            std::enable_if_t
-            <
-                btl::All
-                <
-                    IsSignal<TSignal>,
-                    IsSignal<SignalType<TSignal>>
-                >::value
+        template <typename T, typename U, typename = std::enable_if_t<
+            IsSignal<T>::value
             >>
-        auto join(TSignal sig) // -> Join<TSignal>
+        auto join(signal2::Signal<T, U> sig)
         {
-            return signal2::wrap(Join<std::decay_t<TSignal>>(std::move(sig)));
+            return signal2::wrap(Join<U>(std::move(sig).signal()));
         }
     }
 }

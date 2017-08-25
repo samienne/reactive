@@ -132,7 +132,7 @@ namespace reactive
         auto conditional(TCondition condition, TTrue t, TFalse f)
             //-> Conditional<TCondition, TTrue, TFalse>
         {
-            return Conditional<
+            return signal2::wrap(Conditional<
                 std::decay_t<TCondition>,
                 std::decay_t<TTrue>,
                 std::decay_t<TFalse>
@@ -140,7 +140,7 @@ namespace reactive
                     std::move(condition),
                     std::move(t),
                     std::move(f)
-                    );
+                    ));
         }
     } // signal
 } // reactive
