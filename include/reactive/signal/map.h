@@ -339,13 +339,14 @@ namespace signal
         <
             decltype(std::declval<TFunc>()(std::declval<TSigs>().evaluate()...))
         >>
-    constexpr Map<detail::MapBase, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...> map(TFunc&& func, TSigs... sigs)
+    constexpr /*Map<detail::MapBase, std::decay_t<TFunc>,
+    std::decay_t<TSigs>...>*/ auto map(TFunc&& func, TSigs... sigs)
     {
-        return Map<detail::MapBase, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
+        return signal2::wrap(
+                Map<detail::MapBase, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
-                );
+                ));
     }
 
     template <typename TFunc, typename... TSigs,
@@ -357,13 +358,14 @@ namespace signal
                 IsSignal<TSigs>...
             >::value
         >::type>
-    constexpr Map<detail::MapFunction, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...> mapFunction(TFunc&& func, TSigs... sigs)
+    constexpr /*Map<detail::MapFunction, std::decay_t<TFunc>,
+    std::decay_t<TSigs>...>*/ auto mapFunction(TFunc&& func, TSigs... sigs)
     {
-        return Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
-                std::forward<TFunc>(func),
-                std::move(sigs)...
-                );
+        return signal2::wrap(
+                Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
+                    std::forward<TFunc>(func),
+                    std::move(sigs)...
+                ));
     }
 
     namespace detail
