@@ -143,9 +143,9 @@ namespace reactive
                     IsSignal<SignalType<TSignal>>
                 >::value
             >>
-        auto join(TSignal sig) -> Join<TSignal>
+        auto join(TSignal sig) // -> Join<TSignal>
         {
-            return Join<std::decay_t<TSignal>>(std::move(sig));
+            return signal2::wrap(Join<std::decay_t<TSignal>>(std::move(sig)));
         }
     }
 }
