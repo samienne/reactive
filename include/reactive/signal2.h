@@ -165,6 +165,16 @@ namespace reactive::signal2
             return *this;
         }
 
+        TSignal const& signal() const &
+        {
+            return sig_;
+        }
+
+        TSignal&& signal() &&
+        {
+            return std::move(sig_);
+        }
+
     private:
         btl::CloneOnCopy<TSignal> sig_;
     };
@@ -262,6 +272,16 @@ namespace reactive::signal2
         Signal clone() const
         {
             return *this;
+        }
+
+        Signal const& signal() const &
+        {
+            return *this;
+        }
+
+        Signal&& signal() &&
+        {
+            return std::move(*this);
         }
 
     private:

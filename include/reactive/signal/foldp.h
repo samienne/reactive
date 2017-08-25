@@ -105,7 +105,7 @@ namespace reactive
                 std::decay_t<TSignal>
                 >*/
         {
-            return FoldP<
+            return signal2::wrap(FoldP<
                 std::decay_t<TFunc>,
                 std::decay_t<TValue>,
                 std::decay_t<TSignal>>
@@ -113,7 +113,7 @@ namespace reactive
                      std::move(func),
                      std::move(initial),
                      std::move(sig)
-                    );
+                    ));
         }
 
         namespace detail
@@ -181,6 +181,6 @@ namespace reactive
                        )
                  );
         }
-    }
-}
+    } // signal
+} // reactive
 
