@@ -1,3 +1,5 @@
+#pragma once
+
 #include "signal2.h"
 
 namespace reactive::signal2
@@ -22,6 +24,11 @@ namespace reactive::signal2
 
         SharedSignal& operator=(SharedSignal const&) = default;
         SharedSignal& operator=(SharedSignal&&) = default;
+
+        SharedSignal clone() const
+        {
+            return *this;
+        }
     };
 
     template <typename T, typename TSignal>

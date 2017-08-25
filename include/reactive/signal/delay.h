@@ -9,12 +9,12 @@ namespace reactive
 {
     namespace signal
     {
-        template <typename TSignal>
+        template <typename T, typename U>
         class Delay
         {
         public:
-            Delay(TSignal&& signal) :
-                signal_(std::forward<TSignal>(signal)),
+            Delay(signal2::Signal<T, U>&& signal) :
+                signal_(std::move(signal)),
                 values_({
                         btl::just(btl::clone(signal_->evaluate())),
                         btl::none
@@ -25,7 +25,7 @@ namespace reactive
             Delay(Delay&&) = default;
             Delay& operator=(Delay&&) = default;
 
-            std::decay_t<SignalType<TSignal>> const& evaluate() const
+            std::decay_t<T> const& evaluate() const
             {
                 return *values_[index_];
             }
@@ -72,7 +72,7 @@ namespace reactive
             Annotation annotate() const
             {
                 Annotation a;
-                auto&& n = a.addNode("delay<" + btl::demangle<TSignal>() + ">");
+                auto&& n = a.addNode("delay<" + btl::demangle<U>() + ">");
                 a.addTree(n, signal_->annotate());
                 return a;
             }
@@ -87,21 +87,19 @@ namespace reactive
             Delay& operator=(Delay const&) = default;
 
         private:
-            btl::CloneOnCopy<std::decay_t<TSignal>> signal_;
-            btl::option<std::decay_t<SignalType<TSignal>>> values_[2];
+            btl::CloneOnCopy<signal2::Signal<T, U>> signal_;
+            btl::option<std::decay_t<T>> values_[2];
             uint8_t index_ = 0;
             bool changed_ = false;
         };
 
-        static_assert(IsSignal<Delay<signal::Constant<int>>>::value, "");
+        static_assert(IsSignal<Delay<int const&, signal::Constant<int>>>::value,
+                "");
 
-        template <typename TSignal, typename = typename std::enable_if
-            <
-                IsSignal<TSignal>::value
-            >::type>
-        Delay<TSignal> delay(TSignal&& signal)
+        template <typename T, typename U>
+        auto delay(signal2::Signal<T, U> sig)
         {
-            return Delay<TSignal>(std::forward<TSignal>(signal));
+            return signal2::wrap(Delay<T, U>{ std::move(sig) });
         }
     } // signal
 } // reactive
