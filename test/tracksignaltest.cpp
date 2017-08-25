@@ -29,6 +29,9 @@ TEST(signalTrack, construct)
 
     auto s = signal::track(c);
 
+    bool isSignal = IsSignal<decltype(s)>::value;
+    EXPECT_TRUE(isSignal);
+
     EXPECT_FALSE(s.hasChanged());
 
     {
