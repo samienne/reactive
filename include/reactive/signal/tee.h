@@ -96,9 +96,9 @@ namespace reactive
     auto tee(TSignal sig, TMapFunc&& mapFunc,
             InputHandle<std::decay_t<decltype(
                 mapFunc(sig.evaluate()))>> handle)
-    -> Tee<SignalType<TSignal>,
+    /*-> Tee<SignalType<TSignal>,
         std::decay_t<decltype(mapFunc(sig.evaluate()))>
-        >
+        >*/
     //-> Signal<T>
     {
         auto s1 = makeSignal(std::move(sig));
@@ -108,13 +108,11 @@ namespace reactive
 
         handle.set(teeSig);
 
-        return Tee<
+        return signal2::wrap(Tee<
             SignalType<TSignal>,
             std::decay_t<decltype(mapFunc(sig.evaluate()))>
-            /*SignalType<
-                decltype(mapFunc(teeSig.evaluate()))
-                >*/
-            >(std::move(s1), std::move(teeSig));
+            >(std::move(s1), std::move(teeSig))
+            );
     }
 
 } // signal
