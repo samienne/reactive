@@ -21,6 +21,21 @@
 using namespace reactive;
 using us = std::chrono::microseconds;
 
+static_assert(IsSignal<
+        signal::Map<
+            signal::detail::MapBase, btl::Plus, signal::Constant<int>,
+            signal::Constant<int>
+            >
+        >::value, "");
+
+static_assert(std::is_same
+        <
+            int,
+            SignalValueType<signal::Map<signal::detail::MapBase, btl::Plus,
+                signal::Constant<int>, signal::Constant<int>>>::type
+        >::value, "");
+
+
 TEST(Map, tupleReduce)
 {
     auto and_ = [](bool a, bool b) -> bool

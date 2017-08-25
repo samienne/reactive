@@ -176,14 +176,9 @@ namespace signal
              typename TFunc, typename... TSigs>
     class Map final
     {
-        /*static_assert(AreSignals<TSigs...>::value,
-                "Signals need to be signals");*/
-
         using Base = TBase<TFunc>;
         using Apply = typename Base::Apply;
         using FuncType = typename std::decay<TFunc>::type;
-        /*using FuncReturnType = decltype(std::declval<Apply>()(
-                    std::declval<TSigs>().evaluate()...));*/
         using FuncReturnType = std::result_of_t<Apply(SignalType<TSigs>...)>;
 
         // If all signal value types are references our evaluation type can
@@ -314,16 +309,6 @@ namespace signal
         mutable detail::ChangedStatus changed_ = detail::ChangedStatus::unknown;
         mutable bool ready_ = true;
     };
-
-    static_assert(IsSignal<Map<detail::MapBase, btl::Plus, Constant<int>,
-            Constant<int>>>::value, "");
-
-    static_assert(std::is_same
-            <
-                int,
-                SignalValueType<Map<detail::MapBase, btl::Plus, Constant<int>,
-                    Constant<int>>>::type
-            >::value, "");
 
     template <typename TFunc, typename... TSigs, typename = std::enable_if_t
         <
