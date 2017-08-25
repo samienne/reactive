@@ -1,3 +1,5 @@
+#include <reactive/sharedsignal.h>
+#include <reactive/signal2.h>
 #include <reactive/signal/split.h>
 #include <reactive/signal/waitfor.h>
 #include <reactive/signal/constant.h>
@@ -12,6 +14,57 @@
 #include <iostream>
 
 using namespace reactive;
+
+TEST(signal, construct)
+{
+    auto s1 = signal2::wrap(signal::constant<std::string>("test"));
+    signal2::Signal<std::string const&> s2 = std::move(s1);
+    signal2::Signal<std::string> s3 = std::move(s2);
+
+    EXPECT_EQ("test", s3.evaluate());
+
+    auto s4 = s3.clone();
+
+    auto s5 = signal2::wrap(signal::constant(true));
+
+    static_assert(IsSignal<decltype(s1)>::value, "");
+    static_assert(IsSignal<decltype(s2)>::value, "");
+    static_assert(IsSignal<decltype(s3)>::value, "");
+    static_assert(IsSignal<decltype(s4)>::value, "");
+    static_assert(IsSignal<decltype(s5)>::value, "");
+}
+
+TEST(signal, clone)
+{
+    auto s1 = signal2::wrap(signal::constant<std::string>("test"));
+    signal2::Signal<std::string const&> s2 = s1.clone();
+    auto s3 = s2.clone();
+
+    auto s4 = signal2::wrap(s3.clone());
+
+    EXPECT_EQ("test", s3.evaluate());
+}
+
+TEST(signal, sharedCopy)
+{
+    auto s1 = signal2::wrap(signal::constant<std::string>("test"));
+    auto s2 = signal2::share2(std::move(s1));
+    auto s3 = s2;
+    Signal<std::string const&> s4 = s3;
+
+    auto s5 = signal2::share2(s3);
+
+    static_assert(std::is_same<decltype(s2), decltype(s3)>::value, "");
+    static_assert(std::is_same<decltype(s2), decltype(s5)>::value, "");
+
+    static_assert(IsSignal<decltype(s2)>::value, "");
+    static_assert(IsSignal<decltype(s2)>::value, "");
+    static_assert(IsSignal<decltype(s3)>::value, "");
+    static_assert(IsSignal<decltype(s4)>::value, "");
+    static_assert(IsSignal<decltype(s5)>::value, "");
+
+    EXPECT_EQ("test", s5.evaluate());
+}
 
 TEST(signal, waitFor)
 {
@@ -57,14 +110,17 @@ TEST(signal, cacheOptimizations)
     auto s1 = signal::cache(make());
     static_assert(std::is_same<
             decltype(s1),
-            signal::Cache<signal::Constant<std::string>>
-            >::value, "");
+            signal::Cache<signal2::Signal<std::string const&,
+                signal::Constant<std::string>>
+            >>::value, "");
 
     auto s2 = signal::share(make());
 
     static_assert(std::is_same<
             decltype(s2),
-            signal::Share<signal::Cache<signal::Constant<std::string>>>
+            signal::Share<signal::Cache<signal2::Signal<std::string const&,
+                signal::Constant<std::string>>>
+            >
             >::value, "");
 }
 
@@ -79,20 +135,26 @@ TEST(signal, shareOptimizations)
 
     static_assert(std::is_same<
             decltype(s),
-            signal::Share<signal::Constant<std::string>>
+            signal::Share<signal2::Signal<std::string const&,
+                signal::Constant<std::string>>
+            >
             >::value, "");
 
     auto s1 = signal::cache(make());
 
     static_assert(std::is_same<
             decltype(s1),
-            signal::Share<signal::Constant<std::string>>
+            signal::Share<signal2::Signal<std::string const&,
+                signal::Constant<std::string>>
+            >
             >::value, "");
 
     auto s2 = signal::share(make());
     static_assert(std::is_same<
             decltype(s2),
-            signal::Share<signal::Constant<std::string>>
+            signal::Share<signal2::Signal<std::string const&,
+                signal::Constant<std::string>>
+            >
             >::value, "");
 }
 

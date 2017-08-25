@@ -100,6 +100,22 @@ namespace reactive
             return Annotation();
         }
 
+        std::shared_ptr<signal::SignalBase<std::decay_t<T>>>
+            cloneDecayed() const override final
+        {
+            //return std::make_shared<TypedSignal<TSignal, std::decay_t<T>>>(
+                    //sig_.clone());
+            return nullptr;
+        }
+
+        std::shared_ptr<signal::SignalBase<std::decay_t<T> const& >>
+            cloneConstRef() const override final
+        {
+            //return std::make_shared<TypedSignal<TSignal, std::decay_t<T> const&>>(
+                    //sig_.clone());
+            return nullptr;
+        }
+
     private:
         TSignal sig_;
         uint64_t frameId_ = 0;

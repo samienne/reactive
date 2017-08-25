@@ -1,5 +1,7 @@
 #pragma once
 
+#include <reactive/signal2.h>
+
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
 
@@ -74,13 +76,13 @@ namespace reactive
                 "Constant is not a signal");
 
         template <typename T>
-        Constant<T> constant(T&& value)
+        auto constant(T&& value)
         {
-            return Constant<T>(std::forward<T>(value));
+            return signal2::wrap(Constant<T>(std::forward<T>(value)));
         }
 
         template <typename T>
-        Constant<std::vector<typename std::decay<T>::type>> constant(
+        /*Constant<std::vector<typename std::decay<T>::type>>*/ auto constant(
                 std::initializer_list<T> v)
         {
             return constant(std::vector<typename std::decay<T>::type>(v));
