@@ -170,7 +170,7 @@ namespace signal
         {
             using Apply = detail::ApplyPartialFunction<TFunc>;
         };
-    }
+    } // detail
 
     template <template <typename> class TBase,
              typename TFunc, typename... TSigs>
@@ -319,13 +319,8 @@ namespace signal
                         evaluate_t<TSigs>...
                         )>>
             >::value
-        >,
-        typename = btl::void_t
-        <
-            decltype(std::declval<TFunc>()(std::declval<TSigs>().evaluate()...))
         >>
-    constexpr /*Map<detail::MapBase, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...>*/ auto map(TFunc&& func, TSigs... sigs)
+    constexpr auto map(TFunc&& func, TSigs... sigs)
     {
         return signal2::wrap(
                 Map<detail::MapBase, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
@@ -343,8 +338,7 @@ namespace signal
                 IsSignal<TSigs>...
             >::value
         >::type>
-    constexpr /*Map<detail::MapFunction, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...>*/ auto mapFunction(TFunc&& func, TSigs... sigs)
+    constexpr  auto mapFunction(TFunc&& func, TSigs... sigs)
     {
         return signal2::wrap(
                 Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
