@@ -3,6 +3,7 @@
 #include "stream.h"
 
 #include "reactive/signaltraits.h"
+#include <reactive/signal2.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
@@ -138,7 +139,7 @@ namespace reactive
         template <typename T>
         auto collect(Stream<T> stream)
         {
-            return Collect<T>(std::move(stream));
+            return signal2::wrap(Collect<T>(std::move(stream)));
         }
     } // stream2
 } // reactive

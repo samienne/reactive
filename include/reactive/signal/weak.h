@@ -21,8 +21,9 @@ namespace reactive
             {
             }
 
-            Weak(Signal<T> const& sig) :
-                deferred_(sig.deferred_.ptr())
+            template <typename U>
+            Weak(signal2::SharedSignal<T, U> const& sig) :
+                deferred_(sig.sig_->weak())
             {
             }
 
@@ -107,8 +108,8 @@ namespace reactive
             std::weak_ptr<SignalBase<T>> deferred_;
         };
 
-        template <typename T>
-        auto weak(Signal<T> const& sig) // -> Weak<T>
+        template <typename T, typename U>
+        auto weak(signal2::SharedSignal<T, U> const& sig) // -> Weak<T>
         {
             return signal2::wrap(Weak<T>(sig));
         }

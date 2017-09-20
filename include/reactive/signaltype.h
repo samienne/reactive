@@ -14,6 +14,7 @@
 
 namespace reactive
 {
+#if 0
     namespace signal
     {
         template <typename T2> class Weak;
@@ -279,5 +280,6 @@ namespace reactive
 
     static_assert(std::is_nothrow_move_constructible<Signal<int>>::value, "");
     static_assert(IsSignal<Signal<int>>::value, "Signal<T> is not a signal");
-}
+#endif
+} // reactive
 

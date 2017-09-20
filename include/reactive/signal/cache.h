@@ -3,6 +3,7 @@
 #include "constant.h"
 #include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
+#include "reactive/signal2.h"
 
 #include <btl/spinlock.h>
 
@@ -85,8 +86,8 @@ namespace reactive
             bool changed_ = false;
         };
 
-        static_assert(IsSignal<Cache<Constant<int>>>::value,
-                "Cache is not a signal");
+        /*static_assert(IsSignal<Cache<Constant<int>>>::value,
+                "Cache is not a signal");*/
 
         template <typename TSignal, typename =
             std::enable_if
@@ -101,8 +102,8 @@ namespace reactive
             return Cache<std::decay_t<TSignal>>(std::move(sig));
         }
 
-        template <typename T>
-        auto cache(Cache<T> sig) -> Cache<T>
+        template <typename T, typename U>
+        auto cache(signal2::Signal<T, Cache<U>> sig)
         {
             return std::move(sig);
         }

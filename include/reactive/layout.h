@@ -108,9 +108,9 @@ namespace reactive
                         signal::map(obbMap, w.getSize(), hintsSignal));
 
             auto delegate = [obbs](
-                    Signal<btl::option<WidgetFactory>> factory,
-                    Signal<size_t> index) mutable
-                 -> Signal<btl::option<Widget>>
+                    signal2::Signal<btl::option<WidgetFactory>> factory,
+                    signal2::Signal<size_t> index) mutable
+                 -> signal2::Signal<btl::option<Widget>>
                 {
                     auto t = signal::map(pickTransform, obbs, index);
                     auto size = signal::map(pickSize, obbs, index);
@@ -171,7 +171,7 @@ namespace reactive
                     return factory.getSizeHint();
                 });
 
-        auto hintsSignal = signal::share(
+        auto hintsSignal = signal2::share2(
                 signal::combine(std::move(hints))
                 );
 
@@ -180,7 +180,7 @@ namespace reactive
                  (auto w)
             // -> Widget
         {
-            auto obbs = signal::share(
+            auto obbs = signal2::share2(
                         signal::map(obbMap, w.getSize(), hintsSignal));
 
             //std::vector<Widget> widgets;

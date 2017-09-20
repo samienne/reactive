@@ -36,6 +36,12 @@ static_assert(std::is_same
         >::value, "");
 
 
+TEST(Map, sharedSignalAsParam)
+{
+    auto s1 = signal2::share2(signal::constant(10));
+    auto s2 = signal::map([](int i) { return 2 * i; }, s1);
+}
+
 TEST(Map, tupleReduce)
 {
     auto and_ = [](bool a, bool b) -> bool
@@ -74,7 +80,7 @@ TEST(Map, Partial)
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
-    Signal<std::function<int(int)>> s1 = mapFunction(f, signal::constant(10));
+    signal2::Signal<std::function<int(int)>> s1 = mapFunction(f, signal::constant(10));
 
     //auto v1 = s1.evaluate();
 

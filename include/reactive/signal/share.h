@@ -1,123 +1,74 @@
 #pragma once
 
-#include "cache.h"
-#include "constant.h"
+#include "typed.h"
+#include "reactive/signal2.h"
+//#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/shared.h>
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
+
+    //static_assert(IsSignal<Share<signal::Typed<signal::Constant<int>, int>>>::value, "");
+    //static_assert(IsSignal<Share<SignalBase<int>>>::value, "");
+
+    /*
+    template <typename TSignal, typename = std::enable_if_t<
+        IsSignal<TSignal>::value
+        >>
+    Share<std::decay_t<TSignal>> share(TSignal signal)
     {
-        template <typename TSignal>
-        class Share
-        {
-            struct Data
-            {
-                using SigType = std::decay_t<decltype(cache(std::declval<TSignal&&>()))>;
+        return { std::move(signal) };
+    }
 
-                Data(SigType&& sig) :
-                    signal_(std::move(sig))
-                {
-                }
+    template <typename T>
+    auto share(Share<T> sig) -> Share<T>
+    {
+        return std::move(sig);
+    }
 
-                SigType signal_;
-                //Cache<std::decay_t<TSignal>> signal_;
-                uint64_t frameId_ = 0;
-                uint64_t frameId2_ = 0;
-            };
+    template <typename T>
+    auto cache(Share<T> sig) -> Share<T>
+    {
+        return std::move(sig);
+    }
+    */
 
-        public:
-            Share(TSignal sig) :
-                data_(std::make_shared<Data>(cache(std::move(sig))))
-            {
-            }
+    template <typename T, typename U>
+    auto share(signal2::Signal<T, U> sig)
+    {
+        return signal2::SharedSignal<T, U>::create(
+                Share<signal::Typed<U, T>>(
+                    std::make_shared<signal::Typed<U, T>>(std::move(sig))
+                    )
+                );
+    }
 
-            Share(Share const&) = default;
-            Share& operator=(Share const&) = default;
-            Share(Share&&) = default;
-            Share& operator=(Share&&) = default;
+    template <typename T, typename U>
+    auto share(signal2::Signal<T, Share<U>> sig)
+    {
+        return std::move(sig);
+    }
 
-            SignalType<TSignal> const& evaluate() const
-            {
-                return data_->signal_.evaluate();
-            }
+    template <typename T>
+    auto share(signal2::Signal<T, void> sig)
+    {
+        return std::move(sig);
+    }
 
-            bool hasChanged() const
-            {
-                return data_->signal_.hasChanged();
-            }
+    template <typename T, typename U>
+    auto share(signal2::SharedSignal<T, U> sig)
+    {
+        return std::move(sig);
+    }
 
-            UpdateResult updateBegin(FrameInfo const& frame)
-            {
-                if (data_->frameId_ == frame.getFrameId())
-                    return btl::none;
+    /*
+    template <typename T>
+    auto share(signal2::Signal<T> sig) -> signal2::Signal<T>
+    {
+        return std::move(sig);
+    }
+    */
+} // reactive::signal
 
-                data_->frameId_ = frame.getFrameId();
-
-                return data_->signal_.updateBegin(frame);
-            }
-
-            UpdateResult updateEnd(FrameInfo const& frame)
-            {
-                assert(data_->frameId_ == frame.getFrameId());
-
-                if (data_->frameId2_ == frame.getFrameId())
-                    return btl::none;
-
-                data_->frameId2_ = frame.getFrameId();
-
-                return data_->signal_.updateEnd(frame);
-            }
-
-            template <typename TFunc>
-            Connection observe(TFunc&& callback)
-            {
-                return data_->signal_.observe(std::forward<TFunc>(callback));
-            }
-
-            Annotation annotate() const
-            {
-                Annotation a;
-                return a;
-            }
-
-            Share clone() const
-            {
-                return *this;
-            }
-
-        private:
-            btl::shared<Data> data_;
-        };
-
-        static_assert(IsSignal<Share<signal::Constant<int>>>::value, "");
-
-        template <typename TSignal, typename = std::enable_if_t<
-            IsSignal<TSignal>::value
-            >>
-        Share<std::decay_t<TSignal>> share(TSignal signal)
-        {
-            return { std::move(signal) };
-        }
-
-        template <typename T>
-        auto share(Share<T> sig) -> Share<T>
-        {
-            return std::move(sig);
-        }
-
-        template <typename T>
-        auto cache(Share<T> sig) -> Share<T>
-        {
-            return std::move(sig);
-        }
-
-        template <typename T>
-        auto share(Signal<T> sig) -> Signal<T>
-        {
-            return std::move(sig);
-        }
-    } // signal
-} // reactive

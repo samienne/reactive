@@ -9,11 +9,13 @@
 
 #include <string>
 
-namespace reactive
+namespace reactive::widget
 {
-    namespace widget
+    WidgetFactory label(signal2::SharedSignal<std::string> text);
+
+    WidgetFactory label(signal2::Signal<std::string> text)
     {
-        WidgetFactory label(Signal<std::string> text);
+        return label(signal2::share2(std::move(text)));
     }
-}
+} // reactive::widget
 

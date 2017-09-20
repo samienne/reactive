@@ -6,6 +6,8 @@
 
 #include "reactive/signal/map.h"
 
+#include <reactive/signal2.h>
+
 #include <ase/keyevent.h>
 
 namespace reactive
@@ -16,8 +18,8 @@ namespace reactive
         {
         public:
             inline OnKeyEvent(
-                    Signal<std::function<bool(ase::KeyEvent const&)>> predicate,
-                    Signal<std::function<void(ase::KeyEvent const&)>> action) :
+                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>> predicate,
+                    signal2::Signal<std::function<void(ase::KeyEvent const&)>> action) :
                 predicate_(std::move(predicate)),
                 action_(std::move(action))
             {
@@ -31,9 +33,10 @@ namespace reactive
                 >::type>
             inline auto operator()(TWidgetFactory&& factory) const
             {
-                auto action = action_;
-                auto predicate = predicate_;
-                auto f = [action, predicate](auto widget) // -> Widget
+                auto action = btl::clone(action_);
+                auto predicate = btl::clone(predicate_);
+                auto f = [action=btl::clone(action_), predicate=btl::clone(predicate)]
+                    (auto widget) // -> Widget
                 {
                     auto g = [](
                         std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -83,7 +86,7 @@ namespace reactive
             }
 
             inline OnKeyEvent acceptIf(
-                    Signal<std::function<bool(ase::KeyEvent const&)>>
+                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>>
                     predicate) &&
             {
                 predicate_ = signal::mapFunction([](
@@ -105,7 +108,7 @@ namespace reactive
             }
 
             inline OnKeyEvent acceptIfNot(
-                    Signal<std::function<bool(ase::KeyEvent const&)>>
+                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>>
                     predicate) &&
             {
                 auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -128,7 +131,7 @@ namespace reactive
             }
 
             inline OnKeyEvent action(
-                    Signal<std::function<void(ase::KeyEvent const&)>> action) &&
+                    signal2::Signal<std::function<void(ase::KeyEvent const&)>> action) &&
             {
                 action_ = signal::mapFunction([](
                             std::function<void(ase::KeyEvent const&)> action1,
@@ -159,8 +162,8 @@ namespace reactive
             }
 
         private:
-            Signal<std::function<bool(ase::KeyEvent const&)>> predicate_;
-            Signal<std::function<void(ase::KeyEvent const&)>> action_;
+            signal2::Signal<std::function<bool(ase::KeyEvent const&)>> predicate_;
+            signal2::Signal<std::function<void(ase::KeyEvent const&)>> action_;
         };
 
         inline OnKeyEvent onKeyEvent()

@@ -64,7 +64,7 @@ namespace reactive
             return r;
         }
 
-        inline auto makeKeyboardInputs(Signal<avg::Obb> obb)
+        inline auto makeKeyboardInputs(signal2::Signal<avg::Obb> obb)
         {
             auto focus = signal::input(false);
             auto focusHandle = focus.handle;
@@ -130,11 +130,11 @@ namespace reactive
     }
 
     using WidgetBase = Wid<
-        Signal<avg::Drawing>,
-        Signal<std::vector<InputArea>>,
-        Signal<avg::Obb>,
-        Signal<std::vector<KeyboardInput>>,
-        Signal<widget::Theme>>;
+        signal2::Signal<avg::Drawing>,
+        signal2::Signal<std::vector<InputArea>>,
+        signal2::Signal<avg::Obb>,
+        signal2::Signal<std::vector<KeyboardInput>>,
+        signal2::Signal<widget::Theme>>;
 
     template <typename TSignalSize, typename = typename
         std::enable_if<
@@ -142,7 +142,7 @@ namespace reactive
         >::type>
     auto makeWidget(TSignalSize size) -> decltype(auto)
     {
-        auto obb = signal::share(signal::map([](avg::Vector2f size)
+        auto obb = signal2::share2(signal::map([](avg::Vector2f size)
                 {
                     return avg::Obb(size);
                 }, std::move(size)));
@@ -308,7 +308,7 @@ namespace reactive
             >>
         auto transform(TSignalTransform t) &&
         {
-            auto tr = signal::share(std::move(t));
+            auto tr = signal2::share2(std::move(t));
 
             auto drawing = signal::map([](avg::Drawing d, avg::Transform t)
                     -> avg::Drawing

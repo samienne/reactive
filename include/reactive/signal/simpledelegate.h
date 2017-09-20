@@ -30,9 +30,9 @@ namespace reactive
                 >
             >
             auto operator()(T&& t, IndexSignal index)
-                -> Signal<btl::option<typename std::decay<
+                -> signal2::Signal<btl::option<typename std::decay<
                     decltype(std::declval<TDelegate>()(
-                                std::declval<Signal<decltype(*t.evaluate())>>(),
+                                std::declval<signal2::Signal<decltype(*t.evaluate())>>(),
                                 index)
                             )
                     >::type>>

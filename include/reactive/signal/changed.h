@@ -15,8 +15,8 @@ namespace reactive
         class Changed
         {
         public:
-            Changed(Changed const&) = default;
-            Changed& operator=(Changed const&) = default;
+            Changed(Changed&&) = default;
+            Changed& operator=(Changed&&) = default;
 
             Changed(TSignal sig):
                 signal_(std::move(sig))
@@ -70,8 +70,8 @@ namespace reactive
             }
 
         private:
-            Changed(Changed&&) = default;
-            Changed& operator=(Changed&&) = default;
+            Changed(Changed const&) = default;
+            Changed& operator=(Changed const&) = default;
 
         private:
             TSignal signal_;
@@ -87,9 +87,9 @@ namespace reactive
                 IsSignal<TSignal>::value
             >::type>
         auto changed(TSignal&& sig)
-            -> Changed<typename std::decay<TSignal>::type>
+            -> Changed<std::decay_t<TSignal>>
         {
-            return Changed<typename std::decay<TSignal>::type>(
+            return Changed<std::decay_t<TSignal>>(
                     std::forward<TSignal>(sig));
         }
     }

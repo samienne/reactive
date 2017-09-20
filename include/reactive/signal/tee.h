@@ -5,7 +5,9 @@
 #include "inputhandle.h"
 #include "cache.h"
 #include "droprepeats.h"
+#include "removereference.h"
 
+#include "reactive/sharedsignal.h"
 #include "reactive/connection.h"
 #include "reactive/signaltraits.h"
 
@@ -20,7 +22,7 @@ namespace reactive
     class Tee
     {
     public:
-        Tee(Signal<T1> upstream, Signal<T2> tee) :
+        Tee(signal2::SharedSignal<T1> upstream, signal2::SharedSignal<T2> tee) :
             upstream_(upstream),
             tee_(tee)
         {
@@ -34,7 +36,7 @@ namespace reactive
         Tee(Tee&&) = default;
         Tee& operator=(Tee&&) = default;
 
-        auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
+        auto evaluate() const -> decltype(std::declval<signal2::Signal<T1>>().evaluate())
         {
             return upstream_.evaluate();
         }
@@ -74,8 +76,8 @@ namespace reactive
         }
 
     private:
-        Signal<T1> upstream_;
-        Signal<T2> tee_;
+        signal2::SharedSignal<T1> upstream_;
+        signal2::SharedSignal<T2> tee_;
     };
 
     static_assert(IsSignal<Tee<int, int>>::value, "Tee is not a signal");
@@ -83,7 +85,7 @@ namespace reactive
     template <typename TSignal>
     auto tee(TSignal upstream,
             InputHandle<signal_value_t<TSignal>> handle)
-    -> Signal<signal_value_t<TSignal>>
+    -> signal2::Signal<signal_value_t<TSignal>>
     {
         auto sig = removeReference(
                 makeSignal(tryDropRepeats((std::move(upstream))))
@@ -92,8 +94,8 @@ namespace reactive
         return std::move(sig);
     }
 
-    template <typename TSignal, typename TMapFunc>
-    auto tee(TSignal sig, TMapFunc&& mapFunc,
+    template <typename T, typename U, typename TMapFunc>
+    auto tee(signal2::Signal<T, U> sig, TMapFunc&& mapFunc,
             InputHandle<std::decay_t<decltype(
                 mapFunc(sig.evaluate()))>> handle)
     /*-> Tee<SignalType<TSignal>,
@@ -101,16 +103,17 @@ namespace reactive
         >*/
     //-> Signal<T>
     {
-        auto s1 = makeSignal(std::move(sig));
-        auto teeSig = removeReference(makeSignal(signal::tryDropRepeats(
-                    signal::map(std::forward<TMapFunc>(mapFunc), s1))
+        signal2::SharedSignal<T, void> s1 = signal2::share2(std::move(sig));
+        auto teeSig = signal2::share2(removeReference(signal::tryDropRepeats(
+                    signal::map(std::forward<TMapFunc>(mapFunc), s1.clone()))
                 ));
 
-        handle.set(teeSig);
+        handle.set(weak(teeSig));
 
         return signal2::wrap(Tee<
-            SignalType<TSignal>,
-            std::decay_t<decltype(mapFunc(sig.evaluate()))>
+            T,
+            SignalType<decltype(teeSig)>
+            //std::decay_t<decltype(mapFunc(sig.evaluate()))>
             >(std::move(s1), std::move(teeSig))
             );
     }

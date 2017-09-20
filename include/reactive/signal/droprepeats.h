@@ -89,26 +89,17 @@ namespace reactive
         static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
                 "DropRepeatsSignal is not a signal");
 
-        template <typename TSignal, typename =
-            std::enable_if_t
-            <
-                IsSignal<TSignal>::value
-            >
-        >
-        auto dropRepeats(TSignal signal)
+        template <typename T, typename U>
+        auto dropRepeats(signal2::Signal<T, U> signal)
         {
             return signal2::wrap(
-                    DropRepeats<std::decay_t<TSignal>>(
+                    DropRepeats<signal2::Signal<T, U>>(
                         std::move(signal))
                     );
         }
 
-        template <typename TSignal, typename = typename
-            std::enable_if
-            <
-                IsSignal<TSignal>::value
-            >::type>
-        auto tryDropRepeats(TSignal sig)
+        template <typename T, typename U>
+        auto tryDropRepeats(signal2::Signal<T, U> sig)
         -> decltype(dropRepeats(std::move(sig)))
         {
             return dropRepeats(std::move(sig));

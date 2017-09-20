@@ -176,7 +176,7 @@ TextEdit::operator WidgetFactory() const
         ;
 }
 
-TextEdit TextEdit::onEnter(Signal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(signal2::Signal<std::function<void()>> cb) &&
 {
     onEnter_.push_back(std::move(cb));
     return std::move(*this);
@@ -188,7 +188,7 @@ TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-        Signal<TextEditState> state)
+        signal2::Signal<TextEditState> state)
 {
     return TextEdit{std::move(handle), std::move(state), {}};
 }

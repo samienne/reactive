@@ -14,7 +14,7 @@
 
 namespace reactive { namespace widget {
 
-WidgetFactory label(Signal<std::string> text)
+WidgetFactory label(signal2::SharedSignal<std::string> text)
 {
     auto draw = [](avg::Obb const& obb, widget::Theme const& theme,
             std::string const& text) -> avg::Drawing

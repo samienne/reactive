@@ -1,5 +1,7 @@
 #pragma once
 
+#include <reactive/sharedsignal.h>
+#include <reactive/signal2.h>
 #include <reactive/signaltype.h>
 #include <reactive/signaltraits.h>
 
@@ -103,27 +105,21 @@ namespace reactive
             btl::CloneOnCopy<btl::decay_t<TSignals>> sigs_;
         };
 
-        static_assert(IsSignal<Combine<std::vector<Signal<int>>>>::value,
-                "CombineSignal is not a signal");
-
-        static_assert(IsSignal<Combine<std::tuple<Signal<int>>>>::value,
-                "CombineSignal is not a signal");
-
         template <typename T, typename = std::enable_if_t<
             IsSignal<T>::value
             >
         >
         auto combine(std::vector<T> signals)
-            -> Combine<std::vector<T>>
+            ///-> Combine<std::vector<T>>
         {
-            return Combine<std::vector<T>>(std::move(signals));
+            return signal2::wrap(Combine<std::vector<T>>(std::move(signals)));
         }
 
         template <typename... Ts>
         auto combine(std::tuple<Ts...> signals)
-            -> Combine<std::tuple<Ts...>>
+            //-> Combine<std::tuple<Ts...>>
         {
-            return Combine<std::tuple<Ts...>>(std::move(signals));
+            return signal2::wrap(Combine<std::tuple<Ts...>>(std::move(signals)));
         }
     } // signal
 } // reactive

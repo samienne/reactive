@@ -1,6 +1,8 @@
 #pragma once
 
 #include "signal/frameinfo.h"
+//#include "signal/share.h"
+#include "signal/typed.h"
 #include "signal/signalbase.h"
 #include "signaltraits.h"
 
@@ -15,89 +17,117 @@
 #include <mutex>
 #include <utility>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
-    template <typename TSignal, typename T>
-    class TypedSignal final : public signal::SignalBase<T>
+    template <typename T2> class Weak;
+
+    template <typename TDeferred>
+    class Share
     {
     public:
-        using Lock = std::lock_guard<btl::SpinLock>;
-
-        TypedSignal(TSignal&& sig) :
-            sig_(std::move(sig))
+        /*
+        Share(TSignal sig) :
+            control_(std::make_shared<Control>(cache(std::move(sig))))
+        {
+        }
+        */
+        Share(std::shared_ptr<TDeferred> deferred) :
+            control_(std::move(deferred))
         {
         }
 
-        ~TypedSignal()
+        Share(Share const&) = default;
+        Share& operator=(Share const&) = default;
+        Share(Share&&) = default;
+        Share& operator=(Share&&) = default;
+
+        auto evaluate() const -> decltype(std::declval<TDeferred>().evaluate())
         {
+            return control_->signal_.evaluate();
         }
 
-        T evaluate() const override final
+        bool hasChanged() const
         {
-            return sig_.evaluate();
+            return control_->signal_.hasChanged();
         }
 
-        bool hasChanged() const override final
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
-            return sig_.hasChanged();
-        }
-
-        btl::option<signal_time_t> updateBegin(signal::FrameInfo const& frame)
-            override final
-        {
-            if (frameId_ == frame.getFrameId())
+            if (control_->frameId_ == frame.getFrameId())
                 return btl::none;
 
-            frameId_ = frame.getFrameId();
-            return sig_.updateBegin(frame);
+            control_->frameId_ = frame.getFrameId();
+
+            return control_->signal_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
-            override final
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
-            assert(frameId_ == frame.getFrameId());
+            assert(control_->frameId_ == frame.getFrameId());
 
-            if (frameId2_ == frame.getFrameId())
+            if (control_->frameId2_ == frame.getFrameId())
                 return btl::none;
 
-            frameId2_ = frame.getFrameId();
-            return sig_.updateEnd(frame);
+            control_->frameId2_ = frame.getFrameId();
+
+            return control_->signal_.updateEnd(frame);
         }
 
-
-        btl::connection observe(
-                std::function<void()> const& callback) override final
+        template <typename TFunc>
+        Connection observe(TFunc&& callback)
         {
-            return sig_.observe(callback);
+            return control_->signal_.observe(std::forward<TFunc>(callback));
         }
 
-        Annotation annotate() const override final
+        Annotation annotate() const
         {
-            //return sig_.annotate();
-            return Annotation();
+            Annotation a;
+            return a;
         }
 
-        std::shared_ptr<signal::SignalBase<std::decay_t<T>>>
-            cloneDecayed() const override final
+        Share clone() const
         {
-            return std::make_shared<TypedSignal<TSignal, std::decay_t<T>>>(
-                    btl::clone(sig_));
+            return *this;
         }
 
-        std::shared_ptr<signal::SignalBase<std::decay_t<T> const& >>
-            cloneConstRef() const override final
+        using ValueType = decltype(std::declval<TDeferred>().evaluate());
+
+        auto cloneDecayed() const
         {
-            return std::make_shared<TypedSignal<TSignal, std::decay_t<T> const&>>(
-                    btl::clone(sig_));
+            return cloneDecayedWithType(*control_);
+        }
+
+        std::weak_ptr<SignalBase<ValueType>> weak() const
+        {
+            return control_;
         }
 
     private:
-        TSignal sig_;
-        uint64_t frameId_ = 0;
-        uint64_t frameId2_ = 0;
-    };
+        template <typename T, typename U>
+        static auto cloneDecayedWithType(signal::Typed<T, U> const& sig)
+        {
+            return std::make_shared<signal::Typed<Share, std::decay_t<U>>>(
+                    Share<signal::Typed<T, U>>(std::move(sig))
+                    );
+        }
 
-    template <typename T, typename TSignal>
+        template <typename T>
+        static auto cloneDecayedWithType(signal::SignalBase<T> const& sig)
+        {
+            return Share<SignalBase<std::decay_t<ValueType>>>(
+                    sig.cloneDecayed()
+                    );
+        }
+
+    private:
+        btl::shared<TDeferred> control_;
+    };
+} // reactive::signal
+
+namespace reactive::signal2
+{
+
+    template <typename T, typename TSignal = void>
     class SharedSignal;
 
     template <typename T, typename TSignal = void>
@@ -176,6 +206,7 @@ namespace reactive::signal2
         }
 
     private:
+        template <typename T2> friend class reactive::signal::Weak;
         btl::CloneOnCopy<TSignal> sig_;
     };
 
@@ -190,7 +221,9 @@ namespace reactive::signal2
         return { std::forward<TSignal>(sig) };
     }
 
-    template <typename T, typename TSignal>
+    template <typename T, typename TSignal, typename = std::enable_if_t<
+        IsSignal<TSignal>::value
+        >>
     auto wrap(Signal<T, TSignal>&& sig)
     {
         return std::move(sig);
@@ -213,16 +246,25 @@ namespace reactive::signal2
                 >::value
             >>
         Signal(Signal<U, TSignal>&& other) :
-            deferred_(std::make_shared<TypedSignal<
+            deferred_(std::make_shared<signal::Typed<
                     std::decay_t<TSignal>, T>>(std::move(*other.sig_)))
         {
         }
 
-        template <typename = std::enable_if_t<
-                std::is_same<T, std::decay_t<T>>::value
+        template <typename USignal>
+        Signal(SharedSignal<T, USignal> other) :
+            deferred_(std::move(other.deferred_))
+        {
+        }
+
+        template <typename U, typename = std::enable_if_t<
+            btl::All<
+                std::is_same<T, U>,
+                std::is_same<U, std::decay_t<U>>
+                >::value
             >>
         Signal(Signal<T const&, void>&& other) :
-            deferred_(other.deferred_->cloneDecayed())
+            deferred_(other.deferred_.cloneDecayed())
         {
         }
 
@@ -236,28 +278,28 @@ namespace reactive::signal2
 
         T evaluate() const
         {
-            return deferred_->evaluate();
+            return deferred_.evaluate();
         }
 
         bool hasChanged() const
         {
-            return deferred_->hasChanged();
+            return deferred_.hasChanged();
         }
 
         signal::UpdateResult updateBegin(signal::FrameInfo const& frame)
         {
-            return deferred_->updateBegin(frame);
+            return deferred_.updateBegin(frame);
         }
 
         signal::UpdateResult updateEnd(signal::FrameInfo const& frame)
         {
-            return deferred_->updateEnd(frame);
+            return deferred_.updateEnd(frame);
         }
 
         template <typename TCallback>
         btl::connection observe(TCallback&& callback)
         {
-            return deferred_->observe(std::forward<TCallback>(callback));
+            return deferred_.observe(std::forward<TCallback>(callback));
         }
 
         Annotation annotate() const
@@ -265,7 +307,7 @@ namespace reactive::signal2
             Annotation a;
             auto&& n = a.addNode("Signal<" + btl::demangle<T>()
                     + "> changed: " + std::to_string(hasChanged()));
-            a.addShared(deferred_.raw_ptr(), n, deferred_->annotate());
+            //a.addShared(deferred_.raw_ptr(), n, deferred_->annotate());
             return a;
         }
 
@@ -285,8 +327,17 @@ namespace reactive::signal2
         }
 
     private:
-        //template <typename T2> friend class signal::Weak;
-        btl::shared<signal::SignalBase<T>> deferred_;
+        template <typename T2> friend class reactive::signal::Weak;
+        //btl::shared<signal::SignalBase<T>> deferred_;
+        signal::Share<signal::SignalBase<T>> deferred_;
     };
-}
+
+    /*
+    template <typename T, typename U>
+    Signal<std::decay_t<T>, U> removeReference(Signal<T, U> sig)
+    {
+        return Signal<std::decay_t<T>, U>(std::move(sig));
+    }
+    */
+} // reactive::signal2
 

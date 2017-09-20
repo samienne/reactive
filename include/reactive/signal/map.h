@@ -2,6 +2,7 @@
 
 #include "constant.h"
 
+#include <reactive/signal2.h>
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
 
@@ -310,20 +311,20 @@ namespace signal
         mutable bool ready_ = true;
     };
 
-    template <typename TFunc, typename... TSigs, typename = std::enable_if_t
+    template <typename TFunc, typename... Ts, typename... Us, typename = std::enable_if_t
         <
             btl::All<
                 std::is_copy_constructible<std::decay_t<TFunc>>,
-                IsSignal<TSigs>...,
+                //IsSignal<TSigs>...,
                 btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(
-                        evaluate_t<TSigs>...
+                        Ts...
                         )>>
             >::value
         >>
-    constexpr auto map(TFunc&& func, TSigs... sigs)
+    constexpr auto map(TFunc&& func, signal2::Signal<Ts, Us>... sigs)
     {
         return signal2::wrap(
-                Map<detail::MapBase, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
+                Map<detail::MapBase, std::decay_t<TFunc>, signal2::Signal<Ts, Us>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
                 ));
@@ -338,7 +339,7 @@ namespace signal
                 IsSignal<TSigs>...
             >::value
         >::type>
-    constexpr  auto mapFunction(TFunc&& func, TSigs... sigs)
+    constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
     {
         return signal2::wrap(
                 Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(

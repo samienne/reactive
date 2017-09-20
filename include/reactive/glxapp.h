@@ -11,7 +11,7 @@ namespace reactive
     public:
         GlxApp();
         void addWindows(std::vector<Window> windows) override;
-        int run(Signal<bool> running) && override;
+        int run(signal2::Signal<bool> running) && override;
         int run() && override;
 
     private:

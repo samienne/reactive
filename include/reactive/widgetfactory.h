@@ -29,7 +29,7 @@ namespace reactive
     class WidFac;
 
     using FactoryMapWidget = std::function<Widget(Widget)>;
-    using WidgetFactoryBase = WidFac<std::tuple<WidgetMap>, Signal<SizeHint>>;
+    using WidgetFactoryBase = WidFac<std::tuple<WidgetMap>, signal2::Signal<SizeHint>>;
     struct WidgetFactory;
     using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
 
@@ -415,6 +415,9 @@ namespace reactive
             return std::move(widget)
                 .setObb(std::move(obb));
         };
+
+        WidgetMap wm(f);
+        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
 
         return mapWidget(f);
     }

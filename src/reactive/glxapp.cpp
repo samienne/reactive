@@ -55,7 +55,7 @@ public:
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(std::move(size_.signal))),
-        titleSignal_(window_.getTitle())
+        titleSignal_(window_.getTitle().clone())
     {
         glxWindow.setVisible(true);
         glxWindow.setTitle(titleSignal_.evaluate());
@@ -210,7 +210,7 @@ private:
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
     Widget widget_;
-    Signal<std::string> titleSignal_;
+    signal2::Signal<std::string> titleSignal_;
     RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
@@ -232,7 +232,7 @@ int GlxApp::run() &&
     return std::move(*this).run(std::move(running.signal));
 }
 
-int GlxApp::run(Signal<bool> running) &&
+int GlxApp::run(signal2::Signal<bool> running) &&
 {
     ase::GlxPlatform platform;
     ase::RenderContext& bgContext = platform.getDefaultContext();

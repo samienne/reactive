@@ -36,7 +36,7 @@ namespace btl
                 new (&value())T(rhs.value());
         }
 
-        option(option<T>&& rhs) :
+        option(option<T>&& rhs) noexcept:
             valid_(rhs.valid_)
         {
             if (rhs.valid_)

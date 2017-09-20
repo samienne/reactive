@@ -3,6 +3,7 @@
 #include "reactive/widgetfactory.h"
 #include "reactive/sizehint.h"
 
+#include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
 #include "reactive/signaltype.h"
 
@@ -46,16 +47,22 @@ namespace reactive
         struct TextEdit
         {
             operator WidgetFactory() const;
-            TextEdit onEnter(Signal<std::function<void()>> cb) &&;
+            TextEdit onEnter(signal2::Signal<std::function<void()>> cb) &&;
             TextEdit onEnter(std::function<void()> cb) &&;
 
+            template <typename T, typename U>
+            TextEdit onEnter(signal2::Signal<T, U> cb) &&
+            {
+                return onEnter(signal::cast<std::function<void()>>(std::move(cb)));
+            }
+
             signal::InputHandle<TextEditState> handle_;
-            Signal<TextEditState> state_;
-            std::vector<Signal<std::function<void()>>> onEnter_;
+            signal2::Signal<TextEditState> state_;
+            std::vector<signal2::Signal<std::function<void()>>> onEnter_;
         };
 
         TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-                Signal<TextEditState> state);
+                signal2::Signal<TextEditState> state);
     }
 }
 

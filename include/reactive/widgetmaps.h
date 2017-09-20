@@ -113,7 +113,7 @@ namespace reactive
                     btl::none));
     }
 
-    inline auto background(Signal<avg::Brush> brush)
+    inline auto background(signal2::Signal<avg::Brush> brush)
         // -> FactoryMap;
     {
         return onDrawBehind<avg::Vector2f>(
@@ -130,7 +130,7 @@ namespace reactive
                 });
     }
 
-    inline auto onPointerDown(Signal<
+    inline auto onPointerDown(signal2::Signal<
             std::function<void(ase::PointerButtonEvent const&)>
             > cb)
     {
@@ -163,8 +163,14 @@ namespace reactive
         return onPointerDown(signal::constant(std::move(cb)));
     }
 
-    inline auto onPointerUp(Signal<
-            std::function<void(ase::PointerButtonEvent const&)>> cb)
+    template <typename T, typename U, typename = std::enable_if_t<
+        std::is_convertible<
+            T,
+            std::function<void(ase::PointerButtonEvent const&)>
+        >::value
+        >>
+    inline auto onPointerUp(signal2::Signal<T, U> cb)
+            //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
             [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
@@ -245,8 +251,11 @@ namespace reactive
         return mapWidget(std::move(f));
     }
 
-    inline auto onClick(unsigned int button,
-            Signal<std::function<void(ClickEvent const&)>> cb)
+    template <typename T, typename U, typename = std::enable_if_t<
+        std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
+        >>
+    inline auto onClick(unsigned int button, signal2::Signal<T, U> cb)
+            //signal2::Signal<std::function<void(ClickEvent const&)>> cb)
     {
         auto f = [button](
                 std::function<void(ClickEvent const&)> const& cb,
@@ -259,7 +268,7 @@ namespace reactive
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
     }
 
-    inline auto onClick(unsigned int button, Signal<std::function<void()>> cb)
+    inline auto onClick(unsigned int button, signal2::Signal<std::function<void()>> cb)
     {
         auto f = [](std::function<void()> cb, ClickEvent const&)
         {
