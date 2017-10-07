@@ -12,7 +12,7 @@ namespace reactive
         <
             btl::IsCollectionType<TCollection, WidgetFactory>::value
         >::type>
-    WidgetFactory stack(Signal<std::vector<WidgetFactory>> widgets)
+    WidgetFactory stack(signal2::Signal<std::vector<WidgetFactory>> widgets)
     {
         auto obbMap = [](ase::Vector2f size,
                 std::vector<SizeHint> const& hints)

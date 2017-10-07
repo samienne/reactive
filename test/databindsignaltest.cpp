@@ -23,9 +23,9 @@ TEST(DataBindSignal, pushBackAndErase)
         w.push_back(3);
     }
 
-    auto s1 = signal::dataBind(c, [](Signal<btl::option<int>> data,
+    auto s1 = signal::dataBind(c, [](signal2::Signal<btl::option<int>> data,
                 signal::IndexSignal)
-            -> Signal<btl::option<std::string>>
+            -> signal2::Signal<btl::option<std::string>>
             {
                 return signal::map([](btl::option<int> data)
                         -> btl::option<std::string>
@@ -34,7 +34,7 @@ TEST(DataBindSignal, pushBackAndErase)
                             return btl::just("test" + std::to_string(*data));
                         return
                             btl::none;
-                    }, data);
+                    }, std::move(data));
             });
 
     auto v1 = s1.evaluate();
@@ -133,9 +133,9 @@ TEST(DataBindSignal, keepErased)
 
     auto keep = signal::input(true);
 
-    auto s1 = signal::dataBind(c, [keep](Signal<btl::option<int>> data,
+    auto s1 = signal::dataBind(c, [keep](signal2::Signal<btl::option<int>> data,
                 signal::IndexSignal)
-            -> Signal<btl::option<std::string>>
+            -> signal2::Signal<btl::option<std::string>>
             {
                 return signal::map([](btl::option<int> data, bool keep)
                         -> btl::option<std::string>
@@ -146,7 +146,7 @@ TEST(DataBindSignal, keepErased)
                             return btl::just(std::string("removed"));
                         else
                             return btl::none;
-                    }, data, btl::clone(keep.signal));
+                    }, std::move(data), btl::clone(keep.signal));
             });
 
 

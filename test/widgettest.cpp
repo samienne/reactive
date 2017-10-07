@@ -45,7 +45,7 @@ TEST(Widget, get)
     auto s = reactive::get<ase::Vector2f>(w);
 
     static_assert(std::is_assignable<
-                Signal<ase::Vector2f>,
+                signal2::Signal<ase::Vector2f>,
                 decltype(s)
             >::value,
             "");
@@ -53,7 +53,7 @@ TEST(Widget, get)
     auto k = reactive::get<std::vector<KeyboardInput>>(w);
 
     static_assert(std::is_assignable<
-                Signal<std::vector<KeyboardInput>>,
+                signal2::Signal<std::vector<KeyboardInput>>,
                 decltype(k)
             >::value,
             "");

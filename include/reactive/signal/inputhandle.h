@@ -38,10 +38,10 @@ namespace reactive
                     p->set(p->lock(), std::move(value));
             }
 
-            void set(signal2::Signal<T, Weak<T>> const& sig)
+            void set(signal2::Signal<T, Weak<T>> sig)
             {
                 if (auto p = deferred_.lock())
-                    p->set(p->lock(), sig);
+                    p->set(p->lock(), std::move(sig));
             }
 
             bool operator==(InputHandle const& rhs) const

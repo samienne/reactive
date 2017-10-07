@@ -172,11 +172,9 @@ namespace reactive
         auto iterate(TFunc func, TInitial initial, Stream<T> stream,
                 TSignals... signals)
         {
-            return Iterate<
+            return signal2::wrap(Iterate<
                 std::decay_t<TFunc>,
-                decltype(signal2::wrap(std::declval<
-                            signal::DropRepeats<std::decay_t<TInitial>>>()
-                            )),
+                decltype(signal2::wrap(signal::dropRepeats(std::declval<TInitial>()))),
                 T,
                 std::decay_t<TSignals>...
                 >(
@@ -184,7 +182,7 @@ namespace reactive
                     signal::dropRepeats(std::move(initial)),
                     std::move(stream),
                     std::move(signals)...
-                );
+                ));
         }
 
         template <typename TFunc, typename T, typename TInitial,
@@ -197,19 +195,20 @@ namespace reactive
         auto iterate(TFunc&& func, TInitial&& initial, Stream<T> stream,
                 TSignals... signals)
         -> decltype(
-             iterate(
+             signal2::wrap(iterate(
                     std::forward<TFunc>(func),
                     signal::constant(std::forward<TInitial>(initial)),
                     std::move(stream),
                     std::move(signals)...
-                    ))
+                    )))
         {
-            return iterate(
-                    std::forward<TFunc>(func),
-                    signal::constant(std::forward<TInitial>(initial)),
-                    std::move(stream),
-                    std::move(signals)...
-                    );
+            return signal2::wrap(
+                    iterate(
+                        std::forward<TFunc>(func),
+                        signal::constant(std::forward<TInitial>(initial)),
+                        std::move(stream),
+                        std::move(signals)...
+                    ));
         }
     } // stream
 } // reactive

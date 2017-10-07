@@ -1,11 +1,14 @@
-#include <reactive/sharedsignal.h>
-#include <reactive/signal2.h>
+#include <reactive/signal/cache.h>
+#include <reactive/signal/convert.h>
 #include <reactive/signal/weak.h>
 #include <reactive/signal/split.h>
 #include <reactive/signal/combine.h>
 #include <reactive/signal/waitfor.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>
+#include <reactive/signal/removereference.h>
+#include <reactive/sharedsignal.h>
+#include <reactive/signal2.h>
 
 #include <btl/delayed.h>
 #include <btl/always.h>
@@ -61,11 +64,11 @@ TEST(signal, clone)
 TEST(signal, sharedCopy)
 {
     auto s1 = signal2::wrap(signal::constant<std::string>("test"));
-    auto s2 = signal2::share2(std::move(s1));
+    auto s2 = signal::share(std::move(s1));
     auto s3 = s2;
     signal2::Signal<std::string const&> s4 = s3;
 
-    auto s5 = signal2::share2(s3);
+    auto s5 = signal::share(s3);
 
     static_assert(std::is_same<decltype(s2), decltype(s3)>::value, "");
     static_assert(std::is_same<decltype(s2), decltype(s5)>::value, "");
@@ -119,27 +122,26 @@ TEST(signal, cacheOptimizations)
 {
     auto make = []()
     {
-        return signal::cache(signal::constant(std::string("test")));
+        return signal::cache(signal::removeReference(
+                    signal::constant(std::string("test"))
+                    ));
     };
 
     auto s1 = signal::cache(make());
-    bool same = std::is_same<
-            decltype(s1),
-            signal::Cache<signal2::Signal<std::string const&,
-                signal::Constant<std::string>>
-            >>::value;
-    EXPECT_TRUE(same);
 
-    auto s2 = signal::share(make());
+    auto s2 = signal::cache(std::move(s1));
 
-    same = std::is_same<
-            decltype(s2),
-            signal::Share<signal::Cache<signal2::Signal<std::string const&,
-                signal::Constant<std::string>>>
-            >
-            >::value;
+    static_assert(std::is_same<decltype(s1), decltype(s2)>::value, "");
+}
 
-    EXPECT_TRUE(same);
+TEST(signal, cacheOptimizations2)
+{
+    auto s1 = signal::cache(signal::constant<std::string>("test"));
+
+    static_assert(std::is_same<
+            std::decay_t<decltype(s1.signal())>,
+            signal::Constant<std::string>>::value,
+            "");
 }
 
 TEST(signal, shareOptimizations)
@@ -151,36 +153,34 @@ TEST(signal, shareOptimizations)
 
     auto s = make();
 
-    static_assert(std::is_same<
-            decltype(s),
-            signal::Share<signal2::Signal<std::string const&,
-                signal::Constant<std::string>>
-            >
-            >::value, "");
+    auto s1 = signal::share(make());
 
-    auto s1 = signal::cache(make());
+    auto s2 = signal::share(s1);
 
-    static_assert(std::is_same<
-            decltype(s1),
-            signal::Share<signal2::Signal<std::string const&,
-                signal::Constant<std::string>>
-            >
-            >::value, "");
+    static_assert(std::is_same<decltype(s1), decltype(s1)>::value, "");
+}
 
-    auto s2 = signal::share(make());
-    static_assert(std::is_same<
-            decltype(s2),
-            signal::Share<signal2::Signal<std::string const&,
-                signal::Constant<std::string>>
-            >
-            >::value, "");
+template <typename T, typename U>
+auto asdf(signal2::Signal<T, U> s)
+{
+    return std::move(s);
+}
+
+template <typename T>
+auto asdf2(signal2::Signal<T> s)
+{
+    return std::move(s);
 }
 
 TEST(signal, typedSharedSignalIsASignal)
 {
-    signal2::SharedSignal<int const&, signal::Constant<int>> s1 =
-        signal2::share2(signal::constant(10));
-    signal2::Signal<int const&, signal::Constant<int>> s2 = s1;
+    //signal2::SharedSignal<int const&, signal::Cache<signal::Constant<int>>>
+    auto s1 = signal::share(signal::constant(10));
+    auto s2 = asdf(s1);
+
+    auto s3 = asdf2<int const&>(s1);
+
+    //signal2::Signal<int const&, signal::Constant<int>> s3 = s1;
 
     s2.evaluate();
 }
@@ -213,6 +213,14 @@ TEST(signal, weakConstruct)
 {
     signal2::SharedSignal<int const&> s1 = signal::share(signal::constant(10));
     auto s2 = signal::weak(s1);
+
+    s2.evaluate();
+}
+
+TEST(signal, Convert)
+{
+    auto s1 = signal::constant([](){});
+    signal::Convert<std::function<void()>> s2(std::move(s1));
 
     s2.evaluate();
 }

@@ -44,7 +44,7 @@ namespace reactive
         >
         auto margin(TSignalAmount amount)
         {
-            auto a = signal2::share2(std::move(amount));
+            auto a = signal::share(std::move(amount));
             auto aNeg = signal::map([](float f)
                     {
                         return -f;

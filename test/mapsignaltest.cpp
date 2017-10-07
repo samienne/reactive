@@ -1,4 +1,5 @@
 #include <reactive/signal/map.h>
+#include <reactive/signal/cast.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>
@@ -80,7 +81,8 @@ TEST(Map, Partial)
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
-    signal2::Signal<std::function<int(int)>> s1 = mapFunction(f, signal::constant(10));
+    signal2::Signal<std::function<int(int)>> s1 =
+        signal::cast<std::function<int(int)>>(mapFunction(f, signal::constant(10)));
 
     //auto v1 = s1.evaluate();
 

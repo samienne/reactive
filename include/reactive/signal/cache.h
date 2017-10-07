@@ -24,8 +24,8 @@ namespace reactive
             }
 
         private:
-            Cache(Cache const&) = delete;
-            Cache& operator=(Cache const&) = delete;
+            Cache(Cache const&) = default;
+            Cache& operator=(Cache const&) = default;
 
         public:
             Cache(Cache&&) = default;
@@ -89,21 +89,8 @@ namespace reactive
         /*static_assert(IsSignal<Cache<Constant<int>>>::value,
                 "Cache is not a signal");*/
 
-        template <typename TSignal, typename =
-            std::enable_if
-            <
-                btl::All<
-                    IsSignal<TSignal>,
-                    btl::IsClonable<SignalType<TSignal>>
-                >::value
-            >>
-        auto cache(TSignal sig) -> Cache<std::decay_t<TSignal>>
-        {
-            return Cache<std::decay_t<TSignal>>(std::move(sig));
-        }
-
         template <typename T, typename U>
-        auto cache(signal2::Signal<T, Cache<U>> sig)
+        auto cache(signal2::Signal<T const&, U>&& sig)
         {
             return std::move(sig);
         }
@@ -111,8 +98,8 @@ namespace reactive
         template <typename T, typename U>
         auto cache(signal2::Signal<T, U>&& sig)
         {
-            return signal2::wrap(Cache<signal2::Signal<T, U>>(std::move(sig)));
+            return signal2::wrap(Cache<U>(std::move(sig).signal()));
         }
-    }
-}
+    } // signal
+} // reactive
 

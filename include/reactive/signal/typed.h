@@ -4,11 +4,17 @@
 
 namespace reactive::signal
 {
-    template <typename TSignal, typename T>
+    template <typename T, typename TSignal>
     class Typed final : public signal::SignalBase<T>
     {
     public:
         using Lock = std::lock_guard<btl::SpinLock>;
+
+        static_assert(
+                !std::is_reference<T>::value
+                || ( std::is_reference<T>::value
+                    && std::is_reference<SignalType<TSignal>>::value),
+                "");
 
         Typed(TSignal&& sig) :
             sig_(std::move(sig))
@@ -64,19 +70,23 @@ namespace reactive::signal
             return Annotation();
         }
 
+        /*
         std::shared_ptr<signal::SignalBase<std::decay_t<T>>>
             cloneDecayed() const override final
         {
-            return std::make_shared<Typed<TSignal, std::decay_t<T>>>(
+            return std::make_shared<Typed<std::decay_t<T>, TSignal>>(
                     btl::clone(sig_));
         }
+        */
 
+        /*
         std::shared_ptr<signal::SignalBase<std::decay_t<T> const& >>
             cloneConstRef() const override final
         {
-            return std::make_shared<Typed<TSignal, std::decay_t<T> const&>>(
+            return std::make_shared<Typed<std::decay_t<T> const&, TSignal>>(
                     btl::clone(sig_));
         }
+        */
 
     private:
         TSignal sig_;

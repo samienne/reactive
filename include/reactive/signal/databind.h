@@ -61,18 +61,20 @@ namespace reactive
         private:
             struct Sig
             {
-                typename std::decay<decltype(
-                        cache(std::declval<DelegateReturnType>()))>::type sig;
+                std::decay_t<decltype(
+                        cache(std::declval<DelegateReturnType>()))> sig;
                 InputHandle<size_t> indexHandle;
                 bool alive;
             };
 
         public:
-            DataBindPrivate(TDelegate delegate, TCollection collection) :
+            DataBindPrivate(TDelegate delegate, TCollection collection):
                 delegate_(std::move(delegate)),
                 collection_(std::move(collection)),
                 collectionChanged_(false)
             {
+#warning asdf
+                /*
                 size_t n = 0;
                 for (auto const& item : btl::reader(collection_))
                 {
@@ -98,6 +100,7 @@ namespace reactive
                 connection_ = btl::observe(collection_, std::bind(
                             &DataBindPrivate::onCollectionChanged,
                             this, std::placeholders::_1));
+                */
             }
 
             std::vector<DelegateValueType> evaluate()
@@ -155,6 +158,9 @@ namespace reactive
 
             UpdateResult updateEnd(FrameInfo const& frame)
             {
+                return btl::none;
+#warning asdf
+                /*
                 UpdateResult r = btl::none;
 
                 for (auto&& sig : signals_)
@@ -176,6 +182,7 @@ namespace reactive
                     updateHandles();
 
                 return r;
+                */
             }
 
             template <typename TCallback>
@@ -261,7 +268,7 @@ namespace reactive
             }
 
             void handleCollectionEvent(
-                    btl::persistent_collection_event<ItemType> const& e)
+                    btl::persistent_collection_event<ItemType> const& e); /*
             {
                 eraseIndices(handles_, e.removed);
 
@@ -318,7 +325,7 @@ namespace reactive
 
                 for (auto&& v : e.updated)
                     handles_[v.first].set(btl::just(v.second));
-            }
+            }*/
 
         private:
             friend class DataBind<TDelegate, TCollection>;

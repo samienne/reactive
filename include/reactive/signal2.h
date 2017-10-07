@@ -21,7 +21,7 @@ namespace reactive::signal
 {
     template <typename T2> class Weak;
 
-    template <typename TDeferred>
+    template <typename T, typename TDeferred>
     class Share
     {
     public:
@@ -41,42 +41,30 @@ namespace reactive::signal
         Share(Share&&) = default;
         Share& operator=(Share&&) = default;
 
-        auto evaluate() const -> decltype(std::declval<TDeferred>().evaluate())
+        T evaluate() const// -> decltype(std::declval<TDeferred>().evaluate())
         {
-            return control_->signal_.evaluate();
+            return control_->evaluate();
         }
 
         bool hasChanged() const
         {
-            return control_->signal_.hasChanged();
+            return control_->hasChanged();
         }
 
         UpdateResult updateBegin(FrameInfo const& frame)
         {
-            if (control_->frameId_ == frame.getFrameId())
-                return btl::none;
-
-            control_->frameId_ = frame.getFrameId();
-
-            return control_->signal_.updateBegin(frame);
+            return control_->updateBegin(frame);
         }
 
         UpdateResult updateEnd(FrameInfo const& frame)
         {
-            assert(control_->frameId_ == frame.getFrameId());
-
-            if (control_->frameId2_ == frame.getFrameId())
-                return btl::none;
-
-            control_->frameId2_ = frame.getFrameId();
-
-            return control_->signal_.updateEnd(frame);
+            return control_->updateEnd(frame);
         }
 
         template <typename TFunc>
         Connection observe(TFunc&& callback)
         {
-            return control_->signal_.observe(std::forward<TFunc>(callback));
+            return control_->observe(std::forward<TFunc>(callback));
         }
 
         Annotation annotate() const
@@ -92,32 +80,46 @@ namespace reactive::signal
 
         using ValueType = decltype(std::declval<TDeferred>().evaluate());
 
+        /*
         auto cloneDecayed() const
         {
             return cloneDecayedWithType(*control_);
         }
+        */
 
         std::weak_ptr<SignalBase<ValueType>> weak() const
         {
-            return control_;
+            return control_.ptr();
+        }
+
+        std::shared_ptr<SignalBase<ValueType>> ptr() const &
+        {
+            return control_.ptr();
+        }
+
+        std::shared_ptr<SignalBase<ValueType>> ptr() &&
+        {
+            return std::move(control_.ptr());
         }
 
     private:
-        template <typename T, typename U>
-        static auto cloneDecayedWithType(signal::Typed<T, U> const& sig)
+        /*
+        template <typename V, typename U>
+        static auto cloneDecayedWithType(signal::Typed<V, U> const& sig)
         {
-            return std::make_shared<signal::Typed<Share, std::decay_t<U>>>(
-                    Share<signal::Typed<T, U>>(std::move(sig))
+            return std::make_shared<signal::Typed<std::decay_t<V>, Share>>(
+                    Share<V, signal::Typed<V, U>>(std::move(sig))
                     );
         }
 
-        template <typename T>
-        static auto cloneDecayedWithType(signal::SignalBase<T> const& sig)
+        template <typename U>
+        static auto cloneDecayedWithType(signal::SignalBase<U> const& sig)
         {
-            return Share<SignalBase<std::decay_t<ValueType>>>(
+            return Share<std::decay_t<ValueType>, SignalBase<std::decay_t<ValueType>>>(
                     sig.cloneDecayed()
                     );
         }
+        */
 
     private:
         btl::shared<TDeferred> control_;
@@ -136,14 +138,49 @@ namespace reactive::signal2
     public:
         template <typename U, typename V> friend class Signal;
 
+        using NestedSignalType = TSignal;
+
         Signal(TSignal sig) :
             sig_(std::move(sig))
         {
         }
 
-        template <typename USignal>
-        Signal(SharedSignal<T, USignal> other) :
-            sig_(std::move(other.sig_))
+        Signal(SharedSignal<T, TSignal>&& other) :
+            sig_(std::move(other).signal())
+        {
+        }
+
+        Signal(SharedSignal<T, TSignal>& other) :
+            sig_(btl::clone(other.signal()))
+        {
+        }
+
+        Signal(SharedSignal<T, TSignal> const& other) :
+            sig_(btl::clone(other.signal()))
+        {
+        }
+
+        template <typename USignal, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            >>
+        Signal(SharedSignal<T, USignal> const& other) :
+            sig_(btl::clone(other.signal()))
+        {
+        }
+
+        template <typename USignal, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            >>
+        Signal(SharedSignal<T, USignal>&& other) :
+            sig_(std::move(other).signal())
+        {
+        }
+
+        template <typename USignal, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            >>
+        Signal(SharedSignal<T, USignal>& other) :
+            sig_(other.signal())
         {
         }
 
@@ -229,11 +266,40 @@ namespace reactive::signal2
         return std::move(sig);
     }
 
+    template <typename V, typename T, typename U>
+    auto typed(Signal<T, U> sig)
+    {
+        return //signal::Share<V, signal::Typed<V, U>>(
+                std::make_shared<signal::Typed<V, U>>(std::move(sig).signal());
+                //);
+    }
+
+    template <typename U, typename T>
+    auto typed(Signal<T, void> sig)
+    {
+        /*
+        return signal::Share<U, signal::Typed<U, signal::SignalBase<T>>>(
+                std::move(sig).getDeferredSignalBase().ptr()
+                );
+                */
+        return typed<U>(wrap(signal::Share<T, signal::Typed<T, Signal<T>>>(
+                    std::make_shared<signal::Typed<T, Signal<T>>>(std::move(sig)))
+                ));
+    }
+
+    template <typename T>
+    auto typed(Signal<T, void> sig)
+    {
+        return sig.getDeferredSignalBase();
+    }
+
     template <typename T>
     class Signal<T, void>
     {
     public:
         template <typename U, typename V> friend class Signal;
+
+        using NestedSignalType = void;
 
         template <typename U, typename TSignal, typename =
             std::enable_if_t<
@@ -246,17 +312,21 @@ namespace reactive::signal2
                 >::value
             >>
         Signal(Signal<U, TSignal>&& other) :
+            /*
             deferred_(std::make_shared<signal::Typed<
-                    std::decay_t<TSignal>, T>>(std::move(*other.sig_)))
+                    T, TSignal>>(std::move(other).signal()))
+                    */
+            deferred_(typed<T>(std::move(other)))
         {
         }
 
         template <typename USignal>
         Signal(SharedSignal<T, USignal> other) :
-            deferred_(std::move(other.deferred_))
+            deferred_(std::move(other).signal().ptr())
         {
         }
 
+        /*
         template <typename U, typename = std::enable_if_t<
             btl::All<
                 std::is_same<T, U>,
@@ -267,6 +337,7 @@ namespace reactive::signal2
             deferred_(other.deferred_.cloneDecayed())
         {
         }
+        */
 
     protected:
         Signal(Signal const&) = default;
@@ -316,20 +387,24 @@ namespace reactive::signal2
             return *this;
         }
 
-        Signal const& signal() const &
+        signal::Share<T, signal::SignalBase<T>> const& signal() const &
         {
-            return *this;
+            return deferred_;
         }
 
-        Signal&& signal() &&
+        signal::Share<T, signal::SignalBase<T>>&& signal() &&
         {
-            return std::move(*this);
+            return std::move(deferred_);
+        }
+
+        signal::Share<T, signal::SignalBase<T>> getDeferredSignalBase() &&
+        {
+            return std::move(deferred_);
         }
 
     private:
         template <typename T2> friend class reactive::signal::Weak;
-        //btl::shared<signal::SignalBase<T>> deferred_;
-        signal::Share<signal::SignalBase<T>> deferred_;
+        signal::Share<T, signal::SignalBase<T>> deferred_;
     };
 
     /*
@@ -340,4 +415,13 @@ namespace reactive::signal2
     }
     */
 } // reactive::signal2
+
+namespace reactive::signal
+{
+    template <typename T, typename U>
+    auto makeSignal(signal2::Signal<T, U> sig)
+    {
+        return signal2::Signal<T, void>(std::move(sig));
+    }
+} // reactive::signal
 

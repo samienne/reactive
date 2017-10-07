@@ -1,6 +1,8 @@
 #pragma once
 
 #include "any.h"
+#include "all.h"
+#include "not.h"
 #include "voidt.h"
 
 #include <functional>
@@ -57,5 +59,16 @@ namespace btl
         btl::remove_reference_t<T>,
         btl::remove_reference_t<U>
     > {};
+
+    template <typename T, typename U>
+    using IsSimilar = std::is_same<std::decay_t<T>, std::decay_t<U>>;
+
+    template <typename TFrom, typename TTo>
+    using IsSafelyConvertable = All<
+        std::is_convertible<TFrom, TTo>,
+        Any<
+            All<std::is_reference<TFrom>, std::is_reference<TTo>>,
+            Not<std::is_reference<TTo>>
+        >>;
 }
 

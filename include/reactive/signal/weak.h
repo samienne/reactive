@@ -23,7 +23,7 @@ namespace reactive
 
             template <typename U>
             Weak(signal2::SharedSignal<T, U> const& sig) :
-                deferred_(sig.sig_->weak())
+                deferred_(sig.signal().weak())
             {
             }
 

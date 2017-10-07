@@ -22,10 +22,12 @@ namespace reactive
         virtual UpdateResult updateBegin(FrameInfo const&) = 0;
         virtual UpdateResult updateEnd(FrameInfo const&) = 0;
         virtual Annotation annotate() const = 0;
-        virtual std::shared_ptr<SignalBase<std::decay_t<T>>> cloneDecayed()
-            const = 0;
+        //virtual std::shared_ptr<SignalBase<std::decay_t<T>>> cloneDecayed()
+            //const = 0;
+        /*
         virtual std::shared_ptr<SignalBase<std::decay_t<T> const& >>
             cloneConstRef() const  = 0;
+            */
     };
 
     }

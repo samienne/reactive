@@ -173,7 +173,7 @@ TEST(InputSignal, inputChained)
     auto input1 = signal::input(10);
     auto input2 = signal::input(10);
 
-    auto sig1 = Signal<int>(std::move(input1.signal));
+    auto sig1 = signal::share(signal2::Signal<int>(std::move(input1.signal)));
     input2.handle.set(signal::weak(sig1).signal());
 
     input1.handle.set(20);
@@ -194,7 +194,7 @@ TEST(InputSignal, teeOrder1)
     auto s2 = signal::map([](int, int i2)
             {
                 return i2;
-            }, s1, std::move(input2.signal));
+            }, std::move(s1), std::move(input2.signal));
 
     input1.handle.set(20);
     signal::update(s2, {1, microseconds(0)});

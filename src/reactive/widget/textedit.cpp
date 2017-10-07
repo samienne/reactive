@@ -24,6 +24,7 @@ namespace reactive
 namespace widget
 {
 
+#if 0
 TextEdit::operator WidgetFactory() const
 {
     auto draw = [](ase::Vector2f size, widget::Theme const& theme,
@@ -150,7 +151,7 @@ TextEdit::operator WidgetFactory() const
             signal::TweenType::pingpong
             );
 
-    auto oldState = signal::share(std::move(state_));
+    auto oldState = signal::share(btl::clone(state_));
 
     auto newState = signal::tee(
             stream::iterate(update, oldState, std::move(keyStream.stream),
@@ -178,13 +179,13 @@ TextEdit::operator WidgetFactory() const
 
 TextEdit TextEdit::onEnter(signal2::Signal<std::function<void()>> cb) &&
 {
-    onEnter_.push_back(std::move(cb));
+    onEnter_.push_back(signal::share(std::move(cb)));
     return std::move(*this);
 }
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::constant(std::move(cb)));
+    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,
@@ -193,6 +194,7 @@ TextEdit textEdit(signal::InputHandle<TextEditState> handle,
     return TextEdit{std::move(handle), std::move(state), {}};
 }
 
+#endif
 } // widget
 } // reactive
 

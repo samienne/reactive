@@ -78,14 +78,14 @@ namespace reactive
             return tag_;
         }
 
-        void set(Lock const&, Weak<T> sig)
+        void set(Lock const&, signal2::Signal<T, Weak<T>> sig)
         {
-            if (signal_ == sig)
-                return;
+            if (signal_ == sig.signal())
+                //return;
 
             //value_ = sig.evaluate();
             signalChanged_ = true;
-            signal_ = std::move(sig);
+            signal_ = std::move(sig).signal();
             ++tag_;
 
             connection_ = Connection();

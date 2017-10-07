@@ -4,6 +4,7 @@
 
 #include "reactive/inputresult.h"
 
+#include "reactive/signal/convert.h"
 #include "reactive/signal/map.h"
 
 #include <reactive/signal2.h>
@@ -18,8 +19,8 @@ namespace reactive
         {
         public:
             inline OnKeyEvent(
-                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>> predicate,
-                    signal2::Signal<std::function<void(ase::KeyEvent const&)>> action) :
+                    signal::Convert<std::function<bool(ase::KeyEvent const&)>> predicate,
+                    signal::Convert<std::function<void(ase::KeyEvent const&)>> action) :
                 predicate_(std::move(predicate)),
                 action_(std::move(action))
             {
@@ -33,9 +34,8 @@ namespace reactive
                 >::type>
             inline auto operator()(TWidgetFactory&& factory) const
             {
-                auto action = btl::clone(action_);
-                auto predicate = btl::clone(predicate_);
-                auto f = [action=btl::clone(action_), predicate=btl::clone(predicate)]
+                auto f = [action=btl::cloneOnCopy(btl::clone(action_)),
+                     predicate=btl::cloneOnCopy(btl::clone(predicate_))]
                     (auto widget) // -> Widget
                 {
                     auto g = [](
@@ -53,7 +53,7 @@ namespace reactive
 
                     return std::move(widget)
                         | reactive::onKeyEvent(signal::mapFunction(std::move(g),
-                                    predicate, action));
+                                    btl::clone(*predicate), btl::clone(*action)));
                 };
 
                 return std::forward<TWidgetFactory>(factory)
@@ -82,11 +82,11 @@ namespace reactive
 
                 return std::forward<TWidget>(widget)
                     | reactive::onKeyEvent(signal::mapFunction(std::move(f),
-                                predicate_, action_));
+                                btl::clone(predicate_), btl::clone(action_)));
             }
 
             inline OnKeyEvent acceptIf(
-                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>>
+                    signal::Convert<std::function<bool(ase::KeyEvent const&)>>
                     predicate) &&
             {
                 predicate_ = signal::mapFunction([](
@@ -108,7 +108,7 @@ namespace reactive
             }
 
             inline OnKeyEvent acceptIfNot(
-                    signal2::Signal<std::function<bool(ase::KeyEvent const&)>>
+                    signal::Convert<std::function<bool(ase::KeyEvent const&)>>
                     predicate) &&
             {
                 auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -162,8 +162,8 @@ namespace reactive
             }
 
         private:
-            signal2::Signal<std::function<bool(ase::KeyEvent const&)>> predicate_;
-            signal2::Signal<std::function<void(ase::KeyEvent const&)>> action_;
+            signal::Convert<std::function<bool(ase::KeyEvent const&)>> predicate_;
+            signal::Convert<std::function<void(ase::KeyEvent const&)>> action_;
         };
 
         inline OnKeyEvent onKeyEvent()

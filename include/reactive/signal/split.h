@@ -47,10 +47,10 @@ namespace reactive
             )
             */
         {
-            return signal2::wrap(detail::splitImpl(std::forward<TSignal>(sig),
+            return detail::splitImpl(std::forward<TSignal>(sig),
                     std::make_index_sequence<
                         std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
-                    >()));
+                    >());
         }
     } // signal
 } // reactive

@@ -87,10 +87,10 @@ namespace reactive
             InputHandle<signal_value_t<TSignal>> handle)
     -> signal2::Signal<signal_value_t<TSignal>>
     {
-        auto sig = removeReference(
-                makeSignal(tryDropRepeats((std::move(upstream))))
-                );
-        handle.set(sig);
+        auto sig = share(removeReference(
+                    tryDropRepeats((std::move(upstream)))
+                    ));
+        handle.set(weak(sig));
         return std::move(sig);
     }
 
@@ -103,10 +103,11 @@ namespace reactive
         >*/
     //-> Signal<T>
     {
-        signal2::SharedSignal<T, void> s1 = signal2::share2(std::move(sig));
-        auto teeSig = signal2::share2(removeReference(signal::tryDropRepeats(
-                    signal::map(std::forward<TMapFunc>(mapFunc), s1.clone()))
-                ));
+        signal2::SharedSignal<T, void> s1 = signal::share(std::move(sig));
+
+        auto s2 = signal::map(std::forward<TMapFunc>(mapFunc), s1);
+        auto teeSig = share(removeReference(signal::tryDropRepeats(
+                        std::move(s2))));
 
         handle.set(weak(teeSig));
 

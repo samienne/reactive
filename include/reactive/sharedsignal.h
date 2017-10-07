@@ -5,14 +5,14 @@
 
 namespace reactive::signal
 {
-    template <typename TDeferred>
+    template <typename T, typename TDeferred>
     class Share;
 }
 
 namespace reactive::signal2
 {
     template <typename T, typename TSignal>
-    class SharedSignal : public Signal<T, signal::Share<TSignal>>
+    class SharedSignal : public Signal<T, signal::Share<T, signal::Typed<T, TSignal>>>
     {
     private:
         /*
@@ -22,8 +22,8 @@ namespace reactive::signal2
         }
         */
 
-        SharedSignal(signal::Share<signal::Typed<TSignal, T>> sig) :
-            Signal<T, signal::Share<signal::Typed<TSignal, T>>>(std::move(sig))
+        SharedSignal(signal::Share<T, signal::Typed<T, TSignal>> sig) :
+            Signal<T, signal::Share<T, signal::Typed<T, TSignal>>>(std::move(sig))
         {
         }
 
@@ -35,7 +35,7 @@ namespace reactive::signal2
         }
         */
 
-        static SharedSignal create(signal::Share<signal::Typed<TSignal, T>>&& sig)
+        static SharedSignal create(signal::Share<T, signal::Typed<T, TSignal>>&& sig)
         {
             return { std::move(sig) };
         }
@@ -55,19 +55,19 @@ namespace reactive::signal2
     template <typename T>
     class SharedSignal<T, void> : public Signal<T, void>
     {
-    public:
+    private:
         SharedSignal(Signal<T, void> sig) :
             Signal<T, void>(std::move(sig))
         {
         }
 
+    public:
         template <typename U>
         SharedSignal(SharedSignal<T, U> sig) :
             Signal<T, void>(std::move(sig))
         {
         }
 
-    public:
         static SharedSignal create(Signal<T, void>&& sig)
         {
             return { std::move(sig) };

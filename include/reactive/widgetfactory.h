@@ -6,6 +6,7 @@
 #include "widget.h"
 #include "signal.h"
 
+#include "signal/cast.h"
 #include "signal/share.h"
 #include "signal/cache.h"
 #include "signal/changed.h"
@@ -222,8 +223,17 @@ namespace reactive
         }
 
         template <typename TTupleMaps, typename TSizeHint>
+        static auto castFactory(WidFac<TTupleMaps, TSizeHint> base)
+        {
+            auto sizeHint = base.getSizeHint();
+
+            return std::move(base)
+                .setSizeHint(signal::cast<SizeHint>(std::move(sizeHint)));
+        }
+
+        template <typename TTupleMaps, typename TSizeHint>
         WidgetFactory(WidFac<TTupleMaps, TSizeHint> base) :
-            WidgetFactoryBase(std::move(base))
+            WidgetFactoryBase(castFactory(std::move(base)))
         {
         }
 
@@ -416,8 +426,7 @@ namespace reactive
                 .setObb(std::move(obb));
         };
 
-        WidgetMap wm(f);
-        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
 
         return mapWidget(f);
     }

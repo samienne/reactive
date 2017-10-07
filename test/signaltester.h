@@ -3,6 +3,7 @@
 #include <reactive/signal/updateresult.h>
 #include <reactive/annotation.h>
 #include <reactive/signaltraits.h>
+#include <reactive/signal2.h>
 
 #include <gtest/gtest.h>
 
@@ -93,7 +94,7 @@ void testSignal(TSignalMap&& sigMap)
 {
     SignalStub stub;
 
-    auto s = sigMap(SignalStub(stub));
+    auto s = sigMap(reactive::signal2::wrap(SignalStub(stub)));
 
     EXPECT_EQ(0u, stub.getEvaluateCount());
     EXPECT_EQ(0u, stub.getHasChangedCount());

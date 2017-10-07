@@ -53,12 +53,13 @@ namespace reactive
             template <typename T, typename U>
             TextEdit onEnter(signal2::Signal<T, U> cb) &&
             {
-                return onEnter(signal::cast<std::function<void()>>(std::move(cb)));
+                return std::move(*this)
+                    .onEnter(signal::cast<std::function<void()>>(std::move(cb)));
             }
 
             signal::InputHandle<TextEditState> handle_;
             signal2::Signal<TextEditState> state_;
-            std::vector<signal2::Signal<std::function<void()>>> onEnter_;
+            std::vector<signal2::SharedSignal<std::function<void()>>> onEnter_;
         };
 
         TextEdit textEdit(signal::InputHandle<TextEditState> handle,

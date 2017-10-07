@@ -10,15 +10,15 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<Signal<int const&>> h2;
-    Signal<Signal<int>> s1;
-    Signal<int> s2;
+    signal::InputHandle<signal2::SharedSignal<int const&>> h2;
+    signal2::Signal<signal2::SharedSignal<int const&>> s1;
+    signal2::Signal<int> s2;
 };
 
 Test makeTest()
 {
     auto i1 = signal::input(10);
-    auto i2 = signal::input(makeSignal(std::move(i1.signal)));
+    auto i2 = signal::input(signal::share(makeSignal(std::move(i1.signal))));
 
     auto s = signal::join(btl::clone(i2.signal));
 
