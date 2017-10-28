@@ -23,7 +23,7 @@ using namespace reactive;
 TEST(signal, construct)
 {
     auto s1 = signal2::wrap(signal::constant<std::string>("test"));
-    signal2::Signal<std::string const&> s2 = std::move(s1);
+    signal2::Signal<std::string> s2 = std::move(s1);
     signal2::Signal<std::string> s3 = std::move(s2);
 
     EXPECT_EQ("test", s3.evaluate());
@@ -53,7 +53,7 @@ TEST(signal, combine)
 TEST(signal, clone)
 {
     auto s1 = signal2::wrap(signal::constant<std::string>("test"));
-    signal2::Signal<std::string const&> s2 = s1.clone();
+    signal2::Signal<std::string> s2 = s1.clone();
     auto s3 = s2.clone();
 
     auto s4 = signal2::wrap(s3.clone());
@@ -66,7 +66,7 @@ TEST(signal, sharedCopy)
     auto s1 = signal2::wrap(signal::constant<std::string>("test"));
     auto s2 = signal::share(std::move(s1));
     auto s3 = s2;
-    signal2::Signal<std::string const&> s4 = s3;
+    signal2::Signal<std::string> s4 = s3;
 
     auto s5 = signal::share(s3);
 
@@ -97,7 +97,6 @@ TEST(signal, waitFor)
     EXPECT_EQ(1, s.evaluate());
 }
 
-/*
 TEST(signal, split)
 {
     auto s = signal::constant(std::make_tuple(10, std::string("20")));
@@ -116,7 +115,6 @@ TEST(signal, split)
     EXPECT_EQ(10, s3.evaluate());
     EXPECT_EQ(std::string("20"), s4.evaluate());
 }
-*/
 
 TEST(signal, cacheOptimizations)
 {
@@ -178,7 +176,7 @@ TEST(signal, typedSharedSignalIsASignal)
     auto s1 = signal::share(signal::constant(10));
     auto s2 = asdf(s1);
 
-    auto s3 = asdf2<int const&>(s1);
+    auto s3 = asdf2<int>(s1);
 
     //signal2::Signal<int const&, signal::Constant<int>> s3 = s1;
 
@@ -188,7 +186,7 @@ TEST(signal, typedSharedSignalIsASignal)
 TEST(signal, sharedSignalTypeReduction)
 {
     auto s1 = signal::share(signal::constant(10));
-    signal2::SharedSignal<int const&> s2 = s1;
+    signal2::SharedSignal<int> s2 = s1;
 
     s2.evaluate();
 }
@@ -196,7 +194,7 @@ TEST(signal, sharedSignalTypeReduction)
 TEST(signal, sharedSignalTypeReductionToSignal)
 {
     auto s1 = signal2::share2(signal::constant(10));
-    signal2::Signal<int const&> s2 = s1;
+    signal2::Signal<int> s2 = s1;
 
     s2.evaluate();
 }
@@ -204,14 +202,14 @@ TEST(signal, sharedSignalTypeReductionToSignal)
 TEST(signal, sharedSignalIsASignal)
 {
     auto s1 = signal2::share2(signal::constant(10));
-    signal2::Signal<int const&> s2 = s1;
+    signal2::Signal<int> s2 = s1;
 
     s2.evaluate();
 }
 
 TEST(signal, weakConstruct)
 {
-    signal2::SharedSignal<int const&> s1 = signal::share(signal::constant(10));
+    signal2::SharedSignal<int> s1 = signal::share(signal::constant(10));
     auto s2 = signal::weak(s1);
 
     s2.evaluate();

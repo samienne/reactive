@@ -134,7 +134,7 @@ namespace reactive
         Input& operator=(Input&&) = default;
 
         InputHandle<T, TLock> handle;
-        signal2::SharedSignal<T const&, InputSignal<T, TLock>> signal;
+        signal2::SharedSignal<T, InputSignal<T, TLock>> signal;
     };
 
     template <typename T, typename TLock = btl::DummyLock>

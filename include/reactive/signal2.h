@@ -192,7 +192,7 @@ namespace reactive::signal2
     public:
         Signal(Signal&&) = default;
 
-        T evaluate() const
+        auto evaluate() const
         {
             return sig_->evaluate();
         }
@@ -253,7 +253,7 @@ namespace reactive::signal2
             IsSignal<TSignal>
         >::value
         >>
-    Signal<SignalType<TSignal>, std::decay_t<TSignal>> wrap(TSignal&& sig)
+    Signal<std::decay_t<SignalType<TSignal>>, std::decay_t<TSignal>> wrap(TSignal&& sig)
     {
         return { std::forward<TSignal>(sig) };
     }
@@ -347,7 +347,7 @@ namespace reactive::signal2
         Signal(Signal&&) = default;
         Signal<T>& operator=(Signal&&) = default;
 
-        T evaluate() const
+        auto evaluate() const
         {
             return deferred_.evaluate();
         }

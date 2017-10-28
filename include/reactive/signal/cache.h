@@ -89,13 +89,17 @@ namespace reactive
         /*static_assert(IsSignal<Cache<Constant<int>>>::value,
                 "Cache is not a signal");*/
 
-        template <typename T, typename U>
-        auto cache(signal2::Signal<T const&, U>&& sig)
+        template <typename T, typename U, std::enable_if_t<
+            std::is_reference<SignalType<U>>::value
+            , int> = 0>
+        auto cache(signal2::Signal<T, U>&& sig)
         {
             return std::move(sig);
         }
 
-        template <typename T, typename U>
+        template <typename T, typename U, std::enable_if_t<
+            !std::is_reference<SignalType<U>>::value
+            , int> = 0>
         auto cache(signal2::Signal<T, U>&& sig)
         {
             return signal2::wrap(Cache<U>(std::move(sig).signal()));
