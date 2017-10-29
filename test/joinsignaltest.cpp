@@ -10,8 +10,8 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<signal2::SharedSignal<int const&>> h2;
-    signal2::Signal<signal2::SharedSignal<int const&>> s1;
+    signal::InputHandle<signal2::SharedSignal<int>> h2;
+    signal2::Signal<signal2::SharedSignal<int>> s1;
     signal2::Signal<int> s2;
 };
 

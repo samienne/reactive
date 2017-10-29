@@ -150,20 +150,16 @@ TEST(SignalTypeReduction, redundantTypeReduction)
 
 TEST(SignalTypeReduction, convert)
 {
-    int i = 200;
-    signal::Constant<int const&> s1(i);
+    auto s1 = signal::constant<int>(200);
 
     static_assert(std::is_same<int const&, decltype(s1.evaluate())>::value, "");
 
-#warning asdf
-    /*
-    signal2::Signal<int const&> s2 = std::move(s1);
+    signal2::Signal<int> s2 = std::move(s1);
 
     EXPECT_EQ(200, s2.evaluate());
 
-    signal2::Signal<int> s3 = s2;
+    signal2::Signal<int> s3 = btl::clone(s2);
 
     EXPECT_EQ(200, s3.evaluate());
-    */
 }
 

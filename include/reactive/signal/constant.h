@@ -19,14 +19,19 @@ namespace reactive
         {
         public:
             Constant(T&& initial) :
-                constant_(std::forward<T>(initial))
+                constant_(std::move(initial))
+            {
+            }
+
+            Constant(T const& initial) :
+                constant_(initial)
             {
             }
 
             Constant(Constant<T>&&) = default;
             Constant<T>& operator=(Constant<T>&&) = default;
 
-            btl::decay_t<T> const& evaluate() const
+            T const& evaluate() const
             {
                 return constant_;
             }
@@ -69,7 +74,7 @@ namespace reactive
             Constant<T>& operator=(Constant<T> const&) = default;
 
         private:
-            btl::decay_t<T> constant_;
+            T constant_;
         };
 
         static_assert(IsSignal<Constant<int>>::value,
@@ -78,14 +83,16 @@ namespace reactive
         template <typename T>
         auto constant(T&& value)
         {
-            return signal2::wrap(Constant<T>(std::forward<T>(value)));
+            return signal2::wrap(Constant<std::decay_t<T>>(
+                        std::forward<T>(value)
+                        ));
         }
 
         template <typename T>
         /*Constant<std::vector<typename std::decay<T>::type>>*/ auto constant(
                 std::initializer_list<T> v)
         {
-            return constant(std::vector<typename std::decay<T>::type>(v));
+            return constant(std::vector<std::decay_t<T>>(v));
         }
     }
 }

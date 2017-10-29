@@ -192,7 +192,7 @@ namespace reactive::signal2
     public:
         Signal(Signal&&) = default;
 
-        auto evaluate() const
+        auto evaluate() const -> decltype(auto)
         {
             return sig_->evaluate();
         }
@@ -347,7 +347,7 @@ namespace reactive::signal2
         Signal(Signal&&) = default;
         Signal<T>& operator=(Signal&&) = default;
 
-        auto evaluate() const
+        auto evaluate() const -> decltype(auto)
         {
             return deferred_.evaluate();
         }
@@ -376,8 +376,8 @@ namespace reactive::signal2
         Annotation annotate() const
         {
             Annotation a;
-            auto&& n = a.addNode("Signal<" + btl::demangle<T>()
-                    + "> changed: " + std::to_string(hasChanged()));
+            /*auto&& n = a.addNode("Signal<" + btl::demangle<T>()
+                    + "> changed: " + std::to_string(hasChanged()));*/
             //a.addShared(deferred_.raw_ptr(), n, deferred_->annotate());
             return a;
         }
