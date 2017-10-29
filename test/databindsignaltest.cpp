@@ -30,10 +30,11 @@ TEST(DataBindSignal, pushBackAndErase)
                 return signal::map([](btl::option<int> data)
                         -> btl::option<std::string>
                     {
-                        if (data.valid())
-                            return btl::just("test" + std::to_string(*data));
-                        return
-                            btl::none;
+                        if (!data.valid())
+                            return btl::none;
+
+                        return btl::just("test" + std::to_string(*data));
+
                     }, std::move(data));
             });
 

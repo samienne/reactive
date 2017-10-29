@@ -24,7 +24,7 @@ namespace reactive
 {
     namespace signal
     {
-        using IndexSignal = signal2::SharedSignal<size_t>;
+        using IndexSignal = signal2::Signal<size_t>;
 
         template <typename TDelegate, typename TCollection>
         class DataBind;
@@ -62,7 +62,8 @@ namespace reactive
             struct Sig
             {
                 std::decay_t<decltype(
-                        cache(std::declval<DelegateReturnType>()))> sig;
+                        share(std::declval<DelegateReturnType>())
+                        )> sig;
                 InputHandle<size_t> indexHandle;
                 bool alive;
             };
@@ -73,8 +74,6 @@ namespace reactive
                 collection_(std::move(collection)),
                 collectionChanged_(false)
             {
-#warning asdf
-                /*
                 size_t n = 0;
                 for (auto const& item : btl::reader(collection_))
                 {
@@ -87,7 +86,7 @@ namespace reactive
                     handles_.push_back(i.handle);
 
                     signals_.push_back({
-                            cache(delegate_(
+                            share(delegate_(
                                     std::move(i.signal),
                                     std::move(indexSignal)
                                     )
@@ -100,7 +99,6 @@ namespace reactive
                 connection_ = btl::observe(collection_, std::bind(
                             &DataBindPrivate::onCollectionChanged,
                             this, std::placeholders::_1));
-                */
             }
 
             std::vector<DelegateValueType> evaluate()
@@ -158,9 +156,6 @@ namespace reactive
 
             UpdateResult updateEnd(FrameInfo const& frame)
             {
-                return btl::none;
-#warning asdf
-                /*
                 UpdateResult r = btl::none;
 
                 for (auto&& sig : signals_)
@@ -182,7 +177,6 @@ namespace reactive
                     updateHandles();
 
                 return r;
-                */
             }
 
             template <typename TCallback>
@@ -268,7 +262,7 @@ namespace reactive
             }
 
             void handleCollectionEvent(
-                    btl::persistent_collection_event<ItemType> const& e); /*
+                    btl::persistent_collection_event<ItemType> const& e)
             {
                 eraseIndices(handles_, e.removed);
 
@@ -311,7 +305,7 @@ namespace reactive
                             );
 
                     signals_.insert(j, {
-                            cache(delegate_(
+                            share(delegate_(
                                     std::move(value.signal),
                                     std::move(indexSignal)
                                     )
@@ -325,7 +319,7 @@ namespace reactive
 
                 for (auto&& v : e.updated)
                     handles_[v.first].set(btl::just(v.second));
-            }*/
+            }
 
         private:
             friend class DataBind<TDelegate, TCollection>;

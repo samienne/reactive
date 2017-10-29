@@ -88,6 +88,11 @@ namespace reactive::signal
         }
         */
 
+        bool isCached() const override
+        {
+            return std::is_reference<SignalType<TSignal>>::value;
+        }
+
     private:
         TSignal sig_;
         uint64_t frameId_ = 0;

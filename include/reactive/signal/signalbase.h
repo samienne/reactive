@@ -28,6 +28,7 @@ namespace reactive
         virtual std::shared_ptr<SignalBase<std::decay_t<T> const& >>
             cloneConstRef() const  = 0;
             */
+        virtual bool isCached() const = 0;
     };
 
     }

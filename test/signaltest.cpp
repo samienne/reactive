@@ -20,6 +20,13 @@
 
 using namespace reactive;
 
+TEST(signal, cacheTest)
+{
+    signal2::Signal<std::string> s = signal::constant<std::string>("test");
+
+    auto s2 = signal::cache(std::move(s));
+}
+
 TEST(signal, construct)
 {
     auto s1 = signal2::wrap(signal::constant<std::string>("test"));

@@ -402,6 +402,11 @@ namespace reactive::signal2
             return std::move(deferred_);
         }
 
+        bool isCached() const
+        {
+            return deferred_.ptr()->isCached();
+        }
+
     private:
         template <typename T2> friend class reactive::signal::Weak;
         signal::Share<T, signal::SignalBase<T>> deferred_;
