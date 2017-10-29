@@ -103,7 +103,7 @@ namespace reactive
         >*/
     //-> Signal<T>
     {
-        signal2::SharedSignal<T const&, void> s1 = signal::share(std::move(sig));
+        signal2::SharedSignal<T, void> s1 = signal::share(std::move(sig));
 
         auto s2 = signal::map(std::forward<TMapFunc>(mapFunc), s1);
         auto teeSig = share(removeReference(signal::tryDropRepeats(
@@ -113,7 +113,7 @@ namespace reactive
 
         return signal2::wrap(Tee<
             T,
-            SignalType<decltype(teeSig)>
+            std::decay_t<SignalType<decltype(teeSig)>>
             //std::decay_t<decltype(mapFunc(sig.evaluate()))>
             >(std::move(s1), std::move(teeSig))
             );

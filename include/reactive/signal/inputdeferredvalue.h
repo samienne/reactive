@@ -81,7 +81,7 @@ namespace reactive
         void set(Lock const&, signal2::Signal<T, Weak<T>> sig)
         {
             if (signal_ == sig.signal())
-                //return;
+                return;
 
             //value_ = sig.evaluate();
             signalChanged_ = true;

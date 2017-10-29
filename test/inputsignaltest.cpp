@@ -129,8 +129,14 @@ TEST(InputSignal, circularNoChange)
     EXPECT_EQ(20, s2.evaluate());
 
     signal::update(s2, {1, microseconds(0)});
-    EXPECT_EQ(20, input.signal.evaluate());
+
+    EXPECT_TRUE(s2.hasChanged());
     EXPECT_EQ(30, s2.evaluate());
+
+    signal::update(s2, {2, microseconds(0)});
+
+    EXPECT_TRUE(s2.hasChanged());
+    EXPECT_EQ(40, s2.evaluate());
 }
 
 TEST(InputSignal, circularChange)
