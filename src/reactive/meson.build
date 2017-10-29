@@ -5,7 +5,7 @@ libreactivesrc = [
 #'uniformgrid.cpp',
 #'widget/textedit.cpp',
 #'widget/label.cpp',
-#'widget/theme.cpp',
+'widget/theme.cpp',
 #'widget/focusgroup.cpp',
     'debug/drawkeyboardinputs.cpp',
     'vbox.cpp',
