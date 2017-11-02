@@ -23,6 +23,7 @@ reactive::WidgetFactory adder()
 {
     using namespace reactive;
 
+    /*
     btl::collection<std::string> collection;
 
     auto delegate = [collection](signal2::Signal<std::string> data,
@@ -48,7 +49,7 @@ reactive::WidgetFactory adder()
                 hfiller(),
                 widget::label(signal::constant<std::string>("X"))
                 | widget::frame()
-                | onClick(1, signal::mapFunction(remove, index)),
+                | onClick(1, signal::mapFunction(remove, std::move(index))),
                 })
                 ;
     };
@@ -94,5 +95,7 @@ reactive::WidgetFactory adder()
             })
             | widget::focusGroup()
             ;
+            */
+    return widget::label(signal::constant<std::string>("testi"));
 }
 

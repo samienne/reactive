@@ -1,14 +1,15 @@
 #include "widget/textedit.h"
 
-#include "widget/frame.h"
-#include "widget/onkeyevent.h"
+#include "widget/label.h"
+//#include "widget/frame.h"
+//#include "widget/onkeyevent.h"
 
-#include "signal/tween.h"
-#include "signal/cache.h"
-#include "signal/combine.h"
+//#include "signal/tween.h"
+//#include "signal/cache.h"
+//#include "signal/combine.h"
 
-#include "stream/iterate.h"
-#include "stream/pipe.h"
+//#include "stream/iterate.h"
+//#include "stream/pipe.h"
 
 #include "clickevent.h"
 #include "send.h"
@@ -24,9 +25,10 @@ namespace reactive
 namespace widget
 {
 
-#if 0
+#if 1
 TextEdit::operator WidgetFactory() const
 {
+#if 0
     auto draw = [](ase::Vector2f size, widget::Theme const& theme,
             TextEditState const& state, float percentage)
         -> avg::Drawing
@@ -175,17 +177,20 @@ TextEdit::operator WidgetFactory() const
         | widget::onKeyEvent(sendKeysTo(keyStream.handle))
         | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
         ;
+#endif
+    return widget::label(signal::constant<std::string>("jeje"));
 }
 
 TextEdit TextEdit::onEnter(signal2::Signal<std::function<void()>> cb) &&
 {
-    onEnter_.push_back(signal::share(std::move(cb)));
+    //onEnter_.push_back(signal::share(std::move(cb)));
     return std::move(*this);
 }
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
+    //return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
+    return std::move(*this);
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,

@@ -17,8 +17,8 @@ namespace reactive
     template <typename T>
     using IsWidgetMap = btl::All<
         std::is_convertible<T, WidgetMap>,
-        std::is_copy_constructible<std::decay_t<T>>
-        //btl::IsClonable<std::decay_t<T>>
+        std::is_copy_constructible<std::decay_t<T>>,
+        btl::IsClonable<std::decay_t<T>>
         >;
 
     namespace detail

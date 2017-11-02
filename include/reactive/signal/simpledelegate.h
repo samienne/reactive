@@ -30,12 +30,18 @@ namespace reactive
                 >
             >
             auto operator()(T&& t, IndexSignal index)
-                -> signal2::Signal<btl::option<typename std::decay<
-                    decltype(std::declval<TDelegate>()(
-                                std::declval<signal2::Signal<decltype(*t.evaluate())>>(),
-                                index)
+            /*
+                -> signal2::Signal<btl::option<std::decay_t<
+                    decltype(
+                            std::declval<TDelegate>()(
+                                std::declval<signal2::SharedSignal<
+                                    SignalType<T>
+                                    >>(),
+                                index
+                                )
                             )
-                    >::type>>
+                    >>>
+                    */
             {
                 auto tShared = signal::share(std::forward<T>(t));
 

@@ -251,9 +251,9 @@ namespace reactive
         return mapWidget(std::move(f));
     }
 
-    template <typename T, typename U, typename = std::enable_if_t<
+    template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
-        >>
+        , int> = 0>
     inline auto onClick(unsigned int button, signal2::Signal<T, U> cb)
             //signal2::Signal<std::function<void(ClickEvent const&)>> cb)
     {
@@ -268,7 +268,10 @@ namespace reactive
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
     }
 
-    inline auto onClick(unsigned int button, signal2::Signal<std::function<void()>> cb)
+    template <typename T, typename U, std::enable_if_t<
+        std::is_convertible<T, std::function<void()>>::value
+        , int> = 0>
+    inline auto onClick(unsigned int button, signal2::Signal<T, U> cb)
     {
         auto f = [](std::function<void()> cb, ClickEvent const&)
         {
@@ -417,7 +420,7 @@ namespace reactive
     >
     auto addWidgets(TSignalWidgets widgets)
     {
-        auto f = [widgets=std::move(widgets)](auto widget)
+        auto f = [widgets=cloneOnCopy(std::move(widgets))](auto widget)
         {
             auto w1 = signal::map([widget=std::move(widget)]
                     (std::vector<Widget> widgets)
@@ -427,7 +430,7 @@ namespace reactive
                             ;
                         //return btl::clone(widget);
                     },
-                    std::move(widgets)
+                    btl::clone(*widgets)
                     );
 
             return reduce(std::move(w1));

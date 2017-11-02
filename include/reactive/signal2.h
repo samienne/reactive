@@ -41,7 +41,7 @@ namespace reactive::signal
         Share(Share&&) = default;
         Share& operator=(Share&&) = default;
 
-        T evaluate() const// -> decltype(std::declval<TDeferred>().evaluate())
+        auto evaluate() const -> decltype(auto)
         {
             return control_->evaluate();
         }

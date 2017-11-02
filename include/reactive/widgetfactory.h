@@ -105,6 +105,7 @@ namespace reactive
         }
 
     private:
+    public:
         WidFac(WidFac const&) = default;
         WidFac& operator=(WidFac const&) = default;
 

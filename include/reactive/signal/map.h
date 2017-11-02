@@ -316,9 +316,7 @@ namespace signal
             btl::All<
                 std::is_copy_constructible<std::decay_t<TFunc>>,
                 //IsSignal<TSigs>...,
-                btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(
-                        Ts...
-                        )>>
+                btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(Ts...)>>
             >::value
         >>
     constexpr auto map(TFunc&& func, signal2::Signal<Ts, Us>... sigs)

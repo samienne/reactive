@@ -14,5 +14,5 @@ libfreetypedep = freetype.get_variable('freetype_dep')
 #libfreetypedep = dependency('freetype2')
 
 subdir('src')
-subdir('test')
+#subdir('test')
 

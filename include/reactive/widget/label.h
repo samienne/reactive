@@ -13,7 +13,7 @@ namespace reactive::widget
 {
     WidgetFactory label(signal2::SharedSignal<std::string> text);
 
-    WidgetFactory label(signal2::Signal<std::string> text)
+    inline WidgetFactory label(signal2::Signal<std::string> text)
     {
         return label(signal2::share2(std::move(text)));
     }

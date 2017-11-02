@@ -61,9 +61,10 @@ namespace reactive
         private:
             struct Sig
             {
-                std::decay_t<decltype(
+                /*std::decay_t<decltype(
                         share(std::declval<DelegateReturnType>())
-                        )> sig;
+                        )> sig;*/
+                signal2::SharedSignal<SignalType<DelegateReturnType>> sig;
                 InputHandle<size_t> indexHandle;
                 bool alive;
             };
@@ -85,9 +86,9 @@ namespace reactive
 
                     handles_.push_back(i.handle);
 
-                    signals_.push_back({
+                    signals_.push_back(Sig{
                             share(delegate_(
-                                    std::move(i.signal),
+                                    signal::share(std::move(i.signal)),
                                     std::move(indexSignal)
                                     )
                                 ),
@@ -337,6 +338,32 @@ namespace reactive
             bool changed_ = false;
         };
 
+        template <typename TFirst, typename TSecond>
+        class Compose
+        {
+        public:
+            Compose(TFirst&& first,
+                    typename std::decay<TSecond>::type const& second) :
+                first_(std::forward<TFirst>(first)),
+                second_(second)
+
+            {
+            }
+
+            template <typename TValue>
+            auto operator()(TValue&& value, signal::IndexSignal index)
+                -> decltype(std::declval<TFirst>()(std::declval<TSecond>()(
+                                value, index.clone()), index.clone()))
+            {
+                return first_(second_(std::forward<TValue>(value), index.clone()),
+                        index.clone());
+            }
+
+        private:
+            std::decay_t<TFirst> first_;
+            std::decay_t<TSecond> second_;
+        };
+
         template <typename TDelegate, typename TCollection>
         class DataBind
         {
@@ -404,47 +431,25 @@ namespace reactive
                 return a;
             }
 
-            template <typename TFirst, typename TSecond>
-            class Compose
-            {
-            public:
-                Compose(TFirst&& first,
-                        typename std::decay<TSecond>::type const& second) :
-                    first_(std::forward<TFirst>(first)),
-                    second_(second)
-
-                {
-                }
-
-                template <typename TValue>
-                auto operator()(TValue&& value, signal::IndexSignal index)
-                    -> decltype(std::declval<TFirst>()(std::declval<TSecond>()(
-                                    value, index), index))
-                {
-                    return first_(second_(std::forward<TValue>(value), index),
-                            index);
-                }
-
-            private:
-                std::decay_t<TFirst> first_;
-                std::decay_t<TSecond> second_;
-            };
-
             template <typename TAddDelegate,
                      typename TNewDelegate = Compose<TAddDelegate,
-                     typename std::decay<TDelegate>::type>
+                     std::decay_t<TDelegate>>
                 >
             auto dataBind(TAddDelegate&& delegate) const
-                -> DataBind<TNewDelegate,
-                    typename std::decay<TCollection>::type const&>
+                -> decltype(signal2::wrap(
+                        std::declval<DataBind<
+                            TNewDelegate,
+                            std::decay_t<TCollection> const&
+                            >>()
+                        ))
             {
                 auto d = TNewDelegate(
                             std::forward<TAddDelegate>(delegate),
                             deferred_->delegate_);
-                return DataBind<TNewDelegate,
-                       typename std::decay<TCollection>::type const&>(
+                return signal2::wrap(DataBind<TNewDelegate,
+                       std::decay_t<TCollection> const&>(
                         std::move(d), typename std::decay<TCollection>::type(
-                            deferred_->collection_));
+                            deferred_->collection_)));
             }
 
             DataBind clone() const
@@ -493,17 +498,18 @@ namespace reactive
                 TDelegate delegate = IdentityDelegate())
             //-> DataBind<TDelegate, TCollection>
         {
-            return DataBind<std::decay_t<TDelegate>, std::decay_t<TCollection>>(
-                    std::move(delegate),
-                    std::move(collection)
-                    );
+            return signal2::wrap(
+                    DataBind<std::decay_t<TDelegate>, std::decay_t<TCollection>>(
+                        std::move(delegate),
+                        std::move(collection)
+                    ));
         }
 
         template <typename TDelegate, typename TDataBind>
         auto dataBind(TDataBind const& bound, TDelegate&& delegate)
-            -> decltype(bound.dataBind(std::forward<TDelegate>(delegate)))
+            -> decltype(bound.signal().dataBind(std::forward<TDelegate>(delegate)))
         {
-            return bound.dataBind(std::forward<TDelegate>(delegate));
+            return bound.signal().dataBind(std::forward<TDelegate>(delegate));
         }
 
         template <typename T, typename = void>
