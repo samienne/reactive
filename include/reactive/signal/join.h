@@ -26,8 +26,8 @@ namespace reactive
             Join& operator=(Join const&) = default;
 
         public:
-            Join(Join&&) = default;
-            Join& operator=(Join&&) = default;
+            Join(Join&&) noexcept = default;
+            Join& operator=(Join&&) noexcept = default;
 
             btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
             {

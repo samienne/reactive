@@ -30,10 +30,10 @@ namespace btl
             }
 
             Future(Future const&) = delete;
-            Future(Future&&) = default;
+            Future(Future&&) noexcept = default;
 
             Future& operator=(Future const&) = delete;
-            Future& operator=(Future&&) = default;
+            Future& operator=(Future&&) noexcept = default;
 
             template <typename T2 = T,
                 typename = std::enable_if_t<!std::is_reference<T2>::value>>

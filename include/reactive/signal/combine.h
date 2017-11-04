@@ -30,8 +30,8 @@ namespace reactive
             Combine& operator=(Combine const&) = default;
 
         public:
-            Combine(Combine&&) = default;
-            Combine& operator=(Combine&&) = default;
+            Combine(Combine&&) noexcept(true) = default;
+            Combine& operator=(Combine&&) noexcept(true) = default;
 
             auto evaluate() const
             {

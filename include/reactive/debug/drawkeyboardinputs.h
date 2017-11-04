@@ -10,7 +10,7 @@ namespace reactive
     {
         namespace detail
         {
-            avg::Drawing makeRect(avg::Obb obb)
+            inline avg::Drawing makeRect(avg::Obb obb)
             {
                 float w = obb.getSize().x();
                 float h = obb.getSize().y();

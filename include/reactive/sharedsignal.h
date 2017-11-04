@@ -41,10 +41,10 @@ namespace reactive::signal2
         }
 
         SharedSignal(SharedSignal const&) = default;
-        SharedSignal(SharedSignal&&) = default;
+        SharedSignal(SharedSignal&&) noexcept = default;
 
         SharedSignal& operator=(SharedSignal const&) = default;
-        SharedSignal& operator=(SharedSignal&&) = default;
+        SharedSignal& operator=(SharedSignal&&) noexcept = default;
 
         SharedSignal clone() const
         {
@@ -74,10 +74,10 @@ namespace reactive::signal2
         }
 
         SharedSignal(SharedSignal const&) = default;
-        SharedSignal(SharedSignal&&) = default;
+        SharedSignal(SharedSignal&&) noexcept = default;
 
         SharedSignal& operator=(SharedSignal const&) = default;
-        SharedSignal& operator=(SharedSignal&&) = default;
+        SharedSignal& operator=(SharedSignal&&) noexcept = default;
 
         SharedSignal clone() const
         {

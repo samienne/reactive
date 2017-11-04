@@ -26,8 +26,8 @@ namespace reactive
             UpdateIfJust& operator=(UpdateIfJust const&) = default;
 
         public:
-            UpdateIfJust(UpdateIfJust&&) = default;
-            UpdateIfJust& operator=(UpdateIfJust&&) = default;
+            UpdateIfJust(UpdateIfJust&&) noexcept = default;
+            UpdateIfJust& operator=(UpdateIfJust&&) noexcept = default;
 
             ValueTypeDecayed const& evaluate() const
             {

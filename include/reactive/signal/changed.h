@@ -15,8 +15,8 @@ namespace reactive
         class Changed
         {
         public:
-            Changed(Changed&&) = default;
-            Changed& operator=(Changed&&) = default;
+            Changed(Changed&&) noexcept = default;
+            Changed& operator=(Changed&&) noexcept = default;
 
             Changed(TSignal sig):
                 signal_(std::move(sig))

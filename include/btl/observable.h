@@ -26,9 +26,9 @@ namespace btl
         }
 
         observable(observable const&) = default;
-        observable(observable&&) = default;
+        observable(observable&&) noexcept = default;
         observable& operator=(observable const&) = default;
-        observable& operator=(observable&&) = default;
+        observable& operator=(observable&&) noexcept = default;
 
         inline connection observe(callback_t cb)
         {

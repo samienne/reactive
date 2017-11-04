@@ -20,8 +20,8 @@ namespace reactive
             {
             }
 
-            Conditional(Conditional&&) = default;
-            Conditional& operator=(Conditional&&) = default;
+            Conditional(Conditional&&) noexcept = default;
+            Conditional& operator=(Conditional&&) noexcept = default;
 
             signal_value_t<TTrue> evaluate() const
             {

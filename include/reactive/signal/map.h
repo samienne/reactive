@@ -203,8 +203,8 @@ namespace signal
         Map& operator=(Map const&) = default;
 
     public:
-        Map(Map&&) = default;
-        Map& operator=(Map&&) = default;
+        Map(Map&&) noexcept = default;
+        Map& operator=(Map&&) noexcept = default;
 
         EvaluateType evaluate() const
         {

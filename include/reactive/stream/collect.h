@@ -57,9 +57,9 @@ namespace reactive
             }
 
             Collect(Collect const&) = default;
-            Collect(Collect&&) = default;
+            Collect(Collect&&) noexcept = default;
             Collect& operator=(Collect const&) = default;
-            Collect& operator=(Collect&&) = default;
+            Collect& operator=(Collect&&) noexcept = default;
 
             std::vector<std::decay_t<T>> const& evaluate() const
             {
@@ -98,7 +98,7 @@ namespace reactive
                     std::unique_lock<btl::SpinLock>(control_->mutex);
                     id = control_->nextId++;
                     control_->callbacks.push_back(std::make_pair(id,
-                                std::move(callback)));
+                                std::forward<TCallback>(callback)));
                 }
 
                 return Connection::on_disconnect([id, control]() mutable

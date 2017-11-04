@@ -110,8 +110,8 @@ namespace reactive
         WidFac& operator=(WidFac const&) = default;
 
     public:
-        WidFac(WidFac&&) = default;
-        WidFac& operator=(WidFac&&) = default;
+        WidFac(WidFac&&) noexcept = default;
+        WidFac& operator=(WidFac&&) noexcept = default;
 
         template <typename TSignalInput>
         auto operator()(TSignalInput input) &&

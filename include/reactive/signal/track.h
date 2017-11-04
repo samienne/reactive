@@ -45,7 +45,7 @@ namespace reactive
             {
             }
 
-            Track(Track&& rhs) :
+            Track(Track&& rhs) noexcept :
                 observable_(rhs.observable_),
                 collection_(rhs.collection_),
                 values_(rhs.values_),
@@ -57,7 +57,7 @@ namespace reactive
             {
             }
 
-            Track operator=(Track const& rhs)
+            Track& operator=(Track const& rhs)
             {
                 observable_ = rhs.observable_;
                 collection_ = rhs.collection_;
@@ -67,9 +67,11 @@ namespace reactive
                                 this, std::placeholders::_1)));
                 collectionChanged_ = rhs.collectionChanged_;
                 changed_ = rhs.changed_;
+
+                return *this;
             }
 
-            Track operator=(Track&& rhs)
+            Track& operator=(Track&& rhs) noexcept
             {
                 observable_ = rhs.observable_;
                 collection_ = rhs.collection_;
@@ -79,6 +81,8 @@ namespace reactive
                                 this, std::placeholders::_1)));
                 collectionChanged_ = rhs.collectionChanged_;
                 changed_ = rhs.changed_;
+
+                return *this;
             }
 
             std::vector<value_t> const& evaluate() const

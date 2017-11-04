@@ -38,8 +38,8 @@ namespace reactive::signal
 
         Share(Share const&) = default;
         Share& operator=(Share const&) = default;
-        Share(Share&&) = default;
-        Share& operator=(Share&&) = default;
+        Share(Share&&) noexcept = default;
+        Share& operator=(Share&&) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {
@@ -187,10 +187,10 @@ namespace reactive::signal2
     protected:
         Signal(Signal const&) = default;
         Signal& operator=(Signal const&) = default;
-        Signal& operator=(Signal&&) = default;
+        Signal& operator=(Signal&&) noexcept = default;
 
     public:
-        Signal(Signal&&) = default;
+        Signal(Signal&&) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {
@@ -344,8 +344,8 @@ namespace reactive::signal2
         Signal<T>& operator=(Signal const&) = default;
 
     public:
-        Signal(Signal&&) = default;
-        Signal<T>& operator=(Signal&&) = default;
+        Signal(Signal&&) noexcept = default;
+        Signal<T>& operator=(Signal&&) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {

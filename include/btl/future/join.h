@@ -20,7 +20,7 @@ namespace btl
         using FutureType = decltype(std::declval<T>().get());
 
         template <typename TFuture>
-        auto join(TFuture&& f)
+        auto join(TFuture f)
         -> Future<FutureType<std::decay_t<FutureType<TFuture>>>>
         {
             using T = FutureType<FutureType<TFuture>>;

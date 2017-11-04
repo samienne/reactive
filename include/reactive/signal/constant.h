@@ -28,8 +28,16 @@ namespace reactive
             {
             }
 
-            Constant(Constant<T>&&) = default;
-            Constant<T>& operator=(Constant<T>&&) = default;
+            Constant(Constant<T>&& rhs) noexcept(true) :
+                constant_(std::move(rhs.constant_))
+            {
+            }
+
+            Constant<T>& operator=(Constant<T>&& rhs) noexcept(true)
+            {
+                constant_ = std::move(rhs.constant_);
+                return *this;
+            }
 
             T const& evaluate() const
             {

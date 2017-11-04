@@ -28,8 +28,8 @@ namespace reactive
             Cache& operator=(Cache const&) = default;
 
         public:
-            Cache(Cache&&) = default;
-            Cache& operator=(Cache&&) = default;
+            Cache(Cache&&) noexcept = default;
+            Cache& operator=(Cache&&) noexcept = default;
 
             ValueType const& evaluate() const
             {

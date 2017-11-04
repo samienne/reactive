@@ -33,8 +33,8 @@ namespace reactive
         Tee& operator=(Tee const&) = default;
 
     public:
-        Tee(Tee&&) = default;
-        Tee& operator=(Tee&&) = default;
+        Tee(Tee&&) noexcept = default;
+        Tee& operator=(Tee&&) noexcept = default;
 
         auto evaluate() const -> decltype(std::declval<signal2::Signal<T1>>().evaluate())
         {

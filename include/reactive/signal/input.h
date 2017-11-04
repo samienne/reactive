@@ -42,8 +42,8 @@ namespace reactive
         InputSignal& operator=(InputSignal const&) = default;
 
     public:
-        InputSignal(InputSignal&&) = default;
-        InputSignal& operator=(InputSignal&&) = default;
+        InputSignal(InputSignal&&) noexcept = default;
+        InputSignal& operator=(InputSignal&&) noexcept = default;
 
         T const& evaluate() const
         {
@@ -128,10 +128,10 @@ namespace reactive
         }
 
         Input(Input const&) = default;
-        Input(Input&&) = default;
+        Input(Input&&) noexcept = default;
 
         Input& operator=(Input const&) = default;
-        Input& operator=(Input&&) = default;
+        Input& operator=(Input&&) noexcept = default;
 
         InputHandle<T, TLock> handle;
         signal2::SharedSignal<T, InputSignal<T, TLock>> signal;

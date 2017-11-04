@@ -22,7 +22,7 @@
 namespace reactive
 {
     class InputArea;
-    class PointerButtonEvent;
+    //class PointerButtonEvent;
 
     namespace detail
     {
@@ -57,10 +57,11 @@ namespace reactive
         std::vector<T> concat(std::vector<T> v1, std::vector<T> v2)
         {
             std::vector<T> r = std::move(v1);
-            r.reserve(v1.size() + v2.size());
+            r.reserve(r.size() + v2.size());
 
             for (auto&& t : v2)
                 r.push_back(std::move(t));
+
             return r;
         }
 

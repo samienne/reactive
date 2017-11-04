@@ -39,7 +39,7 @@ namespace reactive
                 {
                     avg::Drawing r = std::move(d1);
                     //for (auto&& d : drawings)
-                    btl::forEach(std::move(drawings), [&r, &obb](auto&& d)
+                    btl::forEach(std::move(drawings), [&r, &obb](auto d)
                     {
                         r = std::move(r) + (obb.getTransform() * std::move(d));
                     });

@@ -16,8 +16,8 @@ namespace reactive
             {
             }
 
-            DropRepeats(DropRepeats&&) = default;
-            DropRepeats& operator=(DropRepeats&&) = default;
+            DropRepeats(DropRepeats&&) noexcept = default;
+            DropRepeats& operator=(DropRepeats&&) noexcept = default;
 
             signal_value_t<TSignal> const& evaluate() const
             {

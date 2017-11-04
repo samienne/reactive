@@ -13,9 +13,9 @@ namespace btl
     {
     public:
         Partial(Partial const&) = default;
-        Partial(Partial&&) = default;
+        Partial(Partial&&) noexcept = default;
         Partial& operator=(Partial const&) = default;
-        Partial& operator=(Partial&&) = default;
+        Partial& operator=(Partial&&) noexcept = default;
 
         /*template <typename TFunc2, typename... Us, typename = typename
             std::enable_if

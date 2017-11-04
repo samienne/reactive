@@ -391,8 +391,8 @@ namespace reactive
             DataBind& operator=(DataBind const&) = default;
 
         public:
-            DataBind(DataBind&&) = default;
-            DataBind& operator=(DataBind&&) = default;
+            DataBind(DataBind&&) noexcept = default;
+            DataBind& operator=(DataBind&&) noexcept = default;
 
             auto evaluate() const
                 -> decltype(btl::clone(std::declval<PrivateType>().evaluate()))
