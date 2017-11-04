@@ -95,6 +95,5 @@ reactive::WidgetFactory adder()
             })
             | widget::focusGroup()
             ;
-    //return widget::label(signal::constant<std::string>("testi"));
 }
 

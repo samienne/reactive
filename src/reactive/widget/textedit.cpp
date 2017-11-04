@@ -20,15 +20,11 @@
 
 #include <algorithm>
 
-namespace reactive
-{
-namespace widget
+namespace reactive::widget
 {
 
-#if 1
 TextEdit::operator WidgetFactory() const
 {
-#if 1
     auto draw = [](ase::Vector2f size, widget::Theme const& theme,
             TextEditState const& state, float percentage)
         -> avg::Drawing
@@ -177,8 +173,6 @@ TextEdit::operator WidgetFactory() const
         | widget::onKeyEvent(sendKeysTo(keyStream.handle))
         | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
         ;
-#endif
-    //return widget::label(signal::constant<std::string>("jeje"));
 }
 
 TextEdit TextEdit::onEnter(signal2::Signal<std::function<void()>> cb) &&
@@ -198,7 +192,5 @@ TextEdit textEdit(signal::InputHandle<TextEditState> handle,
     return TextEdit{std::move(handle), std::move(state), {}};
 }
 
-#endif
-} // widget
-} // reactive
+} // widget::reactive
 
