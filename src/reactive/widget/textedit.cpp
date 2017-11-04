@@ -189,8 +189,7 @@ TextEdit TextEdit::onEnter(signal2::Signal<std::function<void()>> cb) &&
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    //return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
-    return std::move(*this);
+    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,

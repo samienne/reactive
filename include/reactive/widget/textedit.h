@@ -54,7 +54,8 @@ namespace reactive
             TextEdit onEnter(signal2::Signal<T, U> cb) &&
             {
                 return std::move(*this)
-                    .onEnter(signal::cast<std::function<void()>>(std::move(cb)));
+                    //.onEnter(signal::cast<std::function<void()>>(std::move(cb)))
+                    ;
             }
 
             signal::InputHandle<TextEditState> handle_;

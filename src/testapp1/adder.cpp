@@ -83,7 +83,7 @@ reactive::WidgetFactory adder()
             );
 
     auto textEdit = widget::textEdit(textData.handle, text)
-        //.onEnter(inserter)
+        .onEnter(inserter)
         ;
 
     auto button = widget::label(signal::constant<std::string>("Add"))
