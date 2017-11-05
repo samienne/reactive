@@ -2,6 +2,8 @@
 
 #include "signalbase.h"
 
+#include <iostream>
+
 namespace reactive::signal
 {
     template <typename T, typename TSignal>
@@ -48,13 +50,22 @@ namespace reactive::signal
         btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
             override final
         {
-            assert(frameId_ == frame.getFrameId());
+            btl::option<signal_time_t> r = btl::none;
+            if(frameId_ != frame.getFrameId())
+                r = sig_.updateBegin(frame);
 
             if (frameId2_ == frame.getFrameId())
                 return btl::none;
 
             frameId2_ = frame.getFrameId();
-            return sig_.updateEnd(frame);
+            auto r2 = sig_.updateEnd(frame);
+
+            if (!r2.valid())
+                return r;
+            else if(!r.valid())
+                return r2;
+            else
+                return std::min(r2, r);
         }
 
 

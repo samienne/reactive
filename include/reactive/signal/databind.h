@@ -151,7 +151,6 @@ namespace reactive
                     r = min(r, r2);
                 }
 
-
                 return r;
             }
 

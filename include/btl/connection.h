@@ -14,10 +14,16 @@ namespace btl
         }
 
         connection(connection const&) = delete;
-        connection(connection&&) = default;
+        connection(connection&&) noexcept = default;
 
         connection& operator=(connection const&) = delete;
-        connection& operator=(connection&&) = default;
+
+        connection& operator=(connection&& rhs) noexcept
+        {
+            disconnect();
+            callbacks_ = std::move(rhs.callbacks_);
+            return *this;
+        }
 
         inline connection(size_t i,
                 std::weak_ptr<detail::observable_control_base> observable) :
