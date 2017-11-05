@@ -3,6 +3,7 @@
 #include "reactive/widgetfactory.h"
 #include "reactive/sizehint.h"
 
+#include "reactive/signal/reducetype.h"
 #include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
 #include "reactive/signaltype.h"
@@ -53,11 +54,10 @@ namespace reactive
             template <typename T, typename U>
             TextEdit onEnter(signal2::Signal<T, U> cb) &&
             {
-                signal2::Signal<std::function<void()>> s =
-                    signal::cast<std::function<void()>>(std::move(cb));
-
                 return std::move(*this)
-                    .onEnter(std::move(s))
+                    .onEnter(signal::reduceType(
+                                signal::cast<std::function<void()>>(std::move(cb))
+                                ))
                     ;
             }
 
