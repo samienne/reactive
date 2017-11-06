@@ -19,7 +19,10 @@ namespace btl
             assert(false && "Copy disabled at runtime");
         }
 
-        AssertOnCopy(AssertOnCopy&& rhs) noexcept = default;
+        AssertOnCopy(AssertOnCopy&& rhs) noexcept :
+            value(std::move(rhs.value))
+        {
+        }
 
         AssertOnCopy& operator=(AssertOnCopy const& rhs) noexcept
         {
@@ -28,7 +31,11 @@ namespace btl
             return *this;
         }
 
-        AssertOnCopy& operator=(AssertOnCopy&& rhs) noexcept = default;
+        AssertOnCopy& operator=(AssertOnCopy&& rhs) noexcept
+        {
+            value = std::move(rhs.value);
+            return *this;
+        }
 
         std::decay_t<T> value;
     };
