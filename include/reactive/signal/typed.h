@@ -4,8 +4,86 @@
 
 #include <iostream>
 
+namespace reactive
+{
+    template <typename T, typename TSignal = void>
+    class Signal;
+} // reactive
+
 namespace reactive::signal
 {
+    template <typename T, typename TDeferred>
+    class Share
+    {
+    public:
+        Share(std::shared_ptr<TDeferred> deferred) :
+            control_(std::move(deferred))
+        {
+        }
+
+        Share(Share const&) = default;
+        Share& operator=(Share const&) = default;
+        Share(Share&&) noexcept = default;
+        Share& operator=(Share&&) noexcept = default;
+
+        auto evaluate() const -> decltype(auto)
+        {
+            return control_->evaluate();
+        }
+
+        bool hasChanged() const
+        {
+            return control_->hasChanged();
+        }
+
+        UpdateResult updateBegin(FrameInfo const& frame)
+        {
+            return control_->updateBegin(frame);
+        }
+
+        UpdateResult updateEnd(FrameInfo const& frame)
+        {
+            return control_->updateEnd(frame);
+        }
+
+        template <typename TFunc>
+        Connection observe(TFunc&& callback)
+        {
+            return control_->observe(std::forward<TFunc>(callback));
+        }
+
+        Annotation annotate() const
+        {
+            Annotation a;
+            return a;
+        }
+
+        Share clone() const
+        {
+            return *this;
+        }
+
+        using ValueType = decltype(std::declval<TDeferred>().evaluate());
+
+        std::weak_ptr<SignalBase<ValueType>> weak() const
+        {
+            return control_.ptr();
+        }
+
+        std::shared_ptr<SignalBase<ValueType>> ptr() const &
+        {
+            return control_.ptr();
+        }
+
+        std::shared_ptr<SignalBase<ValueType>> ptr() &&
+        {
+            return std::move(control_.ptr());
+        }
+
+    private:
+        btl::shared<TDeferred> control_;
+    };
+
     template <typename T, typename TSignal>
     class Typed final : public signal::SignalBase<T>
     {
@@ -90,5 +168,25 @@ namespace reactive::signal
         uint64_t frameId_ = 0;
         uint64_t frameId2_ = 0;
     };
+
+    template <typename V, typename T, typename U>
+    auto typed(Signal<T, U> sig)
+    {
+        return std::make_shared<signal::Typed<V, U>>(std::move(sig).signal());
+    }
+
+    template <typename U, typename T>
+    auto typed(Signal<T, void> sig)
+    {
+        return typed<U>(wrap(signal::Share<T, signal::Typed<T, Signal<T>>>(
+                    std::make_shared<signal::Typed<T, Signal<T>>>(std::move(sig)))
+                ));
+    }
+
+    template <typename T>
+    auto typed(Signal<T, void> sig)
+    {
+        return sig.getDeferredSignalBase();
+    }
 } // reactive::signal
 
