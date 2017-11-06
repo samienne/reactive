@@ -10,8 +10,7 @@
 #include "signal/track.h"
 #include "signal/join.h"
 
-#include "signal2.h"
-#include "signaltype.h"
+#include "signal.h"
 
 #include <btl/sequence.h>
 #include <btl/fmap.h>
@@ -109,9 +108,9 @@ namespace reactive
                         signal::map(obbMap, w.getSize(), hintsSignal));
 
             auto delegate = [obbs](
-                    signal2::Signal<btl::option<WidgetFactory>> factory,
-                    signal2::Signal<size_t> index) mutable
-                 -> signal2::Signal<btl::option<Widget>>
+                    Signal<btl::option<WidgetFactory>> factory,
+                    Signal<size_t> index) mutable
+                 -> Signal<btl::option<Widget>>
                 {
                     auto t = signal::map(pickTransform, obbs, index.clone());
                     auto size = signal::map(pickSize, obbs, index.clone());
@@ -172,7 +171,7 @@ namespace reactive
                     return factory.getSizeHint();
                 });
 
-        auto hintsSignal = signal2::share2(
+        auto hintsSignal = share(
                 signal::combine(std::move(hints))
                 );
 
@@ -181,7 +180,7 @@ namespace reactive
                  (auto w)
             // -> Widget
         {
-            auto obbs = signal2::share2(
+            auto obbs = share(
                         signal::map(obbMap, w.getSize(), hintsSignal));
 
             //std::vector<Widget> widgets;

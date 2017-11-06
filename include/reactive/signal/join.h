@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/signal2.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 
@@ -126,9 +126,9 @@ namespace reactive
         template <typename T, typename U, typename = std::enable_if_t<
             IsSignal<T>::value
             >>
-        auto join(signal2::Signal<T, U> sig)
+        auto join(Signal<T, U> sig)
         {
-            return signal2::wrap(Join<U>(std::move(sig).signal()));
+            return signal::wrap(Join<U>(std::move(sig).signal()));
         }
     }
 }

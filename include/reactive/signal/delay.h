@@ -1,7 +1,8 @@
 #pragma once
 
+#include "constant.h"
 #include "reactive/signaltraits.h"
-#include "reactive/signal/constant.h"
+#include "reactive/signal.h"
 
 #include <btl/demangle.h>
 
@@ -13,7 +14,7 @@ namespace reactive
         class Delay
         {
         public:
-            Delay(signal2::Signal<T, U>&& signal) :
+            Delay(Signal<T, U>&& signal) :
                 signal_(std::move(signal)),
                 values_({
                         btl::just(btl::clone(signal_->evaluate())),
@@ -87,7 +88,7 @@ namespace reactive
             Delay& operator=(Delay const&) = default;
 
         private:
-            btl::CloneOnCopy<signal2::Signal<T, U>> signal_;
+            btl::CloneOnCopy<Signal<T, U>> signal_;
             btl::option<std::decay_t<T>> values_[2];
             uint8_t index_ = 0;
             bool changed_ = false;
@@ -97,9 +98,9 @@ namespace reactive
                 "");
 
         template <typename T, typename U>
-        auto delay(signal2::Signal<T, U> sig)
+        auto delay(Signal<T, U> sig)
         {
-            return signal2::wrap(Delay<T, U>{ std::move(sig) });
+            return wrap(Delay<T, U>{ std::move(sig) });
         }
     } // signal
 } // reactive

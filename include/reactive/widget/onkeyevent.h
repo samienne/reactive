@@ -7,7 +7,7 @@
 #include "reactive/signal/convert.h"
 #include "reactive/signal/map.h"
 
-#include <reactive/signal2.h>
+#include <reactive/signal.h>
 
 #include <ase/keyevent.h>
 
@@ -131,7 +131,7 @@ namespace reactive
             }
 
             inline OnKeyEvent action(
-                    signal2::Signal<std::function<void(ase::KeyEvent const&)>> action) &&
+                    Signal<std::function<void(ase::KeyEvent const&)>> action) &&
             {
                 action_ = signal::mapFunction([](
                             std::function<void(ase::KeyEvent const&)> action1,

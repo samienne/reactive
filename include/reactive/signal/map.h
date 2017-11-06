@@ -2,7 +2,7 @@
 
 #include "constant.h"
 
-#include <reactive/signal2.h>
+#include <reactive/signal.h>
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
 
@@ -319,10 +319,10 @@ namespace signal
                 btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(Ts...)>>
             >::value
         >>
-    constexpr auto map(TFunc&& func, signal2::Signal<Ts, Us>... sigs)
+    constexpr auto map(TFunc&& func, Signal<Ts, Us>... sigs)
     {
-        return signal2::wrap(
-                Map<detail::MapBase, std::decay_t<TFunc>, signal2::Signal<Ts, Us>...>(
+        return signal::wrap(
+                Map<detail::MapBase, std::decay_t<TFunc>, Signal<Ts, Us>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
                 ));
@@ -339,7 +339,7 @@ namespace signal
         >::type>
     constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
     {
-        return signal2::wrap(
+        return signal::wrap(
                 Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
                     std::forward<TFunc>(func),
                     std::move(sigs)...

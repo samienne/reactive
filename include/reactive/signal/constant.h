@@ -1,6 +1,6 @@
 #pragma once
 
-#include <reactive/signal2.h>
+#include <reactive/signal.h>
 
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
@@ -91,7 +91,7 @@ namespace reactive
         template <typename T>
         auto constant(T&& value)
         {
-            return signal2::wrap(Constant<std::decay_t<T>>(
+            return signal::wrap(Constant<std::decay_t<T>>(
                         std::forward<T>(value)
                         ));
         }

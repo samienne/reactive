@@ -1,9 +1,8 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
-#include "reactive/signal2.h"
+#include "reactive/signal.h"
 
 #include <btl/spinlock.h>
 
@@ -92,7 +91,7 @@ namespace reactive
         template <typename T, typename U, std::enable_if_t<
             std::is_reference<SignalType<U>>::value
             , int> = 0>
-        auto cache(signal2::Signal<T, U>&& sig)
+        auto cache(Signal<T, U>&& sig)
         {
             return std::move(sig);
         }
@@ -100,19 +99,19 @@ namespace reactive
         template <typename T, typename U, std::enable_if_t<
             !std::is_reference<SignalType<U>>::value
             , int> = 0>
-        auto cache(signal2::Signal<T, U>&& sig)
+        auto cache(Signal<T, U>&& sig)
         {
-            return signal2::wrap(Cache<U>(std::move(sig).signal()));
+            return signal::wrap(Cache<U>(std::move(sig).signal()));
         }
 
         template <typename T>
-        auto cache(signal2::Signal<T, void>&& sig) -> signal2::Signal<T, void>
+        auto cache(Signal<T, void>&& sig) -> Signal<T, void>
         {
             if (sig.isCached())
                 return std::move(sig);
             else
             {
-                return signal2::wrap(Cache<signal2::Signal<T, void>>(
+                return signal::wrap(Cache<Signal<T, void>>(
                             std::move(sig))
                         );
             }

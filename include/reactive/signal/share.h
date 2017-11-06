@@ -2,7 +2,7 @@
 
 #include "typed.h"
 #include "cache.h"
-#include "reactive/signal2.h"
+#include "reactive/signal.h"
 //#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
@@ -13,9 +13,9 @@ namespace reactive::signal
     namespace detail
     {
         template <typename T, typename U>
-        auto makeShared(signal2::Signal<T, U> sig)
+        auto makeShared(Signal<T, U> sig)
         {
-            return signal2::SharedSignal<T, U>::create(
+            return SharedSignal<T, U>::create(
                     Share<T, signal::Typed<T, U>>(
                         std::make_shared<signal::Typed<T, U>>(
                             std::move(sig).signal()
@@ -26,27 +26,27 @@ namespace reactive::signal
     } // detail
 
     template <typename T, typename U>
-    auto share(signal2::Signal<T, U> sig)
+    auto share(Signal<T, U> sig)
     {
         return detail::makeShared(cache(std::move(sig)));
     }
 
     template <typename T, typename U>
-    auto share(signal2::Signal<T, Share<T, U>> sig)
+    auto share(Signal<T, Share<T, U>> sig)
     {
         return std::move(sig);
     }
 
     template <typename T>
-    auto share(signal2::Signal<T, void> sig)
+    auto share(Signal<T, void> sig)
     {
-        return signal2::SharedSignal<T, void>::create(
+        return SharedSignal<T, void>::create(
                 std::move(sig)
                 );
     }
 
     template <typename T, typename U>
-    auto share(signal2::SharedSignal<T, U> sig)
+    auto share(SharedSignal<T, U> sig)
     {
         return std::move(sig);
     }

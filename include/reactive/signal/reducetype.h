@@ -1,11 +1,11 @@
 #pragma once
 
-#include "reactive/signal2.h"
+#include "reactive/signal.h"
 
 namespace reactive::signal
 {
     template <typename T, typename U>
-    auto reduceType(signal2::Signal<T, U> sig) -> signal2::Signal<T, void>
+    auto reduceType(Signal<T, U> sig) -> Signal<T, void>
     {
         return std::move(sig);
     }

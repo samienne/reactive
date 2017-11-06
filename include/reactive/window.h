@@ -2,6 +2,8 @@
 
 #include "widgetfactory.h"
 
+#include "signal.h"
+
 #include <btl/cloneoncopy.h>
 
 namespace reactive
@@ -9,7 +11,7 @@ namespace reactive
     class Window
     {
     public:
-        Window(WidgetFactory widget, signal2::Signal<std::string> const& title);
+        Window(WidgetFactory widget, Signal<std::string> const& title);
 
     private:
         Window(Window const&) = default;
@@ -23,7 +25,7 @@ namespace reactive
 
         WidgetFactory getWidget() const;
 
-        signal2::Signal<std::string> const& getTitle() const;
+        Signal<std::string> const& getTitle() const;
 
         void invokeOnClose() const;
 
@@ -34,11 +36,11 @@ namespace reactive
 
     private:
         btl::CloneOnCopy<WidgetFactory> widget_;
-        signal2::SharedSignal<std::string> title_;
+        SharedSignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };
 
-    auto window(signal2::Signal<std::string> const& title, WidgetFactory widget)
+    auto window(Signal<std::string> const& title, WidgetFactory widget)
         -> Window;
 }
 

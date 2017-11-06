@@ -4,6 +4,7 @@
 #include "signalbase.h"
 
 #include <reactive/signaltraits.h>
+#include "signal.h"
 
 #include <btl/dummylock.h>
 
@@ -38,7 +39,7 @@ namespace reactive
                     p->set(p->lock(), std::move(value));
             }
 
-            void set(signal2::Signal<T, Weak<T>> sig)
+            void set(Signal<T, Weak<T>> sig)
             {
                 if (auto p = deferred_.lock())
                     p->set(p->lock(), std::move(sig));

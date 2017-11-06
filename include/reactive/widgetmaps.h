@@ -8,6 +8,7 @@
 #include <reactive/stream/stream.h>
 
 #include <reactive/signal/map.h>
+#include <reactive/signal.h>
 
 #include <btl/sequence.h>
 #include <btl/bundle.h>
@@ -113,7 +114,7 @@ namespace reactive
                     btl::none));
     }
 
-    inline auto background(signal2::Signal<avg::Brush> brush)
+    inline auto background(Signal<avg::Brush> brush)
         // -> FactoryMap;
     {
         return onDrawBehind<avg::Vector2f>(
@@ -130,7 +131,7 @@ namespace reactive
                 });
     }
 
-    inline auto onPointerDown(signal2::Signal<
+    inline auto onPointerDown(Signal<
             std::function<void(ase::PointerButtonEvent const&)>
             > cb)
     {
@@ -169,7 +170,7 @@ namespace reactive
             std::function<void(ase::PointerButtonEvent const&)>
         >::value
         >>
-    inline auto onPointerUp(signal2::Signal<T, U> cb)
+    inline auto onPointerUp(Signal<T, U> cb)
             //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
@@ -254,8 +255,8 @@ namespace reactive
     template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
         , int> = 0>
-    inline auto onClick(unsigned int button, signal2::Signal<T, U> cb)
-            //signal2::Signal<std::function<void(ClickEvent const&)>> cb)
+    inline auto onClick(unsigned int button, Signal<T, U> cb)
+            //Signal<std::function<void(ClickEvent const&)>> cb)
     {
         auto f = [button](
                 std::function<void(ClickEvent const&)> const& cb,
@@ -271,7 +272,7 @@ namespace reactive
     template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void()>>::value
         , int> = 0>
-    inline auto onClick(unsigned int button, signal2::Signal<T, U> cb)
+    inline auto onClick(unsigned int button, Signal<T, U> cb)
     {
         auto f = [](std::function<void()> cb, ClickEvent const&)
         {

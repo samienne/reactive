@@ -11,11 +11,11 @@
 
 namespace reactive::widget
 {
-    WidgetFactory label(signal2::SharedSignal<std::string> text);
+    WidgetFactory label(SharedSignal<std::string> text);
 
-    inline WidgetFactory label(signal2::Signal<std::string> text)
+    inline WidgetFactory label(Signal<std::string> text)
     {
-        return label(signal2::share2(std::move(text)));
+        return label(signal::share(std::move(text)));
     }
 } // reactive::widget
 

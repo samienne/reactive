@@ -42,7 +42,7 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
 
 UniformGrid::operator WidgetFactory() &&
 {
-    std::vector<signal2::Signal<SizeHint>> hints;
+    std::vector<Signal<SizeHint>> hints;
     hints.reserve(cells_.size());
 
     auto cells = std::move(cells_);

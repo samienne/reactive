@@ -1,7 +1,6 @@
 #pragma once
 
-#include "reactive/signal2.h"
-#include "reactive/signaltype.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 namespace reactive
@@ -22,7 +21,7 @@ namespace reactive
             }
 
             template <typename U>
-            Weak(signal2::SharedSignal<T, U> const& sig) :
+            Weak(SharedSignal<T, U> const& sig) :
                 deferred_(sig.signal().weak())
             {
             }
@@ -109,9 +108,9 @@ namespace reactive
         };
 
         template <typename T, typename U>
-        auto weak(signal2::SharedSignal<T, U> const& sig) // -> Weak<T>
+        auto weak(SharedSignal<T, U> const& sig) // -> Weak<T>
         {
-            return signal2::wrap(Weak<T>(sig));
+            return signal::wrap(Weak<T>(sig));
         }
     }
 }

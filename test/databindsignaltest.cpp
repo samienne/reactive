@@ -2,6 +2,7 @@
 #include <reactive/signaltype.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/update.h>
+#include <reactive/signal.h>
 
 #include <btl/collection.h>
 
@@ -23,9 +24,9 @@ TEST(DataBindSignal, pushBackAndErase)
         w.push_back(3);
     }
 
-    auto s1 = signal::dataBind(c, [](signal2::Signal<btl::option<int>> data,
+    auto s1 = signal::dataBind(c, [](Signal<btl::option<int>> data,
                 signal::IndexSignal)
-            -> signal2::Signal<btl::option<std::string>>
+            -> Signal<btl::option<std::string>>
             {
                 return signal::map([](btl::option<int> data)
                         -> btl::option<std::string>
@@ -134,9 +135,9 @@ TEST(DataBindSignal, keepErased)
 
     auto keep = signal::input(true);
 
-    auto s1 = signal::dataBind(c, [keep](signal2::Signal<btl::option<int>> data,
+    auto s1 = signal::dataBind(c, [keep](Signal<btl::option<int>> data,
                 signal::IndexSignal)
-            -> signal2::Signal<btl::option<std::string>>
+            -> Signal<btl::option<std::string>>
             {
                 return signal::map([](btl::option<int> data, bool keep)
                         -> btl::option<std::string>

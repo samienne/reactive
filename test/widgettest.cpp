@@ -20,7 +20,7 @@ TEST(Widget, get)
     auto d = reactive::get<avg::Drawing>(w);
 
     static_assert(std::is_same<
-                signal2::Signal<avg::Drawing, signal::Constant<avg::Drawing>>,
+                Signal<avg::Drawing, signal::Constant<avg::Drawing>>,
                 decltype(d)
             >::value,
             "");
@@ -28,7 +28,7 @@ TEST(Widget, get)
     auto a = reactive::get<std::vector<InputArea>>(w);
 
     static_assert(std::is_same<
-                signal2::Signal<std::vector<InputArea>,
+                Signal<std::vector<InputArea>,
                     signal::Constant<std::vector<InputArea>>
                 >,
                 decltype(a)
@@ -45,7 +45,7 @@ TEST(Widget, get)
     auto s = reactive::get<ase::Vector2f>(w);
 
     static_assert(std::is_assignable<
-                signal2::Signal<ase::Vector2f>,
+                Signal<ase::Vector2f>,
                 decltype(s)
             >::value,
             "");
@@ -53,7 +53,7 @@ TEST(Widget, get)
     auto k = reactive::get<std::vector<KeyboardInput>>(w);
 
     static_assert(std::is_assignable<
-                signal2::Signal<std::vector<KeyboardInput>>,
+                Signal<std::vector<KeyboardInput>>,
                 decltype(k)
             >::value,
             "");
@@ -61,7 +61,7 @@ TEST(Widget, get)
     auto t = reactive::get<widget::Theme>(w);
 
     static_assert(std::is_same<
-            signal2::Signal<widget::Theme,
+            Signal<widget::Theme,
                 signal::Constant<widget::Theme>
             >,
             decltype(t)

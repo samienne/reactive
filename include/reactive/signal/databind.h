@@ -24,7 +24,7 @@ namespace reactive
 {
     namespace signal
     {
-        using IndexSignal = signal2::Signal<size_t>;
+        using IndexSignal = Signal<size_t>;
 
         template <typename TDelegate, typename TCollection>
         class DataBind;
@@ -45,7 +45,7 @@ namespace reactive
             using DelegateType = std::decay_t<TDelegate>;
             using DelegateReturnType = std::decay_t<decltype(
                     std::declval<DelegateType>()(
-                        std::declval<signal2::SharedSignal<btl::option<ItemType>>>(),
+                        std::declval<SharedSignal<btl::option<ItemType>>>(),
                         std::declval<IndexSignal>()
                         )
                 )>;
@@ -64,7 +64,7 @@ namespace reactive
                 /*std::decay_t<decltype(
                         share(std::declval<DelegateReturnType>())
                         )> sig;*/
-                signal2::SharedSignal<SignalType<DelegateReturnType>> sig;
+                SharedSignal<SignalType<DelegateReturnType>> sig;
                 InputHandle<size_t> indexHandle;
                 bool alive;
             };
@@ -435,7 +435,7 @@ namespace reactive
                      std::decay_t<TDelegate>>
                 >
             auto dataBind(TAddDelegate&& delegate) const
-                -> decltype(signal2::wrap(
+                -> decltype(signal::wrap(
                         std::declval<DataBind<
                             TNewDelegate,
                             std::decay_t<TCollection> const&
@@ -445,7 +445,7 @@ namespace reactive
                 auto d = TNewDelegate(
                             std::forward<TAddDelegate>(delegate),
                             deferred_->delegate_);
-                return signal2::wrap(DataBind<TNewDelegate,
+                return signal::wrap(DataBind<TNewDelegate,
                        std::decay_t<TCollection> const&>(
                         std::move(d), typename std::decay<TCollection>::type(
                             deferred_->collection_)));
@@ -462,8 +462,8 @@ namespace reactive
 
         static_assert(IsSignal<
                 DataBind<
-                std::function<signal2::SharedSignal<btl::option<int>>(
-                    signal2::Signal<btl::option<std::string>>,
+                std::function<SharedSignal<btl::option<int>>(
+                    Signal<btl::option<std::string>>,
                     IndexSignal)>,
                 btl::collection<std::string>
                 >>::value,
@@ -497,7 +497,7 @@ namespace reactive
                 TDelegate delegate = IdentityDelegate())
             //-> DataBind<TDelegate, TCollection>
         {
-            return signal2::wrap(
+            return signal::wrap(
                     DataBind<std::decay_t<TDelegate>, std::decay_t<TCollection>>(
                         std::move(delegate),
                         std::move(collection)

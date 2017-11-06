@@ -25,7 +25,7 @@ reactive::WidgetFactory adder()
 
     btl::collection<std::string> collection;
 
-    auto delegate = [collection](signal2::Signal<std::string> data,
+    auto delegate = [collection](Signal<std::string> data,
             signal::IndexSignal index) mutable
         -> WidgetFactory
     {

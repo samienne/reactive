@@ -1,19 +1,19 @@
 #pragma once
 
 #include "cast.h"
-#include "reactive/signal2.h"
+#include "reactive/signal.h"
 
 namespace reactive::signal
 {
     template <typename T>
-    class Convert : public signal2::Signal<T, void>
+    class Convert : public Signal<T, void>
     {
     public:
         template <typename U, typename V, typename = std::enable_if_t<
             std::is_convertible<U, T>::value
             >>
-        Convert(signal2::Signal<U, V> sig) :
-            signal2::Signal<T, void>(cast<T>(std::move(sig)))
+        Convert(Signal<U, V> sig) :
+            Signal<T, void>(cast<T>(std::move(sig)))
         {
         }
 

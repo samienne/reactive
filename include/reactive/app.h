@@ -15,7 +15,7 @@ namespace reactive
     public:
         virtual ~AppImpl() = default;
         virtual void addWindows(std::vector<Window> windows) = 0;
-        virtual int run(signal2::Signal<bool> running) && = 0;
+        virtual int run(Signal<bool> running) && = 0;
         virtual int run() && = 0;
     };
 
@@ -26,7 +26,7 @@ namespace reactive
 
         App windows(std::initializer_list<Window> windows) &&;
 
-        int run(signal2::Signal<bool> running) &&;
+        int run(Signal<bool> running) &&;
         int run() &&;
 
     private:

@@ -4,7 +4,7 @@
 #include "databind.h"
 
 #include "reactive/signal/updateifjust.h"
-#include "reactive/signaltype.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/option.h>
@@ -31,10 +31,10 @@ namespace reactive
             >
             auto operator()(T&& t, IndexSignal index)
             /*
-                -> signal2::Signal<btl::option<std::decay_t<
+                -> Signal<btl::option<std::decay_t<
                     decltype(
                             std::declval<TDelegate>()(
-                                std::declval<signal2::SharedSignal<
+                                std::declval<SharedSignal<
                                     SignalType<T>
                                     >>(),
                                 index

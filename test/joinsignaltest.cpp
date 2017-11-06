@@ -2,6 +2,7 @@
 #include "reactive/signal/input.h"
 #include "reactive/signal/map.h"
 #include "reactive/signal/update.h"
+#include "reactive/signal.h"
 
 #include <gtest/gtest.h>
 
@@ -10,9 +11,9 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<signal2::SharedSignal<int>> h2;
-    signal2::Signal<signal2::SharedSignal<int>> s1;
-    signal2::Signal<int> s2;
+    signal::InputHandle<SharedSignal<int>> h2;
+    Signal<SharedSignal<int>> s1;
+    Signal<int> s2;
 };
 
 Test makeTest()

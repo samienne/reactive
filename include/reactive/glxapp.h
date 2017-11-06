@@ -2,6 +2,8 @@
 
 #include "app.h"
 
+#include "signal.h"
+
 #include <vector>
 
 namespace reactive
@@ -11,7 +13,7 @@ namespace reactive
     public:
         GlxApp();
         void addWindows(std::vector<Window> windows) override;
-        int run(signal2::Signal<bool> running) && override;
+        int run(Signal<bool> running) && override;
         int run() && override;
 
     private:

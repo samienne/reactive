@@ -2,12 +2,12 @@
 
 #include "map.h"
 
-#include <reactive/signal2.h>
+#include <reactive/signal.h>
 
 namespace reactive::signal
 {
     template <typename T, typename U>
-    auto removeReference(signal2::Signal<T, U> sig)
+    auto removeReference(Signal<T, U> sig)
     {
         return signal::map([](auto&& v) -> std::decay_t<T>
         {

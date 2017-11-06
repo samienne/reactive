@@ -1,6 +1,7 @@
 #pragma once
 
 #include "constant.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 namespace reactive
@@ -90,16 +91,16 @@ namespace reactive
                 "DropRepeatsSignal is not a signal");
 
         template <typename T, typename U>
-        auto dropRepeats(signal2::Signal<T, U> signal)
+        auto dropRepeats(Signal<T, U> signal)
         {
-            return signal2::wrap(
-                    DropRepeats<signal2::Signal<T, U>>(
+            return wrap(
+                    DropRepeats<Signal<T, U>>(
                         std::move(signal))
                     );
         }
 
         template <typename T, typename U>
-        auto tryDropRepeats(signal2::Signal<T, U> sig)
+        auto tryDropRepeats(Signal<T, U> sig)
         -> decltype(dropRepeats(std::move(sig)))
         {
             return dropRepeats(std::move(sig));

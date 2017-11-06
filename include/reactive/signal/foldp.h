@@ -105,7 +105,7 @@ namespace reactive
                 std::decay_t<TSignal>
                 >*/
         {
-            return signal2::wrap(FoldP<
+            return wrap(FoldP<
                 std::decay_t<TFunc>,
                 std::decay_t<TValue>,
                 std::decay_t<TSignal>>

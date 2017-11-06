@@ -6,7 +6,7 @@
 #include "reactive/signal/reducetype.h"
 #include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
-#include "reactive/signaltype.h"
+#include "reactive/signal.h"
 
 #include <avg/font.h>
 
@@ -48,11 +48,11 @@ namespace reactive
         struct TextEdit
         {
             operator WidgetFactory() const;
-            TextEdit onEnter(signal2::Signal<std::function<void()>> cb) &&;
+            TextEdit onEnter(Signal<std::function<void()>> cb) &&;
             TextEdit onEnter(std::function<void()> cb) &&;
 
             template <typename T, typename U>
-            TextEdit onEnter(signal2::Signal<T, U> cb) &&
+            TextEdit onEnter(Signal<T, U> cb) &&
             {
                 return std::move(*this)
                     .onEnter(signal::reduceType(
@@ -62,12 +62,12 @@ namespace reactive
             }
 
             signal::InputHandle<TextEditState> handle_;
-            signal2::Signal<TextEditState> state_;
-            std::vector<signal2::SharedSignal<std::function<void()>>> onEnter_;
+            Signal<TextEditState> state_;
+            std::vector<SharedSignal<std::function<void()>>> onEnter_;
         };
 
         TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-                signal2::Signal<TextEditState> state);
+                Signal<TextEditState> state);
     }
 }
 

@@ -1,40 +1,22 @@
 #pragma once
 
 #include "signal/share.h"
-#include "signal2.h"
 
-namespace reactive::signal
+namespace reactive
 {
     template <typename T, typename TDeferred>
     class Share;
-}
 
-namespace reactive::signal2
-{
     template <typename T, typename TSignal>
     class SharedSignal : public Signal<T, signal::Share<T, signal::Typed<T, TSignal>>>
     {
     private:
-        /*
-        SharedSignal(Signal<T, signal::Share<TSignal>> sig) :
-            Signal<T, signal::Share<TSignal>>(std::move(sig))
-        {
-        }
-        */
-
         SharedSignal(signal::Share<T, signal::Typed<T, TSignal>> sig) :
             Signal<T, signal::Share<T, signal::Typed<T, TSignal>>>(std::move(sig))
         {
         }
 
     public:
-        /*
-        static SharedSignal create(Signal<T, signal::Share<TSignal>>&& sig)
-        {
-            return { std::move(sig) };
-        }
-        */
-
         static SharedSignal create(signal::Share<T, signal::Typed<T, TSignal>>&& sig)
         {
             return { std::move(sig) };
@@ -84,12 +66,5 @@ namespace reactive::signal2
             return *this;
         }
     };
-
-    template <typename T, typename TSignal>
-    auto share2(Signal<T, TSignal> sig)
-    {
-        return signal::share(std::move(sig));
-        //return SharedSignal<T, TSignal>::create(std::move(sig));
-    }
-} // reactive::signal2
+} // reactive
 

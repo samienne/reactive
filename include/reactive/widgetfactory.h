@@ -4,13 +4,13 @@
 #include "widgetmaps.h"
 #include "widgetmap.h"
 #include "widget.h"
-#include "signal.h"
 
 #include "signal/cast.h"
 #include "signal/share.h"
 #include "signal/cache.h"
 #include "signal/changed.h"
 #include "signal/tee.h"
+#include "signal.h"
 
 #include <avg/transform.h>
 
@@ -30,7 +30,7 @@ namespace reactive
     class WidFac;
 
     using FactoryMapWidget = std::function<Widget(Widget)>;
-    using WidgetFactoryBase = WidFac<std::tuple<WidgetMap>, signal2::Signal<SizeHint>>;
+    using WidgetFactoryBase = WidFac<std::tuple<WidgetMap>, Signal<SizeHint>>;
     struct WidgetFactory;
     using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
 

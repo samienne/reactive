@@ -77,27 +77,8 @@ namespace reactive::signal
 
         Annotation annotate() const override final
         {
-            //return sig_.annotate();
             return Annotation();
         }
-
-        /*
-        std::shared_ptr<signal::SignalBase<std::decay_t<T>>>
-            cloneDecayed() const override final
-        {
-            return std::make_shared<Typed<std::decay_t<T>, TSignal>>(
-                    btl::clone(sig_));
-        }
-        */
-
-        /*
-        std::shared_ptr<signal::SignalBase<std::decay_t<T> const& >>
-            cloneConstRef() const override final
-        {
-            return std::make_shared<Typed<std::decay_t<T> const&, TSignal>>(
-                    btl::clone(sig_));
-        }
-        */
 
         bool isCached() const override
         {

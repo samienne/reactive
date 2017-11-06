@@ -5,6 +5,7 @@
 #include "inputdeferredvalue.h"
 
 #include <reactive/sharedsignal.h>
+#include <reactive/signal.h>
 
 #include <reactive/connection.h>
 #include <reactive/observable.h>
@@ -16,11 +17,8 @@
 #include <list>
 #include <memory>
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
-    {
-
     template <typename T, typename TLock = btl::DummyLock> struct Input;
 
     template <typename T, typename TLock = btl::DummyLock>
@@ -123,7 +121,7 @@ namespace reactive
     {
         Input(InputSignal<T, TLock> sig) :
             handle(sig.deferred_),
-            signal(signal2::share2(signal2::wrap(std::move(sig))))
+            signal(share(wrap(std::move(sig))))
         {
         }
 
@@ -134,7 +132,7 @@ namespace reactive
         Input& operator=(Input&&) noexcept = default;
 
         InputHandle<T, TLock> handle;
-        signal2::SharedSignal<T, InputSignal<T, TLock>> signal;
+        SharedSignal<T, InputSignal<T, TLock>> signal;
     };
 
     template <typename T, typename TLock = btl::DummyLock>
@@ -148,6 +146,5 @@ namespace reactive
         return Input<T, TLock>(std::move(sig));
     }
 
-    } // signal
-} // reactive
+} // reactive::signal
 

@@ -78,7 +78,7 @@ namespace reactive
             return tag_;
         }
 
-        void set(Lock const&, signal2::Signal<T, Weak<T>> sig)
+        void set(Lock const&, Signal<T, Weak<T>> sig)
         {
             if (signal_ == sig.signal())
                 return;

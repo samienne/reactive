@@ -172,9 +172,9 @@ namespace reactive
         auto iterate(TFunc func, TInitial initial, Stream<T> stream,
                 TSignals... signals)
         {
-            return signal2::wrap(Iterate<
+            return signal::wrap(Iterate<
                 std::decay_t<TFunc>,
-                decltype(signal2::wrap(signal::dropRepeats(std::declval<TInitial>()))),
+                decltype(signal::wrap(signal::dropRepeats(std::declval<TInitial>()))),
                 T,
                 std::decay_t<TSignals>...
                 >(
@@ -195,14 +195,14 @@ namespace reactive
         auto iterate(TFunc&& func, TInitial&& initial, Stream<T> stream,
                 TSignals... signals)
         -> decltype(
-             signal2::wrap(iterate(
+             signal::wrap(iterate(
                     std::forward<TFunc>(func),
                     signal::constant(std::forward<TInitial>(initial)),
                     std::move(stream),
                     std::move(signals)...
                     )))
         {
-            return signal2::wrap(
+            return signal::wrap(
                     iterate(
                         std::forward<TFunc>(func),
                         signal::constant(std::forward<TInitial>(initial)),

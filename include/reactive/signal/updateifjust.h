@@ -99,7 +99,7 @@ namespace reactive
                 typename UpdateIfJust<TSignal>::ValueTypeDecayed initial)
             //-> UpdateIfJust<TSignal>
         {
-            return signal2::wrap(
+            return signal::wrap(
                     UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
                         std::move(initial))
                     );
