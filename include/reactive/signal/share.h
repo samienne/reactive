@@ -3,7 +3,6 @@
 #include "typed.h"
 #include "cache.h"
 #include "reactive/signal.h"
-//#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/shared.h>

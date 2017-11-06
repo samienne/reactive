@@ -1,10 +1,6 @@
 #pragma once
 
-//#include "signal/map.h"
-//#include "signaltype.h"
-
 #include "signal/frameinfo.h"
-//#include "signal/share.h"
 #include "signal/typed.h"
 #include "signal/signalbase.h"
 #include "signaltraits.h"
