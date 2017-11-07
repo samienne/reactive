@@ -4,7 +4,6 @@
 
 #include <reactive/signal/map.h>
 #include <reactive/signal/constant.h>
-#include <reactive/signaltype.h>
 
 #include <btl/fn.h>
 

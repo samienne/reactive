@@ -1,4 +1,5 @@
 #include <reactive/signal/constant.h>
+#include <reactive/signal/erasetype.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
@@ -143,7 +144,7 @@ TEST(SignalTypeReduction, redundantTypeReduction)
     auto s1 = signal::input(10);
     Signal<int> s2(s1.signal.clone());
 
-    auto s3 = signal::makeSignal(s2.clone());
+    auto s3 = signal::eraseType(s2.clone());
 
     std::ofstream of("redu.dot");
     of << s3.annotate().getDot() << std::endl;

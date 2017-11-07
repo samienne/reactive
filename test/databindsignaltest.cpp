@@ -1,5 +1,4 @@
 #include <reactive/signal/databind.h>
-#include <reactive/signaltype.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/update.h>
 #include <reactive/signal.h>

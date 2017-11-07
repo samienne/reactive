@@ -7,7 +7,6 @@
 #include "input.h"
 #include "inputhandle.h"
 
-#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/typetraits.h>

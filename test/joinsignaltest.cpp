@@ -1,4 +1,5 @@
 #include "reactive/signal/join.h"
+#include "reactive/signal/erasetype.h"
 #include "reactive/signal/input.h"
 #include "reactive/signal/map.h"
 #include "reactive/signal/update.h"
@@ -19,7 +20,7 @@ struct Test
 Test makeTest()
 {
     auto i1 = signal::input(10);
-    auto i2 = signal::input(signal::share(makeSignal(std::move(i1.signal))));
+    auto i2 = signal::input(signal::share(signal::eraseType(std::move(i1.signal))));
 
     auto s = signal::join(btl::clone(i2.signal));
 

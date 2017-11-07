@@ -1,4 +1,5 @@
 #include <reactive/signal/share.h>
+#include <reactive/signal/erasetype.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/cast.h>
 #include <reactive/signal/input.h>
@@ -78,7 +79,7 @@ TEST(Map, Partial)
     auto h = btl::applyPartial(f, 10);
     auto n = h(20);
 
-    auto gs = makeSignal(mapFunction(f));
+    auto gs = eraseType(mapFunction(f));
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
@@ -253,10 +254,10 @@ TEST(MapSignal, single)
 {
     auto i = signal::input(10);
 
-    /*auto s1 = makeSignal(signal::map([](int n)
+    /*auto s1 = eraseType(signal::map([](int n)
             {
                 return n * 2;
-            }, makeSignal(i.signal)));*/
+            }, eraseType(i.signal)));*/
 
     auto s1 = std::move(i.signal) | signal::fmap2([](int n)
             {

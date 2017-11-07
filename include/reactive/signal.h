@@ -265,14 +265,5 @@ namespace reactive
         template <typename T2> friend class reactive::signal::Weak;
         signal::Share<T, signal::SignalBase<T>> deferred_;
     };
-
-    namespace signal
-    {
-        template <typename T, typename U>
-        auto makeSignal(Signal<T, U> sig)
-        {
-            return Signal<T, void>(std::move(sig));
-        }
-    } // signal
 } // reactive
 
