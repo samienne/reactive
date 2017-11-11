@@ -2,15 +2,34 @@
 
 #include "apply.h"
 
-#include <utility>
-#include <type_traits>
+//#include <utility>
+//#include <type_traits>
 
 namespace btl
 {
     namespace detail
     {
+        template <typename TFunc, typename T>
+        struct Reducer
+        {
+            template <typename U>
+            auto operator<<(U&& u) &&
+            {
+                auto v = func(std::move(value), std::forward<U>(u));
+
+                return Reducer<TFunc, std::decay_t<decltype(v)>>{
+                        std::forward<TFunc>(func),
+                        std::move(v)
+                };
+            }
+
+            TFunc&& func;
+            T value;
+        };
+
         struct TupleReduce
         {
+#if 0
             template <typename TFunc, typename U, typename T, typename... Ts>
             auto operator()(TFunc&& func, U&& initial, T&& t, Ts&&... ts) const
                 /*-> decltype(
@@ -33,6 +52,19 @@ namespace btl
                 -> std::decay_t<U>
             {
                 return std::forward<U>(initial);
+            }
+#endif
+            template <typename TFunc, typename U, typename... Ts>
+            auto operator()(TFunc&& func, U&& initial, Ts&&... ts) const
+            {
+                auto r = Reducer<TFunc, std::decay_t<U>>{
+                        std::forward<TFunc>(func),
+                        std::forward<U>(initial)
+                };
+
+                return std::move(
+                        (std::move(r) << ... << std::forward<Ts>(ts)).value
+                        );
             }
         };
     }
