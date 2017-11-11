@@ -153,10 +153,10 @@ namespace reactive
                     );
     }
 
+#if 1
     WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             std::vector<WidgetFactory> factories);
-        //-> WidgetFactory
-    /*
+#else
     template <typename TFactories, typename TObbMap, typename TSizeHintMap,
              typename =
         std::enable_if_t<
@@ -222,6 +222,6 @@ namespace reactive
             | mapWidget(std::move(widgetMap))
             | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
     }
-    */
+#endif
 } // reactive
 

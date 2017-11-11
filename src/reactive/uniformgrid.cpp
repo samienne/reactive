@@ -113,6 +113,7 @@ UniformGrid::operator WidgetFactory() &&
     return r;
 }
 
+#if 1
 WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
         std::vector<WidgetFactory> factories)
 {
@@ -166,6 +167,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
         | mapWidget(std::move(widgetMap))
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
+#endif
 
 } // reactive
 
