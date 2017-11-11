@@ -1,6 +1,7 @@
 #pragma once
 
 #include "apply.h"
+#include "hidden.h"
 
 //#include <utility>
 //#include <type_traits>
@@ -13,7 +14,7 @@ namespace btl
         struct Reducer
         {
             template <typename U>
-            auto operator<<(U&& u) &&
+            BTL_FORCE_INLINE auto operator<<(U&& u) &&
             {
                 auto v = func(std::move(value), std::forward<U>(u));
 
@@ -55,7 +56,7 @@ namespace btl
             }
 #endif
             template <typename TFunc, typename U, typename... Ts>
-            auto operator()(TFunc&& func, U&& initial, Ts&&... ts) const
+            BTL_FORCE_INLINE auto operator()(TFunc&& func, U&& initial, Ts&&... ts) const
             {
                 auto r = Reducer<TFunc, std::decay_t<U>>{
                         std::forward<TFunc>(func),
@@ -70,7 +71,7 @@ namespace btl
     }
 
     template <typename TFunc, typename T, typename TTuple>
-    auto tuple_reduce(T&& initial, TTuple&& tuple, TFunc&& func)
+    BTL_FORCE_INLINE auto tuple_reduce(T&& initial, TTuple&& tuple, TFunc&& func)
         /*-> decltype(apply(detail::TupleReduce(),
                 tuple_cat(
                     std::forward_as_tuple(
