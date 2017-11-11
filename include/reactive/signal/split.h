@@ -4,8 +4,11 @@
 #include "map.h"
 
 #include <btl/tuplemap.h>
+#include <btl/hidden.h>
 
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -54,3 +57,6 @@ namespace reactive
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
+

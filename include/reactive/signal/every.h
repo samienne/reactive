@@ -2,22 +2,26 @@
 
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive
 {
     namespace signal
     {
-        class Every
+        class BTL_CLASS_VISIBLE Every
         {
         public:
-            inline Every(signal_time_t phase) :
+            BTL_HIDDEN inline Every(signal_time_t phase) :
                 phase_(phase)
             {
             }
 
-            Every(Every&&) = default;
-            Every& operator=(Every&&) = default;
+            BTL_HIDDEN Every(Every&&) = default;
+            BTL_HIDDEN Every& operator=(Every&&) = default;
 
-            inline UpdateResult updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN inline UpdateResult updateBegin(FrameInfo const& frame)
             {
                 while (dt_ >= phase_)
                     dt_ -= phase_;
@@ -35,12 +39,12 @@ namespace reactive
                 return btl::just(std::max(signal_time_t(0), phase_ - dt_));
             }
 
-            inline UpdateResult updateEnd(FrameInfo const&)
+            BTL_HIDDEN inline UpdateResult updateEnd(FrameInfo const&)
             {
                 return btl::none;
             }
 
-            inline signal_time_t evaluate() const
+            BTL_HIDDEN inline signal_time_t evaluate() const
             {
                 if (changed_)
                     return dt_;
@@ -48,18 +52,18 @@ namespace reactive
                 return signal_time_t(0);
             }
 
-            inline bool hasChanged() const
+            BTL_HIDDEN inline bool hasChanged() const
             {
                 return changed_;
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&&)
+            BTL_HIDDEN Connection observe(TCallback&&)
             {
                 return Connection();
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 a.addNode("every(" + std::to_string(phase_.count()) + "us)");
@@ -67,8 +71,8 @@ namespace reactive
             }
 
         private:
-            Every(Every const&) = default;
-            Every& operator=(Every const&) = default;
+            BTL_HIDDEN Every(Every const&) = default;
+            BTL_HIDDEN Every& operator=(Every const&) = default;
 
         private:
             signal_time_t phase_;
@@ -84,4 +88,6 @@ namespace reactive
         }
     }
 }
+
+BTL_VISIBILITY_POP
 

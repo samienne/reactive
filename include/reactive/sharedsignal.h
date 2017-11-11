@@ -2,13 +2,16 @@
 
 #include "signal/share.h"
 
+#include <btl/hidden.h>
+
 namespace reactive
 {
     template <typename T, typename TDeferred>
     class Share;
 
     template <typename T, typename TSignal>
-    class SharedSignal : public Signal<T, signal::Share<T, signal::Typed<T, TSignal>>>
+    class SharedSignal : public Signal<T,
+    signal::Share<T, signal::Typed<T, TSignal>>>
     {
     private:
         SharedSignal(signal::Share<T, signal::Typed<T, TSignal>> sig) :

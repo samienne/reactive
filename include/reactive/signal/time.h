@@ -5,11 +5,12 @@
 #include "constant.h"
 #include "reactive/signaltraits.h"
 
-namespace reactive
-{
-    namespace signal
-    {
+#include <btl/hidden.h>
 
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
+{
     namespace detail
     {
         template <typename T>
@@ -28,6 +29,7 @@ namespace reactive
         return foldp(detail::add<signal_time_t>(), signal_time_t(0), dt());
     }
 
-    }
-}
+} // reactive::signal
+
+BTL_VISIBILITY_POP
 

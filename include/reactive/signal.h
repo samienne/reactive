@@ -12,52 +12,47 @@
 #include <btl/not.h>
 #include <btl/all.h>
 #include <btl/any.h>
+#include <btl/hidden.h>
 
 #include <mutex>
 #include <utility>
 
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive::signal
 {
-    template <typename T2> class Weak;
+    template <typename T2> class BTL_CLASS_VISIBLE Weak;
 } // reactive::signal
 
 namespace reactive
 {
     template <typename T, typename TSignal = void>
-    class SharedSignal;
+    class BTL_CLASS_VISIBLE SharedSignal;
 
     template <typename T, typename TSignal /*= void */> // defined in typed.h
-    class Signal
+    class BTL_CLASS_VISIBLE Signal
     {
     public:
         template <typename U, typename V> friend class Signal;
 
         using NestedSignalType = TSignal;
 
-        Signal(TSignal sig) :
+        BTL_HIDDEN Signal(TSignal sig) :
             sig_(std::move(sig))
         {
         }
 
-        Signal(SharedSignal<T, TSignal>&& other) :
+        BTL_HIDDEN Signal(SharedSignal<T, TSignal>&& other) :
             sig_(std::move(other).signal())
         {
         }
 
-        Signal(SharedSignal<T, TSignal>& other) :
+        BTL_HIDDEN Signal(SharedSignal<T, TSignal>& other) :
             sig_(btl::clone(other.signal()))
         {
         }
 
-        Signal(SharedSignal<T, TSignal> const& other) :
-            sig_(btl::clone(other.signal()))
-        {
-        }
-
-        template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
-            >>
-        Signal(SharedSignal<T, USignal> const& other) :
+        BTL_HIDDEN Signal(SharedSignal<T, TSignal> const& other) :
             sig_(btl::clone(other.signal()))
         {
         }
@@ -65,7 +60,15 @@ namespace reactive
         template <typename USignal, typename = std::enable_if_t<
             std::is_base_of<Signal, SharedSignal<T, USignal>>::value
             >>
-        Signal(SharedSignal<T, USignal>&& other) :
+        BTL_HIDDEN Signal(SharedSignal<T, USignal> const& other) :
+            sig_(btl::clone(other.signal()))
+        {
+        }
+
+        template <typename USignal, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            >>
+        BTL_HIDDEN Signal(SharedSignal<T, USignal>&& other) :
             sig_(std::move(other).signal())
         {
         }
@@ -149,7 +152,8 @@ namespace reactive
             IsSignal<TSignal>
         >::value
         >>
-    Signal<std::decay_t<SignalType<TSignal>>, std::decay_t<TSignal>> wrap(TSignal&& sig)
+    Signal<std::decay_t<SignalType<TSignal>>, std::decay_t<TSignal>>
+    wrap(TSignal&& sig)
     {
         return { std::forward<TSignal>(sig) };
     }
@@ -165,7 +169,7 @@ namespace reactive
     } // signal
 
     template <typename T>
-    class Signal<T, void>
+    class BTL_CLASS_VISIBLE Signal<T, void>
     {
     public:
         template <typename U, typename V> friend class Signal;
@@ -266,4 +270,6 @@ namespace reactive
         signal::Share<T, signal::SignalBase<T>> deferred_;
     };
 } // reactive
+
+BTL_VISIBILITY_POP
 

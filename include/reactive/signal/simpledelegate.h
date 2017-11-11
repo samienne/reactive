@@ -8,19 +8,22 @@
 #include "reactive/signaltraits.h"
 
 #include <btl/option.h>
+#include <btl/hidden.h>
 
 #include <type_traits>
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TDelegate>
-        class SimpleDelegate
+        class BTL_CLASS_VISIBLE SimpleDelegate
         {
         public:
-            SimpleDelegate(TDelegate delegate) :
+            BTL_HIDDEN SimpleDelegate(TDelegate delegate) :
                 delegate_(std::move(delegate))
             {
             }
@@ -29,7 +32,7 @@ namespace reactive
                 IsSignal<T>::value
                 >
             >
-            auto operator()(T&& t, IndexSignal index)
+            BTL_HIDDEN auto operator()(T&& t, IndexSignal index)
             /*
                 -> Signal<btl::option<std::decay_t<
                     decltype(
@@ -80,4 +83,6 @@ namespace reactive
         }
     } //signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

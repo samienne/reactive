@@ -6,6 +6,9 @@
 #include "reactive/signaltraits.h"
 
 #include <btl/shared.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -51,3 +54,4 @@ namespace reactive::signal
     }
 } // reactive::signal
 
+BTL_VISIBILITY_POP

@@ -3,30 +3,34 @@
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive
 {
     namespace signal
     {
         template <typename T>
-        class Weak
+        class BTL_CLASS_VISIBLE Weak
         {
         public:
-            Weak()
+            BTL_HIDDEN Weak()
             {
             }
 
-            Weak(std::weak_ptr<SignalBase<T>> sig) :
+            BTL_HIDDEN Weak(std::weak_ptr<SignalBase<T>> sig) :
                 deferred_(std::move(sig))
             {
             }
 
             template <typename U>
-            Weak(SharedSignal<T, U> const& sig) :
+            BTL_HIDDEN Weak(SharedSignal<T, U> const& sig) :
                 deferred_(sig.signal().weak())
             {
             }
 
-            auto evaluate() const
+            BTL_HIDDEN auto evaluate() const
                 -> decltype(std::declval<SignalBase<T>>().evaluate())
             {
                 auto p = deferred_.lock();
@@ -35,7 +39,7 @@ namespace reactive
                 return p->evaluate();
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 if (auto p = deferred_.lock())
                     return p->hasChanged();
@@ -43,7 +47,7 @@ namespace reactive
                     return false;
             }
 
-            UpdateResult updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
             {
                 if (auto p = deferred_.lock())
                     return p->updateBegin(frame);
@@ -51,7 +55,7 @@ namespace reactive
                     return btl::none;
             }
 
-            UpdateResult updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
             {
                 if (auto p = deferred_.lock())
                     return p->updateEnd(frame);
@@ -60,7 +64,7 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& callback)
+            BTL_HIDDEN Connection observe(TCallback&& callback)
             {
                 if (auto p = deferred_.lock())
                     return p->observe(std::forward<TCallback>(callback));
@@ -68,7 +72,7 @@ namespace reactive
                     return Connection();
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 if (auto p = deferred_.lock())
                 {
@@ -83,22 +87,22 @@ namespace reactive
                 return a;
             }
 
-            Weak clone() const
+            BTL_HIDDEN Weak clone() const
             {
                 return *this;
             }
 
-            bool operator==(Weak const& rhs) const
+            BTL_HIDDEN bool operator==(Weak const& rhs) const
             {
                 return deferred_.lock().get() == rhs.deferred_.lock().get();
             }
 
-            bool operator!=(Weak const& rhs) const
+            BTL_HIDDEN bool operator!=(Weak const& rhs) const
             {
                 return !(*this == rhs);
             }
 
-            bool isValid() const
+            BTL_HIDDEN bool isValid() const
             {
                 return !deferred_.expired();
             }
@@ -114,4 +118,6 @@ namespace reactive
         }
     }
 }
+
+BTL_VISIBILITY_POP
 

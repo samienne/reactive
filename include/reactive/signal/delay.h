@@ -5,16 +5,19 @@
 #include "reactive/signal.h"
 
 #include <btl/demangle.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename T, typename U>
-        class Delay
+        class BTL_CLASS_VISIBLE Delay
         {
         public:
-            Delay(Signal<T, U>&& signal) :
+            BTL_HIDDEN Delay(Signal<T, U>&& signal) :
                 signal_(std::move(signal)),
                 values_({
                         btl::just(btl::clone(signal_->evaluate())),
@@ -23,20 +26,20 @@ namespace reactive
             {
             }
 
-            Delay(Delay&&) = default;
-            Delay& operator=(Delay&&) = default;
+            BTL_HIDDEN Delay(Delay&&) = default;
+            BTL_HIDDEN Delay& operator=(Delay&&) = default;
 
-            std::decay_t<T> const& evaluate() const
+            BTL_HIDDEN std::decay_t<T> const& evaluate() const
             {
                 return *values_[index_];
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            UpdateResult updateBegin(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const& frame)
             {
                 auto r = signal_->updateBegin(frame);
 
@@ -53,7 +56,7 @@ namespace reactive
                 return r;
             }
 
-            UpdateResult updateEnd(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const& frame)
             {
                 auto r = signal_->updateEnd(frame);
                 if (signal_->hasChanged())
@@ -65,12 +68,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& callback)
+            BTL_HIDDEN Connection observe(TCallback&& callback)
             {
                 return signal_->observe(std::forward<TCallback>(callback));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("delay<" + btl::demangle<U>() + ">");
@@ -78,14 +81,14 @@ namespace reactive
                 return a;
             }
 
-            Delay clone() const
+            BTL_HIDDEN Delay clone() const
             {
                 return *this;
             }
 
         private:
-            Delay(Delay const&) = default;
-            Delay& operator=(Delay const&) = default;
+            BTL_HIDDEN Delay(Delay const&) = default;
+            BTL_HIDDEN Delay& operator=(Delay const&) = default;
 
         private:
             btl::CloneOnCopy<Signal<T, U>> signal_;
@@ -104,4 +107,6 @@ namespace reactive
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

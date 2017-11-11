@@ -5,6 +5,9 @@
 #include "reactive/signal.h"
 
 #include <btl/mbind.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -39,4 +42,6 @@ namespace btl
                 );
     }
 } // btl
+
+BTL_VISIBILITY_POP
 

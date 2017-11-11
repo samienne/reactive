@@ -13,11 +13,14 @@
 #include <btl/observable.h>
 #include <btl/collection.h>
 #include <btl/option.h>
+#include <btl/hidden.h>
 
 #include <fit/compose.h>
 
 #include <type_traits>
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -531,4 +534,6 @@ namespace reactive
         };
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

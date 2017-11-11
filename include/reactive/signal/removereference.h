@@ -4,6 +4,10 @@
 
 #include <reactive/signal.h>
 
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive::signal
 {
     template <typename T, typename U>
@@ -16,4 +20,6 @@ namespace reactive::signal
         std::move(sig));
     }
 } // reactive::signal
+
+BTL_VISIBILITY_POP
 

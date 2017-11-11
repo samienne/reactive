@@ -4,25 +4,29 @@
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
 #include <type_traits>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
     template <typename TCondition, typename TTrue, typename TFalse>
-    class Conditional
+    class BTL_CLASS_VISIBLE Conditional
     {
     public:
-        Conditional(TCondition condition, TTrue t, TFalse f) :
+        BTL_HIDDEN Conditional(TCondition condition, TTrue t, TFalse f) :
             condition_(std::move(condition)),
             t_(std::move(t)),
             f_(std::move(f))
         {
         }
 
-        Conditional(Conditional&&) noexcept = default;
-        Conditional& operator=(Conditional&&) noexcept = default;
+        BTL_HIDDEN Conditional(Conditional&&) noexcept = default;
+        BTL_HIDDEN Conditional& operator=(Conditional&&) noexcept = default;
 
-        signal_value_t<TTrue> evaluate() const
+        BTL_HIDDEN signal_value_t<TTrue> evaluate() const
         {
             if (condition_->evaluate())
                 return btl::clone(t_->evaluate());
@@ -30,7 +34,7 @@ namespace reactive::signal
                 return btl::clone(f_->evaluate());
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             if (changed_)
                 return true;
@@ -41,7 +45,7 @@ namespace reactive::signal
                 return f_->hasChanged();
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             auto r1 = condition_->updateBegin(frame);
             auto r2 = t_->updateBegin(frame);
@@ -50,7 +54,7 @@ namespace reactive::signal
             return min(r1, min(r2, r3));
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = condition_->updateEnd(frame);
             auto r2 = r;
@@ -78,7 +82,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&& callback)
+        BTL_HIDDEN Connection observe(TCallback&& callback)
         {
             auto c = condition_->observe(callback);
             c += t_->observe(callback);
@@ -87,21 +91,21 @@ namespace reactive::signal
             return std::move(c);
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             a.addNode("Conditional");
             return a;
         }
 
-        Conditional clone() const
+        BTL_HIDDEN Conditional clone() const
         {
             return *this;
         }
 
     private:
-        Conditional(Conditional const&) = default;
-        Conditional& operator=(Conditional const&) = default;
+        BTL_HIDDEN Conditional(Conditional const&) = default;
+        BTL_HIDDEN Conditional& operator=(Conditional const&) = default;
 
     private:
         btl::CloneOnCopy<std::decay_t<TCondition>> condition_;
@@ -142,4 +146,6 @@ namespace reactive::signal
                 ));
     }
 } // reactive::signal
+
+BTL_VISIBILITY_POP
 

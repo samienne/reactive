@@ -6,8 +6,11 @@
 #include "reactive/observable.h"
 
 #include <btl/spinlock.h>
+#include <btl/hidden.h>
 
 #include <mutex>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -156,4 +159,6 @@ namespace reactive
 
     }
 }
+
+BTL_VISIBILITY_POP
 

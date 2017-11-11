@@ -17,12 +17,13 @@
 #include <btl/or.h>
 #include <btl/plus.h>
 #include <btl/tupleswitch.h>
+#include <btl/hidden.h>
 
 #include <tuple>
 
-namespace reactive
-{
-namespace signal
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
     namespace detail
     {
@@ -175,7 +176,7 @@ namespace signal
 
     template <template <typename> class TBase,
              typename TFunc, typename... TSigs>
-    class Map final
+    class BTL_CLASS_VISIBLE Map final
     {
         using Base = TBase<TFunc>;
         using Apply = typename Base::Apply;
@@ -192,28 +193,28 @@ namespace signal
             >;
 
     public:
-        Map(TFunc func, TSigs... sigs) :
+        BTL_HIDDEN Map(TFunc func, TSigs... sigs) :
             func_(std::move(func)),
             signals_(std::make_tuple(std::move(sigs)...))
         {
         }
 
     private:
-        Map(Map const&) = default;
-        Map& operator=(Map const&) = default;
+        BTL_HIDDEN Map(Map const&) = default;
+        BTL_HIDDEN Map& operator=(Map const&) = default;
 
     public:
-        Map(Map&&) noexcept = default;
-        Map& operator=(Map&&) noexcept = default;
+        BTL_HIDDEN Map(Map&&) noexcept = default;
+        BTL_HIDDEN Map& operator=(Map&&) noexcept = default;
 
-        EvaluateType evaluate() const
+        BTL_HIDDEN EvaluateType evaluate() const
         {
             assert(ready_);
             return btl::apply(Apply(func_),
                     btl::tuple_map(*signals_, detail::Evaluate()));
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             assert(ready_);
             if (changed_ == detail::ChangedStatus::unknown)
@@ -235,7 +236,7 @@ namespace signal
             return changed_ == detail::ChangedStatus::changed;
         }
 
-        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             auto r = btl::tuple_reduce(
                     btl::none,
@@ -246,7 +247,7 @@ namespace signal
             return r;
         }
 
-        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             ready_ = true;
             auto r = btl::tuple_reduce(
@@ -260,7 +261,7 @@ namespace signal
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&& callback)
+        BTL_HIDDEN Connection observe(TCallback&& callback)
         {
             return btl::tuple_reduce(
                     Connection(),
@@ -269,20 +270,20 @@ namespace signal
                     btl::Plus());
         }
 
-        Annotation annotateI(Annotation::Node, Annotation a) const
+        BTL_HIDDEN Annotation annotateI(Annotation::Node, Annotation a) const
         {
             return a;
         }
 
         template <typename U, typename... Us>
-        Annotation annotateI(Annotation::Node n, Annotation a,
+        BTL_HIDDEN Annotation annotateI(Annotation::Node n, Annotation a,
                 U const& u, Us const&... us) const
         {
             a.addTree(n, u.annotate());
             return annotateI(n, std::move(a), us...);
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             auto f = [this](typename std::decay<TSigs>::type const&... sigs)
             {
@@ -299,7 +300,7 @@ namespace signal
             return btl::apply(f, *signals_);
         }
 
-        Map clone() const
+        BTL_HIDDEN Map clone() const
         {
             return *this;
         }
@@ -399,8 +400,7 @@ namespace signal
     }
 
     static constexpr auto fmap2 = BTL_PIPABLE(detail::fmap2);
-} // signal
-} // reactive
+} // reactive::signal
 
 namespace btl
 {
@@ -413,4 +413,6 @@ namespace btl
         return reactive::signal::map(std::forward<Ts>(ts)...);
     }
 } // btl
+
+BTL_VISIBILITY_POP
 

@@ -5,48 +5,52 @@
 
 #include <reactive/signaltraits.h>
 
+#include <btl/hidden.h>
+
 #include <type_traits>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal, typename TFunc>
-        class OnChange
+        class BTL_CLASS_VISIBLE OnChange
         {
         public:
             using ReturnType = decltype(std::declval<TSignal>().evaluate());
 
-            OnChange(TSignal sig, TFunc func) :
+            BTL_HIDDEN OnChange(TSignal sig, TFunc func) :
                 sig_(std::move(sig)),
                 func_(std::move(func))
             {
             }
 
         private:
-            OnChange(OnChange const&) = default;
-            OnChange& operator=(OnChange const&) = default;
+            BTL_HIDDEN OnChange(OnChange const&) = default;
+            BTL_HIDDEN OnChange& operator=(OnChange const&) = default;
 
         public:
-            OnChange(OnChange&&) = default;
-            OnChange& operator=(OnChange&&) = default;
+            BTL_HIDDEN OnChange(OnChange&&) = default;
+            BTL_HIDDEN OnChange& operator=(OnChange&&) = default;
 
-            ReturnType evaluate() const
+            BTL_HIDDEN ReturnType evaluate() const
             {
                 return sig_.evaluate();
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return sig_.hasChanged();
             }
 
-            btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
             {
                 return sig_.updateBegin(frame);
             }
 
-            btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
             {
                 auto r = sig_.updateEnd(frame);
 
@@ -57,12 +61,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& cb)
+            BTL_HIDDEN Connection observe(TCallback&& cb)
             {
                 return sig_.observe(std::forward<TCallback>(cb));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("onChange()");
@@ -70,7 +74,7 @@ namespace reactive
                 return a;
             }
 
-            OnChange clone() const
+            BTL_HIDDEN OnChange clone() const
             {
                 return *this;
             }
@@ -97,4 +101,6 @@ namespace reactive
         }
     }
 }
+
+BTL_VISIBILITY_POP
 

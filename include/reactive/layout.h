@@ -15,10 +15,11 @@
 #include <btl/sequence.h>
 #include <btl/fmap.h>
 #include <btl/collection.h>
+#include <btl/function.h>
 
 namespace reactive
 {
-    using ObbMap = std::function<
+    using ObbMap = btl::Function<
         std::vector<avg::Obb>(ase::Vector2f size,
                 std::vector<SizeHint> const&)>;
 
@@ -29,7 +30,7 @@ namespace reactive
             std::is_copy_constructible<T>
         > {};
 
-    using SizeHintMap = std::function<
+    using SizeHintMap = btl::Function<
         SizeHint(std::vector<SizeHint> const&)
         >;
 
@@ -152,6 +153,10 @@ namespace reactive
                     );
     }
 
+    WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+            std::vector<WidgetFactory> factories);
+        //-> WidgetFactory
+    /*
     template <typename TFactories, typename TObbMap, typename TSizeHintMap,
              typename =
         std::enable_if_t<
@@ -217,5 +222,6 @@ namespace reactive
             | mapWidget(std::move(widgetMap))
             | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
     }
+    */
 } // reactive
 

@@ -12,38 +12,42 @@
 
 #include <btl/dummylock.h>
 #include <btl/demangle.h>
+#include <btl/hidden.h>
 
 #include <functional>
 #include <list>
 #include <memory>
 
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive::signal
 {
-    template <typename T, typename TLock = btl::DummyLock> struct Input;
+    template <typename T, typename TLock = btl::DummyLock>
+    struct BTL_CLASS_VISIBLE Input;
 
     template <typename T, typename TLock = btl::DummyLock>
-    class InputSignal
+    class BTL_CLASS_VISIBLE InputSignal
     {
     public:
         using Callback = Observable::Callback;
 
         static_assert(btl::IsClonable<T>::value, "T is not clonable");
 
-        InputSignal(std::shared_ptr<InputDeferredValue<T, TLock>> const& value) :
+        BTL_HIDDEN InputSignal(std::shared_ptr<InputDeferredValue<T, TLock>> const& value) :
             deferred_(value),
             tag_(value->getTag(value->lock()))
         {
         }
 
     public:
-        InputSignal(InputSignal const&) = default;
-        InputSignal& operator=(InputSignal const&) = default;
+        BTL_HIDDEN InputSignal(InputSignal const&) = default;
+        BTL_HIDDEN InputSignal& operator=(InputSignal const&) = default;
 
     public:
-        InputSignal(InputSignal&&) noexcept = default;
-        InputSignal& operator=(InputSignal&&) noexcept = default;
+        BTL_HIDDEN InputSignal(InputSignal&&) noexcept = default;
+        BTL_HIDDEN InputSignal& operator=(InputSignal&&) noexcept = default;
 
-        T const& evaluate() const
+        BTL_HIDDEN T const& evaluate() const
         {
             if (!value_.valid())
             {
@@ -54,7 +58,7 @@ namespace reactive::signal
             return *value_;
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             if (frameId_ == frame.getFrameId())
                 return btl::none;
@@ -65,7 +69,7 @@ namespace reactive::signal
             return deferred_->updateBegin(lock, frame);
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto lock = deferred_->lock();
             auto r = deferred_->updateEnd(lock, frame);
@@ -79,17 +83,17 @@ namespace reactive::signal
             return r;
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             return changed_;
         };
 
-        Connection observe(Callback const& callback)
+        BTL_HIDDEN Connection observe(Callback const& callback)
         {
             return deferred_->observe(callback);
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("input<" + btl::demangle<T>() + "> changed: "
@@ -98,7 +102,7 @@ namespace reactive::signal
             return a;
         }
 
-        InputSignal clone() const
+        BTL_HIDDEN InputSignal clone() const
         {
             return *this;
         }
@@ -117,19 +121,19 @@ namespace reactive::signal
         "InputSignal is not a signal");
 
     template <typename T, typename TLock>
-    struct Input final
+    struct BTL_CLASS_VISIBLE Input final
     {
-        Input(InputSignal<T, TLock> sig) :
+        BTL_HIDDEN Input(InputSignal<T, TLock> sig) :
             handle(sig.deferred_),
             signal(share(wrap(std::move(sig))))
         {
         }
 
-        Input(Input const&) = default;
-        Input(Input&&) noexcept = default;
+        BTL_HIDDEN Input(Input const&) = default;
+        BTL_HIDDEN Input(Input&&) noexcept = default;
 
-        Input& operator=(Input const&) = default;
-        Input& operator=(Input&&) noexcept = default;
+        BTL_HIDDEN Input& operator=(Input const&) = default;
+        BTL_HIDDEN Input& operator=(Input&&) noexcept = default;
 
         InputHandle<T, TLock> handle;
         SharedSignal<T, InputSignal<T, TLock>> signal;
@@ -147,4 +151,6 @@ namespace reactive::signal
     }
 
 } // reactive::signal
+
+BTL_VISIBILITY_POP
 

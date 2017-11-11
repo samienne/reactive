@@ -5,24 +5,27 @@
 #include "reactive/signaltraits.h"
 
 #include <btl/option.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class Blip
+        class BTL_CLASS_VISIBLE Blip
         {
         public:
-            Blip(Blip&&) = default;
-            Blip& operator=(Blip&&) = default;
+            BTL_HIDDEN Blip(Blip&&) = default;
+            BTL_HIDDEN Blip& operator=(Blip&&) = default;
 
-            Blip(TSignal sig) :
+            BTL_HIDDEN Blip(TSignal sig) :
                 sig_(std::move(sig))
             {
             }
 
-            btl::option<signal_value_t<TSignal>> evaluate() const
+            BTL_HIDDEN btl::option<signal_value_t<TSignal>> evaluate() const
             {
                 if (!didChange_)
                     return btl::none;
@@ -30,12 +33,12 @@ namespace reactive
                 return btl::just(btl::clone(sig_->evaluate()));
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return hadValue_ || sig_->hasChanged();
             }
 
-            UpdateResult updateBegin(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const& frame)
             {
                 auto r = sig_->updateBegin(frame);
 
@@ -45,7 +48,7 @@ namespace reactive
                 return r;
             }
 
-            UpdateResult updateEnd(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const& frame)
             {
                 auto r = sig_->updateEnd(frame);
 
@@ -56,12 +59,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& callback) noexcept
+            BTL_HIDDEN Connection observe(TCallback&& callback) noexcept
             {
                 return sig_->observe(std::forward<TCallback>(callback));
             }
 
-            Annotation annotate() const noexcept
+            BTL_HIDDEN Annotation annotate() const noexcept
             {
                 Annotation a;
                 auto&& n = a.addNode("blip()");
@@ -69,14 +72,14 @@ namespace reactive
                 return a;
             }
 
-            Blip clone() const
+            BTL_HIDDEN Blip clone() const
             {
                 return *this;
             }
 
         private:
-            Blip(Blip const&) = default;
-            Blip& operator=(Blip const&) = default;
+            BTL_HIDDEN Blip(Blip const&) = default;
+            BTL_HIDDEN Blip& operator=(Blip const&) = default;
 
         private:
             btl::CloneOnCopy<std::decay_t<TSignal>> sig_;
@@ -97,4 +100,6 @@ namespace reactive
         }
     }
 } // reactive
+
+BTL_VISIBILITY_POP
 

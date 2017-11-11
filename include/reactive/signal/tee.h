@@ -11,55 +11,59 @@
 #include "reactive/connection.h"
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
 #include <fit/identity.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
     template <typename T1, typename T2>
-    class Tee
+    class BTL_CLASS_VISIBLE Tee
     {
     public:
-        Tee(SharedSignal<T1> upstream, SharedSignal<T2> tee) :
+        BTL_HIDDEN Tee(SharedSignal<T1> upstream, SharedSignal<T2> tee) :
             upstream_(upstream),
             tee_(tee)
         {
         }
 
     private:
-        Tee(Tee const&) = default;
-        Tee& operator=(Tee const&) = default;
+        BTL_HIDDEN Tee(Tee const&) = default;
+        BTL_HIDDEN Tee& operator=(Tee const&) = default;
 
     public:
-        Tee(Tee&&) noexcept = default;
-        Tee& operator=(Tee&&) noexcept = default;
+        BTL_HIDDEN Tee(Tee&&) noexcept = default;
+        BTL_HIDDEN Tee& operator=(Tee&&) noexcept = default;
 
-        auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
+        BTL_HIDDEN auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
         {
             return upstream_.evaluate();
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             return upstream_.updateBegin(frame);
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             return upstream_.updateEnd(frame);
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             return upstream_.hasChanged();
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&& cb)
+        BTL_HIDDEN Connection observe(TCallback&& cb)
         {
             return upstream_.observe(std::forward<TCallback>(cb));
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("tee()");
@@ -67,7 +71,7 @@ namespace reactive::signal
             return a;
         }
 
-        Tee clone() const
+        BTL_HIDDEN Tee clone() const
         {
             return *this;
         }
@@ -117,4 +121,6 @@ namespace reactive::signal
     }
 
 } // reactive::signal
+
+BTL_VISIBILITY_POP
 

@@ -3,8 +3,10 @@
 #include "input.h"
 
 #include <btl/future/future.h>
-
 #include <btl/spinlock.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -27,4 +29,6 @@ namespace reactive
         }
     } // signal
 } // namespace
+
+BTL_VISIBILITY_POP
 

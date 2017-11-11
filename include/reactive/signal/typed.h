@@ -2,6 +2,8 @@
 
 #include "signalbase.h"
 
+#include <btl/hidden.h>
+
 #include <iostream>
 
 namespace reactive
@@ -16,66 +18,66 @@ namespace reactive::signal
     class Share
     {
     public:
-        Share(std::shared_ptr<TDeferred> deferred) :
+        BTL_HIDDEN Share(std::shared_ptr<TDeferred> deferred) :
             control_(std::move(deferred))
         {
         }
 
-        Share(Share const&) = default;
-        Share& operator=(Share const&) = default;
-        Share(Share&&) noexcept = default;
-        Share& operator=(Share&&) noexcept = default;
+        BTL_HIDDEN Share(Share const&) = default;
+        BTL_HIDDEN Share& operator=(Share const&) = default;
+        BTL_HIDDEN Share(Share&&) noexcept = default;
+        BTL_HIDDEN Share& operator=(Share&&) noexcept = default;
 
-        auto evaluate() const -> decltype(auto)
+        BTL_HIDDEN auto evaluate() const -> decltype(auto)
         {
             return control_->evaluate();
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             return control_->hasChanged();
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             return control_->updateBegin(frame);
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             return control_->updateEnd(frame);
         }
 
         template <typename TFunc>
-        Connection observe(TFunc&& callback)
+        BTL_HIDDEN Connection observe(TFunc&& callback)
         {
             return control_->observe(std::forward<TFunc>(callback));
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             return a;
         }
 
-        Share clone() const
+        BTL_HIDDEN Share clone() const
         {
             return *this;
         }
 
         using ValueType = decltype(std::declval<TDeferred>().evaluate());
 
-        std::weak_ptr<SignalBase<ValueType>> weak() const
+        BTL_HIDDEN std::weak_ptr<SignalBase<ValueType>> weak() const
         {
             return control_.ptr();
         }
 
-        std::shared_ptr<SignalBase<ValueType>> ptr() const &
+        BTL_HIDDEN std::shared_ptr<SignalBase<ValueType>> ptr() const &
         {
             return control_.ptr();
         }
 
-        std::shared_ptr<SignalBase<ValueType>> ptr() &&
+        BTL_HIDDEN std::shared_ptr<SignalBase<ValueType>> ptr() &&
         {
             return std::move(control_.ptr());
         }
@@ -96,26 +98,26 @@ namespace reactive::signal
                     && std::is_reference<SignalType<TSignal>>::value),
                 "");
 
-        Typed(TSignal&& sig) :
+        BTL_HIDDEN Typed(TSignal&& sig) :
             sig_(std::move(sig))
         {
         }
 
-        ~Typed()
+        BTL_HIDDEN ~Typed()
         {
         }
 
-        T evaluate() const override final
+        BTL_HIDDEN T evaluate() const override final
         {
             return sig_.evaluate();
         }
 
-        bool hasChanged() const override final
+        BTL_HIDDEN bool hasChanged() const override final
         {
             return sig_.hasChanged();
         }
 
-        btl::option<signal_time_t> updateBegin(signal::FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateBegin(signal::FrameInfo const& frame)
             override final
         {
             if (frameId_ == frame.getFrameId())
@@ -125,7 +127,7 @@ namespace reactive::signal
             return sig_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
             override final
         {
             btl::option<signal_time_t> r = btl::none;
@@ -147,18 +149,18 @@ namespace reactive::signal
         }
 
 
-        btl::connection observe(
+        BTL_HIDDEN btl::connection observe(
                 std::function<void()> const& callback) override final
         {
             return sig_.observe(callback);
         }
 
-        Annotation annotate() const override final
+        BTL_HIDDEN Annotation annotate() const override final
         {
             return Annotation();
         }
 
-        bool isCached() const override
+        BTL_HIDDEN bool isCached() const override
         {
             return std::is_reference<SignalType<TSignal>>::value;
         }

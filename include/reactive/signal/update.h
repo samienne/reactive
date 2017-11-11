@@ -2,6 +2,10 @@
 
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive
 {
     namespace signal
@@ -17,4 +21,6 @@ namespace reactive
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 
