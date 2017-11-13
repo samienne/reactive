@@ -7,14 +7,10 @@
 #include "signal/map.h"
 #include "signal/mbind.h"
 #include "signal/combine.h"
-#include "signal/track.h"
-#include "signal/join.h"
 
 #include "signal.h"
 
-#include <btl/sequence.h>
 #include <btl/fmap.h>
-#include <btl/collection.h>
 #include <btl/function.h>
 
 namespace reactive
