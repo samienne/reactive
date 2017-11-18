@@ -2,6 +2,8 @@
 
 #include "transform.h"
 
+#include <btl/forcenoexcept.h>
+
 #include <ostream>
 
 namespace avg
@@ -12,6 +14,12 @@ namespace avg
     {
     public:
         Obb();
+        Obb(Obb const&) = default;
+        Obb(Obb&&) noexcept = default;
+
+        Obb& operator=(Obb const&) = default;
+        Obb& operator=(Obb&&) noexcept = default;
+
         Obb(Vector2f size);
         Obb(Rect const& r);
 
@@ -33,7 +41,7 @@ namespace avg
 
     private:
         Transform transform_;
-        Vector2f size_;
+        btl::ForceNoexcept<Vector2f> size_;
     };
 }
 

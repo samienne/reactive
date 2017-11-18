@@ -43,7 +43,7 @@ namespace btl
         }
 
         template <typename... Us>
-        auto operator()(Us&&... us)
+        auto operator()(Us&&... us) const
         -> std::result_of_t<std::function<TReturn(Ts...)>(Us...)>
         {
             return func_(std::forward<Us>(us)...);

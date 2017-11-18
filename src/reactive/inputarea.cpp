@@ -49,13 +49,13 @@ InputArea InputArea::clip(avg::Obb const& obb) &&
 }
 
 InputArea InputArea::onDown(
-        std::function<void (ase::PointerButtonEvent const& e)> const& f) &&
+        btl::Function<void (ase::PointerButtonEvent const& e)> const& f) &&
 {
     onDown_.push_back(f);
     return std::move(*this);
 }
 
-InputArea InputArea::onUp(std::function<void (ase::PointerButtonEvent const& e)>
+InputArea InputArea::onUp(btl::Function<void (ase::PointerButtonEvent const& e)>
         const& f) &&
 {
     onUp_.push_back(f);
@@ -80,14 +80,14 @@ void InputArea::emit(ase::PointerButtonEvent const& e) const
 }
 
 std::vector<
-std::function<void (ase::PointerButtonEvent const& e)>
+btl::Function<void (ase::PointerButtonEvent const& e)>
 > const& InputArea::getOnDowns() const
 {
     return onDown_;
 }
 
 std::vector<
-std::function<void (ase::PointerButtonEvent const& e)>
+btl::Function<void (ase::PointerButtonEvent const& e)>
 > const& InputArea::getOnUps() const
 {
     return onUp_;

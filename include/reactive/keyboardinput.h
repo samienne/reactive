@@ -10,6 +10,7 @@
 #include <ase/keyevent.h>
 
 #include <btl/option.h>
+#include <btl/function.h>
 #include <btl/hidden.h>
 
 BTL_VISIBILITY_PUSH_HIDDEN
@@ -30,7 +31,7 @@ namespace reactive
     {
     public:
         using FocusHandle = signal::InputHandle<bool>;
-        using Handler = std::function<InputResult(KeyEvent const& e)>;
+        using Handler = btl::Function<InputResult(KeyEvent const& e)>;
 
         BTL_VISIBLE KeyboardInput(avg::Obb obb);
         BTL_VISIBLE KeyboardInput(avg::Obb obb,
@@ -67,7 +68,7 @@ namespace reactive
         bool hasFocus_ = false;
         bool focusable_ = false;
     };
-}
+} // reactive
 
 BTL_VISIBILITY_POP
 
