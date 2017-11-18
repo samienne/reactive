@@ -88,7 +88,7 @@ public:
                 else if (e.getState() == ase::ButtonState::up)
                 {
                     auto i = areas_.find(e.getButton());
-                    while (i != areas_.end())
+                    while (i != areas_.end() && i->first == e.getButton())
                     {
                         i->second.emit(e);
                         areas_.erase(i++);
