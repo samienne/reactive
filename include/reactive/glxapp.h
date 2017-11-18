@@ -2,6 +2,8 @@
 
 #include "app.h"
 
+#include "signal.h"
+
 #include <vector>
 
 namespace reactive

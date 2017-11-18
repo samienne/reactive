@@ -1,13 +1,17 @@
 #pragma once
 
+#include <btl/hidden.h>
+
 #include <chrono>
 #include <stdint.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
-        class FrameInfo
+        class BTL_VISIBLE FrameInfo
         {
         public:
             inline FrameInfo(uint64_t frameId, std::chrono::microseconds dt) :
@@ -32,4 +36,6 @@ namespace reactive
         };
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

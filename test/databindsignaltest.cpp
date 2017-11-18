@@ -1,7 +1,7 @@
 #include <reactive/signal/databind.h>
-#include <reactive/signaltype.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/update.h>
+#include <reactive/signal.h>
 
 #include <btl/collection.h>
 
@@ -30,11 +30,12 @@ TEST(DataBindSignal, pushBackAndErase)
                 return signal::map([](btl::option<int> data)
                         -> btl::option<std::string>
                     {
-                        if (data.valid())
-                            return btl::just("test" + std::to_string(*data));
-                        return
-                            btl::none;
-                    }, data);
+                        if (!data.valid())
+                            return btl::none;
+
+                        return btl::just("test" + std::to_string(*data));
+
+                    }, std::move(data));
             });
 
     auto v1 = s1.evaluate();
@@ -146,7 +147,7 @@ TEST(DataBindSignal, keepErased)
                             return btl::just(std::string("removed"));
                         else
                             return btl::none;
-                    }, data, btl::clone(keep.signal));
+                    }, std::move(data), btl::clone(keep.signal));
             });
 
 

@@ -4,7 +4,6 @@
 
 #include <reactive/signal/map.h>
 #include <reactive/signal/constant.h>
-#include <reactive/signaltype.h>
 
 #include <btl/fn.h>
 
@@ -20,7 +19,7 @@ TEST(Widget, get)
     auto d = reactive::get<avg::Drawing>(w);
 
     static_assert(std::is_same<
-                signal::Constant<avg::Drawing>,
+                Signal<avg::Drawing, signal::Constant<avg::Drawing>>,
                 decltype(d)
             >::value,
             "");
@@ -28,7 +27,9 @@ TEST(Widget, get)
     auto a = reactive::get<std::vector<InputArea>>(w);
 
     static_assert(std::is_same<
-                signal::Constant<std::vector<InputArea>>,
+                Signal<std::vector<InputArea>,
+                    signal::Constant<std::vector<InputArea>>
+                >,
                 decltype(a)
             >::value,
             "");
@@ -59,7 +60,9 @@ TEST(Widget, get)
     auto t = reactive::get<widget::Theme>(w);
 
     static_assert(std::is_same<
-            signal::Constant<widget::Theme>,
+            Signal<widget::Theme,
+                signal::Constant<widget::Theme>
+            >,
             decltype(t)
             >::value,
             "");

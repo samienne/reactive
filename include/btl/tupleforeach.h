@@ -1,8 +1,9 @@
 #pragma once
 
 #include "apply.h"
-#include "invoke.h"
 #include "typetraits.h"
+
+#include <functional>
 
 namespace btl
 {
@@ -14,7 +15,7 @@ namespace btl
         {
             using sink = int[];
             (void)sink{1,
-                (invoke(f, std::get<S>(std::forward<TTuple>(data))),
+                (std::invoke(f, std::get<S>(std::forward<TTuple>(data))),
                  void(), int{})...
             };
         }

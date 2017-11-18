@@ -1,120 +1,57 @@
 #pragma once
 
+#include "typed.h"
 #include "cache.h"
-#include "constant.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/shared.h>
+#include <btl/hidden.h>
 
-namespace reactive
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
-    namespace signal
+    namespace detail
     {
-        template <typename TSignal>
-        class Share
+        template <typename T, typename U>
+        auto makeShared(Signal<T, U> sig)
         {
-            struct Data
-            {
-                Data(Cache<std::decay_t<TSignal>> sig) :
-                    signal_(std::move(sig))
-                {
-                }
-
-                Cache<std::decay_t<TSignal>> signal_;
-                uint64_t frameId_ = 0;
-                uint64_t frameId2_ = 0;
-            };
-
-        public:
-            Share(TSignal sig) :
-                data_(std::make_shared<Data>(cache(std::move(sig))))
-            {
-            }
-
-            Share(Share const&) = default;
-            Share& operator=(Share const&) = default;
-            Share(Share&&) = default;
-            Share& operator=(Share&&) = default;
-
-            SignalType<TSignal> const& evaluate() const
-            {
-                return data_->signal_.evaluate();
-            }
-
-            bool hasChanged() const
-            {
-                return data_->signal_.hasChanged();
-            }
-
-            UpdateResult updateBegin(FrameInfo const& frame)
-            {
-                if (data_->frameId_ == frame.getFrameId())
-                    return btl::none;
-
-                data_->frameId_ = frame.getFrameId();
-
-                return data_->signal_.updateBegin(frame);
-            }
-
-            UpdateResult updateEnd(FrameInfo const& frame)
-            {
-                assert(data_->frameId_ == frame.getFrameId());
-
-                if (data_->frameId2_ == frame.getFrameId())
-                    return btl::none;
-
-                data_->frameId2_ = frame.getFrameId();
-
-                return data_->signal_.updateEnd(frame);
-            }
-
-            template <typename TFunc>
-            Connection observe(TFunc&& callback)
-            {
-                return data_->signal_.observe(std::forward<TFunc>(callback));
-            }
-
-            Annotation annotate() const
-            {
-                Annotation a;
-                return a;
-            }
-
-            Share clone() const
-            {
-                return *this;
-            }
-
-        private:
-            btl::shared<Data> data_;
-        };
-
-        static_assert(IsSignal<Share<signal::Constant<int>>>::value, "");
-
-        template <typename TSignal, typename = std::enable_if_t<
-            IsSignal<TSignal>::value
-            >>
-        Share<std::decay_t<TSignal>> share(TSignal signal)
-        {
-            return { std::move(signal) };
+            return SharedSignal<T, U>::create(
+                    Share<T, signal::Typed<T, U>>(
+                        std::make_shared<signal::Typed<T, U>>(
+                            std::move(sig).signal()
+                            )
+                        )
+                    );
         }
+    } // detail
 
-        template <typename T>
-        auto share(Share<T> sig) -> Share<T>
-        {
-            return std::move(sig);
-        }
+    template <typename T, typename U>
+    auto share(Signal<T, U> sig)
+    {
+        return detail::makeShared(cache(std::move(sig)));
+    }
 
-        template <typename T>
-        auto cache(Share<T> sig) -> Share<T>
-        {
-            return std::move(sig);
-        }
+    template <typename T, typename U>
+    auto share(Signal<T, Share<T, U>> sig)
+    {
+        return std::move(sig);
+    }
 
-        template <typename T>
-        auto share(Signal<T> sig) -> Signal<T>
-        {
-            return std::move(sig);
-        }
-    } // signal
-} // reactive
+    template <typename T>
+    auto share(Signal<T, void> sig)
+    {
+        return SharedSignal<T, void>::create(
+                std::move(sig)
+                );
+    }
+
+    template <typename T, typename U>
+    auto share(SharedSignal<T, U> sig)
+    {
+        return std::move(sig);
+    }
+} // reactive::signal
+
+BTL_VISIBILITY_POP

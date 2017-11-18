@@ -57,7 +57,7 @@ flags = [
 # a "-std=<something>".
 # For a C project, you would set this to something like 'c99' instead of
 # 'c++11'.
-'-std=c++14',
+'-std=c++1z',
 # ...and the same thing goes for the magic -x option which specifies the
 # language that the files to be compiled are written in. This is mostly
 # relevant for c++ headers.
@@ -180,6 +180,7 @@ def GetCompilerIncludeFlags(cmd):
         if line == "#include <...> search starts here:":
             started = True
         elif line == "End of search list.":
+            print paths
             return paths
         elif started:
             paths.append('-isystem')
@@ -188,8 +189,8 @@ def GetCompilerIncludeFlags(cmd):
     return []
 
 def GetClangFlags():
-    cmd = ['clang',
-    '-std=c++11',
+    cmd = ['clang-3.9',
+    '-std=c++1z',
     '-stdlib=libc++',
     '-v',
     '-E',
@@ -200,8 +201,8 @@ def GetClangFlags():
 
 
 def GetGccFlags():
-    cmd = ['gcc-4.9',
-    '-std=c++14',
+    cmd = ['g++-6',
+    '-std=c++17',
 #'-stdlib=libc++',
     '-fsyntax-only',
     '-v',

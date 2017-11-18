@@ -24,10 +24,10 @@ namespace btl
             }
 
             SharedFuture(SharedFuture const&) = default;
-            SharedFuture(SharedFuture&&) = default;
+            SharedFuture(SharedFuture&&) noexcept = default;
 
             SharedFuture& operator=(SharedFuture const&) = default;
-            SharedFuture& operator=(SharedFuture&&) = default;
+            SharedFuture& operator=(SharedFuture&&) noexcept = default;
 
             std::decay_t<T> const& get() const
             {

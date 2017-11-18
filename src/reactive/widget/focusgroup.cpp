@@ -14,9 +14,7 @@
 #include <unordered_map>
 #include <functional>
 
-namespace reactive
-{
-namespace widget
+namespace reactive::widget
 {
 
 namespace
@@ -263,10 +261,11 @@ WidgetMap focusGroup()
 
         auto state = signal::foldp(&step,
                 FocusGroupState(),
-                std::move(w.getKeyboardInputs()),
-                stream::collect(std::move(keyStream.stream)));
+                w.getKeyboardInputs(),
+                stream::collect(std::move(keyStream.stream))
+                );
 
-        auto obb = signal::share(std::move(w.getObb()));
+        auto obb = signal::share(w.getObb());
         static_assert(IsSignal<decltype(state)>::value, "");
 
         auto inputs = signal::map(mapStateToInputs, std::move(state),
@@ -280,6 +279,5 @@ WidgetMap focusGroup()
     return mapWidget(f);
 }
 
-} // widget
-} // reactive
+} // reactive::widget
 

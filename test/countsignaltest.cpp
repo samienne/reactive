@@ -1,4 +1,5 @@
 #include <reactive/signal/input.h>
+#include <reactive/signal/map.h>
 #include <reactive/signal/count.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>

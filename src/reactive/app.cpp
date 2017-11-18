@@ -33,7 +33,7 @@ App App::windows(std::initializer_list<Window> windows) &&
 
 int App::run(Signal<bool> running) &&
 {
-    return std::move(*impl_).run(running);
+    return std::move(*impl_).run(std::move(running));
 }
 
 int App::run() &&

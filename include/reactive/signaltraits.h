@@ -71,7 +71,7 @@ namespace reactive
             std::is_same<signal::UpdateResult, updateEnd_t<T>>,
             std::is_same<Connection, observe_t<T>>,
             std::is_same<Annotation, annotate_t<T>>,
-            //std::is_nothrow_move_constructible<std::decay_t<T>>,
+            std::is_move_constructible<std::decay_t<T>>,
             //std::is_nothrow_move_assignable<std::decay_t<T>>,
             btl::IsClonable<std::decay_t<T>>
         > {};

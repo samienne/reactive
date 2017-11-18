@@ -4,47 +4,51 @@
 
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class UpdateIfJust
+        class BTL_CLASS_VISIBLE UpdateIfJust
         {
         public:
             using ValueType = decltype(*std::declval<TSignal>().evaluate());
             using ValueTypeDecayed = btl::decay_t<ValueType>;
 
-            UpdateIfJust(TSignal&& signal, ValueTypeDecayed initial) :
+            BTL_HIDDEN UpdateIfJust(TSignal&& signal, ValueTypeDecayed initial) :
                 signal_(std::forward<TSignal>(signal)),
                 value_(std::move(initial))
             {
             }
 
         private:
-            UpdateIfJust(UpdateIfJust const&) = default;
-            UpdateIfJust& operator=(UpdateIfJust const&) = default;
+            BTL_HIDDEN UpdateIfJust(UpdateIfJust const&) = default;
+            BTL_HIDDEN UpdateIfJust& operator=(UpdateIfJust const&) = default;
 
         public:
-            UpdateIfJust(UpdateIfJust&&) = default;
-            UpdateIfJust& operator=(UpdateIfJust&&) = default;
+            BTL_HIDDEN UpdateIfJust(UpdateIfJust&&) noexcept = default;
+            BTL_HIDDEN UpdateIfJust& operator=(UpdateIfJust&&) noexcept = default;
 
-            ValueTypeDecayed const& evaluate() const
+            BTL_HIDDEN ValueTypeDecayed const& evaluate() const
             {
                 return value_;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            UpdateResult updateBegin(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const& frame)
             {
                 return signal_->updateBegin(frame);
             }
 
-            UpdateResult updateEnd(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const& frame)
             {
                 auto r = signal_->updateEnd(frame);
 
@@ -63,12 +67,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& cb)
+            BTL_HIDDEN Connection observe(TCallback&& cb)
             {
                 return signal_->observe(std::forward<TCallback>(cb));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("updateIfJust<"
@@ -77,7 +81,7 @@ namespace reactive
                 return a;
             }
 
-            UpdateIfJust clone() const
+            BTL_HIDDEN UpdateIfJust clone() const
             {
                 return *this;
             }
@@ -97,11 +101,15 @@ namespace reactive
         >
         auto updateIfJust(TSignal&& signal,
                 typename UpdateIfJust<TSignal>::ValueTypeDecayed initial)
-            -> UpdateIfJust<TSignal>
+            //-> UpdateIfJust<TSignal>
         {
-            return UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
-                    std::move(initial));
+            return signal::wrap(
+                    UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
+                        std::move(initial))
+                    );
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

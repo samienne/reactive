@@ -3,8 +3,10 @@
 #include "reactive/widgetfactory.h"
 #include "reactive/sizehint.h"
 
+#include "reactive/signal/erasetype.h"
+#include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
-#include "reactive/signaltype.h"
+#include "reactive/signal.h"
 
 #include <avg/font.h>
 
@@ -49,9 +51,19 @@ namespace reactive
             TextEdit onEnter(Signal<std::function<void()>> cb) &&;
             TextEdit onEnter(std::function<void()> cb) &&;
 
+            template <typename T, typename U>
+            TextEdit onEnter(Signal<T, U> cb) &&
+            {
+                return std::move(*this)
+                    .onEnter(signal::eraseType(
+                                signal::cast<std::function<void()>>(std::move(cb))
+                                ))
+                    ;
+            }
+
             signal::InputHandle<TextEditState> handle_;
             Signal<TextEditState> state_;
-            std::vector<Signal<std::function<void()>>> onEnter_;
+            std::vector<SharedSignal<std::function<void()>>> onEnter_;
         };
 
         TextEdit textEdit(signal::InputHandle<TextEditState> handle,

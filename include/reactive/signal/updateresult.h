@@ -1,8 +1,11 @@
 #pragma once
 
 #include <btl/option.h>
+#include <btl/hidden.h>
 
 #include <chrono>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -23,4 +26,6 @@ namespace reactive
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

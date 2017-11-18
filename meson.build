@@ -1,5 +1,5 @@
 project('ase', 'cpp')
-add_global_arguments('-std=c++14', '-pedantic', '-Wextra', '-Wall',
+add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
         '-Wno-maybe-uninitialized', '-Wno-ignored-attributes', language : 'cpp')
 #'-flto',
 

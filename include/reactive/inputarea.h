@@ -8,7 +8,8 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/vector.h>
 
-#include <functional>
+#include <btl/function.h>
+
 #include <ostream>
 
 namespace reactive
@@ -20,10 +21,10 @@ namespace reactive
         InputArea(std::vector<avg::Obb>&& obbs);
 
         InputArea(InputArea const&) = default;
-        InputArea(InputArea&&) = default;
+        InputArea(InputArea&&) noexcept = default;
 
         InputArea& operator=(InputArea const&) = default;
-        InputArea& operator=(InputArea&&) = default;
+        InputArea& operator=(InputArea&&) noexcept = default;
 
         bool contains(avg::Vector2f pos) const;
 
@@ -32,19 +33,19 @@ namespace reactive
 
         InputArea transform(avg::Transform const& t) &&;
         InputArea clip(avg::Obb const& obb) &&;
-        InputArea onDown(std::function<void (ase::PointerButtonEvent const& e)>
+        InputArea onDown(btl::Function<void (ase::PointerButtonEvent const& e)>
                 const& f) &&;
-        InputArea onUp(std::function<void (ase::PointerButtonEvent const& e)>
+        InputArea onUp(btl::Function<void (ase::PointerButtonEvent const& e)>
                 const& f) &&;
 
         void emit(ase::PointerButtonEvent const& e) const;
 
         std::vector<
-            std::function<void (ase::PointerButtonEvent const& e)>
+            btl::Function<void (ase::PointerButtonEvent const& e)>
             > const& getOnDowns() const;
 
         std::vector<
-            std::function<void (ase::PointerButtonEvent const& e)>
+            btl::Function<void (ase::PointerButtonEvent const& e)>
             > const& getOnUps() const;
 
         friend std::ostream& operator<<(std::ostream& stream,
@@ -54,10 +55,10 @@ namespace reactive
         avg::Transform transform_;
         std::vector<avg::Obb> obbs_;
         std::vector<
-            std::function<void (ase::PointerButtonEvent const& e)>
+            btl::Function<void (ase::PointerButtonEvent const& e)>
             > onDown_;
         std::vector<
-            std::function<void (ase::PointerButtonEvent const& e)>
+            btl::Function<void (ase::PointerButtonEvent const& e)>
             > onUp_;
         btl::option<KeyboardInput> keyboard_;
     };

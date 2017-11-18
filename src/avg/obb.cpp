@@ -6,7 +6,7 @@ namespace avg
 {
 
 Obb::Obb() :
-    size_(0.0f, 0.0f)
+    size_(Vector2f(0.0f, 0.0f))
 {
 }
 
@@ -32,7 +32,7 @@ bool Obb::contains(Vector2f p) const
 
 Vector2f Obb::getSize() const
 {
-    return size_;
+    return *size_;
 }
 
 Vector2f Obb::getCenter() const
@@ -49,14 +49,14 @@ Obb Obb::transformR(avg::Transform const& t) const
 {
     avg::Obb obb(*this);
     obb.transform_ = obb.transform_ * t;
-    return std::move(obb);
+    return obb;
 }
 
 Obb Obb::setSize(Vector2f size) const
 {
     avg::Obb obb(*this);
     obb.size_ = size;
-    return std::move(obb);
+    return obb;
 }
 
 Obb Obb::operator+(Obb const& obb) const
@@ -67,7 +67,7 @@ Obb Obb::operator+(Obb const& obb) const
     ase::Vector2f ps[] = {
         t * t2 * ase::Vector2f(0.0f, 0.0f),
         t * t2 * ase::Vector2f(obb.size_[0], 0.0f),
-        t * t2 * ase::Vector2f(obb.size_),
+        t * t2 * ase::Vector2f(*obb.size_),
         t * t2 * ase::Vector2f(0.0f, obb.size_[1])
     };
 

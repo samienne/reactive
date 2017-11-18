@@ -10,6 +10,7 @@
 
 using namespace reactive;
 
+#if 0
 TEST(signalTrack, construct)
 {
     btl::collection<int> c;
@@ -28,6 +29,9 @@ TEST(signalTrack, construct)
     }
 
     auto s = signal::track(c);
+
+    bool isSignal = IsSignal<decltype(s)>::value;
+    EXPECT_TRUE(isSignal);
 
     EXPECT_FALSE(s.hasChanged());
 
@@ -56,6 +60,7 @@ TEST(signalTrack, construct)
     EXPECT_FALSE(s.hasChanged());
 
 }
+#endif
 
 /*TEST(signalTrack, mapped)
 {

@@ -233,8 +233,8 @@ namespace btl
         {
         }
 
-        writer_t(writer_t&&) = default;
-        writer_t& operator=(writer_t&&) = default;
+        writer_t(writer_t&&) noexcept = default;
+        writer_t& operator=(writer_t&&) noexcept = default;
 
         ~writer_t()
         {
@@ -398,10 +398,10 @@ namespace btl
         }
 
         collection(collection const&) = default;
-        collection(collection&&) = default;
+        collection(collection&&) noexcept = default;
 
         collection& operator=(collection const&) = default;
-        collection& operator=(collection&&) = default;
+        collection& operator=(collection&&) noexcept = default;
 
         connection on_changed(
                 std::function<void(collection_event<T> const&)> cb) const

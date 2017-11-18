@@ -9,7 +9,7 @@ namespace reactive
 Window::Window(WidgetFactory widget,
         Signal<std::string> const& title) :
     widget_(std::move(widget)),
-    title_(title)
+    title_(signal::share(btl::clone(title)))
 {
 }
 

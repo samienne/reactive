@@ -21,10 +21,10 @@ namespace avg
         ~Drawing();
 
         Drawing(Drawing const&) = default;
-        Drawing(Drawing&&) = default;
+        Drawing(Drawing&&) noexcept = default;
 
         Drawing& operator=(Drawing const&) = default;
-        Drawing& operator=(Drawing&&) = default;
+        Drawing& operator=(Drawing&&) noexcept = default;
 
         Drawing operator+(Element&& element) const &;
         Drawing operator+(Element&& element) &&;

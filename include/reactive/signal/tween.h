@@ -3,15 +3,19 @@
 #include "frameinfo.h"
 #include "updateresult.h"
 
+#include <reactive/signal.h>
 #include <reactive/signaltraits.h>
 #include <reactive/annotation.h>
 #include <reactive/connection.h>
 
 #include <btl/cloneoncopy.h>
 #include <btl/demangle.h>
+#include <btl/hidden.h>
 
 #include <chrono>
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -25,10 +29,10 @@ namespace reactive
         };
 
         template <typename TSignalValue>
-        class Tween
+        class BTL_CLASS_VISIBLE Tween
         {
         public:
-            Tween(std::chrono::microseconds time, float initial,
+            BTL_HIDDEN Tween(std::chrono::microseconds time, float initial,
                     TSignalValue signal, TweenType type) :
                 signal_(std::move(signal)),
                 tweenTime_(time),
@@ -39,34 +43,34 @@ namespace reactive
             }
 
         private:
-            Tween(Tween const&) = default;
-            Tween& operator=(Tween const&) = default;
+            BTL_HIDDEN Tween(Tween const&) = default;
+            BTL_HIDDEN Tween& operator=(Tween const&) = default;
 
         public:
-            Tween(Tween&&) = default;
-            Tween& operator=(Tween&&) = default;
+            BTL_HIDDEN Tween(Tween&&) = default;
+            BTL_HIDDEN Tween& operator=(Tween&&) = default;
 
-            Tween clone() const
+            BTL_HIDDEN Tween clone() const
             {
                 return *this;
             }
 
-            float evaluate() const
+            BTL_HIDDEN float evaluate() const
             {
                 return value_;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            UpdateResult updateBegin(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const& frame)
             {
                 return signal_->updateBegin(frame);
             }
 
-            UpdateResult updateEnd(signal::FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const& frame)
             {
                 auto r = signal_->updateEnd(frame);
                 bool changed = signal_->hasChanged();
@@ -134,12 +138,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& callback)
+            BTL_HIDDEN Connection observe(TCallback&& callback)
             {
                 return signal_->observe(std::forward<TCallback>(callback));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 a.addNode("tween<" + btl::demangle<TSignalValue>() + ">");
@@ -166,15 +170,17 @@ namespace reactive
         auto tween(std::chrono::microseconds time, float initial,
                 TSignalValue value, TweenType type = TweenType::linear)
         {
-            return Tween<
+            return signal::wrap(Tween<
                 std::decay_t<TSignalValue>
                     >(
                     time,
                     initial,
                     std::move(value),
                     type
-                    );
+                    ));
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

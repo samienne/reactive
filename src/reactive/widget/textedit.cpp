@@ -1,5 +1,6 @@
 #include "widget/textedit.h"
 
+#include "widget/label.h"
 #include "widget/frame.h"
 #include "widget/onkeyevent.h"
 
@@ -19,9 +20,7 @@
 
 #include <algorithm>
 
-namespace reactive
-{
-namespace widget
+namespace reactive::widget
 {
 
 TextEdit::operator WidgetFactory() const
@@ -150,7 +149,7 @@ TextEdit::operator WidgetFactory() const
             signal::TweenType::pingpong
             );
 
-    auto oldState = signal::share(std::move(state_));
+    auto oldState = signal::share(btl::clone(state_));
 
     auto newState = signal::tee(
             stream::iterate(update, oldState, std::move(keyStream.stream),
@@ -178,13 +177,13 @@ TextEdit::operator WidgetFactory() const
 
 TextEdit TextEdit::onEnter(Signal<std::function<void()>> cb) &&
 {
-    onEnter_.push_back(std::move(cb));
+    onEnter_.push_back(signal::share(std::move(cb)));
     return std::move(*this);
 }
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::constant(std::move(cb)));
+    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,
@@ -193,6 +192,5 @@ TextEdit textEdit(signal::InputHandle<TextEditState> handle,
     return TextEdit{std::move(handle), std::move(state), {}};
 }
 
-} // widget
-} // reactive
+} // widget::reactive
 

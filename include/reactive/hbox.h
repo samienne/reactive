@@ -3,8 +3,6 @@
 #include "box.h"
 #include "widgetfactory.h"
 
-#include "signaltype.h"
-
 #include <btl/collection.h>
 
 #include <vector>

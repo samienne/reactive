@@ -29,10 +29,11 @@ reactive::WidgetFactory adder()
             signal::IndexSignal index) mutable
         -> WidgetFactory
     {
+        auto dataShared = signal::share(std::move(data));
         auto str = signal::map([](std::string data) -> widget::TextEditState
                 {
                     return widget::TextEditState(std::move(data));
-                }, data);
+                }, dataShared);
 
         auto remove = [collection](size_t index, ClickEvent const&) mutable
         {
@@ -45,9 +46,9 @@ reactive::WidgetFactory adder()
         return hbox({
                 widget::textEdit(textState.handle, std::move(str)),
                 hfiller(),
-                widget::label(signal::constant("X"))
+                widget::label(signal::constant<std::string>("X"))
                 | widget::frame()
-                | onClick(1, signal::mapFunction(remove, index)),
+                | onClick(1, signal::mapFunction(remove, std::move(index))),
                 })
                 ;
     };
@@ -67,7 +68,7 @@ reactive::WidgetFactory adder()
 
     auto textData = signal::input(widget::TextEditState("Test"));
     auto textHandle = textData.handle;
-    auto text = makeSignal(signal::share(textData.signal));
+    auto text = signal::share(signal::cast<widget::TextEditState>(textData.signal));
 
     auto doInsert = [collection, textHandle](
             widget::TextEditState const& textEdit) mutable
@@ -82,9 +83,10 @@ reactive::WidgetFactory adder()
             );
 
     auto textEdit = widget::textEdit(textData.handle, text)
-        .onEnter(inserter);
+        .onEnter(inserter)
+        ;
 
-    auto button = widget::label(signal::constant("Add"))
+    auto button = widget::label(signal::constant<std::string>("Add"))
         | onClick(1, inserter);
 
     return vbox({

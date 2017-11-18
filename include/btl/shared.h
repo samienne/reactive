@@ -47,14 +47,14 @@ namespace btl
         }
 
         shared(shared<T> const&) = default;
-        shared(shared<T>&&) = default;
+        shared(shared<T>&&) noexcept = default;
 
         ~shared()
         {
         }
 
         shared& operator=(shared<T> const&) = default;
-        shared& operator=(shared<T>&&) = default;
+        shared& operator=(shared<T>&&) noexcept = default;
 
         T& operator*()
         {

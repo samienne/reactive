@@ -7,18 +7,20 @@
 #include "input.h"
 #include "inputhandle.h"
 
-#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/typetraits.h>
 #include <btl/observable.h>
 #include <btl/collection.h>
 #include <btl/option.h>
+#include <btl/hidden.h>
 
 #include <fit/compose.h>
 
 #include <type_traits>
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -45,7 +47,7 @@ namespace reactive
             using DelegateType = std::decay_t<TDelegate>;
             using DelegateReturnType = std::decay_t<decltype(
                     std::declval<DelegateType>()(
-                        std::declval<Signal<btl::option<ItemType>>>(),
+                        std::declval<SharedSignal<btl::option<ItemType>>>(),
                         std::declval<IndexSignal>()
                         )
                 )>;
@@ -61,14 +63,16 @@ namespace reactive
         private:
             struct Sig
             {
-                typename std::decay<decltype(
-                        cache(std::declval<DelegateReturnType>()))>::type sig;
+                /*std::decay_t<decltype(
+                        share(std::declval<DelegateReturnType>())
+                        )> sig;*/
+                SharedSignal<SignalType<DelegateReturnType>> sig;
                 InputHandle<size_t> indexHandle;
                 bool alive;
             };
 
         public:
-            DataBindPrivate(TDelegate delegate, TCollection collection) :
+            DataBindPrivate(TDelegate delegate, TCollection collection):
                 delegate_(std::move(delegate)),
                 collection_(std::move(collection)),
                 collectionChanged_(false)
@@ -84,9 +88,9 @@ namespace reactive
 
                     handles_.push_back(i.handle);
 
-                    signals_.push_back({
-                            cache(delegate_(
-                                    std::move(i.signal),
+                    signals_.push_back(Sig{
+                            share(delegate_(
+                                    signal::share(std::move(i.signal)),
                                     std::move(indexSignal)
                                     )
                                 ),
@@ -148,7 +152,6 @@ namespace reactive
                     auto r2 = sig.sig.updateBegin(frame);
                     r = min(r, r2);
                 }
-
 
                 return r;
             }
@@ -304,7 +307,7 @@ namespace reactive
                             );
 
                     signals_.insert(j, {
-                            cache(delegate_(
+                            share(delegate_(
                                     std::move(value.signal),
                                     std::move(indexSignal)
                                     )
@@ -336,6 +339,32 @@ namespace reactive
             bool changed_ = false;
         };
 
+        template <typename TFirst, typename TSecond>
+        class Compose
+        {
+        public:
+            Compose(TFirst&& first,
+                    typename std::decay<TSecond>::type const& second) :
+                first_(std::forward<TFirst>(first)),
+                second_(second)
+
+            {
+            }
+
+            template <typename TValue>
+            auto operator()(TValue&& value, signal::IndexSignal index)
+                -> decltype(std::declval<TFirst>()(std::declval<TSecond>()(
+                                value, index.clone()), index.clone()))
+            {
+                return first_(second_(std::forward<TValue>(value), index.clone()),
+                        index.clone());
+            }
+
+        private:
+            std::decay_t<TFirst> first_;
+            std::decay_t<TSecond> second_;
+        };
+
         template <typename TDelegate, typename TCollection>
         class DataBind
         {
@@ -363,8 +392,8 @@ namespace reactive
             DataBind& operator=(DataBind const&) = default;
 
         public:
-            DataBind(DataBind&&) = default;
-            DataBind& operator=(DataBind&&) = default;
+            DataBind(DataBind&&) noexcept = default;
+            DataBind& operator=(DataBind&&) noexcept = default;
 
             auto evaluate() const
                 -> decltype(btl::clone(std::declval<PrivateType>().evaluate()))
@@ -403,47 +432,25 @@ namespace reactive
                 return a;
             }
 
-            template <typename TFirst, typename TSecond>
-            class Compose
-            {
-            public:
-                Compose(TFirst&& first,
-                        typename std::decay<TSecond>::type const& second) :
-                    first_(std::forward<TFirst>(first)),
-                    second_(second)
-
-                {
-                }
-
-                template <typename TValue>
-                auto operator()(TValue&& value, signal::IndexSignal index)
-                    -> decltype(std::declval<TFirst>()(std::declval<TSecond>()(
-                                    value, index), index))
-                {
-                    return first_(second_(std::forward<TValue>(value), index),
-                            index);
-                }
-
-            private:
-                std::decay_t<TFirst> first_;
-                std::decay_t<TSecond> second_;
-            };
-
             template <typename TAddDelegate,
                      typename TNewDelegate = Compose<TAddDelegate,
-                     typename std::decay<TDelegate>::type>
+                     std::decay_t<TDelegate>>
                 >
             auto dataBind(TAddDelegate&& delegate) const
-                -> DataBind<TNewDelegate,
-                    typename std::decay<TCollection>::type const&>
+                -> decltype(signal::wrap(
+                        std::declval<DataBind<
+                            TNewDelegate,
+                            std::decay_t<TCollection> const&
+                            >>()
+                        ))
             {
                 auto d = TNewDelegate(
                             std::forward<TAddDelegate>(delegate),
                             deferred_->delegate_);
-                return DataBind<TNewDelegate,
-                       typename std::decay<TCollection>::type const&>(
+                return signal::wrap(DataBind<TNewDelegate,
+                       std::decay_t<TCollection> const&>(
                         std::move(d), typename std::decay<TCollection>::type(
-                            deferred_->collection_));
+                            deferred_->collection_)));
             }
 
             DataBind clone() const
@@ -457,7 +464,7 @@ namespace reactive
 
         static_assert(IsSignal<
                 DataBind<
-                std::function<Signal<btl::option<int>>(
+                std::function<SharedSignal<btl::option<int>>(
                     Signal<btl::option<std::string>>,
                     IndexSignal)>,
                 btl::collection<std::string>
@@ -492,17 +499,18 @@ namespace reactive
                 TDelegate delegate = IdentityDelegate())
             //-> DataBind<TDelegate, TCollection>
         {
-            return DataBind<std::decay_t<TDelegate>, std::decay_t<TCollection>>(
-                    std::move(delegate),
-                    std::move(collection)
-                    );
+            return signal::wrap(
+                    DataBind<std::decay_t<TDelegate>, std::decay_t<TCollection>>(
+                        std::move(delegate),
+                        std::move(collection)
+                    ));
         }
 
         template <typename TDelegate, typename TDataBind>
         auto dataBind(TDataBind const& bound, TDelegate&& delegate)
-            -> decltype(bound.dataBind(std::forward<TDelegate>(delegate)))
+            -> decltype(bound.signal().dataBind(std::forward<TDelegate>(delegate)))
         {
-            return bound.dataBind(std::forward<TDelegate>(delegate));
+            return bound.signal().dataBind(std::forward<TDelegate>(delegate));
         }
 
         template <typename T, typename = void>
@@ -526,4 +534,6 @@ namespace reactive
         };
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

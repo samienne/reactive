@@ -472,7 +472,7 @@ TEST(async, delayed)
     EXPECT_TRUE(std::move(f).get());
 
 
-    auto delay = std::chrono::duration_cast<std::chrono::seconds>(
+    auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
     EXPECT_GE(delay.count(), 2.f);
 }

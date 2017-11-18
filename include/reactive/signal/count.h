@@ -3,42 +3,44 @@
 #include "constant.h"
 #include "reactive/signaltraits.h"
 
-namespace reactive
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
-    namespace signal
-    {
 
     template <typename TSignal>
-    class CountSignal
+    class BTL_CLASS_VISIBLE CountSignal
     {
     public:
         static_assert(IsSignal<TSignal>::value, "signal needs to be a signal");
 
-        CountSignal(TSignal signal) :
+        BTL_HIDDEN CountSignal(TSignal signal) :
             signal_(std::move(signal)),
             value_(0u)
         {
         }
 
-        CountSignal(CountSignal&&) = default;
-        CountSignal& operator=(CountSignal&&) = default;
+        BTL_HIDDEN CountSignal(CountSignal&&) = default;
+        BTL_HIDDEN CountSignal& operator=(CountSignal&&) = default;
 
-        size_t evaluate() const
+        BTL_HIDDEN size_t evaluate() const
         {
             return std::abs(value_);
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             return value_ < 0;
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             return signal_->updateBegin(frame);
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
             if (signal_->hasChanged())
@@ -48,12 +50,12 @@ namespace reactive
         }
 
         template <typename TCallback>
-        Connection observe(TCallback callback)
+        BTL_HIDDEN Connection observe(TCallback callback)
         {
             return signal_->observe(callback);
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("count()");
@@ -61,14 +63,14 @@ namespace reactive
             return a;
         }
 
-        CountSignal clone() const
+        BTL_HIDDEN CountSignal clone() const
         {
             return *this;
         }
 
     private:
-        CountSignal(CountSignal const&) = default;
-        CountSignal& operator=(CountSignal const&) = default;
+        BTL_HIDDEN CountSignal(CountSignal const&) = default;
+        BTL_HIDDEN CountSignal& operator=(CountSignal const&) = default;
 
     private:
         btl::CloneOnCopy<TSignal> signal_;
@@ -88,6 +90,7 @@ namespace reactive
         return CountSignal<std::decay_t<TSignal>>(std::move(signal));
     }
 
-    } // signal
-} // reactive
+} // reactive::signal
+
+BTL_VISIBILITY_POP
 

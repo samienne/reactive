@@ -2,6 +2,8 @@
 
 #include <ase/vector.h>
 
+#include <btl/forcenoexcept.h>
+
 #include <cmath>
 #include <ostream>
 
@@ -22,9 +24,11 @@ namespace avg
         inline Transform(ase::Vector2f translation = ase::Vector2f(0.0f, 0.0f),
                 float scale = 1.0f, float rotation = 0.0f);
         Transform(Transform const&) = default;
+        Transform(Transform&&) noexcept = default;
         inline ~Transform();
 
         Transform& operator=(Transform const&) = default;
+        Transform& operator=(Transform&&) noexcept = default;
 
         inline Transform&& scale(float scale) &&;
         inline Transform&& rotate(float angle) &&;
@@ -57,7 +61,7 @@ namespace avg
         }
 
     private:
-        Vector2f translation_;
+        btl::ForceNoexcept<Vector2f> translation_;
         float scale_;
         float rotation_;
     };
@@ -76,7 +80,7 @@ namespace avg
 
     inline Transform&& Transform::scale(float scale) &&
     {
-        translation_ *= scale;
+        *translation_ *= scale;
         scale_ *= scale;
         return std::move(*this);
     }
@@ -88,7 +92,7 @@ namespace avg
 
     inline Transform&& Transform::translate(Vector2f v) &&
     {
-        translation_ += v;
+        *translation_ += v;
         return std::move(*this);
     }
 
@@ -136,7 +140,7 @@ namespace avg
 
     inline Vector2f Transform::getTranslation() const
     {
-        return translation_;
+        return *translation_;
     }
 
     inline Vector2f Transform::operator*(Vector2f rhs) const
@@ -146,7 +150,7 @@ namespace avg
 
         Vector2f rotated(rhs[0] * cosA + rhs[1] * -sinA,
                 rhs[0] * sinA + rhs[1] * cosA);
-        return translation_ + scale_ * rotated;
+        return *translation_ + scale_ * rotated;
     }
 
     inline Transform Transform::operator*(Transform const& rhs) const
@@ -164,7 +168,7 @@ namespace avg
                 rhs.translation_[0] * cosA + rhs.translation_[1] * -sinA,
                 rhs.translation_[0] * sinA + rhs.translation_[1] * cosA);
         return Transform()
-            .setTranslation(translation_ + scale_ * translation)
+            .setTranslation(*translation_ + scale_ * translation)
             .setScale(scale_ * rhs.scale_)
             .setRotation(rotation_ + rhs.rotation_);
     }
@@ -188,7 +192,7 @@ namespace avg
         result.scale_ = 1.0f / scale_;
         float cosA = std::cos(result.rotation_);
         float sinA = std::sin(result.rotation_);
-        result.translation_ = result.scale_ *
+        *result.translation_ = result.scale_ *
             Vector2f(-translation_[0] * cosA + -translation_[1] * -sinA,
                     -translation_[0] * sinA + -translation_[1] * cosA);
 

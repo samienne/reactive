@@ -1,43 +1,38 @@
 #pragma once
 
-#include "constant.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
-#include <btl/all.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
-        template <typename TSignal/*, typename =
-            std::enable_if_t<
-                btl::All<
-                    IsSignal<TSignal>,
-                    IsSignal<SignalType<TSignal>>
-                >::value
-            >*/
-        >
-        class Join
+        template <typename TSignal>
+        class BTL_CLASS_VISIBLE Join
         {
         public:
             using OuterSig = typename std::decay<TSignal>::type;
             using InnerSig = decltype(std::declval<OuterSig>().evaluate());
             using SignalType = decltype(std::declval<InnerSig>().evaluate());
 
-            Join(TSignal sig) :
+            BTL_HIDDEN Join(TSignal sig) :
                 outer_(std::move(sig))
             {
             }
 
         private:
-            Join(Join const&) = default;
-            Join& operator=(Join const&) = default;
+            BTL_HIDDEN Join(Join const&) = default;
+            BTL_HIDDEN Join& operator=(Join const&) = default;
 
         public:
-            Join(Join&&) = default;
-            Join& operator=(Join&&) = default;
+            BTL_HIDDEN Join(Join&&) noexcept = default;
+            BTL_HIDDEN Join& operator=(Join&&) noexcept = default;
 
-            btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
             {
                 changed_ = false;
                 auto r = outer_->updateBegin(frame);
@@ -50,7 +45,7 @@ namespace reactive
                 return r;
             }
 
-            btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
             {
                 auto r1 = outer_->updateEnd(frame);
 
@@ -76,7 +71,7 @@ namespace reactive
                 return min(r1, r2);
             }
 
-            SignalType evaluate() const
+            BTL_HIDDEN SignalType evaluate() const
             {
                 if (!inner_.valid())
                 {
@@ -88,14 +83,14 @@ namespace reactive
                 return (*inner_)->evaluate();
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 //return outer_.hasChanged() || inner_.hasChanged();
                 return changed_;
             }
 
             template <typename TCallback>
-            Connection observe(TCallback const& cb)
+            BTL_HIDDEN Connection observe(TCallback const& cb)
             {
                 if (!inner_.valid())
                 {
@@ -110,7 +105,7 @@ namespace reactive
                 return std::move(c);
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto n = a.addNode("join() changed: "
@@ -120,7 +115,7 @@ namespace reactive
                 return a;
             }
 
-            Join clone() const
+            BTL_HIDDEN Join clone() const
             {
                 return *this;
             }
@@ -131,22 +126,15 @@ namespace reactive
             bool changed_ = false;
         };
 
-        static_assert(IsSignal<Join<Constant<Constant<int>>>>::value,
-                "Join is not a signal");
-
-        template <typename TSignal, typename =
-            std::enable_if_t
-            <
-                btl::All
-                <
-                    IsSignal<TSignal>,
-                    IsSignal<SignalType<TSignal>>
-                >::value
+        template <typename T, typename U, typename = std::enable_if_t<
+            IsSignal<T>::value
             >>
-        auto join(TSignal sig) -> Join<TSignal>
+        auto join(Signal<T, U> sig)
         {
-            return Join<std::decay_t<TSignal>>(std::move(sig));
+            return signal::wrap(Join<U>(std::move(sig).signal()));
         }
     }
 }
+
+BTL_VISIBILITY_POP
 

@@ -5,41 +5,44 @@
 #include "input.h"
 
 #include <btl/apply.h>
+#include <btl/hidden.h>
 
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TFunc, typename TValue, typename TSignal>
-        class FoldP
+        class BTL_CLASS_VISIBLE FoldP
         {
         public:
             using ValueType = typename std::decay<TValue>::type;
 
             //template <typename T>
-            FoldP(TFunc func, TValue initial, TSignal sig) :
+            BTL_HIDDEN FoldP(TFunc func, TValue initial, TSignal sig) :
                 sig_(std::move(sig)),
                 func_(std::move(func)),
                 value_(std::move(initial))
             {
             }
 
-            FoldP(FoldP&&) = default;
-            FoldP& operator=(FoldP&&) = default;
+            BTL_HIDDEN FoldP(FoldP&&) = default;
+            BTL_HIDDEN FoldP& operator=(FoldP&&) = default;
 
-            ValueType const& evaluate() const
+            BTL_HIDDEN ValueType const& evaluate() const
             {
                 return value_;
             }
 
-            UpdateResult updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
             {
                 return sig_->updateBegin(frame);
             }
 
-            UpdateResult updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
             {
                 auto r = sig_->updateEnd(frame);
 
@@ -49,18 +52,18 @@ namespace reactive
                 return r;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return sig_->hasChanged();
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& cb)
+            BTL_HIDDEN Connection observe(TCallback&& cb)
             {
                 return sig_->observe(std::forward<TCallback>(cb));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("foldp()");
@@ -68,14 +71,14 @@ namespace reactive
                 return a;
             }
 
-            FoldP clone() const
+            BTL_HIDDEN FoldP clone() const
             {
                 return *this;
             }
 
         private:
-            FoldP(FoldP const&) = default;
-            FoldP& operator=(FoldP const&) = default;
+            BTL_HIDDEN FoldP(FoldP const&) = default;
+            BTL_HIDDEN FoldP& operator=(FoldP const&) = default;
 
         private:
             btl::CloneOnCopy<std::decay_t<TSignal>> sig_;
@@ -105,7 +108,7 @@ namespace reactive
                 std::decay_t<TSignal>
                 >*/
         {
-            return FoldP<
+            return wrap(FoldP<
                 std::decay_t<TFunc>,
                 std::decay_t<TValue>,
                 std::decay_t<TSignal>>
@@ -113,7 +116,7 @@ namespace reactive
                      std::move(func),
                      std::move(initial),
                      std::move(sig)
-                    );
+                    ));
         }
 
         namespace detail
@@ -181,6 +184,8 @@ namespace reactive
                        )
                  );
         }
-    }
-}
+    } // signal
+} // reactive
+
+BTL_VISIBILITY_POP
 

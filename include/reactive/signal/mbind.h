@@ -2,40 +2,46 @@
 
 #include "map.h"
 #include "join.h"
+#include "reactive/signal.h"
 
 #include <btl/mbind.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
-        template <typename TFunc, typename... Ts>
-        auto mbind(TFunc&& func, Ts&&... ts)
+        template <typename TFunc, typename... Ts, typename... Us>
+        auto mbind(TFunc&& func, Signal<Ts, Us>... ts)
         -> decltype(
                 signal::join(signal::map(std::forward<TFunc>(func),
-                        std::forward<Ts>(ts)...))
+                        std::move(ts)...))
                 )
         {
             return signal::join(signal::map(std::forward<TFunc>(func),
-                    std::forward<Ts>(ts)...));
+                    std::move(ts)...));
         }
     } // signal
 } // reactive
 
 namespace btl
 {
-    template <typename TFunc, typename... Ts>
-    auto mbind(TFunc&& func, Ts&&... ts)
+    template <typename TFunc, typename... Ts, typename... Us>
+    auto mbind(TFunc&& func, reactive::Signal<Ts, Us>... ts)
     -> decltype(reactive::signal::mbind(
                 std::forward<TFunc>(func),
-                std::forward<Ts>(ts)...
+                std::move(ts)...
                 )
             )
     {
         return reactive::signal::mbind(
                 std::forward<TFunc>(func),
-                std::forward<Ts>(ts)...
+                std::move(ts)...
                 );
     }
 } // btl
+
+BTL_VISIBILITY_POP
 

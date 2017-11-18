@@ -6,8 +6,11 @@
 #include "reactive/observable.h"
 
 #include <btl/spinlock.h>
+#include <btl/hidden.h>
 
 #include <mutex>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -78,14 +81,14 @@ namespace reactive
             return tag_;
         }
 
-        void set(Lock const&, Weak<T> sig)
+        void set(Lock const&, Signal<T, Weak<T>> sig)
         {
-            if (signal_ == sig)
+            if (signal_ == sig.signal())
                 return;
 
             //value_ = sig.evaluate();
             signalChanged_ = true;
-            signal_ = std::move(sig);
+            signal_ = std::move(sig).signal();
             ++tag_;
 
             connection_ = Connection();
@@ -156,4 +159,6 @@ namespace reactive
 
     }
 }
+
+BTL_VISIBILITY_POP
 

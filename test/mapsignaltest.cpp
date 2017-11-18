@@ -1,4 +1,7 @@
+#include <reactive/signal/share.h>
+#include <reactive/signal/erasetype.h>
 #include <reactive/signal/map.h>
+#include <reactive/signal/cast.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>
@@ -20,6 +23,27 @@
 
 using namespace reactive;
 using us = std::chrono::microseconds;
+
+static_assert(IsSignal<
+        signal::Map<
+            signal::detail::MapBase, btl::Plus, signal::Constant<int>,
+            signal::Constant<int>
+            >
+        >::value, "");
+
+static_assert(std::is_same
+        <
+            int,
+            SignalValueType<signal::Map<signal::detail::MapBase, btl::Plus,
+                signal::Constant<int>, signal::Constant<int>>>::type
+        >::value, "");
+
+
+TEST(Map, sharedSignalAsParam)
+{
+    auto s1 = signal::share(signal::constant(10));
+    auto s2 = signal::map([](int i) { return 2 * i; }, s1);
+}
 
 TEST(Map, tupleReduce)
 {
@@ -55,11 +79,12 @@ TEST(Map, Partial)
     auto h = btl::applyPartial(f, 10);
     auto n = h(20);
 
-    auto gs = makeSignal(mapFunction(f));
+    auto gs = eraseType(mapFunction(f));
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
-    Signal<std::function<int(int)>> s1 = mapFunction(f, signal::constant(10));
+    Signal<std::function<int(int)>> s1 =
+        signal::cast<std::function<int(int)>>(mapFunction(f, signal::constant(10)));
 
     //auto v1 = s1.evaluate();
 
@@ -229,10 +254,10 @@ TEST(MapSignal, single)
 {
     auto i = signal::input(10);
 
-    /*auto s1 = makeSignal(signal::map([](int n)
+    /*auto s1 = eraseType(signal::map([](int n)
             {
                 return n * 2;
-            }, makeSignal(i.signal)));*/
+            }, eraseType(i.signal)));*/
 
     auto s1 = std::move(i.signal) | signal::fmap2([](int n)
             {

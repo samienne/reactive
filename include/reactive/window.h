@@ -2,6 +2,8 @@
 
 #include "widgetfactory.h"
 
+#include "signal.h"
+
 #include <btl/cloneoncopy.h>
 
 namespace reactive
@@ -34,7 +36,7 @@ namespace reactive
 
     private:
         btl::CloneOnCopy<WidgetFactory> widget_;
-        Signal<std::string> title_;
+        SharedSignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };
 

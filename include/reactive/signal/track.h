@@ -2,16 +2,20 @@
 
 #include "databind.h"
 
+#include <btl/hidden.h>
+
 #include <fit/identity.h>
 
 #include <atomic>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TCollection>
-        class Track
+        class BTL_CLASS_VISIBLE Track
         {
         public:
             using reader_t = decltype(btl::reader(std::declval<TCollection>()));
@@ -22,7 +26,7 @@ namespace reactive
                         std::function<void(
                             btl::collection_event<value_t> const&)>()));
 
-            Track(TCollection&& collection) :
+            BTL_HIDDEN Track(TCollection&& collection) :
                 collection_(std::forward<TCollection>(collection)),
                 collectionConnection_(btl::observe(collection_, std::bind(
                                 &Track::onCollectionChanged,
@@ -33,7 +37,7 @@ namespace reactive
                 values_ = std::vector<value_t>(r.begin(), r.end());
             }
 
-            Track(Track const& rhs) :
+            BTL_HIDDEN Track(Track const& rhs) :
                 observable_(rhs.observable_),
                 collection_(rhs.collection_),
                 values_(rhs.values_),
@@ -45,7 +49,7 @@ namespace reactive
             {
             }
 
-            Track(Track&& rhs) :
+            BTL_HIDDEN Track(Track&& rhs) noexcept :
                 observable_(rhs.observable_),
                 collection_(rhs.collection_),
                 values_(rhs.values_),
@@ -57,7 +61,7 @@ namespace reactive
             {
             }
 
-            Track operator=(Track const& rhs)
+            BTL_HIDDEN Track& operator=(Track const& rhs)
             {
                 observable_ = rhs.observable_;
                 collection_ = rhs.collection_;
@@ -67,9 +71,11 @@ namespace reactive
                                 this, std::placeholders::_1)));
                 collectionChanged_ = rhs.collectionChanged_;
                 changed_ = rhs.changed_;
+
+                return *this;
             }
 
-            Track operator=(Track&& rhs)
+            BTL_HIDDEN Track& operator=(Track&& rhs) noexcept
             {
                 observable_ = rhs.observable_;
                 collection_ = rhs.collection_;
@@ -79,23 +85,25 @@ namespace reactive
                                 this, std::placeholders::_1)));
                 collectionChanged_ = rhs.collectionChanged_;
                 changed_ = rhs.changed_;
+
+                return *this;
             }
 
-            std::vector<value_t> const& evaluate() const
+            BTL_HIDDEN std::vector<value_t> const& evaluate() const
             {
                 return values_;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            void beginTransaction()
+            BTL_HIDDEN void beginTransaction()
             {
             }
 
-            btl::option<signal_time_t> endTransaction(signal_time_t)
+            BTL_HIDDEN btl::option<signal_time_t> endTransaction(signal_time_t)
             {
                 changed_ = false;
 
@@ -111,12 +119,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& cb)
+            BTL_HIDDEN Connection observe(TCallback&& cb)
             {
                 return observable_->observe(std::forward<TCallback>(cb));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 a.addNode("track<" + btl::demangle<TCollection>()
@@ -125,7 +133,7 @@ namespace reactive
             }
 
         private:
-            void onCollectionChanged(btl::collection_event<value_t> const&)
+            BTL_HIDDEN void onCollectionChanged(btl::collection_event<value_t> const&)
             {
                 collectionChanged_ = true;
                 observable_->notify();
@@ -165,4 +173,6 @@ namespace reactive
 #endif
     }
 }
+
+BTL_VISIBILITY_POP
 

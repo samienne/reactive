@@ -2,11 +2,11 @@
 
 #include "constant.h"
 
+#include <reactive/signal.h>
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
 
 #include <btl/pipable.h>
-#include <btl/invoke.h>
 #include <btl/option.h>
 #include <btl/demangle.h>
 #include <btl/apply.h>
@@ -17,12 +17,13 @@
 #include <btl/or.h>
 #include <btl/plus.h>
 #include <btl/tupleswitch.h>
+#include <btl/hidden.h>
 
 #include <tuple>
 
-namespace reactive
-{
-namespace signal
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
     namespace detail
     {
@@ -171,20 +172,15 @@ namespace signal
         {
             using Apply = detail::ApplyPartialFunction<TFunc>;
         };
-    }
+    } // detail
 
     template <template <typename> class TBase,
              typename TFunc, typename... TSigs>
-    class Map final
+    class BTL_CLASS_VISIBLE Map final
     {
-        /*static_assert(AreSignals<TSigs...>::value,
-                "Signals need to be signals");*/
-
         using Base = TBase<TFunc>;
         using Apply = typename Base::Apply;
         using FuncType = typename std::decay<TFunc>::type;
-        /*using FuncReturnType = decltype(std::declval<Apply>()(
-                    std::declval<TSigs>().evaluate()...));*/
         using FuncReturnType = std::result_of_t<Apply(SignalType<TSigs>...)>;
 
         // If all signal value types are references our evaluation type can
@@ -197,28 +193,28 @@ namespace signal
             >;
 
     public:
-        Map(TFunc func, TSigs... sigs) :
+        BTL_HIDDEN Map(TFunc func, TSigs... sigs) :
             func_(std::move(func)),
             signals_(std::make_tuple(std::move(sigs)...))
         {
         }
 
     private:
-        Map(Map const&) = default;
-        Map& operator=(Map const&) = default;
+        BTL_HIDDEN Map(Map const&) = default;
+        BTL_HIDDEN Map& operator=(Map const&) = default;
 
     public:
-        Map(Map&&) = default;
-        Map& operator=(Map&&) = default;
+        BTL_HIDDEN Map(Map&&) noexcept = default;
+        BTL_HIDDEN Map& operator=(Map&&) noexcept = default;
 
-        EvaluateType evaluate() const
+        BTL_HIDDEN EvaluateType evaluate() const
         {
             assert(ready_);
             return btl::apply(Apply(func_),
                     btl::tuple_map(*signals_, detail::Evaluate()));
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             assert(ready_);
             if (changed_ == detail::ChangedStatus::unknown)
@@ -240,7 +236,7 @@ namespace signal
             return changed_ == detail::ChangedStatus::changed;
         }
 
-        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             auto r = btl::tuple_reduce(
                     btl::none,
@@ -251,7 +247,7 @@ namespace signal
             return r;
         }
 
-        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             ready_ = true;
             auto r = btl::tuple_reduce(
@@ -265,7 +261,7 @@ namespace signal
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&& callback)
+        BTL_HIDDEN Connection observe(TCallback&& callback)
         {
             return btl::tuple_reduce(
                     Connection(),
@@ -274,20 +270,20 @@ namespace signal
                     btl::Plus());
         }
 
-        Annotation annotateI(Annotation::Node, Annotation a) const
+        BTL_HIDDEN Annotation annotateI(Annotation::Node, Annotation a) const
         {
             return a;
         }
 
         template <typename U, typename... Us>
-        Annotation annotateI(Annotation::Node n, Annotation a,
+        BTL_HIDDEN Annotation annotateI(Annotation::Node n, Annotation a,
                 U const& u, Us const&... us) const
         {
             a.addTree(n, u.annotate());
             return annotateI(n, std::move(a), us...);
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             auto f = [this](typename std::decay<TSigs>::type const&... sigs)
             {
@@ -304,7 +300,7 @@ namespace signal
             return btl::apply(f, *signals_);
         }
 
-        Map clone() const
+        BTL_HIDDEN Map clone() const
         {
             return *this;
         }
@@ -316,37 +312,21 @@ namespace signal
         mutable bool ready_ = true;
     };
 
-    static_assert(IsSignal<Map<detail::MapBase, btl::Plus, Constant<int>,
-            Constant<int>>>::value, "");
-
-    static_assert(std::is_same
-            <
-                int,
-                SignalValueType<Map<detail::MapBase, btl::Plus, Constant<int>,
-                    Constant<int>>>::type
-            >::value, "");
-
-    template <typename TFunc, typename... TSigs, typename = std::enable_if_t
+    template <typename TFunc, typename... Ts, typename... Us, typename = std::enable_if_t
         <
             btl::All<
                 std::is_copy_constructible<std::decay_t<TFunc>>,
-                IsSignal<TSigs>...,
-                btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(
-                        evaluate_t<TSigs>...
-                        )>>
+                //IsSignal<TSigs>...,
+                btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(Ts...)>>
             >::value
-        >,
-        typename = btl::void_t
-        <
-            decltype(std::declval<TFunc>()(std::declval<TSigs>().evaluate()...))
         >>
-    constexpr Map<detail::MapBase, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...> map(TFunc&& func, TSigs... sigs)
+    constexpr auto map(TFunc&& func, Signal<Ts, Us>... sigs)
     {
-        return Map<detail::MapBase, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
+        return signal::wrap(
+                Map<detail::MapBase, std::decay_t<TFunc>, Signal<Ts, Us>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
-                );
+                ));
     }
 
     template <typename TFunc, typename... TSigs,
@@ -358,13 +338,13 @@ namespace signal
                 IsSignal<TSigs>...
             >::value
         >::type>
-    constexpr Map<detail::MapFunction, std::decay_t<TFunc>,
-    std::decay_t<TSigs>...> mapFunction(TFunc&& func, TSigs... sigs)
+    constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
     {
-        return Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
-                std::forward<TFunc>(func),
-                std::move(sigs)...
-                );
+        return signal::wrap(
+                Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
+                    std::forward<TFunc>(func),
+                    std::move(sigs)...
+                ));
     }
 
     namespace detail
@@ -420,8 +400,7 @@ namespace signal
     }
 
     static constexpr auto fmap2 = BTL_PIPABLE(detail::fmap2);
-} // signal
-} // reactive
+} // reactive::signal
 
 namespace btl
 {
@@ -434,4 +413,6 @@ namespace btl
         return reactive::signal::map(std::forward<Ts>(ts)...);
     }
 } // btl
+
+BTL_VISIBILITY_POP
 

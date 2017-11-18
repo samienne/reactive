@@ -1,7 +1,5 @@
 #pragma once
 
-#include "invoke.h"
-
 #include <functional>
 #include <cassert>
 
@@ -21,7 +19,10 @@ namespace btl
             assert(false && "Copy disabled at runtime");
         }
 
-        AssertOnCopy(AssertOnCopy&& rhs) = default;
+        AssertOnCopy(AssertOnCopy&& rhs) noexcept :
+            value(std::move(rhs.value))
+        {
+        }
 
         AssertOnCopy& operator=(AssertOnCopy const& rhs) noexcept
         {
@@ -30,7 +31,11 @@ namespace btl
             return *this;
         }
 
-        AssertOnCopy& operator=(AssertOnCopy&& rhs) = default;
+        AssertOnCopy& operator=(AssertOnCopy&& rhs) noexcept
+        {
+            value = std::move(rhs.value);
+            return *this;
+        }
 
         std::decay_t<T> value;
     };
@@ -55,7 +60,7 @@ namespace btl
             func_([callable=assertOnCopy(std::forward<TCallable>(callable))]
                         (auto&&... values) mutable noexcept
             {
-                return btl::invoke(std::move(callable.value),
+                return std::invoke(std::move(callable.value),
                     std::forward<decltype(values)>(values)...);
             })
         {

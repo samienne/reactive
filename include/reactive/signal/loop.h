@@ -2,9 +2,11 @@
 
 #include "map.h"
 
-namespace reactive
-{
-namespace signal
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
 
     namespace detail
@@ -35,6 +37,8 @@ namespace signal
         return signal::map(detail::modulo<T>(), std::forward<TSignal>(sig),
                 constant(std::forward<T>(max)));
     }
-} // signal
-} // reactive
+} // reactive::signal
+
+
+BTL_VISIBILITY_POP
 

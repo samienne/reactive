@@ -15,13 +15,13 @@ namespace btl
             assert(data_ && "rhs cannot be empty");
         }
 
-        unique(unique<T>&&) = default;
+        unique(unique<T>&&) noexcept = default;
 
         ~unique()
         {
         }
 
-        unique& operator=(unique<T>&&) = default;
+        unique& operator=(unique<T>&&) noexcept = default;
 
         unique& operator=(std::unique_ptr<T>&& rhs)
         {

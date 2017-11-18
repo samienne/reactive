@@ -1,36 +1,39 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signaltype.h"
 #include "reactive/signaltraits.h"
+#include "reactive/signal.h"
 
 #include <btl/spinlock.h>
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class Cache
+        class BTL_CLASS_VISIBLE Cache
         {
         public:
             using ValueType = std::decay_t<SignalType<TSignal>>;
             using Lock = std::lock_guard<btl::SpinLock>;
 
-            Cache(TSignal sig) :
+            BTL_HIDDEN Cache(TSignal sig) :
                 sig_(std::move(sig))
             {
             }
 
         private:
-            Cache(Cache const&) = delete;
-            Cache& operator=(Cache const&) = delete;
+            BTL_HIDDEN Cache(Cache const&) = default;
+            BTL_HIDDEN Cache& operator=(Cache const&) = default;
 
         public:
-            Cache(Cache&&) = default;
-            Cache& operator=(Cache&&) = default;
+            BTL_HIDDEN Cache(Cache&&) noexcept = default;
+            BTL_HIDDEN Cache& operator=(Cache&&) noexcept = default;
 
-            ValueType const& evaluate() const
+            BTL_HIDDEN ValueType const& evaluate() const
             {
                 if (value_.empty())
                     value_ = btl::just(btl::clone(sig_->evaluate()));
@@ -38,17 +41,17 @@ namespace reactive
                 return *value_;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            UpdateResult updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
             {
                 return sig_->updateBegin(frame);
             }
 
-            UpdateResult updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
             {
                 auto r = sig_->updateEnd(frame);
 
@@ -60,12 +63,12 @@ namespace reactive
             }
 
             template <typename TFunc>
-            Connection observe(TFunc&& callback)
+            BTL_HIDDEN Connection observe(TFunc&& callback)
             {
                 return sig_->observe(std::forward<TFunc>(callback));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("cache() changed: "
@@ -74,7 +77,7 @@ namespace reactive
                 return a;
             }
 
-            Cache clone() const
+            BTL_HIDDEN Cache clone() const
             {
                 return *this;
             }
@@ -85,27 +88,39 @@ namespace reactive
             bool changed_ = false;
         };
 
-        static_assert(IsSignal<Cache<Constant<int>>>::value,
-                "Cache is not a signal");
+        /*static_assert(IsSignal<Cache<Constant<int>>>::value,
+                "Cache is not a signal");*/
 
-        template <typename TSignal, typename =
-            std::enable_if
-            <
-                btl::All<
-                    IsSignal<TSignal>,
-                    btl::IsClonable<SignalType<TSignal>>
-                >::value
-            >>
-        auto cache(TSignal sig) -> Cache<std::decay_t<TSignal>>
-        {
-            return Cache<std::decay_t<TSignal>>(std::move(sig));
-        }
-
-        template <typename T>
-        auto cache(Cache<T> sig) -> Cache<T>
+        template <typename T, typename U, std::enable_if_t<
+            std::is_reference<SignalType<U>>::value
+            , int> = 0>
+        auto cache(Signal<T, U>&& sig)
         {
             return std::move(sig);
         }
-    }
-}
+
+        template <typename T, typename U, std::enable_if_t<
+            !std::is_reference<SignalType<U>>::value
+            , int> = 0>
+        auto cache(Signal<T, U>&& sig)
+        {
+            return signal::wrap(Cache<U>(std::move(sig).signal()));
+        }
+
+        template <typename T>
+        auto cache(Signal<T, void>&& sig) -> Signal<T, void>
+        {
+            if (sig.isCached())
+                return std::move(sig);
+            else
+            {
+                return signal::wrap(Cache<Signal<T, void>>(
+                            std::move(sig))
+                        );
+            }
+        }
+    } // signal
+} // reactive
+
+BTL_VISIBILITY_POP
 

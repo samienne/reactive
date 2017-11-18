@@ -1,7 +1,9 @@
 #include "reactive/signal/join.h"
+#include "reactive/signal/erasetype.h"
 #include "reactive/signal/input.h"
 #include "reactive/signal/map.h"
 #include "reactive/signal/update.h"
+#include "reactive/signal.h"
 
 #include <gtest/gtest.h>
 
@@ -10,15 +12,15 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<Signal<int const&>> h2;
-    Signal<Signal<int>> s1;
+    signal::InputHandle<SharedSignal<int>> h2;
+    Signal<SharedSignal<int>> s1;
     Signal<int> s2;
 };
 
 Test makeTest()
 {
     auto i1 = signal::input(10);
-    auto i2 = signal::input(makeSignal(std::move(i1.signal)));
+    auto i2 = signal::input(signal::share(signal::eraseType(std::move(i1.signal))));
 
     auto s = signal::join(btl::clone(i2.signal));
 
@@ -28,6 +30,13 @@ Test makeTest()
         std::move(i2.signal),
         std::move(s)
     };
+}
+
+TEST(JoinSignal, isSignal)
+{
+    static_assert(IsSignal<signal::Join<
+            signal::Constant<signal::Constant<int>>>>::value,
+            "Join is not a signal");
 }
 
 TEST(JoinSignal, construct)

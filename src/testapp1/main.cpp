@@ -36,7 +36,7 @@ int main()
     auto textState = signal::input(widget::TextEditState{"Test123"});
 
     auto widgets = hbox({
-        widget::label(signal::constant("TestTest"))
+        widget::label(signal::constant<std::string>("TestTest"))
             | widget::frame()
         , vbox({
                 uniformGrid(3, 3)
@@ -45,9 +45,10 @@ int main()
                     .cell(2, 2, 1, 1, makeSpinner())
                 , makeSpinner()
                     | widget::frame()
-                , widget::label(signal::constant("AbcTest"))
+                , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()
-                , widget::textEdit(textState.handle, textState.signal)
+                , widget::textEdit(textState.handle,
+                        signal::cast<widget::TextEditState>(textState.signal))
                 })
         , adder()
             | widget::frame()
@@ -58,13 +59,14 @@ int main()
     return App()
         .windows({
                 window(
-                    signal::constant("Test program"),
+                    signal::constant<std::string>("Test program"),
                     std::move(widgets)
                     //| debug::drawKeyboardInputs()
                     | widget::focusGroup()
                     )
                 .onClose(send(false, running.handle))
                 })
-        .run(running.signal);
+        //.run(running.signal);
+        .run();
 }
 

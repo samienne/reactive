@@ -4,12 +4,13 @@
 #include "widgetmaps.h"
 #include "widgetmap.h"
 #include "widget.h"
-#include "signal.h"
 
+#include "signal/cast.h"
 #include "signal/share.h"
 #include "signal/cache.h"
 #include "signal/changed.h"
 #include "signal/tee.h"
+#include "signal.h"
 
 #include <avg/transform.h>
 
@@ -104,12 +105,13 @@ namespace reactive
         }
 
     private:
+    public:
         WidFac(WidFac const&) = default;
         WidFac& operator=(WidFac const&) = default;
 
     public:
-        WidFac(WidFac&&) = default;
-        WidFac& operator=(WidFac&&) = default;
+        WidFac(WidFac&&) noexcept = default;
+        WidFac& operator=(WidFac&&) noexcept = default;
 
         template <typename TSignalInput>
         auto operator()(TSignalInput input) &&
@@ -222,8 +224,17 @@ namespace reactive
         }
 
         template <typename TTupleMaps, typename TSizeHint>
+        static auto castFactory(WidFac<TTupleMaps, TSizeHint> base)
+        {
+            auto sizeHint = base.getSizeHint();
+
+            return std::move(base)
+                .setSizeHint(signal::cast<SizeHint>(std::move(sizeHint)));
+        }
+
+        template <typename TTupleMaps, typename TSizeHint>
         WidgetFactory(WidFac<TTupleMaps, TSizeHint> base) :
-            WidgetFactoryBase(std::move(base))
+            WidgetFactoryBase(castFactory(std::move(base)))
         {
         }
 
@@ -415,6 +426,8 @@ namespace reactive
             return std::move(widget)
                 .setObb(std::move(obb));
         };
+
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
 
         return mapWidget(f);
     }

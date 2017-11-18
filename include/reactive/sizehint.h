@@ -245,7 +245,7 @@ namespace reactive
                     return hint();
                 });
 
-            return getLargestHint(std::move(hints));
+            return getLargestHint(hints);
         }
 
         SizeHintResult operator()(float x) const
@@ -255,7 +255,7 @@ namespace reactive
                     return hint(x);
                 });
 
-            return getLargestHint(std::move(hints));
+            return getLargestHint(hints);
         }
 
         SizeHintResult operator()(float x, float y) const
@@ -265,7 +265,7 @@ namespace reactive
                     return hint(x, y);
                 });
 
-            return getLargestHint(std::move(hints));
+            return getLargestHint(hints);
         }
 
         std::vector<SizeHint> const hints_;

@@ -1,25 +1,30 @@
 #pragma once
 
 #include "constant.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
+
+#include <btl/hidden.h>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class DropRepeats
+        class BTL_CLASS_VISIBLE DropRepeats
         {
         public:
-            DropRepeats(TSignal signal) :
+            BTL_HIDDEN DropRepeats(TSignal signal) :
                 signal_(std::move(signal))
             {
             }
 
-            DropRepeats(DropRepeats&&) = default;
-            DropRepeats& operator=(DropRepeats&&) = default;
+            BTL_HIDDEN DropRepeats(DropRepeats&&) noexcept = default;
+            BTL_HIDDEN DropRepeats& operator=(DropRepeats&&) noexcept = default;
 
-            signal_value_t<TSignal> const& evaluate() const
+            BTL_HIDDEN signal_value_t<TSignal> const& evaluate() const
             {
                 if (!value_.valid())
                     value_ = btl::just(btl::clone(signal_->evaluate()));
@@ -27,17 +32,17 @@ namespace reactive
                 return *value_;
             }
 
-            bool hasChanged() const
+            BTL_HIDDEN bool hasChanged() const
             {
                 return changed_;
             }
 
-            UpdateResult updateBegin(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
             {
                 return signal_->updateBegin(frame);
             }
 
-            UpdateResult updateEnd(FrameInfo const& frame)
+            BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
             {
                 auto r = signal_->updateEnd(frame);
 
@@ -57,12 +62,12 @@ namespace reactive
             }
 
             template <typename TCallback>
-            Connection observe(TCallback&& callback)
+            BTL_HIDDEN Connection observe(TCallback&& callback)
             {
                 return signal_->observe(std::forward<TCallback>(callback));
             }
 
-            Annotation annotate() const
+            BTL_HIDDEN Annotation annotate() const
             {
                 Annotation a;
                 auto&& n = a.addNode("dropRepeats() + changed: "
@@ -71,14 +76,14 @@ namespace reactive
                 return a;
             }
 
-            DropRepeats clone() const
+            BTL_HIDDEN DropRepeats clone() const
             {
                 return *this;
             }
 
         private:
-            DropRepeats(DropRepeats const&) = default;
-            DropRepeats& operator=(DropRepeats const&) = default;
+            BTL_HIDDEN DropRepeats(DropRepeats const&) = default;
+            BTL_HIDDEN DropRepeats& operator=(DropRepeats const&) = default;
 
         private:
             btl::CloneOnCopy<std::decay_t<TSignal>> signal_;
@@ -89,29 +94,23 @@ namespace reactive
         static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
                 "DropRepeatsSignal is not a signal");
 
-        template <typename TSignal, typename =
-            std::enable_if_t
-            <
-                IsSignal<TSignal>::value
-            >
-        >
-        auto dropRepeats(TSignal signal)
-            -> DropRepeats<std::decay_t<TSignal>>
+        template <typename T, typename U>
+        auto dropRepeats(Signal<T, U> signal)
         {
-            return DropRepeats<std::decay_t<TSignal>>(
-                    std::move(signal));
+            return wrap(
+                    DropRepeats<Signal<T, U>>(
+                        std::move(signal))
+                    );
         }
 
-        template <typename TSignal, typename = typename
-            std::enable_if
-            <
-                IsSignal<TSignal>::value
-            >::type>
-        auto tryDropRepeats(TSignal sig)
+        template <typename T, typename U>
+        auto tryDropRepeats(Signal<T, U> sig)
         -> decltype(dropRepeats(std::move(sig)))
         {
             return dropRepeats(std::move(sig));
         }
     }
 }
+
+BTL_VISIBILITY_POP
 

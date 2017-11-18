@@ -7,18 +7,15 @@
 #include "signal/map.h"
 #include "signal/mbind.h"
 #include "signal/combine.h"
-#include "signal/track.h"
-#include "signal/join.h"
 
-#include "signaltype.h"
+#include "signal.h"
 
-#include <btl/sequence.h>
 #include <btl/fmap.h>
-#include <btl/collection.h>
+#include <btl/function.h>
 
 namespace reactive
 {
-    using ObbMap = std::function<
+    using ObbMap = btl::Function<
         std::vector<avg::Obb>(ase::Vector2f size,
                 std::vector<SizeHint> const&)>;
 
@@ -29,7 +26,7 @@ namespace reactive
             std::is_copy_constructible<T>
         > {};
 
-    using SizeHintMap = std::function<
+    using SizeHintMap = btl::Function<
         SizeHint(std::vector<SizeHint> const&)
         >;
 
@@ -94,11 +91,11 @@ namespace reactive
 
                         return signal::combine(std::move(hints));
                     },
-                    factories));
+                    factories.clone()));
 
         auto widgetMap = [
             hintsSignal,
-            factories,
+            factories=cloneOnCopy(btl::clone(factories)),
             obbMap=std::forward<TObbMap>(obbMap)
             ]
             (auto w)
@@ -112,8 +109,8 @@ namespace reactive
                     Signal<size_t> index) mutable
                  -> Signal<btl::option<Widget>>
                 {
-                    auto t = signal::map(pickTransform, obbs, index);
-                    auto size = signal::map(pickSize, obbs, index);
+                    auto t = signal::map(pickTransform, obbs, index.clone());
+                    auto size = signal::map(pickSize, obbs, index.clone());
 
                     auto widget = signal::map(
                             [
@@ -136,10 +133,10 @@ namespace reactive
                     return widget;
                 };
 
-            auto widgets = signal::dataBind(factories, std::move(delegate));
+            auto widgets = signal::dataBind(factories->clone(), std::move(delegate));
 
             return std::move(w)
-                | addWidgets(widgets);
+                | addWidgets(std::move(widgets));
         };
 
         return makeWidgetFactory()
@@ -152,6 +149,10 @@ namespace reactive
                     );
     }
 
+#if 1
+    WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+            std::vector<WidgetFactory> factories);
+#else
     template <typename TFactories, typename TObbMap, typename TSizeHintMap,
              typename =
         std::enable_if_t<
@@ -171,7 +172,7 @@ namespace reactive
                     return factory.getSizeHint();
                 });
 
-        auto hintsSignal = signal::share(
+        auto hintsSignal = share(
                 signal::combine(std::move(hints))
                 );
 
@@ -180,7 +181,7 @@ namespace reactive
                  (auto w)
             // -> Widget
         {
-            auto obbs = signal::share(
+            auto obbs = share(
                         signal::map(obbMap, w.getSize(), hintsSignal));
 
             //std::vector<Widget> widgets;
@@ -217,5 +218,6 @@ namespace reactive
             | mapWidget(std::move(widgetMap))
             | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
     }
+#endif
 } // reactive
 

@@ -8,6 +8,7 @@
 #include <reactive/stream/stream.h>
 
 #include <reactive/signal/map.h>
+#include <reactive/signal.h>
 
 #include <btl/sequence.h>
 #include <btl/bundle.h>
@@ -39,7 +40,7 @@ namespace reactive
                 {
                     avg::Drawing r = std::move(d1);
                     //for (auto&& d : drawings)
-                    btl::forEach(std::move(drawings), [&r, &obb](auto&& d)
+                    btl::forEach(std::move(drawings), [&r, &obb](auto d)
                     {
                         r = std::move(r) + (obb.getTransform() * std::move(d));
                     });
@@ -163,8 +164,14 @@ namespace reactive
         return onPointerDown(signal::constant(std::move(cb)));
     }
 
-    inline auto onPointerUp(Signal<
-            std::function<void(ase::PointerButtonEvent const&)>> cb)
+    template <typename T, typename U, typename = std::enable_if_t<
+        std::is_convertible<
+            T,
+            std::function<void(ase::PointerButtonEvent const&)>
+        >::value
+        >>
+    inline auto onPointerUp(Signal<T, U> cb)
+            //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
             [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
@@ -245,8 +252,11 @@ namespace reactive
         return mapWidget(std::move(f));
     }
 
-    inline auto onClick(unsigned int button,
-            Signal<std::function<void(ClickEvent const&)>> cb)
+    template <typename T, typename U, std::enable_if_t<
+        std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
+        , int> = 0>
+    inline auto onClick(unsigned int button, Signal<T, U> cb)
+            //Signal<std::function<void(ClickEvent const&)>> cb)
     {
         auto f = [button](
                 std::function<void(ClickEvent const&)> const& cb,
@@ -259,7 +269,10 @@ namespace reactive
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
     }
 
-    inline auto onClick(unsigned int button, Signal<std::function<void()>> cb)
+    template <typename T, typename U, std::enable_if_t<
+        std::is_convertible<T, std::function<void()>>::value
+        , int> = 0>
+    inline auto onClick(unsigned int button, Signal<T, U> cb)
     {
         auto f = [](std::function<void()> cb, ClickEvent const&)
         {
@@ -408,7 +421,7 @@ namespace reactive
     >
     auto addWidgets(TSignalWidgets widgets)
     {
-        auto f = [widgets=std::move(widgets)](auto widget)
+        auto f = [widgets=cloneOnCopy(std::move(widgets))](auto widget)
         {
             auto w1 = signal::map([widget=std::move(widget)]
                     (std::vector<Widget> widgets)
@@ -418,7 +431,7 @@ namespace reactive
                             ;
                         //return btl::clone(widget);
                     },
-                    std::move(widgets)
+                    btl::clone(*widgets)
                     );
 
             return reduce(std::move(w1));

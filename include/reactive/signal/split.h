@@ -4,8 +4,11 @@
 #include "map.h"
 
 #include <btl/tuplemap.h>
+#include <btl/hidden.h>
 
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -39,12 +42,13 @@ namespace reactive
 
         template <typename TSignal>
         auto split(TSignal&& sig)
-        -> decltype(
+        /*-> decltype(
             detail::splitImpl(std::forward<TSignal>(sig),
                     std::make_index_sequence<
                         std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
                     >())
             )
+            */
         {
             return detail::splitImpl(std::forward<TSignal>(sig),
                     std::make_index_sequence<
@@ -53,3 +57,6 @@ namespace reactive
         }
     } // signal
 } // reactive
+
+BTL_VISIBILITY_POP
+

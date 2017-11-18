@@ -5,62 +5,65 @@
 #include "inputhandle.h"
 #include "cache.h"
 #include "droprepeats.h"
+#include "removereference.h"
 
+#include "reactive/sharedsignal.h"
 #include "reactive/connection.h"
 #include "reactive/signaltraits.h"
 
+#include <btl/hidden.h>
+
 #include <fit/identity.h>
 
-namespace reactive
-{
-    namespace signal
-    {
+BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive::signal
+{
     template <typename T1, typename T2>
-    class Tee
+    class BTL_CLASS_VISIBLE Tee
     {
     public:
-        Tee(Signal<T1> upstream, Signal<T2> tee) :
+        BTL_HIDDEN Tee(SharedSignal<T1> upstream, SharedSignal<T2> tee) :
             upstream_(upstream),
             tee_(tee)
         {
         }
 
     private:
-        Tee(Tee const&) = default;
-        Tee& operator=(Tee const&) = default;
+        BTL_HIDDEN Tee(Tee const&) = default;
+        BTL_HIDDEN Tee& operator=(Tee const&) = default;
 
     public:
-        Tee(Tee&&) = default;
-        Tee& operator=(Tee&&) = default;
+        BTL_HIDDEN Tee(Tee&&) noexcept = default;
+        BTL_HIDDEN Tee& operator=(Tee&&) noexcept = default;
 
-        auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
+        BTL_HIDDEN auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
         {
             return upstream_.evaluate();
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
         {
             return upstream_.updateBegin(frame);
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
         {
             return upstream_.updateEnd(frame);
         }
 
-        bool hasChanged() const
+        BTL_HIDDEN bool hasChanged() const
         {
             return upstream_.hasChanged();
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&& cb)
+        BTL_HIDDEN Connection observe(TCallback&& cb)
         {
             return upstream_.observe(std::forward<TCallback>(cb));
         }
 
-        Annotation annotate() const
+        BTL_HIDDEN Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("tee()");
@@ -68,14 +71,14 @@ namespace reactive
             return a;
         }
 
-        Tee clone() const
+        BTL_HIDDEN Tee clone() const
         {
             return *this;
         }
 
     private:
-        Signal<T1> upstream_;
-        Signal<T2> tee_;
+        SharedSignal<T1> upstream_;
+        SharedSignal<T2> tee_;
     };
 
     static_assert(IsSignal<Tee<int, int>>::value, "Tee is not a signal");
@@ -85,39 +88,39 @@ namespace reactive
             InputHandle<signal_value_t<TSignal>> handle)
     -> Signal<signal_value_t<TSignal>>
     {
-        auto sig = removeReference(
-                makeSignal(tryDropRepeats((std::move(upstream))))
-                );
-        handle.set(sig);
+        auto sig = share(removeReference(
+                    tryDropRepeats((std::move(upstream)))
+                    ));
+        handle.set(weak(sig));
         return std::move(sig);
     }
 
-    template <typename TSignal, typename TMapFunc>
-    auto tee(TSignal sig, TMapFunc&& mapFunc,
+    template <typename T, typename U, typename TMapFunc>
+    auto tee(Signal<T, U> sig, TMapFunc&& mapFunc,
             InputHandle<std::decay_t<decltype(
                 mapFunc(sig.evaluate()))>> handle)
-    -> Tee<SignalType<TSignal>,
+    /*-> Tee<SignalType<TSignal>,
         std::decay_t<decltype(mapFunc(sig.evaluate()))>
-        >
+        >*/
     //-> Signal<T>
     {
-        auto s1 = makeSignal(std::move(sig));
-        auto teeSig = removeReference(makeSignal(signal::tryDropRepeats(
-                    signal::map(std::forward<TMapFunc>(mapFunc), s1))
-                ));
+        SharedSignal<T, void> s1 = signal::share(std::move(sig));
 
-        handle.set(teeSig);
+        auto s2 = signal::map(std::forward<TMapFunc>(mapFunc), s1);
+        auto teeSig = share(removeReference(signal::tryDropRepeats(
+                        std::move(s2))));
 
-        return Tee<
-            SignalType<TSignal>,
-            std::decay_t<decltype(mapFunc(sig.evaluate()))>
-            /*SignalType<
-                decltype(mapFunc(teeSig.evaluate()))
-                >*/
-            >(std::move(s1), std::move(teeSig));
+        handle.set(weak(teeSig));
+
+        return signal::wrap(Tee<
+            T,
+            std::decay_t<SignalType<decltype(teeSig)>>
+            //std::decay_t<decltype(mapFunc(sig.evaluate()))>
+            >(std::move(s1), std::move(teeSig))
+            );
     }
 
-} // signal
+} // reactive::signal
 
-} // reactive
+BTL_VISIBILITY_POP
 

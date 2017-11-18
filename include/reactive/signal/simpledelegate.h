@@ -4,23 +4,26 @@
 #include "databind.h"
 
 #include "reactive/signal/updateifjust.h"
-#include "reactive/signaltype.h"
+#include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
 #include <btl/option.h>
+#include <btl/hidden.h>
 
 #include <type_traits>
 #include <utility>
+
+BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TDelegate>
-        class SimpleDelegate
+        class BTL_CLASS_VISIBLE SimpleDelegate
         {
         public:
-            SimpleDelegate(TDelegate delegate) :
+            BTL_HIDDEN SimpleDelegate(TDelegate delegate) :
                 delegate_(std::move(delegate))
             {
             }
@@ -29,13 +32,19 @@ namespace reactive
                 IsSignal<T>::value
                 >
             >
-            auto operator()(T&& t, IndexSignal index)
-                -> Signal<btl::option<typename std::decay<
-                    decltype(std::declval<TDelegate>()(
-                                std::declval<Signal<decltype(*t.evaluate())>>(),
-                                index)
+            BTL_HIDDEN auto operator()(T&& t, IndexSignal index)
+            /*
+                -> Signal<btl::option<std::decay_t<
+                    decltype(
+                            std::declval<TDelegate>()(
+                                std::declval<SharedSignal<
+                                    SignalType<T>
+                                    >>(),
+                                index
+                                )
                             )
-                    >::type>>
+                    >>>
+                    */
             {
                 auto tShared = signal::share(std::forward<T>(t));
 
@@ -74,4 +83,6 @@ namespace reactive
         }
     } //signal
 } // reactive
+
+BTL_VISIBILITY_POP
 

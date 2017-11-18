@@ -3,14 +3,18 @@
 #include "reactive/signaltraits.h"
 #include "reactive/connection.h"
 
-namespace reactive
+#include <btl/hidden.h>
+
+#include <memory>
+
+BTL_VISIBILITY_PUSH_HIDDEN
+
+namespace reactive::signal
 {
-    namespace signal
-    {
     class FrameInfo;
 
     template <typename T>
-    class SignalBase
+    class BTL_VISIBLE SignalBase
     {
     public:
         virtual ~SignalBase() {}
@@ -20,8 +24,9 @@ namespace reactive
         virtual UpdateResult updateBegin(FrameInfo const&) = 0;
         virtual UpdateResult updateEnd(FrameInfo const&) = 0;
         virtual Annotation annotate() const = 0;
+        virtual bool isCached() const = 0;
     };
+} // reactive::signal
 
-    }
-}
+BTL_VISIBILITY_POP
 
