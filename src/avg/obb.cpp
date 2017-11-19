@@ -64,11 +64,11 @@ Obb Obb::operator+(Obb const& obb) const
     auto t = transform_.inverse();
     auto t2 = obb.transform_;
 
-    ase::Vector2f ps[] = {
-        t * t2 * ase::Vector2f(0.0f, 0.0f),
-        t * t2 * ase::Vector2f(obb.size_[0], 0.0f),
-        t * t2 * ase::Vector2f(*obb.size_),
-        t * t2 * ase::Vector2f(0.0f, obb.size_[1])
+    Vector2f ps[] = {
+        t * t2 * Vector2f(0.0f, 0.0f),
+        t * t2 * Vector2f(obb.size_[0], 0.0f),
+        t * t2 * Vector2f(*obb.size_),
+        t * t2 * Vector2f(0.0f, obb.size_[1])
     };
 
     float width = size_[0];

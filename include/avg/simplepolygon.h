@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <vector>
 
@@ -10,13 +10,13 @@ namespace avg
     {
     public:
         SimplePolygon();
-        SimplePolygon(std::vector<ase::Vector2i>&& vertices);
+        SimplePolygon(std::vector<Vector2i>&& vertices);
         ~SimplePolygon();
 
-        std::vector<ase::Vector2i> const& getVertices() const;
+        std::vector<Vector2i> const& getVertices() const;
 
     private:
-        std::vector<ase::Vector2i> vertices_;
+        std::vector<Vector2i> vertices_;
     };
 }
 

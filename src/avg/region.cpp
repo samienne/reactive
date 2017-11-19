@@ -25,7 +25,7 @@ public:
 
 public:
     std::shared_ptr<ClipperLib::PolyTree> paths_;
-    ase::Vector2f pixelSize_;
+    Vector2f pixelSize_;
     size_t resPerPixel_;
 };
 
@@ -36,7 +36,7 @@ namespace
      */
     void printClipperPolyTree(std::ostream& stream,
             ClipperLib::PolyTree const& polyTree,
-            int resPerPixel, ase::Vector2f pixelSize)
+            int resPerPixel, Vector2f pixelSize)
     {
 
         std::vector<ClipperLib::Path> paths;
@@ -64,7 +64,7 @@ namespace
 
     ClipperLib::Path toPath(SimplePolygon const& polygon)
     {
-        std::vector<ase::Vector2i> const& vertices = polygon.getVertices();
+        std::vector<Vector2i> const& vertices = polygon.getVertices();
         ClipperLib::Path path;
         for (auto const& vertex : vertices)
             path.push_back(ClipperLib::IntPoint(vertex[0], vertex[1]));
@@ -101,7 +101,7 @@ Region::Region()
 }
 
 Region::Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
-        ase::Vector2f pixelSize, size_t resPerPixel)
+        Vector2f pixelSize, size_t resPerPixel)
 {
     if (polygons.empty())
         return;
@@ -150,7 +150,7 @@ Region::Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
 }
 
 Region::Region(std::vector<SimplePolygon> const& polygons, JoinType join,
-        EndType end, float width, ase::Vector2f pixelSize,
+        EndType end, float width, Vector2f pixelSize,
         size_t resPerPixel)
 {
     if (polygons.empty())
@@ -317,7 +317,7 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     return result;
 }
 
-std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> >
+std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     Region::triangulate() const
 {
     if (!d())
@@ -348,7 +348,7 @@ std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> >
     node = stack.front();
     stack.pop();
 
-    std::vector<ase::Vector2f> vertices;
+    std::vector<Vector2f> vertices;
     //DBG("Top level paths: %1", d()->paths_.Childs.size());
     while (node)
     {
@@ -419,11 +419,11 @@ std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> >
                 //if (!(*k)->constrained_edge[(*k)->EdgeIndex(&p, &p2)])
                     //continue;
 
-                vertices.push_back(ase::Vector2f(p.x, p.y));
-                vertices.push_back(ase::Vector2f(p2.x, p2.y));
+                vertices.push_back(Vector2f(p.x, p.y));
+                vertices.push_back(Vector2f(p2.x, p2.y));
 #else
                 p2t::Point& p = *(triangle)->GetPoint(l);
-                vertices.push_back(ase::Vector2f(p.x, p.y));
+                vertices.push_back(Vector2f(p.x, p.y));
 #endif
             }
         }

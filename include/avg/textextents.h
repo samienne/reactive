@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <ostream>
 
@@ -8,12 +8,11 @@ namespace avg
 {
     struct TextExtents
     {
-        TextExtents()
+        inline TextExtents()
         {
         }
 
-        TextExtents(ase::Vector2f bearing, ase::Vector2f size,
-                ase::Vector2f advance) :
+        inline TextExtents(Vector2f bearing, Vector2f size, Vector2f advance) :
             bearing(bearing),
             size(size),
             advance(advance)
@@ -21,13 +20,13 @@ namespace avg
         }
 
         // The top-left corner from the baseline origin
-        ase::Vector2f bearing = ase::Vector2f(0.0f, 0.0f);
+        Vector2f bearing = Vector2f(0.0f, 0.0f);
 
         // The size
-        ase::Vector2f size = ase::Vector2f(0.0f, 0.0f);
+        Vector2f size = Vector2f(0.0f, 0.0f);
 
         // The next position after these characters
-        ase::Vector2f advance = ase::Vector2f(0.0f, 0.0f);
+        Vector2f advance = Vector2f(0.0f, 0.0f);
     };
 
     inline std::ostream& operator<<(std::ostream& stream, TextExtents const& te)

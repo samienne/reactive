@@ -15,47 +15,47 @@ namespace avg
 class PathDeferred
 {
 public:
-    ase::Vector2i toIVec(ase::Vector2f v, ase::Vector2f pixelSize,
+    Vector2i toIVec(Vector2f v, Vector2f pixelSize,
             size_t resPerPixel) const;
     std::vector<SimplePolygon> toSimplePolygons(Transform const& transform,
-            ase::Vector2f pixelSize, size_t resPerPixel) const;
+            Vector2f pixelSize, size_t resPerPixel) const;
 
     // CONIC
     float conicDerivative(float p1, float p2, float p3, float t) const;
-    ase::Vector2f conicDerivative(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, float t) const;
+    Vector2f conicDerivative(Vector2f p1, Vector2f p2,
+            Vector2f p3, float t) const;
 
     float conicValue(float p1, float p2, float p3, float t) const;
-    ase::Vector2f conicValue(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, float t) const;
-    float getNextConicT(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, float t, ase::Vector2f pixelSize) const;
+    Vector2f conicValue(Vector2f p1, Vector2f p2,
+            Vector2f p3, float t) const;
+    float getNextConicT(Vector2f p1, Vector2f p2,
+            Vector2f p3, float t, Vector2f pixelSize) const;
 
     // CUBIC
     float cubicDerivative(float p1, float p2, float p3, float p4,
             float t) const;
-    ase::Vector2f cubicDerivative(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, ase::Vector2f p4, float t) const;
+    Vector2f cubicDerivative(Vector2f p1, Vector2f p2,
+            Vector2f p3, Vector2f p4, float t) const;
 
     float cubicValue(float p1, float p2, float p3, float p4, float t) const;
-    ase::Vector2f cubicValue(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, ase::Vector2f p4, float t) const;
-    float getNextCubicT(ase::Vector2f p1, ase::Vector2f p2,
-            ase::Vector2f p3, ase::Vector2f p4, float t,
-            ase::Vector2f pixelSize) const;
+    Vector2f cubicValue(Vector2f p1, Vector2f p2,
+            Vector2f p3, Vector2f p4, float t) const;
+    float getNextCubicT(Vector2f p1, Vector2f p2,
+            Vector2f p3, Vector2f p4, float t,
+            Vector2f pixelSize) const;
 
 public:
     std::vector<Path::SegmentType> segments_;
-    std::vector<ase::Vector2f> vertices_;
+    std::vector<Vector2f> vertices_;
 };
 
-ase::Vector2i PathDeferred::toIVec(ase::Vector2f v, ase::Vector2f pixelSize,
+Vector2i PathDeferred::toIVec(Vector2f v, Vector2f pixelSize,
         size_t resPerPixel) const
 {
     float xRes = (float)resPerPixel / pixelSize[0];
     float yRes = (float)resPerPixel / pixelSize[1];
 
-    return ase::Vector2i((int)(xRes * v[0]), (int)(yRes * v[1]));
+    return Vector2i((int)(xRes * v[0]), (int)(yRes * v[1]));
 }
 
 float PathDeferred::conicDerivative(float p1,
@@ -66,10 +66,10 @@ float PathDeferred::conicDerivative(float p1,
     return 2.0f*t*p1 - 4.0f*t*p2 + 2.0f*t*p3 - 2.0f * p1 + 2.0f*p2;
 }
 
-ase::Vector2f PathDeferred::conicDerivative(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, float t) const
+Vector2f PathDeferred::conicDerivative(Vector2f p1, Vector2f p2,
+        Vector2f p3, float t) const
 {
-    return ase::Vector2f(conicDerivative(p1[0], p2[0], p3[0], t),
+    return Vector2f(conicDerivative(p1[0], p2[0], p3[0], t),
             conicDerivative(p1[1], p2[1], p3[1], t));
 }
 
@@ -79,18 +79,18 @@ float PathDeferred::conicValue(float p1, float p2, float p3, float t) const
     return (1.0f-t)*(1.0f-t)*p1 + 2.0f*(1.0f-t)*t*p2 + t*t*p3;
 }
 
-ase::Vector2f PathDeferred::conicValue(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, float t) const
+Vector2f PathDeferred::conicValue(Vector2f p1, Vector2f p2,
+        Vector2f p3, float t) const
 {
-    return ase::Vector2f(conicValue(p1[0], p2[0], p3[0], t),
+    return Vector2f(conicValue(p1[0], p2[0], p3[0], t),
             conicValue(p1[1], p2[1], p3[1], t));
 }
 
-float PathDeferred::getNextConicT(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, float t, ase::Vector2f pixelSize) const
+float PathDeferred::getNextConicT(Vector2f p1, Vector2f p2,
+        Vector2f p3, float t, Vector2f pixelSize) const
 
 {
-    ase::Vector2f d = conicDerivative(p1, p2, p3, t);
+    Vector2f d = conicDerivative(p1, p2, p3, t);
     bool onX = std::abs(d[0]) < std::abs(d[1]);
     float dt;
 
@@ -112,10 +112,10 @@ float PathDeferred::cubicDerivative(float p1, float p2, float p3, float p4,
         - 12.0*p2*t + 6.0f*p3*t - 3.0f*p1 + 3.0f*p2;
 }
 
-ase::Vector2f PathDeferred::cubicDerivative(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, ase::Vector2f p4, float t) const
+Vector2f PathDeferred::cubicDerivative(Vector2f p1, Vector2f p2,
+        Vector2f p3, Vector2f p4, float t) const
 {
-    return ase::Vector2f(cubicDerivative(p1[0], p2[0], p3[0], p4[0], t),
+    return Vector2f(cubicDerivative(p1[0], p2[0], p3[0], p4[0], t),
             cubicDerivative(p1[1], p2[1], p3[1], p4[1], t));
 }
 
@@ -127,19 +127,19 @@ float PathDeferred::cubicValue(float p1, float p2, float p3, float p4,
         + 3.0f*(1.0f-t)*t*t*p3 + t*t*t*p4;
 }
 
-ase::Vector2f PathDeferred::cubicValue(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, ase::Vector2f p4, float t) const
+Vector2f PathDeferred::cubicValue(Vector2f p1, Vector2f p2,
+        Vector2f p3, Vector2f p4, float t) const
 {
-    return ase::Vector2f(cubicValue(p1[0], p2[0], p3[0], p4[0], t),
+    return Vector2f(cubicValue(p1[0], p2[0], p3[0], p4[0], t),
             cubicValue(p1[1], p2[1], p3[1], p4[1], t));
 }
 
-float PathDeferred::getNextCubicT(ase::Vector2f p1, ase::Vector2f p2,
-        ase::Vector2f p3, ase::Vector2f p4, float t,
-        ase::Vector2f pixelSize) const
+float PathDeferred::getNextCubicT(Vector2f p1, Vector2f p2,
+        Vector2f p3, Vector2f p4, float t,
+        Vector2f pixelSize) const
 
 {
-    ase::Vector2f d = cubicDerivative(p1, p2, p3, p4, t);
+    Vector2f d = cubicDerivative(p1, p2, p3, p4, t);
     bool onY = std::abs(d[0]) < std::abs(d[1]);
     float dt;
 
@@ -152,22 +152,22 @@ float PathDeferred::getNextCubicT(ase::Vector2f p1, ase::Vector2f p2,
 }
 
 std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
-        Transform const& transform, ase::Vector2f pixelSize,
+        Transform const& transform, Vector2f pixelSize,
         size_t resPerPixel) const
 
 {
     size_t segment = 0;
     size_t vertex = 0;
-    ase::Vector2f cur(0.0f, 0.0f);
+    Vector2f cur(0.0f, 0.0f);
     std::vector<SimplePolygon> polygons;
-    std::vector<ase::Vector2i> vertices;
+    std::vector<Vector2i> vertices;
 
     while (segment < segments_.size())
     {
-        ase::Vector2f p1;
-        ase::Vector2f p2;
-        ase::Vector2f p3;
-        ase::Vector2f p4;
+        Vector2f p1;
+        Vector2f p2;
+        Vector2f p3;
+        Vector2f p4;
         float t;
 
         switch (segments_[segment])
@@ -297,7 +297,7 @@ Path Path::operator+(Path const& rhs) const
         return *this;
 
     std::vector<SegmentType> segments;
-    std::vector<ase::Vector2f> vertices;
+    std::vector<Vector2f> vertices;
 
     segments.reserve(d()->segments_.size() + rhs.d()->segments_.size());
     vertices.reserve(d()->vertices_.size() + rhs.d()->vertices_.size());
@@ -321,7 +321,7 @@ Path Path::operator+(Path const& rhs) const
     return p;
 }
 
-Path Path::operator+(ase::Vector2f delta) const
+Path Path::operator+(Vector2f delta) const
 {
     if (!d())
         return Path();
@@ -341,7 +341,7 @@ Path Path::operator*(float scale) const
     return p;
 }
 
-Path& Path::operator+=(ase::Vector2f delta)
+Path& Path::operator+=(Vector2f delta)
 {
     if (!d() || d()->segments_.empty())
         return *this;
@@ -373,7 +373,7 @@ bool Path::isEmpty() const
     return !d() || d()->segments_.empty();
 }
 
-Region Path::fillRegion(FillRule rule, ase::Vector2f pixelSize,
+Region Path::fillRegion(FillRule rule, Vector2f pixelSize,
         size_t resPerPixel) const
 {
     std::vector<SimplePolygon> polygons = d()->toSimplePolygons(transform_,
@@ -383,7 +383,7 @@ Region Path::fillRegion(FillRule rule, ase::Vector2f pixelSize,
 }
 
 Region Path::offsetRegion(JoinType join, EndType end, float width,
-        ase::Vector2f pixelSize, size_t resPerPixel) const
+        Vector2f pixelSize, size_t resPerPixel) const
 {
     std::vector<SimplePolygon> polygons = d()->toSimplePolygons(transform_,
             pixelSize, resPerPixel);
@@ -393,7 +393,7 @@ Region Path::offsetRegion(JoinType join, EndType end, float width,
 }
 
 Path::Path(std::vector<SegmentType>&& segments,
-        std::vector<ase::Vector2f>&& vertices) :
+        std::vector<Vector2f>&& vertices) :
     deferred_(std::make_shared<PathDeferred>())
 {
     d()->segments_ = std::move(segments);
@@ -421,11 +421,11 @@ std::vector<Path::SegmentType> const& Path::getSegments() const
     return d()->segments_;
 }
 
-std::vector<ase::Vector2f> const& Path::getVertices() const
+std::vector<Vector2f> const& Path::getVertices() const
 {
     if (!d())
     {
-        static const std::vector<ase::Vector2f> empty;
+        static const std::vector<Vector2f> empty;
         return empty;
     }
     return d()->vertices_;
@@ -440,15 +440,15 @@ avg::Path operator*(const avg::Transform& t, const avg::Path& p)
     return result;
 }
 
-/*avg::Path operator*(ase::Matrix3f const& m, avg::Path const& p)
+/*avg::Path operator*(Matrix3f const& m, avg::Path const& p)
 {
-    std::vector<ase::Vector2f> vertices;
+    std::vector<Vector2f> vertices;
     vertices.reserve(p.d()->vertices_.size());
     for (auto i = p.d()->vertices_.begin(); i != p.d()->vertices_.end(); ++i)
     {
-        ase::Vector3f v((*i)[0], (*i)[1], 1.0);
+        Vector3f v((*i)[0], (*i)[1], 1.0);
         v = m * v;
-        ase::Vector2f s(v[0], v[1]);
+        Vector2f s(v[0], v[1]);
         vertices.push_back(s);
     }
 
@@ -460,15 +460,15 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
 {
     size_t segment = 0;
     size_t vertex = 0;
-    ase::Vector2f cur(0.0f, 0.0f);
-    std::vector<ase::Vector2i> vertices;
+    Vector2f cur(0.0f, 0.0f);
+    std::vector<Vector2i> vertices;
 
     while (segment < p.d()->segments_.size())
     {
-        ase::Vector2f p1;
-        ase::Vector2f p2;
-        ase::Vector2f p3;
-        ase::Vector2f p4;
+        Vector2f p1;
+        Vector2f p2;
+        Vector2f p3;
+        Vector2f p4;
 
         switch (p.d()->segments_[segment])
         {
