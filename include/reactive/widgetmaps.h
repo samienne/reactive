@@ -262,8 +262,8 @@ namespace reactive
                 std::function<void(ClickEvent const&)> const& cb,
                 ase::PointerButtonEvent const& e)
         {
-            if (button == 0 || e.getButton() == button)
-                cb(ClickEvent(e.getPointer(), e.getButton(), e.getPos()));
+            if (button == 0 || e.button == button)
+                cb(ClickEvent(e.pointer, e.button, e.pos));
         };
 
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
@@ -286,8 +286,8 @@ namespace reactive
     {
         auto g = [button, f = std::move(f)](ase::PointerButtonEvent const& e)
         {
-            if (button == 0 || e.getButton() == button)
-                f(ClickEvent(e.getPointer(), e.getButton(), e.getPos()));
+            if (button == 0 || e.button == button)
+                f(ClickEvent(e.pointer, e.button, e.pos));
         };
 
         return onPointerUp(g);

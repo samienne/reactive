@@ -348,20 +348,28 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
             }
             break;
         case ButtonPress:
-            d()->buttonCallback_(PointerButtonEvent(
+            d()->buttonCallback_(PointerButtonEvent
+                    {
                         0,
                         event.xbutton.button,
                         ButtonState::down,
-                        Vector2f(event.xbutton.x,
-                            d()->size_[1] - event.xbutton.y)));
+                        Vector2f(
+                                event.xbutton.x,
+                                d()->size_[1] - event.xbutton.y
+                                )
+                    });
             break;
         case ButtonRelease:
-            d()->buttonCallback_(PointerButtonEvent(
+            d()->buttonCallback_(PointerButtonEvent
+                    {
                         0,
                         event.xbutton.button,
                         ButtonState::up,
-                        Vector2f(event.xbutton.x,
-                            d()->size_[1] - event.xbutton.y)));
+                        Vector2f(
+                                event.xbutton.x,
+                                d()->size_[1] - event.xbutton.y
+                                )
+                    });
             break;
         case KeyPress:
             {

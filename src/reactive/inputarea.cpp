@@ -1,5 +1,7 @@
 #include "inputarea.h"
 
+#include "pointerbuttonevent.h"
+
 namespace reactive
 {
 
@@ -67,15 +69,15 @@ void InputArea::emit(ase::PointerButtonEvent const& e) const
     /*if (!contains(e.getPos()))
         return;*/
 
-    if (e.getState() == ase::ButtonState::down)
+    if (e.state == ase::ButtonState::down)
     {
         for (auto const& cb : onDown_)
-            cb(e.transform(transform_.inverse()));
+            cb(transformPointerButtonEvent(e, transform_.inverse()));
     }
-    else if (e.getState() == ase::ButtonState::up)
+    else if (e.state == ase::ButtonState::up)
     {
         for (auto const& cb : onUp_)
-            cb(e.transform(transform_.inverse()));
+            cb(transformPointerButtonEvent(e, transform_.inverse()));
     }
 }
 

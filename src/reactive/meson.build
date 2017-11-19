@@ -19,7 +19,9 @@ libreactivesrc = [
     'glxapp.cpp',
     'connection.cpp',
     'annotation.cpp',
-    'clickevent.cpp']
+    'clickevent.cpp',
+    'pointerbuttonevent.cpp',
+]
 
 reactivedep = [libbtldep, libasedep, libavgdep]
 

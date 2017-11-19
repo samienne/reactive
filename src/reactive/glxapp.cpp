@@ -74,21 +74,21 @@ public:
                     widget_.update({getNextFrameId(), signal_time_t(0)});
                 }
 
-                if (e.getState() == ase::ButtonState::down)
+                if (e.state == ase::ButtonState::down)
                 {
                     for (auto const& a : widget_.getAreas().evaluate())
                     {
-                        if (a.contains(e.getPos()))
+                        if (a.contains(e.pos))
                         {
                             a.emit(e);
-                            areas_.insert(std::make_pair(e.getButton(), a));
+                            areas_.insert(std::make_pair(e.button, a));
                         }
                     }
                 }
-                else if (e.getState() == ase::ButtonState::up)
+                else if (e.state == ase::ButtonState::up)
                 {
-                    auto i = areas_.find(e.getButton());
-                    while (i != areas_.end() && i->first == e.getButton())
+                    auto i = areas_.find(e.button);
+                    while (i != areas_.end() && i->first == e.button)
                     {
                         i->second.emit(e);
                         areas_.erase(i++);
