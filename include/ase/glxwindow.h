@@ -3,6 +3,7 @@
 #include "vector.h"
 #include "window.h"
 #include "pointerbuttonevent.h"
+#include "pointermoveevent.h"
 #include "keyevent.h"
 
 #include <mutex>
@@ -40,12 +41,15 @@ namespace ase
         void setRedrawCallback(std::function<void()> const& func);
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb);
+        void setPointerCallback(
+                std::function<void(PointerMoveEvent const&)> cb);
         void setKeyCallback(std::function<void(KeyEvent const&)> cb);
 
         Vector2i getSize() const;
 
     private:
         friend class GlxRenderContext;
+        void handleEvent(_XEvent const& e);
         void present(Dispatched);
         Lock lockX() const;
 

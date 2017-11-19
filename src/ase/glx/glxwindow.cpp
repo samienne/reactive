@@ -116,7 +116,13 @@ private:
     std::function<void()> resizeCallback_;
     std::function<void()> redrawCallback_;
     std::function<void(PointerButtonEvent const& e)> buttonCallback_;
+    std::function<void(PointerMoveEvent const& e)> pointerCallback_;
     std::function<void(KeyEvent const& e)> keyCallback_;
+
+    // Atoms
+    Atom wmDelete_;
+    Atom wmProtocols_;
+    Atom wmSyncRequest_;
 
     // counters
     unsigned int frames_ = 0;
@@ -276,6 +282,15 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     Window(std::make_shared<GlxWindowDeferred>(platform, *this, size))
 {
     d()->size_ = size;
+    Display* dpy = d()->platform_.getDisplay();
+
+    {
+        Lock lock(lockX());
+        d()->wmDelete_ = XInternAtom(dpy, "WM_DELETE_WINDOW", true);
+        d()->wmProtocols_ = XInternAtom(dpy, "WM_PROTOCOLS", true);
+        d()->wmSyncRequest_ = XInternAtom(dpy, "_NET_WM_SYNC_REQUEST", true);
+    }
+
 }
 
 GlxWindow::~GlxWindow()
@@ -284,130 +299,8 @@ GlxWindow::~GlxWindow()
 
 void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 {
-    Display* dpy = d()->platform_.getDisplay();
-    Atom wmDelete;
-    Atom wmProtocols;
-    Atom wmSyncRequest;
-
-    {
-        Lock lock(lockX());
-        wmDelete = XInternAtom(dpy, "WM_DELETE_WINDOW", true);
-        wmProtocols = XInternAtom(dpy, "WM_PROTOCOLS", true);
-        wmSyncRequest = XInternAtom(dpy, "_NET_WM_SYNC_REQUEST", true);
-    }
-
-    // Handle events
     for (auto const& e : events)
-    {
-        // Skip events that are not for us.
-        if (e.xany.window != d()->xWin_)
-            continue;
-
-        auto event = e;
-
-        if (XFilterEvent(&event, d()->xWin_))
-            continue;
-
-        switch (event.type)
-        {
-        case Expose:
-            if (event.xexpose.count == 0)
-            {
-                if (d()->redrawCallback_)
-                    d()->redrawCallback_();
-            }
-            break;
-        case ConfigureNotify:
-            //pos = Pos(event.xconfigure.x, event.xconfigure.y);
-            d()->size_ = Vector2i(event.xconfigure.width,
-                        event.xconfigure.height);
-            if (d()->resizeCallback_)
-                d()->resizeCallback_();
-            break;
-
-        case ClientMessage:
-            if (event.xclient.message_type == wmProtocols
-                    && static_cast<Atom>(event.xclient.data.l[0])
-                    == wmDelete)
-            {
-                if (d()->closeCallback_)
-                    d()->closeCallback_();
-            }
-            else if (event.xclient.message_type == wmProtocols
-                    && static_cast<Atom>(event.xclient.data.l[0])
-                    == wmSyncRequest)
-            {
-                /*DBG("SyncRequest: %1 %2 %3 %4",
-                        event.xclient.data.l[1],
-                        event.xclient.data.l[2],
-                        event.xclient.data.l[3],
-                        event.xclient.data.l[4]);*/
-                d()->counterValue_ = (int64_t)event.xclient.data.l[2]
-                    | ((int64_t)(event.xclient.data.l[3]) << 32);
-
-            }
-            break;
-        case ButtonPress:
-            d()->buttonCallback_(PointerButtonEvent
-                    {
-                        0,
-                        event.xbutton.button,
-                        ButtonState::down,
-                        Vector2f(
-                                event.xbutton.x,
-                                d()->size_[1] - event.xbutton.y
-                                )
-                    });
-            break;
-        case ButtonRelease:
-            d()->buttonCallback_(PointerButtonEvent
-                    {
-                        0,
-                        event.xbutton.button,
-                        ButtonState::up,
-                        Vector2f(
-                                event.xbutton.x,
-                                d()->size_[1] - event.xbutton.y
-                                )
-                    });
-            break;
-        case KeyPress:
-            {
-            KeySym keysym;
-            char buf[10] = "";
-            XKeyEvent e = event.xkey;
-            Status status;
-            //int n  = XLookupString(&e, buf, sizeof(buf), &keysym, &d()->composeStatus_);
-            //DBG("n: %1 %2", n, buf);
-            int count = Xutf8LookupString(d()->xic_, &event.xkey, buf,
-                    sizeof(buf), &keysym, &status);
-            buf[count] = 0;
-
-            d()->keyCallback_(KeyEvent(KeyState::down,
-                        static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                        mapXKeyStateToModifiers(event.xkey.state), buf));
-            }
-            break;
-        case KeyRelease:
-            {
-                XKeyEvent e = event.xkey;
-                d()->keyCallback_(KeyEvent(KeyState::up,
-                            static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                            mapXKeyStateToModifiers(event.xkey.state), ""));
-            }
-            break;
-        case PropertyNotify:
-        case ReparentNotify:
-        case MapNotify:
-        case EnterNotify:
-        case LeaveNotify:
-        case MotionNotify:
-            break;
-        default:
-            DBG("Default %1", event.type);
-            break;
-        }
-    }
+        handleEvent(e);
 }
 
 void GlxWindow::setCloseCallback(std::function<void()> const& func)
@@ -431,6 +324,12 @@ void GlxWindow::setButtonCallback(
     d()->buttonCallback_ = cb;
 }
 
+void GlxWindow::setPointerCallback(
+        std::function<void(PointerMoveEvent const&)> cb)
+{
+    d()->pointerCallback_ = cb;
+}
+
 void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
     d()->keyCallback_ = cb;
@@ -439,6 +338,131 @@ void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 Vector2i GlxWindow::getSize() const
 {
     return d()->size_;
+}
+
+void GlxWindow::handleEvent(_XEvent const& e)
+{
+    // Skip events that are not for us.
+    if (e.xany.window != d()->xWin_)
+        return;
+
+    auto event = e;
+
+    if (XFilterEvent(&event, d()->xWin_))
+        return;
+
+    switch (event.type)
+    {
+    case Expose:
+        if (event.xexpose.count == 0)
+        {
+            if (d()->redrawCallback_)
+                d()->redrawCallback_();
+        }
+        break;
+    case ConfigureNotify:
+        //pos = Pos(event.xconfigure.x, event.xconfigure.y);
+        d()->size_ = Vector2i(event.xconfigure.width,
+                    event.xconfigure.height);
+        if (d()->resizeCallback_)
+            d()->resizeCallback_();
+        break;
+
+    case ClientMessage:
+        if (event.xclient.message_type == d()->wmProtocols_
+                && static_cast<Atom>(event.xclient.data.l[0])
+                == d()->wmDelete_)
+        {
+            if (d()->closeCallback_)
+                d()->closeCallback_();
+        }
+        else if (event.xclient.message_type == d()->wmProtocols_
+                && static_cast<Atom>(event.xclient.data.l[0])
+                == d()->wmSyncRequest_)
+        {
+            /*DBG("SyncRequest: %1 %2 %3 %4",
+                    event.xclient.data.l[1],
+                    event.xclient.data.l[2],
+                    event.xclient.data.l[3],
+                    event.xclient.data.l[4]);*/
+            d()->counterValue_ = (int64_t)event.xclient.data.l[2]
+                | ((int64_t)(event.xclient.data.l[3]) << 32);
+
+        }
+        break;
+    case ButtonPress:
+        d()->buttonCallback_(PointerButtonEvent
+                {
+                    0,
+                    event.xbutton.button,
+                    ButtonState::down,
+                    Vector2f(
+                            event.xbutton.x,
+                            d()->size_[1] - event.xbutton.y
+                            )
+                });
+        break;
+    case ButtonRelease:
+        d()->buttonCallback_(PointerButtonEvent
+                {
+                    0,
+                    event.xbutton.button,
+                    ButtonState::up,
+                    Vector2f(
+                            event.xbutton.x,
+                            d()->size_[1] - event.xbutton.y
+                            )
+                });
+        break;
+    case MotionNotify:
+        if (d()->pointerCallback_)
+        {
+            d()->pointerCallback_(PointerMoveEvent
+                    {
+                    0,
+                    Vector2f(e.xmotion.x, e.xmotion.y),
+                    Vector2f(e.xmotion.x, e.xmotion.y),
+                    std::array<bool, 16>{{false, false, false, false,
+                        false, false, false, false,
+                        false, false, false, false,
+                        false, false, false, false}}
+                    });
+        }
+    case KeyPress:
+        {
+        KeySym keysym;
+        char buf[10] = "";
+        XKeyEvent e = event.xkey;
+        Status status;
+        //int n  = XLookupString(&e, buf, sizeof(buf), &keysym, &d()->composeStatus_);
+        //DBG("n: %1 %2", n, buf);
+        int count = Xutf8LookupString(d()->xic_, &event.xkey, buf,
+                sizeof(buf), &keysym, &status);
+        buf[count] = 0;
+
+        d()->keyCallback_(KeyEvent(KeyState::down,
+                    static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                    mapXKeyStateToModifiers(event.xkey.state), buf));
+        }
+        break;
+    case KeyRelease:
+        {
+            XKeyEvent e = event.xkey;
+            d()->keyCallback_(KeyEvent(KeyState::up,
+                        static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                        mapXKeyStateToModifiers(event.xkey.state), ""));
+        }
+        break;
+    case PropertyNotify:
+    case ReparentNotify:
+    case MapNotify:
+    case EnterNotify:
+    case LeaveNotify:
+        break;
+    default:
+        DBG("Default %1", event.type);
+        break;
+    }
 }
 
 void GlxWindow::present(Dispatched)

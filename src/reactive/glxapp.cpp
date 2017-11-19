@@ -96,6 +96,12 @@ public:
                 }
             });
 
+        glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
+            {
+                std::cout << "Move: " << e.pos.x() << ", " << e.pos.y()
+                    << std::endl;
+            });
+
         glxWindow.setKeyCallback([this](ase::KeyEvent const& e)
             {
                 if (currentHandler_.valid() && e.isDown())

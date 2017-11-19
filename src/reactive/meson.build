@@ -21,6 +21,7 @@ libreactivesrc = [
     'annotation.cpp',
     'clickevent.cpp',
     'pointerbuttonevent.cpp',
+    'pointermoveevent.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]
