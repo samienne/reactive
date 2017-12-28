@@ -45,6 +45,15 @@ int main()
                     .cell(2, 2, 1, 1, makeSpinner())
                 , makeSpinner()
                     | widget::frame()
+                    | onPointerMove([](reactive::PointerMoveEvent const& e)
+                            {
+                                std::cout << "MoveEvent: " << e.rel << " " << e.pos
+                                    << std::endl;
+                            })
+                    | onPointerDown([](reactive::PointerButtonEvent const&)
+                            {
+                                std::cout << "down" << std::endl;
+                            })
                 , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()
                 , widget::textEdit(textState.handle,

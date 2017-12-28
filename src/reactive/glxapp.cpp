@@ -78,9 +78,9 @@ public:
                 {
                     for (auto const& a : widget_.getAreas().evaluate())
                     {
-                        if (a.contains(e.pos))
+                        if (a.acceptsButtonEvent(e))
                         {
-                            a.emit(e);
+                            a.emitButtonEvent(e);
                             areas_.insert(std::make_pair(e.button, a));
                         }
                     }
@@ -90,7 +90,7 @@ public:
                     auto i = areas_.find(e.button);
                     while (i != areas_.end() && i->first == e.button)
                     {
-                        i->second.emit(e);
+                        i->second.emitButtonEvent(e);
                         areas_.erase(i++);
                     }
                 }
@@ -98,8 +98,11 @@ public:
 
         glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
             {
-                std::cout << "Move: " << e.pos.x() << ", " << e.pos.y()
-                    << std::endl;
+                for (auto const& a : widget_.getAreas().evaluate())
+                {
+                    if (a.acceptsMoveEvent(e))
+                        a.emitMoveEvent(e);
+                }
             });
 
         glxWindow.setKeyCallback([this](ase::KeyEvent const& e)

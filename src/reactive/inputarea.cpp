@@ -25,6 +25,17 @@ bool InputArea::contains(avg::Vector2f pos) const
     return b;
 }
 
+bool InputArea::acceptsButtonEvent(PointerButtonEvent const& e) const
+{
+    return (!onUp_.empty() || !onDown_.empty())
+        && contains(e.pos);
+}
+
+bool InputArea::acceptsMoveEvent(PointerMoveEvent const& e) const
+{
+    return !onMove_.empty() && contains(e.pos);
+}
+
 avg::Transform InputArea::getTransform() const
 {
     return transform_;
@@ -46,29 +57,34 @@ InputArea InputArea::transform(avg::Transform const& t) &&
 
 InputArea InputArea::clip(avg::Obb const& obb) &&
 {
-    obbs_.push_back(transform_ * obb);
+    obbs_.push_back(transform_.inverse() * obb);
     return std::move(*this);
 }
 
 InputArea InputArea::onDown(
-        btl::Function<void (ase::PointerButtonEvent const& e)> const& f) &&
+        btl::Function<void (PointerButtonEvent const& e)>
+        f) &&
 {
-    onDown_.push_back(f);
+    onDown_.push_back(std::move(f));
     return std::move(*this);
 }
 
-InputArea InputArea::onUp(btl::Function<void (ase::PointerButtonEvent const& e)>
-        const& f) &&
+InputArea InputArea::onUp(btl::Function<void (PointerButtonEvent const& e)>
+        f) &&
 {
-    onUp_.push_back(f);
+    onUp_.push_back(std::move(f));
     return std::move(*this);
 }
 
-void InputArea::emit(ase::PointerButtonEvent const& e) const
+InputArea InputArea::onMove(btl::Function<void (PointerMoveEvent const& e)>
+        f) &&
 {
-    /*if (!contains(e.getPos()))
-        return;*/
+    onMove_.push_back(std::move(f));
+    return std::move(*this);
+}
 
+void InputArea::emitButtonEvent(PointerButtonEvent const& e) const
+{
     if (e.state == ase::ButtonState::down)
     {
         for (auto const& cb : onDown_)
@@ -81,15 +97,21 @@ void InputArea::emit(ase::PointerButtonEvent const& e) const
     }
 }
 
+void InputArea::emitMoveEvent(PointerMoveEvent const& e) const
+{
+    for (auto const& cb : onMove_)
+        cb(transformPointerMoveEvent(e, transform_.inverse()));
+}
+
 std::vector<
-btl::Function<void (ase::PointerButtonEvent const& e)>
+btl::Function<void (PointerButtonEvent const& e)>
 > const& InputArea::getOnDowns() const
 {
     return onDown_;
 }
 
 std::vector<
-btl::Function<void (ase::PointerButtonEvent const& e)>
+btl::Function<void (PointerButtonEvent const& e)>
 > const& InputArea::getOnUps() const
 {
     return onUp_;

@@ -15,6 +15,8 @@
 
 #include "debug.h"
 
+#include <btl/option.h>
+
 #include <GL/gl.h>
 #include <GL/glxext.h>
 #include <GL/glx.h>
@@ -107,6 +109,8 @@ private:
     bool visible_ = false;
     std::string title_;
     mutable bool dirty_ = true;
+
+    btl::option<Vector2f> previousMousePos_ = btl::none;
 
     // Text input handling
     XComposeStatus composeStatus_;
@@ -417,11 +421,19 @@ void GlxWindow::handleEvent(_XEvent const& e)
     case MotionNotify:
         if (d()->pointerCallback_)
         {
+            Vector2f rel(0.0f, 0.0f);
+            Vector2f pos(e.xmotion.x, d()->size_[1] - e.xmotion.y);
+
+            if (d()->previousMousePos_.valid())
+                rel = pos - *d()->previousMousePos_;
+
+            d()->previousMousePos_ = btl::just(pos);
+
             d()->pointerCallback_(PointerMoveEvent
                     {
                     0,
-                    Vector2f(e.xmotion.x, e.xmotion.y),
-                    Vector2f(e.xmotion.x, e.xmotion.y),
+                    pos,
+                    rel,
                     std::array<bool, 16>{{false, false, false, false,
                         false, false, false, false,
                         false, false, false, false,

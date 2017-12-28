@@ -2,9 +2,23 @@
 
 namespace reactive
 {
-    PointerMoveEvent transformPointerMoveEvent(
-            PointerMoveEvent const& e,
-            avg::Transform const& t
-            );
+
+PointerMoveEvent transformPointerMoveEvent(
+        PointerMoveEvent const& e,
+        avg::Transform const& t
+        )
+{
+    ase::Vector2f old = t * (e.pos - e.rel);
+    ase::Vector2f next = t * e.pos;
+
+    return
+    {
+        e.pointer,
+        next,
+        next - old,
+        e.buttons
+    };
+}
+
 } // reactive
 

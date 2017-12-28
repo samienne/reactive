@@ -208,6 +208,39 @@ namespace reactive
         return onPointerUp(f);
     }
 
+    inline auto onPointerMove(Signal<
+            std::function<void(ase::PointerMoveEvent const&)>
+            > cb)
+    {
+        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            -> std::vector<InputArea>
+            {
+                if (!areas.empty()
+                        && areas.back().getObbs().size() == 1
+                        && areas.back().getObbs().front() == obb)
+                {
+                    areas.back() = std::move(areas.back()).onMove(std::move(cb));
+                    return areas;
+                }
+
+                areas.push_back(
+                        makeInputArea(obb).onMove(std::move(cb))
+                        );
+
+                return areas;
+            },
+            std::move(cb)
+            );
+    }
+
+    inline auto onPointerMove(
+            std::function<void(ase::PointerMoveEvent const&)> cb
+            )
+    {
+        return onPointerMove(signal::constant(std::move(cb)));
+    }
+
     template <typename TSignalHandler>
     auto onKeyEvent(TSignalHandler handler)
     {
@@ -502,21 +535,5 @@ namespace reactive
 
         return mapWidget(std::move(f));
     }
-
-    /*
-    inline auto setFocusHandle(signal::InputHandle<bool> handle)
-    {
-        return makeWidgetMap<std::vector<KeyboardInput>>(
-                [handle=std::move(handle)]
-                (std::vector<KeyboardInput> inputs)
-                -> std::vector<KeyboardInput>
-                {
-                    inputs[0] = std::move(inputs[0])
-                        .setFocusHandle(handle);
-
-                    return inputs;
-                });
-    }
-    */
 } // reactive
 
