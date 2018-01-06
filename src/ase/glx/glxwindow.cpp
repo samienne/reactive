@@ -110,7 +110,14 @@ private:
     std::string title_;
     mutable bool dirty_ = true;
 
+    // Mouse handling
     btl::option<Vector2f> previousMousePos_ = btl::none;
+    std::array<bool, 16> buttonPressedState_ = { {
+        false, false, false, false,
+        false, false, false, false,
+        false, false, false, false,
+        false, false, false, false
+    }};
 
     // Text input handling
     XComposeStatus composeStatus_;
@@ -395,6 +402,8 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ButtonPress:
+        d()->buttonPressedState_[event.xbutton.button-1] = true;
+
         d()->buttonCallback_(PointerButtonEvent
                 {
                     0,
@@ -407,6 +416,8 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 });
         break;
     case ButtonRelease:
+        d()->buttonPressedState_[event.xbutton.button-1] = false;
+
         d()->buttonCallback_(PointerButtonEvent
                 {
                     0,
@@ -434,10 +445,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
                     0,
                     pos,
                     rel,
-                    std::array<bool, 16>{{false, false, false, false,
-                        false, false, false, false,
-                        false, false, false, false,
-                        false, false, false, false}}
+                    d()->buttonPressedState_
                     });
         }
     case KeyPress:

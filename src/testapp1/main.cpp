@@ -48,6 +48,8 @@ int main()
                     | onPointerMove([](reactive::PointerMoveEvent const& e)
                             {
                                 std::cout << "MoveEvent: " << e.rel << " " << e.pos
+                                    << ", " << e.buttons[0] << " " << e.buttons[1]
+                                    << " " << e.buttons[2] << " " << e.buttons[3]
                                     << std::endl;
                             })
                     | onPointerDown([](reactive::PointerButtonEvent const&)
