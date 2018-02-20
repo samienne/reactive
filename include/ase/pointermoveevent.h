@@ -11,7 +11,8 @@ namespace ase
         int pointer;
         Vector2f pos;
         Vector2f rel;
-        std::array<bool, 16> buttons;
+        std::array<bool, 15> buttons;
+        bool hover;
     };
 
     bool isButtonDown(PointerMoveEvent const& e);

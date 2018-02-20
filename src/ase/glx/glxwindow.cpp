@@ -112,12 +112,14 @@ private:
 
     // Mouse handling
     btl::option<Vector2f> previousMousePos_ = btl::none;
-    std::array<bool, 16> buttonPressedState_ = { {
+    std::array<bool, 15> buttonPressedState_ = { {
         false, false, false, false,
         false, false, false, false,
         false, false, false, false,
-        false, false, false, false
+        false, false, false
     }};
+
+    bool hover_ = false;
 
     // Text input handling
     XComposeStatus composeStatus_;
@@ -412,7 +414,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
                     Vector2f(
                             event.xbutton.x,
                             d()->size_[1] - event.xbutton.y
-                            )
+                            ),
                 });
         break;
     case ButtonRelease:
@@ -441,12 +443,13 @@ void GlxWindow::handleEvent(_XEvent const& e)
             d()->previousMousePos_ = btl::just(pos);
 
             d()->pointerCallback_(PointerMoveEvent
-                    {
+                {
                     0,
                     pos,
                     rel,
-                    d()->buttonPressedState_
-                    });
+                    d()->buttonPressedState_,
+                    d()->hover_
+                });
         }
     case KeyPress:
         {
@@ -477,7 +480,50 @@ void GlxWindow::handleEvent(_XEvent const& e)
     case ReparentNotify:
     case MapNotify:
     case EnterNotify:
+        d()->hover_ = true;
+        if (d()->pointerCallback_)
+        {
+            Vector2f rel(0.0f, 0.0f);
+            Vector2f pos(e.xcrossing.x, d()->size_[1] - e.xcrossing.y);
+
+            if (d()->previousMousePos_.valid())
+                rel = pos - *d()->previousMousePos_;
+
+            d()->previousMousePos_ = btl::just(pos);
+
+            d()->pointerCallback_(PointerMoveEvent
+                {
+                    0,
+                    pos,
+                    rel,
+                    d()->buttonPressedState_,
+                    d()->hover_
+                });
+        }
+
+        break;
     case LeaveNotify:
+        d()->hover_ = false;
+        if (d()->pointerCallback_)
+        {
+            Vector2f rel(0.0f, 0.0f);
+            Vector2f pos(e.xcrossing.x, d()->size_[1] - e.xcrossing.y);
+
+            if (d()->previousMousePos_.valid())
+                rel = pos - *d()->previousMousePos_;
+
+            d()->previousMousePos_ = btl::just(pos);
+
+            d()->pointerCallback_(PointerMoveEvent
+                {
+                    0,
+                    pos,
+                    rel,
+                    d()->buttonPressedState_,
+                    d()->hover_
+                });
+        }
+
         break;
     default:
         DBG("Default %1", event.type);

@@ -72,8 +72,6 @@ namespace reactive
         std::vector<
             btl::Function<void (PointerMoveEvent const& e)>
             > onMove_;
-
-        btl::option<KeyboardInput> keyboard_;
     };
 
     auto makeInputArea(std::vector<avg::Obb>&& obbs)
