@@ -41,4 +41,5 @@ test.py
 subprojects/*
 !subprojects/*.wrap
 tags
+compile_commands.json
 
