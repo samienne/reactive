@@ -2,6 +2,8 @@
 
 #include "vector.h"
 
+#include <btl/forcenoexcept.h>
+
 #include <ostream>
 
 namespace avg
@@ -37,8 +39,8 @@ namespace avg
         }
 
     private:
-        Vector2f bottomLeft_ = Vector2f(0.0f, 0.0f);
-        Vector2f size_ = Vector2f(-0.0f, -0.0f);
+        btl::ForceNoexcept<Vector2f> bottomLeft_ = Vector2f(0.0f, 0.0f);
+        btl::ForceNoexcept<Vector2f> size_ = Vector2f(-0.0f, -0.0f);
     };
 }
 

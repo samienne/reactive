@@ -5,6 +5,7 @@
 
 #include <reactive/signaltraits.h>
 
+#include <btl/function.h>
 #include <btl/hidden.h>
 
 #include <type_traits>
@@ -85,7 +86,7 @@ namespace reactive
         };
 
         static_assert(IsSignal<
-                OnChange<Constant<int>, std::function<void()>>>::value, "");
+                OnChange<Constant<int>, btl::Function<void()>>>::value, "");
 
         template <typename TSignal, typename TFunc, typename = typename
             std::enable_if

@@ -1,11 +1,11 @@
-#include <Eigen/Core> // This is a workaround for X.h defining Success 0
-
 #include "glxcontext.h"
 
 #include "glxwindow.h"
 #include "glxplatform.h"
 
 #include "debug.h"
+
+#include <Eigen/Core>
 
 #include <GL/glx.h>
 

@@ -332,10 +332,23 @@ namespace btl
                 return *static_cast<T const*>(lhs) * std::forward<TRhs>(rhs);
             }
         };
+
+        template <typename T>
+        constexpr auto max(T const& t) -> T const&
+        {
+            return t;
+        }
+
+        template <typename T, typename... Ts>
+        constexpr auto max(T const& t, Ts const&... ts)
+        //-> decltype(std::max(t, max(ts...)))
+        {
+            return std::max(t, max(ts...));
+        }
     } // namespace detail
 
     template <typename... Ts>
-    class alignas(Ts...) variant
+    class alignas(detail::max(8lu, alignof(Ts)...)) variant
     {
     public:
         template <typename T, typename =

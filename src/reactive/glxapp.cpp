@@ -299,7 +299,7 @@ int GlxApp::run(Signal<bool> running) &&
                 std::chrono::microseconds>(clock.now() - thisFrame);
             auto remaining = *timeToNext - frameTime;
             if (remaining.count() > 0)
-                usleep(remaining.count());
+                std::this_thread::sleep_for(remaining);
         }
 
         lastFrame = thisFrame;

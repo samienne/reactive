@@ -50,6 +50,7 @@ void setSyncCounter(Display* dpy, XSyncCounter counter, int64_t value)
     XSyncSetCounter(dpy, counter, syncValue);
 }
 
+#if 0
 void printAll(std::ostream& stream)
 {
     for (unsigned int sym = 0; sym < 0xffff; ++sym)
@@ -62,6 +63,7 @@ void printAll(std::ostream& stream)
         stream << "\treturn \"" << name << "\";\n";
     }
 }
+#endif
 
 } // anonymous namespace
 
@@ -122,7 +124,7 @@ private:
     bool hover_ = false;
 
     // Text input handling
-    XComposeStatus composeStatus_;
+    //XComposeStatus composeStatus_;
 
     // Callbacks
     std::function<void()> closeCallback_;

@@ -56,7 +56,7 @@ namespace btl
             new (&value())T(v);
         }
 
-        option(T&& v) :
+        option(T&& v) noexcept:
             valid_(true)
         {
             new (&value())T(std::forward<T>(v));
@@ -70,7 +70,7 @@ namespace btl
                 reinterpret_cast<T*>(data_.data())->~T();
         }
 
-        option& operator=(option const& rhs) noexcept
+        option& operator=(option const& rhs)
         {
             if (this == &rhs)
                 return *this;

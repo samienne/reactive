@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GL/glx.h>
+#undef Success
 
 #include <ostream>
 #include <mutex>

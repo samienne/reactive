@@ -37,7 +37,7 @@ Drawing Drawing::operator+(Element&& element) const &
     drawing.elements_ = elements_;
     drawing.elements_.push_back(element);
 
-    return std::move(drawing);
+    return drawing;
 }
 
 Drawing Drawing::operator+(Element&& element) &&
@@ -68,7 +68,7 @@ Drawing Drawing::operator+(Drawing const& drawing) const &
         result.elements_.push_back(element);
     }
 
-    return std::move(result);
+    return result;
 }
 
 Drawing Drawing::operator+(Drawing const& drawing) &&
@@ -82,7 +82,7 @@ Drawing Drawing::operator+(Drawing const& drawing) &&
         result.elements_.push_back(element);
     }
 
-    return std::move(result);
+    return result;
 }
 
 Drawing& Drawing::operator+=(Drawing const& drawing)

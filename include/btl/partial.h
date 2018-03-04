@@ -2,6 +2,7 @@
 
 #include "apply.h"
 #include "typetraits.h"
+#include "forcenoexcept.h"
 
 #include <utility>
 
@@ -17,17 +18,6 @@ namespace btl
         Partial& operator=(Partial const&) = default;
         Partial& operator=(Partial&&) noexcept = default;
 
-        /*template <typename TFunc2, typename... Us, typename = typename
-            std::enable_if
-            <
-                std::is_assignable<TFunc, TFunc2>::value
-            >::type>
-        Partial(TFunc2&& func, Us&&... us) :
-            func_(std::forward<TFunc2>(func)),
-            ts_(std::forward<Us>(us)...)
-        {
-        }*/
-
         template <typename TFunc2, typename... Us>
         Partial(Partial<TFunc2, Us...> const& rhs) :
             func_(rhs.func_),
@@ -36,8 +26,8 @@ namespace btl
         }
 
         Partial(TFunc&& func, Ts&&... ts) :
-            func_(std::forward<TFunc>(func)),
-            ts_(std::forward<Ts>(ts)...)
+            func_(forceNoexcept(std::forward<TFunc>(func))),
+            ts_(forceNoexcept(std::make_tuple(std::forward<Ts>(ts)...)))
         {
         }
 
@@ -49,7 +39,7 @@ namespace btl
                     typename std::decay<Us>::type...
                     >>()))>::type
         {
-            return btl::apply(func_, tuple_cat(ts_,
+            return btl::apply(*func_, tuple_cat(*ts_,
                         std::make_tuple(std::forward<Us>(us)...)));
         }
 
@@ -61,7 +51,7 @@ namespace btl
                     typename std::decay<Us>::type...
                     >>()))>::type
         {
-            return btl::apply(func_, tuple_cat(ts_,
+            return btl::apply(*func_, tuple_cat(*ts_,
                         std::make_tuple(std::forward<Us>(us)...)));
         }
 
@@ -69,8 +59,8 @@ namespace btl
         template <typename TFunc2, typename... Us>
         friend class Partial;
 
-        typename std::decay<TFunc>::type func_;
-        std::tuple<typename std::decay<Ts>::type...> ts_;
+        ForceNoexcept<std::decay_t<TFunc>> func_;
+        ForceNoexcept<std::tuple<std::decay_t<Ts>...>> ts_;
     };
 
     template <typename TFunc, typename... Ts, typename = typename

@@ -19,17 +19,17 @@ Rect::~Rect()
 
 Vector2f Rect::getBottomLeft() const
 {
-    return bottomLeft_;
+    return *bottomLeft_;
 }
 
 Vector2f Rect::getTopRight() const
 {
-    return bottomLeft_ + size_;
+    return *bottomLeft_ + *size_;
 }
 
 Vector2f Rect::getSize() const
 {
-    return size_;
+    return *size_;
 }
 
 Vector2f Rect::getCenter() const

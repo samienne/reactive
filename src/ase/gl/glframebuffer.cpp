@@ -58,7 +58,7 @@ GlFramebuffer& GlFramebuffer::operator=(GlFramebuffer&& rhs) noexcept
         GLuint const framebuffer = framebuffer_;
         auto& glContext = platform_->getDefaultContext()
             .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([this, &glContext, framebuffer]()
+        platform_->dispatchBackground([&glContext, framebuffer]()
             {
                 glContext.getGlFunctions().glDeleteFramebuffers(1,
                     &framebuffer);
