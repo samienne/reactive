@@ -174,7 +174,10 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
         {
             case PathSpec::SEGMENT_START:
                 if (!vertices.empty())
+                {
                     polygons.push_back(std::move(vertices));
+                    vertices.clear();
+                }
 
                 cur = transform * vertices_.at(vertex++);
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));

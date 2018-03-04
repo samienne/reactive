@@ -483,7 +483,9 @@ TEST(async, just)
 
     auto f2 = btl::future::just(std::move(f));
 
-    EXPECT_TRUE(std::move(f2).get().valid());
-    EXPECT_EQ(1, *std::move(f2).get());
+    auto value = std::move(f2).get();
+
+    EXPECT_TRUE(value.valid());
+    EXPECT_EQ(1, *value);
 }
 

@@ -1,6 +1,6 @@
 project('ase', 'cpp')
 add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
-        '-Wno-ignored-attributes', language : 'cpp')
+        language : 'cpp')
 #'-flto',
 
 range = subproject('range')

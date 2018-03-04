@@ -72,7 +72,6 @@ void GlRenderContext::submit(RenderTarget& target,
         return c1.getZ() > c2.getZ();
     };
 
-
     bool switchTarget = &target.getImpl<RenderTargetImpl>()
         != boundRenderTarget_;
 
