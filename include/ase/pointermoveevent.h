@@ -8,7 +8,6 @@ namespace ase
 {
     struct PointerMoveEvent
     {
-        int pointer;
         Vector2f pos;
         Vector2f rel;
         std::array<bool, 15> buttons;

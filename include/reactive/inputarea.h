@@ -7,6 +7,7 @@
 #include <avg/obb.h>
 #include <avg/transform.h>
 
+#include <ase/hoverevent.h>
 #include <ase/vector.h>
 
 #include <btl/function.h>
@@ -15,6 +16,8 @@
 
 namespace reactive
 {
+    using HoverEvent = ase::HoverEvent;
+
     class InputArea
     {
     public:
@@ -36,15 +39,14 @@ namespace reactive
 
         InputArea transform(avg::Transform const& t) &&;
         InputArea clip(avg::Obb const& obb) &&;
-        InputArea onDown(btl::Function<void (PointerButtonEvent const& e)>
-                f) &&;
-        InputArea onUp(btl::Function<void (PointerButtonEvent const& e)>
-                f) &&;
-        InputArea onMove(btl::Function<void (PointerMoveEvent const& e)>
-                f) &&;
+        InputArea onDown(btl::Function<void (PointerButtonEvent const& e)> f) &&;
+        InputArea onUp(btl::Function<void (PointerButtonEvent const& e)> f) &&;
+        InputArea onMove(btl::Function<void (PointerMoveEvent const& e)> f) &&;
+        InputArea onHover(btl::Function<void (HoverEvent const& e)> f) &&;
 
         void emitButtonEvent(PointerButtonEvent const& e) const;
         void emitMoveEvent(PointerMoveEvent const& e) const;
+        void emitHoverEvent(HoverEvent const& e) const;
 
         std::vector<
             btl::Function<void (PointerButtonEvent const& e)>
@@ -72,6 +74,10 @@ namespace reactive
         std::vector<
             btl::Function<void (PointerMoveEvent const& e)>
             > onMove_;
+
+        std::vector<
+            btl::Function<void (HoverEvent const& e)>
+            > onHover_;
     };
 
     auto makeInputArea(std::vector<avg::Obb>&& obbs)

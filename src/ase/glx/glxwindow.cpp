@@ -133,6 +133,7 @@ private:
     std::function<void(PointerButtonEvent const& e)> buttonCallback_;
     std::function<void(PointerMoveEvent const& e)> pointerCallback_;
     std::function<void(KeyEvent const& e)> keyCallback_;
+    std::function<void(HoverEvent const& e)> hoverCallback_;
 
     // Atoms
     Atom wmDelete_;
@@ -318,36 +319,41 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
         handleEvent(e);
 }
 
-void GlxWindow::setCloseCallback(std::function<void()> const& func)
+void GlxWindow::setCloseCallback(std::function<void()> func)
 {
-    d()->closeCallback_ = func;
+    d()->closeCallback_ = std::move(func);
 }
 
-void GlxWindow::setResizeCallback(std::function<void()> const& func)
+void GlxWindow::setResizeCallback(std::function<void()> func)
 {
-    d()->resizeCallback_ = func;
+    d()->resizeCallback_ = std::move(func);
 }
 
-void GlxWindow::setRedrawCallback(std::function<void()> const& func)
+void GlxWindow::setRedrawCallback(std::function<void()> func)
 {
-    d()->redrawCallback_ = func;
+    d()->redrawCallback_ = std::move(func);
 }
 
 void GlxWindow::setButtonCallback(
         std::function<void(PointerButtonEvent const& e)> cb)
 {
-    d()->buttonCallback_ = cb;
+    d()->buttonCallback_ = std::move(cb);
 }
 
 void GlxWindow::setPointerCallback(
         std::function<void(PointerMoveEvent const&)> cb)
 {
-    d()->pointerCallback_ = cb;
+    d()->pointerCallback_ = std::move(cb);
 }
 
 void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
-    d()->keyCallback_ = cb;
+    d()->keyCallback_ = std::move(cb);
+}
+
+void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
+{
+    d()->hoverCallback_ = std::move(cb);
 }
 
 Vector2i GlxWindow::getSize() const
@@ -446,7 +452,6 @@ void GlxWindow::handleEvent(_XEvent const& e)
 
             d()->pointerCallback_(PointerMoveEvent
                 {
-                    0,
                     pos,
                     rel,
                     d()->buttonPressedState_,
@@ -495,13 +500,15 @@ void GlxWindow::handleEvent(_XEvent const& e)
 
             d()->pointerCallback_(PointerMoveEvent
                 {
-                    0,
                     pos,
                     rel,
                     d()->buttonPressedState_,
                     d()->hover_
                 });
         }
+
+        if (d()->hoverCallback_)
+            d()->hoverCallback_(HoverEvent{ true });
 
         break;
     case LeaveNotify:
@@ -518,13 +525,14 @@ void GlxWindow::handleEvent(_XEvent const& e)
 
             d()->pointerCallback_(PointerMoveEvent
                 {
-                    0,
                     pos,
                     rel,
                     d()->buttonPressedState_,
                     d()->hover_
                 });
         }
+        if (d()->hoverCallback_)
+            d()->hoverCallback_(HoverEvent{ false });
 
         break;
     default:

@@ -83,6 +83,12 @@ InputArea InputArea::onMove(btl::Function<void (PointerMoveEvent const& e)>
     return std::move(*this);
 }
 
+InputArea InputArea::onHover(btl::Function<void (HoverEvent const& e)> f) &&
+{
+    onHover_.push_back(std::move(f));
+    return std::move(*this);
+}
+
 void InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 {
     if (e.state == ase::ButtonState::down)
@@ -99,15 +105,17 @@ void InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 
 void InputArea::emitMoveEvent(PointerMoveEvent const& e) const
 {
+    auto event = transformPointerMoveEvent(e, transform_.inverse());
+
+    if (e.hover && !contains(e.pos))
+        event.hover = false;
+
     for (auto const& cb : onMove_)
-    {
-        auto event = transformPointerMoveEvent(e, transform_.inverse());
-
-        if (e.hover && !contains(e.pos))
-            event.hover = false;
-
         cb(event);
-    }
+}
+
+void InputArea::emitHoverEvent(ase::HoverEvent const& /*e*/) const
+{
 }
 
 std::vector<

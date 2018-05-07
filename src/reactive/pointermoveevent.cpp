@@ -13,7 +13,6 @@ PointerMoveEvent transformPointerMoveEvent(
 
     return
     {
-        e.pointer,
         next,
         next - old,
         e.buttons,

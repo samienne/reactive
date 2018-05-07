@@ -127,6 +127,12 @@ public:
                     f(e);
                 }
             });
+
+        glxWindow.setHoverCallback([this](ase::HoverEvent const& e)
+            {
+                for (auto const& area : widget_.getAreas().evaluate())
+                    area.emitHoverEvent(e);
+            });
     }
 
     GlxWindowGlue(GlxWindowGlue const&) = delete;
