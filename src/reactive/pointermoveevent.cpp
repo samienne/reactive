@@ -16,7 +16,8 @@ PointerMoveEvent transformPointerMoveEvent(
         e.pointer,
         next,
         next - old,
-        e.buttons
+        e.buttons,
+        e.hover
     };
 }
 

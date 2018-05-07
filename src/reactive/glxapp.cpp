@@ -103,6 +103,11 @@ public:
                     if (a.acceptsMoveEvent(e))
                         a.emitMoveEvent(e);
                 }
+
+                for (auto const& a : areas_)
+                {
+                    a.second.emitMoveEvent(e);
+                }
             });
 
         glxWindow.setKeyCallback([this](ase::KeyEvent const& e)

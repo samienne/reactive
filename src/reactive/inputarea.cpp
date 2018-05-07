@@ -100,7 +100,14 @@ void InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 void InputArea::emitMoveEvent(PointerMoveEvent const& e) const
 {
     for (auto const& cb : onMove_)
-        cb(transformPointerMoveEvent(e, transform_.inverse()));
+    {
+        auto event = transformPointerMoveEvent(e, transform_.inverse());
+
+        if (e.hover && !contains(e.pos))
+            event.hover = false;
+
+        cb(event);
+    }
 }
 
 std::vector<
