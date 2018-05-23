@@ -64,6 +64,10 @@ int main()
                 })
         , adder()
             | widget::frame()
+            | onHover([](reactive::HoverEvent const& e)
+                    {
+                        std::cout << "Hover: " << e.hover << std::endl;
+                    })
     });
 
     auto running = signal::input(true);

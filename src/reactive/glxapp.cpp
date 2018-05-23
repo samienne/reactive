@@ -98,8 +98,40 @@ public:
 
         glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
             {
-                for (auto const& a : widget_.getAreas().evaluate())
+                std::vector<InputArea> const& areas = widget_.getAreas().evaluate();
+
+                if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
                 {
+                    currentHoverArea_->emitHoverEvent(HoverEvent{ false });
+                    currentHoverArea_ = btl::none;
+                }
+
+                for (auto const& a : areas)
+                {
+                    if (a.contains(e.pos))
+                    {
+
+                        if (!currentHoverArea_.valid()
+                                || currentHoverArea_->getId() != a.getId())
+                        {
+                            if (currentHoverArea_.valid())
+                            {
+                                currentHoverArea_->emitHoverEvent(
+                                        HoverEvent{ false });
+                            }
+
+                            currentHoverArea_ = btl::just(a);
+
+                            a.emitHoverEvent(HoverEvent { true });
+                        }
+
+                        break;
+                    }
+                }
+
+                for (auto const& a : areas)
+                {
+
                     if (a.acceptsMoveEvent(e))
                         a.emitMoveEvent(e);
                 }
@@ -130,8 +162,14 @@ public:
 
         glxWindow.setHoverCallback([this](ase::HoverEvent const& e)
             {
-                for (auto const& area : widget_.getAreas().evaluate())
-                    area.emitHoverEvent(e);
+                if (!e.hover)
+                {
+                    if (currentHoverArea_.valid())
+                    {
+                        currentHoverArea_->emitHoverEvent(HoverEvent { false });
+                        currentHoverArea_ = btl::none;
+                    }
+                }
             });
     }
 
@@ -241,6 +279,7 @@ private:
     btl::option<KeyboardInput::Handler> currentHandler_;
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
+    btl::option<InputArea> currentHoverArea_;
 };
 
 int GlxApp::run() &&

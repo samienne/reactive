@@ -10,6 +10,7 @@
 #include <ase/hoverevent.h>
 #include <ase/vector.h>
 
+#include <btl/uniqueid.h>
 #include <btl/function.h>
 
 #include <ostream>
@@ -21,8 +22,8 @@ namespace reactive
     class InputArea
     {
     public:
-        InputArea(avg::Obb const& obb);
-        InputArea(std::vector<avg::Obb>&& obbs);
+        InputArea(btl::UniqueId id, avg::Obb const& obb);
+        InputArea(btl::UniqueId id, std::vector<avg::Obb>&& obbs);
 
         InputArea(InputArea const&) = default;
         InputArea(InputArea&&) noexcept = default;
@@ -30,6 +31,7 @@ namespace reactive
         InputArea& operator=(InputArea const&) = default;
         InputArea& operator=(InputArea&&) noexcept = default;
 
+        btl::UniqueId getId() const;
         bool contains(avg::Vector2f pos) const;
         bool acceptsButtonEvent(PointerButtonEvent const& e) const;
         bool acceptsMoveEvent(PointerMoveEvent const& e) const;
@@ -60,6 +62,7 @@ namespace reactive
                 InputArea const& area);
 
     private:
+        btl::UniqueId id_;
         avg::Transform transform_;
         std::vector<avg::Obb> obbs_;
 
@@ -80,10 +83,10 @@ namespace reactive
             > onHover_;
     };
 
-    auto makeInputArea(std::vector<avg::Obb>&& obbs)
+    auto makeInputArea(btl::UniqueId id, std::vector<avg::Obb>&& obbs)
         -> InputArea;
 
-    auto makeInputArea(avg::Obb const& obb)
+    auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
         -> InputArea;
 }
 

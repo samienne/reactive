@@ -135,8 +135,10 @@ namespace reactive
             std::function<void(ase::PointerButtonEvent const&)>
             > cb)
     {
+        btl::UniqueId id = btl::makeUniqueId();
+
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
-            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
                 if (!areas.empty()
@@ -148,7 +150,7 @@ namespace reactive
                 }
 
                 areas.push_back(
-                        makeInputArea(obb).onDown(std::move(cb))
+                        makeInputArea(id, obb).onDown(std::move(cb))
                         );
 
                 return areas;
@@ -173,8 +175,10 @@ namespace reactive
     inline auto onPointerUp(Signal<T, U> cb)
             //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
+        auto id = btl::makeUniqueId();
+
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
-            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
                 if (!areas.empty()
@@ -186,7 +190,7 @@ namespace reactive
                 }
 
                 areas.push_back(
-                        makeInputArea(obb).onUp(std::move(cb))
+                        makeInputArea(id, obb).onUp(std::move(cb))
                         );
 
                 return areas;
@@ -212,8 +216,10 @@ namespace reactive
             std::function<void(ase::PointerMoveEvent const&)>
             > cb)
     {
+        auto id = btl::makeUniqueId();
+
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
-            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
                 if (!areas.empty()
@@ -225,7 +231,7 @@ namespace reactive
                 }
 
                 areas.push_back(
-                        makeInputArea(obb).onMove(std::move(cb))
+                        makeInputArea(id, obb).onMove(std::move(cb))
                         );
 
                 return areas;
@@ -240,6 +246,42 @@ namespace reactive
     {
         return onPointerMove(signal::constant(std::move(cb)));
     }
+
+    inline auto onHover(Signal<
+            std::function<void(reactive::HoverEvent const&)>
+            > cb)
+    {
+        auto id = btl::makeUniqueId();
+
+        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            -> std::vector<InputArea>
+            {
+                if (!areas.empty()
+                        && areas.back().getObbs().size() == 1
+                        && areas.back().getObbs().front() == obb)
+                {
+                    areas.back() = std::move(areas.back()).onHover(std::move(cb));
+                    return areas;
+                }
+
+                areas.push_back(
+                        makeInputArea(id, obb).onHover(std::move(cb))
+                        );
+
+                return areas;
+            },
+            std::move(cb)
+            );
+    }
+
+    inline auto onHover(
+            std::function<void(reactive::HoverEvent const&)> cb
+            )
+    {
+        return onHover(signal::constant(std::move(cb)));
+    }
+
 
     template <typename TSignalHandler>
     auto onKeyEvent(TSignalHandler handler)

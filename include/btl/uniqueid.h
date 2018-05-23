@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <functional>
 #include <atomic>
 #include <stdint.h>
@@ -45,14 +46,24 @@ public:
         return std::hash<uint64_t>()(id_);
     }
 
+    uint64_t getValue() const noexcept
+    {
+        return id_;
+    }
+
 private:
     uint64_t id_;
 };
 
 inline UniqueId makeUniqueId()
 {
-    static std::atomic<uint64_t> nextId = 1;
+    static std::atomic<uint64_t> nextId(1);
     return UniqueId(nextId.fetch_add(1, std::memory_order_relaxed));
+}
+
+inline std::ostream& operator<<(std::ostream& stream, UniqueId const& id)
+{
+    return stream << id.getValue();
 }
 
 } // namespace btl

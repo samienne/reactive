@@ -5,14 +5,21 @@
 namespace reactive
 {
 
-InputArea::InputArea(avg::Obb const& obb) :
+InputArea::InputArea(btl::UniqueId id, avg::Obb const& obb) :
+    id_(id),
     obbs_({obb})
 {
 }
 
-InputArea::InputArea(std::vector<avg::Obb>&& obbs) :
+InputArea::InputArea(btl::UniqueId id, std::vector<avg::Obb>&& obbs) :
+    id_(id),
     obbs_(std::move(obbs))
 {
+}
+
+btl::UniqueId InputArea::getId() const
+{
+    return id_;
 }
 
 bool InputArea::contains(avg::Vector2f pos) const
@@ -114,8 +121,10 @@ void InputArea::emitMoveEvent(PointerMoveEvent const& e) const
         cb(event);
 }
 
-void InputArea::emitHoverEvent(ase::HoverEvent const& /*e*/) const
+void InputArea::emitHoverEvent(ase::HoverEvent const& event) const
 {
+    for (auto const& cb : onHover_)
+        cb(event);
 }
 
 std::vector<
@@ -146,15 +155,15 @@ std::ostream& operator<<(std::ostream& stream,
     return stream;
 }
 
-auto makeInputArea(std::vector<avg::Obb>&& obbs) -> InputArea
+auto makeInputArea(btl::UniqueId id, std::vector<avg::Obb>&& obbs) -> InputArea
 {
-    return InputArea{std::move(obbs)};
+    return InputArea{id, std::move(obbs)};
 }
 
-auto makeInputArea(avg::Obb const& obb)
+auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
     -> InputArea
 {
-    return InputArea(obb);
+    return InputArea(id, obb);
 }
 
 } // namespace
