@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <utf8/utf8.h>
 
@@ -36,7 +36,7 @@ namespace avg
         Path textToPath(Lock&, Font const& font, utf8::Utf8View text);
         size_t getCharacterIndex(Lock&, Font const& font,
                 utf8::Utf8View text, float fontHeight,
-                ase::Vector2f pos) const;
+                Vector2f pos) const;
         TextExtents getTextExtents(Lock&, Font const& font,
                 utf8::Utf8View text, float height);
 

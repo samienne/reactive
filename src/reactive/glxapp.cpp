@@ -74,25 +74,71 @@ public:
                     widget_.update({getNextFrameId(), signal_time_t(0)});
                 }
 
-                if (e.getState() == ase::ButtonState::down)
+                if (e.state == ase::ButtonState::down)
                 {
                     for (auto const& a : widget_.getAreas().evaluate())
                     {
-                        if (a.contains(e.getPos()))
+                        if (a.acceptsButtonEvent(e))
                         {
-                            a.emit(e);
-                            areas_.insert(std::make_pair(e.getButton(), a));
+                            a.emitButtonEvent(e);
+                            areas_.insert(std::make_pair(e.button, a));
                         }
                     }
                 }
-                else if (e.getState() == ase::ButtonState::up)
+                else if (e.state == ase::ButtonState::up)
                 {
-                    auto i = areas_.find(e.getButton());
-                    while (i != areas_.end() && i->first == e.getButton())
+                    auto i = areas_.find(e.button);
+                    while (i != areas_.end() && i->first == e.button)
                     {
-                        i->second.emit(e);
+                        i->second.emitButtonEvent(e);
                         areas_.erase(i++);
                     }
+                }
+            });
+
+        glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
+            {
+                std::vector<InputArea> const& areas = widget_.getAreas().evaluate();
+
+                if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
+                {
+                    currentHoverArea_->emitHoverEvent(HoverEvent{ false });
+                    currentHoverArea_ = btl::none;
+                }
+
+                for (auto const& a : areas)
+                {
+                    if (a.contains(e.pos))
+                    {
+
+                        if (!currentHoverArea_.valid()
+                                || currentHoverArea_->getId() != a.getId())
+                        {
+                            if (currentHoverArea_.valid())
+                            {
+                                currentHoverArea_->emitHoverEvent(
+                                        HoverEvent{ false });
+                            }
+
+                            currentHoverArea_ = btl::just(a);
+
+                            a.emitHoverEvent(HoverEvent { true });
+                        }
+
+                        break;
+                    }
+                }
+
+                for (auto const& a : areas)
+                {
+
+                    if (a.acceptsMoveEvent(e))
+                        a.emitMoveEvent(e);
+                }
+
+                for (auto const& a : areas_)
+                {
+                    a.second.emitMoveEvent(e);
                 }
             });
 
@@ -111,6 +157,18 @@ public:
                     auto f = i->second;
                     keys_.erase(i);
                     f(e);
+                }
+            });
+
+        glxWindow.setHoverCallback([this](ase::HoverEvent const& e)
+            {
+                if (!e.hover)
+                {
+                    if (currentHoverArea_.valid())
+                    {
+                        currentHoverArea_->emitHoverEvent(HoverEvent { false });
+                        currentHoverArea_ = btl::none;
+                    }
                 }
             });
     }
@@ -221,6 +279,7 @@ private:
     btl::option<KeyboardInput::Handler> currentHandler_;
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
+    btl::option<InputArea> currentHoverArea_;
 };
 
 int GlxApp::run() &&
@@ -290,7 +349,7 @@ int GlxApp::run(Signal<bool> running) &&
                 std::chrono::microseconds>(clock.now() - thisFrame);
             auto remaining = *timeToNext - frameTime;
             if (remaining.count() > 0)
-                usleep(remaining.count());
+                std::this_thread::sleep_for(remaining);
         }
 
         lastFrame = thisFrame;

@@ -3,8 +3,7 @@
 #include "endtype.h"
 #include "jointype.h"
 #include "fillrule.h"
-
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <vector>
 #include <memory>
@@ -22,17 +21,17 @@ namespace avg
         Region();
 
         Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
-                ase::Vector2f pixelSize, size_t resPerPixel);
+                Vector2f pixelSize, size_t resPerPixel);
         Region(std::vector<SimplePolygon> const& polygons, JoinType join,
-                EndType end, float width, ase::Vector2f pixelSize,
+                EndType end, float width, Vector2f pixelSize,
                 size_t resPerPixel);
         Region(Region const&) = default;
-        Region(Region&&) = default;
+        Region(Region&&) noexcept = default;
 
         ~Region();
 
         Region& operator=(Region const&) = default;
-        Region& operator=(Region&&) = default;
+        Region& operator=(Region&&) noexcept = default;
 
         Region operator|(Region const& region) const;
         Region operator&(Region const& region) const;
@@ -43,7 +42,7 @@ namespace avg
 
         Region offset(JoinType join, EndType end, float offset) const;
 
-        std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> >
+        std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
             triangulate() const;
 
     private:

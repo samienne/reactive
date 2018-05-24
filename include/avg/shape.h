@@ -13,14 +13,12 @@ namespace avg
     {
     public:
         Shape();
-        /*Shape(Path const& path, btl::option<Brush> const& brush,
-                btl::option<Pen> const& pen);*/
         Shape(Shape const&) = default;
-        Shape(Shape&&) = default;
+        Shape(Shape&&) noexcept = default;
         ~Shape();
 
         Shape& operator=(Shape const&) = default;
-        Shape& operator=(Shape&&) = default;
+        Shape& operator=(Shape&&) noexcept = default;
 
         Shape setPath(Path const& path) &&;
         Shape setBrush(btl::option<Brush> const& brush) &&;
@@ -32,11 +30,11 @@ namespace avg
 
         Shape operator*(float scale) const &;
         Shape operator*(float scale) &&;
-        Shape operator+(ase::Vector2f offset) const &;
-        Shape operator+(ase::Vector2f offset) &&;
+        Shape operator+(Vector2f offset) const &;
+        Shape operator+(Vector2f offset) &&;
 
         Shape& operator*=(float scale);
-        Shape& operator+=(ase::Vector2f offset);
+        Shape& operator+=(Vector2f offset);
 
         bool operator==(Shape const& rhs) const;
         bool operator!=(Shape const& rhs) const;

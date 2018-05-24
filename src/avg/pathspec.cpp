@@ -16,7 +16,7 @@ PathSpec::~PathSpec()
 {
 }
 
-PathSpec PathSpec::start(ase::Vector2f v) &&
+PathSpec PathSpec::start(Vector2f v) &&
 {
     if (!segments_.empty() && segments_.back() == SEGMENT_START)
         vertices_.back() = v;
@@ -31,14 +31,14 @@ PathSpec PathSpec::start(ase::Vector2f v) &&
     return std::move(*this);
 }
 
-PathSpec PathSpec::lineTo(ase::Vector2f v) &&
+PathSpec PathSpec::lineTo(Vector2f v) &&
 {
     segments_.push_back(SEGMENT_LINE);
     vertices_.push_back(v);
     return std::move(*this);
 }
 
-PathSpec PathSpec::conicTo(ase::Vector2f v1, ase::Vector2f v2) &&
+PathSpec PathSpec::conicTo(Vector2f v1, Vector2f v2) &&
 {
     segments_.push_back(SEGMENT_CONIC);
     vertices_.push_back(v1);
@@ -46,8 +46,7 @@ PathSpec PathSpec::conicTo(ase::Vector2f v1, ase::Vector2f v2) &&
     return std::move(*this);
 }
 
-PathSpec PathSpec::cubicTo(ase::Vector2f v1, ase::Vector2f v2,
-        ase::Vector2f v3) &&
+PathSpec PathSpec::cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&
 {
     segments_.push_back(SEGMENT_CUBIC);
     vertices_.push_back(v1);
@@ -64,4 +63,5 @@ PathSpec PathSpec::close() &&
     return std::move(*this).lineTo(start_);
 }
 
-} // namespace
+} // avg
+

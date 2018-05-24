@@ -111,8 +111,8 @@ TEST(signal, split)
 
     auto tuple = signal::split(std::move(s));
 
-    auto s1 = std::get<0>(std::move(tuple));
-    auto s2 = std::get<1>(std::move(tuple));
+    auto s1 = std::move(std::get<0>(tuple));
+    auto s2 = std::move(std::get<1>(tuple));
 
     EXPECT_EQ(10, s1.evaluate());
     EXPECT_EQ(std::string("20"), s2.evaluate());

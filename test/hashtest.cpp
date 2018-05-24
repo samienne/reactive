@@ -2,6 +2,8 @@
 #include "btl/uhash.h"
 #include "btl/hash.h"
 
+#include <ase/vector.h>
+
 #include <avg/shape.h>
 #include <avg/pen.h>
 #include <avg/brush.h>

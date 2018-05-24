@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <vector>
 
@@ -25,18 +25,17 @@ namespace avg
         PathSpec& operator=(PathSpec const&) = default;
         PathSpec& operator=(PathSpec&&) = default;
 
-        PathSpec start(ase::Vector2f v) &&;
-        PathSpec lineTo(ase::Vector2f v) &&;
-        PathSpec conicTo(ase::Vector2f v1, ase::Vector2f v2) &&;
-        PathSpec cubicTo(ase::Vector2f v1, ase::Vector2f v2,
-                ase::Vector2f v3) &&;
+        PathSpec start(Vector2f v) &&;
+        PathSpec lineTo(Vector2f v) &&;
+        PathSpec conicTo(Vector2f v1, Vector2f v2) &&;
+        PathSpec cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&;
         PathSpec close() &&;
 
     private:
         friend class Path;
         std::vector<SegmentType> segments_;
-        std::vector<ase::Vector2f> vertices_;
-        ase::Vector2f start_;
+        std::vector<Vector2f> vertices_;
+        Vector2f start_;
     };
 }
 

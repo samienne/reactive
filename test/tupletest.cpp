@@ -62,9 +62,9 @@ TEST(Tuple, all_but_last)
     auto t1 = std::tuple<int, std::string, std::unique_ptr<int>>(
             10, "test", nullptr);
 
-    auto t2 = btl::tuple_all_but_last(std::move(t1));
-
     auto const& t3 = t1;
+
+    auto t2 = btl::tuple_all_but_last(std::move(t1));
 
     EXPECT_EQ(std::make_tuple(10, std::string("test")), t2);
 

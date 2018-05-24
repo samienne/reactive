@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <btl/forcenoexcept.h>
 
@@ -9,8 +9,6 @@
 
 namespace avg
 {
-    using Vector2f = ase::Vector2f;
-
     /**
      * @brief Represents transform
      *
@@ -21,7 +19,7 @@ namespace avg
     class Transform final
     {
     public:
-        inline Transform(ase::Vector2f translation = ase::Vector2f(0.0f, 0.0f),
+        inline Transform(Vector2f translation = Vector2f(0.0f, 0.0f),
                 float scale = 1.0f, float rotation = 0.0f);
         Transform(Transform const&) = default;
         Transform(Transform&&) noexcept = default;
@@ -66,7 +64,7 @@ namespace avg
         float rotation_;
     };
 
-    inline Transform::Transform(ase::Vector2f translation,
+    inline Transform::Transform(Vector2f translation,
                 float scale, float rotation) :
         translation_(translation),
         scale_(scale),

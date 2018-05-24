@@ -46,7 +46,7 @@ namespace reactive::signal
         template <typename TFunc>
         struct Observe
         {
-            Observe(typename std::decay<TFunc>::type const& func) :
+            Observe(std::decay_t<TFunc> const& func) :
                 func_(func)
             {
             }
@@ -57,7 +57,7 @@ namespace reactive::signal
                 return std::forward<T>(t).observe(func_);
             }
 
-            typename std::decay<TFunc>::type const& func_;
+            std::decay_t<TFunc> const& func_;
         };
 
         struct UpdateBegin
@@ -194,7 +194,7 @@ namespace reactive::signal
 
     public:
         BTL_HIDDEN Map(TFunc func, TSigs... sigs) :
-            func_(std::move(func)),
+            func_(btl::forceNoexcept(std::move(func))),
             signals_(std::make_tuple(std::move(sigs)...))
         {
         }
@@ -210,7 +210,7 @@ namespace reactive::signal
         BTL_HIDDEN EvaluateType evaluate() const
         {
             assert(ready_);
-            return btl::apply(Apply(func_),
+            return btl::apply(Apply(*func_),
                     btl::tuple_map(*signals_, detail::Evaluate()));
         }
 
@@ -306,7 +306,7 @@ namespace reactive::signal
         }
 
     private:
-        mutable FuncType func_;
+        mutable btl::ForceNoexcept<FuncType> func_;
         btl::CloneOnCopy<std::tuple<std::decay_t<TSigs>...>> signals_;
         mutable detail::ChangedStatus changed_ = detail::ChangedStatus::unknown;
         mutable bool ready_ = true;
@@ -316,6 +316,8 @@ namespace reactive::signal
         <
             btl::All<
                 std::is_copy_constructible<std::decay_t<TFunc>>,
+                //std::is_nothrow_move_assignable<std::decay_t<TFunc>>,
+                std::is_nothrow_move_constructible<std::decay_t<TFunc>>,
                 //IsSignal<TSigs>...,
                 btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(Ts...)>>
             >::value

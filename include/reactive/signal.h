@@ -42,7 +42,7 @@ namespace reactive
         {
         }
 
-        BTL_HIDDEN Signal(SharedSignal<T, TSignal>&& other) :
+        BTL_HIDDEN Signal(SharedSignal<T, TSignal>&& other) noexcept:
             sig_(std::move(other).signal())
         {
         }

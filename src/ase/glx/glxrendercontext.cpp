@@ -145,7 +145,7 @@ namespace
         assert(gl.glFramebufferTexture2D);
         assert(gl.glBindFramebuffer);
 
-        return std::move(gl);
+        return gl;
     }
 } // Anonymous namespace
 
@@ -180,7 +180,7 @@ GlxRenderContext::~GlxRenderContext()
 
 void GlxRenderContext::present(Window& window)
 {
-    dispatch([&window, this]()
+    dispatch([&window]()
             {
                 GlxWindow& glxWindow = static_cast<GlxWindow&>(window);
                 glxWindow.present(Dispatched());

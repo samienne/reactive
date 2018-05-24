@@ -8,6 +8,8 @@
 #include <avg/endtype.h>
 #include <avg/region.h>
 
+#include <ase/buffer.h>
+#include <ase/matrix.h>
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
 #include <ase/nameduniformbuffer.h>
