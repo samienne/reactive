@@ -7,15 +7,24 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive
+{
+    namespace signal
+    {
+        template <typename TSignal>
+        class BTL_CLASS_VISIBLE CountSignal;
+    }
+
+    template <typename TSignal>
+    struct IsSignal<signal::CountSignal<TSignal>> : std::true_type {};
+}
+
 namespace reactive::signal
 {
-
     template <typename TSignal>
     class BTL_CLASS_VISIBLE CountSignal
     {
     public:
-        static_assert(IsSignal<TSignal>::value, "signal needs to be a signal");
-
         BTL_HIDDEN CountSignal(TSignal signal) :
             signal_(std::move(signal)),
             value_(0u)

@@ -10,6 +10,12 @@ namespace reactive
     class Share;
 
     template <typename T, typename TSignal>
+    class BTL_CLASS_VISIBLE SharedSignal;
+
+    template <typename T, typename TSignal>
+    struct IsSignal<SharedSignal<T, TSignal>> : std::true_type {};
+
+    template <typename T, typename TSignal>
     class SharedSignal : public Signal<T,
     signal::Share<T, signal::Typed<T, TSignal>>>
     {

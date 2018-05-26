@@ -86,9 +86,6 @@ namespace reactive::signal
         T constant_;
     };
 
-    static_assert(IsSignal<Constant<int>>::value,
-            "Constant is not a signal");
-
     template <typename T>
     auto constant(T&& value)
     {
@@ -104,6 +101,17 @@ namespace reactive::signal
         return constant(std::vector<std::decay_t<T>>(v));
     }
 } // reactive::signal
+
+namespace reactive
+{
+    template <typename T>
+    struct IsSignal<signal::Constant<T>> : std::true_type {};
+
+    /*
+    static_assert(IsSignal<Constant<int>>::value,
+            "Constant is not a signal");
+            */
+}
 
 BTL_VISIBILITY_POP
 

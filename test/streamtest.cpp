@@ -7,13 +7,6 @@
 
 #include <reactive/signal/update.h>
 
-/*#include <reactive/stream/filter.h>
-#include <reactive/stream/iterate.h>
-#include <reactive/stream/map.h>
-#include <reactive/stream/pipe.h>
-#include <reactive/stream.h>
-#include <reactive/connection.h>*/
-
 #include <gtest/gtest.h>
 
 #include <iostream>
@@ -29,7 +22,7 @@ using namespace reactive::stream;
 using us = std::chrono::microseconds;
 using ms = std::chrono::milliseconds;
 
-static_assert(IsSignal<Hold<int>>::value, "");
+static_assert(CheckSignal<Hold<int>>::value, "");
 
 static_assert(std::is_same<std::vector<int>,
         signal_value_t<
@@ -170,7 +163,7 @@ TEST(Stream, iterate)
 
     //auto s1 = iterate(add, signal::constant(10), std::move(p.stream));
     auto s1 = f();
-    static_assert(IsSignal<decltype(s1)>::value, "Iterate is not a signal");
+    static_assert(CheckSignal<decltype(s1)>::value, "Iterate is not a signal");
 
     EXPECT_EQ(10, s1.evaluate());
 
@@ -420,7 +413,7 @@ TEST(Stream, iterateSignal)
     };
 
     auto s1 = iterate(add, 10, pipe.output);
-    static_assert(IsSignal<decltype(s1)>::value, "Iterate is not a signal");
+    static_assert(CheckSignal<decltype(s1)>::value, "Iterate is not a signal");
 
     EXPECT_EQ(10, s1.evaluate());
 

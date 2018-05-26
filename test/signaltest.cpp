@@ -1,3 +1,11 @@
+#include <reactive/signal/databind.h>
+#include <reactive/signal/blip.h>
+#include <reactive/signal/changed.h>
+#include <reactive/signal/updateifjust.h>
+#include <reactive/signal/onchange.h>
+#include <reactive/signal/every.h>
+#include <reactive/signal/combine.h>
+#include <reactive/signal/join.h>
 #include <reactive/signal/cache.h>
 #include <reactive/signal/convert.h>
 #include <reactive/signal/weak.h>
@@ -20,6 +28,63 @@
 #include <string>
 
 using namespace reactive;
+using namespace reactive::signal;
+
+template <typename TSignal>
+struct TestSignal : std::conditional_t<
+                    CheckSignal<TSignal>::value == IsSignal<TSignal>::value,
+                    std::true_type,
+                    std::false_type>
+{
+};
+
+template <typename T>
+struct RequireSignal : TestSignal<T>
+{
+    static_assert(IsSignal<T>::value, "");
+    static_assert(CheckSignal<T>::value, "");
+    static_assert(std::is_same<bool, hasChanged_t<T>>::value, "");
+    static_assert(std::is_same<signal::UpdateResult, updateBegin_t<T>>::value, "");
+    static_assert(std::is_same<signal::UpdateResult, updateEnd_t<T>>::value, "");
+    static_assert(std::is_same<Connection, observe_t<T>>::value, "");
+    static_assert(std::is_same<Annotation, annotate_t<T>>::value, "");
+    static_assert(std::is_nothrow_move_constructible<std::decay_t<T>>::value, "");
+    static_assert(btl::IsClonable<std::decay_t<T>>::value, "");
+};
+
+int add(int a, int b)
+{
+    return a + b;
+}
+
+static_assert(RequireSignal<Constant<int>>::value, "");
+static_assert(RequireSignal<decltype(
+            signal::map(add, constant(10), constant(20))
+            )>::value, "");
+static_assert(RequireSignal<Join<Constant<Constant<int>>>>::value,
+        "");
+static_assert(RequireSignal<Combine<std::vector<Signal<int>>>>::value,
+        "");
+static_assert(RequireSignal<signal::Cache<Constant<int>>>::value, "");
+static_assert(RequireSignal<InputSignal<int, btl::DummyLock>>::value,
+    "InputSignal is not a signal");
+static_assert(RequireSignal<Every>::value, "Every is not a signal");
+static_assert(RequireSignal<
+        OnChange<Constant<int>, btl::Function<void()>>>::value, "");
+static_assert(RequireSignal<UpdateIfJust<Constant<btl::option<int>>>>::value, "");
+static_assert(RequireSignal<Changed<Constant<int>>>::value,
+        "Changed is not a signal");
+static_assert(RequireSignal<Blip<Constant<int>>>::value, "");
+static_assert(RequireSignal<SharedSignal<int, void>>::value, "");
+
+static_assert(RequireSignal<
+        DataBind<
+        std::function<SharedSignal<btl::option<int>>(
+            Signal<btl::option<std::string>>,
+            IndexSignal)>,
+        btl::collection<std::string>
+        >>::value,
+        "DataBind is not a signal");
 
 TEST(signal, cacheTest)
 {

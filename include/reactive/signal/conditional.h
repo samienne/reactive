@@ -10,6 +10,18 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive
+{
+    namespace signal
+    {
+        template <typename TCondition, typename TTrue, typename TFalse>
+        class BTL_CLASS_VISIBLE Conditional;
+    }
+
+    template <typename TCondition, typename TTrue, typename TFalse>
+    struct IsSignal<signal::Conditional<TCondition, TTrue, TFalse>> : std::true_type {};
+}
+
 namespace reactive::signal
 {
     template <typename TCondition, typename TTrue, typename TFalse>

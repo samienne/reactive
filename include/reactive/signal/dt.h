@@ -10,7 +10,15 @@ namespace reactive
 {
     namespace signal
     {
+        class BTL_CLASS_VISIBLE DtSignal;
+    }
 
+    template <>
+    struct IsSignal<signal::DtSignal> : std::true_type {};
+}
+
+namespace reactive::signal
+{
     class BTL_CLASS_VISIBLE DtSignal
     {
     public:
@@ -74,9 +82,7 @@ namespace reactive
     {
         return DtSignal();
     }
-
-    }
-}
+} // namespace reactive::signal
 
 BTL_VISIBILITY_POP
 
