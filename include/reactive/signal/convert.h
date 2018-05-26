@@ -7,6 +7,18 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive
+{
+    namespace signal
+    {
+        template <typename T>
+        class BTL_CLASS_VISIBLE Convert;
+    }
+
+    template <typename T>
+    struct IsSignal<signal::Convert<T>> : std::true_type {};
+}
+
 namespace reactive::signal
 {
     template <typename T>

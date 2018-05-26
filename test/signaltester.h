@@ -87,6 +87,12 @@ private:
     mutable btl::shared<Data> data_;
 };
 
+namespace reactive
+{
+    template <>
+    struct IsSignal<SignalStub> : reactive::CheckSignal<SignalStub> {};
+}
+
 static_assert(reactive::IsSignal<SignalStub>::value, "");
 
 template <typename TSignalMap>

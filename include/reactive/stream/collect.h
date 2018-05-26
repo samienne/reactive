@@ -11,6 +11,18 @@
 
 #include <mutex>
 
+namespace reactive
+{
+    namespace stream
+    {
+        template <typename T>
+        class Collect;
+    }
+
+    template <typename T>
+    struct IsSignal<stream::Collect<T>> : std::true_type {};
+}
+
 namespace reactive::stream
 {
     template <typename T>

@@ -10,6 +10,24 @@ namespace reactive
 {
     template <typename T, typename TSignal = void>
     class Signal;
+
+    template <typename T, typename TSignal>
+    struct IsSignal<Signal<T, TSignal>> : std::true_type {};
+
+    namespace signal
+    {
+        template <typename T, typename TDeferred>
+        class Share;
+
+        template <typename T, typename TSignal>
+        class Typed;
+    }
+
+    template <typename T, typename TDeferred>
+    struct IsSignal<signal::Share<T, TDeferred>> : std::true_type {};
+
+    template <typename T, typename TSignal>
+    struct IsSignal<signal::Typed<T, TSignal>> : std::true_type {};
 } // reactive
 
 namespace reactive::signal
@@ -92,11 +110,13 @@ namespace reactive::signal
     public:
         using Lock = std::lock_guard<btl::SpinLock>;
 
+        /*
         static_assert(
                 !std::is_reference<T>::value
                 || ( std::is_reference<T>::value
                     && std::is_reference<SignalType<TSignal>>::value),
                 "");
+                */
 
         BTL_HIDDEN Typed(TSignal&& sig) :
             sig_(std::move(sig))
