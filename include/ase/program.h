@@ -1,5 +1,7 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <memory>
 
@@ -11,7 +13,7 @@ namespace ase
     class RenderContext;
     class Platform;
 
-    class Program
+    class BTL_VISIBLE Program
     {
     public:
         Program(RenderContext& context, VertexShader const& vertexShader,

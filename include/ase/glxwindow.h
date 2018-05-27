@@ -7,6 +7,8 @@
 #include "hoverevent.h"
 #include "keyevent.h"
 
+#include <btl/visibility.h>
+
 #include <mutex>
 #include <vector>
 
@@ -21,7 +23,7 @@ namespace ase
     class RenderCommand;
     struct Dispatched;
 
-    class GlxWindow : public Window
+    class BTL_VISIBLE GlxWindow : public Window
     {
     public:
         typedef std::mutex Mutex;

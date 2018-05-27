@@ -4,6 +4,7 @@
 
 #include <btl/hash.h>
 #include <btl/uhash.h>
+#include <btl/visibility.h>
 
 #include <map>
 #include <vector>
@@ -16,7 +17,7 @@ namespace ase
     class NamedUniformBuffer;
     class UniformBufferDeferred;
 
-    class UniformView
+    class BTL_VISIBLE UniformView
     {
     public:
         inline UniformView(void const* data) :
@@ -53,7 +54,7 @@ namespace ase
         void const* data_;
     };
 
-    class UniformIterator
+    class BTL_VISIBLE UniformIterator
     {
     public:
         inline UniformIterator(void const* data) :
@@ -100,7 +101,7 @@ namespace ase
         void const* data_;
     };
 
-    struct UniformHeader
+    struct BTL_VISIBLE UniformHeader
     {
         inline UniformHeader(UniformType type, uint16_t count,
                 int32_t location) :
@@ -116,7 +117,7 @@ namespace ase
         int32_t location;
     };
 
-    class UniformStack
+    class BTL_VISIBLE UniformStack
     {
     public:
         inline void push(UniformHeader const& uniform)
@@ -175,7 +176,7 @@ namespace ase
         std::vector<uint8_t> data_;
     };
 
-    class UniformBuffer
+    class BTL_VISIBLE UniformBuffer
     {
     public:
         UniformBuffer();

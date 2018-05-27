@@ -1,8 +1,10 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    enum class BlendMode
+    enum class BTL_VISIBLE BlendMode
     {
         Zero,
         One,

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    struct HoverEvent
+    struct BTL_VISIBLE HoverEvent
     {
         bool hover;
     };

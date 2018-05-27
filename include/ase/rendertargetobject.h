@@ -2,6 +2,8 @@
 
 #include "rendertarget.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 #include <map>
 
@@ -12,7 +14,7 @@ namespace ase
     class Texture;
     class Platform;
 
-    class RenderTargetObject : public RenderTarget
+    class BTL_VISIBLE RenderTargetObject : public RenderTarget
     {
     public:
         RenderTargetObject();

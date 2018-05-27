@@ -2,13 +2,15 @@
 
 #include "rendertarget.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 
 namespace ase
 {
     class WindowImpl;
 
-    class Window : public RenderTarget
+    class BTL_VISIBLE Window : public RenderTarget
     {
     public:
         Window();

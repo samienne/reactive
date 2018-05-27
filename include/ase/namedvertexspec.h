@@ -3,12 +3,14 @@
 #include "type.h"
 #include "primitivetype.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <vector>
 
 namespace ase
 {
-    class NamedVertexSpec
+    class BTL_VISIBLE NamedVertexSpec
     {
     public:
         struct Spec

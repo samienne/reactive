@@ -2,6 +2,8 @@
 
 #include "programimpl.h"
 
+#include <btl/visibility.h>
+
 #include <GL/gl.h>
 
 #include <string>
@@ -15,7 +17,7 @@ namespace ase
     class GlPlatform;
     struct GlFunctions;
 
-    class GlProgram : public ProgramImpl
+    class BTL_VISIBLE GlProgram : public ProgramImpl
     {
     public:
         GlProgram(RenderContext& context, GlVertexShader const& vertexShader,

@@ -8,12 +8,14 @@
 #include "indexbuffer.h"
 #include "vertexspec.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 #include <memory>
 
 namespace ase
 {
-    struct RenderCommandDeferred
+    struct BTL_VISIBLE RenderCommandDeferred
     {
         RenderCommandDeferred(std::vector<Texture> textures,
                 Pipeline pipeline, VertexBuffer vertexBuffer,
@@ -41,7 +43,7 @@ namespace ase
         float z_;
     };
 
-    class RenderCommand
+    class BTL_VISIBLE RenderCommand
     {
     public:
         RenderCommand(Pipeline const& pipeline, UniformBuffer const& uniforms,

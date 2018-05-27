@@ -1,8 +1,10 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    class Aabb
+    class BTL_VISIBLE Aabb
     {
     };
 }

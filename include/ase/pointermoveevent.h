@@ -2,11 +2,13 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <array>
 
 namespace ase
 {
-    struct PointerMoveEvent
+    struct BTL_VISIBLE PointerMoveEvent
     {
         Vector2f pos;
         Vector2f rel;
@@ -14,6 +16,6 @@ namespace ase
         bool hover;
     };
 
-    bool isButtonDown(PointerMoveEvent const& e);
+    BTL_VISIBLE bool isButtonDown(PointerMoveEvent const& e);
 } // ase
 

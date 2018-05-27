@@ -1,8 +1,10 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    class FragmentShaderImpl
+    class BTL_VISIBLE FragmentShaderImpl
     {
     public:
         virtual ~FragmentShaderImpl() = default;

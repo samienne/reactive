@@ -3,6 +3,8 @@
 #include "rendercontext.h"
 #include "platform.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
@@ -11,7 +13,7 @@ namespace ase
     /**
      * @brief Abstract base class for all OpenGl platforms
      */
-    class GlPlatform : public Platform
+    class BTL_VISIBLE GlPlatform : public Platform
     {
     public:
         GlPlatform();

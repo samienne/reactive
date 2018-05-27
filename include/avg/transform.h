@@ -3,6 +3,7 @@
 #include "vector.h"
 
 #include <btl/forcenoexcept.h>
+#include <btl/visibility.h>
 
 #include <cmath>
 #include <ostream>
@@ -16,7 +17,7 @@ namespace avg
      * S is the scale, R is the rotation, v is the input vector and
      * v_output is the transformed vector.
      */
-    class Transform final
+    class BTL_VISIBLE Transform final
     {
     public:
         inline Transform(Vector2f translation = Vector2f(0.0f, 0.0f),

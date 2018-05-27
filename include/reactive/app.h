@@ -7,10 +7,11 @@
 #include <ase/platform.h>
 
 #include <btl/unique.h>
+#include <btl/visibility.h>
 
 namespace reactive
 {
-    class AppImpl
+    class BTL_VISIBLE AppImpl
     {
     public:
         virtual ~AppImpl() = default;
@@ -19,7 +20,7 @@ namespace reactive
         virtual int run() && = 0;
     };
 
-    class App
+    class BTL_VISIBLE App
     {
     public:
         App();

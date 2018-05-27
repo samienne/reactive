@@ -2,6 +2,8 @@
 
 #include "uniformtype.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <vector>
 #include <map>
@@ -9,7 +11,7 @@
 
 namespace ase
 {
-    class NamedUniformView
+    class BTL_VISIBLE NamedUniformView
     {
     public:
         inline NamedUniformView(void const* data,
@@ -49,7 +51,7 @@ namespace ase
         std::string const& location_;
     };
 
-    class NamedUniformIterator
+    class BTL_VISIBLE NamedUniformIterator
     {
     public:
         inline NamedUniformIterator(
@@ -97,7 +99,7 @@ namespace ase
         std::unordered_map<std::string, size_t>::const_iterator iter_;
     };
 
-    class NamedUniformBuffer
+    class BTL_VISIBLE NamedUniformBuffer
     {
     public:
         NamedUniformBuffer();

@@ -5,6 +5,8 @@
 #include "fillrule.h"
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 #include <memory>
 #include <stdint.h>
@@ -15,7 +17,7 @@ namespace avg
 
     class RegionDeferred;
 
-    class Region
+    class BTL_VISIBLE Region
     {
     public:
         Region();

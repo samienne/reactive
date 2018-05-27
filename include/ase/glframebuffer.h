@@ -2,6 +2,8 @@
 
 #include "dispatcher.h"
 
+#include <btl/visibility.h>
+
 #include <GL/gl.h>
 
 namespace ase
@@ -12,7 +14,7 @@ namespace ase
     class GlPlatform;
     class GlRenderContext;
 
-    class GlFramebuffer
+    class BTL_VISIBLE GlFramebuffer
     {
     public:
         GlFramebuffer();

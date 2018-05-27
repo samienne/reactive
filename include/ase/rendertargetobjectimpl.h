@@ -2,13 +2,15 @@
 
 #include "rendertargetimpl.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
 {
     class Texture;
 
-    class RenderTargetObjectImpl : public RenderTargetImpl
+    class BTL_VISIBLE RenderTargetObjectImpl : public RenderTargetImpl
     {
     public:
         virtual ~RenderTargetObjectImpl() = default;

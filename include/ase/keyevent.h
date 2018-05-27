@@ -3,6 +3,8 @@
 #include "keycode.h"
 #include "keymodifier.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <stdint.h>
 
@@ -14,7 +16,7 @@ namespace ase
         up
     };
 
-    class KeyEvent
+    class BTL_VISIBLE KeyEvent
     {
     public:
         KeyEvent(KeyState state, KeyCode key, uint32_t modifiers,
@@ -38,7 +40,7 @@ namespace ase
 namespace std
 {
     template<>
-    struct hash<ase::KeyCode>
+    struct BTL_VISIBLE hash<ase::KeyCode>
     {
         typedef ase::KeyCode argument_type;
         typedef std::size_t result_type;

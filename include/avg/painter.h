@@ -3,12 +3,14 @@
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
 
+#include <btl/visibility.h>
+
 namespace avg
 {
     class Pen;
     class Brush;
 
-    class Painter final
+    class BTL_VISIBLE Painter final
     {
     public:
         Painter(ase::RenderContext& context);

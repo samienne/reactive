@@ -2,6 +2,8 @@
 
 #include "usage.h"
 
+#include <btl/visibility.h>
+
 #include <GL/gl.h>
 
 namespace ase
@@ -11,7 +13,7 @@ namespace ase
     class RenderContext;
     struct Dispatched;
 
-    class GlBuffer
+    class BTL_VISIBLE GlBuffer
     {
     public:
         GlBuffer(RenderContext& context, GLenum bufferType);

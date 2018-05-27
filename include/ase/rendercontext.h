@@ -1,5 +1,7 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <functional>
 #include <vector>
 #include <memory>
@@ -34,7 +36,7 @@ namespace ase
      *              same Platform.
      *
      */
-    class RenderContext
+    class BTL_VISIBLE RenderContext
     {
     public:
         RenderContext(Platform& platform,

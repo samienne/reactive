@@ -3,12 +3,13 @@
 #include "vector.h"
 
 #include <btl/forcenoexcept.h>
+#include <btl/visibility.h>
 
 #include <ostream>
 
 namespace avg
 {
-    class Rect
+    class BTL_VISIBLE Rect
     {
     public:
         Rect();

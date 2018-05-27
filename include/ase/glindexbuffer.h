@@ -4,6 +4,8 @@
 #include "indexbufferimpl.h"
 #include "glbuffer.h"
 
+#include <btl/visibility.h>
+
 #include <cstring>
 
 namespace ase
@@ -13,7 +15,7 @@ namespace ase
     class RenderContext;
     struct Dispatched;
 
-    class GlIndexBuffer : public IndexBufferImpl
+    class BTL_VISIBLE GlIndexBuffer : public IndexBufferImpl
     {
     public:
         GlIndexBuffer(RenderContext& context);

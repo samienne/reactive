@@ -150,7 +150,7 @@ namespace reactive
     }
 
 #if 1
-    WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+    BTL_VISIBLE WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             std::vector<WidgetFactory> factories);
 #else
     template <typename TFactories, typename TObbMap, typename TSizeHintMap,

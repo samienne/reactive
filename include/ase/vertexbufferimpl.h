@@ -2,6 +2,8 @@
 
 #include "usage.h"
 
+#include <btl/visibility.h>
+
 namespace ase
 {
     class RenderContext;
@@ -9,7 +11,7 @@ namespace ase
     class Buffer;
     class Aabb;
 
-    class VertexBufferImpl
+    class BTL_VISIBLE VertexBufferImpl
     {
     public:
         virtual ~VertexBufferImpl() = default;

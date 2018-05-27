@@ -1,6 +1,6 @@
 project('ase', 'cpp')
 add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
-        language : 'cpp')
+        '-fvisibility=hidden', language : 'cpp')
 #'-flto',
 
 range = subproject('range')

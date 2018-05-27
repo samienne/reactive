@@ -8,6 +8,8 @@
 #include "dispatcher.h"
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <GL/gl.h>
 #include <GL/glext.h>
 
@@ -21,7 +23,7 @@ namespace ase
     class GlRenderTargetObject;
     class GlPlatform;
 
-    struct GlFunctions
+    struct BTL_VISIBLE GlFunctions
     {
         PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = nullptr;
         PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
@@ -66,7 +68,7 @@ namespace ase
         PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
     };
 
-    class GlRenderContext : public RenderContextImpl
+    class BTL_VISIBLE GlRenderContext : public RenderContextImpl
     {
     public:
         GlRenderContext(GlPlatform& platform);

@@ -2,12 +2,14 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 namespace ase
 {
     class RenderContextImpl;
     struct Dispatched;
 
-    class RenderTargetImpl
+    class BTL_VISIBLE RenderTargetImpl
     {
     public:
         virtual ~RenderTargetImpl() = default;

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    struct Async
+    struct BTL_VISIBLE Async
     {
     };
 }

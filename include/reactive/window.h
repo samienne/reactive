@@ -5,10 +5,11 @@
 #include "signal.h"
 
 #include <btl/cloneoncopy.h>
+#include <btl/visibility.h>
 
 namespace reactive
 {
-    class Window
+    class BTL_VISIBLE Window
     {
     public:
         Window(WidgetFactory widget, Signal<std::string> const& title);
@@ -40,7 +41,7 @@ namespace reactive
         std::vector<std::function<void()>> closeCallbacks_;
     };
 
-    auto window(Signal<std::string> const& title, WidgetFactory widget)
-        -> Window;
+    BTL_VISIBLE auto window(Signal<std::string> const& title,
+            WidgetFactory widget) -> Window;
 }
 

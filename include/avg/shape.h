@@ -6,10 +6,11 @@
 
 #include <btl/option.h>
 #include <btl/hash.h>
+#include <btl/visibility.h>
 
 namespace avg
 {
-    class Shape final
+    class BTL_VISIBLE Shape final
     {
     public:
         Shape();
@@ -48,7 +49,7 @@ namespace avg
             hash_append(h, shape.pen_);
         }
 
-        friend Shape operator*(Transform const& t, Shape const& rhs)
+        BTL_VISIBLE friend Shape operator*(Transform const& t, Shape const& rhs)
         {
             return Shape()
                 .setPath(t * rhs.path_)

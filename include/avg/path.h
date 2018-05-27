@@ -8,6 +8,7 @@
 #include "vector.h"
 
 #include <btl/hash.h>
+#include <btl/visibility.h>
 
 #include <vector>
 #include <memory>
@@ -18,7 +19,7 @@ namespace avg
     class PathDeferred;
     class Transform;
 
-    class Path final
+    class BTL_VISIBLE Path final
     {
     public:
         using SegmentType = PathSpec::SegmentType;
@@ -72,8 +73,8 @@ namespace avg
         std::vector<SegmentType> const& getSegments() const;
         std::vector<Vector2f> const& getVertices() const;
 
-        friend Path operator*(const Transform& t, const Path& p);
-        friend std::ostream& operator<<(std::ostream&, const Path& p);
+        BTL_VISIBLE friend Path operator*(const Transform& t, const Path& p);
+        BTL_VISIBLE friend std::ostream& operator<<(std::ostream&, const Path& p);
         std::shared_ptr<PathDeferred> deferred_;
         inline PathDeferred* d() { return deferred_.get(); }
         inline PathDeferred const* d() const { return deferred_.get(); }
