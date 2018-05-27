@@ -1,12 +1,14 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <vector>
 #include <map>
 
 namespace reactive
 {
-    class Annotation
+    class BTL_VISIBLE Annotation
     {
     public:
         struct Node

@@ -10,64 +10,63 @@
 
 #include <avg/font.h>
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <ostream>
 
-namespace reactive
+namespace reactive::widget
 {
-    namespace widget
+    struct BTL_VISIBLE TextEditState
     {
-        struct TextEditState
+        inline TextEditState(std::string str) :
+            text(std::move(str)),
+            pos(text.size())
         {
-            inline TextEditState(std::string str) :
-                text(std::move(str)),
-                pos(text.size())
-            {
-            }
-
-            inline bool operator==(TextEditState const& rhs)
-            {
-                return text == rhs.text && pos == rhs.pos;
-            }
-
-            inline bool operator!=(TextEditState const& rhs)
-            {
-                return !(*this == rhs);
-            }
-
-            std::string text;
-            size_t pos = 0;
-        };
-
-        inline std::ostream& operator<<(std::ostream& stream,
-                TextEditState const& s)
-        {
-            return stream << s.text << std::endl;
         }
 
-        struct TextEdit
+        inline bool operator==(TextEditState const& rhs)
         {
-            operator WidgetFactory() const;
-            TextEdit onEnter(Signal<std::function<void()>> cb) &&;
-            TextEdit onEnter(std::function<void()> cb) &&;
+            return text == rhs.text && pos == rhs.pos;
+        }
 
-            template <typename T, typename U>
-            TextEdit onEnter(Signal<T, U> cb) &&
-            {
-                return std::move(*this)
-                    .onEnter(signal::eraseType(
-                                signal::cast<std::function<void()>>(std::move(cb))
-                                ))
-                    ;
-            }
+        inline bool operator!=(TextEditState const& rhs)
+        {
+            return !(*this == rhs);
+        }
 
-            signal::InputHandle<TextEditState> handle_;
-            Signal<TextEditState> state_;
-            std::vector<SharedSignal<std::function<void()>>> onEnter_;
-        };
+        std::string text;
+        size_t pos = 0;
+    };
 
-        TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-                Signal<TextEditState> state);
+    BTL_VISIBLE inline std::ostream& operator<<(std::ostream& stream,
+            TextEditState const& s)
+    {
+        return stream << s.text << std::endl;
     }
-}
+
+    struct BTL_VISIBLE TextEdit
+    {
+        operator WidgetFactory() const;
+        TextEdit onEnter(Signal<std::function<void()>> cb) &&;
+        TextEdit onEnter(std::function<void()> cb) &&;
+
+        template <typename T, typename U>
+        TextEdit onEnter(Signal<T, U> cb) &&
+        {
+            return std::move(*this)
+                .onEnter(signal::eraseType(
+                            signal::cast<std::function<void()>>(std::move(cb))
+                            ))
+                ;
+        }
+
+        signal::InputHandle<TextEditState> handle_;
+        Signal<TextEditState> state_;
+        std::vector<SharedSignal<std::function<void()>>> onEnter_;
+    };
+
+    BTL_VISIBLE TextEdit textEdit(signal::InputHandle<TextEditState> handle,
+            Signal<TextEditState> state);
+} // namespace reactive::widget
 

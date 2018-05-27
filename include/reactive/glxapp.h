@@ -4,11 +4,13 @@
 
 #include "signal.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 
 namespace reactive
 {
-    class GlxApp : public AppImpl
+    class BTL_VISIBLE GlxApp : public AppImpl
     {
     public:
         GlxApp();

@@ -2,6 +2,8 @@
 
 #include "usage.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 #include <stdint.h>
 
@@ -13,7 +15,7 @@ namespace ase
     class Buffer;
     struct Async;
 
-    class IndexBuffer
+    class BTL_VISIBLE IndexBuffer
     {
     public:
         IndexBuffer();

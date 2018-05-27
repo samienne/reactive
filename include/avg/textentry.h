@@ -8,12 +8,13 @@
 
 #include <btl/hash.h>
 #include <btl/option.h>
+#include <btl/visibility.h>
 
 #include <string>
 
 namespace avg
 {
-    class TextEntry
+    class BTL_VISIBLE TextEntry
     {
     public:
         TextEntry(Font const& font, Transform const& transform,

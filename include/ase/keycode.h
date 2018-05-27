@@ -1,5 +1,7 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <ostream>
 
@@ -1298,9 +1300,10 @@ namespace ase
         braille_dot_10 = 65530
     };
 
-    char const* toString(KeyCode code);
+    BTL_VISIBLE char const* toString(KeyCode code);
 
-    inline std::ostream& operator<<(std::ostream& stream, KeyCode code)
+    BTL_VISIBLE inline std::ostream& operator<<(std::ostream& stream,
+            KeyCode code)
     {
         return stream << toString(code);;
     }

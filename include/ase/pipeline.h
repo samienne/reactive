@@ -4,13 +4,15 @@
 #include "program.h"
 #include "vertexspec.h"
 
+#include <btl/visibility.h>
+
 namespace ase
 {
     class NamedVertexSpec;
     class Program;
     class RenderContext;
 
-    class Pipeline
+    class BTL_VISIBLE Pipeline
     {
     public:
         Pipeline(RenderContext& context, Program program,

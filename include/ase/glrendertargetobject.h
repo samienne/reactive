@@ -3,6 +3,8 @@
 #include "rendertargetobjectimpl.h"
 #include "dispatcher.h"
 
+#include <btl/visibility.h>
+
 #include <map>
 
 namespace ase
@@ -12,7 +14,7 @@ namespace ase
     class RenderContext;
     class RenderQueue;
 
-    class GlRenderTargetObject : public RenderTargetObjectImpl
+    class BTL_VISIBLE GlRenderTargetObject : public RenderTargetObjectImpl
     {
     public:
         GlRenderTargetObject(RenderContext& context);

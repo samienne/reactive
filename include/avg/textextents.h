@@ -2,11 +2,13 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <ostream>
 
 namespace avg
 {
-    struct TextExtents
+    struct BTL_VISIBLE TextExtents
     {
         inline TextExtents()
         {

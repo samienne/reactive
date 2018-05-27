@@ -4,6 +4,8 @@
 
 #include <utf8/utf8.h>
 
+#include <btl/visibility.h>
+
 #include <mutex>
 #include <memory>
 
@@ -15,7 +17,7 @@ namespace avg
     struct TextExtents;
     class FontManagerDeferred;
 
-    class FontManager
+    class BTL_VISIBLE FontManager
     {
     public:
         typedef std::mutex Mutex;

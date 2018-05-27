@@ -2,6 +2,8 @@
 
 #include "transform.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 #include <memory>
 #include <array>
@@ -11,7 +13,7 @@ namespace avg
     class SoftMeshDeferred;
     class Brush;
 
-    class SoftMesh
+    class BTL_VISIBLE SoftMesh
     {
     public:
         using Vertex = std::array<float, 6>;

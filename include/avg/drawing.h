@@ -5,10 +5,11 @@
 #include "transform.h"
 
 #include <btl/variant.h>
+#include <btl/visibility.h>
 
 namespace avg
 {
-    class Drawing final
+    class BTL_VISIBLE Drawing final
     {
     public:
         using Element = btl::variant<Shape, TextEntry>;
@@ -48,7 +49,7 @@ namespace avg
 
         Drawing transform(Transform const& t) &&;
 
-        friend Drawing operator*(Transform const& t, Drawing&& drawing);
+        BTL_VISIBLE friend Drawing operator*(Transform const& t, Drawing&& drawing);
 
     private:
         std::vector<Element> elements_;

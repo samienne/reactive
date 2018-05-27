@@ -4,6 +4,8 @@
 #include "usage.h"
 #include "format.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
@@ -23,7 +25,7 @@ namespace ase
     /**
      * @brief Abstract base class for all platforms
      */
-    class Platform
+    class BTL_VISIBLE Platform
     {
     public:
         virtual ~Platform() = default;

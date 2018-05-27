@@ -19,7 +19,7 @@ namespace reactive
 {
     using HoverEvent = ase::HoverEvent;
 
-    class InputArea
+    class BTL_VISIBLE InputArea
     {
     public:
         InputArea(btl::UniqueId id, avg::Obb const& obb);
@@ -83,10 +83,10 @@ namespace reactive
             > onHover_;
     };
 
-    auto makeInputArea(btl::UniqueId id, std::vector<avg::Obb>&& obbs)
-        -> InputArea;
+    BTL_VISIBLE auto makeInputArea(btl::UniqueId id,
+            std::vector<avg::Obb>&& obbs) -> InputArea;
 
-    auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
+    BTL_VISIBLE auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
         -> InputArea;
 }
 

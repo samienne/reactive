@@ -2,11 +2,10 @@
 
 #include "reactive/widgetfactory.h"
 
-namespace reactive
+#include <btl/visibility.h>
+
+namespace reactive::widget
 {
-    namespace widget
-    {
-        WidgetMap focusGroup();
-    } // widget
+    BTL_VISIBLE WidgetMap focusGroup();
 } // reactive
 

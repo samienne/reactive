@@ -4,10 +4,11 @@
 #include "transform.h"
 
 #include <btl/hash.h>
+#include <btl/visibility.h>
 
 namespace avg
 {
-    class Pen final
+    class BTL_VISIBLE Pen final
     {
     public:
         Pen(Brush brush = Brush(), float width = 1.0f);

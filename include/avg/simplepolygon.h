@@ -2,11 +2,13 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 
 namespace avg
 {
-    class SimplePolygon
+    class BTL_VISIBLE SimplePolygon
     {
     public:
         SimplePolygon();

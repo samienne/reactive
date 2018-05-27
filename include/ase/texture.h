@@ -3,6 +3,8 @@
 #include "vector.h"
 #include "format.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
@@ -13,7 +15,7 @@ namespace ase
     class Buffer;
     struct Async;
 
-    class Texture
+    class BTL_VISIBLE Texture
     {
     public:
         Texture();

@@ -4,13 +4,15 @@
 #include "material.h"
 #include "matrix.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
 {
     class Aabb;
 
-    class Renderable
+    class BTL_VISIBLE Renderable
     {
     public:
         Renderable();

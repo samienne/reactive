@@ -2,6 +2,8 @@
 
 #include "rendercommand.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 #include <vector>
 
@@ -16,7 +18,7 @@ namespace ase
     /**
      * @brief RenderTarget specifies output of rendering.
      */
-    class RenderTarget
+    class BTL_VISIBLE RenderTarget
     {
     public:
         RenderTarget();

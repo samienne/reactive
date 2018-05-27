@@ -4,13 +4,15 @@
 
 #include "glshader.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 
 namespace ase
 {
     class RenderContext;
 
-    class GlFragmentShader : public FragmentShaderImpl
+    class BTL_VISIBLE GlFragmentShader : public FragmentShaderImpl
     {
     public:
         GlFragmentShader(RenderContext& context, std::string const& source);

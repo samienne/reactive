@@ -3,6 +3,8 @@
 #include "usage.h"
 #include "namedvertexspec.h"
 
+#include <btl/visibility.h>
+
 #include <memory>
 
 namespace ase
@@ -17,7 +19,7 @@ namespace ase
     /**
      * @brief Hardware buffer for vertex data.
      */
-    class VertexBuffer
+    class BTL_VISIBLE VertexBuffer
     {
     public:
         VertexBuffer();

@@ -2,9 +2,11 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    class TextureImpl
+    class BTL_VISIBLE TextureImpl
     {
     public:
         virtual ~TextureImpl() = default;

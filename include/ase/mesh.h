@@ -4,9 +4,11 @@
 #include "indexbuffer.h"
 #include "aabb.h"
 
+#include <btl/visibility.h>
+
 namespace ase
 {
-    class Mesh
+    class BTL_VISIBLE Mesh
     {
     public:
         Mesh();

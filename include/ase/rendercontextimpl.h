@@ -1,5 +1,7 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <vector>
 
 namespace ase
@@ -8,7 +10,7 @@ namespace ase
     class RenderCommand;
     class RenderTarget;
 
-    class RenderContextImpl
+    class BTL_VISIBLE RenderContextImpl
     {
     public:
         virtual ~RenderContextImpl() = default;

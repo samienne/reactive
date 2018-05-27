@@ -1,17 +1,19 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <stdexcept>
 
 namespace ase
 {
-    enum Format
+    enum BTL_VISIBLE Format
     {
         FORMAT_UNKNOWN = 0,
         FORMAT_SRGBA,
         FORMAT_SRGB
     };
 
-    inline unsigned int getBytes(Format format)
+    inline BTL_VISIBLE unsigned int getBytes(Format format)
     {
         switch (format)
         {
@@ -24,7 +26,7 @@ namespace ase
         }
     }
 
-    inline bool isLinear(Format format)
+    inline BTL_VISIBLE bool isLinear(Format format)
     {
         switch (format)
         {

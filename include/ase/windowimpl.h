@@ -2,11 +2,13 @@
 
 #include "rendertargetimpl.h"
 
+#include <btl/visibility.h>
+
 #include <string>
 
 namespace ase
 {
-    class WindowImpl : public RenderTargetImpl
+    class BTL_VISIBLE WindowImpl : public RenderTargetImpl
     {
     public:
         virtual void setVisible(bool value) = 0;

@@ -4,9 +4,11 @@
 
 #include <ase/vector.h>
 
+#include <btl/visibility.h>
+
 namespace reactive
 {
-    class ClickEvent
+    class BTL_VISIBLE ClickEvent
     {
     public:
         ClickEvent(unsigned int pointer, unsigned int button,

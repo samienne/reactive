@@ -2,9 +2,11 @@
 
 #include "widgetfactory.h"
 
+#include <btl/visibility.h>
+
 namespace reactive
 {
-    class UniformGrid
+    class BTL_VISIBLE UniformGrid
     {
     public:
         UniformGrid(unsigned int w, unsigned int h);
@@ -30,7 +32,8 @@ namespace reactive
         std::vector<WidgetFactory> factories_;
     };
 
-    inline auto uniformGrid(unsigned int w, unsigned int h) -> UniformGrid
+    BTL_VISIBLE inline auto uniformGrid(unsigned int w, unsigned int h)
+        -> UniformGrid
     {
         return UniformGrid(w, h);
     }

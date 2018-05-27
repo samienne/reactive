@@ -3,6 +3,7 @@
 #include <ase/vector.h>
 
 #include <btl/hash.h>
+#include <btl/visibility.h>
 
 #include <utf8/utf8.h>
 
@@ -16,7 +17,7 @@ namespace avg
     class Path;
     class FontManager;
 
-    class Font
+    class BTL_VISIBLE Font
     {
     public:
         enum Hinting
@@ -52,7 +53,7 @@ namespace avg
 
         bool isEmpty() const;
 
-        friend std::ostream& operator<<(std::ostream& stream, Font const& f);
+        BTL_VISIBLE friend std::ostream& operator<<(std::ostream& stream, Font const& f);
 
         template <class THash>
         friend void hash_append(THash& h, Font const& font) noexcept

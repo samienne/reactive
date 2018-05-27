@@ -3,13 +3,14 @@
 #include "color.h"
 #include "transform.h"
 
+#include <btl/visibility.h>
 #include <btl/hash.h>
 
 #include <ostream>
 
 namespace avg
 {
-    class Brush final
+    class BTL_VISIBLE Brush final
     {
     public:
         Brush(Color const& color = Color());

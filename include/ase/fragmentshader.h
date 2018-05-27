@@ -1,5 +1,7 @@
 #pragma once
 
+#include <btl/visibility.h>
+
 #include <string>
 #include <memory>
 
@@ -9,7 +11,7 @@ namespace ase
     class RenderContext;
     class Platform;
 
-    class FragmentShader
+    class BTL_VISIBLE FragmentShader
     {
     public:
         FragmentShader();

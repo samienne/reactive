@@ -2,11 +2,13 @@
 
 #include "vector.h"
 
+#include <btl/visibility.h>
+
 #include <vector>
 
 namespace avg
 {
-    class PathSpec
+    class BTL_VISIBLE PathSpec
     {
     public:
         enum SegmentType
