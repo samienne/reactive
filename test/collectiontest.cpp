@@ -19,7 +19,7 @@ TEST(collection, push)
     bool called = false;
 
     collection<int> c1;
-    auto c = c1.on_changed([&c1, &called](collection_event<int> const& e)
+    auto c = c1.on_changed([&called](collection_event<int> const& e)
         {
             called = true;
             std::array<int, 3> a{{10, 20, 30}};

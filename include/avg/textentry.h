@@ -4,8 +4,7 @@
 #include "transform.h"
 #include "pen.h"
 #include "brush.h"
-
-#include <ase/vector.h>
+#include "vector.h"
 
 #include <btl/hash.h>
 #include <btl/option.h>

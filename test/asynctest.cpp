@@ -15,6 +15,7 @@
 
 #include <random>
 #include <chrono>
+#include <type_traits>
 
 using namespace btl::future;
 using btl::async;
@@ -296,17 +297,16 @@ TEST(async, sharedFutureListenCancel)
     EXPECT_FALSE(didCall);
 }
 
+/*
 TEST(async, fmapMember)
 {
-    btl::MoveOnlyFunction<size_t(std::vector<int> const&)>
-        mof(&std::vector<int>::size);
-
     auto f = makeFuture(std::vector<int>({10, 20, 30}));
     auto f2 = std::move(f)
         .fmap(&std::vector<int>::size);
 
     EXPECT_EQ(3, std::move(f2).get());
 }
+*/
 
 TEST(async, futureJoin)
 {
@@ -483,7 +483,9 @@ TEST(async, just)
 
     auto f2 = btl::future::just(std::move(f));
 
-    EXPECT_TRUE(std::move(f2).get().valid());
-    EXPECT_EQ(1, *std::move(f2).get());
+    auto value = std::move(f2).get();
+
+    EXPECT_TRUE(value.valid());
+    EXPECT_EQ(1, *value);
 }
 

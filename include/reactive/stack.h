@@ -30,9 +30,11 @@ namespace reactive
         return layout(stackHints, obbMap, std::forward<TCollection>(widgets));
     }
 
+    /*
     inline auto stack(std::vector<WidgetFactory> factories) -> WidgetFactory
     {
         return stack(std::move(factories));
     }
+    */
 }
 

@@ -253,7 +253,7 @@ std::vector<XEvent> GlxPlatform::getEvents()
         XNextEvent(d()->dpy_, &events.back());
     }
 
-    return std::move(events);
+    return events;
 }
 
 RenderContext& GlxPlatform::getDefaultContext()

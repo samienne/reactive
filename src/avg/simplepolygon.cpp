@@ -7,7 +7,7 @@ SimplePolygon::SimplePolygon()
 {
 }
 
-SimplePolygon::SimplePolygon(std::vector<ase::Vector2i>&& vertices) :
+SimplePolygon::SimplePolygon(std::vector<Vector2i>&& vertices) :
     vertices_(std::move(vertices))
 {
 }
@@ -16,7 +16,7 @@ SimplePolygon::~SimplePolygon()
 {
 }
 
-std::vector<ase::Vector2i> const& SimplePolygon::getVertices() const
+std::vector<Vector2i> const& SimplePolygon::getVertices() const
 {
     return vertices_;
 }

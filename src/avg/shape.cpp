@@ -68,7 +68,7 @@ Shape Shape::operator*(float scale) &&
         .setPen(pen_ * scale);
 }
 
-Shape Shape::operator+(ase::Vector2f offset) const &
+Shape Shape::operator+(Vector2f offset) const &
 {
     return Shape()
         .setPath(path_ + offset)
@@ -76,7 +76,7 @@ Shape Shape::operator+(ase::Vector2f offset) const &
         .setPen(pen_);
 }
 
-Shape Shape::operator+(ase::Vector2f offset) &&
+Shape Shape::operator+(Vector2f offset) &&
 {
     return Shape()
         .setPath(std::move(path_) + offset)
@@ -91,7 +91,7 @@ Shape& Shape::operator*=(float scale)
     return *this;
 }
 
-Shape& Shape::operator+=(ase::Vector2f offset)
+Shape& Shape::operator+=(Vector2f offset)
 {
     path_ += offset;
     return *this;

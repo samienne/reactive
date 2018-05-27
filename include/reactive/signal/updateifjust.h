@@ -4,6 +4,7 @@
 
 #include "reactive/signaltraits.h"
 
+#include <btl/forcenoexcept.h>
 #include <btl/hidden.h>
 
 BTL_VISIBILITY_PUSH_HIDDEN
@@ -35,7 +36,7 @@ namespace reactive
 
             BTL_HIDDEN ValueTypeDecayed const& evaluate() const
             {
-                return value_;
+                return *value_;
             }
 
             BTL_HIDDEN bool hasChanged() const
@@ -88,7 +89,7 @@ namespace reactive
 
         private:
             btl::CloneOnCopy<std::decay_t<TSignal>> signal_;
-            ValueTypeDecayed value_;
+            btl::ForceNoexcept<ValueTypeDecayed> value_;
             bool changed_ = false;
         };
 

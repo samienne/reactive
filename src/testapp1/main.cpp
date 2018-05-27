@@ -45,6 +45,18 @@ int main()
                     .cell(2, 2, 1, 1, makeSpinner())
                 , makeSpinner()
                     | widget::frame()
+                    | onPointerMove([](reactive::PointerMoveEvent const& e)
+                            {
+                                std::cout << "MoveEvent: " << e.rel << " " << e.pos
+                                    << ", " << e.buttons[0] << " " << e.buttons[1]
+                                    << " " << e.buttons[2] << " " << e.buttons[3]
+                                    << " hover: " << e.hover
+                                    << std::endl;
+                            })
+                    | onPointerDown([](reactive::PointerButtonEvent const&)
+                            {
+                                std::cout << "down" << std::endl;
+                            })
                 , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()
                 , widget::textEdit(textState.handle,
@@ -52,6 +64,10 @@ int main()
                 })
         , adder()
             | widget::frame()
+            | onHover([](reactive::HoverEvent const& e)
+                    {
+                        std::cout << "Hover: " << e.hover << std::endl;
+                    })
     });
 
     auto running = signal::input(true);

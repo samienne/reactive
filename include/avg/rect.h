@@ -1,6 +1,8 @@
 #pragma once
 
-#include <ase/vector.h>
+#include "vector.h"
+
+#include <btl/forcenoexcept.h>
 
 #include <ostream>
 
@@ -11,17 +13,17 @@ namespace avg
     public:
         Rect();
         Rect(Rect const&) = default;
-        Rect(Rect&&) = default;
-        Rect(ase::Vector2f bottomLeft, ase::Vector2f size);
+        Rect(Rect&&) noexcept = default;
+        Rect(Vector2f bottomLeft, Vector2f size);
         ~Rect();
 
         Rect& operator=(Rect const&) = default;
-        Rect& operator=(Rect&&) = default;
+        Rect& operator=(Rect&&) noexcept = default;
 
-        ase::Vector2f getBottomLeft() const;
-        ase::Vector2f getTopRight() const;
-        ase::Vector2f getSize() const;
-        ase::Vector2f getCenter() const;
+        Vector2f getBottomLeft() const;
+        Vector2f getTopRight() const;
+        Vector2f getSize() const;
+        Vector2f getCenter() const;
         float getLeft() const;
         float getRight() const;
         float getTop() const;
@@ -29,7 +31,7 @@ namespace avg
 
         bool isEmpty() const;
 
-        bool contains(ase::Vector2f pos) const;
+        bool contains(Vector2f pos) const;
 
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)
         {
@@ -37,8 +39,8 @@ namespace avg
         }
 
     private:
-        ase::Vector2f bottomLeft_ = ase::Vector2f(0.0f, 0.0f);
-        ase::Vector2f size_ = ase::Vector2f(-0.0f, -0.0f);
+        btl::ForceNoexcept<Vector2f> bottomLeft_ = Vector2f(0.0f, 0.0f);
+        btl::ForceNoexcept<Vector2f> size_ = Vector2f(-0.0f, -0.0f);
     };
 }
 

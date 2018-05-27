@@ -5,14 +5,12 @@
 #include "fillrule.h"
 #include "transform.h"
 #include "pathspec.h"
-
-#include <ase/matrix.h>
-#include <ase/vector.h>
-#include <ase/buffer.h>
+#include "vector.h"
 
 #include <btl/hash.h>
 
 #include <vector>
+#include <memory>
 
 namespace avg
 {
@@ -39,20 +37,20 @@ namespace avg
         Path& operator=(Path&&) = default;
 
         Path operator+(Path const& rhs) const;
-        Path operator+(ase::Vector2f delta) const;
+        Path operator+(Vector2f delta) const;
 
         Path operator*(float scale) const;
-        Path& operator+=(ase::Vector2f delta);
+        Path& operator+=(Vector2f delta);
         Path& operator*=(float scale);
 
         Path& operator+=(Path const& rhs);
 
         bool isEmpty() const;
 
-        Region fillRegion(FillRule rule, ase::Vector2f pixelSize,
+        Region fillRegion(FillRule rule, Vector2f pixelSize,
                 size_t resPerPixel = 100) const;
         Region offsetRegion(JoinType join, EndType end, float width,
-                ase::Vector2f pixelSize, size_t resPerPixel = 100) const;
+                Vector2f pixelSize, size_t resPerPixel = 100) const;
 
         template <class THash>
         friend void hash_append(THash& h, Path const& path) noexcept
@@ -67,14 +65,13 @@ namespace avg
         }
     private:
         Path(std::vector<SegmentType>&& segments,
-                std::vector<ase::Vector2f>&& vertices);
+                std::vector<Vector2f>&& vertices);
 
         void ensureUniqueness();
 
         std::vector<SegmentType> const& getSegments() const;
-        std::vector<ase::Vector2f> const& getVertices() const;
+        std::vector<Vector2f> const& getVertices() const;
 
-        //friend Path operator*(ase::Matrix3f const& m, Path const& p);
         friend Path operator*(const Transform& t, const Path& p);
         friend std::ostream& operator<<(std::ostream&, const Path& p);
         std::shared_ptr<PathDeferred> deferred_;

@@ -135,8 +135,10 @@ namespace reactive
             std::function<void(ase::PointerButtonEvent const&)>
             > cb)
     {
+        btl::UniqueId id = btl::makeUniqueId();
+
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
-            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
                 if (!areas.empty()
@@ -148,7 +150,7 @@ namespace reactive
                 }
 
                 areas.push_back(
-                        makeInputArea(obb).onDown(std::move(cb))
+                        makeInputArea(id, obb).onDown(std::move(cb))
                         );
 
                 return areas;
@@ -173,8 +175,10 @@ namespace reactive
     inline auto onPointerUp(Signal<T, U> cb)
             //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
+        auto id = btl::makeUniqueId();
+
         return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
-            [](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
                 if (!areas.empty()
@@ -186,7 +190,7 @@ namespace reactive
                 }
 
                 areas.push_back(
-                        makeInputArea(obb).onUp(std::move(cb))
+                        makeInputArea(id, obb).onUp(std::move(cb))
                         );
 
                 return areas;
@@ -207,6 +211,77 @@ namespace reactive
             std::bind(std::move(cb));
         return onPointerUp(f);
     }
+
+    inline auto onPointerMove(Signal<
+            std::function<void(ase::PointerMoveEvent const&)>
+            > cb)
+    {
+        auto id = btl::makeUniqueId();
+
+        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            -> std::vector<InputArea>
+            {
+                if (!areas.empty()
+                        && areas.back().getObbs().size() == 1
+                        && areas.back().getObbs().front() == obb)
+                {
+                    areas.back() = std::move(areas.back()).onMove(std::move(cb));
+                    return areas;
+                }
+
+                areas.push_back(
+                        makeInputArea(id, obb).onMove(std::move(cb))
+                        );
+
+                return areas;
+            },
+            std::move(cb)
+            );
+    }
+
+    inline auto onPointerMove(
+            std::function<void(ase::PointerMoveEvent const&)> cb
+            )
+    {
+        return onPointerMove(signal::constant(std::move(cb)));
+    }
+
+    inline auto onHover(Signal<
+            std::function<void(reactive::HoverEvent const&)>
+            > cb)
+    {
+        auto id = btl::makeUniqueId();
+
+        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+            [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+            -> std::vector<InputArea>
+            {
+                if (!areas.empty()
+                        && areas.back().getObbs().size() == 1
+                        && areas.back().getObbs().front() == obb)
+                {
+                    areas.back() = std::move(areas.back()).onHover(std::move(cb));
+                    return areas;
+                }
+
+                areas.push_back(
+                        makeInputArea(id, obb).onHover(std::move(cb))
+                        );
+
+                return areas;
+            },
+            std::move(cb)
+            );
+    }
+
+    inline auto onHover(
+            std::function<void(reactive::HoverEvent const&)> cb
+            )
+    {
+        return onHover(signal::constant(std::move(cb)));
+    }
+
 
     template <typename TSignalHandler>
     auto onKeyEvent(TSignalHandler handler)
@@ -262,8 +337,8 @@ namespace reactive
                 std::function<void(ClickEvent const&)> const& cb,
                 ase::PointerButtonEvent const& e)
         {
-            if (button == 0 || e.getButton() == button)
-                cb(ClickEvent(e.getPointer(), e.getButton(), e.getPos()));
+            if (button == 0 || e.button == button)
+                cb(ClickEvent(e.pointer, e.button, e.pos));
         };
 
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
@@ -286,8 +361,8 @@ namespace reactive
     {
         auto g = [button, f = std::move(f)](ase::PointerButtonEvent const& e)
         {
-            if (button == 0 || e.getButton() == button)
-                f(ClickEvent(e.getPointer(), e.getButton(), e.getPos()));
+            if (button == 0 || e.button == button)
+                f(ClickEvent(e.pointer, e.button, e.pos));
         };
 
         return onPointerUp(g);
@@ -502,21 +577,5 @@ namespace reactive
 
         return mapWidget(std::move(f));
     }
-
-    /*
-    inline auto setFocusHandle(signal::InputHandle<bool> handle)
-    {
-        return makeWidgetMap<std::vector<KeyboardInput>>(
-                [handle=std::move(handle)]
-                (std::vector<KeyboardInput> inputs)
-                -> std::vector<KeyboardInput>
-                {
-                    inputs[0] = std::move(inputs[0])
-                        .setFocusHandle(handle);
-
-                    return inputs;
-                });
-    }
-    */
 } // reactive
 

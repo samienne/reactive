@@ -78,8 +78,8 @@ namespace
         Path path;
         unsigned int loadedGlyph;
         float advanceX;
-        ase::Vector2f bearing;
-        ase::Vector2f size;
+        Vector2f bearing;
+        Vector2f size;
     };
 
     struct GlyphOutline

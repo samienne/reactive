@@ -69,7 +69,7 @@ namespace btl
 
                 auto oldCallback = std::move(callback_);
                 callback_ = btl::just<MoveOnlyFunction<void()>>(
-                        [this, &condition, &mutex]() mutable
+                        [&condition, &mutex]() mutable
                 {
                     std::unique_lock<std::mutex> lock2(mutex);
                     condition.notify_one();

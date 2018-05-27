@@ -1,4 +1,4 @@
 [wrap-git]
 directory=eigen
 url=https://github.com/samienne/eigen.git
-revision=b305597751c14abb7a005792e51ae478a6ec0fb7
+revision=45e9a96d4f3ed4075a33f2f6cb597fb71ad7f2bb
