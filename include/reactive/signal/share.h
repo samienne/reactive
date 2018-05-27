@@ -55,3 +55,4 @@ namespace reactive::signal
 } // reactive::signal
 
 BTL_VISIBILITY_POP
+

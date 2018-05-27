@@ -10,53 +10,50 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
+    namespace detail
     {
-        namespace detail
+        template <size_t i>
+        struct Splitter
         {
-            template <size_t i>
-            struct Splitter
+            template <typename... T>
+            auto operator()(std::tuple<T...> const& t)
+            -> std::decay_t<decltype(std::get<i>(t))>
             {
-                template <typename... T>
-                auto operator()(std::tuple<T...> const& t)
-                -> std::decay_t<decltype(std::get<i>(t))>
-                {
-                    return std::get<i>(t);
-                }
-            };
-
-            template <typename TSignal, size_t... ns>
-            auto splitImpl(TSignal&& sig, std::index_sequence<ns...>)
-            {
-                auto shared = share(std::forward<TSignal>(sig));
-                return std::make_tuple(
-                        signal::map(
-                            Splitter<ns>(),
-                            shared
-                            )...
-                        );
+                return std::get<i>(t);
             }
-        } // detail
+        };
 
-        template <typename TSignal>
-        auto split(TSignal&& sig)
-        /*-> decltype(
-            detail::splitImpl(std::forward<TSignal>(sig),
-                    std::make_index_sequence<
-                        std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
-                    >())
-            )
-            */
+        template <typename TSignal, size_t... ns>
+        auto splitImpl(TSignal&& sig, std::index_sequence<ns...>)
         {
-            return detail::splitImpl(std::forward<TSignal>(sig),
-                    std::make_index_sequence<
-                        std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
-                    >());
+            auto shared = share(std::forward<TSignal>(sig));
+            return std::make_tuple(
+                    signal::map(
+                        Splitter<ns>(),
+                        shared
+                        )...
+                    );
         }
-    } // signal
-} // reactive
+    } // detail
+
+    template <typename TSignal>
+    auto split(TSignal&& sig)
+    /*-> decltype(
+        detail::splitImpl(std::forward<TSignal>(sig),
+                std::make_index_sequence<
+                    std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
+                >())
+        )
+        */
+    {
+        return detail::splitImpl(std::forward<TSignal>(sig),
+                std::make_index_sequence<
+                    std::tuple_size<std::decay_t<SignalType<TSignal>>>::value
+                >());
+    }
+} // namespace reactive::signal
 
 BTL_VISIBILITY_POP
 

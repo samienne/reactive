@@ -49,7 +49,7 @@ namespace reactive
     using annotate_t = decltype(std::declval<const decay_t<T>&>().annotate());
 
     template <typename T, typename = void>
-    struct IsSignal : std::false_type {};
+    struct CheckSignal : std::false_type {};
 
     /**
      * updateBegin can only call updateBegin.
@@ -59,7 +59,7 @@ namespace reactive
      * frame parameter in updateEnd must match previously called updateBegin.
      */
     template <typename T>
-    struct IsSignal<T, btl::void_t<
+    struct CheckSignal<T, btl::void_t<
         evaluate_t<T>,
         updateBegin_t<T>,
         updateEnd_t<T>,
@@ -75,6 +75,12 @@ namespace reactive
             //std::is_nothrow_move_assignable<std::decay_t<T>>,
             btl::IsClonable<std::decay_t<T>>
         > {};
+
+    template <typename T>
+    struct IsSignal : std::conditional_t<
+        std::is_reference<T>::value,
+        IsSignal<std::decay_t<T>>,
+        std::false_type> {};
 
     template <typename T>
     struct IsSharedSignal :

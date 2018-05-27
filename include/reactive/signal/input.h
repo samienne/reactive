@@ -20,12 +20,24 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive
+{
+    namespace signal
+    {
+        template <typename T, typename TLock = btl::DummyLock>
+        class BTL_CLASS_VISIBLE InputSignal;
+    }
+
+    template <typename T, typename TLock>
+    struct IsSignal<signal::InputSignal<T, TLock>> : std::true_type {};
+}
+
 namespace reactive::signal
 {
     template <typename T, typename TLock = btl::DummyLock>
     struct BTL_CLASS_VISIBLE Input;
 
-    template <typename T, typename TLock = btl::DummyLock>
+    template <typename T, typename TLock>
     class BTL_CLASS_VISIBLE InputSignal
     {
     public:
@@ -116,9 +128,6 @@ namespace reactive::signal
         mutable btl::option<T> value_;
         bool changed_ = false;
     };
-
-    static_assert(IsSignal<InputSignal<int, btl::DummyLock>>::value,
-        "InputSignal is not a signal");
 
     template <typename T, typename TLock>
     struct BTL_CLASS_VISIBLE Input final

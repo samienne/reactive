@@ -23,6 +23,20 @@
 
 BTL_VISIBILITY_PUSH_HIDDEN
 
+namespace reactive
+{
+    namespace signal
+    {
+        template <template <typename> class TBase,
+                typename TFunc, typename... TSigs>
+        class BTL_CLASS_VISIBLE Map;
+    }
+
+    template <template <typename> class TBase,
+            typename TFunc, typename... TSigs>
+    struct IsSignal<signal::Map<TBase, TFunc, TSigs...>> : std::true_type {};
+}
+
 namespace reactive::signal
 {
     namespace detail
