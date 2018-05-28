@@ -164,7 +164,7 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<ase::Vector2f, widget::Theme>(draw, std::move(state),
+        | onDraw<SizeTag, ThemeTag>(draw, std::move(state),
                 std::move(focusPercentage))
         | widget::frame()
         | focusOn(std::move(requestFocus.stream))

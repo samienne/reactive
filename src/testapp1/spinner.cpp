@@ -46,7 +46,7 @@ WidgetFactory makeSpinner()
                 float a = 6.28f / 10.0f * (float) i;
                 drawing += avg::Drawing(std::move(shape))
                     .transform(avg::Transform()
-                            .translate(cos(a) * w, sin(a) * w));
+                            .translate(std::cos(a) * w, std::sin(a) * w));
             }
 
             /*drawing += makeShape(makeRect(200.0f, 20.0f),
@@ -61,7 +61,7 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | onDraw<ase::Vector2f, widget::Theme>(draw, std::move(t))
+        | onDraw<SizeTag, ThemeTag>(draw, std::move(t))
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)));
 }
 

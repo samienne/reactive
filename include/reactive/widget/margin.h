@@ -20,7 +20,7 @@ namespace reactive
         template <typename TSignalAmount>
         auto growSize(TSignalAmount amount)
         {
-            return makeWidgetMap<avg::Obb>(
+            return makeWidgetMap<ObbTag>(
                 [](avg::Obb const& obb, float amount) -> avg::Obb
                 {
                     auto size = obb.getSize();

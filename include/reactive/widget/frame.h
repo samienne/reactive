@@ -42,7 +42,7 @@ namespace reactive
 
             return
                 margin(signal::constant(5.0f))
-                >> mapFactoryWidget(onDrawBehind<avg::Vector2f, widget::Theme>(
+                >> mapFactoryWidget(onDrawBehind<SizeTag, ThemeTag>(
                             std::move(f)))
                 ;
         }

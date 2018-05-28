@@ -70,7 +70,7 @@ WidgetFactory makeTestWidget()
     //state.evaluate();
 
     return makeWidgetFactory()
-        | onDraw<ase::Vector2f, widget::Theme>(drawTestWidget,
+        | onDraw<SizeTag, ThemeTag>(drawTestWidget,
                 std::move(state), std::move(textState))
         | onClick(1, send(1, p.handle))
         | onClick(1, send(true, focus.handle))

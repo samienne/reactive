@@ -154,7 +154,7 @@ namespace reactive
     template <typename... Ts, typename TFunc, typename... Us, typename =
         btl::void_t<
             decltype(std::declval<TFunc>()(
-                        std::declval<Ts>()...,
+                        std::declval<typename Ts::Type>()...,
                         std::declval<SignalType<Us>>()...
                         )
                     )
