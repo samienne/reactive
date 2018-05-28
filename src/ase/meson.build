@@ -29,6 +29,7 @@ incdir = include_directories(
         )
 
 libasesrc = [
+        'genericwindow.cpp',
         'window.cpp',
         'rendercontext.cpp',
         'renderable.cpp',

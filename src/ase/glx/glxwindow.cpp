@@ -7,6 +7,7 @@
 #include "glxplatform.h"
 #include "glerror.h"
 
+#include "genericwindow.h"
 #include "windowimpl.h"
 #include "window.h"
 #include "rendertarget.h"
@@ -107,33 +108,13 @@ private:
     XID syncCounter_ = 0;
     int64_t counterValue_ = 0;
 
-    Vector2i size_;
+    GenericWindow genericWindow_;
+
     bool visible_ = false;
-    std::string title_;
     mutable bool dirty_ = true;
-
-    // Mouse handling
-    btl::option<Vector2f> previousMousePos_ = btl::none;
-    std::array<bool, 15> buttonPressedState_ = { {
-        false, false, false, false,
-        false, false, false, false,
-        false, false, false, false,
-        false, false, false
-    }};
-
-    bool hover_ = false;
 
     // Text input handling
     //XComposeStatus composeStatus_;
-
-    // Callbacks
-    std::function<void()> closeCallback_;
-    std::function<void()> resizeCallback_;
-    std::function<void()> redrawCallback_;
-    std::function<void(PointerButtonEvent const& e)> buttonCallback_;
-    std::function<void(PointerMoveEvent const& e)> pointerCallback_;
-    std::function<void(KeyEvent const& e)> keyCallback_;
-    std::function<void(HoverEvent const& e)> hoverCallback_;
 
     // Atoms
     Atom wmDelete_;
@@ -165,7 +146,7 @@ GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
         Vector2i const& size) :
     window_(&window),
     platform_(platform),
-    size_(size)
+    genericWindow_(size)
 {
     unsigned int width = size[0];
     unsigned int height = size[1];
@@ -297,7 +278,6 @@ void GlxWindowDeferred::destroy()
 GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     Window(std::make_shared<GlxWindowDeferred>(platform, *this, size))
 {
-    d()->size_ = size;
     Display* dpy = d()->platform_.getDisplay();
 
     {
@@ -321,44 +301,44 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 
 void GlxWindow::setCloseCallback(std::function<void()> func)
 {
-    d()->closeCallback_ = std::move(func);
+    d()->genericWindow_.setCloseCallback(std::move(func));
 }
 
 void GlxWindow::setResizeCallback(std::function<void()> func)
 {
-    d()->resizeCallback_ = std::move(func);
+    d()->genericWindow_.setResizeCallback(std::move(func));
 }
 
 void GlxWindow::setRedrawCallback(std::function<void()> func)
 {
-    d()->redrawCallback_ = std::move(func);
+    d()->genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void GlxWindow::setButtonCallback(
         std::function<void(PointerButtonEvent const& e)> cb)
 {
-    d()->buttonCallback_ = std::move(cb);
+    d()->genericWindow_.setButtonCallback(std::move(cb));
 }
 
 void GlxWindow::setPointerCallback(
         std::function<void(PointerMoveEvent const&)> cb)
 {
-    d()->pointerCallback_ = std::move(cb);
+    d()->genericWindow_.setPointerCallback(std::move(cb));
 }
 
 void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
-    d()->keyCallback_ = std::move(cb);
+    d()->genericWindow_.setKeyCallback(std::move(cb));
 }
 
 void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 {
-    d()->hoverCallback_ = std::move(cb);
+    d()->genericWindow_.setHoverCallback(std::move(cb));
 }
 
 Vector2i GlxWindow::getSize() const
 {
-    return d()->size_;
+    return d()->genericWindow_.getSize();
 }
 
 void GlxWindow::handleEvent(_XEvent const& e)
@@ -376,17 +356,12 @@ void GlxWindow::handleEvent(_XEvent const& e)
     {
     case Expose:
         if (event.xexpose.count == 0)
-        {
-            if (d()->redrawCallback_)
-                d()->redrawCallback_();
-        }
+            d()->genericWindow_.notifyRedraw();
         break;
     case ConfigureNotify:
-        //pos = Pos(event.xconfigure.x, event.xconfigure.y);
-        d()->size_ = Vector2i(event.xconfigure.width,
-                    event.xconfigure.height);
-        if (d()->resizeCallback_)
-            d()->resizeCallback_();
+        d()->genericWindow_.resize(
+                Vector2i(event.xconfigure.width, event.xconfigure.height)
+                );
         break;
 
     case ClientMessage:
@@ -394,8 +369,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 && static_cast<Atom>(event.xclient.data.l[0])
                 == d()->wmDelete_)
         {
-            if (d()->closeCallback_)
-                d()->closeCallback_();
+            d()->genericWindow_.notifyClose();
         }
         else if (event.xclient.message_type == d()->wmProtocols_
                 && static_cast<Atom>(event.xclient.data.l[0])
@@ -412,52 +386,35 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ButtonPress:
-        d()->buttonPressedState_[event.xbutton.button-1] = true;
+    {
+        Vector2f pos(
+                event.xbutton.x,
+                d()->genericWindow_.getHeight() - event.xbutton.y
+                );
 
-        d()->buttonCallback_(PointerButtonEvent
-                {
-                    0,
-                    event.xbutton.button,
-                    ButtonState::down,
-                    Vector2f(
-                            event.xbutton.x,
-                            d()->size_[1] - event.xbutton.y
-                            ),
-                });
+        d()->genericWindow_.injectPointerButtonEvent(
+                0, event.xbutton.button, pos, ButtonState::down);
+
         break;
+    }
     case ButtonRelease:
-        d()->buttonPressedState_[event.xbutton.button-1] = false;
+    {
+        Vector2f pos(
+                event.xbutton.x,
+                d()->genericWindow_.getHeight() - event.xbutton.y
+                );
 
-        d()->buttonCallback_(PointerButtonEvent
-                {
-                    0,
-                    event.xbutton.button,
-                    ButtonState::up,
-                    Vector2f(
-                            event.xbutton.x,
-                            d()->size_[1] - event.xbutton.y
-                            )
-                });
+        d()->genericWindow_.injectPointerButtonEvent(
+                0, event.xbutton.button, pos, ButtonState::up);
+
         break;
+    }
     case MotionNotify:
-        if (d()->pointerCallback_)
-        {
-            Vector2f rel(0.0f, 0.0f);
-            Vector2f pos(e.xmotion.x, d()->size_[1] - e.xmotion.y);
-
-            if (d()->previousMousePos_.valid())
-                rel = pos - *d()->previousMousePos_;
-
-            d()->previousMousePos_ = btl::just(pos);
-
-            d()->pointerCallback_(PointerMoveEvent
-                {
-                    pos,
-                    rel,
-                    d()->buttonPressedState_,
-                    d()->hover_
-                });
-        }
+        d()->genericWindow_.injectPointerMoveEvent(
+                0,
+                Vector2f(e.xmotion.x, d()->genericWindow_.getHeight() - e.xmotion.y)
+                );
+        break;
     case KeyPress:
         {
         KeySym keysym;
@@ -470,70 +427,42 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 sizeof(buf), &keysym, &status);
         buf[count] = 0;
 
-        d()->keyCallback_(KeyEvent(KeyState::down,
-                    static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                    mapXKeyStateToModifiers(event.xkey.state), buf));
+        d()->genericWindow_.injectKeyEvent(
+                KeyState::down,
+                static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                mapXKeyStateToModifiers(event.xkey.state),
+                buf
+                );
         }
         break;
     case KeyRelease:
         {
             XKeyEvent e = event.xkey;
-            d()->keyCallback_(KeyEvent(KeyState::up,
-                        static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                        mapXKeyStateToModifiers(event.xkey.state), ""));
+            d()->genericWindow_.injectKeyEvent(
+                    KeyState::up,
+                    static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                    mapXKeyStateToModifiers(event.xkey.state),
+                    ""
+                    );
         }
         break;
     case PropertyNotify:
     case ReparentNotify:
     case MapNotify:
+        break;
     case EnterNotify:
-        d()->hover_ = true;
-        if (d()->pointerCallback_)
-        {
-            Vector2f rel(0.0f, 0.0f);
-            Vector2f pos(e.xcrossing.x, d()->size_[1] - e.xcrossing.y);
-
-            if (d()->previousMousePos_.valid())
-                rel = pos - *d()->previousMousePos_;
-
-            d()->previousMousePos_ = btl::just(pos);
-
-            d()->pointerCallback_(PointerMoveEvent
-                {
-                    pos,
-                    rel,
-                    d()->buttonPressedState_,
-                    d()->hover_
-                });
-        }
-
-        if (d()->hoverCallback_)
-            d()->hoverCallback_(HoverEvent{ true });
-
+        d()->genericWindow_.injectHoverEvent(
+                0,
+                Vector2f(e.xcrossing.x, d()->genericWindow_.getHeight() - e.xcrossing.y),
+                true
+                );
         break;
     case LeaveNotify:
-        d()->hover_ = false;
-        if (d()->pointerCallback_)
-        {
-            Vector2f rel(0.0f, 0.0f);
-            Vector2f pos(e.xcrossing.x, d()->size_[1] - e.xcrossing.y);
-
-            if (d()->previousMousePos_.valid())
-                rel = pos - *d()->previousMousePos_;
-
-            d()->previousMousePos_ = btl::just(pos);
-
-            d()->pointerCallback_(PointerMoveEvent
-                {
-                    pos,
-                    rel,
-                    d()->buttonPressedState_,
-                    d()->hover_
-                });
-        }
-        if (d()->hoverCallback_)
-            d()->hoverCallback_(HoverEvent{ false });
-
+        d()->genericWindow_.injectHoverEvent(
+                0,
+                Vector2f(e.xcrossing.x, d()->genericWindow_.getHeight() - e.xcrossing.y),
+                false
+                );
         break;
     default:
         DBG("Default %1", event.type);
@@ -591,18 +520,18 @@ bool GlxWindowDeferred::isVisible() const
 
 void GlxWindowDeferred::setTitle(std::string&& title)
 {
-    if (title_ == title)
+    if (genericWindow_.getTitle() == title)
         return;
 
-    title_ = title;
+    genericWindow_.setTitle(title);
 
     Lock lock(platform_.lockX());
-    XStoreName(platform_.getDisplay(), xWin_, title_.c_str());
+    XStoreName(platform_.getDisplay(), xWin_, genericWindow_.getTitle().c_str());
 }
 
 std::string const& GlxWindowDeferred::getTitle() const
 {
-    return title_;
+    return genericWindow_.getTitle();
 }
 
 void GlxWindowDeferred::clear()
@@ -617,7 +546,7 @@ void GlxWindowDeferred::makeCurrent(Dispatched,
     glxContext.getContext().makeCurrent(platform_.lockX(), glxWin_);
     GlFramebuffer fb = GlFramebuffer();
     fb.makeCurrent(Dispatched(), glxContext);
-    glxContext.setViewport(Dispatched(), size_);
+    glxContext.setViewport(Dispatched(), genericWindow_.getSize());
     if (dirty_)
     {
         glClearColor(0.0, 0.0, 0.0, 1.0);
@@ -634,7 +563,7 @@ bool GlxWindowDeferred::isComplete() const
 
 Vector2i GlxWindowDeferred::getResolution() const
 {
-    return size_;
+    return genericWindow_.getSize();
 }
 
 void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const
