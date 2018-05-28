@@ -32,7 +32,7 @@ namespace reactive
     >
     auto addDrawings(TSignalDrawings drawings)
     {
-        return makeWidgetMap<avg::Obb, avg::Drawing>(
+        return makeWidgetMap<ObbTag, DrawingTag>(
                 []
                 (avg::Obb const& obb, auto d1, auto drawings)
                 //-> std::tuple<avg::Obb, avg::Drawing>
@@ -56,14 +56,14 @@ namespace reactive
              typename = std::enable_if_t
         <
             std::is_assignable<
-                std::function<avg::Drawing(Ts..., SignalType<Us>...)>,
+                std::function<avg::Drawing(typename Ts::Type..., SignalType<Us>...)>,
                 TFunc
             >::value
         >
     >
     auto onDraw(TFunc&& func, Us... us)
     {
-        return makeWidgetMap<avg::Drawing, avg::Obb, Ts...>(
+        return makeWidgetMap<DrawingTag, ObbTag, Ts...>(
                 [func=std::forward<TFunc>(func)]
                 (auto d1, avg::Obb const& obb, auto&&... ts) -> avg::Drawing
                 {
@@ -81,14 +81,14 @@ namespace reactive
              typename = std::enable_if_t
         <
             std::is_assignable<
-                std::function<avg::Drawing(Ts..., SignalType<Us>...)>,
+                std::function<avg::Drawing(typename Ts::Type..., SignalType<Us>...)>,
                 TFunc
             >::value
         >
     >
     auto onDrawBehind(TFunc&& func, Us... us)
     {
-        return makeWidgetMap<avg::Drawing, avg::Obb, Ts...>(
+        return makeWidgetMap<DrawingTag, ObbTag, Ts...>(
                 [func=std::forward<TFunc>(func)]
                 (auto d1, avg::Obb const& obb, auto&&... ts) -> avg::Drawing
                 {
@@ -117,14 +117,14 @@ namespace reactive
     inline auto background(Signal<avg::Brush> brush)
         // -> FactoryMap;
     {
-        return onDrawBehind<avg::Vector2f>(
+        return onDrawBehind<SizeTag>(
                     drawBackground, std::move(brush));
     }
 
     inline auto background()
         // -> FactoryMap;
     {
-        return onDrawBehind<avg::Vector2f, widget::Theme>(
+        return onDrawBehind<SizeTag, ThemeTag>(
                 [](auto size, auto const& theme)
                 {
                     return drawBackground(size, theme.getBackground());
@@ -137,7 +137,7 @@ namespace reactive
     {
         btl::UniqueId id = btl::makeUniqueId();
 
-        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+        return makeWidgetMap<InputAreaTag, ObbTag>(
             [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
@@ -177,7 +177,7 @@ namespace reactive
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+        return makeWidgetMap<InputAreaTag, ObbTag>(
             [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
@@ -218,7 +218,7 @@ namespace reactive
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+        return makeWidgetMap<InputAreaTag, ObbTag>(
             [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
@@ -253,7 +253,7 @@ namespace reactive
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap<std::vector<InputArea>, avg::Obb>(
+        return makeWidgetMap<InputAreaTag, ObbTag>(
             [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
             -> std::vector<InputArea>
             {
@@ -286,7 +286,7 @@ namespace reactive
     template <typename TSignalHandler>
     auto onKeyEvent(TSignalHandler handler)
     {
-        return makeWidgetMap<std::vector<KeyboardInput>>([]
+        return makeWidgetMap<KeyboardInputTag>([]
                 (auto inputs, auto const& handler)
                 -> std::vector<KeyboardInput>
                 {
@@ -521,7 +521,7 @@ namespace reactive
     >
     auto setFocusable(TSignalBool focusable)
     {
-        return makeWidgetMap<std::vector<KeyboardInput>>(
+        return makeWidgetMap<KeyboardInputTag>(
                 []
                 (std::vector<KeyboardInput> inputs, bool focusable)
                 -> std::vector<KeyboardInput>
@@ -539,7 +539,7 @@ namespace reactive
     >
     auto requestFocus(TSignalBool requestFocus)
     {
-        return makeWidgetMap<std::vector<KeyboardInput>>(
+        return makeWidgetMap<KeyboardInputTag>(
                 []
                 (std::vector<KeyboardInput> inputs, bool requestFocus)
                 -> std::vector<KeyboardInput>

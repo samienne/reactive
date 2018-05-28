@@ -30,31 +30,6 @@ namespace btl
 
         struct TupleReduce
         {
-#if 0
-            template <typename TFunc, typename U, typename T, typename... Ts>
-            auto operator()(TFunc&& func, U&& initial, T&& t, Ts&&... ts) const
-                /*-> decltype(
-                        (*this)(
-                            std::forward<TFunc>(func),
-                            func(std::forward<U>(initial), std::forward<T>(t)),
-                            std::forward<Ts>(ts)...
-                            )
-                        )*/
-            {
-                return (*this)(
-                        std::forward<TFunc>(func),
-                        func(std::forward<U>(initial), std::forward<T>(t)),
-                        std::forward<Ts>(ts)...
-                        );
-            }
-
-            template <typename TFunc, typename U>
-            auto operator()(TFunc&&, U&& initial) const
-                -> std::decay_t<U>
-            {
-                return std::forward<U>(initial);
-            }
-#endif
             template <typename TFunc, typename U, typename... Ts>
             BTL_FORCE_INLINE auto operator()(TFunc&& func, U&& initial, Ts&&... ts) const
             {
@@ -90,6 +65,7 @@ namespace btl
                         ),
                     std::forward<TTuple>(tuple)
                     );
+
         return apply(detail::TupleReduce(),
                 std::move(tt)
                 );

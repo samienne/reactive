@@ -51,7 +51,7 @@ WidgetFactory label(SharedSignal<std::string> text)
     auto theme = signal::input(Theme());
 
     return makeWidgetFactory()
-        | onDraw<avg::Obb, widget::Theme>(draw, text)
+        | onDraw<reactive::ObbTag, reactive::ThemeTag>(draw, text)
         | trackTheme(theme.handle)
         | setSizeHint(signal::map(getSizeHint, text,
                     std::move(theme.signal)))

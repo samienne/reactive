@@ -116,7 +116,7 @@ TEST(Widget, makeWidgetMap)
     auto w =
         reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
 
-    auto m = reactive::makeWidgetMap<avg::Obb>([](avg::Obb)
+    auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
         return avg::Drawing();
     });
@@ -133,7 +133,7 @@ TEST(Widget, makeWidgetMapTuple)
     auto w =
         reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
 
-    auto m = reactive::makeWidgetMap<avg::Obb>([](avg::Obb)
+    auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
         return std::make_tuple(
             avg::Drawing(),
@@ -173,14 +173,14 @@ TEST(Widget, operatorPipe)
         reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
 
     auto w2 = std::move(w)
-        | makeWidgetMap<ase::Vector2f>([](auto)
+        | makeWidgetMap<SizeTag>([](auto)
         {
             return std::make_tuple(
                 avg::Obb(ase::Vector2f(10.0f, 20.0f)),
                 avg::Drawing()
                 );
         })
-        | makeWidgetMap<widget::Theme>([](auto)
+        | makeWidgetMap<ThemeTag>([](auto)
         {
             return avg::Drawing();
         })

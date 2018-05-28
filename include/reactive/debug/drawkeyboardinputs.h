@@ -30,7 +30,7 @@ namespace reactive
 
         inline auto drawKeyboardInputs()
         {
-            return onDraw<std::vector<KeyboardInput>>([]
+            return onDraw<KeyboardInputTag>([]
                 (auto const& inputs)
             {
                 avg::Drawing result;
