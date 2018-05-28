@@ -100,6 +100,15 @@ void GenericWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
         hoverCallback_(HoverEvent{ state });
 }
 
+void GenericWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
+        uint32_t modifiers, std::string text)
+{
+    if (!keyCallback_)
+        return;
+
+    keyCallback_(KeyEvent(keyState, keyCode, modifiers, std::move(text)));
+}
+
 void GenericWindow::setCloseCallback(std::function<void()> func)
 {
     closeCallback_ = std::move(func);

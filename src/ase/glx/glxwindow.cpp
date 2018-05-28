@@ -116,12 +116,6 @@ private:
     // Text input handling
     //XComposeStatus composeStatus_;
 
-    // Callbacks
-    std::function<void(PointerButtonEvent const& e)> buttonCallback_;
-    std::function<void(PointerMoveEvent const& e)> pointerCallback_;
-    std::function<void(KeyEvent const& e)> keyCallback_;
-    std::function<void(HoverEvent const& e)> hoverCallback_;
-
     // Atoms
     Atom wmDelete_;
     Atom wmProtocols_;
@@ -433,23 +427,23 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 sizeof(buf), &keysym, &status);
         buf[count] = 0;
 
-        if (d()->keyCallback_)
-        {
-            d()->keyCallback_(KeyEvent(KeyState::down,
-                        static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                        mapXKeyStateToModifiers(event.xkey.state), buf));
-        }
+        d()->genericWindow_.injectKeyEvent(
+                KeyState::down,
+                static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                mapXKeyStateToModifiers(event.xkey.state),
+                buf
+                );
         }
         break;
     case KeyRelease:
         {
             XKeyEvent e = event.xkey;
-            if (d()->keyCallback_)
-            {
-                d()->keyCallback_(KeyEvent(KeyState::up,
-                            static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                            mapXKeyStateToModifiers(event.xkey.state), ""));
-            }
+            d()->genericWindow_.injectKeyEvent(
+                    KeyState::up,
+                    static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                    mapXKeyStateToModifiers(event.xkey.state),
+                    ""
+                    );
         }
         break;
     case PropertyNotify:

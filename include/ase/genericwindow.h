@@ -37,6 +37,8 @@ namespace ase
         void injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos);
         void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
                 bool state);
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text);
 
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
