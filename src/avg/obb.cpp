@@ -61,14 +61,13 @@ Obb Obb::setSize(Vector2f size) const
 
 Obb Obb::operator+(Obb const& obb) const
 {
-    auto t = transform_.inverse();
-    auto t2 = obb.transform_;
+    auto t = transform_.inverse() * obb.transform_;
 
     Vector2f ps[] = {
-        t * t2 * Vector2f(0.0f, 0.0f),
-        t * t2 * Vector2f(obb.size_[0], 0.0f),
-        t * t2 * Vector2f(*obb.size_),
-        t * t2 * Vector2f(0.0f, obb.size_[1])
+        t * Vector2f(0.0f, 0.0f),
+        t * Vector2f(obb.size_[0], 0.0f),
+        t * Vector2f(*obb.size_),
+        t * Vector2f(0.0f, obb.size_[1])
     };
 
     float width = size_[0];

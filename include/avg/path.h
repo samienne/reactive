@@ -6,6 +6,7 @@
 #include "transform.h"
 #include "pathspec.h"
 #include "vector.h"
+#include "rect.h"
 
 #include <btl/hash.h>
 #include <btl/visibility.h>
@@ -28,14 +29,14 @@ namespace avg
         Path(PathSpec&& pathSpec);
         Path(PathSpec const& pathSpec);
         Path(Path const&) = default;
-        Path(Path&&) = default;
+        Path(Path&&) noexcept = default;
         ~Path();
 
         bool operator==(Path const& rhs) const;
         bool operator!=(Path const& rhs) const;
 
         Path& operator=(Path const&) = default;
-        Path& operator=(Path&&) = default;
+        Path& operator=(Path&&) noexcept = default;
 
         Path operator+(Path const& rhs) const;
         Path operator+(Vector2f delta) const;
@@ -52,6 +53,8 @@ namespace avg
                 size_t resPerPixel = 100) const;
         Region offsetRegion(JoinType join, EndType end, float width,
                 Vector2f pixelSize, size_t resPerPixel = 100) const;
+
+        Rect getControlBb() const;
 
         template <class THash>
         friend void hash_append(THash& h, Path const& path) noexcept
@@ -80,6 +83,7 @@ namespace avg
         inline PathDeferred const* d() const { return deferred_.get(); }
 
         Transform transform_;
+        Rect controlBb_;
     };
 
 }

@@ -3,6 +3,7 @@
 #include "region.h"
 #include "simplepolygon.h"
 #include "transform.h"
+#include "rect.h"
 #include "debug.h"
 
 #include <ase/buffer.h>
@@ -11,6 +12,30 @@
 
 namespace avg
 {
+
+namespace
+{
+    Rect calculateBb(std::vector<Vector2f> const& vec)
+    {
+        if (vec.empty())
+            return Rect();
+
+        float x1 = vec[0].x();
+        float x2 = vec[0].x();
+        float y1 = vec[0].y();
+        float y2 = vec[0].y();
+
+        for (auto const& v : vec)
+        {
+            x1 = std::min(x1, v.x());
+            x2 = std::max(x2, v.x());
+            y1 = std::min(y1, v.y());
+            y2 = std::max(y2, v.y());
+        }
+
+        return Rect(Vector2f(x1, y1), Vector2f(x2-x1, y2-y1));
+    }
+} // anonyous namespace
 
 class PathDeferred
 {
@@ -47,6 +72,7 @@ public:
 public:
     std::vector<Path::SegmentType> segments_;
     std::vector<Vector2f> vertices_;
+    Rect controlBb_;
 };
 
 Vector2i PathDeferred::toIVec(Vector2f v, Vector2f pixelSize,
@@ -240,6 +266,7 @@ Path::Path(PathSpec&& pathSpec) :
 {
     d()->segments_ = std::move(pathSpec.segments_);
     d()->vertices_ = std::move(pathSpec.vertices_);
+    d()->controlBb_ = calculateBb(d()->vertices_);
 }
 
 Path::Path(PathSpec const& pathSpec) :
@@ -313,14 +340,14 @@ Path Path::operator+(Path const& rhs) const
         segments.push_back(*i);
 
     for (auto i = d()->vertices_.begin(); i != d()->vertices_.end(); ++i)
-        vertices.push_back(*i);
+        vertices.push_back(transform_ * (*i));
 
     Transform combined = transform_.inverse() * rhs.transform_;
     for (auto i = rhs.d()->vertices_.begin(); i != rhs.d()->vertices_.end();
             ++i)
-        vertices.push_back(combined * (*i));
+        vertices.push_back(rhs.transform_ * (*i));
 
-    Path p = transform_ * Path(std::move(segments), std::move(vertices));
+    Path p = Path(std::move(segments), std::move(vertices));
     return p;
 }
 
@@ -395,12 +422,18 @@ Region Path::offsetRegion(JoinType join, EndType end, float width,
             resPerPixel);
 }
 
+Rect Path::getControlBb() const
+{
+    return transform_ * d()->controlBb_;
+}
+
 Path::Path(std::vector<SegmentType>&& segments,
         std::vector<Vector2f>&& vertices) :
     deferred_(std::make_shared<PathDeferred>())
 {
     d()->segments_ = std::move(segments);
     d()->vertices_ = std::move(vertices);
+    d()->controlBb_ = calculateBb(d()->vertices_);
 }
 
 void Path::ensureUniqueness()
@@ -421,6 +454,7 @@ std::vector<Path::SegmentType> const& Path::getSegments() const
         static const std::vector<Path::SegmentType> empty;
         return empty;
     }
+
     return d()->segments_;
 }
 
@@ -431,6 +465,7 @@ std::vector<Vector2f> const& Path::getVertices() const
         static const std::vector<Vector2f> empty;
         return empty;
     }
+
     return d()->vertices_;
 }
 
