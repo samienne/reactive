@@ -41,6 +41,8 @@ namespace avg
 
         bool contains(Vector2f pos) const;
 
+        Rect scaled(float scale) const;
+
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)
         {
             return stream << "Rect{"

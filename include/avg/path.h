@@ -55,6 +55,7 @@ namespace avg
                 Vector2f pixelSize, size_t resPerPixel = 100) const;
 
         Rect getControlBb() const;
+        Obb getControlObb() const;
 
         template <class THash>
         friend void hash_append(THash& h, Path const& path) noexcept

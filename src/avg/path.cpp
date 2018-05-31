@@ -5,6 +5,7 @@
 #include "simplepolygon.h"
 #include "transform.h"
 #include "rect.h"
+#include "calculatebounds.h"
 #include "debug.h"
 
 #include <ase/buffer.h>
@@ -13,30 +14,6 @@
 
 namespace avg
 {
-
-namespace
-{
-    Rect calculateBb(std::vector<Vector2f> const& vec)
-    {
-        if (vec.empty())
-            return Rect();
-
-        float x1 = vec[0].x();
-        float x2 = vec[0].x();
-        float y1 = vec[0].y();
-        float y2 = vec[0].y();
-
-        for (auto const& v : vec)
-        {
-            x1 = std::min(x1, v.x());
-            x2 = std::max(x2, v.x());
-            y1 = std::min(y1, v.y());
-            y2 = std::max(y2, v.y());
-        }
-
-        return Rect(Vector2f(x1, y1), Vector2f(x2-x1, y2-y1));
-    }
-} // anonyous namespace
 
 class PathDeferred
 {
@@ -267,7 +244,7 @@ Path::Path(PathSpec&& pathSpec) :
 {
     d()->segments_ = std::move(pathSpec.segments_);
     d()->vertices_ = std::move(pathSpec.vertices_);
-    d()->controlBb_ = calculateBb(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->vertices_);
 }
 
 Path::Path(PathSpec const& pathSpec) :
@@ -425,10 +402,18 @@ Region Path::offsetRegion(JoinType join, EndType end, float width,
 
 Rect Path::getControlBb() const
 {
-    if (!d())
+    if (isEmpty())
         return Rect();
 
-    return (transform_ * Obb(d()->controlBb_)).getBoundingRect();
+    return getControlObb().getBoundingRect();
+}
+
+Obb Path::getControlObb() const
+{
+    if (!d())
+        return Obb();
+
+    return transform_ * Obb(d()->controlBb_);
 }
 
 Path::Path(std::vector<SegmentType>&& segments,
@@ -437,7 +422,7 @@ Path::Path(std::vector<SegmentType>&& segments,
 {
     d()->segments_ = std::move(segments);
     d()->vertices_ = std::move(vertices);
-    d()->controlBb_ = calculateBb(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->vertices_);
 }
 
 void Path::ensureUniqueness()

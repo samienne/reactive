@@ -90,6 +90,11 @@ bool Rect::isEmpty() const
     return size_[0] < 0.0f || size_[1] < 0.0f;
 }
 
+Rect Rect::scaled(float scale) const
+{
+    return Rect(scale * (*bottomLeft_), scale * (*size_));
+}
+
 bool Rect::contains(Vector2f pos) const
 {
     if (isEmpty())

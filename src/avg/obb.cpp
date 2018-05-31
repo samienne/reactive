@@ -15,10 +15,13 @@ Obb::Obb(Vector2f size) :
 {
 }
 
-Obb::Obb(Rect const& r) :
-    transform_(Transform().translate(r.getBottomLeft())),
-    size_(r.getSize())
+Obb::Obb(Rect const& r) : Obb()
 {
+    if (r.isEmpty())
+        return;
+
+    transform_ = Transform().translate(r.getBottomLeft());
+    size_ = r.getSize();
 }
 
 bool Obb::contains(Vector2f p) const

@@ -1,5 +1,7 @@
 #include "shape.h"
 
+#include "obb.h"
+
 namespace avg
 {
 
@@ -50,6 +52,16 @@ btl::option<Pen> const& Shape::getPen() const
 btl::option<Brush> const& Shape::getBrush() const
 {
     return brush_;
+}
+
+Rect Shape::getControlBb() const
+{
+    return path_.getControlBb();
+}
+
+Obb Shape::getControlObb() const
+{
+    return path_.getControlBb();
 }
 
 Shape Shape::operator*(float scale) const &

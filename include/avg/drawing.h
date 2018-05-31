@@ -46,6 +46,7 @@ namespace avg
         bool operator>(Drawing const& rhs) const;
 
         std::vector<Element> const& getElements() const;
+        Rect getControlBb() const;
 
         Drawing transform(Transform const& t) &&;
 
@@ -53,6 +54,7 @@ namespace avg
 
     private:
         std::vector<Element> elements_;
+        Rect controlBb_;
     };
 }
 
