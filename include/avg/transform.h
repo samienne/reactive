@@ -29,15 +29,16 @@ namespace avg
         Transform& operator=(Transform const&) = default;
         Transform& operator=(Transform&&) noexcept = default;
 
-        inline Transform&& scale(float scale) &&;
-        inline Transform&& rotate(float angle) &&;
-        inline Transform&& translate(Vector2f v) &&;
-        inline Transform&& translate(float x, float y) &&;
+        inline Transform scale(float scale);
+        inline Transform rotate(float angle);
+        inline Transform rotateAround(Vector2f p, float angle);
+        inline Transform translate(Vector2f v);
+        inline Transform translate(float x, float y);
 
-        inline Transform&& setScale(float scale) &&;
-        inline Transform&& setRotation(float rotation) &&;
-        inline Transform&& setTranslation(Vector2f v) &&;
-        inline Transform&& setTranslation(float x, float y) &&;
+        inline Transform setScale(float scale);
+        inline Transform setRotation(float rotation);
+        inline Transform setTranslation(Vector2f v);
+        inline Transform setTranslation(float x, float y);
 
         inline float getScale() const;
         inline float getRotation() const;
@@ -77,49 +78,67 @@ namespace avg
     {
     }
 
-    inline Transform&& Transform::scale(float scale) &&
+    inline Transform Transform::scale(float scale)
     {
         *translation_ *= scale;
         scale_ *= scale;
         return std::move(*this);
     }
 
-    inline Transform&& Transform::rotate(float angle) &&
+    inline Transform Transform::rotate(float angle)
     {
         return std::move(*this).setRotation(rotation_ + angle);
     }
 
-    inline Transform&& Transform::translate(Vector2f v) &&
+    inline Transform Transform::rotateAround(Vector2f p, float angle)
     {
-        *translation_ += v;
+        return std::move(*this)
+            .translate(p)
+            .rotate(angle)
+            .translate(-p)
+            ;
+    }
+
+    inline Transform Transform::translate(Vector2f v)
+    {
+        float cosA = std::cos(rotation_);
+        float sinA = std::sin(rotation_);
+
+        Vector2f rotated(
+                v[0] * cosA + v[1] * -sinA,
+                v[0] * sinA + v[1] * cosA
+                );
+
+        *translation_ += rotated;
+
         return std::move(*this);
     }
 
-    inline Transform&& Transform::translate(float x, float y) &&
+    inline Transform Transform::translate(float x, float y)
     {
         return std::move(*this).translate(Vector2f(x, y));
     }
 
-    inline Transform&& Transform::setScale(float scale) &&
+    inline Transform Transform::setScale(float scale)
     {
         scale_ = scale;
         return std::move(*this);
     }
 
-    inline Transform&& Transform::setRotation(float rotation) &&
+    inline Transform Transform::setRotation(float rotation)
     {
         float const pi = 3.1415927f;
         rotation_ = std::fmod(rotation + pi, 2.0f * pi) - pi;
         return std::move(*this);
     }
 
-    inline Transform&& Transform::setTranslation(Vector2f v) &&
+    inline Transform Transform::setTranslation(Vector2f v)
     {
         translation_ = v;
         return std::move(*this);
     }
 
-    inline Transform&& Transform::setTranslation(float x, float y) &&
+    inline Transform Transform::setTranslation(float x, float y)
     {
         return std::move(*this).setTranslation(Vector2f(x, y));
     }
@@ -147,8 +166,11 @@ namespace avg
         float cosA = std::cos(rotation_);
         float sinA = std::sin(rotation_);
 
-        Vector2f rotated(rhs[0] * cosA + rhs[1] * -sinA,
-                rhs[0] * sinA + rhs[1] * cosA);
+        Vector2f rotated(
+                rhs[0] * cosA + rhs[1] * -sinA,
+                rhs[0] * sinA + rhs[1] * cosA
+                );
+
         return *translation_ + scale_ * rotated;
     }
 
@@ -161,8 +183,8 @@ namespace avg
         // s' = s1 * s2
         // r' = r1 + r2
 
-        float cosA = std::cos(rhs.rotation_);
-        float sinA = std::sin(rhs.rotation_);
+        float cosA = std::cos(rotation_);
+        float sinA = std::sin(rotation_);
         auto translation = Vector2f(
                 rhs.translation_[0] * cosA + rhs.translation_[1] * -sinA,
                 rhs.translation_[0] * sinA + rhs.translation_[1] * cosA);

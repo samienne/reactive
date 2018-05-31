@@ -10,6 +10,8 @@
 
 namespace avg
 {
+    class Obb;
+
     class BTL_VISIBLE Rect
     {
     public:
@@ -41,10 +43,10 @@ namespace avg
 
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)
         {
-            return stream << "Rect{" << r.size_[0] << "x" << r.size_[1] << "}";
+            return stream << "Rect{"
+                << r.getLeft() << "," << r.getBottom() << " "
+                << r.size_[0] << "x" << r.size_[1] << "}";
         }
-
-        friend Rect operator*(Transform t, Rect const& r);
 
         Rect include(Vector2f point) const;
 

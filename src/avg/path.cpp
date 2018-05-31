@@ -1,5 +1,6 @@
 #include "path.h"
 
+#include "obb.h"
 #include "region.h"
 #include "simplepolygon.h"
 #include "transform.h"
@@ -424,7 +425,10 @@ Region Path::offsetRegion(JoinType join, EndType end, float width,
 
 Rect Path::getControlBb() const
 {
-    return transform_ * d()->controlBb_;
+    if (!d())
+        return Rect();
+
+    return (transform_ * Obb(d()->controlBb_)).getBoundingRect();
 }
 
 Path::Path(std::vector<SegmentType>&& segments,

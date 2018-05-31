@@ -1,11 +1,15 @@
 #include <avg/path.h>
 #include <avg/pathspec.h>
+#include <avg/obb.h>
+
 #include <ase/vector.h>
 
 #include <gtest/gtest.h>
 
 #include <iostream>
 #include <utility>
+
+using namespace avg;
 
 TEST(Path, Construct)
 {
@@ -147,5 +151,57 @@ TEST(Path, SpecAssignToSelfModified)
 
     avg::Path p(pathSpec);
     EXPECT_FALSE(p.isEmpty());
+}
+
+TEST(Path, emptyPathShouldHaveEmptyBoundingBox)
+{
+    avg::Path p;
+
+    EXPECT_TRUE(p.getControlBb().isEmpty());
+}
+
+TEST(Path, aPathShouldHaveValidBoundingBox)
+{
+    avg::Path p(avg::PathSpec()
+            .start(avg::Vector2f(5.0f, 7.0f))
+            .lineTo(avg::Vector2f(10.0f, 12.0f))
+            .close()
+            );
+
+    auto r = p.getControlBb();
+
+    EXPECT_FALSE(r.isEmpty());
+
+    EXPECT_EQ(5.0f, r.getLeft());
+    EXPECT_EQ(7.0f, r.getBottom());
+    EXPECT_EQ(10.0f, r.getRight());
+    EXPECT_EQ(12.0f, r.getTop());
+
+}
+
+TEST(Path, rotatedPathShouldHaveLargerBoundingBox)
+{
+    float const pi = 3.1415927f;
+
+    avg::Path p(avg::PathSpec()
+            .start(avg::Vector2f(5.0f, 7.0f))
+            .lineTo(avg::Vector2f(10.0f, 12.0f))
+            .close()
+            );
+
+    auto r1 = p.getControlBb();
+
+    auto t = avg::Transform()
+        .rotateAround(r1.getCenter(), pi / 1.0f)
+        ;
+
+    auto p2 = t * p;
+
+    auto r2 = p2.getControlBb();
+
+    EXPECT_GE(r2.getRight(), r1.getRight());
+    EXPECT_GE(r2.getTop(), r1.getTop());
+    EXPECT_LE(r2.getLeft(), r1.getLeft());
+    EXPECT_LE(r2.getBottom(), r1.getBottom());
 }
 

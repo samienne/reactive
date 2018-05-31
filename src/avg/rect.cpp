@@ -3,7 +3,9 @@
 namespace avg
 {
 
-Rect::Rect()
+Rect::Rect() :
+    bottomLeft_(Vector2f(0.0f, 0.0f)),
+    size_(Vector2f(-1.0f, -1.0f))
 {
 }
 
@@ -40,6 +42,9 @@ Vector2f Rect::getTopLeft() const
 
 Vector2f Rect::getSize() const
 {
+    if (isEmpty())
+        return Vector2f(0.0f, 0.0f);
+
     return *size_;
 }
 
@@ -92,21 +97,6 @@ bool Rect::contains(Vector2f pos) const
 
     return pos[0] >= getLeft() && pos[0] <= getRight()
         && pos[1] >= getBottom() && pos[1] <= getTop();
-}
-
-Rect operator*(Transform t, Rect const& r)
-{
-    Vector2f v1(t * r.getBottomLeft());
-    Vector2f v2(t * r.getBottomRight());
-    Vector2f v3(t * r.getTopLeft());
-    Vector2f v4(v2 + (v2-v3));
-
-    float x1 = std::min(std::min(std::min(v1.x(), v2.x()), v3.x()), v4.x());
-    float y1 = std::min(std::min(std::min(v1.y(), v2.y()), v3.y()), v4.y());
-    float x2 = std::max(std::max(std::max(v1.x(), v2.x()), v3.x()), v4.x());
-    float y2 = std::max(std::max(std::max(v1.y(), v2.y()), v3.y()), v4.y());
-
-    return Rect(Vector2f(x1, y1), Vector2f(x2-x1, y2-y1));
 }
 
 Rect Rect::include(Vector2f point) const
