@@ -48,6 +48,8 @@ namespace avg
         std::vector<Element> const& getElements() const;
         Rect getControlBb() const;
 
+        Drawing filterByRect(Rect const& r) &&;
+
         Drawing transform(Transform const& t) &&;
 
         BTL_VISIBLE friend Drawing operator*(Transform const& t, Drawing&& drawing);

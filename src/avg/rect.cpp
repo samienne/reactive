@@ -104,6 +104,15 @@ bool Rect::contains(Vector2f pos) const
         && pos[1] >= getBottom() && pos[1] <= getTop();
 }
 
+bool Rect::overlaps(Rect const& r) const
+{
+    if (isEmpty() || r.isEmpty())
+        return false;
+
+    return getLeft() < r.getRight() && getRight() > r.getLeft()
+        && getTop() > r.getBottom() && getBottom() < r.getTop();
+}
+
 Rect Rect::include(Vector2f point) const
 {
     if (isEmpty())

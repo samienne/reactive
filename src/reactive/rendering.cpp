@@ -191,9 +191,19 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
     return result;
 }
 
+avg::Rect getElementRect(avg::Drawing::Element const& e)
+{
+    if (e.is<avg::Shape>())
+        return e.get<avg::Shape>().getControlBb();
+    else if(e.is<avg::TextEntry>())
+        return e.get<avg::TextEntry>().getControlBb();
+    else
+        assert(false);
+}
+
 std::pair<std::vector<avg::SoftMesh>, RenderCache> generateMeshes(
         RenderCache const& cache, avg::Painter const& /*painter*/,
-        avg::Drawing const& drawing)
+        avg::Drawing const& drawing, avg::Rect const& rect)
 {
     RenderCache newCache;
     auto const& elements = drawing.getElements();
@@ -209,6 +219,9 @@ std::pair<std::vector<avg::SoftMesh>, RenderCache> generateMeshes(
 
     for (auto const& element : elements)
     {
+        if (!getElementRect(element).overlaps(rect))
+            continue;
+
         std::vector<avg::SoftMesh> elementMeshes;
         auto i = cache.find(element);
         if (i != cache.end())
@@ -332,7 +345,12 @@ RenderCache render(ase::RenderContext& context, RenderCache const& cache,
         ase::RenderTarget& target, avg::Painter const& painter,
         avg::Drawing const& drawing)
 {
-    auto r = generateMeshes(cache, painter, drawing);
+    avg::Rect rect(
+            avg::Vector2f(0.0f, 0.0f),
+            avg::Vector2f(target.getResolution()[0], target.getResolution()[1])
+            );
+
+    auto r = generateMeshes(cache, painter, drawing, rect);
     auto& newCache = r.second;
     auto& meshes = r.first;
 

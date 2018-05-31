@@ -41,6 +41,8 @@ namespace avg
 
         bool contains(Vector2f pos) const;
 
+        bool overlaps(Rect const& r) const;
+
         Rect scaled(float scale) const;
 
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)

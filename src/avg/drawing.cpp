@@ -208,6 +208,24 @@ Rect Drawing::getControlBb() const
     return controlBb_;
 }
 
+Drawing Drawing::filterByRect(Rect const& r) &&
+{
+    elements_.erase(
+            std::remove_if(
+                elements_.begin(),
+                elements_.end(),
+                [&r](Element const& e)
+                {
+                    return !getElementRect(e).overlaps(r);
+                }),
+            elements_.end()
+            );
+
+    controlBb_ = combineDrawingRects(elements_);
+
+    return std::move(*this);
+}
+
 Drawing Drawing::transform(Transform const& t) &&
 {
     for (auto&& e : elements_)
