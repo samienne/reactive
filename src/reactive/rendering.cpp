@@ -96,7 +96,7 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush)
     {
         auto const& c = color.getArray();
         auto vertex = std::array<float, 6>(
-                { c[0], c[1], c[2], c[3], v[0], v[1] });
+                { {c[0], c[1], c[2], c[3], v[0], v[1]} });
 
         return vertex;
     };
