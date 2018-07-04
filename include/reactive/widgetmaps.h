@@ -292,7 +292,7 @@ namespace reactive
                 {
                     for (auto&& input : inputs)
                         input = std::move(input)
-                            .onKeyEvent(std::move(handler));
+                            .onKeyEvent(handler);
                     return inputs;
                 },
                 std::move(handler)
@@ -304,25 +304,21 @@ namespace reactive
         return onKeyEvent(signal::constant(std::move(handler)));
     }
 
-    template <typename TSignalTransform, typename =
-        std::enable_if_t<
-            IsSignalType<TSignalTransform, avg::Transform>::value
-        >>
-    inline auto transform(TSignalTransform t)
+    template <typename T>
+    inline auto transform(Signal<avg::Transform, T> t)
     {
         auto tt = btl::cloneOnCopy(std::move(t));
-        static_assert(std::is_copy_constructible<decltype(tt)>::value, "");
+
         auto f = [t=std::move(tt)](auto widget)
         {
             auto w = std::move(widget)
-                //.transform(*std::move(t))
                 .transform(t->clone())
                 ;
 
             return w;
         };
 
-        static_assert(IsWidgetMap<decltype(f)>::value, "");
+        //static_assert(IsWidgetMap<decltype(f)>::value, "");
 
         return mapWidget(std::move(f));
     }
@@ -490,11 +486,8 @@ namespace reactive
     }
 
 
-    template <typename TSignalWidgets, std::enable_if_t<
-            IsSignalType<TSignalWidgets, std::vector<Widget>>::value
-        , int> = 0
-    >
-    auto addWidgets(TSignalWidgets widgets)
+    template <typename T>
+    auto addWidgets(Signal<std::vector<Widget>, T> widgets)
     {
         auto f = [widgets=cloneOnCopy(std::move(widgets))](auto widget)
         {
@@ -504,7 +497,6 @@ namespace reactive
                         return btl::clone(widget)
                             | addWidgets(std::move(widgets))
                             ;
-                        //return btl::clone(widget);
                     },
                     btl::clone(*widgets)
                     );
@@ -515,11 +507,8 @@ namespace reactive
         return mapWidget(std::move(f));
     }
 
-    template <typename TSignalBool, typename = std::enable_if_t<
-        IsSignalType<TSignalBool, bool>::value
-        >
-    >
-    auto setFocusable(TSignalBool focusable)
+    template <typename T>
+    auto setFocusable(Signal<bool, T> focusable)
     {
         return makeWidgetMap<KeyboardInputTag>(
                 []
@@ -533,11 +522,8 @@ namespace reactive
                 );
     }
 
-    template <typename TSignalBool, typename = std::enable_if_t<
-        IsSignalType<TSignalBool, bool>::value
-        >
-    >
-    auto requestFocus(TSignalBool requestFocus)
+    template <typename T>
+    auto requestFocus(Signal<bool, T> requestFocus)
     {
         return makeWidgetMap<KeyboardInputTag>(
                 []
