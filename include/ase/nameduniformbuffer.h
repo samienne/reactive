@@ -104,12 +104,12 @@ namespace ase
     public:
         NamedUniformBuffer();
         NamedUniformBuffer(NamedUniformBuffer const& other) = default;
-        NamedUniformBuffer(NamedUniformBuffer&& other) = default;
+        NamedUniformBuffer(NamedUniformBuffer&& other) noexcept = default;
         ~NamedUniformBuffer();
 
         NamedUniformBuffer& operator=(
                 NamedUniformBuffer const& other) = default;
-        NamedUniformBuffer& operator=(NamedUniformBuffer&& other) = default;
+        NamedUniformBuffer& operator=(NamedUniformBuffer&& other) noexcept = default;
 
         NamedUniformIterator begin() const;
         NamedUniformIterator end() const;
@@ -172,22 +172,6 @@ namespace ase
     private:
         std::unordered_map<std::string, size_t> offsets_;
         std::vector<uint8_t> data_;
-        /*std::map<std::string, std::vector<float> > uniform1fv_;
-        std::map<std::string, std::vector<float> > uniform2fv_;
-        std::map<std::string, std::vector<float> > uniform3fv_;
-        std::map<std::string, std::vector<float> > uniform4fv_;
-
-        std::map<std::string, std::vector<int> > uniform1iv_;
-        std::map<std::string, std::vector<int> > uniform2iv_;
-        std::map<std::string, std::vector<int> > uniform3iv_;
-        std::map<std::string, std::vector<int> > uniform4iv_;
-
-        std::map<std::string, std::vector<unsigned int> > uniform1uiv_;
-        std::map<std::string, std::vector<unsigned int> > uniform2uiv_;
-        std::map<std::string, std::vector<unsigned int> > uniform3uiv_;
-        std::map<std::string, std::vector<unsigned int> > uniform4uiv_;
-
-        std::map<std::string, std::vector<float>> uniformMatrix4fv_;*/
     };
 }
 
