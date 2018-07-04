@@ -86,10 +86,14 @@ Vertices generateVertices(avg::SoftMesh const& mesh, float z)
     return generateVertices(region, z, pen.getBrush().getColor());
 }*/
 
-avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush)
+avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
+        avg::Rect const& r, bool clip)
 {
-    std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> > bufs =
-        region.triangulate();
+    std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> > bufs;
+    if (clip)
+        bufs = region.getClipped(r).triangulate();
+    else
+        bufs = region.triangulate();
 
     avg::Color const& color = brush.getColor();
     auto toVertex = [&color](ase::Vector2f v)
@@ -110,21 +114,23 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush)
 }
 
 avg::SoftMesh generateMesh(avg::Path const& path,
-        avg::Brush const& brush, ase::Vector2f pixelSize, int resPerPixel = 4)
+        avg::Brush const& brush, ase::Vector2f pixelSize, int resPerPixel,
+        avg::Rect const& r, bool clip)
 {
     avg::Region region = path.fillRegion(avg::FILL_EVENODD,
             pixelSize, resPerPixel);
 
-    return generateMesh(region, brush);
+    return generateMesh(region, brush, r, clip);
 }
 
 avg::SoftMesh generateMesh(avg::Path const& path, avg::Pen const& pen,
-        ase::Vector2f pixelSize, int resPerPixel = 4)
+        ase::Vector2f pixelSize, int resPerPixel,
+        avg::Rect const& r, bool clip)
 {
     avg::Region region = path.offsetRegion(avg::JOIN_ROUND, avg::END_OPENROUND,
             pen.getWidth(), pixelSize, resPerPixel);
 
-    return generateMesh(region, pen.getBrush());
+    return generateMesh(region, pen.getBrush(), r, clip);
 }
 
 /*std::vector<Element> generateElements(avg::Painter const& painter,
@@ -171,7 +177,8 @@ avg::SoftMesh generateMesh(avg::Path const& path, avg::Pen const& pen,
 }*/
 
 std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
-        ase::Vector2f pixelSize, int resPerPixel)
+        ase::Vector2f pixelSize, int resPerPixel,
+        avg::Rect const& r, bool clip)
 {
     auto const& path = shape.getPath();
     auto const& brush = shape.getBrush();
@@ -183,10 +190,16 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
     std::vector<avg::SoftMesh> result;
 
     if (brush.valid())
-        result.push_back(generateMesh(path, *brush, pixelSize, resPerPixel));
+    {
+        result.push_back(generateMesh(path, *brush, pixelSize, resPerPixel,
+                    r, clip));
+    }
 
     if (pen.valid())
-        result.push_back(generateMesh(path, *pen, pixelSize, resPerPixel));
+    {
+        result.push_back(generateMesh(path, *pen, pixelSize, resPerPixel,
+                    r, clip));
+    }
 
     return result;
 }
@@ -203,7 +216,8 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
 
 std::pair<std::vector<avg::SoftMesh>, RenderCache> generateMeshes(
         RenderCache const& cache, avg::Painter const& /*painter*/,
-        avg::Drawing const& drawing, avg::Rect const& rect)
+        avg::Drawing const& drawing, avg::Rect const& rect,
+        bool clip)
 {
     RenderCache newCache;
     auto const& elements = drawing.getElements();
@@ -223,13 +237,14 @@ std::pair<std::vector<avg::SoftMesh>, RenderCache> generateMeshes(
             continue;
 
         std::vector<avg::SoftMesh> elementMeshes;
-        auto i = cache.find(element);
+        /*auto i = cache.find(element);
         if (i != cache.end())
             elementMeshes = i->second;
-        else if (element.is<avg::Shape>())
+        else*/ if (element.is<avg::Shape>())
         {
             auto const& shape = element.get<avg::Shape>();
-            elementMeshes = generateMeshes(shape, pixelSize, resPerPixel);
+            elementMeshes = generateMeshes(shape, pixelSize, resPerPixel,
+                    rect, clip);
         }
         else if (element.is<avg::TextEntry>())
         {
@@ -241,16 +256,18 @@ std::pair<std::vector<avg::SoftMesh>, RenderCache> generateMeshes(
                 .setPen(text.getPen());
 
             elementMeshes = generateMeshes(text.getTransform() * shape,
-                    pixelSize, resPerPixel);
+                    pixelSize, resPerPixel, rect, clip);
         }
         else
             assert(false); // Unknown element type
 
-        for (auto&& mesh : elementMeshes)
+        for (auto const& mesh : elementMeshes)
             meshes.push_back(mesh);
 
+        /*
         if (!elementMeshes.empty())
             newCache.insert(std::make_pair(element, std::move(elementMeshes)));
+        */
     }
 
     return std::make_pair(std::move(meshes), std::move(newCache));
@@ -339,7 +356,7 @@ std::vector<Element> generateElements(avg::Painter const& painter,
     return elements;
 }
 
-} // namespace
+} // anonymous namespace
 
 RenderCache render(ase::RenderContext& context, RenderCache const& cache,
         ase::RenderTarget& target, avg::Painter const& painter,
@@ -350,7 +367,7 @@ RenderCache render(ase::RenderContext& context, RenderCache const& cache,
             avg::Vector2f(target.getResolution()[0], target.getResolution()[1])
             );
 
-    auto r = generateMeshes(cache, painter, drawing, rect);
+    auto r = generateMeshes(cache, painter, drawing, rect, false);
     auto& newCache = r.second;
     auto& meshes = r.first;
 

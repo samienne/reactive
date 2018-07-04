@@ -1,6 +1,7 @@
 #include "region.h"
 
 #include "simplepolygon.h"
+#include "rect.h"
 
 #include "poly2tri/poly2tri.h"
 #include "clipper/clipper.hpp"
@@ -227,9 +228,33 @@ Region Region::operator|(Region const& /*region*/) const
     throw std::runtime_error("Unimplemented");
 }
 
-Region Region::operator&(Region const& /*region*/) const
+Region Region::operator&(Region const& region) const
 {
-    throw std::runtime_error("Unimplemented");
+    std::vector<ClipperLib::Path> subjPaths;
+    ClipperLib::PolyTreeToPaths(*d()->paths_, subjPaths);
+
+    std::vector<ClipperLib::Path> clipPaths;
+    ClipperLib::PolyTreeToPaths(*region.d()->paths_, clipPaths);
+
+    ClipperLib::Clipper c;
+    c.StrictlySimple(true);
+    c.PreserveCollinear(false);
+    c.AddPaths(subjPaths, ClipperLib::ptSubject, true);
+    c.AddPaths(clipPaths, ClipperLib::ptClip, true);
+
+    std::shared_ptr<ClipperLib::PolyTree> tree =
+        std::make_shared<ClipperLib::PolyTree>();
+
+    c.Execute(ClipperLib::ctIntersection, *tree);
+
+    Region result;
+
+    result.deferred_ = std::make_shared<RegionDeferred>();
+    result.d()->paths_ = std::move(tree);
+    result.d()->resPerPixel_ = d()->resPerPixel_;
+    result.d()->pixelSize_ = d()->pixelSize_;
+
+    return result;
 }
 
 Region Region::operator^(Region const& /*region*/) const
@@ -436,6 +461,23 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     }
 
     return std::make_pair(std::move(vertices), std::move(indices));
+}
+
+Region Region::getClipped(Rect const& r) const
+{
+    float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
+    float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
+
+    SimplePolygon rectPoly({
+            { (long)(r.getLeft() * xRes), (long)(r.getBottom() * yRes ) },
+            { (long)(r.getRight() * xRes), (long)(r.getBottom() * yRes) },
+            { (long)(r.getRight() * xRes), (long)(r.getTop() * yRes) },
+            { (long)(r.getLeft() * xRes), (long)(r.getTop() * yRes) }
+            });
+
+    Region rectRegion({rectPoly}, FILL_EVENODD, d()->pixelSize_, d()->resPerPixel_);
+
+    return *this & rectRegion;
 }
 
 void Region::ensureUniqueness()
