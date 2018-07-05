@@ -24,6 +24,8 @@ namespace avg
         Rect& operator=(Rect const&) = default;
         Rect& operator=(Rect&&) noexcept = default;
 
+        bool operator==(Rect const& rhs) const;
+
         Vector2f getBottomLeft() const;
         Vector2f getBottomRight() const;
         Vector2f getTopRight() const;
@@ -42,8 +44,10 @@ namespace avg
         bool contains(Vector2f pos) const;
 
         bool overlaps(Rect const& r) const;
+        bool isFullyContainedIn(Rect const& r) const;
 
         Rect scaled(float scale) const;
+        Rect enlarged(float amount) const;
 
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)
         {

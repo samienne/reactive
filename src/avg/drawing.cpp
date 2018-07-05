@@ -10,6 +10,7 @@ static_assert(std::is_nothrow_move_assignable<Drawing>::value, "");
 
 namespace
 {
+    // Returns a rect that covers both r1 and r2.
     Rect combineRects(Rect const& r1, Rect const& r2)
     {
         if (r1.isEmpty())
@@ -32,6 +33,11 @@ namespace
             return e.get<Shape>().getControlBb();
         else if (e.is<TextEntry>())
             return e.get<TextEntry>().getControlBb();
+        else if (e.is<Drawing::ClipElement>())
+        {
+            auto&& clip = e.get<Drawing::ClipElement>();
+            return (clip.transform * avg::Obb(clip.clipRect)).getBoundingRect();
+        }
         else
             assert(false);
 
@@ -42,11 +48,24 @@ namespace
     {
         Rect r;
         for (auto const& e : elements)
-        {
             r = combineRects(r, getElementRect(e));
-        }
 
         return r;
+    }
+
+
+    void filterElementsByRect(std::vector<Drawing::Element>& elements, Rect const& r)
+    {
+        elements.erase(
+                std::remove_if(
+                    elements.begin(),
+                    elements.end(),
+                    [&r](Drawing::Element const& e)
+                    {
+                        return !getElementRect(e).overlaps(r);
+                    }),
+                elements.end()
+                );
     }
 } // anonymous namespace
 
@@ -77,16 +96,6 @@ Drawing::~Drawing()
 {
 }
 
-Drawing Drawing::operator+(Element&& element) const &
-{
-    Drawing drawing;
-    drawing.controlBb_ = combineRects(controlBb_, getElementRect(element));
-    drawing.elements_ = elements_;
-    drawing.elements_.push_back(std::move(element));
-
-    return drawing;
-}
-
 Drawing Drawing::operator+(Element&& element) &&
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
@@ -101,23 +110,6 @@ Drawing& Drawing::operator+=(Element&& element)
     elements_.push_back(element);
 
     return *this;
-}
-
-Drawing Drawing::operator+(Drawing const& drawing) const &
-{
-    Drawing result;
-
-    result.controlBb_ = combineRects(controlBb_, drawing.controlBb_);
-    result.elements_.reserve(elements_.size() + drawing.elements_.size());
-
-    for (auto const& element : elements_)
-        result.elements_.push_back(element);
-
-    for (auto const& element : drawing.elements_)
-        result.elements_.push_back(element);
-
-
-    return result;
 }
 
 Drawing Drawing::operator+(Drawing const& drawing) &&
@@ -143,41 +135,25 @@ Drawing& Drawing::operator+=(Drawing const& drawing)
     return *this;
 }
 
-Drawing Drawing::operator*(float scale) const &
-{
-    Drawing result;
-
-    result.elements_.reserve(elements_.size());
-    result.controlBb_ = controlBb_.scaled(scale);
-
-    for (auto const& element : elements_)
-        result.elements_.push_back(element * scale);
-
-    return result;
-}
-
 Drawing Drawing::operator*(float scale) &&
 {
     controlBb_ = controlBb_.scaled(scale);
 
-    for (auto& element : elements_)
-        element = element * scale;
+    for (auto& e : elements_)
+    {
+        if (e.is<TextEntry>())
+            e = std::move(e.get<TextEntry>()) * scale;
+        else if (e.is<Shape>())
+            e = std::move(e.get<Shape>()) * scale;
+        else if (e.is<ClipElement>())
+        {
+            assert(false);
+        }
+        else
+            assert(false);
+    }
 
     return std::move(*this);
-}
-
-Drawing Drawing::operator+(ase::Vector2f offset) const &
-{
-    Drawing result;
-
-    result.elements_.reserve(elements_.size());
-    result.controlBb_ = Rect(controlBb_.getBottomLeft() + offset,
-            controlBb_.getSize());
-
-    for (auto const& element : elements_)
-        result.elements_.push_back(element + offset);
-
-    return result;
 }
 
 Drawing Drawing::operator+(ase::Vector2f offset) &&
@@ -185,10 +161,19 @@ Drawing Drawing::operator+(ase::Vector2f offset) &&
     controlBb_ = Rect(controlBb_.getBottomLeft() + offset,
             controlBb_.getSize());
 
-    elements_.reserve(elements_.size());
-
-    for (auto& element : elements_)
-        element = element + offset;
+    for (auto& e : elements_)
+    {
+        if (e.is<TextEntry>())
+            e = std::move(e.get<TextEntry>()) + offset;
+        else if (e.is<Shape>())
+            e = std::move(e.get<Shape>()) + offset;
+        else if (e.is<ClipElement>())
+        {
+            assert(false);
+        }
+        else
+            assert(false);
+    }
 
     return std::move(*this);
 }
@@ -196,6 +181,26 @@ Drawing Drawing::operator+(ase::Vector2f offset) &&
 bool Drawing::operator==(Drawing const& rhs) const
 {
     return elements_ == rhs.elements_;
+}
+
+Drawing Drawing::clip(Rect const& r) &&
+{
+    if (controlBb_.isFullyContainedIn(r))
+        return *this;
+
+    Drawing result;
+
+    filterElementsByRect(elements_, r);
+
+    result.elements_.push_back(ClipElement{
+            { SubDrawing{std::move(elements_) } },
+            r,
+            avg::Transform()
+            });
+
+    result.controlBb_ = r;
+
+    return result;
 }
 
 std::vector<Drawing::Element> const& Drawing::getElements() const
@@ -210,16 +215,7 @@ Rect Drawing::getControlBb() const
 
 Drawing Drawing::filterByRect(Rect const& r) &&
 {
-    elements_.erase(
-            std::remove_if(
-                elements_.begin(),
-                elements_.end(),
-                [&r](Element const& e)
-                {
-                    return !getElementRect(e).overlaps(r);
-                }),
-            elements_.end()
-            );
+    filterElementsByRect(elements_, r);
 
     controlBb_ = combineDrawingRects(elements_);
 
@@ -234,6 +230,9 @@ Drawing Drawing::transform(Transform const& t) &&
             e = t * std::move(e.get<TextEntry>());
         else if (e.is<Shape>())
             e = t * std::move(e.get<Shape>());
+        else if (e.is<Drawing::ClipElement>())
+            e.get<Drawing::ClipElement>().transform =
+                t * e.get<Drawing::ClipElement>().transform;
         else
             assert(false);
     }
@@ -251,6 +250,9 @@ Drawing operator*(Transform const& t, Drawing&& drawing)
             e = t * std::move(e.get<TextEntry>());
         else if (e.is<Shape>())
             e = t * std::move(e.get<Shape>());
+        else if (e.is<Drawing::ClipElement>())
+            e.get<Drawing::ClipElement>().transform =
+                t * e.get<Drawing::ClipElement>().transform;
         else
             assert(false);
     }

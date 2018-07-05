@@ -19,6 +19,17 @@ Rect::~Rect()
 {
 }
 
+bool Rect::operator==(Rect const& rhs) const
+{
+    if (isEmpty() == rhs.isEmpty())
+        return true;
+
+    return getLeft() == rhs.getLeft()
+        && getRight() == rhs.getRight()
+        && getBottom() == rhs.getBottom()
+        && getTop() == rhs.getTop();
+}
+
 Vector2f Rect::getBottomLeft() const
 {
     return *bottomLeft_;
@@ -95,6 +106,14 @@ Rect Rect::scaled(float scale) const
     return Rect(scale * (*bottomLeft_), scale * (*size_));
 }
 
+Rect Rect::enlarged(float amount) const
+{
+    return Rect(
+            Vector2f(getLeft() - amount, getBottom() - amount),
+            Vector2f(amount * 2.0f, amount * 2.0f)
+            );
+}
+
 bool Rect::contains(Vector2f pos) const
 {
     if (isEmpty())
@@ -111,6 +130,19 @@ bool Rect::overlaps(Rect const& r) const
 
     return getLeft() < r.getRight() && getRight() > r.getLeft()
         && getTop() > r.getBottom() && getBottom() < r.getTop();
+}
+
+bool Rect::isFullyContainedIn(Rect const& r) const
+{
+    if (isEmpty())
+        return true;
+    else if (r.isEmpty())
+        return false;
+
+    return getLeft() >= r.getLeft()
+        && getRight() <= r.getRight()
+        && getBottom() >= r.getBottom()
+        && getTop() <= r.getTop();
 }
 
 Rect Rect::include(Vector2f point) const

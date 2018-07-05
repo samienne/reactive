@@ -6,13 +6,45 @@
 
 #include <btl/variant.h>
 #include <btl/visibility.h>
+#include <btl/heap.h>
 
 namespace avg
 {
     class BTL_VISIBLE Drawing final
     {
     public:
-        using Element = btl::variant<Shape, TextEntry>;
+        struct SubDrawing;
+        struct ClipElement
+        {
+            btl::Heap<SubDrawing> subDrawing;
+            Rect clipRect;
+            Transform transform;
+
+            bool operator==(ClipElement const& rhs) const
+            {
+                return subDrawing == rhs.subDrawing
+                    && clipRect == rhs.clipRect
+                    && transform == rhs.transform
+                    ;
+            }
+        };
+
+        using Element = btl::variant<Shape, TextEntry, ClipElement>;
+
+        struct SubDrawing
+        {
+            std::vector<Element> elements;
+        };
+
+        friend btl::Heap<SubDrawing> operator*(btl::Heap<SubDrawing> const& s, float)
+        {
+            return s;
+        }
+
+        friend btl::Heap<SubDrawing> operator+(btl::Heap<SubDrawing> const& s, Vector2f)
+        {
+            return s;
+        }
 
         Drawing();
         Drawing(Element const& element);
@@ -27,23 +59,19 @@ namespace avg
         Drawing& operator=(Drawing const&) = default;
         Drawing& operator=(Drawing&&) noexcept = default;
 
-        Drawing operator+(Element&& element) const &;
         Drawing operator+(Element&& element) &&;
         Drawing& operator+=(Element&& element);
 
-        Drawing operator+(Drawing const& drawing) const &;
         Drawing operator+(Drawing const& drawing) &&;
         Drawing& operator+=(Drawing const& drawing);
 
-        Drawing operator*(float scale) const &;
         Drawing operator*(float scale) &&;
-        Drawing operator+(ase::Vector2f offset) const &;
         Drawing operator+(ase::Vector2f offset) &&;
 
         bool operator==(Drawing const& rhs) const;
         bool operator!=(Drawing const& rhs) const;
-        bool operator<(Drawing const& rhs) const;
-        bool operator>(Drawing const& rhs) const;
+
+        Drawing clip(Rect const& r) &&;
 
         std::vector<Element> const& getElements() const;
         Rect getControlBb() const;

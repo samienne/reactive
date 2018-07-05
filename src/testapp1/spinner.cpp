@@ -54,8 +54,10 @@ WidgetFactory makeSpinner()
                     btl::none);*/
 
             return std::move(drawing)
+                //.clip(avg::Rect(size * -0.3, size * 0.6f))
                 .transform(avg::Transform()
-                        .translate(0.5f*size[0], 0.5f*size[1]));
+                        .translate(0.5f*size[0], 0.5f*size[1]))
+                ;
         };
 
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
