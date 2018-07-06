@@ -12,7 +12,7 @@ PointerButtonEvent transformPointerButtonEvent(
         event.pointer,
         event.button,
         event.state,
-        transform * event.pos
+        transform.getTranslation() + transform.getRsMatrix() * event.pos
     };
 }
 

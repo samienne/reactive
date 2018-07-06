@@ -43,6 +43,7 @@ namespace avg
         inline float getScale() const;
         inline float getRotation() const;
         inline Vector2f getTranslation() const;
+        inline Matrix2f getRsMatrix() const;
 
         inline Vector2f operator*(Vector2f rhs) const;
         inline Transform operator*(Transform const& rhs) const;
@@ -159,6 +160,22 @@ namespace avg
     inline Vector2f Transform::getTranslation() const
     {
         return *translation_;
+    }
+
+    inline Matrix2f Transform::getRsMatrix() const
+    {
+        float cosA = std::cos(rotation_);
+        float sinA = std::sin(rotation_);
+
+        Matrix2f r;
+        r << cosA, -sinA,
+            sinA, cosA;
+
+        Matrix2f s;
+        s << scale_, 0.0f,
+          0.0f, scale_;
+
+        return s * r;
     }
 
     inline Vector2f Transform::operator*(Vector2f rhs) const

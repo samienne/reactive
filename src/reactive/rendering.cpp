@@ -37,9 +37,11 @@ Vertices generateVertices(avg::SoftMesh const& mesh, float z)
     avg::Transform const& t = mesh.getTransform();
     std::array<float, 4> const& c = mesh.getBrush().getColor().getArray();
 
-    auto toVertex = [z, &t, &c](std::array<float, 2> const& v)
+    avg::Matrix2f rs = t.getRsMatrix();
+
+    auto toVertex = [z, &t, &c, &rs](std::array<float, 2> const& v)
     {
-        avg::Vector2f p = t * avg::Vector2f(v[0], v[1]);
+        avg::Vector2f p = t.getTranslation() + rs * avg::Vector2f(v[0], v[1]);
 
         return Vertex{{c[0], c[1], c[2], c[3], p[0], p[1], z}};
     };

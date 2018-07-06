@@ -166,6 +166,9 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
     std::vector<SimplePolygon> polygons;
     std::vector<Vector2i> vertices;
 
+    auto rs = transform.getRsMatrix();
+    auto offset = transform.getTranslation();
+
     while (segment < segments_.size())
     {
         Vector2f p1;
@@ -183,19 +186,19 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                     vertices.clear();
                 }
 
-                cur = transform * vertices_.at(vertex++);
+                cur = offset + rs * vertices_.at(vertex++);
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
             case PathSpec::SEGMENT_LINE:
-                cur = transform * vertices_.at(vertex++);
+                cur = offset + rs * vertices_.at(vertex++);
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
             case PathSpec::SEGMENT_CONIC:
                 p1 = cur;
-                p2 = transform * vertices_.at(vertex++);
-                p3 = transform * vertices_.at(vertex++);
+                p2 = offset + rs * vertices_.at(vertex++);
+                p3 = offset + rs * vertices_.at(vertex++);
                 cur = p3;
                 t = 0.0f;
                 while (t < 1.0f)
@@ -210,9 +213,9 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
             case PathSpec::SEGMENT_CUBIC:
                 p1 = cur;
-                p2 = transform * vertices_.at(vertex++);
-                p3 = transform * vertices_.at(vertex++);
-                p4 = transform * vertices_.at(vertex++);
+                p2 = offset + rs * vertices_.at(vertex++);
+                p3 = offset + rs * vertices_.at(vertex++);
+                p4 = offset + rs * vertices_.at(vertex++);
                 cur = p4;
                 t = 0.0f;
                 while (t < 1.0f)
@@ -279,11 +282,12 @@ bool Path::operator==(Path const& rhs) const
     }
 
     Transform combined = transform_.inverse() * rhs.transform_;
+    Matrix2f combinedSr = combined.getRsMatrix();
 
     auto k = rhs.d()->vertices_.begin();
     for (auto i = d()->vertices_.begin(); i != d()->vertices_.end(); ++i)
     {
-        Vector2f v = *i - (combined * (*k));
+        Vector2f v = *i - combined.getTranslation() + (combinedSr * (*k));
         if (std::abs(v[0]) > 0.0001f || std::abs(v[1]) > 0.0001f)
             return false;
         ++k;
@@ -317,13 +321,18 @@ Path Path::operator+(Path const& rhs) const
             ++i)
         segments.push_back(*i);
 
+    auto rs = transform_.getRsMatrix();
     for (auto i = d()->vertices_.begin(); i != d()->vertices_.end(); ++i)
-        vertices.push_back(transform_ * (*i));
+        vertices.push_back(transform_.getTranslation() + rs * (*i));
 
     Transform combined = transform_.inverse() * rhs.transform_;
+    auto combinedRs = combined.getRsMatrix();
+
     for (auto i = rhs.d()->vertices_.begin(); i != rhs.d()->vertices_.end();
             ++i)
-        vertices.push_back(rhs.transform_ * (*i));
+    {
+        vertices.push_back(rhs.transform_.getTranslation() + combinedRs * (*i));
+    }
 
     Path p = Path(std::move(segments), std::move(vertices));
     return p;
@@ -458,8 +467,6 @@ std::vector<Vector2f> const& Path::getVertices() const
     return d()->vertices_;
 }
 
-//} // namespace
-
 avg::Path operator*(const avg::Transform& t, const avg::Path& p)
 {
     avg::Path result(p);
@@ -467,28 +474,15 @@ avg::Path operator*(const avg::Transform& t, const avg::Path& p)
     return result;
 }
 
-/*avg::Path operator*(Matrix3f const& m, avg::Path const& p)
-{
-    std::vector<Vector2f> vertices;
-    vertices.reserve(p.d()->vertices_.size());
-    for (auto i = p.d()->vertices_.begin(); i != p.d()->vertices_.end(); ++i)
-    {
-        Vector3f v((*i)[0], (*i)[1], 1.0);
-        v = m * v;
-        Vector2f s(v[0], v[1]);
-        vertices.push_back(s);
-    }
-
-    return avg::Path(std::vector<Path::SegmentType>(p.d()->segments_),
-            std::move(vertices));
-}*/
-
 std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
 {
     size_t segment = 0;
     size_t vertex = 0;
     Vector2f cur(0.0f, 0.0f);
     std::vector<Vector2i> vertices;
+
+    auto sr = p.transform_.getRsMatrix();
+    auto off = p.transform_.getTranslation();
 
     while (segment < p.d()->segments_.size())
     {
@@ -500,21 +494,21 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
         switch (p.d()->segments_[segment])
         {
             case PathSpec::SEGMENT_START:
-                p1 = p.transform_ * p.d()->vertices_.at(vertex++);
+                p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "start(" << p1 << ")" << std::endl;
                 break;
 
             case PathSpec::SEGMENT_LINE:
-                p1 = p.transform_ * p.d()->vertices_.at(vertex++);
+                p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "lineTo(" << p1 << ")" << std::endl;
                 break;
 
             case PathSpec::SEGMENT_CONIC:
                 p1 = cur;
-                p2 = p.transform_ * p.d()->vertices_.at(vertex++);
-                p3 = p.transform_ * p.d()->vertices_.at(vertex++);
+                p2 = off + sr * p.d()->vertices_.at(vertex++);
+                p3 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p3;
 
                 stream << "conicTo(" << p2 << ", " << p3 << ")" << std::endl;
@@ -522,9 +516,9 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
 
             case PathSpec::SEGMENT_CUBIC:
                 p1 = cur;
-                p2 = p.transform_ * p.d()->vertices_.at(vertex++);
-                p3 = p.transform_ * p.d()->vertices_.at(vertex++);
-                p4 = p.transform_ * p.d()->vertices_.at(vertex++);
+                p2 = off + sr * p.d()->vertices_.at(vertex++);
+                p3 = off + sr * p.d()->vertices_.at(vertex++);
+                p4 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p4;
 
                 stream << "cubicTo(" << p2 << ", " << p3 << ", " << p4
@@ -539,5 +533,5 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
     return stream;
 }
 
-}
+} // namespace avg
 

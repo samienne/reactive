@@ -2,6 +2,14 @@
 
 #include "rect.h"
 
+namespace
+{
+    avg::Vector2f transformVector(avg::Transform const& t, avg::Vector2f v)
+    {
+        return t.getTranslation() + t.getRsMatrix() * v;
+    }
+} // anonymous namespace
+
 namespace avg
 {
 
@@ -26,7 +34,7 @@ Obb::Obb(Rect const& r) : Obb()
 
 bool Obb::contains(Vector2f p) const
 {
-    p = transform_.inverse() * p;
+    p = transformVector(transform_.inverse(), p);
 
     return
         0.0f <= p[0] && p[0] < size_[0] &&
@@ -40,7 +48,8 @@ Vector2f Obb::getSize() const
 
 Vector2f Obb::getCenter() const
 {
-    return transform_ * Vector2f(size_[0] / 2.0f, size_[1] / 2.0f);
+    return transformVector(transform_,
+            Vector2f(size_[0] / 2.0f, size_[1] / 2.0f));
 }
 
 Transform const& Obb::getTransform() const
@@ -66,10 +75,10 @@ Rect Obb::getBoundingRect() const
 {
     auto const& t = transform_;
 
-    Vector2f v1(t * Vector2f(0.0f, 0.0f));
-    Vector2f v2(t * Vector2f(size_[0], 0.0f));
-    Vector2f v3(t * Vector2f(0.0f, size_[1]));
-    Vector2f v4(t * Vector2f(size_[0], size_[1]));
+    Vector2f v1(transformVector(t, Vector2f(0.0f, 0.0f)));
+    Vector2f v2(transformVector(t, Vector2f(size_[0], 0.0f)));
+    Vector2f v3(transformVector(t, Vector2f(0.0f, size_[1])));
+    Vector2f v4(transformVector(t, Vector2f(size_[0], size_[1])));
     //Vector2f v4(v2 + (v3-v1));
 
     float x1 = std::min(std::min(std::min(v1.x(), v2.x()), v3.x()), v4.x());

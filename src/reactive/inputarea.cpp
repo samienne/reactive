@@ -24,7 +24,9 @@ btl::UniqueId InputArea::getId() const
 
 bool InputArea::contains(avg::Vector2f pos) const
 {
-    pos = transform_.inverse() * pos;
+    auto t = transform_.inverse();
+    pos =  t.getTranslation() + t.getRsMatrix() * pos;
+
     bool b = true;
     for (auto const& obb : obbs_)
         b = b && obb.contains(pos);
@@ -166,5 +168,5 @@ auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
     return InputArea(id, obb);
 }
 
-} // namespace
+} // namespace reactive
 
