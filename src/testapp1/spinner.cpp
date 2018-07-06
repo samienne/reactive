@@ -49,14 +49,9 @@ WidgetFactory makeSpinner()
                             .translate(std::cos(a) * w, std::sin(a) * w));
             }
 
-            /*drawing += makeShape(makeRect(200.0f, 20.0f),
-                    btl::just(avg::Brush(avg::Color(0.15, 0.06, 0.24, 0.3))),
-                    btl::none);*/
-
             return std::move(drawing)
                 //.clip(avg::Rect(size * -0.3, size * 0.6f))
-                .transform(avg::Transform()
-                        .translate(0.5f*size[0], 0.5f*size[1]))
+                .transform(avg::translate(0.5f*size[0], 0.5f*size[1]))
                 ;
         };
 

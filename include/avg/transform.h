@@ -260,7 +260,32 @@ namespace avg
     {
         return !(*this == rhs);
     }
-}
+
+    inline Transform translate(Vector2f v)
+    {
+        return Transform().translate(v);
+    }
+
+    inline Transform translate(float x, float y)
+    {
+        return Transform().translate(x, y);
+    }
+
+    inline Transform scale(float s)
+    {
+        return Transform().scale(s);
+    }
+
+    inline Transform rotate(float angle)
+    {
+        return Transform().rotate(angle);
+    }
+
+    inline Transform identity()
+    {
+        return Transform();
+    }
+} // namespace avg
 
 namespace btl
 {
