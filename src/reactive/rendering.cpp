@@ -54,44 +54,6 @@ Vertices generateVertices(avg::SoftMesh const& mesh, float z)
     return result;
 }
 
-/*Vertices generateVertices(avg::Region const& region, float z,
-        avg::Color const& color)
-{
-    using namespace cpplinq;
-
-    std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> > bufs =
-        region.triangulate();
-
-    auto toVertex = [&color, z](ase::Vector2f v)
-    {
-        auto const& c = color.getArray();
-        auto vertex = std::array<float, 7>(
-                { c[0], c[1], c[2], c[3], v[0], v[1], z });
-
-        return vertex;
-    };
-
-    return from(bufs.first) >> select(toVertex) >> to_vector();
-}*/
-
-/*Vertices generateVertices(avg::Path const& path, avg::Brush const& brush,
-        float z, ase::Vector2f pixelSize, int resPerPixel = 4)
-{
-    avg::Region region = path.fillRegion(avg::FILL_EVENODD,
-            pixelSize, resPerPixel);
-
-    return generateVertices(region, z, brush.getColor());
-}*/
-
-/*Vertices generateVertices(avg::Path const& path, avg::Pen const& pen,
-        float z, ase::Vector2f pixelSize, int resPerPixel = 4)
-{
-    avg::Region region = path.offsetRegion(avg::JOIN_ROUND, avg::END_OPENROUND,
-            pen.getWidth(), pixelSize, resPerPixel);
-
-    return generateVertices(region, z, pen.getBrush().getColor());
-}*/
-
 avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
         avg::Rect const& r, bool clip)
 {
