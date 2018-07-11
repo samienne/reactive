@@ -93,7 +93,7 @@ avg::SoftMesh generateMesh(avg::Path const& path, avg::Pen const& pen,
         ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    avg::Region region = path.offsetRegion(avg::JOIN_ROUND, avg::END_OPENROUND,
+    avg::Region region = path.offsetRegion(pen.getJoinType(), pen.getEndType(),
             pen.getWidth(), pixelSize, resPerPixel);
 
     return generateMesh(region, pen.getBrush(), r, clip);

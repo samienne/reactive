@@ -3,8 +3,10 @@
 namespace avg
 {
 
-Pen::Pen(Brush brush, float width) :
+Pen::Pen(Brush brush, float width, JoinType join, EndType end) :
     brush_(brush),
+    join_(join),
+    end_(end),
     width_(width)
 {
 }
@@ -33,6 +35,16 @@ Brush const& Pen::getBrush() const noexcept
 float Pen::getWidth() const noexcept
 {
     return width_;
+}
+
+JoinType Pen::getJoinType() const noexcept
+{
+    return join_;
+}
+
+EndType Pen::getEndType() const noexcept
+{
+    return end_;
 }
 
 bool Pen::operator==(Pen const& rhs) const noexcept
