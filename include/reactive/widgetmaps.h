@@ -563,5 +563,5 @@ namespace reactive
 
         return mapWidget(std::move(f));
     }
-} // reactive
+} // namespace reactive
 
