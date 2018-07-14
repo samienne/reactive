@@ -20,7 +20,7 @@
 
 using namespace reactive;
 
-WidgetFactory makeTestWidget()
+namespace
 {
     auto drawTestWidget = [](ase::Vector2f size, widget::Theme const& theme,
             bool state, std::string const& str)
@@ -41,11 +41,13 @@ WidgetFactory makeTestWidget()
                     avg::Vector2f(-70.0f, 0.0f), 20.0f),
                 str, btl::just(brush2), btl::none);
 
-        return (avg::Drawing(shape) + text)
-            .transform(avg::Transform()
-                    .translate(0.5*size[0], 116.0));
+        return (avg::Drawing(std::move(shape)) + text)
+            .transform(avg::translate(0.5*size[0], 116.0));
     };
+} // anonymous namespace
 
+WidgetFactory makeTestWidget()
+{
     auto p = stream::pipe<int>();
 
     auto state = stream::iterate(
@@ -65,9 +67,6 @@ WidgetFactory makeTestWidget()
             std::string(), std::move(p2.stream));
 
     auto focus = signal::input(false);
-
-    textState.evaluate();
-    //state.evaluate();
 
     return makeWidgetFactory()
         | widget::onDraw<SizeTag, ThemeTag>(drawTestWidget,
