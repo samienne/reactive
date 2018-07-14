@@ -45,7 +45,7 @@ int main()
                     .cell(2, 2, 1, 1, makeSpinner())
                 , makeSpinner()
                     | widget::frame()
-                    | onPointerMove([](reactive::PointerMoveEvent const& e)
+                    | widget::onPointerMove([](reactive::PointerMoveEvent const& e)
                             {
                                 std::cout << "MoveEvent: " << e.rel << " " << e.pos
                                     << ", " << e.buttons[0] << " " << e.buttons[1]
@@ -53,7 +53,7 @@ int main()
                                     << " hover: " << e.hover
                                     << std::endl;
                             })
-                    | onPointerDown([](reactive::PointerButtonEvent const&)
+                    | widget::onPointerDown([](reactive::PointerButtonEvent const&)
                             {
                                 std::cout << "down" << std::endl;
                             })
@@ -64,7 +64,7 @@ int main()
                 })
         , adder()
             | widget::frame()
-            | onHover([](reactive::HoverEvent const& e)
+            | widget::onHover([](reactive::HoverEvent const& e)
                     {
                         std::cout << "Hover: " << e.hover << std::endl;
                     })

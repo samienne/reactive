@@ -1,13 +1,13 @@
 #pragma once
 
-#include "pointerbuttonevent.h"
-#include "signal.h"
-#include "widgetmap.h"
+#include "reactive/pointerbuttonevent.h"
+#include "reactive/signal.h"
+#include "reactive/widgetmap.h"
 
 #include <functional>
 #include <type_traits>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename T, typename U, typename = std::enable_if_t<
         std::is_convertible<
@@ -54,5 +54,5 @@ namespace reactive
             std::bind(std::move(cb));
         return onPointerUp(f);
     }
-} // namespace reactive
+} // namespace reactive::widget
 

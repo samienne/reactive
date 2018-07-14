@@ -1,18 +1,16 @@
 #pragma once
 
-#include "signal.h"
-#include "pointerbuttonevent.h"
-#include "widgetmap.h"
+#include "reactive/signal.h"
+#include "reactive/pointermoveevent.h"
+#include "reactive/widgetmap.h"
 
-#include <functional>
-
-namespace reactive
+namespace reactive::widget
 {
-    inline auto onPointerDown(Signal<
-            std::function<void(ase::PointerButtonEvent const&)>
+    inline auto onPointerMove(Signal<
+            std::function<void(ase::PointerMoveEvent const&)>
             > cb)
     {
-        btl::UniqueId id = btl::makeUniqueId();
+        auto id = btl::makeUniqueId();
 
         return makeWidgetMap<InputAreaTag, ObbTag>(
             [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
@@ -22,12 +20,12 @@ namespace reactive
                         && areas.back().getObbs().size() == 1
                         && areas.back().getObbs().front() == obb)
                 {
-                    areas.back() = std::move(areas.back()).onDown(std::move(cb));
+                    areas.back() = std::move(areas.back()).onMove(std::move(cb));
                     return areas;
                 }
 
                 areas.push_back(
-                        makeInputArea(id, obb).onDown(std::move(cb))
+                        makeInputArea(id, obb).onMove(std::move(cb))
                         );
 
                 return areas;
@@ -36,11 +34,12 @@ namespace reactive
             );
     }
 
-    inline auto onPointerDown(
-            std::function<void(ase::PointerButtonEvent const&)> cb
+    inline auto onPointerMove(
+            std::function<void(ase::PointerMoveEvent const&)> cb
             )
     {
-        return onPointerDown(signal::constant(std::move(cb)));
+        return onPointerMove(signal::constant(std::move(cb)));
     }
-} // namespace reactive
+
+} // namespace reactive::widget
 

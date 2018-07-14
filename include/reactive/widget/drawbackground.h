@@ -1,13 +1,14 @@
 #pragma once
 
 #include "ondraw.h"
-#include "rendering.h"
-#include "signal.h"
+
+#include "reactive/rendering.h"
+#include "reactive/signal.h"
 
 #include <avg/vector.h>
 #include <avg/brush.h>
 
-namespace reactive
+namespace reactive::widget
 {
     inline auto drawBackground(avg::Vector2f size, avg::Brush const brush)
         -> avg::Drawing
@@ -37,5 +38,5 @@ namespace reactive
                     return drawBackground(size, theme.getBackground());
                 });
     }
-} // namespace reactive
+} // namespace reactive::widget
 

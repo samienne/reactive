@@ -1,10 +1,10 @@
 #pragma once
 
-#include "widgetmap.h"
+#include "reactive/widgetmap.h"
 
 #include <btl/sequence.h>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename TSignal>
     auto addDrawing(TSignal drawing)
@@ -43,5 +43,5 @@ namespace reactive
                 );
     }
 
-} // namespace reactive
+} // namespace reactive::widget
 

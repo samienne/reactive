@@ -1,13 +1,14 @@
 #pragma once
 
-#include "signal.h"
-#include "pointermoveevent.h"
-#include "widgetmap.h"
+#include "reactive/signal.h"
+#include "reactive/widgetmap.h"
 
-namespace reactive
+#include <ase/hoverevent.h>
+
+namespace reactive::widget
 {
-    inline auto onPointerMove(Signal<
-            std::function<void(ase::PointerMoveEvent const&)>
+    inline auto onHover(Signal<
+            std::function<void(reactive::HoverEvent const&)>
             > cb)
     {
         auto id = btl::makeUniqueId();
@@ -20,12 +21,12 @@ namespace reactive
                         && areas.back().getObbs().size() == 1
                         && areas.back().getObbs().front() == obb)
                 {
-                    areas.back() = std::move(areas.back()).onMove(std::move(cb));
+                    areas.back() = std::move(areas.back()).onHover(std::move(cb));
                     return areas;
                 }
 
                 areas.push_back(
-                        makeInputArea(id, obb).onMove(std::move(cb))
+                        makeInputArea(id, obb).onHover(std::move(cb))
                         );
 
                 return areas;
@@ -34,12 +35,11 @@ namespace reactive
             );
     }
 
-    inline auto onPointerMove(
-            std::function<void(ase::PointerMoveEvent const&)> cb
+    inline auto onHover(
+            std::function<void(reactive::HoverEvent const&)> cb
             )
     {
-        return onPointerMove(signal::constant(std::move(cb)));
+        return onHover(signal::constant(std::move(cb)));
     }
-
-} // namespace reactive
+} // namespace reactive::widget
 

@@ -58,7 +58,7 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | onDraw<SizeTag, ThemeTag>(draw, std::move(t))
+        | widget::onDraw<SizeTag, ThemeTag>(draw, std::move(t))
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)));
 }
 

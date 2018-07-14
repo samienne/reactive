@@ -1,11 +1,12 @@
 #pragma once
 
 #include "adddrawings.h"
-#include "inputarea.h"
-#include "widget.h"
-#include "widgetmap.h"
 
-#include "signal/combine.h"
+#include "reactive/inputarea.h"
+#include "reactive/widget.h"
+#include "reactive/widgetmap.h"
+
+#include "reactive/signal/combine.h"
 
 #include <btl/all.h>
 #include <btl/typetraits.h>
@@ -15,7 +16,7 @@
 
 #include <type_traits>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename TWidgets, std::enable_if_t<
         btl::All<
@@ -134,5 +135,5 @@ namespace reactive
         return mapWidget(std::move(f));
     }
 
-} // namespace reactive
+} // namespace reactive::widget
 

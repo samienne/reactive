@@ -48,7 +48,7 @@ reactive::WidgetFactory adder()
                 hfiller(),
                 widget::label(signal::constant<std::string>("X"))
                 | widget::frame()
-                | onClick(1, signal::mapFunction(remove, std::move(index))),
+                | widget::onClick(1, signal::mapFunction(remove, std::move(index))),
                 })
                 ;
     };

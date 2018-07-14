@@ -1,14 +1,14 @@
 #pragma once
 
-#include "onclick.h"
-#include "onhover.h"
-#include "onpointermove.h"
-#include "onpointerup.h"
-#include "onpointerdown.h"
-#include "drawbackground.h"
-#include "addwidgets.h"
-#include "adddrawings.h"
-#include "ondraw.h"
+#include "widget/onclick.h"
+#include "widget/onhover.h"
+#include "widget/onpointermove.h"
+#include "widget/onpointerup.h"
+#include "widget/onpointerdown.h"
+#include "widget/drawbackground.h"
+#include "widget/addwidgets.h"
+#include "widget/adddrawings.h"
+#include "widget/ondraw.h"
 
 #include "clickevent.h"
 #include "widgetmap.h"

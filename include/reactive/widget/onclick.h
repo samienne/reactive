@@ -1,16 +1,17 @@
 #pragma once
 
-#include "signal/map.h"
-
 #include "onpointerup.h"
-#include "pointerbuttonevent.h"
-#include "signal.h"
-#include "clickevent.h"
+
+#include "reactive/signal/map.h"
+
+#include "reactive/pointerbuttonevent.h"
+#include "reactive/signal.h"
+#include "reactive/clickevent.h"
 
 #include <functional>
 #include <type_traits>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
@@ -54,4 +55,5 @@ namespace reactive
     }
 
 } // namespace reactive
+
 

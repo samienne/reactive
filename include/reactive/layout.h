@@ -136,7 +136,7 @@ namespace reactive
             auto widgets = signal::dataBind(factories->clone(), std::move(delegate));
 
             return std::move(w)
-                | addWidgets(std::move(widgets));
+                | widget::addWidgets(std::move(widgets));
         };
 
         return makeWidgetFactory()

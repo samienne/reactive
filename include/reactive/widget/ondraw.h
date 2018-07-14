@@ -1,14 +1,14 @@
 #pragma once
 
-#include "signaltraits.h"
-#include "widgetmap.h"
+#include "reactive/signaltraits.h"
+#include "reactive/widgetmap.h"
 
 #include <avg/drawing.h>
 
 #include <type_traits>
 #include <functional>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename... Ts, typename TFunc, typename... Us,
              typename = std::enable_if_t
@@ -59,5 +59,5 @@ namespace reactive
                 std::move(us)...
                 );
     }
-} // namespace reactive
+} // namespace reactive::widget
 
