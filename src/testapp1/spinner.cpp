@@ -50,7 +50,6 @@ namespace
             }
 
             return std::move(drawing)
-                //.clip(avg::Rect(size * -0.3, size * 0.6f))
                 .transform(avg::translate(0.5f*size[0], 0.5f*size[1]))
                 ;
         };

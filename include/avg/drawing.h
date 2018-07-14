@@ -47,7 +47,7 @@ namespace avg
         }
 
         Drawing();
-        Drawing(Element const& element);
+        Drawing(Element element);
         Drawing(std::vector<Element> const& elements);
         Drawing(std::vector<Element>&& elements);
 
@@ -72,6 +72,7 @@ namespace avg
         bool operator!=(Drawing const& rhs) const;
 
         Drawing clip(Rect const& r) &&;
+        Drawing clip(Obb const& obb) &&;
 
         std::vector<Element> const& getElements() const;
         Rect getControlBb() const;

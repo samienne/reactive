@@ -73,11 +73,11 @@ Drawing::Drawing()
 {
 }
 
-Drawing::Drawing(Element const& element)
+Drawing::Drawing(Element element)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
 
-    elements_.push_back(element);
+    elements_.push_back(std::move(element));
 }
 
 Drawing::Drawing(std::vector<Element> const& elements) :
@@ -186,7 +186,7 @@ bool Drawing::operator==(Drawing const& rhs) const
 Drawing Drawing::clip(Rect const& r) &&
 {
     if (controlBb_.isFullyContainedIn(r))
-        return *this;
+        return std::move(*this);
 
     Drawing result;
 
@@ -201,6 +201,24 @@ Drawing Drawing::clip(Rect const& r) &&
     result.controlBb_ = r;
 
     return result;
+}
+
+Drawing Drawing::clip(Obb const& obb) &&
+{
+    auto obbTInverse = obb.getTransform().inverse();
+    auto obbRect = Rect(Vector2f(0.0f, 0.0f), obb.getSize());
+
+    if ((obbTInverse * Obb(controlBb_))
+            .getBoundingRect()
+            .isFullyContainedIn(obbRect))
+    {
+        return std::move(*this);
+    }
+
+    auto d = (obbTInverse * std::move(*this))
+        .clip(obbRect);
+
+    return obb.getTransform() * std::move(d);
 }
 
 std::vector<Drawing::Element> const& Drawing::getElements() const
@@ -262,5 +280,5 @@ Drawing operator*(Transform const& t, Drawing&& drawing)
     return std::move(drawing);
 }
 
-} // namespace
+} // namespace avg
 
