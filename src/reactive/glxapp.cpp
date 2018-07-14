@@ -238,7 +238,8 @@ public:
             {
                 auto handle = inputs[0];
                 currentHandle_ = handle.getFocusHandle();
-                currentHandle_->set(true);
+                if (currentHandle_.valid())
+                    currentHandle_->set(true);
                 currentHandler_ = handle.getHandler();
             }
         }

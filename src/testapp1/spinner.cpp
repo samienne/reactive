@@ -2,8 +2,8 @@
 
 #include <reactive/widgetmaps.h>
 
+#include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
-
 #include <reactive/widget/frame.h>
 
 #include <reactive/signal/loop.h>
@@ -61,6 +61,8 @@ WidgetFactory makeSpinner()
 
     return makeWidgetFactory()
         | widget::onDraw<SizeTag, ThemeTag>(draw, std::move(t))
-        | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)));
+        | widget::clip()
+        | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
+        ;
 }
 

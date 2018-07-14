@@ -4,6 +4,7 @@
 
 #include <reactive/keyboardinput.h>
 
+#include <reactive/widget/clip.h>
 #include <reactive/signal/map.h>
 #include <reactive/widget/focusgroup.h>
 #include <reactive/debug/drawkeyboardinputs.h>

@@ -92,7 +92,7 @@ namespace reactive
                 (std::vector<KeyboardInput> inputs, bool requestFocus)
                 -> std::vector<KeyboardInput>
                 {
-                    if (!inputs[0].hasFocus() || requestFocus)
+                    if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))
                         inputs[0] = std::move(inputs[0]).requestFocus(requestFocus);
 
                     return inputs;
