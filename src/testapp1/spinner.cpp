@@ -16,7 +16,7 @@
 
 using namespace reactive;
 
-WidgetFactory makeSpinner()
+namespace
 {
     auto draw = [](ase::Vector2f size, widget::Theme const& theme,
             std::chrono::duration<float> t)
@@ -54,7 +54,10 @@ WidgetFactory makeSpinner()
                 .transform(avg::translate(0.5f*size[0], 0.5f*size[1]))
                 ;
         };
+} // anonymous namespace
 
+WidgetFactory makeSpinner()
+{
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
