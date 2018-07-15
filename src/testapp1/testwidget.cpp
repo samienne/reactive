@@ -20,7 +20,7 @@
 
 using namespace reactive;
 
-WidgetFactory makeTestWidget()
+namespace
 {
     auto drawTestWidget = [](ase::Vector2f size, widget::Theme const& theme,
             bool state, std::string const& str)
@@ -41,11 +41,13 @@ WidgetFactory makeTestWidget()
                     avg::Vector2f(-70.0f, 0.0f), 20.0f),
                 str, btl::just(brush2), btl::none);
 
-        return (avg::Drawing(shape) + text)
-            .transform(avg::Transform()
-                    .translate(0.5*size[0], 116.0));
+        return (avg::Drawing(std::move(shape)) + text)
+            .transform(avg::translate(0.5*size[0], 116.0));
     };
+} // anonymous namespace
 
+WidgetFactory makeTestWidget()
+{
     auto p = stream::pipe<int>();
 
     auto state = stream::iterate(
@@ -66,14 +68,11 @@ WidgetFactory makeTestWidget()
 
     auto focus = signal::input(false);
 
-    textState.evaluate();
-    //state.evaluate();
-
     return makeWidgetFactory()
-        | onDraw<SizeTag, ThemeTag>(drawTestWidget,
+        | widget::onDraw<SizeTag, ThemeTag>(drawTestWidget,
                 std::move(state), std::move(textState))
-        | onClick(1, send(1, p.handle))
-        | onClick(1, send(true, focus.handle))
+        | widget::onClick(1, send(1, p.handle))
+        | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))
         | setSizeHint(signal::constant(simpleSizeHint(
                     {{200.0f, 400.0f, 10000.0f}},

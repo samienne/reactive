@@ -2,6 +2,8 @@
 
 #include "brush.h"
 #include "transform.h"
+#include "jointype.h"
+#include "endtype.h"
 
 #include <btl/hash.h>
 #include <btl/visibility.h>
@@ -11,7 +13,8 @@ namespace avg
     class BTL_VISIBLE Pen final
     {
     public:
-        Pen(Brush brush = Brush(), float width = 1.0f);
+        Pen(Brush brush = Brush(), float width = 1.0f,
+                JoinType join = JOIN_ROUND, EndType end = END_OPENROUND);
 
         Pen(Pen const&) = default;
         Pen(Pen&&) = default;
@@ -26,6 +29,8 @@ namespace avg
 
         Brush const& getBrush() const noexcept;
         float getWidth() const noexcept;
+        JoinType getJoinType() const noexcept;
+        EndType getEndType() const noexcept;
 
         bool operator==(Pen const& rhs) const noexcept;
         bool operator!=(Pen const& rhs) const noexcept;
@@ -53,6 +58,8 @@ namespace avg
 
     private:
         Brush brush_;
+        JoinType join_;
+        EndType end_;
         float width_;
     };
 }

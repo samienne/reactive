@@ -8,8 +8,11 @@ PointerMoveEvent transformPointerMoveEvent(
         avg::Transform const& t
         )
 {
-    ase::Vector2f old = t * (e.pos - e.rel);
-    ase::Vector2f next = t * e.pos;
+    avg::Matrix2f rs = t.getRsMatrix();
+    avg::Vector2f off = t.getTranslation();
+
+    ase::Vector2f old = off + rs * (e.pos - e.rel);
+    ase::Vector2f next = off + rs * e.pos;
 
     return
     {

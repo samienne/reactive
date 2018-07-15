@@ -14,6 +14,7 @@
 namespace avg
 {
     class SimplePolygon;
+    class Rect;
 
     class RegionDeferred;
 
@@ -46,6 +47,8 @@ namespace avg
 
         std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
             triangulate() const;
+
+        Region getClipped(Rect const& r) const;
 
     private:
         friend std::ostream& operator<<(std::ostream& stream,

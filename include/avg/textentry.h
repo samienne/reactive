@@ -1,5 +1,7 @@
 #pragma once
 
+#include "rect.h"
+#include "obb.h"
 #include "font.h"
 #include "transform.h"
 #include "pen.h"
@@ -41,6 +43,9 @@ namespace avg
         std::string const& getText() const;
         btl::option<Brush> const& getBrush() const;
         btl::option<Pen> const& getPen() const;
+
+        Rect getControlBb() const;
+        Obb getControlObb() const;
 
         TextEntry transformR(avg::Transform const& t) const;
 

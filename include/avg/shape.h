@@ -28,6 +28,8 @@ namespace avg
         Path const& getPath() const;
         btl::option<Pen> const& getPen() const;
         btl::option<Brush> const& getBrush() const;
+        Rect getControlBb() const;
+        Obb getControlObb() const;
 
         Shape operator*(float scale) const &;
         Shape operator*(float scale) &&;

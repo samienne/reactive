@@ -1,5 +1,7 @@
 #include "textentry.h"
 
+#include "textextents.h"
+
 namespace avg
 {
 
@@ -79,6 +81,18 @@ btl::option<Brush> const& TextEntry::getBrush() const
 btl::option<Pen> const& TextEntry::getPen() const
 {
     return pen_;
+}
+
+Rect TextEntry::getControlBb() const
+{
+    return getControlObb().getBoundingRect();
+}
+
+Obb TextEntry::getControlObb() const
+{
+    TextExtents te = font_.getTextExtents(utf8::asUtf8(text_), 1.0f);
+
+    return transform_ * Obb(Rect(te.bearing, te.size));
 }
 
 TextEntry TextEntry::transformR(avg::Transform const& t) const

@@ -1,5 +1,6 @@
 #include "widget/textedit.h"
 
+#include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
 #include "widget/onkeyevent.h"
@@ -166,6 +167,7 @@ TextEdit::operator WidgetFactory() const
         | trackFocus(focus.handle)
         | onDraw<SizeTag, ThemeTag>(draw, std::move(state),
                 std::move(focusPercentage))
+        | widget::clip()
         | widget::frame()
         | focusOn(std::move(requestFocus.stream))
         | onClick(1, send(true, requestFocus.handle))

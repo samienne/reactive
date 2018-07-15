@@ -121,9 +121,11 @@ namespace reactive
                     std::move(*maps_),
                     [](auto&& initial, auto&& map)
                     {
+                        /*
                         static_assert(IsWidget<decltype(initial)>::value, "");
                         static_assert(IsWidgetMap<std::decay_t<decltype(map)>>::value,
                             "");
+                        */
 
                         return std::forward<decltype(map)>(map)(
                             std::forward<decltype(initial)>(initial));

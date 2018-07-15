@@ -32,7 +32,9 @@ namespace avg
         Obb transformR(avg::Transform const& t) const;
         Obb setSize(Vector2f size) const;
 
-        Obb operator+(Obb const& obb) const;
+        Rect getBoundingRect() const;
+
+        //Obb operator+(Obb const& obb) const;
 
         bool operator==(Obb const& obb) const;
         bool operator!=(Obb const& obb) const;

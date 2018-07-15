@@ -2,8 +2,8 @@
 
 #include <reactive/widgetmaps.h>
 
+#include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
-
 #include <reactive/widget/frame.h>
 
 #include <reactive/signal/loop.h>
@@ -16,7 +16,7 @@
 
 using namespace reactive;
 
-WidgetFactory makeSpinner()
+namespace
 {
     auto draw = [](ase::Vector2f size, widget::Theme const& theme,
             std::chrono::duration<float> t)
@@ -49,19 +49,20 @@ WidgetFactory makeSpinner()
                             .translate(std::cos(a) * w, std::sin(a) * w));
             }
 
-            /*drawing += makeShape(makeRect(200.0f, 20.0f),
-                    btl::just(avg::Brush(avg::Color(0.15, 0.06, 0.24, 0.3))),
-                    btl::none);*/
-
             return std::move(drawing)
-                .transform(avg::Transform()
-                        .translate(0.5f*size[0], 0.5f*size[1]));
+                .transform(avg::translate(0.5f*size[0], 0.5f*size[1]))
+                ;
         };
+} // anonymous namespace
 
+WidgetFactory makeSpinner()
+{
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | onDraw<SizeTag, ThemeTag>(draw, std::move(t))
-        | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)));
+        | widget::onDraw<SizeTag, ThemeTag>(draw, std::move(t))
+        | widget::clip()
+        | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
+        ;
 }
 

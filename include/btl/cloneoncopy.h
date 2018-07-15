@@ -31,6 +31,14 @@ namespace btl
     }
 
     template <typename T>
+    auto clone(T&& t) -> std::enable_if_t<
+    btl::All<std::is_rvalue_reference<T&&>, btl::Not<std::is_const<T>>>::value,
+        std::decay_t<T>>
+    {
+        return std::move(t);
+    }
+
+    template <typename T>
     using clone_t = decltype(btl::clone(std::declval<std::decay_t<T> const>()));
 
     template <typename T, typename = void>

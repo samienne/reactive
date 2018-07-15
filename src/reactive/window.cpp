@@ -22,7 +22,7 @@ Window Window::onClose(std::function<void()> const& cb) &&
 WidgetFactory Window::getWidget() const
 {
     return widget_->clone()
-        | background()
+        | widget::background()
         ;
 }
 

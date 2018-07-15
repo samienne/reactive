@@ -20,12 +20,13 @@
 
 namespace reactive
 {
-    using RenderElement = btl::variant<avg::Shape, avg::TextEntry>;
-    using RenderCache = std::unordered_map<RenderElement,
-          std::vector<avg::SoftMesh>, btl::uhash<btl::fnv1a>>;
+    //using RenderElement = btl::variant<avg::Shape, avg::TextEntry>;
+    using RenderElement = avg::Drawing::Element;
+    /*using RenderCache = std::unordered_map<RenderElement,
+          std::vector<avg::SoftMesh>, btl::uhash<btl::fnv1a>>;*/
 
-    BTL_VISIBLE RenderCache render(ase::RenderContext& context,
-            RenderCache const& cache, ase::RenderTarget& target,
+    BTL_VISIBLE /*RenderCache*/ void render(ase::RenderContext& context,
+            /*RenderCache const& cache,*/ ase::RenderTarget& target,
             avg::Painter const& painter, avg::Drawing const& drawing);
 
     BTL_VISIBLE void render(ase::RenderContext& context,

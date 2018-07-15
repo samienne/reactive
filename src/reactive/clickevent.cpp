@@ -29,7 +29,7 @@ ase::Vector2f ClickEvent::getPos() const
 ClickEvent ClickEvent::transform(avg::Transform const& t) const
 {
     ClickEvent e(*this);
-    e.pos_ = t * e.pos_;
+    e.pos_ = t.getTranslation() + t.getRsMatrix() * e.pos_;
     return e;
 }
 

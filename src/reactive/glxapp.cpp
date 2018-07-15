@@ -207,7 +207,7 @@ public:
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
             glxWindow.clear();
-            cache_ = render(context_, cache_, glxWindow, painter_,
+            /*cache_ =*/ render(context_, /*cache_,*/ glxWindow, painter_,
                     widget_.getDrawing().evaluate());
             glxWindow.submitAll(context_);
             context_.present(glxWindow);
@@ -238,7 +238,8 @@ public:
             {
                 auto handle = inputs[0];
                 currentHandle_ = handle.getFocusHandle();
-                currentHandle_->set(true);
+                if (currentHandle_.valid())
+                    currentHandle_->set(true);
                 currentHandler_ = handle.getHandler();
             }
         }
@@ -269,7 +270,7 @@ private:
     signal::Input<ase::Vector2f> size_;
     Widget widget_;
     Signal<std::string> titleSignal_;
-    RenderCache cache_;
+    //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
     std::unordered_multimap<unsigned int, InputArea> areas_;
