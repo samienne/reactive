@@ -3,6 +3,7 @@ incdir = include_directories('../../include', '../../include/reactive', '.')
 
 libreactivesrc = [
     'uniformgrid.cpp',
+    'widget/bin.cpp',
     'widget/textedit.cpp',
     'widget/label.cpp',
     'widget/theme.cpp',
