@@ -422,6 +422,31 @@ namespace reactive
         return mapWidget(f);
     }
 
+    inline auto trackObb(signal::InputHandle<avg::Obb> handle)
+        //-> FactoryMap
+    {
+        auto f = [handle = std::move(handle)](auto widget)
+            // -> Widget
+        {
+            auto obb = signal::tee(widget.getObb(), handle);
+
+            return std::move(widget)
+                .setObb(std::move(obb))
+                |
+                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+                        {
+                            // TODO: Remove this hack. This is needed to keep
+                            // the obb signal in around.
+                            return inputs;
+                        });
+        };
+
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+
+        return mapWidget(f);
+    }
+
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
         // -> FactoryMap
     {

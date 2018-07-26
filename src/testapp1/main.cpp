@@ -4,6 +4,7 @@
 
 #include <reactive/keyboardinput.h>
 
+#include <reactive/widget/scrollbar.h>
 #include <reactive/widget/scrollview.h>
 #include <reactive/widget/clip.h>
 #include <reactive/signal/map.h>
@@ -38,6 +39,8 @@ int main()
 {
     auto textState = signal::input(widget::TextEditState{"Test123"});
 
+    auto scrollState = signal::input(1.0f);
+
     auto widgets = hbox({
         widget::label(signal::constant<std::string>("TestTest"))
             | widget::frame()
@@ -67,6 +70,7 @@ int main()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
                 , reactive::vfiller()
+                , widget::hScrollBar(scrollState.handle, scrollState.signal)
                 })
         , adder()
             | widget::frame()

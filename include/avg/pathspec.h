@@ -28,7 +28,9 @@ namespace avg
         PathSpec& operator=(PathSpec&&) = default;
 
         PathSpec start(Vector2f v) &&;
+        PathSpec start(float x, float y) &&;
         PathSpec lineTo(Vector2f v) &&;
+        PathSpec lineTo(float x, float y) &&;
         PathSpec conicTo(Vector2f v1, Vector2f v2) &&;
         PathSpec cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&;
         PathSpec close() &&;

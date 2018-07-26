@@ -6,9 +6,14 @@
 
 namespace reactive::widget
 {
-    inline auto onPointerMove(Signal<
+    template <typename T, typename = std::enable_if_t<
+        IsSignalType<
+            std::decay_t<T>,
+            std::function<void(ase::PointerMoveEvent const&)>>::value
+        >>
+    inline auto onPointerMove(/*Signal<
             std::function<void(ase::PointerMoveEvent const&)>
-            > cb)
+            > */ T&& cb)
     {
         auto id = btl::makeUniqueId();
 

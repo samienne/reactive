@@ -167,6 +167,7 @@ TextEdit::operator WidgetFactory() const
         | trackFocus(focus.handle)
         | onDraw<SizeTag, ThemeTag>(draw, std::move(state),
                 std::move(focusPercentage))
+        | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame()
         | focusOn(std::move(requestFocus.stream))
