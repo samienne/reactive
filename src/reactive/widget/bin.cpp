@@ -1,5 +1,7 @@
 #include "widget/bin.h"
 
+#include "widget/clip.h"
+
 namespace reactive::widget
 {
 
@@ -12,7 +14,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
 {
     auto sizeHint = signal::share(f.getSizeHint());
 
-    auto obb = signal::map(obbMap, sizeHint);
+    auto obb = obbMap(sizeHint);
     auto splitted = signal::split(signal::map([](avg::Obb const& obb)
                 {
                     return std::make_tuple(obb.getSize(), obb.getTransform());
@@ -26,6 +28,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
 
     return makeWidgetFactory()
         | addWidget(Widget(std::move(newF)(std::move(size))))
+        | widget::clip()
         | setSizeHint(signal::map(sizeHintMap, std::move(sizeHint)))
         ;
 }

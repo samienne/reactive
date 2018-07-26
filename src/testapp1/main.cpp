@@ -4,6 +4,7 @@
 
 #include <reactive/keyboardinput.h>
 
+#include <reactive/widget/scrollview.h>
 #include <reactive/widget/clip.h>
 #include <reactive/signal/map.h>
 #include <reactive/widget/focusgroup.h>
@@ -22,6 +23,7 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal.h>
+#include <reactive/filler.h>
 
 #include <ase/vector.h>
 
@@ -40,10 +42,12 @@ int main()
         widget::label(signal::constant<std::string>("TestTest"))
             | widget::frame()
         , vbox({
-                uniformGrid(3, 3)
-                    .cell(0, 0, 1, 1, makeSpinner())
-                    .cell(1, 1, 1, 1, makeSpinner())
-                    .cell(2, 2, 1, 1, makeSpinner())
+                widget::scrollView(
+                        uniformGrid(3, 3)
+                        .cell(0, 0, 1, 1, makeSpinner())
+                        .cell(1, 1, 1, 1, makeSpinner())
+                        .cell(2, 2, 1, 1, makeSpinner())
+                        )
                 , makeSpinner()
                     | widget::frame()
                     | widget::onPointerMove([](reactive::PointerMoveEvent const& e)
@@ -62,6 +66,7 @@ int main()
                     | widget::frame()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
+                , reactive::vfiller()
                 })
         , adder()
             | widget::frame()
