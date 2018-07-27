@@ -85,8 +85,9 @@ namespace
                         [downHandle=std::move(downHandle)]
                         (avg::Vector2f size, float amount, PointerButtonEvent e) mutable
                         {
-                            if (e.button == 1
-                                    && getSliderRect(size, amount).contains(e.pos))
+                            auto r = getSliderRect(size, amount);
+
+                            if (e.button == 1 && r.contains(e.pos))
                                 downHandle.set(true);
                         }, std::move(sizeSignal), amountSignal));
     }
@@ -102,7 +103,7 @@ WidgetFactory hScrollBar(signal::InputHandle<float> handle, Signal<float> amount
         | trackSize(std::move(size.handle))
         | onPointerDown(hScrollPointerDown(dragging.handle,
                     size.signal, amountShared))
-        | onPointerUp([handle=dragging.handle]()mutable { handle.set(false); })
+        | onPointerUp([handle=dragging.handle]() mutable { handle.set(false); })
         | onPointerMove(signal::mapFunction(
                     [handle]
                     (bool dragging, avg::Vector2f size, PointerMoveEvent const& e)
@@ -115,6 +116,10 @@ WidgetFactory hScrollBar(signal::InputHandle<float> handle, Signal<float> amount
                     }, dragging.signal, size.signal))
         | onDraw<SizeTag, ThemeTag>(drawHScrollBar, amountShared)
         | widget::margin(signal::constant(10.0f))
+        | setSizeHint(signal::constant(simpleSizeHint(
+                        {{100, 200, 10000}},
+                        {{30, 30, 0}}
+                        )))
         ;
 }
 

@@ -129,18 +129,24 @@ public:
                     }
                 }
 
+                /*
                 for (auto const& a : areas)
                 {
-
                     if (a.acceptsMoveEvent(e))
                         a.emitMoveEvent(e);
                 }
+                */
 
                 for (auto const& a : areas_)
                 {
-                    a.second.emitMoveEvent(e);
+                    if (e.buttons.at(a.first - 1))
+                        a.second.emitMoveEvent(e);
                 }
             });
+
+        glxWindow.setDragCallback([this](ase::PointerDragEvent const& /*e*/)
+                {
+                });
 
         glxWindow.setKeyCallback([this](ase::KeyEvent const& e)
             {
@@ -200,6 +206,23 @@ public:
 
         timeToNext2 = titleSignal_.updateEnd({frameId, dt});
         timeToNext = signal::min(timeToNext, timeToNext2);
+
+        if (widget_.getAreas().hasChanged())
+        {
+            // If there's an area with the same id -> update
+            auto areas = widget_.getAreas().evaluate();
+            for (auto&& area : areas_)
+            {
+                for (auto&& area2 : areas)
+                {
+                    if (area.second.getId() == area2.getId())
+                    {
+                        area.second = std::move(area2);
+                        break;
+                    }
+                }
+            }
+        }
 
         if (titleSignal_.hasChanged())
             glxWindow.setTitle(titleSignal_.evaluate());

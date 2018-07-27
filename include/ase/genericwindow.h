@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pointerdragevent.h"
 #include "pointerbuttonevent.h"
 #include "pointermoveevent.h"
 #include "keyevent.h"
@@ -47,6 +48,8 @@ namespace ase
                 std::function<void(PointerButtonEvent const&)> cb);
         void setPointerCallback(
                 std::function<void(PointerMoveEvent const&)> cb);
+        void setDragCallback(
+                std::function<void(PointerDragEvent const&)> cb);
         void setKeyCallback(std::function<void(KeyEvent const&)> cb);
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
 
@@ -56,6 +59,7 @@ namespace ase
         std::function<void()> redrawCallback_;
         std::function<void(PointerButtonEvent const& e)> buttonCallback_;
         std::function<void(PointerMoveEvent const& e)> pointerCallback_;
+        std::function<void(PointerDragEvent const& e)> dragCallback_;
         std::function<void(KeyEvent const& e)> keyCallback_;
         std::function<void(HoverEvent const& e)> hoverCallback_;
 
@@ -70,6 +74,8 @@ namespace ase
             false, false, false, false,
             false, false, false
         }};
+
+        std::array<Vector2f, 15> buttonDownPos_;
 
         std::string title_;
     };

@@ -61,7 +61,11 @@ void GenericWindow::injectPointerButtonEvent(
         Vector2f pos,
         ButtonState buttonState)
 {
-    buttonPressedState_[buttonIndex - 1] = true;
+    assert(pointerIndex <= 15);
+    buttonPressedState_[buttonIndex - 1] = buttonState == ButtonState::down ;
+
+    if (buttonState == ButtonState::down)
+        buttonDownPos_[buttonIndex - 1] = pos;
 
     PointerButtonEvent event{
                 pointerIndex, buttonIndex, buttonState, pos
@@ -87,6 +91,21 @@ void GenericWindow::injectPointerMoveEvent(unsigned int /*pointerIndex*/,
 
     if (pointerCallback_)
         pointerCallback_(event);
+
+    if (dragCallback_)
+    {
+        for (int i = 0; i < 15; ++i)
+        {
+            if (buttonPressedState_[i])
+            {
+                PointerDragEvent e{
+                    i, pos, rel, buttonDownPos_[i], hover_
+                };
+
+                dragCallback_(e);
+            }
+        }
+    }
 }
 
 void GenericWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
@@ -134,6 +153,12 @@ void GenericWindow::setPointerCallback(
         std::function<void(PointerMoveEvent const&)> cb)
 {
     pointerCallback_ = std::move(cb);
+}
+
+void GenericWindow::setDragCallback(
+        std::function<void(PointerDragEvent const&)> cb)
+{
+    dragCallback_ = std::move(cb);
 }
 
 void GenericWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)

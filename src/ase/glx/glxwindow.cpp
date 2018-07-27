@@ -326,6 +326,12 @@ void GlxWindow::setPointerCallback(
     d()->genericWindow_.setPointerCallback(std::move(cb));
 }
 
+void GlxWindow::setDragCallback(
+        std::function<void(PointerDragEvent const&)> cb)
+{
+    d()->genericWindow_.setDragCallback(std::move(cb));
+}
+
 void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
     d()->genericWindow_.setKeyCallback(std::move(cb));

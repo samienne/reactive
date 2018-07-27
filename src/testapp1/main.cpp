@@ -21,6 +21,7 @@
 #include <reactive/hbox.h>
 #include <reactive/vbox.h>
 #include <reactive/widgetfactory.h>
+#include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal.h>
@@ -39,7 +40,7 @@ int main()
 {
     auto textState = signal::input(widget::TextEditState{"Test123"});
 
-    auto scrollState = signal::input(1.0f);
+    auto scrollState = signal::input(0.5f);
 
     auto widgets = hbox({
         widget::label(signal::constant<std::string>("TestTest"))
@@ -71,6 +72,7 @@ int main()
                         signal::cast<widget::TextEditState>(textState.signal))
                 , reactive::vfiller()
                 , widget::hScrollBar(scrollState.handle, scrollState.signal)
+                , widget::label(signal::toString(scrollState.signal))
                 })
         , adder()
             | widget::frame()
