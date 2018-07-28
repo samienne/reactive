@@ -75,7 +75,7 @@ namespace
 
     template <typename T, typename U>
     auto hScrollPointerDown(
-            signal::InputHandle<bool> downHandle,
+            signal::InputHandle<btl::option<avg::Vector2f>> downHandle,
             Signal<avg::Vector2f, T> sizeSignal,
             SharedSignal<float, U> amountSignal)
     {
@@ -88,32 +88,36 @@ namespace
                             auto r = getSliderRect(size, amount);
 
                             if (e.button == 1 && r.contains(e.pos))
-                                downHandle.set(true);
+                                downHandle.set(btl::just(e.pos-r.getCenter()));
                         }, std::move(sizeSignal), amountSignal));
     }
 } // anonymous namespace
 
 WidgetFactory hScrollBar(signal::InputHandle<float> handle, Signal<float> amount)
 {
-    auto dragging = signal::input(false);
+    auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
     auto size = signal::input(avg::Vector2f());
     auto amountShared = signal::share(std::move(amount));
 
     return makeWidgetFactory()
         | trackSize(std::move(size.handle))
-        | onPointerDown(hScrollPointerDown(dragging.handle,
+        | onPointerDown(hScrollPointerDown(downOffset.handle,
                     size.signal, amountShared))
-        | onPointerUp([handle=dragging.handle]() mutable { handle.set(false); })
+        | onPointerUp([handle=downOffset.handle]() mutable { handle.set(btl::none); })
         | onPointerMove(signal::mapFunction(
                     [handle]
-                    (bool dragging, avg::Vector2f size, PointerMoveEvent const& e)
+                    (btl::option<avg::Vector2f> downOffset,
+                     avg::Vector2f size, PointerMoveEvent const& e)
                     mutable
                     {
-                        if (!dragging)
+                        if (!downOffset.valid())
                             return;
 
-                        handle.set(std::max(0.0f, std::min(e.pos[0] / size[0], 1.0f)));
-                    }, dragging.signal, size.signal))
+                        float offset = (*downOffset)[0];
+                        float pos = e.pos[0] - offset;
+
+                        handle.set(std::max(0.0f, std::min(pos / size[0], 1.0f)));
+                    }, downOffset.signal, size.signal))
         | onDraw<SizeTag, ThemeTag>(drawHScrollBar, amountShared)
         | widget::margin(signal::constant(10.0f))
         | setSizeHint(signal::constant(simpleSizeHint(
