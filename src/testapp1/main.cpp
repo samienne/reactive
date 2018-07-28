@@ -72,7 +72,8 @@ int main()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
                 , reactive::vfiller()
-                , widget::hScrollBar(hScrollState.handle, hScrollState.signal)
+                , widget::hScrollBar(hScrollState.handle, hScrollState.signal,
+                        signal::constant(0.0f))
                 , widget::label(signal::toString(hScrollState.signal))
                 , widget::label(signal::toString(vScrollState.signal))
                 })
@@ -82,7 +83,8 @@ int main()
                     {
                         std::cout << "Hover: " << e.hover << std::endl;
                     })
-        , widget::vScrollBar(vScrollState.handle, vScrollState.signal)
+        , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
+                signal::constant(0.5f))
     });
 
     auto running = signal::input(true);
