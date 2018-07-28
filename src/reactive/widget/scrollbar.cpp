@@ -31,15 +31,6 @@ namespace
     avg::Drawing drawSlider(avg::Vector2f size, widget::Theme const& theme,
             float amount)
     {
-        /*avg::Path slider(avg::PathSpec()
-                .start(-5.0f, -10.0f)
-                .lineTo(5.0f, -10.0f)
-                .lineTo(5.0f, 10.0f)
-                .lineTo(-5.0f, 10.0f)
-                .close());
-
-        auto t = avg::translate(avg::Vector2f(size[0] * amount, size[1] / 2.0f));
-        */
         avg::Path slider(rectToPath(getSliderRect(size, amount)));
 
         avg::Brush b(theme.getBackgroundHighlight());
