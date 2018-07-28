@@ -40,7 +40,8 @@ int main()
 {
     auto textState = signal::input(widget::TextEditState{"Test123"});
 
-    auto scrollState = signal::input(0.5f);
+    auto hScrollState = signal::input(0.5f);
+    auto vScrollState = signal::input(0.5f);
 
     auto widgets = hbox({
         widget::label(signal::constant<std::string>("TestTest"))
@@ -71,8 +72,9 @@ int main()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
                 , reactive::vfiller()
-                , widget::hScrollBar(scrollState.handle, scrollState.signal)
-                , widget::label(signal::toString(scrollState.signal))
+                , widget::hScrollBar(hScrollState.handle, hScrollState.signal)
+                , widget::label(signal::toString(hScrollState.signal))
+                , widget::label(signal::toString(vScrollState.signal))
                 })
         , adder()
             | widget::frame()
@@ -80,6 +82,7 @@ int main()
                     {
                         std::cout << "Hover: " << e.hover << std::endl;
                     })
+        , widget::vScrollBar(vScrollState.handle, vScrollState.signal)
     });
 
     auto running = signal::input(true);
