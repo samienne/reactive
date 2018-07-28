@@ -126,8 +126,8 @@ namespace
     template <bool IsHorizontal>
     auto getScrollBarSizeHint()
     {
-        std::array<float, 3> main{{100, 200, 10000}};
-        std::array<float, 3> aux{{30, 30, 0}};
+        std::array<float, 3> main{{50, 100, 10000}};
+        std::array<float, 3> aux{{25, 25, 25}};
 
         if (IsHorizontal)
             return signal::constant(simpleSizeHint(main, aux));
@@ -161,6 +161,9 @@ WidgetFactory scrollBar(
                         if (!downOffset.valid())
                             return;
 
+                        if (handleSize == 1.0f)
+                            return;
+
                         int const axis = IsHorizontal ? 0 : 1;
                         float offset = (*downOffset)[axis];
                         float handleLen  = std::max(10.0f, handleSize * size[axis]);
@@ -174,7 +177,7 @@ WidgetFactory scrollBar(
                     }, downOffset.signal, size.signal, handleSize))
         | onDraw<SizeTag, ThemeTag>(drawScrollBar<IsHorizontal>, amount,
                 handleSize)
-        | widget::margin(signal::constant(10.0f))
+        | widget::margin(signal::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;
 }
@@ -185,7 +188,10 @@ WidgetFactory hScrollBar(
         Signal<float> handleSize)
 {
     return scrollBar<true>(std::move(handle), signal::share(std::move(amount)),
-            signal::share(std::move(handleSize)));
+            signal::share(signal::map([](float v)
+                    {
+                        return std::min(1.0f, v);
+                    }, std::move(handleSize))));
 }
 
 WidgetFactory vScrollBar(
@@ -194,7 +200,10 @@ WidgetFactory vScrollBar(
         Signal<float> handleSize)
 {
     return scrollBar<false>(std::move(handle), signal::share(std::move(amount)),
-            signal::share(std::move(handleSize)));
+            signal::share(signal::map([](float v)
+                    {
+                        return std::min(1.0f, v);
+                    }, std::move(handleSize))));
 }
 
 } // namespace reactive::widget
