@@ -22,25 +22,23 @@ namespace
 
     Signal<avg::Obb> obbMap(Signal<SizeHint> hint,
             Signal<avg::Vector2f> contentSize,
-            Signal<avg::Vector2f> viewSize,
-            Signal<avg::Transform> transform)
+            Signal<avg::Vector2f> viewSize)
     {
         return signal::map(
                 [](SizeHint hint, avg::Vector2f contentSize,
-                    avg::Vector2f viewSize, avg::Transform const& transform)
+                    avg::Vector2f viewSize)
                 {
                     float w = hint()[1];
                     float h = hint(w)[1];
 
                     float offY = contentSize[1] - viewSize[1];
 
-                    return transform * avg::translate(0.0f, -offY)
+                    return avg::translate(0.0f, -offY)
                         * avg::Obb(avg::Vector2f(w, h));
                 },
                 std::move(hint),
                 std::move(contentSize),
-                std::move(viewSize),
-                std::move(transform));
+                std::move(viewSize));
     }
 } // anonymous namespace
 
@@ -79,16 +77,16 @@ WidgetFactory scrollView(WidgetFactory f)
 
     auto f2 = std::move(f)
         | trackSize(contentSize.handle)
+        | transform(t.clone())
         ;
 
     auto view = bin(std::move(f2), hintMap,
             [contentSize=std::move(contentSize.signal),
-            viewSize=std::move(viewSize.signal),
-            transform=btl::cloneOnCopy(std::move(t))]
+            viewSize=std::move(viewSize.signal)]
             (Signal<SizeHint> sizeHint)
             {
                 return obbMap(std::move(sizeHint), btl::clone(contentSize),
-                        btl::clone(viewSize), btl::clone(*transform));
+                        btl::clone(viewSize));
             })
             | trackSize(viewSize.handle)
             | widget::frame()
