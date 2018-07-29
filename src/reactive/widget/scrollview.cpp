@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "reactive/sendvalue.h"
 #include "reactive/hbox.h"
 #include "reactive/vbox.h"
 #include "reactive/filler.h"
@@ -75,9 +76,54 @@ WidgetFactory scrollView(WidgetFactory f)
                 return viewSize[1] / contentSize[1];
             }, contentSize.signal, viewSize.signal);
 
+    auto dragOffset = signal::input(avg::Vector2f());
+    auto scrollPos = signal::input<btl::option<avg::Vector2f>>(btl::none);
+
     auto f2 = std::move(f)
         | trackSize(contentSize.handle)
         | transform(t.clone())
+        | onPointerDown(signal::mapFunction(
+                [dragOffsetHandle=dragOffset.handle,
+                scrollPosHandle=scrollPos.handle
+                ]
+                (avg::Vector2f contentSize, float x, float y,
+                 PointerButtonEvent const& e) mutable
+                {
+                    avg::Vector2f center(contentSize[0] / 2.0f,
+                            contentSize[1] / 2.0f);
+
+                    if (e.button == 1)
+                    {
+                        dragOffsetHandle.set(e.pos );//- center);
+                        scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
+                    }
+                }, contentSize.signal, x.signal, y.signal))
+        | onPointerMove(signal::mapFunction(
+                [xHandle=x.handle, yHandle=y.handle]
+                (avg::Vector2f dragOffset, avg::Vector2f viewSize,
+                    avg::Vector2f contentSize,
+                    btl::option<avg::Vector2f> scrollPos,
+                    PointerMoveEvent const& e) mutable
+                {
+                    if (!scrollPos.valid())
+                        return;
+
+                    float hLen = contentSize[0] - viewSize[0];
+                    float vLen = contentSize[1] - viewSize[1];
+
+                    float x = -(e.pos[0] - dragOffset[0]) / hLen + (*scrollPos)[0];
+                    float y = -(e.pos[1] - dragOffset[1]) / vLen + (*scrollPos)[1];
+
+                    xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
+                    yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
+
+                }, dragOffset.signal, viewSize.signal, contentSize.signal,
+                scrollPos.signal))
+        | onPointerUp([scrollPosHandle=scrollPos.handle]
+                (PointerButtonEvent const&) mutable
+                {
+                    scrollPosHandle.set(btl::none);
+                });
         ;
 
     auto view = bin(std::move(f2), hintMap,

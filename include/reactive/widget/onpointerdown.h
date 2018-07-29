@@ -8,9 +8,12 @@
 
 namespace reactive::widget
 {
-    inline auto onPointerDown(Signal<
-            std::function<void(ase::PointerButtonEvent const&)>
-            > cb)
+    template <typename T, typename = std::enable_if_t<
+        IsSignalType<
+            std::decay_t<T>,
+            std::function<void(ase::PointerButtonEvent const&)>>::value
+        >>
+    inline auto onPointerDown(T&& cb)
     {
         btl::UniqueId id = btl::makeUniqueId();
 
