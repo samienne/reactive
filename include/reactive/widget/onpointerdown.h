@@ -1,5 +1,6 @@
 #pragma once
 
+#include "reactive/eventresult.h"
 #include "reactive/signal.h"
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/widgetmap.h"
@@ -11,7 +12,7 @@ namespace reactive::widget
     template <typename T, typename = std::enable_if_t<
         IsSignalType<
             std::decay_t<T>,
-            std::function<void(ase::PointerButtonEvent const&)>>::value
+            std::function<EventResult(ase::PointerButtonEvent const&)>>::value
         >>
     inline auto onPointerDown(T&& cb)
     {
@@ -40,7 +41,7 @@ namespace reactive::widget
     }
 
     inline auto onPointerDown(
-            std::function<void(ase::PointerButtonEvent const&)> cb
+            std::function<EventResult(ase::PointerButtonEvent const&)> cb
             )
     {
         return onPointerDown(signal::constant(std::move(cb)));

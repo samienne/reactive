@@ -171,8 +171,13 @@ TextEdit::operator WidgetFactory() const
         | widget::clip()
         | widget::frame()
         | focusOn(std::move(requestFocus.stream))
-        | onClick(1, send(true, requestFocus.handle))
-        | onClick(1, send(keyStream.handle))
+        | onClick(1,
+                [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
+                (ClickEvent const& e)
+                {
+                    requestHandle.push(true);
+                    keyHandle.push(e);
+                })
         | widget::onKeyEvent(sendKeysTo(keyStream.handle))
         | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
         ;

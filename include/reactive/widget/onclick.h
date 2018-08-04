@@ -24,7 +24,13 @@ namespace reactive::widget
                 ase::PointerButtonEvent const& e)
         {
             if (button == 0 || e.button == button)
+            {
                 cb(ClickEvent(e.pointer, e.button, e.pos));
+
+                return EventResult::accept;
+            }
+
+            return EventResult::possible;
         };
 
         return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
@@ -49,6 +55,8 @@ namespace reactive::widget
         {
             if (button == 0 || e.button == button)
                 f(ClickEvent(e.pointer, e.button, e.pos));
+
+            return EventResult::accept;
         };
 
         return onPointerUp(g);

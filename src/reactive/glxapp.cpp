@@ -81,18 +81,18 @@ public:
                         if (a.acceptsButtonEvent(e))
                         {
                             a.emitButtonEvent(e);
-                            areas_.insert(std::make_pair(e.button, a));
+                            areas_[e.button].push_back(a);
                         }
                     }
                 }
                 else if (e.state == ase::ButtonState::up)
                 {
-                    auto i = areas_.find(e.button);
-                    while (i != areas_.end() && i->first == e.button)
+                    for (auto const& a : areas_[e.button])
                     {
-                        i->second.emitButtonEvent(e);
-                        areas_.erase(i++);
+                        a.emitButtonEvent(e);
                     }
+
+                    areas_[e.button].clear();
                 }
             });
 
@@ -129,18 +129,36 @@ public:
                     }
                 }
 
-                /*
-                for (auto const& a : areas)
+                bool accepted = false;
+                for (auto& item : areas_)
                 {
-                    if (a.acceptsMoveEvent(e))
-                        a.emitMoveEvent(e);
-                }
-                */
+                    if (!e.buttons.at(item.first - 1))
+                        continue;
 
-                for (auto const& a : areas_)
-                {
-                    if (e.buttons.at(a.first - 1))
-                        a.second.emitMoveEvent(e);
+                    std::vector<InputArea> newAreas;
+                    for (auto&& area : item.second)
+                    {
+                        EventResult r = area.emitMoveEvent(e);
+                        if (r == EventResult::accept)
+                        {
+                            newAreas.clear();
+                            newAreas.emplace_back(std::move(area));
+                            accepted = true;
+                            break;
+                        }
+                        else if (r == EventResult::possible)
+                        {
+                            newAreas.push_back(std::move(area));
+                        }
+                        else if (r == EventResult::reject)
+                        {
+                        }
+                    }
+
+                    item.second = std::move(newAreas);
+
+                    if (accepted)
+                        break;
                 }
             });
 
@@ -213,12 +231,15 @@ public:
             auto areas = widget_.getAreas().evaluate();
             for (auto&& area : areas_)
             {
-                for (auto&& area2 : areas)
+                for (InputArea& area3 : area.second)
                 {
-                    if (area.second.getId() == area2.getId())
+                    for (InputArea& area2 : areas)
                     {
-                        area.second = std::move(area2);
-                        break;
+                        if (area3.getId() == area2.getId())
+                        {
+                            area3 = std::move(area2);
+                            break;
+                        }
                     }
                 }
             }
@@ -230,8 +251,7 @@ public:
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
             glxWindow.clear();
-            /*cache_ =*/ render(context_, /*cache_,*/ glxWindow, painter_,
-                    widget_.getDrawing().evaluate());
+            render(context_, glxWindow, painter_, widget_.getDrawing().evaluate());
             glxWindow.submitAll(context_);
             context_.present(glxWindow);
             redraw_ = false;
@@ -296,7 +316,7 @@ private:
     //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
-    std::unordered_multimap<unsigned int, InputArea> areas_;
+    std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
     btl::option<signal::InputHandle<bool>> currentHandle_;

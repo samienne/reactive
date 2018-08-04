@@ -62,10 +62,13 @@ int main()
                                     << " " << e.buttons[2] << " " << e.buttons[3]
                                     << " hover: " << e.hover
                                     << std::endl;
+
+                                return EventResult::possible;
                             })
                     | widget::onPointerDown([](reactive::PointerButtonEvent const&)
                             {
                                 std::cout << "down" << std::endl;
+                                return EventResult::possible;
                             })
                 , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()

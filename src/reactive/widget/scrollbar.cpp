@@ -105,7 +105,7 @@ namespace
             Signal<float, V> handleSizeSignal)
     {
         return
-            signal::cast<std::function<void(ase::PointerButtonEvent const&)>>(
+            signal::cast<std::function<EventResult(ase::PointerButtonEvent const&)>>(
                     signal::mapFunction(
                         [downHandle=std::move(downHandle)]
                         (avg::Vector2f size, float amount, float handleSize,
@@ -116,6 +116,8 @@ namespace
 
                             if (e.button == 1 && r.contains(e.pos))
                                 downHandle.set(btl::just(e.pos-r.getCenter()));
+
+                            return EventResult::possible;
                         },
                         std::move(sizeSignal),
                         amountSignal,
@@ -150,19 +152,22 @@ WidgetFactory scrollBar(
         | onPointerDown(scrollPointerDown<IsHorizontal>(
                     downOffset.handle, size.signal, amount, handleSize)
                 )
-        | onPointerUp([handle=downOffset.handle]() mutable { handle.set(btl::none); })
+        | onPointerUp([handle=downOffset.handle]() mutable
+                {
+                    handle.set(btl::none);
+                    return EventResult::accept;
+                })
         | onPointerMove(signal::mapFunction(
                     [handle]
                     (btl::option<avg::Vector2f> downOffset,
                      avg::Vector2f size, float handleSize,
-                     PointerMoveEvent const& e)
-                    mutable
+                     PointerMoveEvent const& e) mutable -> EventResult
                     {
                         if (!downOffset.valid())
-                            return;
+                            return EventResult::possible;
 
                         if (handleSize == 1.0f)
-                            return;
+                            return EventResult::possible;
 
                         int const axis = IsHorizontal ? 0 : 1;
                         float offset = (*downOffset)[axis];
@@ -174,6 +179,7 @@ WidgetFactory scrollBar(
                         float len = pos / lineLen;
 
                         handle.set(std::max(0.0f, std::min(len, 1.0f)));
+                        return EventResult::accept;
                     }, downOffset.signal, size.signal, handleSize))
         | onDraw<SizeTag, ThemeTag>(drawScrollBar<IsHorizontal>, amount,
                 handleSize)

@@ -97,6 +97,8 @@ WidgetFactory scrollView(WidgetFactory f)
                         dragOffsetHandle.set(e.pos );//- center);
                         scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
                     }
+
+                    return EventResult::possible;
                 }, contentSize.signal, x.signal, y.signal))
         | onPointerMove(signal::mapFunction(
                 [xHandle=x.handle, yHandle=y.handle]
@@ -106,7 +108,7 @@ WidgetFactory scrollView(WidgetFactory f)
                     PointerMoveEvent const& e) mutable
                 {
                     if (!scrollPos.valid())
-                        return;
+                        return EventResult::possible;
 
                     float hLen = contentSize[0] - viewSize[0];
                     float vLen = contentSize[1] - viewSize[1];
@@ -117,12 +119,14 @@ WidgetFactory scrollView(WidgetFactory f)
                     xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
                     yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
+                    return EventResult::accept;
                 }, dragOffset.signal, viewSize.signal, contentSize.signal,
                 scrollPos.signal))
         | onPointerUp([scrollPosHandle=scrollPos.handle]
                 (PointerButtonEvent const&) mutable
                 {
                     scrollPosHandle.set(btl::none);
+                    return EventResult::reject;
                 });
         ;
 

@@ -71,21 +71,21 @@ InputArea InputArea::clip(avg::Obb const& obb) &&
 }
 
 InputArea InputArea::onDown(
-        btl::Function<void (PointerButtonEvent const& e)>
+        btl::Function<EventResult (PointerButtonEvent const& e)>
         f) &&
 {
     onDown_.push_back(std::move(f));
     return std::move(*this);
 }
 
-InputArea InputArea::onUp(btl::Function<void (PointerButtonEvent const& e)>
+InputArea InputArea::onUp(btl::Function<EventResult (PointerButtonEvent const& e)>
         f) &&
 {
     onUp_.push_back(std::move(f));
     return std::move(*this);
 }
 
-InputArea InputArea::onMove(btl::Function<void (PointerMoveEvent const& e)>
+InputArea InputArea::onMove(btl::Function<EventResult (PointerMoveEvent const& e)>
         f) &&
 {
     onMove_.push_back(std::move(f));
@@ -98,29 +98,94 @@ InputArea InputArea::onHover(btl::Function<void (HoverEvent const& e)> f) &&
     return std::move(*this);
 }
 
-void InputArea::emitButtonEvent(PointerButtonEvent const& e) const
+EventResult InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 {
     if (e.state == ase::ButtonState::down)
     {
+        bool possible = false;
+
         for (auto const& cb : onDown_)
-            cb(transformPointerButtonEvent(e, transform_.inverse()));
+        {
+            EventResult r = cb(transformPointerButtonEvent(
+                        e, transform_.inverse()));
+
+            switch (r)
+            {
+                case EventResult::accept:
+                    return r;
+                    break;
+                case EventResult::possible:
+                    possible = true;
+                    break;
+                case EventResult::reject:
+                    break;
+            }
+        }
+
+        if (possible)
+            return EventResult::possible;
+
+        return EventResult::reject;
     }
     else if (e.state == ase::ButtonState::up)
     {
+        bool possible = false;
+
         for (auto const& cb : onUp_)
-            cb(transformPointerButtonEvent(e, transform_.inverse()));
+        {
+            EventResult r = cb(transformPointerButtonEvent(
+                        e, transform_.inverse()));
+
+            switch (r)
+            {
+                case EventResult::accept:
+                    return r;
+                    break;
+                case EventResult::possible:
+                    possible = true;
+                    break;
+                case EventResult::reject:
+                    break;
+            }
+        }
+
+        if (possible)
+            return EventResult::possible;
+
+        return EventResult::reject;
     }
+
+    return EventResult::reject;
 }
 
-void InputArea::emitMoveEvent(PointerMoveEvent const& e) const
+EventResult InputArea::emitMoveEvent(PointerMoveEvent const& e) const
 {
     auto event = transformPointerMoveEvent(e, transform_.inverse());
 
     if (e.hover && !contains(e.pos))
         event.hover = false;
 
+    bool possible = false;
     for (auto const& cb : onMove_)
-        cb(event);
+    {
+        EventResult r = cb(event);
+        switch (r)
+        {
+            case EventResult::accept:
+                return r;
+                break;
+            case EventResult::possible:
+                possible = true;
+                break;
+            case EventResult::reject:
+                break;
+        }
+    }
+
+    if (possible)
+        return EventResult::possible;
+
+    return EventResult::reject;
 }
 
 void InputArea::emitHoverEvent(ase::HoverEvent const& event) const
@@ -130,14 +195,14 @@ void InputArea::emitHoverEvent(ase::HoverEvent const& event) const
 }
 
 std::vector<
-btl::Function<void (PointerButtonEvent const& e)>
+btl::Function<EventResult (PointerButtonEvent const& e)>
 > const& InputArea::getOnDowns() const
 {
     return onDown_;
 }
 
 std::vector<
-btl::Function<void (PointerButtonEvent const& e)>
+btl::Function<EventResult (PointerButtonEvent const& e)>
 > const& InputArea::getOnUps() const
 {
     return onUp_;

@@ -3,13 +3,14 @@
 #include "reactive/signal.h"
 #include "reactive/pointermoveevent.h"
 #include "reactive/widgetmap.h"
+#include "reactive/eventresult.h"
 
 namespace reactive::widget
 {
     template <typename T, typename = std::enable_if_t<
         IsSignalType<
             std::decay_t<T>,
-            std::function<void(ase::PointerMoveEvent const&)>>::value
+            std::function<EventResult(ase::PointerMoveEvent const&)>>::value
         >>
     inline auto onPointerMove(/*Signal<
             std::function<void(ase::PointerMoveEvent const&)>
@@ -40,7 +41,7 @@ namespace reactive::widget
     }
 
     inline auto onPointerMove(
-            std::function<void(ase::PointerMoveEvent const&)> cb
+            std::function<EventResult(ase::PointerMoveEvent const&)> cb
             )
     {
         return onPointerMove(signal::constant(std::move(cb)));
