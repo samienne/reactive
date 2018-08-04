@@ -194,25 +194,6 @@ namespace reactive
                     );
         }
 
-        /*
-        operator WidgetFactory() const &
-        {
-            auto f = [maps = std::move(maps_)](Widget w) -> Widget
-            {
-                return btl::tuple_reduce(std::move(w), maps,
-                        [](auto&& initial, auto&& map)
-                        {
-                            return std::forward<decltype(map)>(map)(
-                                std::forward<decltype(initial)>(initial));
-                        });
-            };
-
-            return makeWidFac(
-                    std::make_tuple(f),
-                    sizeHint_);
-        }
-        */
-
     private:
         btl::CloneOnCopy<btl::decay_t<TTupleMaps>> maps_;
         btl::CloneOnCopy<btl::decay_t<TSizeHint>> sizeHint_;
@@ -406,7 +387,6 @@ namespace reactive
             (auto factory) // -> WidgetFactory
         {
             return std::move(factory)
-                //.setSizeHint(std::move(*sh))
                 .setSizeHint(sh->clone())
                 ;
         };
@@ -426,7 +406,40 @@ namespace reactive
                     handle);
 
             return std::move(widget)
-                .setObb(std::move(obb));
+                .setObb(std::move(obb))
+                |
+                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+                        {
+                            // TODO: Remove this hack. This is needed to keep
+                            // the obb signal in around.
+                            return inputs;
+                        });
+        };
+
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+
+        return mapWidget(f);
+    }
+
+    inline auto trackObb(signal::InputHandle<avg::Obb> handle)
+        //-> FactoryMap
+    {
+        auto f = [handle = std::move(handle)](auto widget)
+            // -> Widget
+        {
+            auto obb = signal::tee(widget.getObb(), handle);
+
+            return std::move(widget)
+                .setObb(std::move(obb))
+                |
+                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+                        {
+                            // TODO: Remove this hack. This is needed to keep
+                            // the obb signal in around.
+                            return inputs;
+                        });
         };
 
         static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");

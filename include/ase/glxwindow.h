@@ -4,6 +4,7 @@
 #include "window.h"
 #include "pointerbuttonevent.h"
 #include "pointermoveevent.h"
+#include "pointerdragevent.h"
 #include "hoverevent.h"
 #include "keyevent.h"
 
@@ -46,6 +47,8 @@ namespace ase
                 std::function<void(PointerButtonEvent const&)> cb);
         void setPointerCallback(
                 std::function<void(PointerMoveEvent const&)> cb);
+        void setDragCallback(
+                std::function<void(PointerDragEvent const&)> cb);
         void setKeyCallback(std::function<void(KeyEvent const&)> cb);
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
 

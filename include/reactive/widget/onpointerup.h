@@ -3,6 +3,7 @@
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/signal.h"
 #include "reactive/widgetmap.h"
+#include "reactive/eventresult.h"
 
 #include <functional>
 #include <type_traits>
@@ -12,7 +13,7 @@ namespace reactive::widget
     template <typename T, typename U, typename = std::enable_if_t<
         std::is_convertible<
             T,
-            std::function<void(ase::PointerButtonEvent const&)>
+            std::function<EventResult(ase::PointerButtonEvent const&)>
         >::value
         >>
     inline auto onPointerUp(Signal<T, U> cb)
@@ -43,14 +44,14 @@ namespace reactive::widget
     }
 
     inline auto onPointerUp(
-            std::function<void(ase::PointerButtonEvent const&)> cb)
+            std::function<EventResult(ase::PointerButtonEvent const&)> cb)
     {
         return onPointerUp(signal::constant(std::move(cb)));
     }
 
-    inline auto onPointerUp(std::function<void()> cb)
+    inline auto onPointerUp(std::function<EventResult()> cb)
     {
-        std::function<void(ase::PointerButtonEvent const& e)> f =
+        std::function<EventResult(ase::PointerButtonEvent const& e)> f =
             std::bind(std::move(cb));
         return onPointerUp(f);
     }

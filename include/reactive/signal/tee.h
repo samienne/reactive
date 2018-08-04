@@ -127,7 +127,6 @@ namespace reactive::signal
         return signal::wrap(Tee<
             T,
             std::decay_t<SignalType<decltype(teeSig)>>
-            //std::decay_t<decltype(mapFunc(sig.evaluate()))>
             >(std::move(s1), std::move(teeSig))
             );
     }

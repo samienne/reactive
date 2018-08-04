@@ -31,11 +31,21 @@ PathSpec PathSpec::start(Vector2f v) &&
     return std::move(*this);
 }
 
+PathSpec PathSpec::start(float x, float y) &&
+{
+    return std::move(*this).start(Vector2f(x, y));
+}
+
 PathSpec PathSpec::lineTo(Vector2f v) &&
 {
     segments_.push_back(SEGMENT_LINE);
     vertices_.push_back(v);
     return std::move(*this);
+}
+
+PathSpec PathSpec::lineTo(float x, float y) &&
+{
+    return std::move(*this).lineTo(Vector2f(x, y));
 }
 
 PathSpec PathSpec::conicTo(Vector2f v1, Vector2f v2) &&

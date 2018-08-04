@@ -4,6 +4,8 @@
 
 #include <reactive/keyboardinput.h>
 
+#include <reactive/widget/scrollbar.h>
+#include <reactive/widget/scrollview.h>
 #include <reactive/widget/clip.h>
 #include <reactive/signal/map.h>
 #include <reactive/widget/focusgroup.h>
@@ -19,9 +21,11 @@
 #include <reactive/hbox.h>
 #include <reactive/vbox.h>
 #include <reactive/widgetfactory.h>
+#include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal.h>
+#include <reactive/filler.h>
 
 #include <ase/vector.h>
 
@@ -36,14 +40,19 @@ int main()
 {
     auto textState = signal::input(widget::TextEditState{"Test123"});
 
+    auto hScrollState = signal::input(0.5f);
+    auto vScrollState = signal::input(0.5f);
+
     auto widgets = hbox({
         widget::label(signal::constant<std::string>("TestTest"))
             | widget::frame()
         , vbox({
-                uniformGrid(3, 3)
-                    .cell(0, 0, 1, 1, makeSpinner())
-                    .cell(1, 1, 1, 1, makeSpinner())
-                    .cell(2, 2, 1, 1, makeSpinner())
+                widget::scrollView(
+                        uniformGrid(3, 3)
+                        .cell(0, 0, 1, 1, makeSpinner())
+                        .cell(1, 1, 1, 1, makeSpinner())
+                        .cell(2, 2, 1, 1, makeSpinner())
+                        )
                 , makeSpinner()
                     | widget::frame()
                     | widget::onPointerMove([](reactive::PointerMoveEvent const& e)
@@ -53,15 +62,23 @@ int main()
                                     << " " << e.buttons[2] << " " << e.buttons[3]
                                     << " hover: " << e.hover
                                     << std::endl;
+
+                                return EventResult::possible;
                             })
                     | widget::onPointerDown([](reactive::PointerButtonEvent const&)
                             {
                                 std::cout << "down" << std::endl;
+                                return EventResult::possible;
                             })
                 , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
+                , reactive::vfiller()
+                , widget::hScrollBar(hScrollState.handle, hScrollState.signal,
+                        signal::constant(0.0f))
+                , widget::label(signal::toString(hScrollState.signal))
+                , widget::label(signal::toString(vScrollState.signal))
                 })
         , adder()
             | widget::frame()
@@ -69,6 +86,8 @@ int main()
                     {
                         std::cout << "Hover: " << e.hover << std::endl;
                     })
+        , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
+                signal::constant(0.5f))
     });
 
     auto running = signal::input(true);
