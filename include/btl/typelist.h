@@ -152,5 +152,14 @@ namespace btl
 
     template <typename T, typename U>
     using DifferenceType = typename Unique<typename Difference<T, U>::type>::type;
+
+    namespace typelist
+    {
+        template <typename... Ts>
+        auto unique(TypeList<Ts...>&&)
+        {
+            return typename Unique<TypeList<Ts...>>::type();
+        }
+    }
 } // btl
 

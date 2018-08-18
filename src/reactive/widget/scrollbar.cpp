@@ -1,6 +1,7 @@
 #include "widget/scrollbar.h"
 
 #include "widget/margin.h"
+#include "widget/addpointerarea.h"
 
 #include "send.h"
 
@@ -152,10 +153,31 @@ WidgetFactory scrollBar(
         | onPointerDown(scrollPointerDown<IsHorizontal>(
                     downOffset.handle, size.signal, amount, handleSize)
                 )
+        /*
+        | addPointerArea()
+            .onButton<ObbTag>([](avg::Obb const& obb, PointerButtonEvent const&)
+                    {
+                        std::cout << "s: " << obb << std::endl;
+                        std::cout << "down" << std::endl;
+                        return EventResult::possible;
+                    }
+                )
+            .template onMove<ObbTag>([](avg::Obb const& obb, PointerMoveEvent const&)
+                    {
+                        std::cout << "move: " << obb << std::endl;
+                        return EventResult::possible;
+                    })
+                    */
+            /*.template onUp<ObbTag>([](avg::Obb const&, PointerButtonEvent const&)
+                    {
+                        std::cout << "up" << std::endl;
+                        return EventResult::possible;
+                    }
+                )*/
         | onPointerUp([handle=downOffset.handle]() mutable
                 {
                     handle.set(btl::none);
-                    return EventResult::accept;
+                    return EventResult::finish;
                 })
         | onPointerMove(signal::mapFunction(
                     [handle]
@@ -179,7 +201,7 @@ WidgetFactory scrollBar(
                         float len = pos / lineLen;
 
                         handle.set(std::max(0.0f, std::min(len, 1.0f)));
-                        return EventResult::accept;
+                        return EventResult::exclusive;
                     }, downOffset.signal, size.signal, handleSize))
         | onDraw<SizeTag, ThemeTag>(drawScrollBar<IsHorizontal>, amount,
                 handleSize)

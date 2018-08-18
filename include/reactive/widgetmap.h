@@ -1,5 +1,7 @@
 #pragma once
 
+#include "widget/share.h"
+
 #include "widgetsetters.h"
 #include "widgetgetters.h"
 #include "widget.h"
@@ -23,6 +25,7 @@ namespace reactive
 
     namespace detail
     {
+        /*
         template <typename TWidget>
         auto doShare(TWidget widget, btl::TypeList<>)
         {
@@ -40,6 +43,7 @@ namespace reactive
 
             return set(std::move(newWidget), std::move(s));
         }
+        */
 
         template <typename T>
         struct ToTypeList
@@ -121,7 +125,7 @@ namespace reactive
             >;
 
             // Share selected signals
-            auto w = detail::doShare(
+            auto w = widget::detail::doShare(
                         std::move(widget),
                         ShareTypes()
                 );

@@ -27,7 +27,7 @@ namespace reactive::widget
             {
                 cb(ClickEvent(e.pointer, e.button, e.pos));
 
-                return EventResult::accept;
+                return EventResult::finish;
             }
 
             return EventResult::possible;
@@ -56,7 +56,7 @@ namespace reactive::widget
             if (button == 0 || e.button == button)
                 f(ClickEvent(e.pointer, e.button, e.pos));
 
-            return EventResult::accept;
+            return EventResult::finish;
         };
 
         return onPointerUp(g);

@@ -119,7 +119,7 @@ WidgetFactory scrollView(WidgetFactory f)
                     xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
                     yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
-                    return EventResult::accept;
+                    return EventResult::exclusive;
                 }, dragOffset.signal, viewSize.signal, contentSize.signal,
                 scrollPos.signal))
         | onPointerUp([scrollPosHandle=scrollPos.handle]

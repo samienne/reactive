@@ -58,8 +58,6 @@ std::vector<avg::Obb> const& InputArea::getObbs() const
 InputArea InputArea::transform(avg::Transform const& t) &&
 {
     transform_ = t * transform_;
-    /*for (auto& obb : obbs_)
-        obb = t * obb;*/
 
     return std::move(*this);
 }
@@ -111,12 +109,13 @@ EventResult InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 
             switch (r)
             {
-                case EventResult::accept:
+                case EventResult::finish:
                     return r;
-                    break;
                 case EventResult::possible:
                     possible = true;
                     break;
+                case EventResult::exclusive:
+                    return r;
                 case EventResult::reject:
                     break;
             }
@@ -138,12 +137,14 @@ EventResult InputArea::emitButtonEvent(PointerButtonEvent const& e) const
 
             switch (r)
             {
-                case EventResult::accept:
+                case EventResult::finish:
                     return r;
                     break;
                 case EventResult::possible:
                     possible = true;
                     break;
+                case EventResult::exclusive:
+                    return r;
                 case EventResult::reject:
                     break;
             }
@@ -171,12 +172,14 @@ EventResult InputArea::emitMoveEvent(PointerMoveEvent const& e) const
         EventResult r = cb(event);
         switch (r)
         {
-            case EventResult::accept:
+            case EventResult::finish:
                 return r;
                 break;
             case EventResult::possible:
                 possible = true;
                 break;
+            case EventResult::exclusive:
+                return r;
             case EventResult::reject:
                 break;
         }

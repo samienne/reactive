@@ -155,7 +155,7 @@ TEST(Widget, cache)
     auto w =
         reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
 
-    auto w2 = detail::doShare(
+    auto w2 = widget::detail::doShare(
             std::move(w),
             btl::TypeList<avg::Drawing, avg::Obb>()
             );

@@ -129,7 +129,7 @@ public:
                     }
                 }
 
-                bool accepted = false;
+                bool finished = false;
                 for (auto& item : areas_)
                 {
                     if (!e.buttons.at(item.first - 1))
@@ -139,25 +139,27 @@ public:
                     for (auto&& area : item.second)
                     {
                         EventResult r = area.emitMoveEvent(e);
-                        if (r == EventResult::accept)
+                        if (r == EventResult::finish || r == EventResult::reject)
                         {
-                            newAreas.clear();
-                            newAreas.emplace_back(std::move(area));
-                            accepted = true;
-                            break;
                         }
                         else if (r == EventResult::possible)
                         {
-                            newAreas.push_back(std::move(area));
+                            newAreas.emplace_back(std::move(area));
                         }
-                        else if (r == EventResult::reject)
+                        else if (r == EventResult::exclusive)
                         {
+                            newAreas.clear();
+                            newAreas.emplace_back(std::move(area));
+                            finished = true;
+                            break;
                         }
+                        else
+                            assert(false);
                     }
 
                     item.second = std::move(newAreas);
 
-                    if (accepted)
+                    if (finished)
                         break;
                 }
             });
