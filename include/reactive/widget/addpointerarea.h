@@ -2,10 +2,14 @@
 
 #include "share.h"
 
+#include "reactive/signal/cast.h"
+
 #include "reactive/eventresult.h"
 #include "reactive/widgetfactory.h"
 
 #include <btl/compose.h>
+
+#include <tuple>
 
 namespace reactive::widget
 {
@@ -36,7 +40,23 @@ namespace reactive::widget
                         )
                     );
         }
+
     } // namespace detail
+
+    template <typename... TTags, typename TFunc, typename... TSigs>
+    auto mapFunctionWithTags(TFunc&& f, TSigs... sigs)
+    {
+        return [sigs=std::make_tuple(std::move(sigs)...),
+                f=std::forward<TFunc>(f)](auto w)
+        {
+            auto w2 = share<TTags...>(std::move(w));
+
+            auto cb = detail::mapFunctionFromWidget<TTags...>(
+                    w2, std::move(sigs), std::move(f));
+
+            return make_tuple(std::move(w2), std::move(cb));
+        };
+    }
 
     class PointerAreaBuilder
     {
@@ -186,7 +206,7 @@ namespace reactive::widget
         btl::option<WidgetMap> onHover_;
     };
 
-    auto addPointerArea()
+    inline auto addPointerArea()
     {
         return PointerAreaBuilder();
     }

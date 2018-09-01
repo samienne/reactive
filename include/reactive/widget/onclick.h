@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onpointerup.h"
+//#include "addpointerarea.h"
 
 #include "reactive/signal/map.h"
 
@@ -62,6 +63,23 @@ namespace reactive::widget
         return onPointerUp(g);
     }
 
+    /*
+    template <typename... TTags, typename TFunc, typename... TSigs>
+    auto onClick2(unsigned int button, TFunc&& f, TSigs... sigs)
+    {
+        return addPointerArea()
+            .onDown([button](PointerButtonEvent const& e)
+                    {
+                        return EventResult::reject;
+                    })
+            .template onUp<TTags...>([button, f=std::forward<TFunc>(f)]
+                    (PointerButtonEvent const& e)
+                    {
+                        return EventResult::reject;
+                    })
+        ;
+    }
+    */
 } // namespace reactive
 
 

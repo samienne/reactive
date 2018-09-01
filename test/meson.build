@@ -2,6 +2,7 @@ incdir = include_directories('../include')
 gtest = dependency('gtest')
 
 unittest = executable('unittest',
+        'widgetmapfunctiontest.cpp',
         'tweensignaltest.cpp',
         'clonetest.cpp',
         'widgettest.cpp',
