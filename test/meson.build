@@ -1,5 +1,6 @@
 incdir = include_directories('../include')
-gtest = dependency('gtest')
+gtest = subproject('gtest')
+gtestdep = gtest.get_variable('gtest_main_dep')
 
 unittest = executable('unittest',
         'tweensignaltest.cpp',
@@ -39,10 +40,9 @@ unittest = executable('unittest',
         'pentest.cpp',
         'asynctest.cpp',
         'typelisttest.cpp',
-        'gtest_main.cc',
         include_directories : incdir,
         link_with : [],
-        dependencies : [gtest, libasedep, libavgdep, libreactivedep])
+        dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])
 
 test('unittest', unittest)
 
