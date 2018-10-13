@@ -66,7 +66,7 @@ Painter::~Painter()
 
 ase::Pipeline const& Painter::getPipeline(Brush const& brush) const
 {
-    if (std::abs(brush.getColor().getAlpha() - 1.0f) > 0.0001f)
+    if (brush.getColor().getAlpha() > 254.0f/255.0f)
         return solidPipeline_;
     else
         return transparentPipeline_;
