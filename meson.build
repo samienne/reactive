@@ -3,9 +3,6 @@ add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
         '-fvisibility=hidden', language : 'cpp')
 #'-flto',
 
-range = subproject('range')
-librangedep = range.get_variable('range_dep')
-
 eigen = subproject('eigen')
 libeigendep = eigen.get_variable('eigen_dep')
 
