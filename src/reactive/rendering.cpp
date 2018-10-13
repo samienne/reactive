@@ -31,11 +31,22 @@ using Vertex = std::array<float, 7>;
 using Vertices = std::vector<Vertex>;
 using Element = std::pair<ase::Pipeline, Vertices>;
 
+avg::Color premultiply(avg::Color c)
+{
+    return avg::Color(
+            c.getAlpha() * c.getRed(),
+            c.getAlpha() * c.getGreen(),
+            c.getAlpha() * c.getBlue(),
+            c.getAlpha()
+            );
+}
+
 Vertices generateVertices(avg::SoftMesh const& mesh, float z)
 {
     auto const& vertices = mesh.getVertices();
     avg::Transform const& t = mesh.getTransform();
-    std::array<float, 4> const& c = mesh.getBrush().getColor().getArray();
+    std::array<float, 4> c = premultiply(mesh.getBrush().getColor())
+        .getArray();
 
     avg::Matrix2f rs = t.getRsMatrix();
 
@@ -63,7 +74,7 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
     else
         bufs = region.triangulate();
 
-    avg::Color const& color = brush.getColor();
+    avg::Color color = premultiply(brush.getColor());
     auto toVertex = [&color](ase::Vector2f v)
     {
         auto vertex = std::array<float, 2>( { { v[0], v[1]} } );
