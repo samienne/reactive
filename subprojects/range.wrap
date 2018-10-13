@@ -1,4 +1,0 @@
-[wrap-git]
-directory=range
-url=https://github.com/samienne/range-v3.git
-revision=mesonize
