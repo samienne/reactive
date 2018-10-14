@@ -252,9 +252,10 @@ public:
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
             glxWindow.clear();
+
             ase::RenderQueue queue;
+
             render(queue, context_, glxWindow, painter_, widget_.getDrawing().evaluate());
-            //glxWindow.submitAll(context_);
             context_.submit(std::move(queue));
             context_.present(glxWindow);
             redraw_ = false;

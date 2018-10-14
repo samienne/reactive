@@ -267,12 +267,14 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
         {
             ase::UniformBuffer ub(pipeline.getProgram(), nub);
             float const z = resultVertices[0][2];
+
             ase::VertexBuffer vb(context, ase::Buffer(
                         std::move(resultVertices)), ase::Usage::StreamDraw,
                     ase::Async());
+
             ase::RenderCommand command(target, pipeline, ub, vb, ib,
                     {ase::Texture()}, z);
-            //target.push(std::move(command));
+
             renderQueue.push(std::move(command));
             resultVertices.clear();
         }
