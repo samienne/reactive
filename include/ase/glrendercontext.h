@@ -75,8 +75,7 @@ namespace ase
         ~GlRenderContext() override;
 
         // From RenderContextImpl
-        void submit(RenderTarget& target,
-                std::vector<RenderCommand>&& commands) override;
+        void submit(std::vector<RenderCommand>&& commands) override;
         void flush() override;
         void finish() override;
 

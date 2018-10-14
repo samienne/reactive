@@ -45,6 +45,7 @@ libasesrc = [
         'vertexshader.cpp',
         'program.cpp',
         'rendercommand.cpp',
+        'renderqueue.cpp',
         'texture.cpp',
         'rendertarget.cpp',
         'rendertargetobject.cpp',

@@ -15,8 +15,7 @@ namespace ase
     public:
         virtual ~RenderContextImpl() = default;
 
-        virtual void submit(RenderTarget& target,
-                std::vector<RenderCommand>&& commands) = 0;
+        virtual void submit(std::vector<RenderCommand>&& commands) = 0;
         virtual void flush() = 0;
         virtual void finish() = 0;
         virtual void present(Window& window) = 0;

@@ -7,6 +7,7 @@
 #include "signal/input.h"
 #include "send.h"
 
+#include <ase/renderqueue.h>
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
@@ -251,8 +252,10 @@ public:
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
             glxWindow.clear();
-            render(context_, glxWindow, painter_, widget_.getDrawing().evaluate());
-            glxWindow.submitAll(context_);
+            ase::RenderQueue queue;
+            render(queue, context_, glxWindow, painter_, widget_.getDrawing().evaluate());
+            //glxWindow.submitAll(context_);
+            context_.submit(std::move(queue));
             context_.present(glxWindow);
             redraw_ = false;
 

@@ -34,13 +34,17 @@ GlRenderContext::~GlRenderContext()
 {
 }
 
-void GlRenderContext::submit(RenderTarget& target,
-        std::vector<RenderCommand>&& commands)
+void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
 {
     std::vector<RenderCommand> queue(std::move(commands));
 
     auto compare = [](RenderCommand const& c1, RenderCommand const& c2)
     {
+        if (c1.getRenderTarget() != c2.getRenderTarget())
+        {
+            return c1.getRenderTarget() < c2.getRenderTarget();
+        }
+
         if (c1.getPipeline().isBlendEnabled()
                 != c2.getPipeline().isBlendEnabled())
             return c2.getPipeline().isBlendEnabled();
@@ -72,22 +76,26 @@ void GlRenderContext::submit(RenderTarget& target,
         return c1.getZ() > c2.getZ();
     };
 
+    /*
     bool switchTarget = &target.getImpl<RenderTargetImpl>()
         != boundRenderTarget_;
 
     // Intel driver is buggy here so we need to switch multiple times
-    switchTarget = true;
+    bool switchTarget = true;
 
     if (switchTarget)
         boundRenderTarget_ = &target.getImpl<RenderTargetImpl>();
 
     auto rt = boundRenderTarget_;
+        */
     auto* queuePtr = new std::vector<RenderCommand>(std::move(queue));
 
-    dispatch([this, switchTarget, rt, queuePtr, compare]()
+    dispatch([this, /*switchTarget, rt,*/ queuePtr, compare]()
         {
+        /*
             if (switchTarget)
                 rt->makeCurrent(Dispatched(), *this);
+            */
 
             std::sort(queuePtr->begin(), queuePtr->end(), compare);
 
@@ -351,6 +359,7 @@ void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
 void GlRenderContext::dispatchedRenderQueue(Dispatched,
         std::vector<RenderCommand> const& commands)
 {
+    boundRenderTarget_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand const& command = *i;
@@ -365,6 +374,13 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched,
 
         if (!command.getVertexBuffer())
             continue;
+
+        if (boundRenderTarget_ !=
+                &command.getRenderTarget().getImpl<RenderTargetImpl>())
+        {
+            boundRenderTarget_ = &command.getRenderTarget().getImpl<RenderTargetImpl>();
+            boundRenderTarget_->makeCurrent(Dispatched(), *this);
+        }
 
         GlVertexBuffer const& vb = command.getVertexBuffer(
                 ).getImpl<GlVertexBuffer>();
