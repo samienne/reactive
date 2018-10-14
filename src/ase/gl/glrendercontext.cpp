@@ -76,31 +76,11 @@ void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
         return c1.getZ() > c2.getZ();
     };
 
-    /*
-    bool switchTarget = &target.getImpl<RenderTargetImpl>()
-        != boundRenderTarget_;
-
-    // Intel driver is buggy here so we need to switch multiple times
-    bool switchTarget = true;
-
-    if (switchTarget)
-        boundRenderTarget_ = &target.getImpl<RenderTargetImpl>();
-
-    auto rt = boundRenderTarget_;
-        */
-    auto* queuePtr = new std::vector<RenderCommand>(std::move(queue));
-
-    dispatch([this, /*switchTarget, rt,*/ queuePtr, compare]()
+    dispatch([this, queue=std::move(queue), compare]() mutable
         {
-        /*
-            if (switchTarget)
-                rt->makeCurrent(Dispatched(), *this);
-            */
+            std::sort(queue.begin(), queue.end(), compare);
 
-            std::sort(queuePtr->begin(), queuePtr->end(), compare);
-
-            dispatchedRenderQueue(Dispatched(), *queuePtr);
-            delete queuePtr;
+            dispatchedRenderQueue(Dispatched(), queue);
         });
 }
 
@@ -126,13 +106,11 @@ GlFunctions const& GlRenderContext::getGlFunctions() const
 void GlRenderContext::dispatch(std::function<void()>&& func)
 {
     dispatcher_.run(std::move(func));
-    //platform_.dispatchBackground(std::move(func));
 }
 
 void GlRenderContext::wait() const
 {
     dispatcher_.wait();
-    //platform_.waitBackground();
 }
 
 void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
@@ -250,52 +228,6 @@ void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
 
 void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
 {
-    /*for (auto const& u : buffer.getUniform1fv())
-        gl_.glUniform1fv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2fv())
-        gl_.glUniform2fv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3fv())
-        gl_.glUniform3fv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4fv())
-        gl_.glUniform4fv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-    for (auto const& u : buffer.getUniform1iv())
-        gl_.glUniform1iv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2iv())
-        gl_.glUniform2iv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3iv())
-        gl_.glUniform3iv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4iv())
-        gl_.glUniform4iv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-
-    for (auto const& u : buffer.getUniform1uiv())
-        gl_.glUniform1uiv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2uiv())
-        gl_.glUniform2uiv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3uiv())
-        gl_.glUniform3uiv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4uiv())
-        gl_.glUniform4uiv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-    for (auto const& uniform : buffer.getUniformBuffer4fv())
-        gl_.glUniformMatrix4fv(uniform.first, 1, false, uniform.second.data());*/
-
     for (auto&& uniform : buffer)
     {
         switch (uniform.getType())
