@@ -78,7 +78,18 @@ void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
 
     dispatch([this, queue=std::move(queue), compare]() mutable
         {
-            std::sort(queue.begin(), queue.end(), compare);
+            auto b = queue.begin();
+            auto e = b;
+
+            while (e != queue.end())
+            {
+                auto const& target = b->getRenderTarget();
+                while (e != queue.end() && target == e->getRenderTarget())
+                    ++e;
+
+                std::sort(queue.begin(), queue.end(), compare);
+                b = e;
+            }
 
             dispatchedRenderQueue(Dispatched(), queue);
         });
