@@ -13,6 +13,9 @@ namespace ase
     class BTL_VISIBLE RenderQueue
     {
     public:
+        using Iterator = std::vector<RenderCommand>::iterator;
+        using ConstIterator = std::vector<RenderCommand>::const_iterator;
+
         void push(
                 RenderTarget target,
                 Pipeline pipeline,
@@ -22,9 +25,13 @@ namespace ase
                 std::vector<Texture> textures,
                 float z);
 
-    private:
-        friend class RenderContext;
+        Iterator begin();
+        Iterator end();
 
+        ConstIterator begin() const;
+        ConstIterator end() const;
+
+    private:
         std::vector<RenderCommand> commands_;
     };
 } // namespace ase

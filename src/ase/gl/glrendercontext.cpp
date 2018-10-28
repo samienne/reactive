@@ -10,6 +10,7 @@
 #include "gltype.h"
 #include "glblendmode.h"
 
+#include "renderqueue.h"
 #include "rendercommand.h"
 #include "rendertarget.h"
 #include "rendertargetimpl.h"
@@ -34,10 +35,8 @@ GlRenderContext::~GlRenderContext()
 {
 }
 
-void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
+void GlRenderContext::submit(RenderQueue&& commands)
 {
-    std::vector<RenderCommand> queue(std::move(commands));
-
     auto compare = [](RenderCommand const& c1, RenderCommand const& c2)
     {
         if (c1.getRenderTarget() != c2.getRenderTarget())
@@ -76,7 +75,7 @@ void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
         return c1.getZ() > c2.getZ();
     };
 
-    dispatch([this, queue=std::move(queue), compare]() mutable
+    dispatch([this, queue=std::move(commands), compare]() mutable
         {
             auto b = queue.begin();
             auto e = b;
@@ -91,7 +90,7 @@ void GlRenderContext::submit(std::vector<RenderCommand>&& commands)
                 b = e;
             }
 
-            dispatchedRenderQueue(Dispatched(), queue);
+            dispatchedRenderQueue(Dispatched(), std::move(queue));
         });
 }
 
@@ -299,8 +298,7 @@ void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
     }
 }
 
-void GlRenderContext::dispatchedRenderQueue(Dispatched,
-        std::vector<RenderCommand> const& commands)
+void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
 {
     boundRenderTarget_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)

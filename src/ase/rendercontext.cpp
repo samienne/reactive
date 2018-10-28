@@ -53,7 +53,7 @@ void RenderContext::present(Window& window)
 void RenderContext::submit(RenderQueue&& renderQueue)
 {
     if (d())
-        d()->submit(std::move(renderQueue.commands_));
+        d()->submit(std::move(renderQueue));
 }
 
 /*

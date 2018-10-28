@@ -24,5 +24,25 @@ void RenderQueue::push(
             z);
 }
 
+RenderQueue::Iterator RenderQueue::begin()
+{
+    return commands_.begin();
+}
+
+RenderQueue::Iterator RenderQueue::end()
+{
+    return commands_.end();
+}
+
+RenderQueue::ConstIterator RenderQueue::begin() const
+{
+    return commands_.begin();
+}
+
+RenderQueue::ConstIterator RenderQueue::end() const
+{
+    return commands_.end();
+}
+
 } // namespace ase
 

@@ -1,8 +1,10 @@
 #pragma once
 
 #include "glframebuffer.h"
+
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
+#include "renderqueue.h"
 
 #include "rendercontextimpl.h"
 #include "dispatcher.h"
@@ -75,7 +77,7 @@ namespace ase
         ~GlRenderContext() override;
 
         // From RenderContextImpl
-        void submit(std::vector<RenderCommand>&& commands) override;
+        void submit(RenderQueue&& commands) override;
         void flush() override;
         void finish() override;
 
@@ -105,8 +107,7 @@ namespace ase
         void pushSpec(Dispatched, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);
         void pushUniforms(Dispatched, UniformBuffer const& uniforms);
-        void dispatchedRenderQueue(Dispatched,
-                std::vector<RenderCommand> const& commands);
+        void dispatchedRenderQueue(Dispatched, RenderQueue&& commands);
 
     private:
         GlPlatform& platform_;

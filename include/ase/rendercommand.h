@@ -28,10 +28,10 @@ namespace ase
                 float z);
 
         RenderCommandDeferred(RenderCommandDeferred const&) = default;
-        RenderCommandDeferred(RenderCommandDeferred&&) = default;
+        RenderCommandDeferred(RenderCommandDeferred&&) noexcept = default;
         RenderCommandDeferred& operator=(
                 RenderCommandDeferred const&) = default;
-        RenderCommandDeferred& operator=(RenderCommandDeferred&&) = default;
+        RenderCommandDeferred& operator=(RenderCommandDeferred&&) noexcept = default;
 
         RenderTarget renderTarget_;
 
