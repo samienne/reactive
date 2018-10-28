@@ -24,20 +24,20 @@ RenderCommandDeferred::RenderCommandDeferred(
 }
 
 RenderCommand::RenderCommand(
-        RenderTarget const& renderTarget,
-        Pipeline const& pipeline,
-        UniformBuffer const& uniforms,
-        VertexBuffer const& vertexBuffer,
-        IndexBuffer const& indexBuffer,
-        std::vector<Texture> const& textures,
+        RenderTarget renderTarget,
+        Pipeline pipeline,
+        UniformBuffer uniforms,
+        VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer,
+        std::vector<Texture> textures,
         float z)
     : deferred_(
-            renderTarget,
-            textures,
-            pipeline,
-            vertexBuffer,
-            indexBuffer,
-            uniforms,
+            std::move(renderTarget),
+            std::move(textures),
+            std::move(pipeline),
+            std::move(vertexBuffer),
+            std::move(indexBuffer),
+            std::move(uniforms),
             z)
 {
 }

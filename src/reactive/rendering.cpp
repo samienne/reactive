@@ -272,10 +272,9 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
                         std::move(resultVertices)), ase::Usage::StreamDraw,
                     ase::Async());
 
-            ase::RenderCommand command(target, pipeline, ub, vb, ib,
+            renderQueue.push(target, pipeline, ub, vb, ib,
                     {ase::Texture()}, z);
 
-            renderQueue.push(std::move(command));
             resultVertices.clear();
         }
 

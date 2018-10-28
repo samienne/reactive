@@ -5,9 +5,23 @@
 namespace ase
 {
 
-void RenderQueue::push(RenderCommand&& command)
+void RenderQueue::push(
+        RenderTarget target,
+        Pipeline pipeline,
+        UniformBuffer uniforms,
+        VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer,
+        std::vector<Texture> textures,
+        float z)
 {
-    commands_.push_back(std::move(command));
+    commands_.emplace_back(
+            std::move(target),
+            std::move(pipeline),
+            std::move(uniforms),
+            std::move(vertexBuffer),
+            std::move(indexBuffer),
+            std::move(textures),
+            z);
 }
 
 } // namespace ase

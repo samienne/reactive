@@ -21,8 +21,10 @@ namespace ase
         RenderCommandDeferred(
                 RenderTarget target,
                 std::vector<Texture> textures,
-                Pipeline pipeline, VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer, UniformBuffer uniforms,
+                Pipeline pipeline,
+                VertexBuffer vertexBuffer,
+                IndexBuffer indexBuffer,
+                UniformBuffer uniforms,
                 float z);
 
         RenderCommandDeferred(RenderCommandDeferred const&) = default;
@@ -52,13 +54,14 @@ namespace ase
     {
     public:
         RenderCommand(
-                RenderTarget const& target,
-                Pipeline const& pipeline,
-                UniformBuffer const& uniforms,
-                VertexBuffer const& vertexBuffer,
-                IndexBuffer const& indexBuffer,
-                std::vector<Texture> const& textures,
+                RenderTarget target,
+                Pipeline pipeline,
+                UniformBuffer uniforms,
+                VertexBuffer vertexBuffer,
+                IndexBuffer indexBuffer,
+                std::vector<Texture> textures,
                 float z);
+
         RenderCommand(RenderCommand const&) = default;
         RenderCommand(RenderCommand&&) = default;
         ~RenderCommand();
