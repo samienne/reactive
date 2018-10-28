@@ -137,6 +137,13 @@ void GlxPlatformDeferred::printGlInfo()
                 GL_SHADING_LANGUAGE_VERSION));
     //DBG("GlManager: Gl extensions: %1", glGetString(GL_EXTENSIONS));
 
+    int major;
+    int minor;
+    glGetIntegerv(GL_MAJOR_VERSION, &major);
+    glGetIntegerv(GL_MINOR_VERSION, &minor);
+
+    DBG("GlxPlatform: Gl version: %1.%2", major, minor);
+
     int samples;
     glGetIntegerv(GL_SAMPLE_BUFFERS, &samples);
     DBG("GlxPlatform: samples: %1", samples);
@@ -272,13 +279,31 @@ std::shared_ptr<RenderContextImpl> GlxPlatform::makeRenderContextImpl()
     return std::move(context);
 }
 
+GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
+        GLXFBConfig& config, int* contextAttribs)
+{
+    GLXContext context = 0;
+
+    ctxErrorOccurred = false;
+    int (*oldHandler)(Display*, XErrorEvent*) =
+        XSetErrorHandler(&ctxErrorHandler);
+
+    context = glXCreateContextAttribsARB(display, config,
+            sharedContext, True, contextAttribs);
+
+    XSetErrorHandler(oldHandler);
+
+    return context;
+}
+
 GLXContext GlxPlatform::createGlxContext(GlxPlatform::Lock const& /*lock*/)
 {
     static int contextAttribsGl3[] =
     {
         GLX_CONTEXT_MAJOR_VERSION_ARB, 3,
-        GLX_CONTEXT_MINOR_VERSION_ARB, 0,
-        GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+        GLX_CONTEXT_MINOR_VERSION_ARB, 3,
+        GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+        //GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
         None
     };
 
@@ -286,25 +311,21 @@ GLXContext GlxPlatform::createGlxContext(GlxPlatform::Lock const& /*lock*/)
     {
         GLX_CONTEXT_MAJOR_VERSION_ARB, 4,
         GLX_CONTEXT_MINOR_VERSION_ARB, 0,
-        GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+        GLX_CONTEXT_PROFILE_MASK_ARB, GLX_CONTEXT_CORE_PROFILE_BIT_ARB,
+        //GLX_CONTEXT_FLAGS_ARB, GLX_CONTEXT_DEBUG_BIT_ARB,
         None
     };
 
     GLXContext context = 0;
-    GLXContext shared = 0;
+    GLXContext sharedContext = 0;
     if (!d()->glxContexts_.empty())
-        shared = *d()->glxContexts_.begin();
+        sharedContext = *d()->glxContexts_.begin();
 
     if (d()->gl4Enabled_)
     {
-        ctxErrorOccurred = false;
-        int (*oldHandler)(Display*, XErrorEvent*) =
-            XSetErrorHandler(&ctxErrorHandler);
+        context = createNewGlContext(d()->dpy_, sharedContext, d()->configs_[0],
+                contextAttribsGl4);
 
-        context = glXCreateContextAttribsARB(d()->dpy_, d()->configs_[0],
-                shared, True, contextAttribsGl4);
-
-        XSetErrorHandler(oldHandler);
         if (!context)
         {
             d()->gl4Enabled_ = false;
@@ -316,28 +337,23 @@ GLXContext GlxPlatform::createGlxContext(GlxPlatform::Lock const& /*lock*/)
 
     if (!d()->gl4Enabled_ && d()->gl3Enabled_)
     {
-        ctxErrorOccurred = false;
-        int (*oldHandler)(Display*, XErrorEvent*) =
-            XSetErrorHandler(&ctxErrorHandler);
+        context = createNewGlContext(d()->dpy_, sharedContext, d()->configs_[0],
+                contextAttribsGl3);
 
-        context = glXCreateContextAttribsARB(d()->dpy_, d()->configs_[0],
-                shared, True, contextAttribsGl3);
-
-        XSetErrorHandler(oldHandler);
         if (!context)
         {
             d()->gl3Enabled_ = false;
             DBG("GlxPlatform: Failed to create OpenGl 3.0 context");
         }
         else if (d()->glxContexts_.empty())
-            DBG("GlxPlatform: OpenGl 3.0 enabled");
+            DBG("GlxPlatform: OpenGl 3.3 enabled");
     }
 
     if (!d()->gl4Enabled_ && !d()->gl3Enabled_)
     {
         // Create OpenGl 2.0 context
         context = glXCreateNewContext(d()->dpy_, d()->configs_[0],
-                GLX_RGBA_TYPE, shared, True);
+                GLX_RGBA_TYPE, sharedContext, True);
         if (context && d()->glxContexts_.empty())
             DBG("GlxPlatform: OpenGl 2.0 enabled");
     }

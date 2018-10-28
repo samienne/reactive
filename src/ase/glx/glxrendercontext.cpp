@@ -102,6 +102,12 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glFramebufferTexture2D");
         gl.glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC)
             glXGetProcAddressARB((GLubyte const*)"glBindFramebuffer");
+        gl.glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)
+            glXGetProcAddressARB((GLubyte const*)"glGenVertexArrays");
+        gl.glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)
+            glXGetProcAddressARB((GLubyte const*)"glBindVertexArray");
+        gl.glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)
+            glXGetProcAddressARB((GLubyte const*)"glDeleteVertexArrays");
 
         assert(gl.glVertexAttribPointer);
         assert(gl.glDisableVertexAttribArray);
@@ -144,6 +150,9 @@ namespace
         assert(gl.glDeleteFramebuffers);
         assert(gl.glFramebufferTexture2D);
         assert(gl.glBindFramebuffer);
+        assert(gl.glGenVertexArrays);
+        assert(gl.glBindVertexArray);
+        assert(gl.glDeleteVertexArrays);
 
         return gl;
     }

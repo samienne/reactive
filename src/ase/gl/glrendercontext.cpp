@@ -127,7 +127,7 @@ void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
 {
     gl_ = gl;
 
-    glEnableClientState(GL_VERTEX_ARRAY);
+    //glEnableClientState(GL_VERTEX_ARRAY);
     glEnable(GL_DEPTH_TEST);
 
     GLint srgbEnabled = 0;
@@ -168,6 +168,12 @@ void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
 
 void GlRenderContext::glDeinit(Dispatched)
 {
+    if (vertexArrayObject_)
+    {
+        gl_.glDeleteVertexArrays(1, &vertexArrayObject_);
+        vertexArrayObject_ = 0;
+    }
+
     sharedFramebuffer_.destroy(Dispatched(), *this);
 }
 
@@ -208,8 +214,10 @@ void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
         VertexSpec::Spec const& spec = *i;
 
         attribs.push_back(spec.attribLoc);
+        glGetError();
         gl_.glVertexAttribPointer(spec.attribLoc, spec.size, typeToGl(spec.type),
                 spec.normalized, stride, (void*)spec.pointer);
+
         /*DBG("attrib: %1 %2 %3 %4 %5 %6", spec.attribLoc, spec.size,
                 glTypeToString(typeToGl(spec.type)), spec.normalized,
                 stride, spec.pointer);*/
@@ -300,6 +308,12 @@ void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
 
 void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
 {
+    if (vertexArrayObject_ == 0)
+    {
+        gl_.glGenVertexArrays(1, &vertexArrayObject_);
+        gl_.glBindVertexArray(vertexArrayObject_);
+    }
+
     boundRenderTarget_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
@@ -413,11 +427,12 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
 
         if (boundVboObject_ != command.getVertexBuffer())
         {
+            glGetError();
             gl_.glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
             if (vbo)
-            {
                 pushSpec(Dispatched(), command.getVertexSpec(), activeAttribs_);
-            }
+
             boundVbo_ = vbo;
         }
 

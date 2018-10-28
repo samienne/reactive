@@ -68,6 +68,9 @@ namespace ase
         PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
         PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
         PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
+        PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = nullptr;
+        PFNGLBINDVERTEXARRAYPROC glBindVertexArray = nullptr;
+        PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
     };
 
     class BTL_VISIBLE GlRenderContext : public RenderContextImpl
@@ -119,6 +122,7 @@ namespace ase
         Vector2i viewportSize_;
 
         // Current state
+        GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
         GLuint boundVbo_ = 0;
         GLuint boundIbo_ = 0;
