@@ -8,6 +8,7 @@
 #include "gltexture.h"
 #include "glrendertargetobject.h"
 #include "glrendercontext.h"
+#include "glpipeline.h"
 
 #include "buffer.h"
 
@@ -125,5 +126,29 @@ std::shared_ptr<RenderTargetObjectImpl> GlPlatform::makeRenderTargetObjectImpl(
     return std::make_shared<GlRenderTargetObject>(context);
 }
 
-} // namespace
+std::shared_ptr<PipelineImpl> GlPlatform::makePipeline(
+        Program program,
+        VertexSpec spec)
+{
+    return std::make_shared<GlPipeline>(
+            std::move(program),
+            std::move(spec)
+            );
+}
+
+std::shared_ptr<PipelineImpl> GlPlatform::makePipelineWithBlend(
+        Program program,
+        VertexSpec spec,
+        BlendMode srcFactor,
+        BlendMode dstFactor)
+{
+    return std::make_shared<GlPipeline>(
+            std::move(program),
+            std::move(spec),
+            srcFactor,
+            dstFactor
+            );
+}
+
+} // namespace ase
 

@@ -55,6 +55,16 @@ namespace ase
 
         std::shared_ptr<RenderTargetObjectImpl>
             makeRenderTargetObjectImpl(RenderContext& context) override;
+
+        std::shared_ptr<PipelineImpl> makePipeline(
+                Program program,
+                VertexSpec spec) override;
+
+        std::shared_ptr<PipelineImpl> makePipelineWithBlend(
+                Program program,
+                VertexSpec spec,
+                BlendMode srcFactor,
+                BlendMode dstFactor) override;
     };
 }
 

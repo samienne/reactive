@@ -84,20 +84,24 @@ namespace ase
             return d()->pipeline_;
         }
 
+        /*
         inline Program const& getProgram() const
         {
             return d()->pipeline_.getProgram();
         }
+        */
 
         inline VertexBuffer const& getVertexBuffer() const
         {
             return d()->vertexBuffer_;
         }
 
+        /*
         inline VertexSpec const& getVertexSpec() const
         {
             return d()->pipeline_.getSpec();
         }
+        */
 
         inline IndexBuffer const& getIndexBuffer() const
         {

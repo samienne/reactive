@@ -3,6 +3,7 @@
 #include "vector.h"
 #include "usage.h"
 #include "format.h"
+#include "blendmode.h"
 
 #include <btl/visibility.h>
 
@@ -21,6 +22,9 @@ namespace ase
     class RenderTargetObjectImpl;
     class RenderContext;
     class Buffer;
+    class PipelineImpl;
+    class Program;
+    class VertexSpec;
 
     /**
      * @brief Abstract base class for all platforms
@@ -42,6 +46,7 @@ namespace ase
         friend class RenderContext;
         friend class RenderTarget;
         friend class RenderTargetObject;
+        friend class Pipeline;
 
         virtual std::shared_ptr<ProgramImpl> makeProgramImpl(
                 RenderContext& context, VertexShaderImpl const& vertexShader,
@@ -67,6 +72,16 @@ namespace ase
 
         virtual std::shared_ptr<RenderTargetObjectImpl>
             makeRenderTargetObjectImpl(RenderContext& context) = 0;
+
+        virtual std::shared_ptr<PipelineImpl> makePipeline(
+                Program program,
+                VertexSpec spec) = 0;
+
+        virtual std::shared_ptr<PipelineImpl> makePipelineWithBlend(
+                Program program,
+                VertexSpec spec,
+                BlendMode srcFactor,
+                BlendMode dstFactor) = 0;
     };
-}
+} // ase
 

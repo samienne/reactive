@@ -9,6 +9,7 @@
 #include "glerror.h"
 #include "gltype.h"
 #include "glblendmode.h"
+#include "glpipeline.h"
 
 #include "renderqueue.h"
 #include "rendercommand.h"
@@ -44,11 +45,13 @@ void GlRenderContext::submit(RenderQueue&& commands)
             return c1.getRenderTarget() < c2.getRenderTarget();
         }
 
-        if (c1.getPipeline().isBlendEnabled()
-                != c2.getPipeline().isBlendEnabled())
-            return c2.getPipeline().isBlendEnabled();
+        GlPipeline const& pipeline1 = c1.getPipeline().getImpl<GlPipeline>();
+        GlPipeline const& pipeline2 = c2.getPipeline().getImpl<GlPipeline>();
 
-        if (c1.getPipeline().isBlendEnabled())
+        if (pipeline1.isBlendEnabled() != pipeline2.isBlendEnabled())
+            return pipeline2.isBlendEnabled();
+
+        if (pipeline1.isBlendEnabled())
         {
             // Sort by Z
             if (c1.getZ() != c2.getZ())
@@ -60,8 +63,8 @@ void GlRenderContext::submit(RenderQueue&& commands)
             return c1.getTextures() < c2.getTextures();
 
         // Sort by program
-        if (c1.getProgram() != c2.getProgram())
-            return c1.getProgram() < c2.getProgram();
+        if (pipeline1.getProgram() != pipeline2.getProgram())
+            return pipeline1.getProgram() < pipeline2.getProgram();
 
         // Sort by VertexBuffer
         if (c1.getVertexBuffer() != c2.getVertexBuffer())
@@ -318,7 +321,7 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand const& command = *i;
-        Pipeline const& pipeline = command.getPipeline();
+        GlPipeline const& pipeline = command.getPipeline().getImpl<GlPipeline>();
         Program const& program = pipeline.getProgram();
         GlProgram const& glProgram = program.getImpl<GlProgram>();
         auto& textures = command.getTextures();
@@ -340,7 +343,7 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
         GlVertexBuffer const& vb = command.getVertexBuffer(
                 ).getImpl<GlVertexBuffer>();
         vbo = vb.getBuffer().buffer_;
-        mode = primitiveToGl(command.getVertexSpec().getPrimitiveType());
+        mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());
 
         if (command.getIndexBuffer())
         {
@@ -351,10 +354,10 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
             count = ib.getCount();
         }
         else
-            count = vb.getSize() / pipeline.getSpec().getStride();
+            count = vb.getSize() / pipeline.getVertexSpec().getStride();
 
         // Set blend
-        if (blendEnabled_ != command.getPipeline().isBlendEnabled())
+        if (blendEnabled_ != pipeline.isBlendEnabled())
         {
             if (pipeline.isBlendEnabled())
             {
@@ -431,7 +434,11 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
             gl_.glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
             if (vbo)
-                pushSpec(Dispatched(), command.getVertexSpec(), activeAttribs_);
+            {
+                GlPipeline const& pipeline = command.getPipeline()
+                    .getImpl<GlPipeline>();
+                pushSpec(Dispatched(), pipeline.getVertexSpec(), activeAttribs_);
+            }
 
             boundVbo_ = vbo;
         }

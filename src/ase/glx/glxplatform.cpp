@@ -275,8 +275,7 @@ RenderContext const& GlxPlatform::getDefaultContext() const
 
 std::shared_ptr<RenderContextImpl> GlxPlatform::makeRenderContextImpl()
 {
-    auto context = std::make_shared<GlxRenderContext>(*this);
-    return std::move(context);
+    return std::make_shared<GlxRenderContext>(*this);
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

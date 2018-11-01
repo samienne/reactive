@@ -67,7 +67,8 @@ libasesrc = [
         'gl/glblendmode.cpp',
         'gl/glrendercontext.cpp',
         'gl/glrendertargetobject.cpp',
-        'gl/glframebuffer.cpp'
+        'gl/glframebuffer.cpp',
+        'gl/glpipeline.cpp'
         ]
 
 libase = library('ase',
