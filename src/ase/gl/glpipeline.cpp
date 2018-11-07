@@ -1,5 +1,8 @@
 #include "glpipeline.h"
 
+#include "glrendercontext.h"
+#include "gltype.h"
+
 #include "namedvertexspec.h"
 #include "vertexspec.h"
 
@@ -9,6 +12,7 @@ namespace ase
 {
 
 GlPipeline::GlPipeline(
+        GlRenderContext& /*context*/,
         Program program,
         VertexSpec vertexSpec
         ) :
@@ -21,6 +25,7 @@ GlPipeline::GlPipeline(
 }
 
 GlPipeline::GlPipeline(
+        GlRenderContext& /*context*/,
         Program program,
         VertexSpec vertexSpec,
         BlendMode srcFactor,

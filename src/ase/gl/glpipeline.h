@@ -1,16 +1,28 @@
-#include "pipelineimpl.h"
+#include "glplatform.h"
+
+#include <ase/pipelineimpl.h>
+#include <ase/dispatcher.h>
 
 #include <btl/visibility.h>
 
+#include <GL/gl.h>
+
 namespace ase
 {
+    class GlRenderContext;
+    class GlFunctions;
+
     class GlPipeline : public PipelineImpl
     {
     public:
-        GlPipeline(Program program,
+        GlPipeline(
+                GlRenderContext& context,
+                Program program,
                 VertexSpec vertexSpec);
 
-        GlPipeline(Program program,
+        GlPipeline(
+                GlRenderContext& context,
+                Program program,
                 VertexSpec vertexSpec,
                 BlendMode srcFactor,
                 BlendMode dstFactor);

@@ -10,6 +10,7 @@ Pipeline::Pipeline(RenderContext& context,
         Program program,
         VertexSpec vertexSpec) :
     deferred_(context.getPlatform().makePipeline(
+                context,
                 std::move(program),
                 std::move(vertexSpec)
                 ))
@@ -23,6 +24,7 @@ Pipeline::Pipeline(RenderContext& context,
         BlendMode srcFactor,
         BlendMode dstFactor) :
     deferred_(context.getPlatform().makePipelineWithBlend(
+                context,
                 std::move(program),
                 std::move(vertexSpec),
                 srcFactor,

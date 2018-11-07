@@ -36,6 +36,11 @@ GlRenderContext::~GlRenderContext()
 {
 }
 
+GlPlatform& GlRenderContext::getPlatform() const
+{
+    return platform_;
+}
+
 void GlRenderContext::submit(RenderQueue&& commands)
 {
     auto compare = [](RenderCommand const& c1, RenderCommand const& c2)
@@ -217,7 +222,6 @@ void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
         VertexSpec::Spec const& spec = *i;
 
         attribs.push_back(spec.attribLoc);
-        glGetError();
         gl_.glVertexAttribPointer(spec.attribLoc, spec.size, typeToGl(spec.type),
                 spec.normalized, stride, (void*)spec.pointer);
 
@@ -434,11 +438,7 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
             gl_.glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
             if (vbo)
-            {
-                GlPipeline const& pipeline = command.getPipeline()
-                    .getImpl<GlPipeline>();
                 pushSpec(Dispatched(), pipeline.getVertexSpec(), activeAttribs_);
-            }
 
             boundVbo_ = vbo;
         }

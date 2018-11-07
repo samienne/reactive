@@ -79,6 +79,8 @@ namespace ase
         GlRenderContext(GlPlatform& platform);
         ~GlRenderContext() override;
 
+        GlPlatform& getPlatform() const;
+
         // From RenderContextImpl
         void submit(RenderQueue&& commands) override;
         void flush() override;
@@ -92,6 +94,8 @@ namespace ase
         friend class GlBuffer;
         friend class GlShader;
         friend class GlPlatform;
+        friend class GlPipeline;
+
         void dispatch(std::function<void()>&& func);
         void wait() const;
 

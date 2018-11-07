@@ -74,10 +74,12 @@ namespace ase
             makeRenderTargetObjectImpl(RenderContext& context) = 0;
 
         virtual std::shared_ptr<PipelineImpl> makePipeline(
+                RenderContext& context,
                 Program program,
                 VertexSpec spec) = 0;
 
         virtual std::shared_ptr<PipelineImpl> makePipelineWithBlend(
+                RenderContext& context,
                 Program program,
                 VertexSpec spec,
                 BlendMode srcFactor,
