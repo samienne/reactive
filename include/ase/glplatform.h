@@ -23,6 +23,8 @@ namespace ase
         friend class GlProgram;
         friend class GlTexture;
         friend class GlFramebuffer;
+        friend class GlPipeline;
+
         void dispatchBackground(std::function<void()>&& func);
         void waitBackground() const;
 
@@ -55,6 +57,18 @@ namespace ase
 
         std::shared_ptr<RenderTargetObjectImpl>
             makeRenderTargetObjectImpl(RenderContext& context) override;
+
+        std::shared_ptr<PipelineImpl> makePipeline(
+                RenderContext& context,
+                Program program,
+                VertexSpec spec) override;
+
+        std::shared_ptr<PipelineImpl> makePipelineWithBlend(
+                RenderContext& context,
+                Program program,
+                VertexSpec spec,
+                BlendMode srcFactor,
+                BlendMode dstFactor) override;
     };
 }
 

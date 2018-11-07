@@ -1,6 +1,8 @@
 #pragma once
 
-#include "rendercommand.h"
+//#include "rendercommand.h"
+
+#include "vector.h"
 
 #include <btl/visibility.h>
 
@@ -23,11 +25,11 @@ namespace ase
     public:
         RenderTarget();
         RenderTarget(std::shared_ptr<RenderTargetImpl>&& deferred);
-        RenderTarget(RenderTarget const& rhs) = delete;
+        RenderTarget(RenderTarget const& rhs) = default;
         RenderTarget(RenderTarget&& rhs) = default;
         ~RenderTarget();
 
-        RenderTarget& operator=(RenderTarget const& rhs) = delete;
+        RenderTarget& operator=(RenderTarget const& rhs) = default;
         RenderTarget& operator=(RenderTarget&& rhs) = default;
 
         bool operator==(RenderTarget const& rhs) const;
@@ -39,9 +41,9 @@ namespace ase
 
         Vector2i getResolution() const;
 
-        void push(RenderCommand&& command);
-        void submitSolid(RenderContext& queue);
-        void submitAll(RenderContext& queue);
+        //void push(RenderCommand&& command);
+        //void submitSolid(RenderContext& queue);
+        //void submitAll(RenderContext& queue);
 
         template <class T>
         T const& getImpl() const
@@ -55,8 +57,8 @@ namespace ase
         inline RenderTargetImpl const* d() const { return deferred_.get(); }
 
     private:
-        std::vector<RenderCommand> blendedCommands_;
-        std::vector<RenderCommand> solidCommands_;
+        //std::vector<RenderCommand> blendedCommands_;
+        //std::vector<RenderCommand> solidCommands_;
     };
 }
 

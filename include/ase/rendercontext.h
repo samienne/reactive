@@ -13,6 +13,7 @@ namespace ase
     class Window;
     class RenderContextImpl;
     class Platform;
+    class RenderQueue;
 
     /**
      * @brief RenderContext
@@ -52,6 +53,7 @@ namespace ase
         void flush();
         void finish();
         void present(Window& window);
+        void submit(RenderQueue&& renderQueue);
 
         Platform& getPlatform() const;
 
@@ -69,8 +71,10 @@ namespace ase
 
     private:
         friend class RenderTarget;
+        /*
         void submit(RenderTarget& target,
                 std::vector<RenderCommand>&& commands);
+                */
 
     private:
         std::shared_ptr<RenderContextImpl> deferred_;

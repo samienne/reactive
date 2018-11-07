@@ -5,6 +5,7 @@
 #include <avg/shape.h>
 #include <avg/painter.h>
 
+#include <ase/renderqueue.h>
 #include <ase/pipeline.h>
 #include <ase/rendertarget.h>
 #include <ase/rendercommand.h>
@@ -25,7 +26,8 @@ namespace reactive
     /*using RenderCache = std::unordered_map<RenderElement,
           std::vector<avg::SoftMesh>, btl::uhash<btl::fnv1a>>;*/
 
-    BTL_VISIBLE /*RenderCache*/ void render(ase::RenderContext& context,
+    BTL_VISIBLE /*RenderCache*/ void render(ase::RenderQueue& queue,
+            ase::RenderContext& context,
             /*RenderCache const& cache,*/ ase::RenderTarget& target,
             avg::Painter const& painter, avg::Drawing const& drawing);
 

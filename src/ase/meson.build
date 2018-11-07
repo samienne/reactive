@@ -45,6 +45,7 @@ libasesrc = [
         'vertexshader.cpp',
         'program.cpp',
         'rendercommand.cpp',
+        'renderqueue.cpp',
         'texture.cpp',
         'rendertarget.cpp',
         'rendertargetobject.cpp',
@@ -66,7 +67,8 @@ libasesrc = [
         'gl/glblendmode.cpp',
         'gl/glrendercontext.cpp',
         'gl/glrendertargetobject.cpp',
-        'gl/glframebuffer.cpp'
+        'gl/glframebuffer.cpp',
+        'gl/glpipeline.cpp'
         ]
 
 libase = library('ase',

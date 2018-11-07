@@ -60,6 +60,7 @@ Vector2i RenderTarget::getResolution() const
     return d()->getResolution();
 }
 
+/*
 void RenderTarget::push(RenderCommand&& command)
 {
     if (!isComplete())
@@ -92,6 +93,7 @@ void RenderTarget::submitAll(RenderContext& context)
     blendedCommands_.swap(commands);
     context.submit(*this, std::move(commands));
 }
+*/
 
 } // namespace
 

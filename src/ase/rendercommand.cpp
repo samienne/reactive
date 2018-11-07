@@ -6,12 +6,14 @@ namespace ase
 {
 
 RenderCommandDeferred::RenderCommandDeferred(
+        RenderTarget renderTarget,
         std::vector<Texture> textures,
         Pipeline pipeline,
         VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer,
         UniformBuffer uniforms,
         float z) :
+    renderTarget_(std::move(renderTarget)),
     textures_(std::move(textures)),
     pipeline_(std::move(pipeline)),
     vertexBuffer_(std::move(vertexBuffer)),
@@ -21,11 +23,22 @@ RenderCommandDeferred::RenderCommandDeferred(
 {
 }
 
-RenderCommand::RenderCommand(Pipeline const& pipeline,
-        UniformBuffer const& uniforms, VertexBuffer const& vertexBuffer,
-        IndexBuffer const& indexBuffer, std::vector<Texture> const& textures,
+RenderCommand::RenderCommand(
+        RenderTarget renderTarget,
+        Pipeline pipeline,
+        UniformBuffer uniforms,
+        VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer,
+        std::vector<Texture> textures,
         float z)
-    : deferred_(textures, pipeline, vertexBuffer, indexBuffer, uniforms, z)
+    : deferred_(
+            std::move(renderTarget),
+            std::move(textures),
+            std::move(pipeline),
+            std::move(vertexBuffer),
+            std::move(indexBuffer),
+            std::move(uniforms),
+            z)
 {
 }
 

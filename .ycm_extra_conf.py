@@ -189,7 +189,7 @@ def GetCompilerIncludeFlags(cmd):
     return []
 
 def GetClangFlags():
-    cmd = ['clang-3.9',
+    cmd = ['clang-6.0',
     '-std=c++1z',
     '-stdlib=libc++',
     '-v',

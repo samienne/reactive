@@ -1,8 +1,10 @@
 #pragma once
 
 #include "glframebuffer.h"
+
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
+#include "renderqueue.h"
 
 #include "rendercontextimpl.h"
 #include "dispatcher.h"
@@ -66,6 +68,9 @@ namespace ase
         PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
         PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
         PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
+        PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = nullptr;
+        PFNGLBINDVERTEXARRAYPROC glBindVertexArray = nullptr;
+        PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
     };
 
     class BTL_VISIBLE GlRenderContext : public RenderContextImpl
@@ -74,9 +79,10 @@ namespace ase
         GlRenderContext(GlPlatform& platform);
         ~GlRenderContext() override;
 
+        GlPlatform& getPlatform() const;
+
         // From RenderContextImpl
-        void submit(RenderTarget& target,
-                std::vector<RenderCommand>&& commands) override;
+        void submit(RenderQueue&& commands) override;
         void flush() override;
         void finish() override;
 
@@ -88,6 +94,8 @@ namespace ase
         friend class GlBuffer;
         friend class GlShader;
         friend class GlPlatform;
+        friend class GlPipeline;
+
         void dispatch(std::function<void()>&& func);
         void wait() const;
 
@@ -106,8 +114,7 @@ namespace ase
         void pushSpec(Dispatched, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);
         void pushUniforms(Dispatched, UniformBuffer const& uniforms);
-        void dispatchedRenderQueue(Dispatched,
-                std::vector<RenderCommand> const& commands);
+        void dispatchedRenderQueue(Dispatched, RenderQueue&& commands);
 
     private:
         GlPlatform& platform_;
@@ -119,6 +126,7 @@ namespace ase
         Vector2i viewportSize_;
 
         // Current state
+        GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
         GLuint boundVbo_ = 0;
         GLuint boundIbo_ = 0;

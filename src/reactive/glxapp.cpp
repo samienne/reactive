@@ -7,6 +7,7 @@
 #include "signal/input.h"
 #include "send.h"
 
+#include <ase/renderqueue.h>
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
@@ -251,8 +252,11 @@ public:
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
             glxWindow.clear();
-            render(context_, glxWindow, painter_, widget_.getDrawing().evaluate());
-            glxWindow.submitAll(context_);
+
+            ase::RenderQueue queue;
+
+            render(queue, context_, glxWindow, painter_, widget_.getDrawing().evaluate());
+            context_.submit(std::move(queue));
             context_.present(glxWindow);
             redraw_ = false;
 
@@ -338,17 +342,17 @@ int GlxApp::run() &&
 int GlxApp::run(Signal<bool> running) &&
 {
     ase::GlxPlatform platform;
-    ase::RenderContext& bgContext = platform.getDefaultContext();
-
-    avg::Painter painter(bgContext);
 
     std::vector<btl::shared<GlxWindowGlue>> glues;
     glues.reserve(windows_.size());
 
     for (auto&& w : windows_)
     {
+        ase::RenderContext context(platform);
+        avg::Painter painter(context);
+
         glues.push_back(std::make_shared<GlxWindowGlue>(platform,
-                    ase::RenderContext(platform), std::move(w), painter));
+                    std::move(context), std::move(w), painter));
     }
 
     std::chrono::steady_clock clock;

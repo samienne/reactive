@@ -217,7 +217,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
     return meshes;
 }
 
-void render(ase::RenderContext& context,
+void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
         ase::RenderTarget& target, std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
@@ -267,12 +267,14 @@ void render(ase::RenderContext& context,
         {
             ase::UniformBuffer ub(pipeline.getProgram(), nub);
             float const z = resultVertices[0][2];
+
             ase::VertexBuffer vb(context, ase::Buffer(
                         std::move(resultVertices)), ase::Usage::StreamDraw,
                     ase::Async());
-            ase::RenderCommand command(pipeline, ub, vb, ib,
+
+            renderQueue.push(target, pipeline, ub, vb, ib,
                     {ase::Texture()}, z);
-            target.push(std::move(command));
+
             resultVertices.clear();
         }
 
@@ -302,8 +304,9 @@ std::vector<Element> generateElements(avg::Painter const& painter,
 
 } // anonymous namespace
 
-void render(ase::RenderContext& context, ase::RenderTarget& target,
-        avg::Painter const& painter, avg::Drawing const& drawing)
+void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
+        ase::RenderTarget& target, avg::Painter const& painter,
+        avg::Drawing const& drawing)
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     int const resPerPixel = 4;
@@ -318,7 +321,7 @@ void render(ase::RenderContext& context, ase::RenderTarget& target,
 
     auto elements = generateElements(painter, meshes);
 
-    render(context, target, std::move(elements));
+    render(renderQueue, context, target, std::move(elements));
 }
 
 avg::Path makeRect(float width, float height)

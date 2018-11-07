@@ -9,7 +9,9 @@
 #include "glerror.h"
 #include "gltype.h"
 #include "glblendmode.h"
+#include "glpipeline.h"
 
+#include "renderqueue.h"
 #include "rendercommand.h"
 #include "rendertarget.h"
 #include "rendertargetimpl.h"
@@ -34,18 +36,27 @@ GlRenderContext::~GlRenderContext()
 {
 }
 
-void GlRenderContext::submit(RenderTarget& target,
-        std::vector<RenderCommand>&& commands)
+GlPlatform& GlRenderContext::getPlatform() const
 {
-    std::vector<RenderCommand> queue(std::move(commands));
+    return platform_;
+}
 
+void GlRenderContext::submit(RenderQueue&& commands)
+{
     auto compare = [](RenderCommand const& c1, RenderCommand const& c2)
     {
-        if (c1.getPipeline().isBlendEnabled()
-                != c2.getPipeline().isBlendEnabled())
-            return c2.getPipeline().isBlendEnabled();
+        if (c1.getRenderTarget() != c2.getRenderTarget())
+        {
+            return c1.getRenderTarget() < c2.getRenderTarget();
+        }
 
-        if (c1.getPipeline().isBlendEnabled())
+        GlPipeline const& pipeline1 = c1.getPipeline().getImpl<GlPipeline>();
+        GlPipeline const& pipeline2 = c2.getPipeline().getImpl<GlPipeline>();
+
+        if (pipeline1.isBlendEnabled() != pipeline2.isBlendEnabled())
+            return pipeline2.isBlendEnabled();
+
+        if (pipeline1.isBlendEnabled())
         {
             // Sort by Z
             if (c1.getZ() != c2.getZ())
@@ -57,8 +68,8 @@ void GlRenderContext::submit(RenderTarget& target,
             return c1.getTextures() < c2.getTextures();
 
         // Sort by program
-        if (c1.getProgram() != c2.getProgram())
-            return c1.getProgram() < c2.getProgram();
+        if (pipeline1.getProgram() != pipeline2.getProgram())
+            return pipeline1.getProgram() < pipeline2.getProgram();
 
         // Sort by VertexBuffer
         if (c1.getVertexBuffer() != c2.getVertexBuffer())
@@ -72,27 +83,22 @@ void GlRenderContext::submit(RenderTarget& target,
         return c1.getZ() > c2.getZ();
     };
 
-    bool switchTarget = &target.getImpl<RenderTargetImpl>()
-        != boundRenderTarget_;
-
-    // Intel driver is buggy here so we need to switch multiple times
-    switchTarget = true;
-
-    if (switchTarget)
-        boundRenderTarget_ = &target.getImpl<RenderTargetImpl>();
-
-    auto rt = boundRenderTarget_;
-    auto* queuePtr = new std::vector<RenderCommand>(std::move(queue));
-
-    dispatch([this, switchTarget, rt, queuePtr, compare]()
+    dispatch([this, queue=std::move(commands), compare]() mutable
         {
-            if (switchTarget)
-                rt->makeCurrent(Dispatched(), *this);
+            auto b = queue.begin();
+            auto e = b;
 
-            std::sort(queuePtr->begin(), queuePtr->end(), compare);
+            while (e != queue.end())
+            {
+                auto const& target = b->getRenderTarget();
+                while (e != queue.end() && target == e->getRenderTarget())
+                    ++e;
 
-            dispatchedRenderQueue(Dispatched(), *queuePtr);
-            delete queuePtr;
+                std::sort(queue.begin(), queue.end(), compare);
+                b = e;
+            }
+
+            dispatchedRenderQueue(Dispatched(), std::move(queue));
         });
 }
 
@@ -118,20 +124,18 @@ GlFunctions const& GlRenderContext::getGlFunctions() const
 void GlRenderContext::dispatch(std::function<void()>&& func)
 {
     dispatcher_.run(std::move(func));
-    //platform_.dispatchBackground(std::move(func));
 }
 
 void GlRenderContext::wait() const
 {
     dispatcher_.wait();
-    //platform_.waitBackground();
 }
 
 void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
 {
     gl_ = gl;
 
-    glEnableClientState(GL_VERTEX_ARRAY);
+    //glEnableClientState(GL_VERTEX_ARRAY);
     glEnable(GL_DEPTH_TEST);
 
     GLint srgbEnabled = 0;
@@ -172,6 +176,12 @@ void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
 
 void GlRenderContext::glDeinit(Dispatched)
 {
+    if (vertexArrayObject_)
+    {
+        gl_.glDeleteVertexArrays(1, &vertexArrayObject_);
+        vertexArrayObject_ = 0;
+    }
+
     sharedFramebuffer_.destroy(Dispatched(), *this);
 }
 
@@ -214,6 +224,7 @@ void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
         attribs.push_back(spec.attribLoc);
         gl_.glVertexAttribPointer(spec.attribLoc, spec.size, typeToGl(spec.type),
                 spec.normalized, stride, (void*)spec.pointer);
+
         /*DBG("attrib: %1 %2 %3 %4 %5 %6", spec.attribLoc, spec.size,
                 glTypeToString(typeToGl(spec.type)), spec.normalized,
                 stride, spec.pointer);*/
@@ -242,52 +253,6 @@ void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
 
 void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
 {
-    /*for (auto const& u : buffer.getUniform1fv())
-        gl_.glUniform1fv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2fv())
-        gl_.glUniform2fv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3fv())
-        gl_.glUniform3fv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4fv())
-        gl_.glUniform4fv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-    for (auto const& u : buffer.getUniform1iv())
-        gl_.glUniform1iv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2iv())
-        gl_.glUniform2iv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3iv())
-        gl_.glUniform3iv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4iv())
-        gl_.glUniform4iv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-
-    for (auto const& u : buffer.getUniform1uiv())
-        gl_.glUniform1uiv(u.first, u.second.size(), u.second.data());
-
-    for (auto const& u : buffer.getUniform2uiv())
-        gl_.glUniform2uiv(u.first, u.second.size() / 2, u.second.data());
-
-    for (auto const& u : buffer.getUniform3uiv())
-        gl_.glUniform3uiv(u.first, u.second.size() / 3, u.second.data());
-
-    for (auto const& u : buffer.getUniform4uiv())
-        gl_.glUniform4uiv(u.first, u.second.size() / 4, u.second.data());
-
-    //
-
-    for (auto const& uniform : buffer.getUniformBuffer4fv())
-        gl_.glUniformMatrix4fv(uniform.first, 1, false, uniform.second.data());*/
-
     for (auto&& uniform : buffer)
     {
         switch (uniform.getType())
@@ -348,13 +313,19 @@ void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
     }
 }
 
-void GlRenderContext::dispatchedRenderQueue(Dispatched,
-        std::vector<RenderCommand> const& commands)
+void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
 {
+    if (vertexArrayObject_ == 0)
+    {
+        gl_.glGenVertexArrays(1, &vertexArrayObject_);
+        gl_.glBindVertexArray(vertexArrayObject_);
+    }
+
+    boundRenderTarget_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand const& command = *i;
-        Pipeline const& pipeline = command.getPipeline();
+        GlPipeline const& pipeline = command.getPipeline().getImpl<GlPipeline>();
         Program const& program = pipeline.getProgram();
         GlProgram const& glProgram = program.getImpl<GlProgram>();
         auto& textures = command.getTextures();
@@ -366,10 +337,17 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched,
         if (!command.getVertexBuffer())
             continue;
 
+        if (boundRenderTarget_ !=
+                &command.getRenderTarget().getImpl<RenderTargetImpl>())
+        {
+            boundRenderTarget_ = &command.getRenderTarget().getImpl<RenderTargetImpl>();
+            boundRenderTarget_->makeCurrent(Dispatched(), *this);
+        }
+
         GlVertexBuffer const& vb = command.getVertexBuffer(
                 ).getImpl<GlVertexBuffer>();
         vbo = vb.getBuffer().buffer_;
-        mode = primitiveToGl(command.getVertexSpec().getPrimitiveType());
+        mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());
 
         if (command.getIndexBuffer())
         {
@@ -380,10 +358,10 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched,
             count = ib.getCount();
         }
         else
-            count = vb.getSize() / pipeline.getSpec().getStride();
+            count = vb.getSize() / pipeline.getVertexSpec().getStride();
 
         // Set blend
-        if (blendEnabled_ != command.getPipeline().isBlendEnabled())
+        if (blendEnabled_ != pipeline.isBlendEnabled())
         {
             if (pipeline.isBlendEnabled())
             {
@@ -456,11 +434,12 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched,
 
         if (boundVboObject_ != command.getVertexBuffer())
         {
+            glGetError();
             gl_.glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
             if (vbo)
-            {
-                pushSpec(Dispatched(), command.getVertexSpec(), activeAttribs_);
-            }
+                pushSpec(Dispatched(), pipeline.getVertexSpec(), activeAttribs_);
+
             boundVbo_ = vbo;
         }
 
