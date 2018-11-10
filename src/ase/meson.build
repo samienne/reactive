@@ -44,6 +44,7 @@ libasesrc = [
         'fragmentshader.cpp',
         'vertexshader.cpp',
         'program.cpp',
+        'commandbuffer.cpp',
         'rendercommand.cpp',
         'renderqueue.cpp',
         'texture.cpp',

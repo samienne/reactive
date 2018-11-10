@@ -4,7 +4,7 @@
 
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
-#include "renderqueue.h"
+#include "commandbuffer.h"
 
 #include "rendercontextimpl.h"
 #include "dispatcher.h"
@@ -82,7 +82,7 @@ namespace ase
         GlPlatform& getPlatform() const;
 
         // From RenderContextImpl
-        void submit(RenderQueue&& commands) override;
+        void submit(CommandBuffer&& commands) override;
         void flush() override;
         void finish() override;
 
@@ -114,7 +114,7 @@ namespace ase
         void pushSpec(Dispatched, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);
         void pushUniforms(Dispatched, UniformBuffer const& uniforms);
-        void dispatchedRenderQueue(Dispatched, RenderQueue&& commands);
+        void dispatchedRenderQueue(Dispatched, CommandBuffer&& commands);
 
     private:
         GlPlatform& platform_;

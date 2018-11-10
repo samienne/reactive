@@ -1,7 +1,7 @@
 #include "rendercontext.h"
 
 #include "rendercontextimpl.h"
-#include "renderqueue.h"
+#include "commandbuffer.h"
 #include "window.h"
 #include "platform.h"
 
@@ -44,26 +44,14 @@ void RenderContext::finish()
 void RenderContext::present(Window& window)
 {
     if (d())
-    {
-        //window.submitAll(*this);
         d()->present(window);
-    }
 }
 
-void RenderContext::submit(RenderQueue&& renderQueue)
+void RenderContext::submit(CommandBuffer&& commands)
 {
     if (d())
-        d()->submit(std::move(renderQueue));
+        d()->submit(std::move(commands));
 }
-
-/*
-void RenderContext::submit(RenderTarget& target,
-        std::vector<RenderCommand>&& commands)
-{
-    if (d() && !commands.empty())
-        d()->submit(target, std::move(commands));
-}
-*/
 
 Platform& RenderContext::getPlatform() const
 {

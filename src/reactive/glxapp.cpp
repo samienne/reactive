@@ -253,10 +253,11 @@ public:
         {
             glxWindow.clear();
 
-            ase::RenderQueue queue;
+            ase::CommandBuffer commands;
 
-            render(queue, context_, glxWindow, painter_, widget_.getDrawing().evaluate());
-            context_.submit(std::move(queue));
+            render(commands, context_, glxWindow, painter_,
+                    widget_.getDrawing().evaluate());
+            context_.submit(std::move(commands));
             context_.present(glxWindow);
             redraw_ = false;
 

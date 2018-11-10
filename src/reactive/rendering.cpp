@@ -217,7 +217,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
     return meshes;
 }
 
-void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
+void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::RenderTarget& target, std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
@@ -272,7 +272,7 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
                         std::move(resultVertices)), ase::Usage::StreamDraw,
                     ase::Async());
 
-            renderQueue.push(target, pipeline, ub, vb, ib,
+            commandBuffer.push(target, pipeline, ub, vb, ib,
                     {ase::Texture()}, z);
 
             resultVertices.clear();
@@ -304,7 +304,7 @@ std::vector<Element> generateElements(avg::Painter const& painter,
 
 } // anonymous namespace
 
-void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
+void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::RenderTarget& target, avg::Painter const& painter,
         avg::Drawing const& drawing)
 {
@@ -321,7 +321,7 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
 
     auto elements = generateElements(painter, meshes);
 
-    render(renderQueue, context, target, std::move(elements));
+    render(commandBuffer, context, target, std::move(elements));
 }
 
 avg::Path makeRect(float width, float height)

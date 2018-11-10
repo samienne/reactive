@@ -11,7 +11,7 @@
 #include "glblendmode.h"
 #include "glpipeline.h"
 
-#include "renderqueue.h"
+#include "commandbuffer.h"
 #include "rendercommand.h"
 #include "rendertarget.h"
 #include "rendertargetimpl.h"
@@ -41,7 +41,7 @@ GlPlatform& GlRenderContext::getPlatform() const
     return platform_;
 }
 
-void GlRenderContext::submit(RenderQueue&& commands)
+void GlRenderContext::submit(CommandBuffer&& commands)
 {
     auto compare = [](RenderCommand const& c1, RenderCommand const& c2)
     {
@@ -313,7 +313,7 @@ void GlRenderContext::pushUniforms(Dispatched, UniformBuffer const& buffer)
     }
 }
 
-void GlRenderContext::dispatchedRenderQueue(Dispatched, RenderQueue&& commands)
+void GlRenderContext::dispatchedRenderQueue(Dispatched, CommandBuffer&& commands)
 {
     if (vertexArrayObject_ == 0)
     {
