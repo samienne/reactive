@@ -10,14 +10,14 @@
 namespace ase
 {
     class GlPlatform;
+    class GlRenderContext;
     class Texture;
-    class RenderContext;
     class RenderQueue;
 
     class BTL_VISIBLE GlRenderTargetObject : public RenderTargetObjectImpl
     {
     public:
-        GlRenderTargetObject(RenderContext& context);
+        GlRenderTargetObject(GlRenderContext& context);
         GlRenderTargetObject(GlRenderTargetObject const& rhs) = default;
         GlRenderTargetObject(GlRenderTargetObject&& rhs) = default;
         ~GlRenderTargetObject();
@@ -38,7 +38,7 @@ namespace ase
         Vector2i getResolution() const override;
 
     private:
-        GlPlatform* platform_;
+        GlRenderContext& context_;
         mutable bool dirty_;
         std::map<size_t, Texture> colorTextures_;
     };

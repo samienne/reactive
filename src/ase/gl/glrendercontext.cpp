@@ -28,7 +28,8 @@ namespace ase
 
 GlRenderContext::GlRenderContext(GlPlatform& platform) :
     platform_(platform),
-    dispatcher_()
+    dispatcher_(),
+    defaultFramebuffer_(*this)
 {
 }
 
@@ -121,9 +122,19 @@ GlFunctions const& GlRenderContext::getGlFunctions() const
     return gl_;
 }
 
+GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
+{
+    return defaultFramebuffer_;
+}
+
 void GlRenderContext::dispatch(std::function<void()>&& func)
 {
     dispatcher_.run(std::move(func));
+}
+
+void GlRenderContext::dispatchBg(std::function<void()>&& func)
+{
+    dispatcherBg_.run(std::move(func));
 }
 
 void GlRenderContext::wait() const
@@ -131,11 +142,15 @@ void GlRenderContext::wait() const
     dispatcher_.wait();
 }
 
+void GlRenderContext::waitBg() const
+{
+    dispatcherBg_.wait();
+}
+
 void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
 {
     gl_ = gl;
 
-    //glEnableClientState(GL_VERTEX_ARRAY);
     glEnable(GL_DEPTH_TEST);
 
     GLint srgbEnabled = 0;
@@ -171,7 +186,7 @@ void GlRenderContext::glInit(Dispatched, GlFunctions const& gl)
     //glXSwapIntervalSGI(1);
 #endif
 
-    sharedFramebuffer_ = GlFramebuffer(Dispatched(), platform_, *this);
+    sharedFramebuffer_ = btl::just(GlFramebuffer(Dispatched(), *this));
 }
 
 void GlRenderContext::glDeinit(Dispatched)
@@ -182,12 +197,12 @@ void GlRenderContext::glDeinit(Dispatched)
         vertexArrayObject_ = 0;
     }
 
-    sharedFramebuffer_.destroy(Dispatched(), *this);
+    sharedFramebuffer_->destroy(Dispatched(), *this);
 }
 
 GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
 {
-    return sharedFramebuffer_;
+    return *sharedFramebuffer_;
 }
 
 void GlRenderContext::setViewport(Dispatched, Vector2i size)

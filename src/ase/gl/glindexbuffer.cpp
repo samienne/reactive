@@ -6,7 +6,7 @@
 namespace ase
 {
 
-GlIndexBuffer::GlIndexBuffer(RenderContext& context) :
+GlIndexBuffer::GlIndexBuffer(GlRenderContext& context) :
     size_(0),
     buffer_(context, GL_ELEMENT_ARRAY_BUFFER)
 {
@@ -26,11 +26,10 @@ size_t GlIndexBuffer::getCount() const
     return size_;
 }
 
-void GlIndexBuffer::setData(Dispatched d, GlRenderContext& context,
-        Buffer const& buffer, Usage usage)
+void GlIndexBuffer::setData(Dispatched d, Buffer const& buffer, Usage usage)
 {
     size_ = buffer.getSize() / 2;
-    buffer_.setData(d, context, buffer.data(), buffer.getSize(), usage);
+    buffer_.setData(d, buffer.data(), buffer.getSize(), usage);
 }
 
 } // namespace

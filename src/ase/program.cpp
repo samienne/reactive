@@ -60,8 +60,8 @@ bool Program::operator<(Program const& rhs) const
 std::shared_ptr<ProgramImpl> Program::makeImpl(RenderContext& context,
         VertexShader const& vertexShader, FragmentShader const& fragmentShader)
 {
-    return context.getPlatform().makeProgramImpl(context, *vertexShader.d(),
-            *fragmentShader.d());
+    return context.getPlatform().makeProgramImpl(context, vertexShader,
+            fragmentShader);
 }
 
 } // namespace

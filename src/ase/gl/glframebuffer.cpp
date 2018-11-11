@@ -11,33 +11,38 @@
 namespace ase
 {
 
-GlFramebuffer::GlFramebuffer() :
-    platform_(0),
+GlFramebuffer::GlFramebuffer(GlRenderContext& context) :
+    context_(context),
     framebuffer_(0)
 {
 }
 
-GlFramebuffer::GlFramebuffer(Dispatched, GlPlatform& platform,
-        GlRenderContext& context) :
-    platform_(&platform),
+GlFramebuffer::GlFramebuffer(Dispatched, GlRenderContext& context) :
+    context_(context),
     framebuffer_(0)
 {
     context.getGlFunctions().glGenFramebuffers(1, &framebuffer_);
 }
 
+GlFramebuffer::GlFramebuffer(GlFramebuffer&& rhs) noexcept :
+    context_(rhs.context_),
+    framebuffer_(rhs.framebuffer_)
+{
+    rhs.framebuffer_ = 0;
+}
+
 GlFramebuffer::~GlFramebuffer()
 {
-    if (framebuffer_ && platform_)
+    if (framebuffer_)
     {
-        auto& glContext = platform_->getDefaultContext()
-            .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([this, &glContext]()
+        context_.dispatchBg([this]()
             {
-                auto& gl = glContext.getGlFunctions();
+                auto& gl = context_.getGlFunctions();
                 gl.glDeleteFramebuffers(1, &framebuffer_);
                 framebuffer_ = 0;
             });
-        platform_->waitBackground();
+
+        context_.waitBg();
     }
 }
 
@@ -48,30 +53,6 @@ void GlFramebuffer::destroy(Dispatched, GlRenderContext& context)
         context.getGlFunctions().glDeleteFramebuffers(1, &framebuffer_);
         framebuffer_ = 0;
     }
-}
-
-GlFramebuffer& GlFramebuffer::operator=(GlFramebuffer&& rhs) noexcept
-{
-    if (framebuffer_ && platform_)
-    {
-        framebuffer_ = 0;
-        GLuint const framebuffer = framebuffer_;
-        auto& glContext = platform_->getDefaultContext()
-            .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([&glContext, framebuffer]()
-            {
-                glContext.getGlFunctions().glDeleteFramebuffers(1,
-                    &framebuffer);
-            });
-    }
-
-    framebuffer_ = rhs.framebuffer_;
-    platform_ = rhs.platform_;
-
-    rhs.framebuffer_ = 0;
-    rhs.platform_ = 0;
-
-    return *this;
 }
 
 bool GlFramebuffer::operator==(GlFramebuffer const& rhs) const
@@ -94,24 +75,24 @@ GlFramebuffer::operator bool() const
     return framebuffer_;
 }
 
-void GlFramebuffer::setColorTarget(Dispatched d, GlRenderContext& context,
-        size_t index, Texture const& texture)
+void GlFramebuffer::setColorTarget(Dispatched d, size_t index,
+        Texture const& texture)
 {
     GlTexture const& glTexture = texture.getImpl<GlTexture>();
-    setColorTarget(d, context, index, const_cast<GlTexture&>(glTexture));
+    setColorTarget(d, index, const_cast<GlTexture&>(glTexture));
 }
 
-void GlFramebuffer::setColorTarget(Dispatched, GlRenderContext& context,
-        size_t index, GlTexture const& texture)
+void GlFramebuffer::setColorTarget(Dispatched, size_t index,
+        GlTexture const& texture)
 {
-    auto& gl = context.getGlFunctions();
+    auto& gl = context_.getGlFunctions();
     gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
             GL_TEXTURE_2D, texture.texture_, 0);
 }
 
-void GlFramebuffer::makeCurrent(Dispatched, GlRenderContext& context) const
+void GlFramebuffer::makeCurrent(Dispatched) const
 {
-    context.getGlFunctions().glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+    context_.getGlFunctions().glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
 }
 
 } // namespace

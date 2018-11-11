@@ -10,6 +10,7 @@
 namespace ase
 {
     class GlRenderContext;
+
     /**
      * @brief Abstract base class for all OpenGl platforms
      */
@@ -19,23 +20,14 @@ namespace ase
         GlPlatform();
         virtual ~GlPlatform();
 
-    protected:
-        friend class GlProgram;
-        friend class GlTexture;
-        friend class GlFramebuffer;
-        friend class GlPipeline;
-
-        void dispatchBackground(std::function<void()>&& func);
-        void waitBackground() const;
-
     private:
         friend class GlShader;
         friend class GlBuffer;
 
         // From Platform
         std::shared_ptr<ProgramImpl> makeProgramImpl(
-                RenderContext& context, VertexShaderImpl const& vertexShader,
-                FragmentShaderImpl const& fragmentShader) override;
+                RenderContext& context, VertexShader const& vertexShader,
+                FragmentShader const& fragmentShader) override;
 
         std::shared_ptr<VertexShaderImpl> makeVertexShaderImpl(
                 RenderContext& context, std::string const& source) override;

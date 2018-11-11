@@ -17,17 +17,15 @@ namespace ase
     class BTL_VISIBLE GlFramebuffer
     {
     public:
-        GlFramebuffer();
-        GlFramebuffer(Dispatched, GlPlatform& platform,
-                GlRenderContext& context);
+        GlFramebuffer(GlRenderContext& context);
+        GlFramebuffer(Dispatched, GlRenderContext& context);
+
         GlFramebuffer(GlFramebuffer const& rhs) = delete;
-        GlFramebuffer(GlFramebuffer&& rhs) = default;
+        GlFramebuffer(GlFramebuffer&& rhs) noexcept;
+
         ~GlFramebuffer();
 
         void destroy(Dispatched, GlRenderContext& context);
-
-        GlFramebuffer& operator=(GlFramebuffer const& rhs) = delete;
-        GlFramebuffer& operator=(GlFramebuffer&& rhs) noexcept;
 
         bool operator==(GlFramebuffer const& rhs) const;
         bool operator!=(GlFramebuffer const& rhs) const;
@@ -35,16 +33,14 @@ namespace ase
 
         operator bool() const;
 
-        void setColorTarget(Dispatched, GlRenderContext& context, size_t index,
-                Texture const& texture);
-        void setColorTarget(Dispatched, GlRenderContext& context, size_t index,
-                GlTexture const& texture);
+        void setColorTarget(Dispatched, size_t index, Texture const& texture);
+        void setColorTarget(Dispatched, size_t index, GlTexture const& texture);
 
-        void makeCurrent(Dispatched, GlRenderContext& context) const;
+        void makeCurrent(Dispatched) const;
 
     private:
-        GlPlatform* platform_;
-        GLuint framebuffer_;
+        GlRenderContext& context_;
+        GLuint framebuffer_ = 0;
     };
 }
 

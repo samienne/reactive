@@ -14,7 +14,6 @@ namespace ase
     class BTL_VISIBLE VertexShader
     {
     public:
-        VertexShader();
         VertexShader(RenderContext& context, std::string const& source);
         VertexShader(VertexShader const& other) = default;
         VertexShader(VertexShader&& other) = default;
@@ -22,6 +21,12 @@ namespace ase
 
         VertexShader& operator=(VertexShader const& other) = default;
         VertexShader& operator=(VertexShader&& other) = default;
+
+        template <class T>
+        T const& getImpl() const
+        {
+            return reinterpret_cast<T const&>(*d());
+        }
 
     private:
         friend class Program;

@@ -10,20 +10,11 @@
 namespace ase
 {
 
-GlBuffer::GlBuffer(RenderContext& context, GLenum bufferType) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform())),
+GlBuffer::GlBuffer(GlRenderContext& context, GLenum bufferType) :
+    context_(context),
     bufferType_(bufferType),
     buffer_(0)
 {
-    /*context.getImpl<GlRenderContext>().dispatch([this]()
-        {
-            glGenBuffers(1, &buffer_);
-        });
-
-    context.getImpl<GlRenderContext>().wait();*/
-
-    /*if (!buffer_)
-        throw std::runtime_error("Unable to create GlBuffer");*/
 }
 
 GlBuffer::~GlBuffer()
@@ -31,16 +22,9 @@ GlBuffer::~GlBuffer()
     destroy();
 }
 
-void GlBuffer::setData(Dispatched, GlRenderContext& context, void const* data,
-        size_t len, Usage usage)
+void GlBuffer::setData(Dispatched, void const* data, size_t len, Usage usage)
 {
-    if (!platform_)
-    {
-        throw std::runtime_error("Trying to set data to uninitialized "
-                "gl buffer");
-    }
-
-    GlFunctions const& gl = context.getGlFunctions();
+    GlFunctions const& gl = context_.getGlFunctions();
 
     if (!buffer_)
     {
@@ -62,13 +46,12 @@ GLuint GlBuffer::getBuffer() const
 
 void GlBuffer::destroy()
 {
-    if (platform_ && buffer_)
+    if (buffer_)
     {
         GLuint buffer = buffer_;
         buffer_ = 0;
-        auto& context = platform_->getDefaultContext()
-            .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([&context, buffer]()
+        GlRenderContext& context = context_;
+        context_.dispatchBg([&context, buffer]()
                 {
                     context.getGlFunctions().glDeleteBuffers(1, &buffer);
                     //DBG("Deleted GlBuffer %1", buffer);
@@ -76,5 +59,5 @@ void GlBuffer::destroy()
     }
 }
 
-} // namespace
+} // namespace ase
 

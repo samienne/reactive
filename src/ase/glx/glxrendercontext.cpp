@@ -159,10 +159,11 @@ namespace
 } // Anonymous namespace
 
 GlxRenderContext::GlxRenderContext(GlxPlatform& platform,
-        GlxContext&& context) :
+        GlxContext&& context, GlxContext&& contextBg) :
     GlRenderContext(platform),
     platform_(platform),
-    context_(std::move(context))
+    context_(std::move(context)),
+    contextBg_(std::move(contextBg))
 {
     //DBG("GlxRenderContext created: %1", context_);
     dispatch([this]()
@@ -170,21 +171,36 @@ GlxRenderContext::GlxRenderContext(GlxPlatform& platform,
             context_.makeCurrent(platform_.lockX(), 0);
             glInit(Dispatched(), ase::getGlFunctions());
         });
+
+    dispatchBg([this]()
+        {
+            contextBg_.makeCurrent(platform_.lockX(), 0);
+        });
+
+    waitBg();
+    wait();
 }
 
 GlxRenderContext::GlxRenderContext(GlxPlatform& platform) :
-    GlxRenderContext(platform, GlxContext(platform))
+    GlxRenderContext(platform, GlxContext(platform), GlxContext(platform))
 {
 }
 
 GlxRenderContext::~GlxRenderContext()
 {
+    dispatchBg([this]()
+        {
+            platform_.makeGlxContextCurrent(platform_.lockX(), 0, 0);
+        });
+
     dispatch([this]()
         {
             glDeinit(Dispatched());
             platform_.makeGlxContextCurrent(platform_.lockX(), 0, 0);
         });
+
     wait();
+    waitBg();
 }
 
 void GlxRenderContext::present(Window& window)
@@ -207,5 +223,5 @@ GlxContext& GlxRenderContext::getContext()
     return context_;
 }
 
-}
+} // namespace ase
 

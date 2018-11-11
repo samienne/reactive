@@ -11,12 +11,12 @@
 namespace ase
 {
     class GlPlatform;
-    class RenderContext;
+    class GlRenderContext;
 
     class BTL_VISIBLE GlShader
     {
     public:
-        GlShader(RenderContext& context, std::string const& source,
+        GlShader(GlRenderContext& context, std::string const& source,
                 GLenum shaderType);
         GlShader(GlShader const& other) = delete;
         GlShader(GlShader&& other) = delete;
@@ -31,7 +31,7 @@ namespace ase
 
     private:
         friend class GlProgram;
-        GlPlatform* platform_;
+        GlRenderContext& context_;
         GLuint shader_;
     };
 }

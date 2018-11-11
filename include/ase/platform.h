@@ -24,6 +24,8 @@ namespace ase
     class Buffer;
     class PipelineImpl;
     class Program;
+    class FragmentShader;
+    class VertexShader;
     class VertexSpec;
 
     /**
@@ -49,8 +51,9 @@ namespace ase
         friend class Pipeline;
 
         virtual std::shared_ptr<ProgramImpl> makeProgramImpl(
-                RenderContext& context, VertexShaderImpl const& vertexShader,
-                FragmentShaderImpl const& fragmentShader) = 0;
+                RenderContext& context,
+                VertexShader const& vertexShader,
+                FragmentShader const& fragmentShader) = 0;
 
         virtual std::shared_ptr<VertexShaderImpl> makeVertexShaderImpl(
                 RenderContext& context, std::string const& source) = 0;

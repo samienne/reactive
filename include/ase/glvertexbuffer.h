@@ -10,14 +10,13 @@
 
 namespace ase
 {
-    class RenderContext;
     class GlRenderContext;
     struct Dispatched;
 
     class BTL_VISIBLE GlVertexBuffer : public VertexBufferImpl
     {
     public:
-        GlVertexBuffer(RenderContext& context);
+        GlVertexBuffer(GlRenderContext& context);
         GlVertexBuffer(GlVertexBuffer const& other) = delete;
         GlVertexBuffer(GlVertexBuffer&& other) = delete;
         virtual ~GlVertexBuffer();
@@ -27,8 +26,7 @@ namespace ase
 
         size_t getSize() const;
 
-        void setData(Dispatched, GlRenderContext& context, Buffer const& buffer,
-                Usage usage);
+        void setData(Dispatched, Buffer const& buffer, Usage usage);
 
     private:
         friend class GlRenderContext;

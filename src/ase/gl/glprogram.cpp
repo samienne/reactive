@@ -13,19 +13,19 @@
 namespace ase
 {
 
-GlProgram::GlProgram(RenderContext& context, GlVertexShader const& vertexShader,
+GlProgram::GlProgram(GlRenderContext& context, GlVertexShader const& vertexShader,
     GlFragmentShader const& fragmentShader) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform())),
+    context_(context),
     program_(0)
 {
     try
     {
         bool failed = false;
         std::string logStr;
-        auto& glContext = context.getImpl<GlRenderContext>();
-        glContext.dispatch([&, this]()
+        auto& gl = context_.getGlFunctions();
+
+        context_.dispatchBg([&, this]()
             {
-                auto& gl = glContext.getGlFunctions();
                 program_ = gl.glCreateProgram();
                 gl.glAttachShader(program_, vertexShader.shader_.shader_);
                 gl.glAttachShader(program_, fragmentShader.shader_.shader_);
@@ -49,7 +49,8 @@ GlProgram::GlProgram(RenderContext& context, GlVertexShader const& vertexShader,
 
                 programIntrospection(gl);
             });
-        context.getImpl<GlRenderContext>().wait();
+
+        context_.waitBg();
 
         if (failed)
         {
@@ -92,14 +93,14 @@ int GlProgram::getAttribLocation(std::string const& name) const
 
 void GlProgram::destroy()
 {
-    if (platform_ && program_)
+    if (program_)
     {
         GLuint program = program_;
-        auto& glContext = platform_->getDefaultContext()
-            .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([&glContext, program]()
+        auto& gl = context_.getGlFunctions();
+
+        context_.dispatchBg([&gl, program]()
             {
-                glContext.getGlFunctions().glDeleteProgram(program);
+                gl.glDeleteProgram(program);
             });
     }
 }
@@ -133,5 +134,5 @@ void GlProgram::programIntrospection(GlFunctions const& gl)
     }
 }
 
-} // namespace
+} // namespace ase
 

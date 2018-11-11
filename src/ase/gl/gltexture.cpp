@@ -12,8 +12,8 @@
 namespace ase
 {
 
-GlTexture::GlTexture(RenderContext& context) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform())),
+GlTexture::GlTexture(GlRenderContext& context) :
+    context_(context),
     size_(0, 0),
     texture_(0)
 {
@@ -57,11 +57,11 @@ Vector2i GlTexture::getSize() const
 
 void GlTexture::destroy()
 {
-    if (platform_ && texture_)
+    if (texture_)
     {
         GLuint texture = texture_;
         texture_ = 0;
-        platform_->dispatchBackground([texture]()
+        context_.dispatchBg([texture]()
             {
                 glDeleteTextures(1, &texture);
                 DBG("Texture %1 deleted", texture);

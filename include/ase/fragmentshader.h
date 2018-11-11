@@ -14,7 +14,6 @@ namespace ase
     class BTL_VISIBLE FragmentShader
     {
     public:
-        FragmentShader();
         FragmentShader(RenderContext& context, std::string const& source);
         FragmentShader(FragmentShader const& other) = default;
         FragmentShader(FragmentShader&& other) = default;
@@ -22,6 +21,12 @@ namespace ase
 
         FragmentShader& operator=(FragmentShader const& other) = default;
         FragmentShader& operator=(FragmentShader&& other) = default;
+
+        template <class T>
+        T const& getImpl() const
+        {
+            return reinterpret_cast<T const&>(*d());
+        }
 
     private:
         friend class Program;

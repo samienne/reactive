@@ -545,19 +545,19 @@ void GlxWindowDeferred::clear()
     dirty_ = true;
 }
 
-void GlxWindowDeferred::makeCurrent(Dispatched,
+void GlxWindowDeferred::makeCurrent(Dispatched dispatched,
         RenderContextImpl& renderContext) const
 {
     auto& glxContext = reinterpret_cast<GlxRenderContext&>(renderContext);
+
     glxContext.getContext().makeCurrent(platform_.lockX(), glxWin_);
-    GlFramebuffer fb = GlFramebuffer();
-    fb.makeCurrent(Dispatched(), glxContext);
+    glxContext.getDefaultFramebuffer().makeCurrent(dispatched);
     glxContext.setViewport(Dispatched(), genericWindow_.getSize());
+
     if (dirty_)
     {
         glClearColor(0.0, 0.0, 0.0, 1.0);
-        glxContext.clear(Dispatched(),
-                GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glxContext.clear(dispatched, GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         dirty_ = false;
     }
 }

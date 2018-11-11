@@ -12,13 +12,12 @@ namespace ase
 {
     class GlRenderContext;
     class Buffer;
-    class RenderContext;
     struct Dispatched;
 
     class BTL_VISIBLE GlIndexBuffer : public IndexBufferImpl
     {
     public:
-        GlIndexBuffer(RenderContext& context);
+        GlIndexBuffer(GlRenderContext& context);
         GlIndexBuffer(GlIndexBuffer const& other) = delete;
         GlIndexBuffer(GlIndexBuffer&& other) = delete;
         virtual ~GlIndexBuffer();
@@ -28,8 +27,7 @@ namespace ase
 
         size_t getCount() const;
 
-        void setData(Dispatched, GlRenderContext& context,
-                Buffer const& buffer, Usage usage);
+        void setData(Dispatched, Buffer const& buffer, Usage usage);
 
     private:
         friend class GlRenderContext;

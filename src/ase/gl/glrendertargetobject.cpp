@@ -12,8 +12,8 @@
 namespace ase
 {
 
-GlRenderTargetObject::GlRenderTargetObject(RenderContext& context) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform())),
+GlRenderTargetObject::GlRenderTargetObject(GlRenderContext& context) :
+    context_(context),
     dirty_(true)
 {
 }
@@ -47,12 +47,11 @@ void GlRenderTargetObject::makeCurrent(Dispatched,
     GlFramebuffer& framebuffer = glRenderContext.getSharedFramebuffer(
             Dispatched());
 
-    framebuffer.makeCurrent(Dispatched(), glRenderContext);
+    framebuffer.makeCurrent(Dispatched());
 
     for (auto i = colorTextures_.begin(); i != colorTextures_.end(); ++i)
     {
-        framebuffer.setColorTarget(Dispatched(), glRenderContext, i->first,
-                i->second);
+        framebuffer.setColorTarget(Dispatched(), i->first, i->second);
     }
 
     glRenderContext.setViewport(Dispatched(),

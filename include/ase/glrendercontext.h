@@ -11,6 +11,7 @@
 #include "vector.h"
 
 #include <btl/visibility.h>
+#include <btl/option.h>
 
 #include <GL/gl.h>
 #include <GL/glext.h>
@@ -87,6 +88,7 @@ namespace ase
         void finish() override;
 
         GlFunctions const& getGlFunctions() const;
+        GlFramebuffer const& getDefaultFramebuffer() const;
 
     protected:
         friend class GlProgram;
@@ -95,9 +97,12 @@ namespace ase
         friend class GlShader;
         friend class GlPlatform;
         friend class GlPipeline;
+        friend class GlFramebuffer;
 
         void dispatch(std::function<void()>&& func);
+        void dispatchBg(std::function<void()>&& func);
         void wait() const;
+        void waitBg() const;
 
         // This function need to be called in dispatched context.
         void glInit(Dispatched, GlFunctions const& gl);
@@ -119,8 +124,10 @@ namespace ase
     private:
         GlPlatform& platform_;
         Dispatcher dispatcher_;
+        Dispatcher dispatcherBg_;
         GlFunctions gl_;
-        GlFramebuffer sharedFramebuffer_;
+        GlFramebuffer defaultFramebuffer_;
+        btl::option<GlFramebuffer> sharedFramebuffer_;
         GlFramebuffer const* currentFramebuffer_ = 0;
         RenderTargetImpl const* boundRenderTarget_ = 0;
         Vector2i viewportSize_;

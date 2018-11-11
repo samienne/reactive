@@ -10,6 +10,8 @@
 #include "glrendercontext.h"
 #include "glpipeline.h"
 
+#include "vertexshader.h"
+#include "fragmentshader.h"
 #include "buffer.h"
 
 #include "debug.h"
@@ -34,49 +36,42 @@ GlPlatform::~GlPlatform()
 {
 }
 
-void GlPlatform::dispatchBackground(std::function<void()>&& func)
-{
-    auto& context_ = getDefaultContext().getImpl<GlRenderContext>();
-    context_.dispatch(std::move(func));
-}
-
-void GlPlatform::waitBackground() const
-{
-    auto const& context_ = getDefaultContext().getImpl<GlRenderContext>();
-    context_.wait();
-}
-
 std::shared_ptr<ProgramImpl> GlPlatform::makeProgramImpl(
-        RenderContext& context, VertexShaderImpl const& vertexShader,
-        FragmentShaderImpl const& fragmentShader)
+        RenderContext& context, VertexShader const& vertexShader,
+        FragmentShader const& fragmentShader)
 {
-    return std::make_shared<GlProgram>(context,
-            reinterpret_cast<GlVertexShader const&>(vertexShader),
-            reinterpret_cast<GlFragmentShader const&>(fragmentShader));
+    return std::make_shared<GlProgram>(context.getImpl<GlRenderContext>(),
+            vertexShader.getImpl<GlVertexShader>(),
+            fragmentShader.getImpl<GlFragmentShader>()
+            );
 }
 
 std::shared_ptr<VertexShaderImpl> GlPlatform::makeVertexShaderImpl(
         RenderContext& context, std::string const& source)
 {
-    return std::make_shared<GlVertexShader>(context, source);
+    return std::make_shared<GlVertexShader>(
+            context.getImpl<GlRenderContext>(),
+            source);
 }
 
 std::shared_ptr<FragmentShaderImpl> GlPlatform::makeFragmentShaderImpl(
         RenderContext& context, std::string const& source)
 {
-    return std::make_shared<GlFragmentShader>(context, source);
+    return std::make_shared<GlFragmentShader>(
+            context.getImpl<GlRenderContext>(),
+            source);
 }
 
 std::shared_ptr<VertexBufferImpl> GlPlatform::makeVertexBufferImpl(
         RenderContext& context, Buffer const& buffer, Usage usage)
 {
     GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto vb = std::make_shared<GlVertexBuffer>(context);
+    auto vb = std::make_shared<GlVertexBuffer>(glContext);
 
     auto ownBuffer = buffer;
-    glContext.dispatch([&glContext, vb, ownBuffer, usage]()
+    glContext.dispatchBg([&glContext, vb, ownBuffer, usage]()
             {
-                vb->setData(Dispatched(), glContext, ownBuffer, usage);
+                vb->setData(Dispatched(), ownBuffer, usage);
             });
 
     // No waiting
@@ -88,12 +83,12 @@ std::shared_ptr<IndexBufferImpl> GlPlatform::makeIndexBufferImpl(
         RenderContext& context, Buffer const& buffer, Usage usage)
 {
     GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto ib = std::make_shared<GlIndexBuffer>(context);
+    auto ib = std::make_shared<GlIndexBuffer>(glContext);
 
     auto ownBuffer = buffer;
-    glContext.dispatch([&glContext, ib, ownBuffer, usage]()
+    glContext.dispatchBg([ib, ownBuffer, usage]()
             {
-                ib->setData(Dispatched(), glContext, ownBuffer, usage);
+                ib->setData(Dispatched(), ownBuffer, usage);
             });
 
     // No waiting
@@ -106,11 +101,11 @@ std::shared_ptr<TextureImpl> GlPlatform::makeTextureImpl(
         Buffer const& buffer)
 {
     GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto texture = std::make_shared<GlTexture>(context);
+    auto texture = std::make_shared<GlTexture>(glContext);
 
     auto ownBuffer = buffer;
     auto ownSize = size;
-    glContext.dispatch([texture, ownBuffer, ownSize, format]()
+    glContext.dispatchBg([texture, ownBuffer, ownSize, format]()
             {
                 texture->setData(Dispatched(), ownSize, format, ownBuffer);
             });
@@ -123,7 +118,9 @@ std::shared_ptr<TextureImpl> GlPlatform::makeTextureImpl(
 std::shared_ptr<RenderTargetObjectImpl> GlPlatform::makeRenderTargetObjectImpl(
         RenderContext& context)
 {
-    return std::make_shared<GlRenderTargetObject>(context);
+    return std::make_shared<GlRenderTargetObject>(
+            context.getImpl<GlRenderContext>()
+            );
 }
 
 std::shared_ptr<PipelineImpl> GlPlatform::makePipeline(

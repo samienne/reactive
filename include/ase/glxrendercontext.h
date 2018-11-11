@@ -24,7 +24,8 @@ namespace ase
 
     private:
         friend class GlxPlatform;
-        GlxRenderContext(GlxPlatform& platform, GlxContext&& context);
+        GlxRenderContext(GlxPlatform& platform, GlxContext&& context,
+                GlxContext&& contextBg);
 
     private:
         friend class GlxRenderTarget;
@@ -35,6 +36,7 @@ namespace ase
     private:
         GlxPlatform& platform_;
         GlxContext context_;
+        GlxContext contextBg_;
     };
 }
 
