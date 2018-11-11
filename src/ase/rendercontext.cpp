@@ -15,13 +15,13 @@ namespace ase
 RenderContext::RenderContext(Platform& platform,
         std::shared_ptr<RenderContextImpl> impl) :
     deferred_(impl),
-    platform_(&platform)
+    platform_(platform)
 {
 }
 
 RenderContext::RenderContext(Platform& platform) :
     deferred_(platform.makeRenderContextImpl()),
-    platform_(&platform)
+    platform_(platform)
 {
 }
 
@@ -55,10 +55,7 @@ void RenderContext::submit(CommandBuffer&& commands)
 
 Platform& RenderContext::getPlatform() const
 {
-    if (!platform_)
-        throw std::runtime_error("Incomplete RenderContext");
-
-    return *platform_;
+    return platform_;
 }
 
 } // namespace

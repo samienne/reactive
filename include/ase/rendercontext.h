@@ -77,7 +77,7 @@ namespace ase
         inline RenderContextImpl* d() { return deferred_.get(); }
         inline RenderContextImpl const* d() const { return deferred_.get(); }
 
-        Platform* platform_;
+        Platform& platform_;
     };
 }
 
