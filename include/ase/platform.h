@@ -35,8 +35,6 @@ namespace ase
     {
     public:
         virtual ~Platform() = default;
-        virtual RenderContext& getDefaultContext() = 0;
-        virtual RenderContext const& getDefaultContext() const = 0;
 
     private:
         friend class Program;
