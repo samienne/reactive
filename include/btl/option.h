@@ -172,8 +172,10 @@ namespace btl
                 return false;
 
             if (valid_)
+            {
                 return *reinterpret_cast<T const*>(data_.data()) ==
                     *reinterpret_cast<T const*>(rhs.data_.data());
+            }
 
             return true;
         }

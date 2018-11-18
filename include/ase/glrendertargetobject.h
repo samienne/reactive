@@ -3,6 +3,7 @@
 #include "rendertargetobjectimpl.h"
 #include "dispatcher.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 #include <map>
@@ -27,7 +28,7 @@ namespace ase
         GlRenderTargetObject& operator=(GlRenderTargetObject&& rhs) = default;
 
         // From RenderTargetObjectImpl
-        void setColorTarget(size_t index, Texture& texture) override;
+        void setColorTarget(size_t index, btl::option<Texture> texture) override;
         std::shared_ptr<RenderTargetObjectImpl> clone() const override;
 
         // From RenderTargetImpl

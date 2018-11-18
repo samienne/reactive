@@ -41,16 +41,18 @@ namespace
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        ase::VertexShader vs(context, simpleVsSource);
-        ase::FragmentShader fs(context, simpleFsSource);
-        ase::Program program(context, vs, fs);
+        auto vs = context.makeVertexShader(simpleVsSource);
+        auto fs = context.makeFragmentShader(simpleFsSource);
+        auto program = context.makeProgram(std::move(vs), std::move(fs));
         ase::VertexSpec spec(program, std::move(namedSpec));
-        if (solid)
-            return ase::Pipeline(context, program, spec);
-        else
-            return ase::Pipeline(context, program, spec, ase::BlendMode::One,
-                    ase::BlendMode::OneMinusSrcAlpha);
 
+        if (solid)
+            return context.makePipeline(program, spec);
+        else
+        {
+            return context.makePipelineWithBlend(program, spec,
+                    ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
+        }
     }
 } // anonymous namespace
 

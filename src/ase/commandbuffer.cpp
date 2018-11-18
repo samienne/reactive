@@ -10,7 +10,7 @@ void CommandBuffer::push(
         Pipeline pipeline,
         UniformBuffer uniforms,
         VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
+        btl::option<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
         float z)
 {

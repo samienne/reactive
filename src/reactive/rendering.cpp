@@ -247,8 +247,6 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
     ase::NamedUniformBuffer nub;
     nub.uniformMatrix4fv("worldViewProj", 1, m.data());
 
-    ase::IndexBuffer ib;
-
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
         auto const& element = *i;
@@ -268,12 +266,11 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             ase::UniformBuffer ub(pipeline.getProgram(), nub);
             float const z = resultVertices[0][2];
 
-            ase::VertexBuffer vb(context, ase::Buffer(
-                        std::move(resultVertices)), ase::Usage::StreamDraw,
-                    ase::Async());
+            auto vb = context.makeVertexBuffer(ase::Buffer(
+                        std::move(resultVertices)), ase::Usage::StreamDraw);
 
-            commandBuffer.push(target, pipeline, ub, vb, ib,
-                    {ase::Texture()}, z);
+            commandBuffer.push(target, pipeline, std::move(ub), std::move(vb),
+                    btl::none, {}, z);
 
             resultVertices.clear();
         }

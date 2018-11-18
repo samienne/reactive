@@ -14,7 +14,7 @@ namespace ase
     class BTL_VISIBLE FragmentShader
     {
     public:
-        FragmentShader(RenderContext& context, std::string const& source);
+        FragmentShader(std::shared_ptr<FragmentShaderImpl> impl);
         FragmentShader(FragmentShader const& other) = default;
         FragmentShader(FragmentShader&& other) = default;
         ~FragmentShader();

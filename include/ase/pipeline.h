@@ -18,15 +18,7 @@ namespace ase
     class BTL_VISIBLE Pipeline
     {
     public:
-        Pipeline(RenderContext& context,
-                Program program,
-                VertexSpec vertexSpec);
-
-        Pipeline(RenderContext& context,
-                Program program,
-                VertexSpec vertexSpec,
-                BlendMode srcFactor,
-                BlendMode dstFactor);
+        Pipeline(std::shared_ptr<PipelineImpl> impl);
 
         Pipeline(Pipeline const& rhs) = default;
         Pipeline(Pipeline&& rhs) noexcept = default;

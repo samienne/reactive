@@ -1,5 +1,10 @@
 #pragma once
 
+#include "usage.h"
+#include "format.h"
+#include "vector.h"
+#include "blendmode.h"
+
 #include <btl/visibility.h>
 
 #include <functional>
@@ -14,6 +19,16 @@ namespace ase
     class RenderContextImpl;
     class Platform;
     class CommandBuffer;
+    class VertexShader;
+    class FragmentShader;
+    class Program;
+    class VertexBuffer;
+    class IndexBuffer;
+    class Texture;
+    class Buffer;
+    class RenderTargetObject;
+    class Pipeline;
+    class VertexSpec;
 
     /**
      * @brief RenderContext
@@ -54,6 +69,18 @@ namespace ase
         void finish();
         void present(Window& window);
         void submit(CommandBuffer&& renderQueue);
+
+        VertexShader makeVertexShader(std::string const& source);
+        FragmentShader makeFragmentShader(std::string const& source);
+        Program makeProgram(VertexShader vertexShader,
+                FragmentShader fragmentShader);
+        VertexBuffer makeVertexBuffer(Buffer buffer, Usage usage);
+        IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
+        Texture makeTexture(Vector2i size, Format format, Buffer buffer);
+        RenderTargetObject makeRenderTargetObject();
+        Pipeline makePipeline(Program program, VertexSpec vertexSpec);
+        Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
+                BlendMode srcFactor, BlendMode dstFactor);
 
         Platform& getPlatform() const;
 

@@ -9,6 +9,7 @@
 #include "vertexspec.h"
 #include "rendertarget.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 #include <vector>
@@ -23,7 +24,7 @@ namespace ase
                 std::vector<Texture> textures,
                 Pipeline pipeline,
                 VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer,
+                btl::option<IndexBuffer> indexBuffer,
                 UniformBuffer uniforms,
                 float z);
 
@@ -42,7 +43,7 @@ namespace ase
 
         // Vertex data
         VertexBuffer vertexBuffer_;
-        IndexBuffer indexBuffer_;
+        btl::option<IndexBuffer> indexBuffer_;
 
         // Uniforms
         UniformBuffer uniforms_;
@@ -58,7 +59,7 @@ namespace ase
                 Pipeline pipeline,
                 UniformBuffer uniforms,
                 VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer,
+                btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
 
@@ -84,26 +85,12 @@ namespace ase
             return d()->pipeline_;
         }
 
-        /*
-        inline Program const& getProgram() const
-        {
-            return d()->pipeline_.getProgram();
-        }
-        */
-
         inline VertexBuffer const& getVertexBuffer() const
         {
             return d()->vertexBuffer_;
         }
 
-        /*
-        inline VertexSpec const& getVertexSpec() const
-        {
-            return d()->pipeline_.getSpec();
-        }
-        */
-
-        inline IndexBuffer const& getIndexBuffer() const
+        inline btl::option<IndexBuffer> const& getIndexBuffer() const
         {
             return d()->indexBuffer_;
         }

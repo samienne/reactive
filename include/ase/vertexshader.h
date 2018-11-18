@@ -14,7 +14,8 @@ namespace ase
     class BTL_VISIBLE VertexShader
     {
     public:
-        VertexShader(RenderContext& context, std::string const& source);
+        VertexShader(std::shared_ptr<VertexShaderImpl> impl);
+        //VertexShader(RenderContext& context, std::string const& source);
         VertexShader(VertexShader const& other) = default;
         VertexShader(VertexShader&& other) = default;
         ~VertexShader();

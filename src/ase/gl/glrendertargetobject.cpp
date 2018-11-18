@@ -22,9 +22,10 @@ GlRenderTargetObject::~GlRenderTargetObject()
 {
 }
 
-void GlRenderTargetObject::setColorTarget(size_t index, Texture& texture)
+void GlRenderTargetObject::setColorTarget(size_t index,
+        btl::option<Texture> texture)
 {
-    if (!texture)
+    if (!texture.valid())
     {
         auto i = colorTextures_.find(index);
         if (i != colorTextures_.end())
@@ -32,7 +33,7 @@ void GlRenderTargetObject::setColorTarget(size_t index, Texture& texture)
         return;
     }
 
-    colorTextures_[index] = texture;
+    colorTextures_.insert_or_assign(index, *texture);
 }
 
 std::shared_ptr<RenderTargetObjectImpl> GlRenderTargetObject::clone() const

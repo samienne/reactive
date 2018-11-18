@@ -2,6 +2,7 @@
 
 #include "rendercommand.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 #include <vector>
@@ -21,7 +22,7 @@ namespace ase
                 Pipeline pipeline,
                 UniformBuffer uniforms,
                 VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer,
+                btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
 

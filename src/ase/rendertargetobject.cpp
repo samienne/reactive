@@ -10,12 +10,9 @@
 namespace ase
 {
 
-RenderTargetObject::RenderTargetObject()
-{
-}
-
-RenderTargetObject::RenderTargetObject(RenderContext& context) :
-    RenderTarget(context.getPlatform().makeRenderTargetObjectImpl(context))
+RenderTargetObject::RenderTargetObject(
+        std::shared_ptr<RenderTargetObjectImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 
@@ -23,16 +20,15 @@ RenderTargetObject::~RenderTargetObject()
 {
 }
 
-void RenderTargetObject::setColorTarget(size_t index, Texture& texture)
+void RenderTargetObject::setColorTarget(size_t index,
+        btl::option<Texture> texture)
 {
-    if (d())
-        d()->setColorTarget(index, texture);
+    d()->setColorTarget(index, std::move(texture));
 }
 
 void RenderTargetObject::clear()
 {
-    if (d())
-        d()->clear();
+    d()->clear();
 }
 
 } // namespace

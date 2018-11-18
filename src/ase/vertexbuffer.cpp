@@ -10,22 +10,8 @@
 namespace ase
 {
 
-VertexBuffer::VertexBuffer()
-{
-}
-
-VertexBuffer::VertexBuffer(RenderContext& context, Buffer const& buffer,
-        Usage usage) :
-    deferred_(context.getPlatform().makeVertexBufferImpl(context, buffer,
-                usage))
-{
-    context.flush();
-}
-
-VertexBuffer::VertexBuffer(RenderContext& context, Buffer const& buffer,
-        Usage usage, Async /*async*/) :
-    deferred_(context.getPlatform().makeVertexBufferImpl(context, buffer,
-                usage))
+VertexBuffer::VertexBuffer(std::shared_ptr<VertexBufferImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 

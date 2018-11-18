@@ -10,7 +10,7 @@ RenderCommandDeferred::RenderCommandDeferred(
         std::vector<Texture> textures,
         Pipeline pipeline,
         VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
+        btl::option<IndexBuffer> indexBuffer,
         UniformBuffer uniforms,
         float z) :
     renderTarget_(std::move(renderTarget)),
@@ -28,7 +28,7 @@ RenderCommand::RenderCommand(
         Pipeline pipeline,
         UniformBuffer uniforms,
         VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
+        btl::option<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
         float z)
     : deferred_(

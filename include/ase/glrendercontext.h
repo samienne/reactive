@@ -25,6 +25,7 @@ namespace ase
     class RenderTargetImpl;
     class GlRenderTargetObject;
     class GlPlatform;
+    class GlVertexBuffer;
 
     struct BTL_VISIBLE GlFunctions
     {
@@ -142,8 +143,6 @@ namespace ase
         size_t uniformHash_ = 0;
         std::vector<GLint> activeAttribs_;
         std::vector<GLuint> activeTextures_;
-        VertexBuffer boundVboObject_;
-        IndexBuffer voundIboObject_;
         bool enableDepthWrite_ = false;
         bool blendEnabled_ = false;
     };

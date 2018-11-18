@@ -344,6 +344,9 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, CommandBuffer&& commands
         Program const& program = pipeline.getProgram();
         GlProgram const& glProgram = program.getImpl<GlProgram>();
         auto& textures = command.getTextures();
+        GlVertexBuffer const& vertexBuffer = command.getVertexBuffer()
+            .getImpl<GlVertexBuffer>();
+
         GLuint vbo = 0;
         GLuint ibo = 0;
         size_t count = 0;
@@ -359,21 +362,19 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, CommandBuffer&& commands
             boundRenderTarget_->makeCurrent(Dispatched(), *this);
         }
 
-        GlVertexBuffer const& vb = command.getVertexBuffer(
-                ).getImpl<GlVertexBuffer>();
-        vbo = vb.getBuffer().buffer_;
+        vbo = vertexBuffer.getBuffer().buffer_;
         mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());
 
-        if (command.getIndexBuffer())
+        if (command.getIndexBuffer().valid())
         {
-            GlIndexBuffer const& ib = command.getIndexBuffer(
-                    ).getImpl<GlIndexBuffer>();
-            ibo = command.getIndexBuffer().getImpl<GlIndexBuffer>(
-                    ).getBuffer().buffer_;
+            GlIndexBuffer const& ib = command.getIndexBuffer()
+                ->getImpl<GlIndexBuffer>();
+
+            ibo = ib.getBuffer().buffer_;
             count = ib.getCount();
         }
         else
-            count = vb.getSize() / pipeline.getVertexSpec().getStride();
+            count = vertexBuffer.getSize() / pipeline.getVertexSpec().getStride();
 
         // Set blend
         if (blendEnabled_ != pipeline.isBlendEnabled())
@@ -415,9 +416,7 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, CommandBuffer&& commands
         auto j = activeTextures_.begin();
         for (auto i = textures.begin(); i != textures.end(); ++i)
         {
-            GLuint tex = 0;
-            if (*i)
-                tex = i->getImpl<GlTexture>().texture_;
+            GLuint tex = i->getImpl<GlTexture>().texture_;
 
             if (j == activeTextures_.end() || *j != tex)
             {
@@ -447,7 +446,7 @@ void GlRenderContext::dispatchedRenderQueue(Dispatched, CommandBuffer&& commands
             uniformHash_ = 0u;
         }
 
-        if (boundVboObject_ != command.getVertexBuffer())
+        if (boundVbo_ != vbo)
         {
             glGetError();
             gl_.glBindBuffer(GL_ARRAY_BUFFER, vbo);

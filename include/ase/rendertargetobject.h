@@ -2,6 +2,7 @@
 
 #include "rendertarget.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 #include <memory>
@@ -17,8 +18,7 @@ namespace ase
     class BTL_VISIBLE RenderTargetObject : public RenderTarget
     {
     public:
-        RenderTargetObject();
-        RenderTargetObject(RenderContext& context);
+        RenderTargetObject(std::shared_ptr<RenderTargetObjectImpl> impl);
         RenderTargetObject(RenderTargetObject const& rhs) = default;
         RenderTargetObject(RenderTargetObject&& rhs) = default;
         ~RenderTargetObject();
@@ -26,7 +26,7 @@ namespace ase
         RenderTargetObject& operator=(RenderTargetObject const& rhs) = default;
         RenderTargetObject& operator=(RenderTargetObject&& rhs) = default;
 
-        void setColorTarget(size_t index, Texture& texture);
+        void setColorTarget(size_t index, btl::option<Texture> texture);
         void clear();
 
     private:
