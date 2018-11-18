@@ -1,6 +1,7 @@
 #pragma once
 
 #include "glframebuffer.h"
+#include "globjectmanager.h"
 
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
@@ -99,6 +100,7 @@ namespace ase
         friend class GlPlatform;
         friend class GlPipeline;
         friend class GlFramebuffer;
+        friend class GlObjectManager;
 
         void dispatch(std::function<void()>&& func);
         void dispatchBg(std::function<void()>&& func);
@@ -162,6 +164,7 @@ namespace ase
         GlPlatform& platform_;
         Dispatcher dispatcher_;
         Dispatcher dispatcherBg_;
+        GlObjectManager objectManager_;
         GlFunctions gl_;
         GlFramebuffer defaultFramebuffer_;
         btl::option<GlFramebuffer> sharedFramebuffer_;
