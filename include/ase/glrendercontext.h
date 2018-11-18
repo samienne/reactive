@@ -114,8 +114,44 @@ namespace ase
         void setViewport(Dispatched, Vector2i size);
         void clear(Dispatched, GLbitfield mask);
 
-    private:
+        // From RenderContextImpl
+        std::shared_ptr<ProgramImpl> makeProgramImpl(
+                VertexShader const& vertexShader,
+                FragmentShader const& fragmentShader) override;
 
+        std::shared_ptr<VertexShaderImpl> makeVertexShaderImpl(
+                std::string const& source) override;
+
+        std::shared_ptr<FragmentShaderImpl> makeFragmentShaderImpl(
+                std::string const& source) override;
+
+        std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl(
+                Buffer const& buffer,
+                Usage usage) override;
+
+        std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl(
+                Buffer const& buffer,
+                Usage usage) override;
+
+        std::shared_ptr<TextureImpl> makeTextureImpl(
+                Vector2i const& size,
+                Format format,
+                Buffer const& buffer) override;
+
+        std::shared_ptr<RenderTargetObjectImpl>
+            makeRenderTargetObjectImpl() override;
+
+        std::shared_ptr<PipelineImpl> makePipeline(
+                Program program,
+                VertexSpec spec) override;
+
+        std::shared_ptr<PipelineImpl> makePipelineWithBlend(
+                Program program,
+                VertexSpec spec,
+                BlendMode srcFactor,
+                BlendMode dstFactor) override;
+
+    private:
         // These functions need to be called in dispatched context.
         void pushSpec(Dispatched, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);

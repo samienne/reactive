@@ -1,8 +1,9 @@
 #include "glrendercontext.h"
 
 #include "glplatform.h"
-
 #include "glprogram.h"
+#include "glfragmentshader.h"
+#include "glvertexshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gltexture.h"
@@ -10,13 +11,17 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
+#include "glrendertargetobject.h"
 
 #include "commandbuffer.h"
 #include "rendercommand.h"
 #include "rendertarget.h"
 #include "rendertargetimpl.h"
-#include "glrendertargetobject.h"
+#include "vertexshader.h"
+#include "fragmentshader.h"
+#include "buffer.h"
 #include "debug.h"
+
 
 #include <GL/gl.h>
 
@@ -223,6 +228,108 @@ void GlRenderContext::clear(Dispatched, GLbitfield mask)
     }
 
     glClear(mask);
+}
+
+std::shared_ptr<ProgramImpl> GlRenderContext::makeProgramImpl(
+        VertexShader const& vertexShader,
+        FragmentShader const& fragmentShader)
+{
+    return std::make_shared<GlProgram>(*this,
+            vertexShader.getImpl<GlVertexShader>(),
+            fragmentShader.getImpl<GlFragmentShader>()
+            );
+}
+
+std::shared_ptr<VertexShaderImpl> GlRenderContext::makeVertexShaderImpl(
+        std::string const& source)
+{
+    return std::make_shared<GlVertexShader>(*this, source);
+}
+
+std::shared_ptr<FragmentShaderImpl> GlRenderContext::makeFragmentShaderImpl(
+        std::string const& source)
+{
+    return std::make_shared<GlFragmentShader>(*this, source);
+}
+
+std::shared_ptr<VertexBufferImpl> GlRenderContext::makeVertexBufferImpl(
+        Buffer const& buffer, Usage usage)
+{
+    auto vb = std::make_shared<GlVertexBuffer>(*this);
+
+    auto ownBuffer = buffer;
+    dispatchBg([vb, ownBuffer, usage]()
+            {
+                vb->setData(Dispatched(), ownBuffer, usage);
+            });
+
+    // No waiting
+
+    return std::move(vb);
+}
+
+std::shared_ptr<IndexBufferImpl> GlRenderContext::makeIndexBufferImpl(
+        Buffer const& buffer, Usage usage)
+{
+    auto ib = std::make_shared<GlIndexBuffer>(*this);
+
+    auto ownBuffer = buffer;
+    dispatchBg([ib, ownBuffer, usage]()
+            {
+                ib->setData(Dispatched(), ownBuffer, usage);
+            });
+
+    // No waiting
+
+    return std::move(ib);
+}
+
+std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
+        Vector2i const& size, Format format, Buffer const& buffer)
+{
+    auto texture = std::make_shared<GlTexture>(*this);
+
+    auto ownBuffer = buffer;
+    auto ownSize = size;
+    dispatchBg([texture, ownBuffer, ownSize, format]()
+            {
+                texture->setData(Dispatched(), ownSize, format, ownBuffer);
+            });
+
+    // No waiting
+
+    return std::move(texture);
+}
+
+std::shared_ptr<RenderTargetObjectImpl> GlRenderContext::makeRenderTargetObjectImpl()
+{
+    return std::make_shared<GlRenderTargetObject>(*this);
+}
+
+std::shared_ptr<PipelineImpl> GlRenderContext::makePipeline(
+        Program program,
+        VertexSpec spec)
+{
+    return std::make_shared<GlPipeline>(
+            *this,
+            std::move(program),
+            std::move(spec)
+            );
+}
+
+std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
+        Program program,
+        VertexSpec spec,
+        BlendMode srcFactor,
+        BlendMode dstFactor)
+{
+    return std::make_shared<GlPipeline>(
+            *this,
+            std::move(program),
+            std::move(spec),
+            srcFactor,
+            dstFactor
+            );
 }
 
 void GlRenderContext::pushSpec(Dispatched, VertexSpec const& spec,
