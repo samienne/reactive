@@ -30,6 +30,8 @@ namespace ase
         GlProgram& operator=(GlProgram const&) = delete;
         GlProgram& operator=(GlProgram&&) = delete;
 
+        GLuint getGlObject() const;
+
         virtual int getUniformLocation(std::string const& name) const;
         virtual int getAttribLocation(std::string const& name) const;
 

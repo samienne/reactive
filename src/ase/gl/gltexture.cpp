@@ -50,6 +50,11 @@ void GlTexture::setData(Dispatched, Vector2i const& size, Format format,
     DBG("Loaded texture data %1", texture_);
 }
 
+GLuint GlTexture::getGlObject() const
+{
+    return texture_;
+}
+
 Vector2i GlTexture::getSize() const
 {
     return size_;

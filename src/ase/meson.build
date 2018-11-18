@@ -70,7 +70,8 @@ libasesrc = [
         'gl/glrendertargetobject.cpp',
         'gl/glframebuffer.cpp',
         'gl/glpipeline.cpp',
-        'gl/globjectmanager.cpp'
+        'gl/globjectmanager.cpp',
+        'gl/glrenderstate.cpp'
         ]
 
 libase = library('ase',

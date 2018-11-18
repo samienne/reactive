@@ -29,8 +29,6 @@ namespace ase
 
         void setData(Dispatched, Buffer const& buffer, Usage usage);
 
-    private:
-        friend class GlRenderContext;
         GlBuffer const& getBuffer() const;
 
     private:

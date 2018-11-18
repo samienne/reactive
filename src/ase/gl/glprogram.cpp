@@ -71,6 +71,11 @@ GlProgram::~GlProgram()
     destroy();
 }
 
+GLuint GlProgram::getGlObject() const
+{
+    return program_;
+}
+
 int GlProgram::getUniformLocation(std::string const& name) const
 {
     auto i = uniformLocations_.find(name);

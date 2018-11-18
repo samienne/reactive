@@ -2,6 +2,7 @@
 
 #include "glframebuffer.h"
 #include "globjectmanager.h"
+#include "glrenderstate.h"
 
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
@@ -154,36 +155,17 @@ namespace ase
                 BlendMode dstFactor) override;
 
     private:
-        // These functions need to be called in dispatched context.
-        void pushSpec(Dispatched, VertexSpec const& spec,
-                std::vector<int>& activeAttribs);
-        void pushUniforms(Dispatched, UniformBuffer const& uniforms);
-        void dispatchedRenderQueue(Dispatched, CommandBuffer&& commands);
-
-    private:
         GlPlatform& platform_;
         Dispatcher dispatcher_;
         Dispatcher dispatcherBg_;
         GlObjectManager objectManager_;
+        btl::option<GlRenderState> renderState_;
         GlFunctions gl_;
         GlFramebuffer defaultFramebuffer_;
         btl::option<GlFramebuffer> sharedFramebuffer_;
         GlFramebuffer const* currentFramebuffer_ = 0;
         RenderTargetImpl const* boundRenderTarget_ = 0;
         Vector2i viewportSize_;
-
-        // Current state
-        GLuint vertexArrayObject_ = 0;
-        GLuint boundProgram_ = 0;
-        GLuint boundVbo_ = 0;
-        GLuint boundIbo_ = 0;
-        GLenum srcFactor_ = 0;
-        GLenum dstFactor_ = 0;
-        size_t uniformHash_ = 0;
-        std::vector<GLint> activeAttribs_;
-        std::vector<GLuint> activeTextures_;
-        bool enableDepthWrite_ = false;
-        bool blendEnabled_ = false;
     };
 }
 

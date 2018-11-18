@@ -29,6 +29,8 @@ namespace ase
         void setData(Dispatched, Vector2i const& size, Format format,
                 Buffer const& buffer);
 
+        GLuint getGlObject() const;
+
         // From TextureImpl
         virtual Vector2i getSize() const;
 
