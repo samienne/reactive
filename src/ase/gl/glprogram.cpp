@@ -5,6 +5,7 @@
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "gltype.h"
+#include "glfunctions.h"
 
 #include "rendercontext.h"
 
@@ -22,9 +23,8 @@ GlProgram::GlProgram(GlRenderContext& context, GlVertexShader const& vertexShade
     {
         bool failed = false;
         std::string logStr;
-        auto& gl = context_.getGlFunctions();
 
-        context_.dispatchBg([&, this]()
+        context_.dispatchBg([&, this](GlFunctions const& gl)
             {
                 program_ = gl.glCreateProgram();
                 gl.glAttachShader(program_, vertexShader.shader_.shader_);
@@ -101,9 +101,8 @@ void GlProgram::destroy()
     if (program_)
     {
         GLuint program = program_;
-        auto& gl = context_.getGlFunctions();
 
-        context_.dispatchBg([&gl, program]()
+        context_.dispatchBg([program](GlFunctions const& gl)
             {
                 gl.glDeleteProgram(program);
             });

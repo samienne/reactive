@@ -4,83 +4,28 @@
 #include "globjectmanager.h"
 #include "glrenderstate.h"
 
-#include "vertexbuffer.h"
-#include "indexbuffer.h"
-#include "commandbuffer.h"
-
 #include "rendercontextimpl.h"
-#include "dispatcher.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
 #include <btl/option.h>
 
-#include <GL/gl.h>
-#include <GL/glext.h>
-
 namespace ase
 {
     class VertexSpec;
-    class UniformBuffer;
-    class RenderCommand;
-    class RenderTarget;
-    class RenderTargetImpl;
     class GlRenderTargetObject;
     class GlPlatform;
-    class GlVertexBuffer;
-
-    struct BTL_VISIBLE GlFunctions
-    {
-        PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = nullptr;
-        PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;
-        PFNGLENABLEVERTEXATTRIBARRAYPROC glEnableVertexAttribArray = nullptr;
-        PFNGLUNIFORM1FVPROC glUniform1fv = nullptr;
-        PFNGLUNIFORM2FVPROC glUniform2fv = nullptr;
-        PFNGLUNIFORM3FVPROC glUniform3fv = nullptr;
-        PFNGLUNIFORM4FVPROC glUniform4fv = nullptr;
-        PFNGLUNIFORM1IVPROC glUniform1iv = nullptr;
-        PFNGLUNIFORM2IVPROC glUniform2iv = nullptr;
-        PFNGLUNIFORM3IVPROC glUniform3iv = nullptr;
-        PFNGLUNIFORM4IVPROC glUniform4iv = nullptr;
-        PFNGLUNIFORM1UIVPROC glUniform1uiv = nullptr;
-        PFNGLUNIFORM2UIVPROC glUniform2uiv = nullptr;
-        PFNGLUNIFORM3UIVPROC glUniform3uiv = nullptr;
-        PFNGLUNIFORM4UIVPROC glUniform4uiv = nullptr;
-        PFNGLUNIFORMMATRIX4FVPROC glUniformMatrix4fv = nullptr;
-        PFNGLUSEPROGRAMPROC glUseProgram = nullptr;
-        PFNGLBINDBUFFERPROC glBindBuffer = nullptr;
-        PFNGLGENBUFFERSPROC glGenBuffers = nullptr;
-        PFNGLBUFFERDATAPROC glBufferData = nullptr;
-        PFNGLDELETEBUFFERSPROC glDeleteBuffers = nullptr;
-        PFNGLCREATEPROGRAMPROC glCreateProgram = nullptr;
-        PFNGLATTACHSHADERPROC glAttachShader = nullptr;
-        PFNGLLINKPROGRAMPROC glLinkProgram = nullptr;
-        PFNGLGETPROGRAMIVPROC glGetProgramiv = nullptr;
-        PFNGLGETPROGRAMINFOLOGPROC glGetProgramInfoLog = nullptr;
-        PFNGLGETACTIVEATTRIBPROC glGetActiveAttrib = nullptr;
-        PFNGLGETATTRIBLOCATIONPROC glGetAttribLocation = nullptr;
-        PFNGLGETACTIVEUNIFORMPROC glGetActiveUniform = nullptr;
-        PFNGLGETUNIFORMLOCATIONPROC glGetUniformLocation = nullptr;
-        PFNGLDELETEPROGRAMPROC glDeleteProgram = nullptr;
-        PFNGLCREATESHADERPROC glCreateShader = nullptr;
-        PFNGLSHADERSOURCEPROC glShaderSource = nullptr;
-        PFNGLCOMPILESHADERPROC glCompileShader = nullptr;
-        PFNGLGETSHADERIVPROC glGetShaderiv = nullptr;
-        PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = nullptr;
-        PFNGLDELETESHADERPROC glDeleteShader = nullptr;
-        PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = nullptr;
-        PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
-        PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
-        PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
-        PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = nullptr;
-        PFNGLBINDVERTEXARRAYPROC glBindVertexArray = nullptr;
-        PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
-    };
+    class GlDispatchedContext;
 
     class BTL_VISIBLE GlRenderContext : public RenderContextImpl
     {
     public:
-        GlRenderContext(GlPlatform& platform);
+        GlRenderContext(
+                GlPlatform& platform,
+                std::shared_ptr<GlDispatchedContext> fgContext,
+                std::shared_ptr<GlDispatchedContext> bgContext
+                );
+
         ~GlRenderContext() override;
 
         GlPlatform& getPlatform() const;
@@ -90,7 +35,6 @@ namespace ase
         void flush() override;
         void finish() override;
 
-        GlFunctions const& getGlFunctions() const;
         GlFramebuffer const& getDefaultFramebuffer() const;
 
     protected:
@@ -103,14 +47,10 @@ namespace ase
         friend class GlFramebuffer;
         friend class GlObjectManager;
 
-        void dispatch(std::function<void()>&& func);
-        void dispatchBg(std::function<void()>&& func);
+        void dispatch(std::function<void(GlFunctions const&)>&& func);
+        void dispatchBg(std::function<void(GlFunctions const&)>&& func);
         void wait() const;
         void waitBg() const;
-
-        // This function need to be called in dispatched context.
-        void glInit(Dispatched, GlFunctions const& gl);
-        void glDeinit(Dispatched);
 
         friend class GlRenderTargetObject;
         GlFramebuffer& getSharedFramebuffer(Dispatched);
@@ -154,17 +94,18 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor) override;
 
+    protected:
+        GlDispatchedContext const& getFgContext() const;
+
     private:
         GlPlatform& platform_;
-        Dispatcher dispatcher_;
-        Dispatcher dispatcherBg_;
+        std::shared_ptr<GlDispatchedContext> fgContext_;
+        std::shared_ptr<GlDispatchedContext> bgContext_;
         GlObjectManager objectManager_;
-        btl::option<GlRenderState> renderState_;
-        GlFunctions gl_;
+        GlRenderState renderState_;
         GlFramebuffer defaultFramebuffer_;
         btl::option<GlFramebuffer> sharedFramebuffer_;
         GlFramebuffer const* currentFramebuffer_ = 0;
-        RenderTargetImpl const* boundRenderTarget_ = 0;
         Vector2i viewportSize_;
     };
 }

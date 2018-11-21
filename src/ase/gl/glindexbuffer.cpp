@@ -26,10 +26,11 @@ size_t GlIndexBuffer::getCount() const
     return size_;
 }
 
-void GlIndexBuffer::setData(Dispatched d, Buffer const& buffer, Usage usage)
+void GlIndexBuffer::setData(Dispatched d, GlFunctions const& gl,
+        Buffer const& buffer, Usage usage)
 {
     size_ = buffer.getSize() / 2;
-    buffer_.setData(d, buffer.data(), buffer.getSize(), usage);
+    buffer_.setData(d, gl, buffer.data(), buffer.getSize(), usage);
 }
 
 } // namespace

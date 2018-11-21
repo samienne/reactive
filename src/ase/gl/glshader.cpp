@@ -2,6 +2,7 @@
 
 #include "glrendercontext.h"
 #include "glplatform.h"
+#include "glfunctions.h"
 
 #include "rendercontext.h"
 
@@ -22,9 +23,8 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
         std::string logStr;
 
         context.dispatchBg([this, &logStr, &source, &failed,
-                shaderType]()
+                shaderType](GlFunctions const& gl)
             {
-                GlFunctions const& gl = context_.getGlFunctions();
                 shader_ = gl.glCreateShader(shaderType);
 
                 char const* str = source.c_str();
@@ -81,10 +81,10 @@ void GlShader::destroy()
     {
         GLuint shader = shader_;
         shader_ = 0;
-        auto& context = context_;
-        context_.dispatchBg([&context, shader]()
+
+        context_.dispatchBg([shader](GlFunctions const& gl)
             {
-                context.getGlFunctions().glDeleteShader(shader);
+                gl.glDeleteShader(shader);
             });
     }
 }

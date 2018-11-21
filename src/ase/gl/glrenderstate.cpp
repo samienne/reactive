@@ -11,6 +11,7 @@
 #include "glblendmode.h"
 #include "glpipeline.h"
 #include "glrendertargetobject.h"
+#include "gldispatchedcontext.h"
 #include "glrendercontext.h"
 
 #include "rendercommand.h"
@@ -67,80 +68,87 @@ namespace
 } // anonymous namespace
 
 
-GlRenderState::GlRenderState(Dispatched, GlRenderContext& context) :
-    context_(context)
+GlRenderState::GlRenderState(GlRenderContext& context,
+        GlDispatchedContext& dispatcher) :
+    context_(context),
+    dispatcher_(dispatcher)
 {
-    glEnable(GL_DEPTH_TEST);
+    dispatcher_.dispatch([this](GlFunctions const&)
+    {
+        glEnable(GL_DEPTH_TEST);
 
-    GLint srgbEnabled = 0;
+        GLint srgbEnabled = 0;
 #ifdef GL_EXT_framebuffer_sRGB
-    GLenum err;
-    glGetError();
+        GLenum err;
+        glGetError();
 
-    glGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE_EXT, &srgbEnabled);
-    err = glGetError();
-    if (err != GL_NO_ERROR)
-    {
-        DBG("GlRenderContext: failed to read sRGB status, disabling: %1",
-                glErrorToString(err));
-        srgbEnabled = 0;
-    }
-    else
-        srgbEnabled = 1;
+        glGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE_EXT, &srgbEnabled);
+        err = glGetError();
+        if (err != GL_NO_ERROR)
+        {
+            DBG("GlRenderContext: failed to read sRGB status, disabling: %1",
+                    glErrorToString(err));
+            srgbEnabled = 0;
+        }
+        else
+            srgbEnabled = 1;
 
-    if (srgbEnabled)
-    {
-        glEnable(GL_FRAMEBUFFER_SRGB_EXT);
-        DBG("GlRenderContext: sRGB surfaces enabled.");
-    }
-    else
-    {
-        glDisable(GL_FRAMEBUFFER_SRGB_EXT);
-        DBG("GlRenderContext: sRGB surfaces disabled.");
-    }
+        if (srgbEnabled)
+        {
+            glEnable(GL_FRAMEBUFFER_SRGB_EXT);
+            DBG("GlRenderContext: sRGB surfaces enabled.");
+        }
+        else
+        {
+            glDisable(GL_FRAMEBUFFER_SRGB_EXT);
+            DBG("GlRenderContext: sRGB surfaces disabled.");
+        }
 #endif
 
 #ifdef GLX_EXT_swap_control
-    //glXSwapIntervalEXT(dpy, glxWin_, 1);
-    //glXSwapIntervalSGI(1);
+        //glXSwapIntervalEXT(dpy, glxWin_, 1);
+        //glXSwapIntervalSGI(1);
 #endif
+    });
 }
 
 GlRenderState::~GlRenderState()
 {
-    // deinit() needs to be called before destructing this object.
-    assert(!vertexArrayObject_);
-}
-
-void GlRenderState::deinit(Dispatched, GlFunctions const& gl)
-{
     if (vertexArrayObject_)
     {
-        gl.glDeleteVertexArrays(1, &vertexArrayObject_);
-        vertexArrayObject_ = 0;
+        dispatcher_.dispatch([this](GlFunctions const& gl)
+        {
+            gl.glDeleteVertexArrays(1, &vertexArrayObject_);
+            vertexArrayObject_ = 0;
+        });
+
+        dispatcher_.wait();
     }
 }
 
-void GlRenderState::submit(Dispatched d, GlFunctions const& gl,
-        CommandBuffer&& commands)
+void GlRenderState::submit(CommandBuffer&& commands)
 {
-    auto b = commands.begin();
-    auto e = b;
-
-    while (e != commands.end())
+    dispatcher_.dispatch([this, commands=std::move(commands)]
+            (GlFunctions const& gl) mutable
     {
-        auto const& target = b->getRenderTarget();
-        while (e != commands.end() && target == e->getRenderTarget())
-            ++e;
+        auto b = commands.begin();
+        auto e = b;
 
-        std::sort(commands.begin(), commands.end(), compareCommand);
-        b = e;
-    }
+        while (e != commands.end())
+        {
+            auto const& target = b->getRenderTarget();
+            while (e != commands.end() && target == e->getRenderTarget())
+                ++e;
 
-    dispatchedRenderQueue(d, gl, std::move(commands));
+            std::sort(commands.begin(), commands.end(), compareCommand);
+            b = e;
+        }
+
+        dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
+    });
 }
 
-void GlRenderState::clear(Dispatched, GlFunctions const& /*gl*/, GLbitfield mask)
+void GlRenderState::clear(Dispatched, GLbitfield mask)
 {
     if (!enableDepthWrite_ && (mask & GL_DEPTH_BUFFER_BIT))
     {
@@ -151,8 +159,7 @@ void GlRenderState::clear(Dispatched, GlFunctions const& /*gl*/, GLbitfield mask
     glClear(mask);
 }
 
-void GlRenderState::setViewport(Dispatched, GlFunctions const& /*gl*/,
-        Vector2i size)
+void GlRenderState::setViewport(Dispatched, Vector2i size)
 {
     if (viewportSize_ != size)
     {

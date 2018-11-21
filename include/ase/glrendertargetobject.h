@@ -1,12 +1,14 @@
 #pragma once
 
+#include "texture.h"
+
 #include "rendertargetobjectimpl.h"
 #include "dispatcher.h"
 
 #include <btl/option.h>
 #include <btl/visibility.h>
 
-#include <map>
+#include <unordered_map>
 
 namespace ase
 {
@@ -14,6 +16,7 @@ namespace ase
     class GlRenderContext;
     class Texture;
     class RenderQueue;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlRenderTargetObject : public RenderTargetObjectImpl
     {
@@ -41,7 +44,7 @@ namespace ase
     private:
         GlRenderContext& context_;
         mutable bool dirty_;
-        std::map<size_t, Texture> colorTextures_;
+        std::unordered_map<size_t, Texture> colorTextures_;
     };
 }
 

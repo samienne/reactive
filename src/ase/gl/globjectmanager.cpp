@@ -53,9 +53,9 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
     auto vb = std::make_shared<GlVertexBuffer>(context_);
 
     auto ownBuffer = buffer;
-    context_.dispatchBg([vb, ownBuffer, usage]()
+    context_.dispatchBg([vb, ownBuffer, usage](GlFunctions const& gl)
             {
-                vb->setData(Dispatched(), ownBuffer, usage);
+                vb->setData(Dispatched(), gl, ownBuffer, usage);
             });
 
     // No waiting
@@ -69,9 +69,9 @@ std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
     auto ib = std::make_shared<GlIndexBuffer>(context_);
 
     auto ownBuffer = buffer;
-    context_.dispatchBg([ib, ownBuffer, usage]()
+    context_.dispatchBg([ib, ownBuffer, usage](GlFunctions const& gl)
             {
-                ib->setData(Dispatched(), ownBuffer, usage);
+                ib->setData(Dispatched(), gl, ownBuffer, usage);
             });
 
     // No waiting
@@ -86,9 +86,10 @@ std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
 
     auto ownBuffer = buffer;
     auto ownSize = size;
-    context_.dispatchBg([texture, ownBuffer, ownSize, format]()
+    context_.dispatchBg([texture, ownBuffer, ownSize, format]
+            (GlFunctions const& gl)
             {
-                texture->setData(Dispatched(), ownSize, format, ownBuffer);
+                texture->setData(Dispatched(), gl, ownSize, format, ownBuffer);
             });
 
     // No waiting

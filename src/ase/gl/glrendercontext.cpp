@@ -12,6 +12,8 @@
 #include "glblendmode.h"
 #include "glpipeline.h"
 #include "glrendertargetobject.h"
+#include "gldispatchedcontext.h"
+#include "glfunctions.h"
 
 #include "commandbuffer.h"
 #include "rendercommand.h"
@@ -30,12 +32,23 @@
 namespace ase
 {
 
-GlRenderContext::GlRenderContext(GlPlatform& platform) :
+GlRenderContext::GlRenderContext(
+        GlPlatform& platform,
+        std::shared_ptr<GlDispatchedContext> fgContext,
+        std::shared_ptr<GlDispatchedContext> bgContext
+        ) :
     platform_(platform),
-    dispatcher_(),
+    fgContext_(std::move(fgContext)),
+    bgContext_(std::move(bgContext)),
     objectManager_(*this),
-    defaultFramebuffer_(*this)
+    renderState_(*this, *fgContext_),
+    defaultFramebuffer_(*this),
+    sharedFramebuffer_(btl::none)
 {
+    fgContext_->dispatch([this](GlFunctions const& gl)
+    {
+        sharedFramebuffer_ = btl::just(GlFramebuffer(Dispatched(), gl, *this));
+    });
 }
 
 GlRenderContext::~GlRenderContext()
@@ -49,10 +62,7 @@ GlPlatform& GlRenderContext::getPlatform() const
 
 void GlRenderContext::submit(CommandBuffer&& commands)
 {
-    dispatch([this, commands=std::move(commands)]() mutable
-        {
-            renderState_->submit(Dispatched(), gl_, std::move(commands));
-        });
+    renderState_.submit(std::move(commands));
 }
 
 void GlRenderContext::flush()
@@ -62,16 +72,11 @@ void GlRenderContext::flush()
 
 void GlRenderContext::finish()
 {
-    dispatch([]()
+    dispatch([](GlFunctions const&)
             {
                 glFinish();
             });
     wait();
-}
-
-GlFunctions const& GlRenderContext::getGlFunctions() const
-{
-    return gl_;
 }
 
 GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
@@ -79,44 +84,24 @@ GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
     return defaultFramebuffer_;
 }
 
-void GlRenderContext::dispatch(std::function<void()>&& func)
+void GlRenderContext::dispatch(std::function<void(GlFunctions const&)>&& func)
 {
-    dispatcher_.run(std::move(func));
+    fgContext_->dispatch(std::move(func));
 }
 
-void GlRenderContext::dispatchBg(std::function<void()>&& func)
+void GlRenderContext::dispatchBg(std::function<void(GlFunctions const&)>&& func)
 {
-    dispatcherBg_.run(std::move(func));
+    bgContext_->dispatch(std::move(func));
 }
 
 void GlRenderContext::wait() const
 {
-    dispatcher_.wait();
+    fgContext_->wait();
 }
 
 void GlRenderContext::waitBg() const
 {
-    dispatcherBg_.wait();
-}
-
-void GlRenderContext::glInit(Dispatched d, GlFunctions const& gl)
-{
-    gl_ = gl;
-
-    sharedFramebuffer_ = btl::just(GlFramebuffer(d, *this));
-
-    renderState_ = btl::just(GlRenderState(d, *this));
-}
-
-void GlRenderContext::glDeinit(Dispatched d)
-{
-    if (renderState_.valid())
-    {
-        renderState_->deinit(d, gl_);
-        renderState_ = btl::none;
-    }
-
-    sharedFramebuffer_->destroy(Dispatched(), *this);
+    bgContext_->wait();
 }
 
 GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
@@ -126,12 +111,12 @@ GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
 
 void GlRenderContext::setViewport(Dispatched d, Vector2i size)
 {
-    renderState_->setViewport(d, gl_, size);
+    renderState_.setViewport(d, size);
 }
 
 void GlRenderContext::clear(Dispatched d, GLbitfield mask)
 {
-    renderState_->clear(d, gl_, mask);
+    renderState_.clear(d, mask);
 }
 
 std::shared_ptr<ProgramImpl> GlRenderContext::makeProgramImpl(
@@ -191,6 +176,11 @@ std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
 {
     return objectManager_.makePipelineWithBlend(std::move(program),
             std::move(spec), srcFactor, dstFactor);
+}
+
+GlDispatchedContext const& GlRenderContext::getFgContext() const
+{
+    return *fgContext_;
 }
 
 } // namespace

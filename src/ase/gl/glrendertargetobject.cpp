@@ -1,6 +1,7 @@
 #include "glrendertargetobject.h"
 
 #include "glrendercontext.h"
+#include "gldispatchedcontext.h"
 #include "rendercontext.h"
 
 #include "texture.h"
@@ -45,14 +46,16 @@ void GlRenderTargetObject::makeCurrent(Dispatched,
         RenderContextImpl& renderContext) const
 {
     auto& glRenderContext = reinterpret_cast<GlRenderContext&>(renderContext);
+    auto& glContext = glRenderContext.getFgContext();
+    auto& gl = glContext.getGlFunctions();
     GlFramebuffer& framebuffer = glRenderContext.getSharedFramebuffer(
             Dispatched());
 
-    framebuffer.makeCurrent(Dispatched());
+    framebuffer.makeCurrent(Dispatched(), gl);
 
     for (auto i = colorTextures_.begin(); i != colorTextures_.end(); ++i)
     {
-        framebuffer.setColorTarget(Dispatched(), i->first, i->second);
+        framebuffer.setColorTarget(Dispatched(), gl, i->first, i->second);
     }
 
     glRenderContext.setViewport(Dispatched(),

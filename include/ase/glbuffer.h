@@ -11,6 +11,7 @@ namespace ase
     class GlPlatform;
     class GlRenderContext;
     struct Dispatched;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlBuffer
     {
@@ -18,7 +19,8 @@ namespace ase
         GlBuffer(GlRenderContext& context, GLenum bufferType);
         ~GlBuffer();
 
-        void setData(Dispatched, void const* data, size_t len, Usage usage);
+        void setData(Dispatched, GlFunctions const& gl, void const* data,
+                size_t len, Usage usage);
         GLuint getBuffer() const;
 
     private:

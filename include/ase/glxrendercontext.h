@@ -9,6 +9,7 @@
 namespace ase
 {
     class GlxPlatform;
+    class GlxDispatchedContext;
 
     class BTL_VISIBLE GlxRenderContext : public GlRenderContext
     {
@@ -24,19 +25,21 @@ namespace ase
 
     private:
         friend class GlxPlatform;
-        GlxRenderContext(GlxPlatform& platform, GlxContext&& context,
-                GlxContext&& contextBg);
+
+        GlxRenderContext(
+                GlxPlatform& platform,
+                std::shared_ptr<GlxDispatchedContext>&& fgContext,
+                std::shared_ptr<GlxDispatchedContext>&& bgContext
+                );
 
     private:
         friend class GlxRenderTarget;
         friend class GlxWindowDeferred;
-        GlxContext const& getContext() const;
-        GlxContext& getContext();
+
+        GlxDispatchedContext const& getGlxContext() const;
 
     private:
         GlxPlatform& platform_;
-        GlxContext context_;
-        GlxContext contextBg_;
     };
 }
 

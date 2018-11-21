@@ -9,24 +9,22 @@ namespace ase
 {
     class GlRenderContext;
     class Dispatched;
-    class GlFunctions;
     class CommandBuffer;
     class VertexSpec;
     class UniformBuffer;
     class RenderTargetImpl;
+    class GlDispatchedContext;
+    struct GlFunctions;
 
     class GlRenderState
     {
     public:
-        GlRenderState(Dispatched, GlRenderContext& context);
+        GlRenderState(GlRenderContext& context, GlDispatchedContext& dispatcher);
         ~GlRenderState();
 
-        void submit(Dispatched, GlFunctions const& gl,
-                CommandBuffer&& commands);
-        void clear(Dispatched, GlFunctions const& gl, GLbitfield mask);
-        void setViewport(Dispatched, GlFunctions const& gl, Vector2i size);
-
-        void deinit(Dispatched, GlFunctions const& gl);
+        void submit(CommandBuffer&& commands);
+        void clear(Dispatched, GLbitfield mask);
+        void setViewport(Dispatched, Vector2i size);
 
     private:
         // These functions need to be called in dispatched context.
@@ -39,6 +37,7 @@ namespace ase
 
     private:
         GlRenderContext& context_;
+        GlDispatchedContext& dispatcher_;
 
         // Current state
         Vector2i viewportSize_;

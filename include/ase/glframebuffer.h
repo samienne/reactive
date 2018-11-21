@@ -13,19 +13,21 @@ namespace ase
     class GlTexture;
     class GlPlatform;
     class GlRenderContext;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlFramebuffer
     {
     public:
         GlFramebuffer(GlRenderContext& context);
-        GlFramebuffer(Dispatched, GlRenderContext& context);
+        GlFramebuffer(Dispatched, GlFunctions const& gl,
+                GlRenderContext& context);
 
         GlFramebuffer(GlFramebuffer const& rhs) = delete;
         GlFramebuffer(GlFramebuffer&& rhs) noexcept;
 
         ~GlFramebuffer();
 
-        void destroy(Dispatched, GlRenderContext& context);
+        void destroy(Dispatched, GlFunctions const&);
 
         bool operator==(GlFramebuffer const& rhs) const;
         bool operator!=(GlFramebuffer const& rhs) const;
@@ -33,10 +35,12 @@ namespace ase
 
         operator bool() const;
 
-        void setColorTarget(Dispatched, size_t index, Texture const& texture);
-        void setColorTarget(Dispatched, size_t index, GlTexture const& texture);
+        void setColorTarget(Dispatched, GlFunctions const& gl, size_t index,
+                Texture const& texture);
+        void setColorTarget(Dispatched, GlFunctions const& gl, size_t index,
+                GlTexture const& texture);
 
-        void makeCurrent(Dispatched) const;
+        void makeCurrent(Dispatched, GlFunctions const& gl) const;
 
     private:
         GlRenderContext& context_;

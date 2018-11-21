@@ -14,6 +14,7 @@ namespace ase
     class GlRenderContext;
     class Buffer;
     struct Dispatched;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlTexture : public TextureImpl
     {
@@ -26,7 +27,8 @@ namespace ase
         GlTexture& operator=(GlTexture const& other) = delete;
         GlTexture& operator=(GlTexture&& other) = delete;
 
-        void setData(Dispatched, Vector2i const& size, Format format,
+        void setData(Dispatched, GlFunctions const& gl, Vector2i const& size,
+                Format format,
                 Buffer const& buffer);
 
         GLuint getGlObject() const;

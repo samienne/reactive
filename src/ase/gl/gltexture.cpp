@@ -3,6 +3,7 @@
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "glformat.h"
+#include "glfunctions.h"
 
 #include "format.h"
 #include "buffer.h"
@@ -24,8 +25,8 @@ GlTexture::~GlTexture()
     destroy();
 }
 
-void GlTexture::setData(Dispatched, Vector2i const& size, Format format,
-        Buffer const& buffer)
+void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
+        Vector2i const& size, Format format, Buffer const& buffer)
 {
     if (buffer.data()
             && size[0] * size[1] * getBytes(format) > buffer.getSize())
@@ -66,7 +67,8 @@ void GlTexture::destroy()
     {
         GLuint texture = texture_;
         texture_ = 0;
-        context_.dispatchBg([texture]()
+
+        context_.dispatchBg([texture](GlFunctions const&)
             {
                 glDeleteTextures(1, &texture);
                 DBG("Texture %1 deleted", texture);

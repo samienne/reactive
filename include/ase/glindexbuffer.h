@@ -27,7 +27,8 @@ namespace ase
 
         size_t getCount() const;
 
-        void setData(Dispatched, Buffer const& buffer, Usage usage);
+        void setData(Dispatched, GlFunctions const& gl, Buffer const& buffer,
+                Usage usage);
 
         GlBuffer const& getBuffer() const;
 

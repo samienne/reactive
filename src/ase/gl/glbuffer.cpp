@@ -4,6 +4,7 @@
 #include "glplatform.h"
 #include "glusage.h"
 #include "glerror.h"
+#include "glfunctions.h"
 
 #include "debug.h"
 
@@ -22,10 +23,9 @@ GlBuffer::~GlBuffer()
     destroy();
 }
 
-void GlBuffer::setData(Dispatched, void const* data, size_t len, Usage usage)
+void GlBuffer::setData(Dispatched, GlFunctions const& gl, void const* data,
+        size_t len, Usage usage)
 {
-    GlFunctions const& gl = context_.getGlFunctions();
-
     if (!buffer_)
     {
         gl.glGenBuffers(1, &buffer_);
@@ -50,10 +50,10 @@ void GlBuffer::destroy()
     {
         GLuint buffer = buffer_;
         buffer_ = 0;
-        GlRenderContext& context = context_;
-        context_.dispatchBg([&context, buffer]()
+
+        context_.dispatchBg([buffer](GlFunctions const& gl)
                 {
-                    context.getGlFunctions().glDeleteBuffers(1, &buffer);
+                    gl.glDeleteBuffers(1, &buffer);
                     //DBG("Deleted GlBuffer %1", buffer);
                 });
     }

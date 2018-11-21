@@ -3,6 +3,7 @@
 #include "gltexture.h"
 #include "glrendercontext.h"
 #include "glplatform.h"
+#include "glfunctions.h"
 
 #include "texture.h"
 
@@ -17,11 +18,12 @@ GlFramebuffer::GlFramebuffer(GlRenderContext& context) :
 {
 }
 
-GlFramebuffer::GlFramebuffer(Dispatched, GlRenderContext& context) :
+GlFramebuffer::GlFramebuffer(Dispatched, GlFunctions const& gl,
+        GlRenderContext& context) :
     context_(context),
     framebuffer_(0)
 {
-    context.getGlFunctions().glGenFramebuffers(1, &framebuffer_);
+    gl.glGenFramebuffers(1, &framebuffer_);
 }
 
 GlFramebuffer::GlFramebuffer(GlFramebuffer&& rhs) noexcept :
@@ -35,9 +37,8 @@ GlFramebuffer::~GlFramebuffer()
 {
     if (framebuffer_)
     {
-        context_.dispatchBg([this]()
+        context_.dispatchBg([this](GlFunctions const& gl)
             {
-                auto& gl = context_.getGlFunctions();
                 gl.glDeleteFramebuffers(1, &framebuffer_);
                 framebuffer_ = 0;
             });
@@ -46,11 +47,11 @@ GlFramebuffer::~GlFramebuffer()
     }
 }
 
-void GlFramebuffer::destroy(Dispatched, GlRenderContext& context)
+void GlFramebuffer::destroy(Dispatched, GlFunctions const& gl)
 {
     if (framebuffer_)
     {
-        context.getGlFunctions().glDeleteFramebuffers(1, &framebuffer_);
+        gl.glDeleteFramebuffers(1, &framebuffer_);
         framebuffer_ = 0;
     }
 }
@@ -75,24 +76,23 @@ GlFramebuffer::operator bool() const
     return framebuffer_;
 }
 
-void GlFramebuffer::setColorTarget(Dispatched d, size_t index,
-        Texture const& texture)
+void GlFramebuffer::setColorTarget(Dispatched d, GlFunctions const& gl,
+        size_t index, Texture const& texture)
 {
     GlTexture const& glTexture = texture.getImpl<GlTexture>();
-    setColorTarget(d, index, const_cast<GlTexture&>(glTexture));
+    setColorTarget(d, gl, index, const_cast<GlTexture&>(glTexture));
 }
 
-void GlFramebuffer::setColorTarget(Dispatched, size_t index,
-        GlTexture const& texture)
+void GlFramebuffer::setColorTarget(Dispatched, GlFunctions const& gl,
+        size_t index, GlTexture const& texture)
 {
-    auto& gl = context_.getGlFunctions();
     gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
             GL_TEXTURE_2D, texture.texture_, 0);
 }
 
-void GlFramebuffer::makeCurrent(Dispatched) const
+void GlFramebuffer::makeCurrent(Dispatched, GlFunctions const& gl) const
 {
-    context_.getGlFunctions().glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+    gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
 }
 
 } // namespace

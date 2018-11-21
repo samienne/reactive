@@ -9,7 +9,8 @@ if target_machine.system() == 'linux'
         'glx/glxplatform.cpp',
         'glx/glxrendercontext.cpp',
         'glx/glxwindow.cpp',
-        'glx/glxcontext.cpp'
+        'glx/glxcontext.cpp',
+        'glx/glxdispatchedcontext.cpp'
         ]
 else
     system_deps = []
@@ -71,7 +72,8 @@ libasesrc = [
         'gl/glframebuffer.cpp',
         'gl/glpipeline.cpp',
         'gl/globjectmanager.cpp',
-        'gl/glrenderstate.cpp'
+        'gl/glrenderstate.cpp',
+        'gl/gldispatchedcontext.cpp'
         ]
 
 libase = library('ase',
