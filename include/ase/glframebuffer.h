@@ -18,9 +18,12 @@ namespace ase
     class BTL_VISIBLE GlFramebuffer
     {
     public:
+        GlFramebuffer();
         GlFramebuffer(GlRenderContext& context);
         GlFramebuffer(Dispatched, GlFunctions const& gl,
                 GlRenderContext& context);
+
+        static GlFramebuffer makeDefault(GlRenderContext& context);
 
         GlFramebuffer(GlFramebuffer const& rhs) = delete;
         GlFramebuffer(GlFramebuffer&& rhs) noexcept;
@@ -41,6 +44,10 @@ namespace ase
                 GlTexture const& texture);
 
         void makeCurrent(Dispatched, GlFunctions const& gl) const;
+
+    private:
+        friend class GlRenderContext;
+        GlFramebuffer(GlRenderContext& context, std::nullptr_t);
 
     private:
         GlRenderContext& context_;

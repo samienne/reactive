@@ -104,8 +104,7 @@ namespace ase
         GlObjectManager objectManager_;
         GlRenderState renderState_;
         GlFramebuffer defaultFramebuffer_;
-        btl::option<GlFramebuffer> sharedFramebuffer_;
-        GlFramebuffer const* currentFramebuffer_ = 0;
+        GlFramebuffer sharedFramebuffer_;
         Vector2i viewportSize_;
     };
 }

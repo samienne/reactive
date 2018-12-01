@@ -42,17 +42,15 @@ GlRenderContext::GlRenderContext(
     bgContext_(std::move(bgContext)),
     objectManager_(*this),
     renderState_(*this, *fgContext_),
-    defaultFramebuffer_(*this),
-    sharedFramebuffer_(btl::none)
+    defaultFramebuffer_(*this, nullptr),
+    sharedFramebuffer_(*this)
 {
-    fgContext_->dispatch([this](GlFunctions const& gl)
-    {
-        sharedFramebuffer_ = btl::just(GlFramebuffer(Dispatched(), gl, *this));
-    });
 }
 
 GlRenderContext::~GlRenderContext()
 {
+    fgContext_->wait();
+    bgContext_->wait();
 }
 
 GlPlatform& GlRenderContext::getPlatform() const
@@ -106,7 +104,7 @@ void GlRenderContext::waitBg() const
 
 GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
 {
-    return *sharedFramebuffer_;
+    return sharedFramebuffer_;
 }
 
 void GlRenderContext::setViewport(Dispatched d, Vector2i size)
