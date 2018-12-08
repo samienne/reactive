@@ -115,7 +115,6 @@ private:
     Framebuffer defaultFramebuffer_;
 
     bool visible_ = false;
-    mutable bool dirty_ = true;
 
     // Text input handling
     //XComposeStatus composeStatus_;
@@ -279,31 +278,6 @@ void GlxWindowDeferred::destroy()
         xWin_ = 0;
     }
 }
-
-/*
-void GlxWindowDeferred::makeCurrent(Dispatched dispatched,
-        RenderContextImpl& renderContext) const
-{
-    auto& glxRenderContext = reinterpret_cast<GlxRenderContext&>(renderContext);
-    GlxDispatchedContext const& glxContext = glxRenderContext.getGlxContext();
-    auto& gl = glxContext.getGlFunctions();
-
-    glxContext.getGlxContext().makeCurrent(platform_.lockX(), glxWin_);
-
-    glxRenderContext.getDefaultFramebuffer().makeCurrent(dispatched, gl);
-    glxRenderContext.setViewport(Dispatched(), genericWindow_.getSize());
-
-    if (dirty_)
-    {
-        glClearColor(0.0, 0.0, 0.0, 1.0);
-
-        glxRenderContext.clear(dispatched,
-                GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        dirty_ = false;
-    }
-}
-*/
 
 GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     Window(std::make_shared<GlxWindowDeferred>(platform, *this, size))
@@ -577,7 +551,7 @@ std::string const& GlxWindowDeferred::getTitle() const
 
 void GlxWindowDeferred::clear()
 {
-    dirty_ = true;
+    defaultFramebuffer_.clear();
 }
 
 /*
