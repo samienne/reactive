@@ -10,7 +10,8 @@ if target_machine.system() == 'linux'
         'glx/glxrendercontext.cpp',
         'glx/glxwindow.cpp',
         'glx/glxcontext.cpp',
-        'glx/glxdispatchedcontext.cpp'
+        'glx/glxdispatchedcontext.cpp',
+        'glx/glxframebuffer.cpp'
         ]
 else
     system_deps = []
@@ -49,8 +50,7 @@ libasesrc = [
         'rendercommand.cpp',
         'renderqueue.cpp',
         'texture.cpp',
-        'rendertarget.cpp',
-        'rendertargetobject.cpp',
+        'framebuffer.cpp',
         'pipeline.cpp',
         'pointerbuttonevent.cpp',
         'keyevent.cpp',
@@ -68,7 +68,6 @@ libasesrc = [
         'gl/gltype.cpp',
         'gl/glblendmode.cpp',
         'gl/glrendercontext.cpp',
-        'gl/glrendertargetobject.cpp',
         'gl/glframebuffer.cpp',
         'gl/glpipeline.cpp',
         'gl/globjectmanager.cpp',

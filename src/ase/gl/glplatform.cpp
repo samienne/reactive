@@ -6,7 +6,7 @@
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gltexture.h"
-#include "glrendertargetobject.h"
+#include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "glpipeline.h"
 
@@ -28,7 +28,7 @@ GlPlatform::GlPlatform()
     DBG("GlVertexBuffer size: %1 bytes.", sizeof(GlVertexBuffer));
     DBG("GlIndexBuffer size: %1 bytes.", sizeof(GlIndexBuffer));
     DBG("GlRenderContext size: %1 bytes.", sizeof(GlRenderContext));
-    DBG("GlRenderTargetObject size: %1 bytes.", sizeof(GlRenderTargetObject));
+    DBG("GlFramebuffer size: %1 bytes.", sizeof(GlFramebuffer));
     DBG("GlTexture size: %1 bytes.", sizeof(GlTexture));
 }
 

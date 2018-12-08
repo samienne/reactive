@@ -18,7 +18,7 @@ namespace ase
         using ConstIterator = std::vector<RenderCommand>::const_iterator;
 
         void push(
-                RenderTarget target,
+                Framebuffer framebuffer,
                 Pipeline pipeline,
                 UniformBuffer uniforms,
                 VertexBuffer vertexBuffer,
@@ -26,6 +26,7 @@ namespace ase
                 std::vector<Texture> textures,
                 float z);
 
+        size_t size() const;
         Iterator begin();
         Iterator end();
 

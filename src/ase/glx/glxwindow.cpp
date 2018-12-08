@@ -2,16 +2,17 @@
 
 #include "glxwindow.h"
 
+#include "glxframebuffer.h"
 #include "glxdispatchedcontext.h"
 #include "glxrendercontext.h"
 #include "glxcontext.h"
 #include "glxplatform.h"
 #include "glerror.h"
 
+#include "framebuffer.h"
 #include "genericwindow.h"
 #include "windowimpl.h"
 #include "window.h"
-#include "rendertarget.h"
 #include "rendercontext.h"
 #include "dispatcher.h"
 
@@ -89,10 +90,11 @@ public:
     void clear() override;
 
     // From RenderTargetImpl
-    void makeCurrent(Dispatched,
+    /*void makeCurrent(Dispatched,
             RenderContextImpl& renderContext) const override;
     bool isComplete() const override;
-    Vector2i getResolution() const override;
+    */
+    Vector2i getResolution() const;
 
     GlxWindow* window_;
     inline GlxWindow* q() { return window_; }
@@ -110,6 +112,7 @@ private:
     int64_t counterValue_ = 0;
 
     GenericWindow genericWindow_;
+    Framebuffer defaultFramebuffer_;
 
     bool visible_ = false;
     mutable bool dirty_ = true;
@@ -147,7 +150,8 @@ GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
         Vector2i const& size) :
     window_(&window),
     platform_(platform),
-    genericWindow_(size)
+    genericWindow_(size),
+    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, window))
 {
     unsigned int width = size[0];
     unsigned int height = size[1];
@@ -276,6 +280,7 @@ void GlxWindowDeferred::destroy()
     }
 }
 
+/*
 void GlxWindowDeferred::makeCurrent(Dispatched dispatched,
         RenderContextImpl& renderContext) const
 {
@@ -298,6 +303,7 @@ void GlxWindowDeferred::makeCurrent(Dispatched dispatched,
         dirty_ = false;
     }
 }
+*/
 
 GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     Window(std::make_shared<GlxWindowDeferred>(platform, *this, size))
@@ -369,6 +375,11 @@ void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 Vector2i GlxWindow::getSize() const
 {
     return d()->genericWindow_.getSize();
+}
+
+Framebuffer& GlxWindow::getDefaultFramebuffer()
+{
+    return d()->defaultFramebuffer_;
 }
 
 void GlxWindow::handleEvent(_XEvent const& e)
@@ -569,10 +580,12 @@ void GlxWindowDeferred::clear()
     dirty_ = true;
 }
 
+/*
 bool GlxWindowDeferred::isComplete() const
 {
     return true;
 }
+*/
 
 Vector2i GlxWindowDeferred::getResolution() const
 {

@@ -35,6 +35,7 @@ namespace ase
     private:
         friend class GlxRenderTarget;
         friend class GlxWindowDeferred;
+        friend class GlxFramebuffer;
 
         GlxDispatchedContext const& getGlxContext() const;
 

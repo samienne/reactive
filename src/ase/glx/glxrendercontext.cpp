@@ -4,8 +4,6 @@
 #include "glxplatform.h"
 #include "glxdispatchedcontext.h"
 
-#include "rendertarget.h"
-
 #include "debug.h"
 
 #include <GL/glx.h>

@@ -26,7 +26,7 @@ namespace ase
     class IndexBuffer;
     class Texture;
     class Buffer;
-    class RenderTargetObject;
+    class Framebuffer;
     class Pipeline;
     class VertexSpec;
 
@@ -77,7 +77,8 @@ namespace ase
         VertexBuffer makeVertexBuffer(Buffer buffer, Usage usage);
         IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
         Texture makeTexture(Vector2i size, Format format, Buffer buffer);
-        RenderTargetObject makeRenderTargetObject();
+        //RenderTargetObject makeRenderTargetObject();
+        Framebuffer makeFramebuffer();
         Pipeline makePipeline(Program program, VertexSpec vertexSpec);
         Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
                 BlendMode srcFactor, BlendMode dstFactor);

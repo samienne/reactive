@@ -2,11 +2,13 @@
 
 #include "rendercommand.h"
 
+#include <iostream>
+
 namespace ase
 {
 
 void CommandBuffer::push(
-        RenderTarget target,
+        Framebuffer framebuffer,
         Pipeline pipeline,
         UniformBuffer uniforms,
         VertexBuffer vertexBuffer,
@@ -15,13 +17,18 @@ void CommandBuffer::push(
         float z)
 {
     commands_.emplace_back(
-            std::move(target),
+            std::move(framebuffer),
             std::move(pipeline),
             std::move(uniforms),
             std::move(vertexBuffer),
             std::move(indexBuffer),
             std::move(textures),
             z);
+}
+
+size_t CommandBuffer::size() const
+{
+    return commands_.size();
 }
 
 CommandBuffer::Iterator CommandBuffer::begin()

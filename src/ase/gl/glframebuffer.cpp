@@ -5,6 +5,7 @@
 #include "glplatform.h"
 #include "glfunctions.h"
 
+#include "renderbuffer.h"
 #include "texture.h"
 
 #include "debug.h"
@@ -80,6 +81,7 @@ GlFramebuffer::operator bool() const
     return framebuffer_;
 }
 
+/*
 void GlFramebuffer::setColorTarget(Dispatched d, GlFunctions const& gl,
         size_t index, Texture const& texture)
 {
@@ -93,10 +95,73 @@ void GlFramebuffer::setColorTarget(Dispatched, GlFunctions const& gl,
     gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
             GL_TEXTURE_2D, texture.texture_, 0);
 }
+*/
 
-void GlFramebuffer::makeCurrent(Dispatched, GlFunctions const& gl) const
+void GlFramebuffer::makeCurrent(Dispatched, GlRenderContext&,
+        GlFunctions const& gl) const
 {
     gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+
+    if (!dirty_ || !framebuffer_)
+        return;
+
+    dirty_ = false;
+
+    int index = 0;
+    for (Attachment const& attachment : colorAttachments_)
+    {
+        gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
+                attachment.target, attachment.object, 0);
+
+        ++index;
+    }
+
+    gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+            GL_TEXTURE_2D, depthAttachment_, 0);
+
+    gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
+            GL_TEXTURE_2D, stencilAttachment_, 0);
+}
+
+void GlFramebuffer::setColorTarget(size_t index, Texture texture)
+{
+    colorAttachments_.at(index) = Attachment{
+        GL_TEXTURE_2D,
+        texture.getImpl<GlTexture>().getGlObject()
+    };
+
+    dirty_ = true;
+}
+
+void GlFramebuffer::setColorTarget(size_t /*index*/, Renderbuffer /*texture*/)
+{
+}
+
+void GlFramebuffer::unsetColorTarget(size_t index)
+{
+    colorAttachments_.at(index) = Attachment{ 0, 0 };
+
+    dirty_ = true;
+}
+
+void GlFramebuffer::setDepthTarget(Renderbuffer buffer)
+{
+}
+
+void GlFramebuffer::unsetDepthTarget()
+{
+}
+
+void GlFramebuffer::setStencilTarget(Renderbuffer buffer)
+{
+}
+
+void GlFramebuffer::unsetStencilTarget()
+{
+}
+
+void GlFramebuffer::clear()
+{
 }
 
 GlFramebuffer::GlFramebuffer(GlRenderContext& context, std::nullptr_t) :

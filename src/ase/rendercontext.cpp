@@ -1,7 +1,6 @@
 #include "rendercontext.h"
 
 #include "rendercontextimpl.h"
-#include "rendertargetobject.h"
 #include "buffer.h"
 #include "fragmentshader.h"
 #include "vertexshader.h"
@@ -76,7 +75,7 @@ Program RenderContext::makeProgram(VertexShader vertexShader,
 
 VertexBuffer RenderContext::makeVertexBuffer(Buffer buffer, Usage usage)
 {
-    return d()->makeVertexBufferImpl(std::move(buffer), usage);
+    return VertexBuffer(d()->makeVertexBufferImpl(std::move(buffer), usage));
 }
 
 IndexBuffer RenderContext::makeIndexBuffer(Buffer buffer, Usage usage)
@@ -90,9 +89,16 @@ Texture RenderContext::makeTexture(Vector2i size, Format format, Buffer buffer)
                 std::move(buffer)));
 }
 
+/*
 RenderTargetObject RenderContext::makeRenderTargetObject()
 {
     return RenderTargetObject(d()->makeRenderTargetObjectImpl());
+}
+*/
+
+Framebuffer RenderContext::makeFramebuffer()
+{
+    return Framebuffer(d()->makeFramebufferImpl());
 }
 
 Pipeline RenderContext::makePipeline(Program program, VertexSpec vertexSpec)

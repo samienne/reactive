@@ -22,6 +22,7 @@ namespace ase
     class GlxWindowDeferred;
     class RenderContext;
     class RenderCommand;
+    class Framebuffer;
     struct Dispatched;
 
     class BTL_VISIBLE GlxWindow : public Window
@@ -31,11 +32,11 @@ namespace ase
         typedef std::unique_lock<Mutex> Lock;
 
         GlxWindow(GlxPlatform& platform, Vector2i const& size);
-        GlxWindow(GlxWindow&&) = default;
+        GlxWindow(GlxWindow&&) = delete;
         GlxWindow(GlxWindow const&) = delete;
         ~GlxWindow();
 
-        GlxWindow& operator=(GlxWindow&&) = default;
+        GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
         void handleEvents(std::vector<_XEvent> const& events);
@@ -53,6 +54,7 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
 
         Vector2i getSize() const;
+        Framebuffer& getDefaultFramebuffer();
 
     private:
         friend class GlxRenderContext;
@@ -61,6 +63,7 @@ namespace ase
         Lock lockX() const;
 
         friend class GlxContext;
+        friend class GlxFramebuffer;
         void makeCurrent(Lock const& lock, GlxContext const& context) const;
 
     private:

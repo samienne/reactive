@@ -218,7 +218,8 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
 }
 
 void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
-        ase::RenderTarget& target, std::vector<Element>&& elements)
+        ase::Framebuffer& framebuffer, ase::Vector2f size,
+        std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -235,8 +236,6 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
     for (auto const& element : elements)
         count += element.second.size();
     resultVertices.reserve(count);
-
-    auto&& size = target.getResolution();
 
     ase::Matrix4f m = ase::Matrix4f::Identity();
     m(0,0) = 2.0f/(float)size[0];
@@ -269,8 +268,8 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             auto vb = context.makeVertexBuffer(ase::Buffer(
                         std::move(resultVertices)), ase::Usage::StreamDraw);
 
-            commandBuffer.push(target, pipeline, std::move(ub), std::move(vb),
-                    btl::none, {}, z);
+            commandBuffer.push(framebuffer, pipeline, std::move(ub),
+                    std::move(vb), btl::none, {}, z);
 
             resultVertices.clear();
         }
@@ -302,15 +301,16 @@ std::vector<Element> generateElements(avg::Painter const& painter,
 } // anonymous namespace
 
 void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
-        ase::RenderTarget& target, avg::Painter const& painter,
-        avg::Drawing const& drawing)
+        ase::Framebuffer& framebuffer, ase::Vector2i size,
+        avg::Painter const& painter, avg::Drawing const& drawing)
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     int const resPerPixel = 4;
+    avg::Vector2f sizef((float)size[0], (float)size[1]);
 
     avg::Rect rect(
             avg::Vector2f(0.0f, 0.0f),
-            avg::Vector2f(target.getResolution()[0], target.getResolution()[1])
+            sizef
             );
 
     auto meshes = generateMeshes(painter, avg::Transform(),
@@ -318,7 +318,7 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
 
     auto elements = generateElements(painter, meshes);
 
-    render(commandBuffer, context, target, std::move(elements));
+    render(commandBuffer, context, framebuffer, sizef, std::move(elements));
 }
 
 avg::Path makeRect(float width, float height)

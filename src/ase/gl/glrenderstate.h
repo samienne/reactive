@@ -12,8 +12,9 @@ namespace ase
     class CommandBuffer;
     class VertexSpec;
     class UniformBuffer;
-    class RenderTargetImpl;
+    class FramebufferImpl;
     class GlDispatchedContext;
+    class GlBaseFramebuffer;
     struct GlFunctions;
 
     class GlRenderState
@@ -41,7 +42,7 @@ namespace ase
 
         // Current state
         Vector2i viewportSize_;
-        RenderTargetImpl const* boundRenderTarget_ = 0;
+        GlBaseFramebuffer const* boundFramebuffer_ = 0;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
         GLuint boundVbo_ = 0;

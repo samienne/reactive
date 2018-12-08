@@ -255,8 +255,10 @@ public:
 
             ase::CommandBuffer commands;
 
-            render(commands, context_, glxWindow, painter_,
+            render(commands, context_, glxWindow.getDefaultFramebuffer(),
+                    glxWindow.getSize(), painter_,
                     widget_.getDrawing().evaluate());
+
             context_.submit(std::move(commands));
             context_.present(glxWindow);
             redraw_ = false;

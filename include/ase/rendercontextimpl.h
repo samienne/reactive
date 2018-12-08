@@ -23,8 +23,7 @@ namespace ase
     class VertexBufferImpl;
     class IndexBufferImpl;
     class TextureImpl;
-    class RenderTargetImpl;
-    class RenderTargetObjectImpl;
+    class FramebufferImpl;
     class Buffer;
     class PipelineImpl;
     class Program;
@@ -62,8 +61,17 @@ namespace ase
                 Vector2i const& size, Format format,
                 Buffer const& buffer) = 0;
 
+        /*
         virtual std::shared_ptr<RenderTargetObjectImpl>
             makeRenderTargetObjectImpl() = 0;
+        */
+
+        /*
+        virtual std::shared_ptr<FramebufferImpl>
+            makeFramebufferImpl() = 0;
+        */
+
+        virtual std::shared_ptr<FramebufferImpl> makeFramebufferImpl() = 0;
 
         virtual std::shared_ptr<PipelineImpl> makePipeline(
                 Program program,

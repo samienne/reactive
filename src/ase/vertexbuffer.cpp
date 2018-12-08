@@ -34,15 +34,5 @@ bool VertexBuffer::operator<(VertexBuffer const& other) const
     return d() < other.d();
 }
 
-/*NamedVertexSpec const& VertexBuffer::getSpec() const
-{
-    return spec_;
-}*/
-
-VertexBuffer::operator bool() const
-{
-    return d();
-}
-
 } // namespace
 

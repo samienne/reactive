@@ -7,7 +7,7 @@
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
 #include "vertexspec.h"
-#include "rendertarget.h"
+#include "framebuffer.h"
 
 #include <btl/option.h>
 #include <btl/visibility.h>
@@ -20,7 +20,7 @@ namespace ase
     struct BTL_VISIBLE RenderCommandDeferred
     {
         RenderCommandDeferred(
-                RenderTarget target,
+                Framebuffer framebuffer,
                 std::vector<Texture> textures,
                 Pipeline pipeline,
                 VertexBuffer vertexBuffer,
@@ -34,7 +34,7 @@ namespace ase
                 RenderCommandDeferred const&) = default;
         RenderCommandDeferred& operator=(RenderCommandDeferred&&) noexcept = default;
 
-        RenderTarget renderTarget_;
+        Framebuffer framebuffer_;
 
         // Textures
         std::vector<Texture> textures_;
@@ -55,7 +55,7 @@ namespace ase
     {
     public:
         RenderCommand(
-                RenderTarget target,
+                Framebuffer framebuffer,
                 Pipeline pipeline,
                 UniformBuffer uniforms,
                 VertexBuffer vertexBuffer,
@@ -70,9 +70,9 @@ namespace ase
         RenderCommand& operator=(RenderCommand const&) = default;
         RenderCommand& operator=(RenderCommand&&) = default;
 
-        inline RenderTarget const& getRenderTarget() const
+        inline Framebuffer const& getFramebuffer() const
         {
-            return d()->renderTarget_;
+            return d()->framebuffer_;
         }
 
         inline std::vector<Texture> const& getTextures() const

@@ -11,14 +11,11 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
-#include "glrendertargetobject.h"
 #include "gldispatchedcontext.h"
 #include "glfunctions.h"
 
 #include "commandbuffer.h"
 #include "rendercommand.h"
-#include "rendertarget.h"
-#include "rendertargetimpl.h"
 #include "vertexshader.h"
 #include "fragmentshader.h"
 #include "buffer.h"
@@ -154,9 +151,16 @@ std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
     return objectManager_.makeTexture(size, format, std::move(buffer));
 }
 
+/*
 std::shared_ptr<RenderTargetObjectImpl> GlRenderContext::makeRenderTargetObjectImpl()
 {
     return objectManager_.makeRenderTargetObject();
+}
+*/
+
+std::shared_ptr<FramebufferImpl> GlRenderContext::makeFramebufferImpl()
+{
+    return objectManager_.makeFramebuffer();
 }
 
 std::shared_ptr<PipelineImpl> GlRenderContext::makePipeline(

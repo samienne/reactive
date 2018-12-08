@@ -10,7 +10,6 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
-#include "glrendertargetobject.h"
 #include "gldispatchedcontext.h"
 #include "glrendercontext.h"
 
@@ -28,9 +27,9 @@ namespace
 {
     bool compareCommand(RenderCommand const& c1, RenderCommand const& c2)
     {
-        if (c1.getRenderTarget() != c2.getRenderTarget())
+        if (c1.getFramebuffer() != c2.getFramebuffer())
         {
-            return c1.getRenderTarget() < c2.getRenderTarget();
+            return c1.getFramebuffer() < c2.getFramebuffer();
         }
 
         GlPipeline const& pipeline1 = c1.getPipeline().getImpl<GlPipeline>();
@@ -136,8 +135,8 @@ void GlRenderState::submit(CommandBuffer&& commands)
 
         while (e != commands.end())
         {
-            auto const& target = b->getRenderTarget();
-            while (e != commands.end() && target == e->getRenderTarget())
+            auto const& framebuffer = b->getFramebuffer();
+            while (e != commands.end() && framebuffer == e->getFramebuffer())
                 ++e;
 
             std::sort(commands.begin(), commands.end(), compareCommand);
@@ -177,7 +176,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
         gl.glBindVertexArray(vertexArrayObject_);
     }
 
-    boundRenderTarget_ = nullptr;
+    boundFramebuffer_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand const& command = *i;
@@ -187,20 +186,18 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
         auto& textures = command.getTextures();
         GlVertexBuffer const& vertexBuffer = command.getVertexBuffer()
             .getImpl<GlVertexBuffer>();
+        GlBaseFramebuffer const& framebuffer = command.getFramebuffer().getImpl<
+            GlBaseFramebuffer>();
 
         GLuint vbo = 0;
         GLuint ibo = 0;
         size_t count = 0;
         GLenum mode;
 
-        if (!command.getVertexBuffer())
-            continue;
-
-        if (boundRenderTarget_ !=
-                &command.getRenderTarget().getImpl<RenderTargetImpl>())
+        if (boundFramebuffer_ != &framebuffer)
         {
-            boundRenderTarget_ = &command.getRenderTarget().getImpl<RenderTargetImpl>();
-            boundRenderTarget_->makeCurrent(Dispatched(), context_);
+            boundFramebuffer_ = &framebuffer;
+            framebuffer.makeCurrent(Dispatched(), context_, gl);
         }
 
         vbo = vertexBuffer.getBuffer().getBuffer();

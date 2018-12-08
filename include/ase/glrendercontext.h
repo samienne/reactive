@@ -81,8 +81,12 @@ namespace ase
                 Format format,
                 Buffer const& buffer) override;
 
+        /*
         std::shared_ptr<RenderTargetObjectImpl>
             makeRenderTargetObjectImpl() override;
+        */
+        std::shared_ptr<FramebufferImpl>
+            makeFramebufferImpl() override;
 
         std::shared_ptr<PipelineImpl> makePipeline(
                 Program program,

@@ -10,7 +10,7 @@
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
-#include "glrendertargetobject.h"
+#include "glframebuffer.h"
 #include "glrendercontext.h"
 
 #include "vertexshader.h"
@@ -52,13 +52,12 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
 {
     auto vb = std::make_shared<GlVertexBuffer>(context_);
 
-    auto ownBuffer = buffer;
-    context_.dispatchBg([vb, ownBuffer, usage](GlFunctions const& gl)
+    context_.dispatchBg([vb, ownBuffer=std::move(buffer), usage](GlFunctions const& gl)
             {
-                vb->setData(Dispatched(), gl, ownBuffer, usage);
+                vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
             });
 
-    // No waiting
+    context_.waitBg();
 
     return vb;
 }
@@ -74,7 +73,7 @@ std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
                 ib->setData(Dispatched(), gl, ownBuffer, usage);
             });
 
-    // No waiting
+    context_.waitBg();
 
     return ib;
 }
@@ -92,14 +91,14 @@ std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
                 texture->setData(Dispatched(), gl, ownSize, format, ownBuffer);
             });
 
-    // No waiting
+    context_.waitBg();
 
     return texture;
 }
 
-std::shared_ptr<GlRenderTargetObject> GlObjectManager::makeRenderTargetObject()
+std::shared_ptr<GlFramebuffer> GlObjectManager::makeFramebuffer()
 {
-    return std::make_shared<GlRenderTargetObject>(context_);
+    return std::make_shared<GlFramebuffer>(context_);
 }
 
 std::shared_ptr<GlPipeline> GlObjectManager::makePipeline(
