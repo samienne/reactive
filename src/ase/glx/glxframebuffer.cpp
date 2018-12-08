@@ -19,7 +19,7 @@ GlxFramebuffer::GlxFramebuffer(GlxPlatform& platform, GlxWindow& window) :
 }
 
 void GlxFramebuffer::makeCurrent(Dispatched dispatched,
-        GlRenderContext& context, GlFunctions const& gl) const
+        GlRenderContext& context, GlFunctions const& /*gl*/) const
 {
     auto& glxRenderContext = reinterpret_cast<GlxRenderContext&>(context);
     GlxDispatchedContext const& glxContext = glxRenderContext.getGlxContext();
@@ -39,22 +39,22 @@ void GlxFramebuffer::makeCurrent(Dispatched dispatched,
     }
 }
 
-void GlxFramebuffer::setColorTarget(size_t index, Texture texture)
+void GlxFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)
 {
     assert(false);
 }
 
-void GlxFramebuffer::setColorTarget(size_t index, Renderbuffer texture)
+void GlxFramebuffer::setColorTarget(size_t /*index*/, Renderbuffer /*texture*/)
 {
     assert(false);
 }
 
-void GlxFramebuffer::unsetColorTarget(size_t index)
+void GlxFramebuffer::unsetColorTarget(size_t /*index*/)
 {
     assert(false);
 }
 
-void GlxFramebuffer::setDepthTarget(Renderbuffer buffer)
+void GlxFramebuffer::setDepthTarget(Renderbuffer /*buffer*/)
 {
     assert(false);
 }
@@ -64,7 +64,7 @@ void GlxFramebuffer::unsetDepthTarget()
     assert(false);
 }
 
-void GlxFramebuffer::setStencilTarget(Renderbuffer buffer)
+void GlxFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)
 {
     assert(false);
 }

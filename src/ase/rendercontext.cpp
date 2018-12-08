@@ -89,13 +89,6 @@ Texture RenderContext::makeTexture(Vector2i size, Format format, Buffer buffer)
                 std::move(buffer)));
 }
 
-/*
-RenderTargetObject RenderContext::makeRenderTargetObject()
-{
-    return RenderTargetObject(d()->makeRenderTargetObjectImpl());
-}
-*/
-
 Framebuffer RenderContext::makeFramebuffer()
 {
     return Framebuffer(d()->makeFramebufferImpl());

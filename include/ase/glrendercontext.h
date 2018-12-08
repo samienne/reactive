@@ -13,7 +13,6 @@
 namespace ase
 {
     class VertexSpec;
-    class GlRenderTargetObject;
     class GlPlatform;
     class GlDispatchedContext;
 
@@ -52,7 +51,6 @@ namespace ase
         void wait() const;
         void waitBg() const;
 
-        friend class GlRenderTargetObject;
         GlFramebuffer& getSharedFramebuffer(Dispatched);
         void setViewport(Dispatched, Vector2i size);
         void clear(Dispatched, GLbitfield mask);
@@ -81,10 +79,6 @@ namespace ase
                 Format format,
                 Buffer const& buffer) override;
 
-        /*
-        std::shared_ptr<RenderTargetObjectImpl>
-            makeRenderTargetObjectImpl() override;
-        */
         std::shared_ptr<FramebufferImpl>
             makeFramebufferImpl() override;
 

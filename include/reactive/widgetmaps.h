@@ -12,7 +12,6 @@
 
 #include "clickevent.h"
 #include "widgetmap.h"
-#include "rendering.h"
 
 #include <reactive/stream/collect.h>
 #include <reactive/stream/stream.h>

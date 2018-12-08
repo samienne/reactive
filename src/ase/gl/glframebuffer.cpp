@@ -144,7 +144,7 @@ void GlFramebuffer::unsetColorTarget(size_t index)
     dirty_ = true;
 }
 
-void GlFramebuffer::setDepthTarget(Renderbuffer buffer)
+void GlFramebuffer::setDepthTarget(Renderbuffer /*buffer*/)
 {
 }
 
@@ -152,7 +152,7 @@ void GlFramebuffer::unsetDepthTarget()
 {
 }
 
-void GlFramebuffer::setStencilTarget(Renderbuffer buffer)
+void GlFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)
 {
 }
 

@@ -54,11 +54,6 @@ namespace ase
                 Format format,
                 Buffer const& buffer);
 
-        /*
-        std::shared_ptr<GlRenderTargetObject>
-            makeRenderTargetObject();
-        */
-
         std::shared_ptr<GlFramebuffer> makeFramebuffer();
 
         std::shared_ptr<GlPipeline> makePipeline(

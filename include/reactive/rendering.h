@@ -35,13 +35,6 @@ namespace reactive
             avg::Painter const& painter,
             avg::Drawing const& drawing);
 
-    BTL_VISIBLE void render(
-            ase::RenderContext& context,
-            ase::RenderTarget& target,
-            ase::Vector2f size,
-            avg::Painter const& painter,
-            avg::SoftMesh const& mesh);
-
     BTL_VISIBLE avg::Path makeRect(float width, float height);
 
     BTL_VISIBLE avg::Shape makeShape(avg::Path const& path,

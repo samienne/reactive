@@ -14,7 +14,6 @@
 namespace ase
 {
     class RenderCommand;
-    class RenderTarget;
     class Window;
     class RenderContextImpl;
     class Platform;
@@ -77,7 +76,6 @@ namespace ase
         VertexBuffer makeVertexBuffer(Buffer buffer, Usage usage);
         IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
         Texture makeTexture(Vector2i size, Format format, Buffer buffer);
-        //RenderTargetObject makeRenderTargetObject();
         Framebuffer makeFramebuffer();
         Pipeline makePipeline(Program program, VertexSpec vertexSpec);
         Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
@@ -96,9 +94,6 @@ namespace ase
         {
             return reinterpret_cast<T&>(*d());
         }
-
-    private:
-        friend class RenderTarget;
 
     private:
         std::shared_ptr<RenderContextImpl> deferred_;

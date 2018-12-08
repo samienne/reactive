@@ -37,6 +37,8 @@ namespace ase
             case FORMAT_DEPTH24_STENCIL8:
                 return 4;
         }
+
+        return 0;
     }
 
     inline BTL_VISIBLE bool isLinear(Format format)
@@ -56,6 +58,8 @@ namespace ase
             case FORMAT_DEPTH24_STENCIL8:
                 return true;
         }
+
+        return 0;
     }
 }
 

@@ -89,11 +89,6 @@ public:
     std::string const& getTitle() const override;
     void clear() override;
 
-    // From RenderTargetImpl
-    /*void makeCurrent(Dispatched,
-            RenderContextImpl& renderContext) const override;
-    bool isComplete() const override;
-    */
     Vector2i getResolution() const;
 
     GlxWindow* window_;

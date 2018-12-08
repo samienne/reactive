@@ -1,7 +1,6 @@
 #include "reactive/window.h"
 
 #include "widgetfactory.h"
-#include "rendering.h"
 
 namespace reactive
 {

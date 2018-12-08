@@ -151,13 +151,6 @@ std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
     return objectManager_.makeTexture(size, format, std::move(buffer));
 }
 
-/*
-std::shared_ptr<RenderTargetObjectImpl> GlRenderContext::makeRenderTargetObjectImpl()
-{
-    return objectManager_.makeRenderTargetObject();
-}
-*/
-
 std::shared_ptr<FramebufferImpl> GlRenderContext::makeFramebufferImpl()
 {
     return objectManager_.makeFramebuffer();

@@ -14,7 +14,6 @@ namespace ase
 {
     class Window;
     class RenderCommand;
-    class RenderTarget;
     class CommandBuffer;
 
     class ProgramImpl;
@@ -60,16 +59,6 @@ namespace ase
         virtual std::shared_ptr<TextureImpl> makeTextureImpl(
                 Vector2i const& size, Format format,
                 Buffer const& buffer) = 0;
-
-        /*
-        virtual std::shared_ptr<RenderTargetObjectImpl>
-            makeRenderTargetObjectImpl() = 0;
-        */
-
-        /*
-        virtual std::shared_ptr<FramebufferImpl>
-            makeFramebufferImpl() = 0;
-        */
 
         virtual std::shared_ptr<FramebufferImpl> makeFramebufferImpl() = 0;
 
