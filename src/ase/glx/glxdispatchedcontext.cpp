@@ -101,6 +101,10 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glBindVertexArray");
         gl.glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)
             glXGetProcAddressARB((GLubyte const*)"glDeleteVertexArrays");
+        gl.glBindBufferRange = (PFNGLBINDBUFFERRANGEPROC)
+            glXGetProcAddressARB((GLubyte const*)"glBindBufferRange");
+        gl.glGetUniformBlockIndex = (PFNGLGETUNIFORMBLOCKINDEXPROC)
+            glXGetProcAddressARB((GLubyte const*)"glGetUniformBlockIndex");
 
         assert(gl.glVertexAttribPointer);
         assert(gl.glDisableVertexAttribArray);
@@ -146,6 +150,8 @@ namespace
         assert(gl.glGenVertexArrays);
         assert(gl.glBindVertexArray);
         assert(gl.glDeleteVertexArrays);
+        assert(gl.glBindBufferRange);
+        assert(gl.glGetUniformBlockIndex);
 
         return gl;
     }

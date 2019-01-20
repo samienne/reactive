@@ -21,14 +21,17 @@ namespace ase
     class FragmentShaderImpl;
     class VertexBufferImpl;
     class IndexBufferImpl;
+    class UniformBufferImpl;
     class TextureImpl;
     class FramebufferImpl;
+    class UniformSetImpl;
     class Buffer;
     class PipelineImpl;
     class Program;
     class FragmentShader;
     class VertexShader;
     class VertexSpec;
+    class UniformSet;
 
     class BTL_VISIBLE RenderContextImpl
     {
@@ -56,6 +59,9 @@ namespace ase
         virtual std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl(
                 Buffer const& buffer, Usage usage) = 0;
 
+        virtual std::shared_ptr<UniformBufferImpl> makeUniformBufferImpl(
+                Buffer buffer, Usage usage) = 0;
+
         virtual std::shared_ptr<TextureImpl> makeTextureImpl(
                 Vector2i const& size, Format format,
                 Buffer const& buffer) = 0;
@@ -71,6 +77,8 @@ namespace ase
                 VertexSpec spec,
                 BlendMode srcFactor,
                 BlendMode dstFactor) = 0;
+
+        virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl() = 0;
     };
 }
 

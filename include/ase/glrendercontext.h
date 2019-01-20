@@ -33,6 +33,7 @@ namespace ase
         void submit(CommandBuffer&& commands) override;
         void flush() override;
         void finish() override;
+        void present(Window& window) override;
 
         GlFramebuffer const& getDefaultFramebuffer() const;
 
@@ -74,6 +75,9 @@ namespace ase
                 Buffer const& buffer,
                 Usage usage) override;
 
+        std::shared_ptr<UniformBufferImpl> makeUniformBufferImpl(
+                Buffer buffer, Usage usage) override;
+
         std::shared_ptr<TextureImpl> makeTextureImpl(
                 Vector2i const& size,
                 Format format,
@@ -91,6 +95,8 @@ namespace ase
                 VertexSpec spec,
                 BlendMode srcFactor,
                 BlendMode dstFactor) override;
+
+        std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
     protected:
         GlDispatchedContext const& getFgContext() const;

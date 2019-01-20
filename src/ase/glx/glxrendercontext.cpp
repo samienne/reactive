@@ -42,6 +42,8 @@ void GlxRenderContext::present(Window& window)
                 glxWindow.present(Dispatched());
             });
     wait();
+
+    GlRenderContext::present(window);
 }
 
 GlxDispatchedContext const& GlxRenderContext::getGlxContext() const

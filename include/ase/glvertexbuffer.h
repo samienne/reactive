@@ -16,7 +16,7 @@ namespace ase
     class BTL_VISIBLE GlVertexBuffer : public VertexBufferImpl
     {
     public:
-        GlVertexBuffer(GlRenderContext& context);
+        explicit GlVertexBuffer(GlRenderContext& context);
         GlVertexBuffer(GlVertexBuffer const& other) = delete;
         GlVertexBuffer(GlVertexBuffer&& other) = delete;
         virtual ~GlVertexBuffer();

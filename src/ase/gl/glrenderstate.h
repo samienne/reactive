@@ -15,6 +15,7 @@ namespace ase
     class FramebufferImpl;
     class GlDispatchedContext;
     class GlBaseFramebuffer;
+    class GlUniformSet;
     struct GlFunctions;
 
     class GlRenderState
@@ -26,13 +27,12 @@ namespace ase
         void submit(CommandBuffer&& commands);
         void clear(Dispatched, GLbitfield mask);
         void setViewport(Dispatched, Vector2i size);
+        void endFrame();
 
     private:
         // These functions need to be called in dispatched context.
         void pushSpec(Dispatched, GlFunctions const& gl, VertexSpec const& spec,
                 std::vector<int>& activeAttribs);
-        void pushUniforms(Dispatched, GlFunctions const& gl,
-                UniformBuffer const& uniforms);
         void dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
                 CommandBuffer&& commands);
 
@@ -42,14 +42,14 @@ namespace ase
 
         // Current state
         Vector2i viewportSize_;
-        GlBaseFramebuffer const* boundFramebuffer_ = 0;
+        GlBaseFramebuffer const* boundFramebuffer_ = nullptr;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
         GLuint boundVbo_ = 0;
         GLuint boundIbo_ = 0;
         GLenum srcFactor_ = 0;
         GLenum dstFactor_ = 0;
-        size_t uniformHash_ = 0;
+        GlUniformSet const* boundUniformSet_ = nullptr;
         std::vector<GLint> activeAttribs_;
         std::vector<GLuint> activeTextures_;
         bool enableDepthWrite_ = false;

@@ -15,9 +15,11 @@ namespace ase
     class GlFragmentShader;
     class GlVertexBuffer;
     class GlIndexBuffer;
+    class GlUniformBuffer;
     class GlTexture;
     class GlFramebuffer;
     class GlPipeline;
+    class GlUniformSet;
 
     class VertexShader;
     class FragmentShader;
@@ -49,6 +51,10 @@ namespace ase
                 Buffer const& buffer,
                 Usage usage);
 
+        std::shared_ptr<GlUniformBuffer> makeUniformBuffer(
+                Buffer const& buffer,
+                Usage usage);
+
         std::shared_ptr<GlTexture> makeTexture(
                 Vector2i const& size,
                 Format format,
@@ -65,6 +71,8 @@ namespace ase
                 VertexSpec spec,
                 BlendMode srcFactor,
                 BlendMode dstFactor);
+
+        std::shared_ptr<GlUniformSet> makeUniformSet();
 
     private:
         GlRenderContext& context_;

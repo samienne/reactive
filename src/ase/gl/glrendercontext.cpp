@@ -6,11 +6,13 @@
 #include "glvertexshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
+#include "gluniformbuffer.h"
 #include "gltexture.h"
 #include "glerror.h"
 #include "gltype.h"
 #include "glblendmode.h"
 #include "glpipeline.h"
+#include "gluniformset.h"
 #include "gldispatchedcontext.h"
 #include "glfunctions.h"
 
@@ -72,6 +74,11 @@ void GlRenderContext::finish()
                 glFinish();
             });
     wait();
+}
+
+void GlRenderContext::present(Window& /*window*/)
+{
+    renderState_.endFrame();
 }
 
 GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
@@ -145,6 +152,12 @@ std::shared_ptr<IndexBufferImpl> GlRenderContext::makeIndexBufferImpl(
     return objectManager_.makeIndexBuffer(std::move(buffer), usage);
 }
 
+std::shared_ptr<UniformBufferImpl> GlRenderContext::makeUniformBufferImpl(
+        Buffer buffer, Usage usage)
+{
+    return objectManager_.makeUniformBuffer(std::move(buffer), usage);
+}
+
 std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
         Vector2i const& size, Format format, Buffer const& buffer)
 {
@@ -171,6 +184,11 @@ std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
 {
     return objectManager_.makePipelineWithBlend(std::move(program),
             std::move(spec), srcFactor, dstFactor);
+}
+
+std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
+{
+    return objectManager_.makeUniformSet();
 }
 
 GlDispatchedContext const& GlRenderContext::getFgContext() const

@@ -38,6 +38,7 @@ namespace ase
         {
         }
 
+        /*
         inline Buffer(size_t len, void const* data = nullptr) :
             data_(nullptr),
             len_(len),
@@ -48,6 +49,7 @@ namespace ase
 
             data_ = deferred_->data;
         }
+        */
 
         inline Buffer(void const* data, size_t len) :
             data_(nullptr),

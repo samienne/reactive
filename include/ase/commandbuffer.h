@@ -20,7 +20,7 @@ namespace ase
         void push(
                 Framebuffer framebuffer,
                 Pipeline pipeline,
-                UniformBuffer uniforms,
+                UniformSet uniforms,
                 VertexBuffer vertexBuffer,
                 btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,

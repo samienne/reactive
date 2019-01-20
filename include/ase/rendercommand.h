@@ -8,6 +8,7 @@
 #include "indexbuffer.h"
 #include "vertexspec.h"
 #include "framebuffer.h"
+#include "uniformset.h"
 
 #include <btl/option.h>
 #include <btl/visibility.h>
@@ -25,7 +26,7 @@ namespace ase
                 Pipeline pipeline,
                 VertexBuffer vertexBuffer,
                 btl::option<IndexBuffer> indexBuffer,
-                UniformBuffer uniforms,
+                UniformSet uniforms,
                 float z);
 
         RenderCommandDeferred(RenderCommandDeferred const&) = default;
@@ -46,7 +47,7 @@ namespace ase
         btl::option<IndexBuffer> indexBuffer_;
 
         // Uniforms
-        UniformBuffer uniforms_;
+        UniformSet uniforms_;
 
         float z_;
     };
@@ -57,7 +58,7 @@ namespace ase
         RenderCommand(
                 Framebuffer framebuffer,
                 Pipeline pipeline,
-                UniformBuffer uniforms,
+                UniformSet uniforms,
                 VertexBuffer vertexBuffer,
                 btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
@@ -95,7 +96,7 @@ namespace ase
             return d()->indexBuffer_;
         }
 
-        inline UniformBuffer const& getUniforms() const
+        inline UniformSet const& getUniforms() const
         {
             return d()->uniforms_;
         }

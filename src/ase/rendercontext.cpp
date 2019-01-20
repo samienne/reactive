@@ -1,6 +1,7 @@
 #include "rendercontext.h"
 
 #include "rendercontextimpl.h"
+#include "uniformset.h"
 #include "buffer.h"
 #include "fragmentshader.h"
 #include "vertexshader.h"
@@ -83,6 +84,11 @@ IndexBuffer RenderContext::makeIndexBuffer(Buffer buffer, Usage usage)
     return d()->makeIndexBufferImpl(std::move(buffer), usage);
 }
 
+UniformBuffer RenderContext::makeUniformBuffer(Buffer buffer, Usage usage)
+{
+    return UniformBuffer(d()->makeUniformBufferImpl(std::move(buffer), usage));
+}
+
 Texture RenderContext::makeTexture(Vector2i size, Format format, Buffer buffer)
 {
     return Texture(d()->makeTextureImpl(size, format,
@@ -106,6 +112,11 @@ Pipeline RenderContext::makePipelineWithBlend(Program program,
     return Pipeline(d()->makePipelineWithBlend(
                 std::move(program), std::move(vertexSpec), srcFactor,
                 dstFactor));
+}
+
+UniformSet RenderContext::makeUniformSet()
+{
+    return UniformSet(d()->makeUniformSetImpl());
 }
 
 Platform& RenderContext::getPlatform() const

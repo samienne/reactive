@@ -1,5 +1,7 @@
 #include "glrenderstate.h"
 
+#include "gluniformbuffer.h"
+#include "gluniformset.h"
 #include "glprogram.h"
 #include "glfragmentshader.h"
 #include "glvertexshader.h"
@@ -61,6 +63,8 @@ namespace
             return c1.getIndexBuffer() < c2.getIndexBuffer();
 
         // Sort by uniforms
+        if (c1.getUniforms() != c2.getUniforms())
+            return c1.getUniforms() < c2.getUniforms();
 
         return c1.getZ() > c2.getZ();
     }
@@ -167,6 +171,13 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     }
 }
 
+void GlRenderState::endFrame()
+{
+    boundUniformSet_ = nullptr;
+    boundVbo_ = 0;
+    boundIbo_ = 0;
+}
+
 void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
@@ -188,6 +199,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
             .getImpl<GlVertexBuffer>();
         GlBaseFramebuffer const& framebuffer = command.getFramebuffer().getImpl<
             GlBaseFramebuffer>();
+        GlUniformSet const& uniformSet = command.getUniforms()
+            .getImpl<GlUniformSet>();
 
         GLuint vbo = 0;
         GLuint ibo = 0;
@@ -281,7 +294,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
         {
             gl.glUseProgram(glProgram.getGlObject());
             boundProgram_ = glProgram.getGlObject();
-            uniformHash_ = 0u;
         }
 
         if (boundVbo_ != vbo)
@@ -304,10 +316,23 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
             boundIbo_ = ibo;
         }
 
-        if (uniformHash_ != command.getUniforms().getHash())
+        if (boundUniformSet_ != &uniformSet)
         {
-            pushUniforms(Dispatched(), gl, command.getUniforms());
-            uniformHash_ = command.getUniforms().getHash();
+            boundUniformSet_ = &uniformSet;
+
+            for (auto const& uniformRange : uniformSet)
+            {
+                size_t binding = uniformRange.first;
+                UniformBufferRange const& range = uniformRange.second;
+                GlUniformBuffer const& uniformBuffer = range.buffer.getImpl<
+                    GlUniformBuffer>();
+
+                gl.glBindBufferRange(GL_UNIFORM_BUFFER, binding,
+                        uniformBuffer.getBuffer().getBuffer(),
+                        range.offset,
+                        range.size
+                        );
+            }
         }
 
         if (ibo)
@@ -359,67 +384,5 @@ void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,
     activeAttribs.swap(attribs);
 }
 
-void GlRenderState::pushUniforms(Dispatched, GlFunctions const& gl,
-        UniformBuffer const& buffer)
-{
-    for (auto&& uniform : buffer)
-    {
-        switch (uniform.getType())
-        {
-        case UniformType::uniform1fv:
-            gl.glUniform1fv(uniform.getLocation(), uniform.getCount(),
-                    ((GLfloat*)uniform.getData()));
-            break;
-        case UniformType::uniform2fv:
-            gl.glUniform2fv(uniform.getLocation(), uniform.getCount(),
-                    ((GLfloat*)uniform.getData()));
-            break;
-        case UniformType::uniform3fv:
-            gl.glUniform3fv(uniform.getLocation(), uniform.getCount(),
-                    ((GLfloat*)uniform.getData()));
-            break;
-        case UniformType::uniform4fv:
-            gl.glUniform4fv(uniform.getLocation(), uniform.getCount(),
-                    ((GLfloat*)uniform.getData()));
-            break;
-        case UniformType::uniform1iv:
-            gl.glUniform1iv(uniform.getLocation(), uniform.getCount(),
-                    ((GLint*)uniform.getData()));
-            break;
-        case UniformType::uniform2iv:
-            gl.glUniform1iv(uniform.getLocation(), uniform.getCount(),
-                    ((GLint*)uniform.getData()));
-            break;
-        case UniformType::uniform3iv:
-            gl.glUniform1iv(uniform.getLocation(), uniform.getCount(),
-                    ((GLint*)uniform.getData()));
-            break;
-        case UniformType::uniform4iv:
-            gl.glUniform1iv(uniform.getLocation(), uniform.getCount(),
-                    ((GLint*)uniform.getData()));
-            break;
-        case UniformType::uniform1uiv:
-            gl.glUniform1uiv(uniform.getLocation(), uniform.getCount(),
-                    ((GLuint*)uniform.getData()));
-            break;
-        case UniformType::uniform2uiv:
-            gl.glUniform1uiv(uniform.getLocation(), uniform.getCount(),
-                    ((GLuint*)uniform.getData()));
-            break;
-        case UniformType::uniform3uiv:
-            gl.glUniform1uiv(uniform.getLocation(), uniform.getCount(),
-                    ((GLuint*)uniform.getData()));
-            break;
-        case UniformType::uniform4uiv:
-            gl.glUniform1uiv(uniform.getLocation(), uniform.getCount(),
-                    ((GLuint*)uniform.getData()));
-            break;
-        case UniformType::uniformMatrix4fv:
-            gl.glUniformMatrix4fv(uniform.getLocation(), uniform.getCount(),
-                    false, ((GLfloat*)uniform.getData()));
-            break;
-        }
-    }
-}
 } // namespace ase
 

@@ -9,7 +9,13 @@
 #include <ase/blendmode.h>
 
 static char const* simpleVsSource =
-"uniform mat4 worldViewProj;\n"
+"#version 330\n"
+"#extension GL_ARB_shading_language_420pack : require\n"
+"\n"
+"layout(std140, binding = 0) uniform MatrixBlock\n"
+"{\n"
+"   mat4 worldViewProj;\n"
+"} matrices;\n"
 "\n"
 "attribute vec4 color;\n"
 "attribute vec3 pos;\n"
@@ -18,9 +24,9 @@ static char const* simpleVsSource =
 "\n"
 "void main()\n"
 "{\n"
+//"   mat4 m = mat4(0.00249999, 0.0, 0.0, 0.0, 0.0, 0.0033333333, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0);\n"
 "   vColor = color;\n"
-"   gl_Position = worldViewProj * vec4(pos, 1.0);\n"
-//"   gl_Position = vec4((1.0/400.0) * pos, 1.0);\n"
+"   gl_Position = matrices.worldViewProj * vec4(pos, 1.0);\n"
 "}\n";
 
 static char const* simpleFsSource =
@@ -29,6 +35,7 @@ static char const* simpleFsSource =
 "void main()\n"
 "{\n"
 "   gl_FragColor = vColor;\n"
+//"   gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
 "}\n";
 
 namespace avg

@@ -8,11 +8,13 @@
 #include <avg/endtype.h>
 #include <avg/region.h>
 
+#include <ase/uniformbufferrange.h>
+#include <ase/uniformset.h>
+#include <ase/usage.h>
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
-#include <ase/nameduniformbuffer.h>
 #include <ase/async.h>
 
 #include <btl/fnv1a.h>
@@ -217,9 +219,9 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
     return meshes;
 }
 
-void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
-        ase::Framebuffer& framebuffer, ase::Vector2f size,
-        std::vector<Element>&& elements)
+void renderElements(ase::CommandBuffer& commandBuffer,
+        ase::RenderContext& context, ase::Framebuffer& framebuffer,
+        ase::Vector2f size, std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -243,8 +245,13 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    ase::NamedUniformBuffer nub;
-    nub.uniformMatrix4fv("worldViewProj", 1, m.data());
+    ase::Buffer buf(m.data(), 16*sizeof(float));
+    ase::UniformBuffer ub = context.makeUniformBuffer(
+            buf, ase::Usage::StreamDraw);
+    ase::UniformSet uniformSet = context.makeUniformSet();
+
+    uniformSet.bindUniformBufferRange(
+            0, ase::UniformBufferRange{ 0, 16*sizeof(float), std::move(ub) });
 
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
@@ -262,13 +269,12 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
 
         if (!resultVertices.empty() && (outOfElements || pipelineChanged))
         {
-            ase::UniformBuffer ub(pipeline.getProgram(), nub);
             float const z = resultVertices[0][2];
 
             auto vb = context.makeVertexBuffer(ase::Buffer(
                         std::move(resultVertices)), ase::Usage::StreamDraw);
 
-            commandBuffer.push(framebuffer, pipeline, std::move(ub),
+            commandBuffer.push(framebuffer, pipeline, uniformSet,
                     std::move(vb), btl::none, {}, z);
 
             resultVertices.clear();
@@ -318,7 +324,8 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
 
     auto elements = generateElements(painter, meshes);
 
-    render(commandBuffer, context, framebuffer, sizef, std::move(elements));
+    renderElements(commandBuffer, context, framebuffer, sizef,
+            std::move(elements));
 }
 
 avg::Path makeRect(float width, float height)

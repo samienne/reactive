@@ -53,5 +53,8 @@ namespace ase
         PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = nullptr;
         PFNGLBINDVERTEXARRAYPROC glBindVertexArray = nullptr;
         PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
+        PFNGLBINDBUFFERRANGEPROC glBindBufferRange = nullptr;
+        PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
     };
 } // namespace ase
+

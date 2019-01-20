@@ -5,6 +5,7 @@
 #include "glvertexshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
+#include "gluniformbuffer.h"
 #include "gltexture.h"
 #include "glerror.h"
 #include "gltype.h"
@@ -12,6 +13,7 @@
 #include "glpipeline.h"
 #include "glframebuffer.h"
 #include "glrendercontext.h"
+#include "gluniformset.h"
 
 #include "vertexshader.h"
 #include "fragmentshader.h"
@@ -52,7 +54,8 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
 {
     auto vb = std::make_shared<GlVertexBuffer>(context_);
 
-    context_.dispatchBg([vb, ownBuffer=std::move(buffer), usage](GlFunctions const& gl)
+    context_.dispatchBg([&vb, ownBuffer=std::move(buffer), usage]
+            (GlFunctions const& gl) mutable
             {
                 vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
             });
@@ -67,15 +70,32 @@ std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
 {
     auto ib = std::make_shared<GlIndexBuffer>(context_);
 
-    auto ownBuffer = buffer;
-    context_.dispatchBg([ib, ownBuffer, usage](GlFunctions const& gl)
+    context_.dispatchBg([&ib, ownBuffer=std::move(buffer), usage]
+            (GlFunctions const& gl) mutable
             {
-                ib->setData(Dispatched(), gl, ownBuffer, usage);
+                ib->setData(Dispatched(), gl, std::move(ownBuffer), usage);
             });
 
     context_.waitBg();
 
     return ib;
+}
+
+std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer(
+        Buffer const& buffer,
+        Usage usage)
+{
+    auto ub = std::make_shared<GlUniformBuffer>(context_);
+
+    context_.dispatchBg([&ub, ownBuffer=std::move(buffer), usage]
+        (GlFunctions const& gl) mutable
+        {
+            ub->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+        });
+
+    context_.waitBg();
+
+    return ub;
 }
 
 std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
@@ -125,6 +145,11 @@ std::shared_ptr<GlPipeline> GlObjectManager::makePipelineWithBlend(
             srcFactor,
             dstFactor
             );
+}
+
+std::shared_ptr<GlUniformSet> GlObjectManager::makeUniformSet()
+{
+    return std::make_shared<GlUniformSet>(context_);
 }
 
 } // namespace ase

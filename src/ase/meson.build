@@ -41,7 +41,6 @@ libasesrc = [
         'indexbuffer.cpp',
         'mesh.cpp',
         'dispatcher.cpp',
-        'nameduniformbuffer.cpp',
         'uniformbuffer.cpp',
         'fragmentshader.cpp',
         'vertexshader.cpp',
@@ -55,6 +54,7 @@ libasesrc = [
         'pointerbuttonevent.cpp',
         'keyevent.cpp',
         'keycode.cpp',
+        'uniformset.cpp',
         'gl/glplatform.cpp',
         'gl/glprogram.cpp',
         'gl/glshader.cpp',
@@ -63,6 +63,7 @@ libasesrc = [
         'gl/glbuffer.cpp',
         'gl/glvertexbuffer.cpp',
         'gl/glindexbuffer.cpp',
+        'gl/gluniformbuffer.cpp',
         'gl/gltexture.cpp',
         'gl/glerror.cpp',
         'gl/gltype.cpp',
@@ -72,7 +73,8 @@ libasesrc = [
         'gl/glpipeline.cpp',
         'gl/globjectmanager.cpp',
         'gl/glrenderstate.cpp',
-        'gl/gldispatchedcontext.cpp'
+        'gl/gldispatchedcontext.cpp',
+        'gl/gluniformset.cpp'
         ]
 
 libase = library('ase',
