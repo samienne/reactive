@@ -1,5 +1,8 @@
 #pragma once
 
+#include "buffer.h"
+#include "usage.h"
+
 #include <btl/visibility.h>
 
 #include <memory>
@@ -17,6 +20,8 @@ namespace ase
 
         UniformBuffer& operator=(UniformBuffer const&) = default;
         UniformBuffer& operator=(UniformBuffer&&) = default;
+
+        void setData(Buffer buffer, Usage usage);
 
         /**
          * @brief Casts the internal implementation to requested type.

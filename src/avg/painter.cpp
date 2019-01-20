@@ -2,6 +2,8 @@
 #include "brush.h"
 #include "pen.h"
 
+#include <ase/uniformbufferrange.h>
+#include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
 #include <ase/vertexshader.h>
 #include <ase/fragmentshader.h>
@@ -63,12 +65,40 @@ namespace
 
 Painter::Painter(ase::RenderContext& context) :
     solidPipeline_(makePipeline(context, true)),
-    transparentPipeline_(makePipeline(context, false))
+    transparentPipeline_(makePipeline(context, false)),
+    buffer_(),
+    uniformSet_(context.makeUniformSet()),
+    uniformBuffer_(context.makeUniformBuffer(buffer_, ase::Usage::StreamDraw))
 {
+    uniformSet_.bindUniformBufferRange(0,
+            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
 }
 
 Painter::~Painter()
 {
+}
+
+void Painter::setSize(ase::Vector2i size)
+{
+    buffer_.resize(16*sizeof(float));
+    char* data = buffer_.mapWrite<char>();
+
+    ase::Matrix4f m = ase::Matrix4f::Identity();
+    m(0,0) = 2.0f/(float)size[0];
+    m(1,1) = 2.0f/(float)size[1];
+    m(0,3) = -1.0f;
+    m(1,3) = -1.0f;
+
+    std::memcpy(data, m.data(), 16 * sizeof(float));
+
+    uniformBuffer_.setData(buffer_, ase::Usage::StreamDraw);
+    uniformSet_.bindUniformBufferRange(0,
+            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+}
+
+ase::UniformSet const& Painter::getUniformSet() const
+{
+    return uniformSet_;
 }
 
 ase::Pipeline const& Painter::getPipeline(Brush const& brush) const

@@ -212,7 +212,10 @@ public:
         glxWindow.handleEvents(events);
 
         if (resized_)
+        {
             size_.handle.set(glxWindow.getSize().cast<float>());
+            painter_.setSize(glxWindow.getSize());
+        }
         resized_ = false;
 
         auto frameId = getCurrentFrameId();

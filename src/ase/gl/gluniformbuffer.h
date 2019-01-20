@@ -17,6 +17,7 @@ namespace ase
         explicit GlUniformBuffer(GlRenderContext& context);
         GlUniformBuffer(GlUniformBuffer const&) = delete;
         GlUniformBuffer(GlUniformBuffer&&) = delete;
+        ~GlUniformBuffer();
 
         GlUniformBuffer& operator=(GlUniformBuffer const&) = delete;
         GlUniformBuffer& operator=(GlUniformBuffer&&) = delete;
@@ -26,9 +27,13 @@ namespace ase
         void setData(Dispatched, GlFunctions const& gl, Buffer buffer,
                 Usage usage);
 
-        GlBuffer const getBuffer() const;
+        GlBuffer const& getBuffer() const;
+
+        // From UniformBufferImpl
+        void setData(Buffer buffer, Usage usage) override;
 
     private:
+        GlRenderContext& context_;
         size_t size_;
         GlBuffer buffer_;
     };

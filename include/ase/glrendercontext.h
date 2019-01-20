@@ -46,6 +46,7 @@ namespace ase
         friend class GlPipeline;
         friend class GlFramebuffer;
         friend class GlObjectManager;
+        friend class GlUniformBuffer;
 
         void dispatch(std::function<void(GlFunctions const&)>&& func);
         void dispatchBg(std::function<void(GlFunctions const&)>&& func);
