@@ -7,7 +7,7 @@
 #include <GL/gl.h>
 
 #include <string>
-#include <map>
+#include <unordered_map>
 
 namespace ase
 {
@@ -43,8 +43,8 @@ namespace ase
         friend class GlRenderContext;
         GlRenderContext& context_;
         GLuint program_;
-        std::map<std::string, int> uniformLocations_;
-        std::map<std::string, int> attribLocations_;
+        std::unordered_map<std::string, int> uniformLocations_;
+        std::unordered_map<std::string, int> attribLocations_;
     };
 }
 

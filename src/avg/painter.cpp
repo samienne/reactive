@@ -24,7 +24,6 @@ static char const* simpleVsSource =
 "\n"
 "void main()\n"
 "{\n"
-//"   mat4 m = mat4(0.00249999, 0.0, 0.0, 0.0, 0.0, 0.0033333333, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, -1.0, 0.0, 1.0);\n"
 "   vColor = color;\n"
 "   gl_Position = matrices.worldViewProj * vec4(pos, 1.0);\n"
 "}\n";
@@ -35,7 +34,6 @@ static char const* simpleFsSource =
 "void main()\n"
 "{\n"
 "   gl_FragColor = vColor;\n"
-//"   gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);\n"
 "}\n";
 
 namespace avg

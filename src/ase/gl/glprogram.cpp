@@ -136,9 +136,6 @@ void GlProgram::programIntrospection(GlFunctions const& gl)
         uniformLocations_[name] = gl.glGetUniformLocation(program_, name);
         //DBG("Location: %1", uniformLocations_[name]);
     }
-
-    int bi = gl.glGetUniformBlockIndex(program_, "MatrixBlock");
-    DBG("matrices: %1", bi);
 }
 
 } // namespace ase
