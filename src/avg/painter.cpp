@@ -19,10 +19,10 @@ static char const* simpleVsSource =
 "   mat4 worldViewProj;\n"
 "} matrices;\n"
 "\n"
-"attribute vec4 color;\n"
-"attribute vec3 pos;\n"
+"in vec4 color;\n"
+"in vec3 pos;\n"
 "\n"
-"varying vec4 vColor;\n"
+"out vec4 vColor;\n"
 "\n"
 "void main()\n"
 "{\n"
@@ -31,11 +31,13 @@ static char const* simpleVsSource =
 "}\n";
 
 static char const* simpleFsSource =
-"varying vec4 vColor;\n"
+"#version 330\n"
+"in vec4 vColor;\n"
+"out vec4 result;\n"
 "\n"
 "void main()\n"
 "{\n"
-"   gl_FragColor = vColor;\n"
+"   result = vColor;\n"
 "}\n";
 
 namespace avg
