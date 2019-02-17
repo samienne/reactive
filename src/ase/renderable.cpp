@@ -7,13 +7,9 @@
 namespace ase
 {
 
-Renderable::Renderable()
-{
-}
-
-Renderable::Renderable(Mesh const& mesh, Material const& material) :
-    mesh_(mesh),
-    material_(material)
+Renderable::Renderable(Mesh mesh, Material material) :
+    mesh_(std::move(mesh)),
+    material_(std::move(material))
 {
 }
 

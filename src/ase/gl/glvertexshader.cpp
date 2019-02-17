@@ -9,7 +9,7 @@
 namespace ase
 {
 
-GlVertexShader::GlVertexShader(RenderContext& context,
+GlVertexShader::GlVertexShader(GlRenderContext& context,
         std::string const& source) :
     shader_(context, source, GL_VERTEX_SHADER)
 {

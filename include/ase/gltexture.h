@@ -11,14 +11,15 @@
 namespace ase
 {
     class GlPlatform;
-    class RenderContext;
+    class GlRenderContext;
     class Buffer;
     struct Dispatched;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlTexture : public TextureImpl
     {
     public:
-        GlTexture(RenderContext& context);
+        GlTexture(GlRenderContext& context);
         GlTexture(GlTexture const& other) = delete;
         GlTexture(GlTexture&& other) = delete;
         ~GlTexture();
@@ -26,8 +27,11 @@ namespace ase
         GlTexture& operator=(GlTexture const& other) = delete;
         GlTexture& operator=(GlTexture&& other) = delete;
 
-        void setData(Dispatched, Vector2i const& size, Format format,
+        void setData(Dispatched, GlFunctions const& gl, Vector2i const& size,
+                Format format,
                 Buffer const& buffer);
+
+        GLuint getGlObject() const;
 
         // From TextureImpl
         virtual Vector2i getSize() const;
@@ -38,7 +42,7 @@ namespace ase
     private:
         friend class GlRenderContext;
         friend class GlFramebuffer;
-        GlPlatform* platform_;
+        GlRenderContext& context_;
         Vector2i size_;
         GLuint texture_;
         Format format_;

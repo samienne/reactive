@@ -2,15 +2,17 @@
 
 #include "glxwindow.h"
 
+#include "glxframebuffer.h"
+#include "glxdispatchedcontext.h"
 #include "glxrendercontext.h"
 #include "glxcontext.h"
 #include "glxplatform.h"
 #include "glerror.h"
 
+#include "framebuffer.h"
 #include "genericwindow.h"
 #include "windowimpl.h"
 #include "window.h"
-#include "rendertarget.h"
 #include "rendercontext.h"
 #include "dispatcher.h"
 
@@ -87,11 +89,7 @@ public:
     std::string const& getTitle() const override;
     void clear() override;
 
-    // From RenderTargetImpl
-    void makeCurrent(Dispatched,
-            RenderContextImpl& renderContext) const override;
-    bool isComplete() const override;
-    Vector2i getResolution() const override;
+    Vector2i getResolution() const;
 
     GlxWindow* window_;
     inline GlxWindow* q() { return window_; }
@@ -109,9 +107,9 @@ private:
     int64_t counterValue_ = 0;
 
     GenericWindow genericWindow_;
+    Framebuffer defaultFramebuffer_;
 
     bool visible_ = false;
-    mutable bool dirty_ = true;
 
     // Text input handling
     //XComposeStatus composeStatus_;
@@ -146,7 +144,8 @@ GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
         Vector2i const& size) :
     window_(&window),
     platform_(platform),
-    genericWindow_(size)
+    genericWindow_(size),
+    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, window))
 {
     unsigned int width = size[0];
     unsigned int height = size[1];
@@ -347,6 +346,11 @@ Vector2i GlxWindow::getSize() const
     return d()->genericWindow_.getSize();
 }
 
+Framebuffer& GlxWindow::getDefaultFramebuffer()
+{
+    return d()->defaultFramebuffer_;
+}
+
 void GlxWindow::handleEvent(_XEvent const& e)
 {
     // Skip events that are not for us.
@@ -542,30 +546,15 @@ std::string const& GlxWindowDeferred::getTitle() const
 
 void GlxWindowDeferred::clear()
 {
-    dirty_ = true;
+    defaultFramebuffer_.clear();
 }
 
-void GlxWindowDeferred::makeCurrent(Dispatched,
-        RenderContextImpl& renderContext) const
-{
-    auto& glxContext = reinterpret_cast<GlxRenderContext&>(renderContext);
-    glxContext.getContext().makeCurrent(platform_.lockX(), glxWin_);
-    GlFramebuffer fb = GlFramebuffer();
-    fb.makeCurrent(Dispatched(), glxContext);
-    glxContext.setViewport(Dispatched(), genericWindow_.getSize());
-    if (dirty_)
-    {
-        glClearColor(0.0, 0.0, 0.0, 1.0);
-        glxContext.clear(Dispatched(),
-                GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        dirty_ = false;
-    }
-}
-
+/*
 bool GlxWindowDeferred::isComplete() const
 {
     return true;
 }
+*/
 
 Vector2i GlxWindowDeferred::getResolution() const
 {

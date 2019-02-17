@@ -13,12 +13,8 @@
 namespace ase
 {
 
-Program::Program(RenderContext& context, VertexShader const& vertexShader,
-        FragmentShader const& fragmentShader) :
-    deferred_(makeImpl(
-                context,
-                std::move(vertexShader),
-                std::move(fragmentShader)))
+Program::Program(std::shared_ptr<ProgramImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 
@@ -55,13 +51,6 @@ bool Program::operator!=(Program const& rhs) const
 bool Program::operator<(Program const& rhs) const
 {
     return deferred_ < rhs.deferred_;
-}
-
-std::shared_ptr<ProgramImpl> Program::makeImpl(RenderContext& context,
-        VertexShader const& vertexShader, FragmentShader const& fragmentShader)
-{
-    return context.getPlatform().makeProgramImpl(context, *vertexShader.d(),
-            *fragmentShader.d());
 }
 
 } // namespace

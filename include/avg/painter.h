@@ -1,7 +1,11 @@
 #pragma once
 
+#include <ase/buffer.h>
+#include <ase/uniformset.h>
+#include <ase/uniformbuffer.h>
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
+#include <ase/vector.h>
 
 #include <btl/visibility.h>
 
@@ -16,6 +20,10 @@ namespace avg
         Painter(ase::RenderContext& context);
         ~Painter();
 
+        void setSize(ase::Vector2i size);
+
+        ase::UniformSet const& getUniformSet() const;
+
         Painter(Painter const&) = default;
         Painter(Painter&&) = default;
 
@@ -28,6 +36,9 @@ namespace avg
     private:
         ase::Pipeline solidPipeline_;
         ase::Pipeline transparentPipeline_;
+        ase::Buffer buffer_;
+        ase::UniformSet uniformSet_;
+        ase::UniformBuffer uniformBuffer_;
     };
 }
 

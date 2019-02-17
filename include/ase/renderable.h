@@ -15,8 +15,7 @@ namespace ase
     class BTL_VISIBLE Renderable
     {
     public:
-        Renderable();
-        Renderable(Mesh const& mesh, Material const& material);
+        Renderable(Mesh mesh, Material material);
         ~Renderable();
 
         Mesh const& getMesh() const;

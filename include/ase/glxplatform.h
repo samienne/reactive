@@ -33,10 +33,6 @@ namespace ase
 
         std::vector<XEvent> getEvents();
 
-        // From Platform
-        RenderContext& getDefaultContext() override;
-        RenderContext const& getDefaultContext() const override;
-
     private:
         // From Platform
         std::shared_ptr<RenderContextImpl> makeRenderContextImpl() override;

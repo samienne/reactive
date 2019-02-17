@@ -10,16 +10,16 @@ namespace ase
 {
     class GlPlatform;
     class GlRenderContext;
-    class RenderContext;
     struct Dispatched;
+    struct GlFunctions;
 
     class BTL_VISIBLE GlBuffer
     {
     public:
-        GlBuffer(RenderContext& context, GLenum bufferType);
+        GlBuffer(GlRenderContext& context, GLenum bufferType);
         ~GlBuffer();
 
-        void setData(Dispatched, GlRenderContext& context, void const* data,
+        void setData(Dispatched, GlFunctions const& gl, void const* data,
                 size_t len, Usage usage);
         GLuint getBuffer() const;
 
@@ -29,7 +29,7 @@ namespace ase
     private:
         friend class GlRenderContext;
 
-        GlPlatform* platform_;
+        GlRenderContext& context_;
         GLenum bufferType_;
         GLuint buffer_;
     };

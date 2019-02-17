@@ -10,22 +10,8 @@
 namespace ase
 {
 
-VertexBuffer::VertexBuffer()
-{
-}
-
-VertexBuffer::VertexBuffer(RenderContext& context, Buffer const& buffer,
-        Usage usage) :
-    deferred_(context.getPlatform().makeVertexBufferImpl(context, buffer,
-                usage))
-{
-    context.flush();
-}
-
-VertexBuffer::VertexBuffer(RenderContext& context, Buffer const& buffer,
-        Usage usage, Async /*async*/) :
-    deferred_(context.getPlatform().makeVertexBufferImpl(context, buffer,
-                usage))
+VertexBuffer::VertexBuffer(std::shared_ptr<VertexBufferImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 
@@ -46,16 +32,6 @@ bool VertexBuffer::operator!=(VertexBuffer const& other) const
 bool VertexBuffer::operator<(VertexBuffer const& other) const
 {
     return d() < other.d();
-}
-
-/*NamedVertexSpec const& VertexBuffer::getSpec() const
-{
-    return spec_;
-}*/
-
-VertexBuffer::operator bool() const
-{
-    return d();
 }
 
 } // namespace

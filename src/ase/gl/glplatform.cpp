@@ -6,10 +6,12 @@
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gltexture.h"
-#include "glrendertargetobject.h"
+#include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "glpipeline.h"
 
+#include "vertexshader.h"
+#include "fragmentshader.h"
 #include "buffer.h"
 
 #include "debug.h"
@@ -26,132 +28,12 @@ GlPlatform::GlPlatform()
     DBG("GlVertexBuffer size: %1 bytes.", sizeof(GlVertexBuffer));
     DBG("GlIndexBuffer size: %1 bytes.", sizeof(GlIndexBuffer));
     DBG("GlRenderContext size: %1 bytes.", sizeof(GlRenderContext));
-    DBG("GlRenderTargetObject size: %1 bytes.", sizeof(GlRenderTargetObject));
+    DBG("GlFramebuffer size: %1 bytes.", sizeof(GlFramebuffer));
     DBG("GlTexture size: %1 bytes.", sizeof(GlTexture));
 }
 
 GlPlatform::~GlPlatform()
 {
-}
-
-void GlPlatform::dispatchBackground(std::function<void()>&& func)
-{
-    auto& context_ = getDefaultContext().getImpl<GlRenderContext>();
-    context_.dispatch(std::move(func));
-}
-
-void GlPlatform::waitBackground() const
-{
-    auto const& context_ = getDefaultContext().getImpl<GlRenderContext>();
-    context_.wait();
-}
-
-std::shared_ptr<ProgramImpl> GlPlatform::makeProgramImpl(
-        RenderContext& context, VertexShaderImpl const& vertexShader,
-        FragmentShaderImpl const& fragmentShader)
-{
-    return std::make_shared<GlProgram>(context,
-            reinterpret_cast<GlVertexShader const&>(vertexShader),
-            reinterpret_cast<GlFragmentShader const&>(fragmentShader));
-}
-
-std::shared_ptr<VertexShaderImpl> GlPlatform::makeVertexShaderImpl(
-        RenderContext& context, std::string const& source)
-{
-    return std::make_shared<GlVertexShader>(context, source);
-}
-
-std::shared_ptr<FragmentShaderImpl> GlPlatform::makeFragmentShaderImpl(
-        RenderContext& context, std::string const& source)
-{
-    return std::make_shared<GlFragmentShader>(context, source);
-}
-
-std::shared_ptr<VertexBufferImpl> GlPlatform::makeVertexBufferImpl(
-        RenderContext& context, Buffer const& buffer, Usage usage)
-{
-    GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto vb = std::make_shared<GlVertexBuffer>(context);
-
-    auto ownBuffer = buffer;
-    glContext.dispatch([&glContext, vb, ownBuffer, usage]()
-            {
-                vb->setData(Dispatched(), glContext, ownBuffer, usage);
-            });
-
-    // No waiting
-
-    return std::move(vb);
-}
-
-std::shared_ptr<IndexBufferImpl> GlPlatform::makeIndexBufferImpl(
-        RenderContext& context, Buffer const& buffer, Usage usage)
-{
-    GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto ib = std::make_shared<GlIndexBuffer>(context);
-
-    auto ownBuffer = buffer;
-    glContext.dispatch([&glContext, ib, ownBuffer, usage]()
-            {
-                ib->setData(Dispatched(), glContext, ownBuffer, usage);
-            });
-
-    // No waiting
-
-    return std::move(ib);
-}
-
-std::shared_ptr<TextureImpl> GlPlatform::makeTextureImpl(
-        RenderContext& context, Vector2i const& size, Format format,
-        Buffer const& buffer)
-{
-    GlRenderContext& glContext = context.getImpl<GlRenderContext>();
-    auto texture = std::make_shared<GlTexture>(context);
-
-    auto ownBuffer = buffer;
-    auto ownSize = size;
-    glContext.dispatch([texture, ownBuffer, ownSize, format]()
-            {
-                texture->setData(Dispatched(), ownSize, format, ownBuffer);
-            });
-
-    // No waiting
-
-    return std::move(texture);
-}
-
-std::shared_ptr<RenderTargetObjectImpl> GlPlatform::makeRenderTargetObjectImpl(
-        RenderContext& context)
-{
-    return std::make_shared<GlRenderTargetObject>(context);
-}
-
-std::shared_ptr<PipelineImpl> GlPlatform::makePipeline(
-        RenderContext& context,
-        Program program,
-        VertexSpec spec)
-{
-    return std::make_shared<GlPipeline>(
-            context.getImpl<GlRenderContext>(),
-            std::move(program),
-            std::move(spec)
-            );
-}
-
-std::shared_ptr<PipelineImpl> GlPlatform::makePipelineWithBlend(
-        RenderContext& context,
-        Program program,
-        VertexSpec spec,
-        BlendMode srcFactor,
-        BlendMode dstFactor)
-{
-    return std::make_shared<GlPipeline>(
-            context.getImpl<GlRenderContext>(),
-            std::move(program),
-            std::move(spec),
-            srcFactor,
-            dstFactor
-            );
 }
 
 } // namespace ase

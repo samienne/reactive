@@ -18,21 +18,16 @@ namespace ase
     class BTL_VISIBLE IndexBuffer
     {
     public:
-        IndexBuffer();
+        IndexBuffer(std::shared_ptr<IndexBufferImpl> impl);
         IndexBuffer(IndexBuffer const& other) = default;
         IndexBuffer(IndexBuffer&& other) = default;
-        IndexBuffer(RenderContext& context, Buffer const& buffer, Usage usage);
-        IndexBuffer(RenderContext& context, Buffer const& buffer, Usage usage,
-                Async async);
         ~IndexBuffer();
 
         IndexBuffer& operator=(IndexBuffer const& other) = default;
         IndexBuffer& operator=(IndexBuffer&& other) = default;
 
-        bool isEmpty() const;
-
-        bool operator<(IndexBuffer const& other) const;
-        operator bool() const;
+        bool operator==(IndexBuffer const& rhs) const;
+        bool operator<(IndexBuffer const& rhs) const;
 
         template <class T>
         T const& getImpl() const

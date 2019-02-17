@@ -3,6 +3,7 @@
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "glformat.h"
+#include "glfunctions.h"
 
 #include "format.h"
 #include "buffer.h"
@@ -12,8 +13,8 @@
 namespace ase
 {
 
-GlTexture::GlTexture(RenderContext& context) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform())),
+GlTexture::GlTexture(GlRenderContext& context) :
+    context_(context),
     size_(0, 0),
     texture_(0)
 {
@@ -24,8 +25,8 @@ GlTexture::~GlTexture()
     destroy();
 }
 
-void GlTexture::setData(Dispatched, Vector2i const& size, Format format,
-        Buffer const& buffer)
+void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
+        Vector2i const& size, Format format, Buffer const& buffer)
 {
     if (buffer.data()
             && size[0] * size[1] * getBytes(format) > buffer.getSize())
@@ -50,6 +51,11 @@ void GlTexture::setData(Dispatched, Vector2i const& size, Format format,
     DBG("Loaded texture data %1", texture_);
 }
 
+GLuint GlTexture::getGlObject() const
+{
+    return texture_;
+}
+
 Vector2i GlTexture::getSize() const
 {
     return size_;
@@ -57,11 +63,12 @@ Vector2i GlTexture::getSize() const
 
 void GlTexture::destroy()
 {
-    if (platform_ && texture_)
+    if (texture_)
     {
         GLuint texture = texture_;
         texture_ = 0;
-        platform_->dispatchBackground([texture]()
+
+        context_.dispatchBg([texture](GlFunctions const&)
             {
                 glDeleteTextures(1, &texture);
                 DBG("Texture %1 deleted", texture);

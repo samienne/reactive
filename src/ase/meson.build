@@ -9,7 +9,9 @@ if target_machine.system() == 'linux'
         'glx/glxplatform.cpp',
         'glx/glxrendercontext.cpp',
         'glx/glxwindow.cpp',
-        'glx/glxcontext.cpp'
+        'glx/glxcontext.cpp',
+        'glx/glxdispatchedcontext.cpp',
+        'glx/glxframebuffer.cpp'
         ]
 else
     system_deps = []
@@ -39,20 +41,20 @@ libasesrc = [
         'indexbuffer.cpp',
         'mesh.cpp',
         'dispatcher.cpp',
-        'nameduniformbuffer.cpp',
         'uniformbuffer.cpp',
         'fragmentshader.cpp',
         'vertexshader.cpp',
         'program.cpp',
+        'commandbuffer.cpp',
         'rendercommand.cpp',
         'renderqueue.cpp',
         'texture.cpp',
-        'rendertarget.cpp',
-        'rendertargetobject.cpp',
+        'framebuffer.cpp',
         'pipeline.cpp',
         'pointerbuttonevent.cpp',
         'keyevent.cpp',
         'keycode.cpp',
+        'uniformset.cpp',
         'gl/glplatform.cpp',
         'gl/glprogram.cpp',
         'gl/glshader.cpp',
@@ -61,14 +63,18 @@ libasesrc = [
         'gl/glbuffer.cpp',
         'gl/glvertexbuffer.cpp',
         'gl/glindexbuffer.cpp',
+        'gl/gluniformbuffer.cpp',
         'gl/gltexture.cpp',
         'gl/glerror.cpp',
         'gl/gltype.cpp',
         'gl/glblendmode.cpp',
         'gl/glrendercontext.cpp',
-        'gl/glrendertargetobject.cpp',
         'gl/glframebuffer.cpp',
-        'gl/glpipeline.cpp'
+        'gl/glpipeline.cpp',
+        'gl/globjectmanager.cpp',
+        'gl/glrenderstate.cpp',
+        'gl/gldispatchedcontext.cpp',
+        'gl/gluniformset.cpp'
         ]
 
 libase = library('ase',

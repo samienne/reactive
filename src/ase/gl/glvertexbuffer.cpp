@@ -10,7 +10,7 @@
 namespace ase
 {
 
-GlVertexBuffer::GlVertexBuffer(RenderContext& context) :
+GlVertexBuffer::GlVertexBuffer(GlRenderContext& context) :
     buffer_(context, GL_ARRAY_BUFFER)
 {
 }
@@ -24,12 +24,11 @@ size_t GlVertexBuffer::getSize() const
     return size_;
 }
 
-void GlVertexBuffer::setData(Dispatched, GlRenderContext& context,
+void GlVertexBuffer::setData(Dispatched, GlFunctions const& gl,
         Buffer const& buffer, Usage usage)
 {
     //DBG("GlVertexBuffer::setData len: %1", buffer.getSize());
-    buffer_.setData(Dispatched(), context, buffer.data(), buffer.getSize(),
-            usage);
+    buffer_.setData(Dispatched(), gl, buffer.data(), buffer.getSize(), usage);
 
     size_ = buffer.getSize();
 }

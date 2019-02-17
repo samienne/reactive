@@ -7,8 +7,10 @@
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
 #include "vertexspec.h"
-#include "rendertarget.h"
+#include "framebuffer.h"
+#include "uniformset.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 #include <vector>
@@ -19,12 +21,12 @@ namespace ase
     struct BTL_VISIBLE RenderCommandDeferred
     {
         RenderCommandDeferred(
-                RenderTarget target,
+                Framebuffer framebuffer,
                 std::vector<Texture> textures,
                 Pipeline pipeline,
                 VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer,
-                UniformBuffer uniforms,
+                btl::option<IndexBuffer> indexBuffer,
+                UniformSet uniforms,
                 float z);
 
         RenderCommandDeferred(RenderCommandDeferred const&) = default;
@@ -33,7 +35,7 @@ namespace ase
                 RenderCommandDeferred const&) = default;
         RenderCommandDeferred& operator=(RenderCommandDeferred&&) noexcept = default;
 
-        RenderTarget renderTarget_;
+        Framebuffer framebuffer_;
 
         // Textures
         std::vector<Texture> textures_;
@@ -42,10 +44,10 @@ namespace ase
 
         // Vertex data
         VertexBuffer vertexBuffer_;
-        IndexBuffer indexBuffer_;
+        btl::option<IndexBuffer> indexBuffer_;
 
         // Uniforms
-        UniformBuffer uniforms_;
+        UniformSet uniforms_;
 
         float z_;
     };
@@ -54,11 +56,11 @@ namespace ase
     {
     public:
         RenderCommand(
-                RenderTarget target,
+                Framebuffer framebuffer,
                 Pipeline pipeline,
-                UniformBuffer uniforms,
+                UniformSet uniforms,
                 VertexBuffer vertexBuffer,
-                IndexBuffer indexBuffer,
+                btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
 
@@ -69,9 +71,9 @@ namespace ase
         RenderCommand& operator=(RenderCommand const&) = default;
         RenderCommand& operator=(RenderCommand&&) = default;
 
-        inline RenderTarget const& getRenderTarget() const
+        inline Framebuffer const& getFramebuffer() const
         {
-            return d()->renderTarget_;
+            return d()->framebuffer_;
         }
 
         inline std::vector<Texture> const& getTextures() const
@@ -84,31 +86,17 @@ namespace ase
             return d()->pipeline_;
         }
 
-        /*
-        inline Program const& getProgram() const
-        {
-            return d()->pipeline_.getProgram();
-        }
-        */
-
         inline VertexBuffer const& getVertexBuffer() const
         {
             return d()->vertexBuffer_;
         }
 
-        /*
-        inline VertexSpec const& getVertexSpec() const
-        {
-            return d()->pipeline_.getSpec();
-        }
-        */
-
-        inline IndexBuffer const& getIndexBuffer() const
+        inline btl::option<IndexBuffer> const& getIndexBuffer() const
         {
             return d()->indexBuffer_;
         }
 
-        inline UniformBuffer const& getUniforms() const
+        inline UniformSet const& getUniforms() const
         {
             return d()->uniforms_;
         }

@@ -22,12 +22,9 @@ namespace ase
     class BTL_VISIBLE VertexBuffer
     {
     public:
-        VertexBuffer();
+        explicit VertexBuffer(std::shared_ptr<VertexBufferImpl> impl);
         VertexBuffer(VertexBuffer const& other) = default;
         VertexBuffer(VertexBuffer&& other) = default;
-        VertexBuffer(RenderContext& context, Buffer const& buffer, Usage usage);
-        VertexBuffer(RenderContext& context, Buffer const& buffer, Usage usage,
-                Async async);
         ~VertexBuffer();
 
         VertexBuffer& operator=(VertexBuffer const& other) = default;
@@ -36,8 +33,6 @@ namespace ase
         bool operator==(VertexBuffer const& other) const;
         bool operator!=(VertexBuffer const& other) const;
         bool operator<(VertexBuffer const& other) const;
-
-        operator bool() const;
 
         /**
          * @brief Casts the internal implementation to requested type.

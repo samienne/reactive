@@ -1,5 +1,7 @@
 #pragma once
 
+#include "glbaseframebuffer.h"
+
 #include "dispatcher.h"
 
 #include <btl/visibility.h>
@@ -13,21 +15,24 @@ namespace ase
     class GlTexture;
     class GlPlatform;
     class GlRenderContext;
+    struct GlFunctions;
 
-    class BTL_VISIBLE GlFramebuffer
+    class BTL_VISIBLE GlFramebuffer : public GlBaseFramebuffer
     {
     public:
         GlFramebuffer();
-        GlFramebuffer(Dispatched, GlPlatform& platform,
+        GlFramebuffer(GlRenderContext& context);
+        GlFramebuffer(Dispatched, GlFunctions const& gl,
                 GlRenderContext& context);
+
+        static GlFramebuffer makeDefault(GlRenderContext& context);
+
         GlFramebuffer(GlFramebuffer const& rhs) = delete;
-        GlFramebuffer(GlFramebuffer&& rhs) = default;
+        GlFramebuffer(GlFramebuffer&& rhs) noexcept;
+
         ~GlFramebuffer();
 
-        void destroy(Dispatched, GlRenderContext& context);
-
-        GlFramebuffer& operator=(GlFramebuffer const& rhs) = delete;
-        GlFramebuffer& operator=(GlFramebuffer&& rhs) noexcept;
+        void destroy(Dispatched, GlFunctions const&);
 
         bool operator==(GlFramebuffer const& rhs) const;
         bool operator!=(GlFramebuffer const& rhs) const;
@@ -35,16 +40,47 @@ namespace ase
 
         operator bool() const;
 
-        void setColorTarget(Dispatched, GlRenderContext& context, size_t index,
+        /*
+        void setColorTarget(Dispatched, GlFunctions const& gl, size_t index,
                 Texture const& texture);
-        void setColorTarget(Dispatched, GlRenderContext& context, size_t index,
+        void setColorTarget(Dispatched, GlFunctions const& gl, size_t index,
                 GlTexture const& texture);
+                */
 
-        void makeCurrent(Dispatched, GlRenderContext& context) const;
+        void makeCurrent(Dispatched, GlRenderContext& context,
+                GlFunctions const& gl) const override;
+
+        // FramebufferImpl
+        void setColorTarget(size_t index, Texture texture) override;
+        void setColorTarget(size_t index, Renderbuffer texture) override;
+        void unsetColorTarget(size_t index) override;
+
+        void setDepthTarget(Renderbuffer buffer) override;
+        void unsetDepthTarget() override;
+
+        void setStencilTarget(Renderbuffer buffer) override;
+        void unsetStencilTarget() override;
+
+        void clear() override;
 
     private:
-        GlPlatform* platform_;
-        GLuint framebuffer_;
+        friend class GlRenderContext;
+        GlFramebuffer(GlRenderContext& context, std::nullptr_t);
+
+    private:
+        GlRenderContext& context_;
+        GLuint framebuffer_ = 0;
+
+        struct Attachment
+        {
+            GLenum target = 0;
+            GLuint object = 0;
+        };
+
+        std::array<Attachment, 8> colorAttachments_;
+        GLuint depthAttachment_ = 0;
+        GLuint stencilAttachment_ = 0;
+        mutable bool dirty_ = true;
     };
 }
 

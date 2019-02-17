@@ -8,11 +8,13 @@
 #include <avg/endtype.h>
 #include <avg/region.h>
 
+#include <ase/uniformbufferrange.h>
+#include <ase/uniformset.h>
+#include <ase/usage.h>
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
-#include <ase/nameduniformbuffer.h>
 #include <ase/async.h>
 
 #include <btl/fnv1a.h>
@@ -217,8 +219,10 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
     return meshes;
 }
 
-void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
-        ase::RenderTarget& target, std::vector<Element>&& elements)
+void renderElements(ase::CommandBuffer& commandBuffer,
+        ase::RenderContext& context, ase::Framebuffer& framebuffer,
+        avg::Painter const& painter, ase::Vector2f size,
+        std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -236,18 +240,21 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
         count += element.second.size();
     resultVertices.reserve(count);
 
-    auto&& size = target.getResolution();
-
+    /*
     ase::Matrix4f m = ase::Matrix4f::Identity();
     m(0,0) = 2.0f/(float)size[0];
     m(1,1) = 2.0f/(float)size[1];
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    ase::NamedUniformBuffer nub;
-    nub.uniformMatrix4fv("worldViewProj", 1, m.data());
+    ase::Buffer buf(m.data(), 16*sizeof(float));
+    ase::UniformBuffer ub = context.makeUniformBuffer(
+            buf, ase::Usage::StreamDraw);
+    ase::UniformSet uniformSet = context.makeUniformSet();
 
-    ase::IndexBuffer ib;
+    uniformSet.bindUniformBufferRange(
+            0, ase::UniformBufferRange{ 0, 16*sizeof(float), std::move(ub) });
+    */
 
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
@@ -265,15 +272,13 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
 
         if (!resultVertices.empty() && (outOfElements || pipelineChanged))
         {
-            ase::UniformBuffer ub(pipeline.getProgram(), nub);
             float const z = resultVertices[0][2];
 
-            ase::VertexBuffer vb(context, ase::Buffer(
-                        std::move(resultVertices)), ase::Usage::StreamDraw,
-                    ase::Async());
+            auto vb = context.makeVertexBuffer(ase::Buffer(
+                        std::move(resultVertices)), ase::Usage::StreamDraw);
 
-            renderQueue.push(target, pipeline, ub, vb, ib,
-                    {ase::Texture()}, z);
+            commandBuffer.push(framebuffer, pipeline, painter.getUniformSet(),
+                    std::move(vb), btl::none, {}, z);
 
             resultVertices.clear();
         }
@@ -304,16 +309,17 @@ std::vector<Element> generateElements(avg::Painter const& painter,
 
 } // anonymous namespace
 
-void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
-        ase::RenderTarget& target, avg::Painter const& painter,
-        avg::Drawing const& drawing)
+void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
+        ase::Framebuffer& framebuffer, ase::Vector2i size,
+        avg::Painter const& painter, avg::Drawing const& drawing)
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     int const resPerPixel = 4;
+    avg::Vector2f sizef((float)size[0], (float)size[1]);
 
     avg::Rect rect(
             avg::Vector2f(0.0f, 0.0f),
-            avg::Vector2f(target.getResolution()[0], target.getResolution()[1])
+            sizef
             );
 
     auto meshes = generateMeshes(painter, avg::Transform(),
@@ -321,7 +327,8 @@ void render(ase::RenderQueue& renderQueue, ase::RenderContext& context,
 
     auto elements = generateElements(painter, meshes);
 
-    render(renderQueue, context, target, std::move(elements));
+    renderElements(commandBuffer, context, framebuffer, painter, sizef,
+            std::move(elements));
 }
 
 avg::Path makeRect(float width, float height)

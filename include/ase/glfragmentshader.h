@@ -10,12 +10,12 @@
 
 namespace ase
 {
-    class RenderContext;
+    class GlRenderContext;
 
     class BTL_VISIBLE GlFragmentShader : public FragmentShaderImpl
     {
     public:
-        GlFragmentShader(RenderContext& context, std::string const& source);
+        GlFragmentShader(GlRenderContext& context, std::string const& source);
         GlFragmentShader(GlFragmentShader const& other) = delete;
         GlFragmentShader(GlFragmentShader&& other) = delete;
         virtual ~GlFragmentShader();

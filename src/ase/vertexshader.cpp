@@ -6,12 +6,8 @@
 namespace ase
 {
 
-VertexShader::VertexShader()
-{
-}
-
-VertexShader::VertexShader(RenderContext& context, std::string const& source) :
-    deferred_(context.getPlatform().makeVertexShaderImpl(context, source))
+VertexShader::VertexShader(std::shared_ptr<VertexShaderImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 

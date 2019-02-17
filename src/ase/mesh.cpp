@@ -3,21 +3,17 @@
 namespace ase
 {
 
-Mesh::Mesh()
+Mesh::Mesh(Aabb const& aabb, VertexBuffer vertexBuffer) :
+    aabb_(aabb),
+    vertexBuffer_(std::move(vertexBuffer))
 {
 }
 
-Mesh::Mesh(Aabb&& aabb, VertexBuffer const& vertexBuffer) :
+Mesh::Mesh(Aabb const& aabb, VertexBuffer vertexBuffer,
+        IndexBuffer indexBuffer) :
     aabb_(aabb),
-    vertexBuffer_(vertexBuffer)
-{
-}
-
-Mesh::Mesh(Aabb&& aabb, VertexBuffer const& vertexBuffer,
-        IndexBuffer const& indexBuffer) :
-    aabb_(aabb),
-    vertexBuffer_(vertexBuffer),
-    indexBuffer_(indexBuffer)
+    vertexBuffer_(std::move(vertexBuffer)),
+    indexBuffer_(btl::just(std::move(indexBuffer)))
 {
 }
 
@@ -37,12 +33,12 @@ VertexBuffer const& Mesh::getVertexBuffer() const
 
 IndexBuffer const& Mesh::getIndexBuffer() const
 {
-    return indexBuffer_;
+    return *indexBuffer_;
 }
 
 bool Mesh::hasIndexBuffer() const
 {
-    return indexBuffer_.isEmpty();
+    return indexBuffer_.valid();
 }
 
 bool Mesh::operator<(Mesh const& other) const

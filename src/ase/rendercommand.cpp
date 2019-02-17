@@ -1,19 +1,17 @@
 #include "rendercommand.h"
 
-#include "rendertarget.h"
-
 namespace ase
 {
 
 RenderCommandDeferred::RenderCommandDeferred(
-        RenderTarget renderTarget,
+        Framebuffer framebuffer,
         std::vector<Texture> textures,
         Pipeline pipeline,
         VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
-        UniformBuffer uniforms,
+        btl::option<IndexBuffer> indexBuffer,
+        UniformSet uniforms,
         float z) :
-    renderTarget_(std::move(renderTarget)),
+    framebuffer_(std::move(framebuffer)),
     textures_(std::move(textures)),
     pipeline_(std::move(pipeline)),
     vertexBuffer_(std::move(vertexBuffer)),
@@ -24,15 +22,15 @@ RenderCommandDeferred::RenderCommandDeferred(
 }
 
 RenderCommand::RenderCommand(
-        RenderTarget renderTarget,
+        Framebuffer framebuffer,
         Pipeline pipeline,
-        UniformBuffer uniforms,
+        UniformSet uniforms,
         VertexBuffer vertexBuffer,
-        IndexBuffer indexBuffer,
+        btl::option<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
         float z)
     : deferred_(
-            std::move(renderTarget),
+            std::move(framebuffer),
             std::move(textures),
             std::move(pipeline),
             std::move(vertexBuffer),

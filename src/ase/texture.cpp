@@ -8,21 +8,8 @@
 namespace ase
 {
 
-Texture::Texture()
-{
-}
-
-Texture::Texture(RenderContext& context, Vector2i const& size, Format format,
-        Buffer const& buffer) :
-    Texture(context, size, format, buffer, Async())
-{
-    context.flush();
-}
-
-Texture::Texture(RenderContext& context, Vector2i const& size, Format format,
-        Buffer const& buffer, Async /*async*/) :
-    deferred_(context.getPlatform().makeTextureImpl(context, size, format,
-                buffer))
+Texture::Texture(std::shared_ptr<TextureImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 
@@ -30,19 +17,24 @@ Texture::~Texture()
 {
 }
 
-bool Texture::operator==(Texture const& other) const
+bool Texture::operator==(Texture const& rhs) const
 {
-    return deferred_ == other.deferred_;
+    return deferred_ == rhs.deferred_;
 }
 
-bool Texture::operator!=(Texture const& other) const
+bool Texture::operator!=(Texture const& rhs) const
 {
-    return deferred_ != other.deferred_;
+    return deferred_ != rhs.deferred_;
 }
 
-bool Texture::operator<=(Texture const& other) const
+bool Texture::operator<=(Texture const& rhs) const
 {
-    return deferred_ <= other.deferred_;
+    return deferred_ <= rhs.deferred_;
+}
+
+bool Texture::operator<(Texture const& rhs) const
+{
+    return deferred_ < rhs.deferred_;
 }
 
 Format Texture::getFormat()
@@ -50,17 +42,9 @@ Format Texture::getFormat()
     return format_;
 }
 
-Texture::operator bool() const
-{
-    return d();
-}
-
 Vector2i Texture::getSize() const
 {
-    if (d())
-        return d()->getSize();
-
-    return Vector2i(0, 0);
+    return d()->getSize();
 }
 
 } // namespace

@@ -16,8 +16,7 @@ namespace ase
     class BTL_VISIBLE Program
     {
     public:
-        Program(RenderContext& context, VertexShader const& vertexShader,
-                FragmentShader const& fragmentShader);
+        Program(std::shared_ptr<ProgramImpl> impl);
         ~Program();
 
         int getUniformLocation(std::string const& name) const;

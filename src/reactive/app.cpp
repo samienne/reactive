@@ -1,8 +1,6 @@
 #include "app.h"
 #include "glxapp.h"
 
-#include "rendering.h"
-
 #include "debug.h"
 
 #include "reactive/signal/input.h"

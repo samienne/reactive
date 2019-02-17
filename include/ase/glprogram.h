@@ -7,11 +7,11 @@
 #include <GL/gl.h>
 
 #include <string>
-#include <map>
+#include <unordered_map>
 
 namespace ase
 {
-    class RenderContext;
+    class GlRenderContext;
     class GlVertexShader;
     class GlFragmentShader;
     class GlPlatform;
@@ -20,9 +20,17 @@ namespace ase
     class BTL_VISIBLE GlProgram : public ProgramImpl
     {
     public:
-        GlProgram(RenderContext& context, GlVertexShader const& vertexShader,
+        GlProgram(GlRenderContext& context, GlVertexShader const& vertexShader,
                 GlFragmentShader const& fragmentShader);
         ~GlProgram();
+
+        GlProgram(GlProgram const&) = delete;
+        GlProgram(GlProgram&&) = delete;
+
+        GlProgram& operator=(GlProgram const&) = delete;
+        GlProgram& operator=(GlProgram&&) = delete;
+
+        GLuint getGlObject() const;
 
         virtual int getUniformLocation(std::string const& name) const;
         virtual int getAttribLocation(std::string const& name) const;
@@ -33,10 +41,10 @@ namespace ase
 
     private:
         friend class GlRenderContext;
-        GlPlatform* platform_;
+        GlRenderContext& context_;
         GLuint program_;
-        std::map<std::string, int> uniformLocations_;
-        std::map<std::string, int> attribLocations_;
+        std::unordered_map<std::string, int> uniformLocations_;
+        std::unordered_map<std::string, int> attribLocations_;
     };
 }
 

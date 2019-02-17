@@ -2,6 +2,7 @@
 
 #include "glrendercontext.h"
 #include "glplatform.h"
+#include "glfunctions.h"
 
 #include "rendercontext.h"
 
@@ -12,21 +13,22 @@
 namespace ase
 {
 
-GlShader::GlShader(RenderContext& context, std::string const& source,
+GlShader::GlShader(GlRenderContext& context, std::string const& source,
         GLenum shaderType) :
-    platform_(&reinterpret_cast<GlPlatform&>(context.getPlatform()))
+    context_(context)
 {
     try
     {
-        auto& glContext = context.getImpl<GlRenderContext>();
         bool failed = false;
         std::string logStr;
-        glContext.dispatch([this, &glContext, &logStr, &source, &failed,
-                shaderType]()
+
+        context.dispatchBg([this, &logStr, &source, &failed,
+                shaderType](GlFunctions const& gl)
             {
-                GlFunctions const& gl = glContext.getGlFunctions();
                 shader_ = gl.glCreateShader(shaderType);
+
                 char const* str = source.c_str();
+
                 gl.glShaderSource(shader_, 1, &str, 0);
                 gl.glCompileShader(shader_);
 
@@ -41,14 +43,16 @@ GlShader::GlShader(RenderContext& context, std::string const& source,
                     char* log;
                     GLsizei len;
                     gl.glGetShaderiv(shader_, GL_INFO_LOG_LENGTH, &len);
+
                     log = new char[len];
                     gl.glGetShaderInfoLog(shader_, len, &len, log);
                     logStr = log;
+
                     delete [] log;
                 }
             });
 
-        glContext.wait();
+        context.waitBg();
 
         if (failed)
         {
@@ -77,11 +81,10 @@ void GlShader::destroy()
     {
         GLuint shader = shader_;
         shader_ = 0;
-        auto& glContext = platform_->getDefaultContext()
-            .getImpl<GlRenderContext>();
-        platform_->dispatchBackground([&glContext, shader]()
+
+        context_.dispatchBg([shader](GlFunctions const& gl)
             {
-                glContext.getGlFunctions().glDeleteShader(shader);
+                gl.glDeleteShader(shader);
             });
     }
 }

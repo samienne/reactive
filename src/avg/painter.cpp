@@ -2,6 +2,8 @@
 #include "brush.h"
 #include "pen.h"
 
+#include <ase/uniformbufferrange.h>
+#include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
 #include <ase/vertexshader.h>
 #include <ase/fragmentshader.h>
@@ -9,26 +11,33 @@
 #include <ase/blendmode.h>
 
 static char const* simpleVsSource =
-"uniform mat4 worldViewProj;\n"
+"#version 330\n"
+"#extension GL_ARB_shading_language_420pack : require\n"
 "\n"
-"attribute vec4 color;\n"
-"attribute vec3 pos;\n"
+"layout(std140, binding = 0) uniform MatrixBlock\n"
+"{\n"
+"   mat4 worldViewProj;\n"
+"} matrices;\n"
 "\n"
-"varying vec4 vColor;\n"
+"in vec4 color;\n"
+"in vec3 pos;\n"
+"\n"
+"out vec4 vColor;\n"
 "\n"
 "void main()\n"
 "{\n"
 "   vColor = color;\n"
-"   gl_Position = worldViewProj * vec4(pos, 1.0);\n"
-//"   gl_Position = vec4((1.0/400.0) * pos, 1.0);\n"
+"   gl_Position = matrices.worldViewProj * vec4(pos, 1.0);\n"
 "}\n";
 
 static char const* simpleFsSource =
-"varying vec4 vColor;\n"
+"#version 330\n"
+"in vec4 vColor;\n"
+"out vec4 result;\n"
 "\n"
 "void main()\n"
 "{\n"
-"   gl_FragColor = vColor;\n"
+"   result = vColor;\n"
 "}\n";
 
 namespace avg
@@ -41,27 +50,57 @@ namespace
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        ase::VertexShader vs(context, simpleVsSource);
-        ase::FragmentShader fs(context, simpleFsSource);
-        ase::Program program(context, vs, fs);
+        auto vs = context.makeVertexShader(simpleVsSource);
+        auto fs = context.makeFragmentShader(simpleFsSource);
+        auto program = context.makeProgram(std::move(vs), std::move(fs));
         ase::VertexSpec spec(program, std::move(namedSpec));
-        if (solid)
-            return ase::Pipeline(context, program, spec);
-        else
-            return ase::Pipeline(context, program, spec, ase::BlendMode::One,
-                    ase::BlendMode::OneMinusSrcAlpha);
 
+        if (solid)
+            return context.makePipeline(program, spec);
+        else
+        {
+            return context.makePipelineWithBlend(program, spec,
+                    ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
+        }
     }
 } // anonymous namespace
 
 Painter::Painter(ase::RenderContext& context) :
     solidPipeline_(makePipeline(context, true)),
-    transparentPipeline_(makePipeline(context, false))
+    transparentPipeline_(makePipeline(context, false)),
+    buffer_(),
+    uniformSet_(context.makeUniformSet()),
+    uniformBuffer_(context.makeUniformBuffer(buffer_, ase::Usage::StreamDraw))
 {
+    uniformSet_.bindUniformBufferRange(0,
+            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
 }
 
 Painter::~Painter()
 {
+}
+
+void Painter::setSize(ase::Vector2i size)
+{
+    buffer_.resize(16*sizeof(float));
+    char* data = buffer_.mapWrite<char>();
+
+    ase::Matrix4f m = ase::Matrix4f::Identity();
+    m(0,0) = 2.0f/(float)size[0];
+    m(1,1) = 2.0f/(float)size[1];
+    m(0,3) = -1.0f;
+    m(1,3) = -1.0f;
+
+    std::memcpy(data, m.data(), 16 * sizeof(float));
+
+    uniformBuffer_.setData(buffer_, ase::Usage::StreamDraw);
+    uniformSet_.bindUniformBufferRange(0,
+            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+}
+
+ase::UniformSet const& Painter::getUniformSet() const
+{
+    return uniformSet_;
 }
 
 ase::Pipeline const& Painter::getPipeline(Brush const& brush) const

@@ -1,16 +1,15 @@
 #pragma once
 
-#include "rendertarget.h"
-
 #include <btl/visibility.h>
 
 #include <string>
+#include <memory>
 
 namespace ase
 {
     class WindowImpl;
 
-    class BTL_VISIBLE Window : public RenderTarget
+    class BTL_VISIBLE Window
     {
     public:
         Window();
@@ -28,13 +27,16 @@ namespace ase
 
         void clear();
 
-    protected:
-        inline WindowImpl* d() { return reinterpret_cast<WindowImpl*>(
-                RenderTarget::d()); }
-        inline WindowImpl const* d() const
+        template <class T>
+        T const& getImpl() const
         {
-            return reinterpret_cast<WindowImpl const*>(RenderTarget::d());
+            return reinterpret_cast<T const&>(*d());
         }
+
+    protected:
+        std::shared_ptr<WindowImpl> deferred_;
+        inline WindowImpl* d() { return deferred_.get(); }
+        inline WindowImpl const* d() const { return deferred_.get(); }
     };
 }
 

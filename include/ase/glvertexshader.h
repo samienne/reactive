@@ -12,12 +12,12 @@
 namespace ase
 {
     class GlPlatform;
-    class RenderContext;
+    class GlRenderContext;
 
     class BTL_VISIBLE GlVertexShader : public VertexShaderImpl
     {
     public:
-        GlVertexShader(RenderContext& context, std::string const& source);
+        GlVertexShader(GlRenderContext& context, std::string const& source);
         GlVertexShader(GlVertexShader const& other) = delete;
         GlVertexShader(GlVertexShader&& other) = delete;
         virtual ~GlVertexShader();

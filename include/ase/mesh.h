@@ -4,6 +4,7 @@
 #include "indexbuffer.h"
 #include "aabb.h"
 
+#include <btl/option.h>
 #include <btl/visibility.h>
 
 namespace ase
@@ -11,10 +12,9 @@ namespace ase
     class BTL_VISIBLE Mesh
     {
     public:
-        Mesh();
-        Mesh(Aabb&& aabb, VertexBuffer const& vertexBuffer);
-        Mesh(Aabb&& aabb, VertexBuffer const& vertexBuffer,
-                IndexBuffer const& indexBuffer);
+        Mesh(Aabb const& aabb, VertexBuffer vertexBuffer);
+        Mesh(Aabb const& aabb, VertexBuffer vertexBuffer,
+                IndexBuffer indexBuffer);
         ~Mesh();
 
         Aabb const& getAabb() const;
@@ -27,7 +27,7 @@ namespace ase
     private:
         Aabb aabb_;
         VertexBuffer vertexBuffer_;
-        IndexBuffer indexBuffer_;
+        btl::option<IndexBuffer> indexBuffer_;
     };
 }
 

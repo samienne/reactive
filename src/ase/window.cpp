@@ -10,7 +10,7 @@ Window::Window()
 }
 
 Window::Window(std::shared_ptr<WindowImpl>&& impl) :
-    RenderTarget(impl)
+    deferred_(std::move(impl))
 {
 }
 

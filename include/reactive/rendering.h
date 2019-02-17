@@ -5,9 +5,10 @@
 #include <avg/shape.h>
 #include <avg/painter.h>
 
-#include <ase/renderqueue.h>
+#include <ase/vector.h>
+#include <ase/commandbuffer.h>
 #include <ase/pipeline.h>
-#include <ase/rendertarget.h>
+#include <ase/framebuffer.h>
 #include <ase/rendercommand.h>
 
 #include <btl/fnv1a.h>
@@ -26,14 +27,13 @@ namespace reactive
     /*using RenderCache = std::unordered_map<RenderElement,
           std::vector<avg::SoftMesh>, btl::uhash<btl::fnv1a>>;*/
 
-    BTL_VISIBLE /*RenderCache*/ void render(ase::RenderQueue& queue,
+    BTL_VISIBLE void render(
+            ase::CommandBuffer& queue,
             ase::RenderContext& context,
-            /*RenderCache const& cache,*/ ase::RenderTarget& target,
-            avg::Painter const& painter, avg::Drawing const& drawing);
-
-    BTL_VISIBLE void render(ase::RenderContext& context,
-            ase::RenderTarget& target, avg::Painter const& painter,
-            avg::SoftMesh const& mesh);
+            ase::Framebuffer& framebuffer,
+            ase::Vector2i size,
+            avg::Painter const& painter,
+            avg::Drawing const& drawing);
 
     BTL_VISIBLE avg::Path makeRect(float width, float height);
 

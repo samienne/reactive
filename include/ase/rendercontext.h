@@ -1,5 +1,10 @@
 #pragma once
 
+#include "usage.h"
+#include "format.h"
+#include "vector.h"
+#include "blendmode.h"
+
 #include <btl/visibility.h>
 
 #include <functional>
@@ -9,11 +14,22 @@
 namespace ase
 {
     class RenderCommand;
-    class RenderTarget;
     class Window;
     class RenderContextImpl;
     class Platform;
-    class RenderQueue;
+    class CommandBuffer;
+    class VertexShader;
+    class FragmentShader;
+    class Program;
+    class VertexBuffer;
+    class IndexBuffer;
+    class UniformBuffer;
+    class Texture;
+    class Buffer;
+    class Framebuffer;
+    class Pipeline;
+    class VertexSpec;
+    class UniformSet;
 
     /**
      * @brief RenderContext
@@ -53,7 +69,22 @@ namespace ase
         void flush();
         void finish();
         void present(Window& window);
-        void submit(RenderQueue&& renderQueue);
+        void submit(CommandBuffer&& renderQueue);
+
+        VertexShader makeVertexShader(std::string const& source);
+        FragmentShader makeFragmentShader(std::string const& source);
+        Program makeProgram(VertexShader vertexShader,
+                FragmentShader fragmentShader);
+        VertexBuffer makeVertexBuffer(Buffer buffer, Usage usage);
+        IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
+        UniformBuffer makeUniformBuffer(Buffer buffer, Usage usage);
+        Texture makeTexture(Vector2i size, Format format, Buffer buffer);
+        Framebuffer makeFramebuffer();
+        Pipeline makePipeline(Program program, VertexSpec vertexSpec);
+        Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
+                BlendMode srcFactor, BlendMode dstFactor);
+
+        UniformSet makeUniformSet();
 
         Platform& getPlatform() const;
 
@@ -70,18 +101,11 @@ namespace ase
         }
 
     private:
-        friend class RenderTarget;
-        /*
-        void submit(RenderTarget& target,
-                std::vector<RenderCommand>&& commands);
-                */
-
-    private:
         std::shared_ptr<RenderContextImpl> deferred_;
         inline RenderContextImpl* d() { return deferred_.get(); }
         inline RenderContextImpl const* d() const { return deferred_.get(); }
 
-        Platform* platform_;
+        Platform& platform_;
     };
 }
 

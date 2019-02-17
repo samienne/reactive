@@ -1,16 +1,16 @@
 #pragma once
 
-#include "rendertargetimpl.h"
-
 #include <btl/visibility.h>
 
 #include <string>
 
 namespace ase
 {
-    class BTL_VISIBLE WindowImpl : public RenderTargetImpl
+    class BTL_VISIBLE WindowImpl
     {
     public:
+        virtual ~WindowImpl() = default;
+
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;
 

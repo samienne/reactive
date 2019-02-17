@@ -212,7 +212,10 @@ public:
         glxWindow.handleEvents(events);
 
         if (resized_)
+        {
             size_.handle.set(glxWindow.getSize().cast<float>());
+            painter_.setSize(glxWindow.getSize());
+        }
         resized_ = false;
 
         auto frameId = getCurrentFrameId();
@@ -253,10 +256,13 @@ public:
         {
             glxWindow.clear();
 
-            ase::RenderQueue queue;
+            ase::CommandBuffer commands;
 
-            render(queue, context_, glxWindow, painter_, widget_.getDrawing().evaluate());
-            context_.submit(std::move(queue));
+            render(commands, context_, glxWindow.getDefaultFramebuffer(),
+                    glxWindow.getSize(), painter_,
+                    widget_.getDrawing().evaluate());
+
+            context_.submit(std::move(commands));
             context_.present(glxWindow);
             redraw_ = false;
 

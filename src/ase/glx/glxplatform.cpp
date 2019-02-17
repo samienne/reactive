@@ -88,9 +88,7 @@ private:
     size_t configCount_ = 0;
     GLXDrawable dummyBuffer_ = 0;
     std::unordered_set<GLXContext> glxContexts_;
-    std::shared_ptr<GlxRenderContext> bgContext_;
     std::vector<std::pair<::Window, GlxWindow*>> windows_;
-    btl::option<RenderContext> defaultContext_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
@@ -204,11 +202,6 @@ GlxPlatform::GlxPlatform() :
                 dummyBufferAttributes);
         if (!d()->dummyBuffer_)
             throw std::runtime_error("Unable to create Pbuffer");
-
-        d()->bgContext_ = std::make_shared<GlxRenderContext>(*this);
-        d()->defaultContext_ = btl::just(RenderContext(*this, d()->bgContext_));
-
-        d()->bgContext_->dispatch([this](){ d()->printGlInfo(); });
     }
     catch (...)
     {
@@ -222,17 +215,6 @@ GlxPlatform::GlxPlatform() :
 
 GlxPlatform::~GlxPlatform()
 {
-    std::shared_ptr<GlxRenderContext> ctx;
-
-    {
-        auto lock = lockX();
-        ctx = std::move(d()->bgContext_);
-        d()->defaultContext_ = btl::none;
-        d()->bgContext_ = nullptr;
-    }
-
-    ctx = nullptr;
-
     delete deferred_;
 }
 
@@ -261,16 +243,6 @@ std::vector<XEvent> GlxPlatform::getEvents()
     }
 
     return events;
-}
-
-RenderContext& GlxPlatform::getDefaultContext()
-{
-    return *d()->defaultContext_;
-}
-
-RenderContext const& GlxPlatform::getDefaultContext() const
-{
-    return *d()->defaultContext_;
 }
 
 std::shared_ptr<RenderContextImpl> GlxPlatform::makeRenderContextImpl()
