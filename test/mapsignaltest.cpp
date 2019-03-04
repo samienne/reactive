@@ -254,15 +254,20 @@ TEST(MapSignal, single)
 {
     auto i = signal::input(10);
 
-    /*auto s1 = eraseType(signal::map([](int n)
-            {
-                return n * 2;
-            }, eraseType(i.signal)));*/
-
+    /*
     auto s1 = std::move(i.signal) | signal::fmap2([](int n)
             {
                 return n * 2;
             });
+    */
+
+    auto s1 = signal::map([](int n)
+            {
+                return n * 2;
+            },
+            std::move(i.signal)
+            );
+
 
     EXPECT_FALSE(s1.hasChanged());
     EXPECT_EQ(20, s1.evaluate());
@@ -283,12 +288,6 @@ TEST(MapSignal, single)
 
     EXPECT_FALSE(s1.hasChanged());
     EXPECT_EQ(40, s1.evaluate());
-
-    /*
-    std::ofstream f("testrun.dot");
-    f << s1.annotate().getDot();
-    f.close();
-    */
 }
 
 struct St

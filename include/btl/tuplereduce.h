@@ -6,6 +6,8 @@
 //#include <utility>
 //#include <type_traits>
 
+#include <tuple>
+
 namespace btl
 {
     namespace detail
@@ -66,7 +68,7 @@ namespace btl
                     std::forward<TTuple>(tuple)
                     );
 
-        return apply(detail::TupleReduce(),
+        return std::apply(detail::TupleReduce(),
                 std::move(tt)
                 );
     }

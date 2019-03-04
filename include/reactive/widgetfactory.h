@@ -19,8 +19,6 @@
 #include <btl/all.h>
 #include <btl/not.h>
 
-#include <fit/compose.h>
-
 #include <functional>
 #include <deque>
 

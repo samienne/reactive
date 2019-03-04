@@ -6,7 +6,7 @@
 #include <reactive/signaltraits.h>
 #include <reactive/connection.h>
 
-#include <btl/pipable.h>
+//#include <btl/pipable.h>
 #include <btl/option.h>
 #include <btl/demangle.h>
 #include <btl/apply.h>
@@ -375,6 +375,7 @@ namespace reactive::signal
             }
         };
 
+        /*
         template <typename... Ts>
         auto fmap2(Ts&&... ts)
         -> decltype(
@@ -391,6 +392,7 @@ namespace reactive::signal
                         )
                     );
         }
+        */
     } // detail
 
     template <typename TFunc, typename... TSigs,
@@ -415,7 +417,7 @@ namespace reactive::signal
                 );
     }
 
-    static constexpr auto fmap2 = BTL_PIPABLE(detail::fmap2);
+    //static constexpr auto fmap2 = BTL_PIPABLE(detail::fmap2);
 } // reactive::signal
 
 namespace btl
