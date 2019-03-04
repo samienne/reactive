@@ -9,8 +9,6 @@
 
 #include <btl/fn.h>
 
-#include <fit/compose.h>
-
 #include <iostream>
 
 namespace reactive::widget
@@ -33,11 +31,12 @@ namespace reactive::widget
             );
     }
 
-    template <typename TSignalAmount, typename = std::enable_if_t<
+    /*template <typename TSignalAmount, typename = std::enable_if_t<
         IsSignalType<TSignalAmount, float>::value
         >
-    >
-    auto margin(TSignalAmount amount)
+    >*/
+    template <typename T>
+    auto margin(Signal<float, T> amount)
     {
         auto a = signal::share(std::move(amount));
         auto aNeg = signal::map([](float f)

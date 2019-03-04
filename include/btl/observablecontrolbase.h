@@ -2,6 +2,7 @@
 
 #include "spinlock.h"
 
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <vector>

@@ -80,7 +80,7 @@ libasesrc = [
 libase = library('ase',
         [system_src, libasesrc],
         dependencies: [system_deps, asedep],
-        include_directories : incdir
+        include_directories: incdir
         )
 
 libasedep = declare_dependency(

@@ -4,8 +4,6 @@
 
 #include <btl/hidden.h>
 
-#include <fit/identity.h>
-
 #include <atomic>
 
 BTL_VISIBILITY_PUSH_HIDDEN
@@ -168,19 +166,6 @@ namespace reactive::signal
     {
         return Track<TCollection>(std::forward<TCollection>(collection));
     }
-
-#if 0
-    template <typename TCollection, typename = typename std::enable_if
-        <
-                btl::IsCollection<TCollection>::value
-        >::type>
-    auto track(TCollection&& collection)
-        -> decltype(dataBind(collection, fit::identity))
-    {
-        return dataBind(std::forward<TCollection>(collection),
-                fit::identity);
-    }
-#endif
 } // namespace reactive::signal
 
 BTL_VISIBILITY_POP

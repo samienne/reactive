@@ -85,9 +85,5 @@ namespace btl
                 btl::reduce(0, std::declval<T>(), detail::Replace())
             )>> : std::true_type {};
 
-    static_assert(IsReducable<std::tuple<int, int>>::value, "");
-    static_assert(IsReducable<std::vector<int>>::value, "");
-    static_assert(!IsReducable<int>::value, "");
-
 } // btl
 

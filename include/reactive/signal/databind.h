@@ -15,8 +15,6 @@
 #include <btl/option.h>
 #include <btl/hidden.h>
 
-#include <fit/compose.h>
-
 #include <type_traits>
 #include <utility>
 

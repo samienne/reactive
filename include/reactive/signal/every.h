@@ -72,14 +72,14 @@ namespace reactive::signal
             return Connection();
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        BTL_HIDDEN inline Annotation annotate() const
         {
             Annotation a;
             a.addNode("every(" + std::to_string(phase_.count()) + "us)");
             return a;
         }
 
-        BTL_HIDDEN Every clone() const
+        BTL_HIDDEN inline auto clone() const
         {
             return *this;
         }
@@ -94,7 +94,7 @@ namespace reactive::signal
         bool changed_ = false;
     };
 
-    auto every(signal_time_t phase) -> Every
+    inline auto every(signal_time_t phase) -> Every
     {
         return Every(phase);
     }

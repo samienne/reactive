@@ -13,8 +13,6 @@
 
 #include <btl/hidden.h>
 
-#include <fit/identity.h>
-
 BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
