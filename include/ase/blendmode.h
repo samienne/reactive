@@ -4,7 +4,7 @@
 
 namespace ase
 {
-    enum class BTL_VISIBLE BlendMode
+    enum class BlendMode
     {
         Zero,
         One,

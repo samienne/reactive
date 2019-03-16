@@ -221,8 +221,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
 
 void renderElements(ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
-        avg::Painter const& painter, ase::Vector2f size,
-        std::vector<Element>&& elements)
+        avg::Painter const& painter, std::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -239,22 +238,6 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     for (auto const& element : elements)
         count += element.second.size();
     resultVertices.reserve(count);
-
-    /*
-    ase::Matrix4f m = ase::Matrix4f::Identity();
-    m(0,0) = 2.0f/(float)size[0];
-    m(1,1) = 2.0f/(float)size[1];
-    m(0,3) = -1.0f;
-    m(1,3) = -1.0f;
-
-    ase::Buffer buf(m.data(), 16*sizeof(float));
-    ase::UniformBuffer ub = context.makeUniformBuffer(
-            buf, ase::Usage::StreamDraw);
-    ase::UniformSet uniformSet = context.makeUniformSet();
-
-    uniformSet.bindUniformBufferRange(
-            0, ase::UniformBufferRange{ 0, 16*sizeof(float), std::move(ub) });
-    */
 
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
@@ -327,7 +310,7 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
 
     auto elements = generateElements(painter, meshes);
 
-    renderElements(commandBuffer, context, framebuffer, painter, sizef,
+    renderElements(commandBuffer, context, framebuffer, painter,
             std::move(elements));
 }
 
