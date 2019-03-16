@@ -1,5 +1,6 @@
 #pragma once
 
+#include "simplesizehint.h"
 #include "sizehint.h"
 #include "widgetmaps.h"
 #include "widgetmap.h"

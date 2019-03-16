@@ -2,6 +2,8 @@
 #include "widget/margin.h"
 #include "widget/theme.h"
 
+#include "reactive/simplesizehint.h"
+
 #include <reactive/signal/constant.h>
 
 #include <reactive/rendering.h>

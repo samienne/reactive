@@ -2,6 +2,8 @@
 
 #include "widget/margin.h"
 
+#include "reactive/simplesizehint.h"
+
 #include "send.h"
 
 namespace reactive::widget

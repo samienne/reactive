@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
 #include "reactive/hbox.h"
 #include "reactive/vbox.h"

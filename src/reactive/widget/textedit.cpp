@@ -5,6 +5,8 @@
 #include "widget/frame.h"
 #include "widget/onkeyevent.h"
 
+#include "reactive/simplesizehint.h"
+
 #include "signal/tween.h"
 #include "signal/cache.h"
 #include "signal/combine.h"

@@ -26,6 +26,7 @@ libreactivesrc = [
     'clickevent.cpp',
     'pointerbuttonevent.cpp',
     'pointermoveevent.cpp',
+    'simplesizehint.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]

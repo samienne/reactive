@@ -1,6 +1,7 @@
 #pragma once
 
 #include "widgetfactory.h"
+#include "simplesizehint.h"
 #include "sizehint.h"
 
 namespace reactive

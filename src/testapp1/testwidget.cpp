@@ -6,8 +6,11 @@
 
 #include <reactive/widgetfactory.h>
 #include <reactive/rendering.h>
+#include <reactive/simplesizehint.h>
+
 #include <reactive/signal/droprepeats.h>
 #include <reactive/signal/constant.h>
+
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
 
