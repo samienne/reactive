@@ -4,21 +4,25 @@
 #include "widgetfactory.h"
 
 #include <btl/collection.h>
+#include <btl/visibility.h>
 
 #include <vector>
 
 namespace reactive
 {
+    BTL_VISIBLE WidgetFactory hbox(std::vector<WidgetFactory> widgets);
+
     template <typename TCollection, typename = typename std::enable_if
         <
             IsFactoryCollection<TCollection>::value
         >::type>
-    inline auto hbox(TCollection& factories)
+    inline auto hbox(TCollection&& factories)
         //-> WidgetFactory
     {
         return box<TCollection, Axis::x>(std::forward<TCollection>(factories));
     }
 
+#if 0
     inline auto hbox(std::initializer_list<WidgetFactory> factories)
         -> WidgetFactory
     {
@@ -42,5 +46,6 @@ namespace reactive
         return box<Axis::x>(std::make_tuple(std::move(ts)...));
     }
     */
-}
+#endif
+} // namespace reactive
 
