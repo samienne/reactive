@@ -2,47 +2,19 @@
 
 #include "sizehint.h"
 
+#include <btl/visibility.h>
+
 namespace reactive
 {
-    struct StackSizeHint
+    struct BTL_VISIBLE StackSizeHint
     {
-        SizeHintResult operator()() const
-        {
-            auto hints = btl::fmap(hints_, [](auto const& hint)
-                {
-                    return hint();
-                });
-
-            return getLargestHint(hints);
-        }
-
-        SizeHintResult operator()(float x) const
-        {
-            auto hints = btl::fmap(hints_, [x](auto const& hint)
-                {
-                    return hint(x);
-                });
-
-            return getLargestHint(hints);
-        }
-
-        SizeHintResult operator()(float x, float y) const
-        {
-            auto hints = btl::fmap(hints_, [x, y](auto const& hint)
-                {
-                    return hint(x, y);
-                });
-
-            return getLargestHint(hints);
-        }
+        SizeHintResult operator()() const;
+        SizeHintResult operator()(float x) const;
+        SizeHintResult operator()(float x, float y) const;
 
         std::vector<SizeHint> const hints_;
     };
 
-    inline auto stackSizeHints(std::vector<SizeHint> const& hints)
-        -> StackSizeHint
-    {
-        return { hints };
-    }
+    BTL_VISIBLE StackSizeHint stackSizeHints(std::vector<SizeHint> const& hints);
 } // namespace reactive
 
