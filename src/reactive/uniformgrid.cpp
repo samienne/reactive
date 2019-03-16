@@ -1,6 +1,8 @@
 #include "uniformgrid.h"
 
 #include "layout.h"
+#include "mapsizehint.h"
+
 #include "signal/combine.h"
 #include "signal/constant.h"
 
@@ -133,31 +135,28 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
     {
         auto obbs = share(signal::map(obbMap, w.getSize(), hintsSignal));
 
-        //std::vector<Widget> widgets;
-        //widgets.reserve(factories->size());
         size_t index = 0;
         auto widgets = btl::fmap(*factories, [&index, &obbs](auto&& f)
-        //for (auto&& f : *factories)
-        {
-            auto t = signal::map([index](
-                        std::vector<avg::Obb> const& obbs)
-                    {
-                        return obbs.at(index).getTransform();
-                    }, obbs);
+            {
+                auto t = signal::map([index](
+                            std::vector<avg::Obb> const& obbs)
+                        {
+                            return obbs.at(index).getTransform();
+                        }, obbs);
 
-            auto size = signal::map([index](
-                        std::vector<avg::Obb> const& obbs)
-                    {
-                        return obbs.at(index).getSize();
-                    }, obbs);
+                auto size = signal::map([index](
+                            std::vector<avg::Obb> const& obbs)
+                        {
+                            return obbs.at(index).getSize();
+                        }, obbs);
 
-            auto factory = f.clone()
-                | transform(std::move(t));
+                auto factory = f.clone()
+                    | transform(std::move(t));
 
-            ++index;
+                ++index;
 
-            return std::move(factory)(std::move(size));
-        });
+                return std::move(factory)(std::move(size));
+            });
 
         return std::move(w)
             | addWidgets(std::move(widgets));
