@@ -1,6 +1,7 @@
 #include "stack.h"
 
 #include "layout.h"
+#include "stacksizehint.h"
 #include "sizehint.h"
 
 namespace reactive
@@ -20,7 +21,7 @@ namespace reactive
             return obbs;
         };
 
-        return layout(stackHints, obbMap, std::move(widgets));
+        return layout(stackSizeHints, obbMap, std::move(widgets));
     }
 } // namespace reactive
 

@@ -2,6 +2,7 @@
 
 #include "layout.h"
 #include "mapsizehint.h"
+#include "stacksizehint.h"
 
 #include "signal/combine.h"
 #include "signal/constant.h"
@@ -68,7 +69,7 @@ UniformGrid::operator WidgetFactory() &&
     auto mapHints = [w, h](std::vector<SizeHint> const& hints)
         -> SizeHint
     {
-        return multiplySizeHint(stackHints(hints), (float)w, (float)h);
+        return multiplySizeHint(stackSizeHints(hints), (float)w, (float)h);
     };
 
     auto mapObbs = [w, h, cells](ase::Vector2f size,
