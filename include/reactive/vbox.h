@@ -9,19 +9,6 @@
 
 namespace reactive
 {
-    template <typename TCollection, typename = typename
-        std::enable_if<
-            IsFactoryCollection<TCollection>::value
-            >::type>
-    auto vbox(TCollection&& factories)
-    -> decltype(
-            box<TCollection, Axis::y>(std::forward<TCollection>(factories))
-            )
-        //-> WidgetFactory
-    {
-        return box<TCollection, Axis::y>(std::forward<TCollection>(factories));
-    }
-
     inline auto vbox(std::initializer_list<WidgetFactory> factories)
         -> WidgetFactory
     {

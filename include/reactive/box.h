@@ -88,17 +88,6 @@ namespace reactive
         return obbs;
     }
 
-    template <typename TCollection, Axis dir, typename = typename
-        std::enable_if
-        <
-            IsFactoryCollection<TCollection>::value
-        >::type>
-    auto box(TCollection&& factories)  //-> WidgetFactory
-    {
-        return layout(combineSizeHints<dir>, &mapObbs<dir>,
-                std::forward<TCollection>(factories));
-    }
-
     template <Axis dir>
     auto box(std::vector<WidgetFactory> factories)  //-> WidgetFactory
     {
