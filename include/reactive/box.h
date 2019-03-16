@@ -16,6 +16,117 @@
 
 namespace reactive
 {
+    template <Axis dir, typename THints>
+    struct CombineSizeHint
+    {
+        SizeHintResult operator()() const
+        {
+            auto xHints = btl::fmap(hints_,
+                    [](auto const& hint)
+                    {
+                        return hint();
+                    });
+
+            return dir == Axis::x
+                ? combinePartialHints(xHints)
+                : getLargestHint(xHints);
+        }
+
+        SizeHintResult operator()(float x) const
+        {
+            auto xHints = btl::fmap(hints_,
+                    [](auto const& hint)
+                    {
+                        return hint();
+                    });
+
+            auto xSizes = getSizes(x, xHints);
+
+            size_t i = 0;
+            auto yHints = btl::fmap(xSizes,
+                    [this, &i](auto const& xSize)
+                    {
+                        return hints_[i++](xSize);
+                    });
+
+            return dir == Axis::x
+                ? getLargestHint(yHints)
+                : combinePartialHints(yHints);
+        }
+
+        SizeHintResult operator()(float x, float y) const
+        {
+            auto xHints = btl::fmap(hints_,
+                    [x, y](auto const& hint)
+                    {
+                        return hint(x, y);
+                    });
+
+            return dir == Axis::x
+                ? combinePartialHints(xHints)
+                : getLargestHint(xHints);
+        }
+
+        //std::vector<SizeHint> const hints_;
+        THints const hints_;
+    };
+
+    template <Axis dir>
+    auto combineSizeHints(std::vector<SizeHint> hints)
+        -> CombineSizeHint<dir, std::vector<SizeHint>>
+    {
+        return CombineSizeHint<dir, std::vector<SizeHint>>{std::move(hints)};
+    }
+
+    template <Axis dir, typename... Ts>
+    auto combineSizeHintsTuple(std::tuple<Ts...> hints)
+        -> CombineSizeHint<dir, std::tuple<Ts...>>
+    {
+        return CombineSizeHint<dir, std::tuple<Ts...>>{std::move(hints)};
+    }
+
+    static_assert(IsSizeHint<CombineSizeHint<Axis::x,
+            std::vector<SizeHint>>>::value, "");
+
+    template <Axis dir>
+    BTL_HIDDEN auto combineSizes(ase::Vector2f size,
+            std::vector<SizeHint> const& hints)
+        -> std::vector<ase::Vector2f>
+    {
+        if (hints.empty())
+            return {};
+
+        std::vector<ase::Vector2f> result;
+        result.reserve(hints.size());
+
+        auto xHints = btl::fmap(hints,
+                [](auto const& hint)
+                {
+                    return hint();
+                });
+
+        if (dir == Axis::x)
+        {
+            auto xSizes = getSizes(size[0], xHints);
+            for (auto&& xSize : xSizes)
+                result.emplace_back(xSize, size[1]);
+        }
+        else
+        {
+            auto yHints = btl::fmap(hints,
+                    [&size](auto const& hint)
+                    {
+                        return hint(size[0]);
+                    });
+
+            auto ySizes = getSizes(size[1], yHints);
+            for (auto&& ySize : ySizes)
+                result.emplace_back(size[0], ySize);
+        }
+
+        return result;
+    }
+
     template <Axis dir>
     struct MapObbs
     {
