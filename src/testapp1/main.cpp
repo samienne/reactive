@@ -10,7 +10,6 @@
 #include <reactive/signal/map.h>
 #include <reactive/widget/focusgroup.h>
 #include <reactive/debug/drawkeyboardinputs.h>
-#include <reactive/stack.h>
 #include <reactive/send.h>
 #include <reactive/window.h>
 #include <reactive/app.h>

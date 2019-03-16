@@ -1,14 +1,14 @@
-#if 0
-
 #include "vbox.h"
 
 #include "box.h"
 
-#include "signal/constant.h"
-
 namespace reactive
 {
-} // namespace
 
-#endif
+WidgetFactory vbox(std::vector<WidgetFactory> widgets)
+{
+    return box<Axis::y>(std::move(widgets));
+}
+
+} // namespace reactive
 

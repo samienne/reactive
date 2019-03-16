@@ -13,6 +13,7 @@ libreactivesrc = [
     'debug/drawkeyboardinputs.cpp',
     'vbox.cpp',
     'hbox.cpp',
+    'stack.cpp',
     'keyboardinput.cpp',
     'inputarea.cpp',
     'widget.cpp',
