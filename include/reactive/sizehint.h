@@ -4,14 +4,12 @@
 
 #include <btl/shared.h>
 #include <btl/fmap.h>
+#include <btl/visibility.h>
 
 #include <array>
-#include <functional>
 #include <vector>
 
 #include <type_traits>
-#include <ostream>
-#include <cassert>
 
 namespace reactive
 {
@@ -79,58 +77,6 @@ namespace reactive
         };
     } // detail
 
-    class SizeHint
-    {
-    public:
-        SizeHint() = delete;
-
-        template <typename THint, typename = std::enable_if_t<
-            IsSizeHint<THint>::value
-            >>
-        SizeHint(THint&& hint) :
-            hint_(std::make_shared<
-                    detail::SizeHintTyped<THint>
-                    >(std::forward<THint>(hint)))
-        {
-        }
-
-        SizeHint(SizeHint const& hint) = default;
-        SizeHint(SizeHint&& hint) = default;
-
-        SizeHint& operator=(SizeHint const&) = default;
-        SizeHint& operator=(SizeHint&&) = default;
-
-        template <typename THint, typename = std::enable_if_t<
-            IsSizeHint<THint>::value
-            >>
-        SizeHint& operator=(THint&& hint)
-        {
-            hint_ = std::make_shared<detail::SizeHintTyped<THint>>(
-                    std::forward<THint>(hint));
-
-            return *this;
-        }
-
-        SizeHintResult operator()() const
-        {
-            return (*hint_)();
-        }
-
-        SizeHintResult operator()(float x) const
-        {
-            return (*hint_)(x);
-        }
-
-        SizeHintResult operator()(float x, float y) const
-        {
-            return (*hint_)(x, y);
-        }
-
-    private:
-        btl::shared<detail::SizeHintBase> hint_;
-    };
-
-    static_assert(IsSizeHint<SizeHint>::value, "");
 
     /**
      * @brief Provides the preferred size for widget.
@@ -157,29 +103,50 @@ namespace reactive
      *
      * The simpleSizeHint function is the easiest way to create a size hint.
      */
-    //using SizeHint = std::function<SizeHintPartial()>;
-
-    inline auto getLargestHint(std::vector<SizeHintResult> const& hints)
-        -> SizeHintResult
+    class BTL_VISIBLE SizeHint
     {
-        auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
-        for (auto const& hint : hints)
-            for (int i = 0; i < 3; ++i)
-                result[i] = std::max(result[i], hint[i]);
+    public:
+        SizeHint() = delete;
 
-        return result;
-    }
+        template <typename THint, typename = std::enable_if_t<
+            IsSizeHint<THint>::value
+            >>
+        SizeHint(THint&& hint) :
+            hint_(std::make_shared<
+                    detail::SizeHintTyped<THint>
+                    >(std::forward<THint>(hint)))
+        {
+        }
 
-    inline std::ostream& operator<<(std::ostream& stream,
-            SizeHintResult const& h)
-    {
-        stream << "SizeHintResult{"
-            << "h:{";
+        SizeHint(SizeHint const& hint) = default;
+        SizeHint(SizeHint&& hint) noexcept = default;
 
-        for (int i = 0; i < 3; ++i)
-            stream << h[i] << (i < 2 ? "," :"");
+        SizeHint& operator=(SizeHint const&) = default;
+        SizeHint& operator=(SizeHint&&) noexcept = default;
 
-        return stream << "}";
-    }
+        template <typename THint, typename = std::enable_if_t<
+            IsSizeHint<THint>::value
+            >>
+        SizeHint& operator=(THint&& hint)
+        {
+            hint_ = std::make_shared<detail::SizeHintTyped<THint>>(
+                    std::forward<THint>(hint));
+
+            return *this;
+        }
+
+        SizeHintResult operator()() const;
+        SizeHintResult operator()(float x) const;
+        SizeHintResult operator()(float x, float y) const;
+
+    private:
+        btl::shared<detail::SizeHintBase> hint_;
+    };
+
+    BTL_VISIBLE SizeHintResult getLargestHint(
+            std::vector<SizeHintResult> const& hints);
+
+    BTL_VISIBLE std::ostream& operator<<(std::ostream& stream,
+            SizeHintResult const& h);
 }
 

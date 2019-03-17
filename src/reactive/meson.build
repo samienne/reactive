@@ -29,6 +29,7 @@ libreactivesrc = [
     'simplesizehint.cpp',
     'stacksizehint.cpp',
     'growsizehint.cpp',
+    'sizehint.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]
