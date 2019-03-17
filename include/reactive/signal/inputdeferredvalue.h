@@ -4,13 +4,12 @@
 #include "weak.h"
 
 #include "reactive/observable.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/spinlock.h>
 #include <btl/hidden.h>
 
 #include <mutex>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -155,6 +154,4 @@ private:
 };
 
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

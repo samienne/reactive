@@ -1,10 +1,11 @@
 #pragma once
 
+#include "reactive/reactivevisibility.h"
+
 #include <avg/font.h>
 #include <avg/color.h>
 
 #include <btl/shared.h>
-#include <btl/visibility.h>
 
 #include <ostream>
 
@@ -12,7 +13,7 @@ namespace reactive::widget
 {
     struct ThemeDeferred;
 
-    class BTL_VISIBLE Theme
+    class REACTIVE_EXPORT Theme
     {
     public:
         Theme();

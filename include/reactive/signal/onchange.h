@@ -3,21 +3,18 @@
 #include "map.h"
 #include "constant.h"
 
-#include <reactive/signaltraits.h>
+#include "reactive/signaltraits.h"
 
 #include <btl/function.h>
-#include <btl/hidden.h>
 
 #include <type_traits>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal, typename TFunc>
-        class BTL_CLASS_VISIBLE OnChange;
+        class OnChange;
     }
 
     template <typename TSignal, typename TFunc>
@@ -27,41 +24,41 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignal, typename TFunc>
-    class BTL_CLASS_VISIBLE OnChange
+    class OnChange
     {
     public:
         using ReturnType = decltype(std::declval<TSignal>().evaluate());
 
-        BTL_HIDDEN OnChange(TSignal sig, TFunc func) :
+        OnChange(TSignal sig, TFunc func) :
             sig_(std::move(sig)),
             func_(std::move(func))
         {
         }
 
     private:
-        BTL_HIDDEN OnChange(OnChange const&) = default;
-        BTL_HIDDEN OnChange& operator=(OnChange const&) = default;
+        OnChange(OnChange const&) = default;
+        OnChange& operator=(OnChange const&) = default;
 
     public:
-        BTL_HIDDEN OnChange(OnChange&&) = default;
-        BTL_HIDDEN OnChange& operator=(OnChange&&) = default;
+        OnChange(OnChange&&) = default;
+        OnChange& operator=(OnChange&&) = default;
 
-        BTL_HIDDEN ReturnType evaluate() const
+        ReturnType evaluate() const
         {
             return sig_.evaluate();
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return sig_.hasChanged();
         }
 
-        BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             return sig_.updateBegin(frame);
         }
 
-        BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             auto r = sig_.updateEnd(frame);
 
@@ -72,12 +69,12 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&& cb)
+        Connection observe(TCallback&& cb)
         {
             return sig_.observe(std::forward<TCallback>(cb));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("onChange()");
@@ -85,7 +82,7 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN OnChange clone() const
+        OnChange clone() const
         {
             return *this;
         }
@@ -108,6 +105,4 @@ namespace reactive::signal
                 std::forward<TFunc>(f));
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

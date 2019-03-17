@@ -130,7 +130,7 @@ namespace reactive
             std::vector<SizeHint>>>::value, "");
 
     template <Axis dir>
-    BTL_HIDDEN auto combineSizes(ase::Vector2f size,
+    auto combineSizes(ase::Vector2f size,
             std::vector<SizeHint> const& hints)
         -> std::vector<ase::Vector2f>
     {

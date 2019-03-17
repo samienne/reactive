@@ -1,12 +1,11 @@
 #pragma once
 
 #include "sizehint.h"
-
-#include <btl/visibility.h>
+#include "reactivevisibility.h"
 
 namespace reactive
 {
-    class BTL_VISIBLE SimpleSizeHint
+    class REACTIVE_EXPORT SimpleSizeHint
     {
     public:
         SimpleSizeHint(SizeHintResult x, SizeHintResult y);
@@ -29,11 +28,11 @@ namespace reactive
      * @param y The hints on the Y-axis.
      * @return SizeHint that will return the x and y hints.
      */
-    BTL_VISIBLE SimpleSizeHint simpleSizeHint(SizeHintResult x, SizeHintResult y);
+    REACTIVE_EXPORT SimpleSizeHint simpleSizeHint(SizeHintResult x, SizeHintResult y);
 
     /**
      * @brief Equivalent of simpleSizeHint({{x, x, x}}, {{y, y, y}}).
      */
-    BTL_VISIBLE SimpleSizeHint simpleSizeHint(float x, float y);
+    REACTIVE_EXPORT SimpleSizeHint simpleSizeHint(float x, float y);
 } // namespace reactive
 

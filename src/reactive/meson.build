@@ -37,8 +37,10 @@ reactivedep = [libbtldep, libasedep, libavgdep]
 libreactive = library(
         'reactive',
         libreactivesrc,
-        include_directories : incdir,
-        dependencies : reactivedep
+        include_directories: incdir,
+        dependencies: reactivedep,
+        cpp_args: ['-DREACTIVE_EXPORT_SYMBOLS'],
+        gnu_symbol_visibility: 'hidden'
         )
 
 libreactivedep = declare_dependency(

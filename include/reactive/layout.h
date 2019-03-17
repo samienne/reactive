@@ -7,6 +7,7 @@
 #include "signal/combine.h"
 
 #include "signal.h"
+#include "reactivevisibility.h"
 
 #include <btl/fmap.h>
 #include <btl/function.h>
@@ -54,7 +55,7 @@ namespace reactive
     }
 
 #if 1
-    BTL_VISIBLE WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+    REACTIVE_EXPORT WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             std::vector<WidgetFactory> factories);
 #else
     template <typename TFactories, typename TObbMap, typename TSizeHintMap,

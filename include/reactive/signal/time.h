@@ -4,10 +4,7 @@
 #include "foldp.h"
 #include "constant.h"
 #include "reactive/signaltraits.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive::signal
 {
@@ -30,6 +27,4 @@ namespace reactive::signal
     }
 
 } // reactive::signal
-
-BTL_VISIBILITY_POP
 

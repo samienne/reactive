@@ -1,10 +1,11 @@
 #pragma once
 
+#include "reactivevisibility.h"
+
 #include <ase/vector.h>
 
 #include <btl/shared.h>
 #include <btl/fmap.h>
-#include <btl/visibility.h>
 
 #include <array>
 #include <vector>
@@ -103,7 +104,7 @@ namespace reactive
      *
      * The simpleSizeHint function is the easiest way to create a size hint.
      */
-    class BTL_VISIBLE SizeHint
+    class REACTIVE_EXPORT SizeHint
     {
     public:
         SizeHint() = delete;
@@ -143,10 +144,10 @@ namespace reactive
         btl::shared<detail::SizeHintBase> hint_;
     };
 
-    BTL_VISIBLE SizeHintResult getLargestHint(
+    REACTIVE_EXPORT SizeHintResult getLargestHint(
             std::vector<SizeHintResult> const& hints);
 
-    BTL_VISIBLE std::ostream& operator<<(std::ostream& stream,
+    REACTIVE_EXPORT std::ostream& operator<<(std::ostream& stream,
             SizeHintResult const& h);
 }
 

@@ -3,16 +3,12 @@
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
-
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class BTL_CLASS_VISIBLE Join;
+        class Join;
     }
 
     template <typename TSignal>
@@ -22,27 +18,27 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignal>
-    class BTL_CLASS_VISIBLE Join
+    class Join
     {
     public:
         using OuterSig = typename std::decay<TSignal>::type;
         using InnerSig = decltype(std::declval<OuterSig>().evaluate());
         using SignalType = decltype(std::declval<InnerSig>().evaluate());
 
-        BTL_HIDDEN Join(TSignal sig) :
+        Join(TSignal sig) :
             outer_(std::move(sig))
         {
         }
 
     private:
-        BTL_HIDDEN Join(Join const&) = default;
-        BTL_HIDDEN Join& operator=(Join const&) = default;
+        Join(Join const&) = default;
+        Join& operator=(Join const&) = default;
 
     public:
-        BTL_HIDDEN Join(Join&&) noexcept = default;
-        BTL_HIDDEN Join& operator=(Join&&) noexcept = default;
+        Join(Join&&) noexcept = default;
+        Join& operator=(Join&&) noexcept = default;
 
-        BTL_HIDDEN btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             changed_ = false;
             auto r = outer_->updateBegin(frame);
@@ -55,7 +51,7 @@ namespace reactive::signal
             return r;
         }
 
-        BTL_HIDDEN btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             auto r1 = outer_->updateEnd(frame);
 
@@ -81,7 +77,7 @@ namespace reactive::signal
             return min(r1, r2);
         }
 
-        BTL_HIDDEN SignalType evaluate() const
+        SignalType evaluate() const
         {
             if (!inner_.valid())
             {
@@ -93,14 +89,14 @@ namespace reactive::signal
             return (*inner_)->evaluate();
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             //return outer_.hasChanged() || inner_.hasChanged();
             return changed_;
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback const& cb)
+        Connection observe(TCallback const& cb)
         {
             if (!inner_.valid())
             {
@@ -115,7 +111,7 @@ namespace reactive::signal
             return std::move(c);
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto n = a.addNode("join() changed: "
@@ -125,7 +121,7 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN Join clone() const
+        Join clone() const
         {
             return *this;
         }
@@ -144,6 +140,4 @@ namespace reactive::signal
         return signal::wrap(Join<U>(std::move(sig).signal()));
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

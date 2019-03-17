@@ -1,86 +1,84 @@
 #pragma once
 
-#include <reactive/signal.h>
+#include "reactive/signal.h"
 
-#include <reactive/signaltraits.h>
-#include <reactive/connection.h>
+#include "reactive/signaltraits.h"
+#include "reactive/connection.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/cloneoncopy.h>
 #include <btl/demangle.h>
-#include <btl/hidden.h>
 
 #include <memory>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
     template <typename T>
-    class BTL_CLASS_VISIBLE Constant
+    class Constant
     {
     public:
-        BTL_HIDDEN Constant(T&& initial) :
+        Constant(T&& initial) :
             constant_(std::move(initial))
         {
         }
 
-        BTL_HIDDEN Constant(T const& initial) :
+        Constant(T const& initial) :
             constant_(initial)
         {
         }
 
-        BTL_HIDDEN Constant(Constant<T>&& rhs) noexcept(true) :
+        Constant(Constant<T>&& rhs) noexcept(true) :
             constant_(std::move(rhs.constant_))
         {
         }
 
-        BTL_HIDDEN Constant<T>& operator=(Constant<T>&& rhs) noexcept(true)
+        Constant<T>& operator=(Constant<T>&& rhs) noexcept(true)
         {
             constant_ = std::move(rhs.constant_);
             return *this;
         }
 
-        BTL_HIDDEN T const& evaluate() const
+        T const& evaluate() const
         {
             return constant_;
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return false;
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const&)
+        UpdateResult updateBegin(signal::FrameInfo const&)
         {
             return btl::none; }
 
-        BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const&)
+        UpdateResult updateEnd(signal::FrameInfo const&)
         {
             return btl::none;
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&&)
+        Connection observe(TCallback&&)
         {
             // nothing to observe
             return Connection();
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             a.addNode("constant<" + btl::demangle<T>() + ">");
             return a;
         }
 
-        BTL_HIDDEN Constant clone() const
+        Constant clone() const
         {
             return *this;
         }
 
     private:
-        BTL_HIDDEN Constant(Constant<T> const&) = default;
-        BTL_HIDDEN Constant<T>& operator=(Constant<T> const&) = default;
+        Constant(Constant<T> const&) = default;
+        Constant<T>& operator=(Constant<T> const&) = default;
 
     private:
         T constant_;
@@ -112,6 +110,4 @@ namespace reactive
             "Constant is not a signal");
             */
 }
-
-BTL_VISIBILITY_POP
 

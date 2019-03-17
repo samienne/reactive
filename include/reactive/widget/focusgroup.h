@@ -1,11 +1,10 @@
 #pragma once
 
 #include "reactive/widgetfactory.h"
-
-#include <btl/visibility.h>
+#include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    BTL_VISIBLE WidgetMap focusGroup();
+    REACTIVE_EXPORT WidgetMap focusGroup();
 } // reactive
 

@@ -5,10 +5,6 @@
 namespace reactive::widget
 {
 
-namespace
-{
-} // anonymous namespace
-
 WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
         BinObbMap obbMap)
 {

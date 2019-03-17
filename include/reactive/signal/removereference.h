@@ -2,11 +2,10 @@
 
 #include "map.h"
 
-#include <reactive/signal.h>
+#include "reactive/signal.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -20,6 +19,4 @@ namespace reactive::signal
         std::move(sig));
     }
 } // reactive::signal
-
-BTL_VISIBILITY_POP
 

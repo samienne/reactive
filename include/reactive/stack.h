@@ -1,13 +1,12 @@
 #pragma once
 
 #include "widgetfactory.h"
-
-#include <btl/visibility.h>
+#include "reactivevisibility.h"
 
 #include <vector>
 
 namespace reactive
 {
-    BTL_VISIBLE WidgetFactory stack(std::vector<WidgetFactory> widgets);
+    REACTIVE_EXPORT WidgetFactory stack(std::vector<WidgetFactory> widgets);
 }
 

@@ -1,12 +1,11 @@
 #pragma once
 
 #include "sizehint.h"
-
-#include <btl/visibility.h>
+#include "reactivevisibility.h"
 
 namespace reactive
 {
-    struct BTL_VISIBLE StackSizeHint
+    struct REACTIVE_EXPORT StackSizeHint
     {
         SizeHintResult operator()() const;
         SizeHintResult operator()(float x) const;
@@ -15,6 +14,6 @@ namespace reactive
         std::vector<SizeHint> const hints_;
     };
 
-    BTL_VISIBLE StackSizeHint stackSizeHints(std::vector<SizeHint> const& hints);
+    REACTIVE_EXPORT StackSizeHint stackSizeHints(std::vector<SizeHint> const& hints);
 } // namespace reactive
 

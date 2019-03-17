@@ -7,17 +7,16 @@
 #include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
 #include "reactive/signal.h"
+#include "reactive/reactivevisibility.h"
 
 #include <avg/font.h>
-
-#include <btl/visibility.h>
 
 #include <string>
 #include <ostream>
 
 namespace reactive::widget
 {
-    struct BTL_VISIBLE TextEditState
+    struct TextEditState
     {
         inline TextEditState(std::string str) :
             text(std::move(str)),
@@ -39,13 +38,13 @@ namespace reactive::widget
         size_t pos = 0;
     };
 
-    BTL_VISIBLE inline std::ostream& operator<<(std::ostream& stream,
+    inline std::ostream& operator<<(std::ostream& stream,
             TextEditState const& s)
     {
         return stream << s.text << std::endl;
     }
 
-    struct BTL_VISIBLE TextEdit
+    struct REACTIVE_EXPORT TextEdit
     {
         operator WidgetFactory() const;
         TextEdit onEnter(Signal<std::function<void()>> cb) &&;
@@ -66,7 +65,7 @@ namespace reactive::widget
         std::vector<SharedSignal<std::function<void()>>> onEnter_;
     };
 
-    BTL_VISIBLE TextEdit textEdit(signal::InputHandle<TextEditState> handle,
+    REACTIVE_EXPORT TextEdit textEdit(signal::InputHandle<TextEditState> handle,
             Signal<TextEditState> state);
 } // namespace reactive::widget
 

@@ -1,10 +1,7 @@
 #pragma once
 
 #include "every.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive
 {
@@ -17,6 +14,4 @@ namespace reactive
         }
     }
 }
-
-BTL_VISIBILITY_POP
 

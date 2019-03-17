@@ -4,6 +4,7 @@
 #include "pointermoveevent.h"
 #include "pointerbuttonevent.h"
 #include "eventresult.h"
+#include "reactivevisibility.h"
 
 #include <avg/obb.h>
 #include <avg/transform.h>
@@ -20,7 +21,7 @@ namespace reactive
 {
     using HoverEvent = ase::HoverEvent;
 
-    class BTL_VISIBLE InputArea
+    class REACTIVE_EXPORT InputArea
     {
     public:
         InputArea(btl::UniqueId id, avg::Obb const& obb);
@@ -84,10 +85,10 @@ namespace reactive
             > onHover_;
     };
 
-    BTL_VISIBLE auto makeInputArea(btl::UniqueId id,
+    REACTIVE_EXPORT auto makeInputArea(btl::UniqueId id,
             std::vector<avg::Obb>&& obbs) -> InputArea;
 
-    BTL_VISIBLE auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
+    REACTIVE_EXPORT auto makeInputArea(btl::UniqueId id, avg::Obb const& obb)
         -> InputArea;
 }
 
