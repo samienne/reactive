@@ -159,17 +159,6 @@ namespace reactive
      */
     //using SizeHint = std::function<SizeHintPartial()>;
 
-    inline auto combinePartialHints(std::vector<SizeHintResult> const& hints)
-        -> SizeHintResult
-    {
-        auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
-        for (auto const& hint : hints)
-            for (int i = 0; i < 3; ++i)
-                result[i] += hint[i];
-
-        return result;
-    }
-
     inline auto getLargestHint(std::vector<SizeHintResult> const& hints)
         -> SizeHintResult
     {
@@ -179,48 +168,6 @@ namespace reactive
                 result[i] = std::max(result[i], hint[i]);
 
         return result;
-    }
-
-    inline auto getSizes(float size,
-            std::vector<std::array<float, 3>> const& hints)
-        -> std::vector<float>
-    {
-        std::vector<float> result;
-        result.reserve(hints.size());
-
-        auto combined = combinePartialHints(hints);
-        std::array<float, 3> multiplier;
-        for (size_t i = 0; i < multiplier.size(); ++i)
-        {
-            float prev = (i ? combined[i-1] : 0.0f);
-            float m = (size - prev) / (combined[i] - prev);
-            multiplier[i] = std::max(0.0f, std::min(1.0f, m));
-        }
-
-        for (auto const& hint : hints)
-        {
-            float r = 0.0f;
-            for (size_t i = 0; i < hint.size(); ++i)
-            {
-                float prev = (i ? hint[i-1] : 0.0f);
-                r += (hint[i] - prev) * multiplier[i];
-            }
-            result.push_back(r);
-        }
-
-        return result;
-    }
-
-    inline SizeHintResult growSizeHintResult(SizeHintResult const& result,
-            float amount)
-    {
-        return SizeHintResult{
-            {
-                result[0] + amount * 2.0f,
-                result[1] + amount * 2.0f,
-                result[2] + amount * 2.0f
-            }
-        };
     }
 
     inline std::ostream& operator<<(std::ostream& stream,

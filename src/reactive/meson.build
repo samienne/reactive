@@ -28,6 +28,7 @@ libreactivesrc = [
     'pointermoveevent.cpp',
     'simplesizehint.cpp',
     'stacksizehint.cpp',
+    'growsizehint.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]

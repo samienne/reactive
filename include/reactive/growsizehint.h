@@ -4,6 +4,18 @@
 
 namespace reactive
 {
+    inline SizeHintResult growSizeHintResult(SizeHintResult const& result,
+            float amount)
+    {
+        return SizeHintResult{
+            {
+                result[0] + amount * 2.0f,
+                result[1] + amount * 2.0f,
+                result[2] + amount * 2.0f
+            }
+        };
+    }
+
     template <typename THint>
     struct GrowSizeHint
     {
@@ -25,8 +37,6 @@ namespace reactive
         std::decay_t<THint> hint;
         float amount;
     };
-
-    static_assert(IsSizeHint<GrowSizeHint<SimpleSizeHint>>::value, "");
 
     /**
      * @brief Grows given size hint by given amount. Returns new size hint.
