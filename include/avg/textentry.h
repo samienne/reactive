@@ -7,16 +7,16 @@
 #include "pen.h"
 #include "brush.h"
 #include "vector.h"
+#include "avgvisibility.h"
 
 #include <btl/hash.h>
 #include <btl/option.h>
-#include <btl/visibility.h>
 
 #include <string>
 
 namespace avg
 {
-    class BTL_VISIBLE TextEntry
+    class AVG_EXPORT TextEntry
     {
     public:
         TextEntry(Font const& font, Transform const& transform,

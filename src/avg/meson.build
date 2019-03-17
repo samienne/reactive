@@ -28,7 +28,10 @@ libavg = library(
         'avg',
         libavgsrc,
         include_directories : incdir,
-        dependencies : [libasedep, libfreetypedep])
+        dependencies : [libasedep, libfreetypedep],
+        cpp_args: ['-DAVG_EXPORT_SYMBOLS'],
+        gnu_symbol_visibility: 'hidden'
+        )
 
 libavgdep = declare_dependency(
         link_with: libavg,

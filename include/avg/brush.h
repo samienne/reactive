@@ -2,15 +2,15 @@
 
 #include "color.h"
 #include "transform.h"
+#include "avgvisibility.h"
 
-#include <btl/visibility.h>
 #include <btl/hash.h>
 
 #include <ostream>
 
 namespace avg
 {
-    class BTL_VISIBLE Brush final
+    class AVG_EXPORT Brush final
     {
     public:
         Brush(Color const& color = Color());
@@ -89,5 +89,5 @@ namespace avg
     {
         return *this;
     }
-}
+} // namespace avg
 

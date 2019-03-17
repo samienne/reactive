@@ -1,9 +1,9 @@
 #pragma once
 
 #include "transform.h"
+#include "avgvisibility.h"
 
 #include <btl/forcenoexcept.h>
-#include <btl/visibility.h>
 
 #include <ostream>
 
@@ -11,7 +11,7 @@ namespace avg
 {
     class Rect;
 
-    class BTL_VISIBLE Obb
+    class AVG_EXPORT Obb
     {
     public:
         Obb();
@@ -39,8 +39,10 @@ namespace avg
         bool operator==(Obb const& obb) const;
         bool operator!=(Obb const& obb) const;
 
-        BTL_VISIBLE friend Obb operator*(avg::Transform const& t, Obb const& obb);
-        BTL_VISIBLE friend std::ostream& operator<<(std::ostream& stream, Obb const& obb);
+        AVG_EXPORT friend Obb operator*(avg::Transform const& t,
+                Obb const& obb);
+        AVG_EXPORT friend std::ostream& operator<<(std::ostream& stream,
+                Obb const& obb);
 
     private:
         Transform transform_;

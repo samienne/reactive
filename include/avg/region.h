@@ -4,8 +4,7 @@
 #include "jointype.h"
 #include "fillrule.h"
 #include "vector.h"
-
-#include <btl/visibility.h>
+#include "avgvisibility.h"
 
 #include <vector>
 #include <memory>
@@ -18,7 +17,7 @@ namespace avg
 
     class RegionDeferred;
 
-    class BTL_VISIBLE Region
+    class AVG_EXPORT Region
     {
     public:
         Region();

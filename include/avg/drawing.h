@@ -3,14 +3,14 @@
 #include "shape.h"
 #include "textentry.h"
 #include "transform.h"
+#include "avgvisibility.h"
 
 #include <btl/variant.h>
-#include <btl/visibility.h>
 #include <btl/heap.h>
 
 namespace avg
 {
-    class BTL_VISIBLE Drawing final
+    class AVG_EXPORT Drawing final
     {
     public:
         struct SubDrawing;
@@ -81,7 +81,7 @@ namespace avg
 
         Drawing transform(Transform const& t) &&;
 
-        BTL_VISIBLE friend Drawing operator*(Transform const& t, Drawing&& drawing);
+        AVG_EXPORT friend Drawing operator*(Transform const& t, Drawing&& drawing);
 
     private:
         std::vector<Element> elements_;

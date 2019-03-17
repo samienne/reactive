@@ -4,13 +4,13 @@
 #include "transform.h"
 #include "jointype.h"
 #include "endtype.h"
+#include "avgvisibility.h"
 
 #include <btl/hash.h>
-#include <btl/visibility.h>
 
 namespace avg
 {
-    class BTL_VISIBLE Pen final
+    class AVG_EXPORT Pen final
     {
     public:
         Pen(Brush brush = Brush(), float width = 1.0f,

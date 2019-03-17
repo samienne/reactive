@@ -3,14 +3,14 @@
 #include "pen.h"
 #include "brush.h"
 #include "path.h"
+#include "avgvisibility.h"
 
 #include <btl/option.h>
 #include <btl/hash.h>
-#include <btl/visibility.h>
 
 namespace avg
 {
-    class BTL_VISIBLE Shape final
+    class AVG_EXPORT Shape final
     {
     public:
         Shape();
@@ -51,7 +51,7 @@ namespace avg
             hash_append(h, shape.pen_);
         }
 
-        BTL_VISIBLE friend Shape operator*(Transform const& t, Shape const& rhs)
+        AVG_EXPORT friend Shape operator*(Transform const& t, Shape const& rhs)
         {
             return Shape()
                 .setPath(t * rhs.path_)

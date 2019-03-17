@@ -1,14 +1,13 @@
 #pragma once
 
 #include "vector.h"
-
-#include <btl/visibility.h>
+#include "avgvisibility.h"
 
 #include <ostream>
 
 namespace avg
 {
-    struct BTL_VISIBLE TextExtents
+    struct AVG_EXPORT TextExtents
     {
         inline TextExtents()
         {
