@@ -1,9 +1,12 @@
 #pragma once
 
+#include "connection.h"
+
 #include <vector>
 #include <utility>
 #include <memory>
 #include <functional>
+#include <iostream>
 
 namespace reactive
 {
@@ -11,7 +14,7 @@ namespace reactive
     class CollectionValue
     {
     public:
-        CollectionValue(T value) :
+        explicit CollectionValue(T value) :
             value_(std::make_unique<T>(std::move(value)))
         {
         };
@@ -48,14 +51,19 @@ namespace reactive
             return *value_;
         }
 
-        T& operator->()
+        T* operator->()
         {
-            return *value_;
+            return value_.get();
         }
 
-        T const& operator->() const
+        T const* operator->() const
         {
-            return *value_;
+            return value_.get();
+        }
+
+        T const* ptr() const
+        {
+            return value_.get();
         }
 
     private:
@@ -76,9 +84,9 @@ namespace reactive
             return **iter_;
         }
 
-        T const& operator->() const
+        T const* operator->() const
         {
-            return **iter_;
+            return iter_->ptr();
         }
 
         CollectionConstIterator& operator++()
@@ -89,7 +97,7 @@ namespace reactive
 
         CollectionConstIterator operator++(int)
         {
-            return CollectionIterator(iter_++);
+            return CollectionConstIterator(iter_++);
         }
 
         bool operator==(CollectionConstIterator const& rhs) const
@@ -125,24 +133,39 @@ namespace reactive
         {
         }
 
+        /*
         T& operator*()
         {
             return **iter_;
         }
+        */
 
         T const& operator*() const
         {
             return **iter_;
         }
 
+        /*
         T& operator->()
         {
             return **iter_;
         }
+        */
 
-        T const& operator->() const
+        T const* operator->() const
         {
-            return **iter_;
+            return iter_->get();
+        }
+
+        CollectionIterator& operator++()
+        {
+            ++iter_;
+            return *this;
+        }
+
+        CollectionIterator operator++(int)
+        {
+            return CollectionIterator(iter_++);
         }
 
     protected:
@@ -158,6 +181,17 @@ namespace reactive
         using StorageType = std::vector<CollectionValue<T>>;
 
     public:
+        Collection() :
+            callbacks_(std::make_shared<Callbacks>())
+        {
+        }
+
+        Collection(Collection const& rhs) = delete;
+        Collection(Collection&& rhs) = delete;
+
+        Collection& operator=(Collection const& rhs) = delete;
+        Collection& operator=(Collection&& rhs) = delete;
+
         using Iterator = CollectionIterator<T, typename StorageType::iterator>;
         using ConstIterator = CollectionConstIterator<T,
               typename StorageType::const_iterator>;
@@ -168,23 +202,57 @@ namespace reactive
 
         using IdType = size_t;
 
-        using AddCallback = std::function<void(IdType key, T const& value)>;
+        using InsertCallback = std::function<void(IdType key, T const& value)>;
         using UpdateCallback = std::function<void(IdType key, T const& value)>;
-        using RemoveCallback = std::function<void(IdType key)>;
+        using EraseCallback = std::function<void(IdType key)>;
 
         void pushBack(T value)
         {
-            data_.emplace_back(std::move(value));
+            insert(end(), std::move(value));
         }
 
         void pushFront(T value)
         {
-            data_.insert(data_.begin(), CollectionValue<T>(std::move(value)));
+            insert(begin(), std::move(value));
         }
 
         void insert(Iterator position, T value)
         {
-            data_.insert(position.iter_, CollectionValue<T>(std::move(value)));
+            auto i = data_.insert(position.iter_,
+                    CollectionValue<T>(std::move(value)));
+
+            for (auto const& cb : callbacks_->insertCallbacks)
+            {
+                //cb.second(reinterpret_cast<size_t>(&**i), **i);
+                cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+            }
+        }
+
+        void update(Iterator position, T value)
+        {
+            assert(position != end());
+
+            auto i = position.iter_;
+            **i = value;
+
+            for (auto const& cb : callbacks_->updateCallbacks)
+            {
+                cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+            }
+        }
+
+        void erase(Iterator position)
+        {
+            assert(position != end());
+
+            auto i = position.iter_;
+            size_t id = reinterpret_cast<size_t>(i->ptr());
+            data_.erase(i);
+
+            for (auto const& cb : callbacks_->eraseCallbacks)
+            {
+                cb.second(id);
+            }
         }
 
         Iterator begin()
@@ -232,8 +300,81 @@ namespace reactive
             return data_.size();
         }
 
+        Connection onInsert(InsertCallback callback)
+        {
+            size_t id = callbacks_->nextId++;
+            callbacks_->insertCallbacks.emplace_back(id, std::move(callback));
+            std::weak_ptr<Callbacks> callbacks = callbacks_;
+
+            return Connection::on_disconnect(
+                    [callbacks=std::move(callbacks), id]()
+                    {
+                        if (auto p = callbacks.lock())
+                        {
+                            eraseFrom(id, p->insertCallbacks);
+                        }
+                    });
+        }
+
+        Connection onUpdate(UpdateCallback callback)
+        {
+            size_t id = callbacks_->nextId++;
+            callbacks_->updateCallbacks.emplace_back(
+                    id, std::move(callback));
+            std::weak_ptr<Callbacks> callbacks = callbacks_;
+
+            return Connection::on_disconnect(
+                    [callbacks=std::move(callbacks), id]()
+                    {
+                        if (auto p = callbacks.lock())
+                        {
+                            eraseFrom(id, p->updateCallbacks);
+                        }
+                    });
+        }
+
+        Connection onErase(EraseCallback callback)
+        {
+            size_t id = callbacks_->nextId++;
+            callbacks_->eraseCallbacks.emplace_back(
+                    id, std::move(callback));
+            std::weak_ptr<Callbacks> callbacks = callbacks_;
+
+            return Connection::on_disconnect(
+                    [callbacks=std::move(callbacks), id]()
+                    {
+                        if (auto p = callbacks.lock())
+                        {
+                            eraseFrom(id, p->eraseCallbacks);
+                        }
+                    });
+        }
+
     private:
+        template <typename U>
+        static void eraseFrom(size_t id, U& vec)
+        {
+            for (auto i = vec.begin(); i!= vec.end(); ++i)
+            {
+                if (i->first == id)
+                {
+                    vec.erase(i);
+                    return;
+                }
+            }
+        }
+
+    private:
+        struct Callbacks
+        {
+            size_t nextId = 1;
+            std::vector<std::pair<size_t, InsertCallback>> insertCallbacks;
+            std::vector<std::pair<size_t, UpdateCallback>> updateCallbacks;
+            std::vector<std::pair<size_t, EraseCallback>> eraseCallbacks;
+        };
+
         StorageType data_;
+        std::shared_ptr<Callbacks> callbacks_;
     };
 } // namespace reactive
 
