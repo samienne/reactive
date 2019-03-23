@@ -3,6 +3,7 @@
 #include <vector>
 #include <utility>
 #include <memory>
+#include <functional>
 
 namespace reactive
 {
@@ -155,6 +156,7 @@ namespace reactive
     class Collection
     {
         using StorageType = std::vector<CollectionValue<T>>;
+
     public:
         using Iterator = CollectionIterator<T, typename StorageType::iterator>;
         using ConstIterator = CollectionConstIterator<T,
@@ -163,6 +165,12 @@ namespace reactive
               typename StorageType::reverse_iterator>;
         using ConstReverseIterator = CollectionConstIterator<T,
               typename StorageType::const_reverse_iterator>;
+
+        using IdType = size_t;
+
+        using AddCallback = std::function<void(IdType key, T const& value)>;
+        using UpdateCallback = std::function<void(IdType key, T const& value)>;
+        using RemoveCallback = std::function<void(IdType key)>;
 
         void pushBack(T value)
         {

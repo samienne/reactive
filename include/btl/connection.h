@@ -1,7 +1,5 @@
 #pragma once
 
-#include "observablecontrolbase.h"
-
 #include <functional>
 
 namespace btl
@@ -25,17 +23,8 @@ namespace btl
             return *this;
         }
 
-        inline connection(size_t i,
-                std::weak_ptr<detail::observable_control_base> observable) :
-            callbacks_({[i, observable=std::move(observable)]() mutable
-                    {
-                        if (auto p = observable.lock())
-                        {
-                            p->disconnect(i);
-                            observable.reset();
-                        }
-                    }
-                    })
+        inline connection(std::function<void()> callback) :
+            callbacks_({std::move(callback)})
         {
         }
 
@@ -76,12 +65,6 @@ namespace btl
             rhs.callbacks_.clear();
 
             return result;
-        }
-
-    private:
-        inline connection(std::function<void()> callback) :
-            callbacks_({std::move(callback)})
-        {
         }
 
     private:
