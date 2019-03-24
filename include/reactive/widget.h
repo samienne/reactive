@@ -304,12 +304,10 @@ namespace reactive
         }
         */
 
-        template <typename TSignalTransform, typename = std::enable_if_t<
-            IsSignalType<TSignalTransform, avg::Transform>::value
-            >>
-        auto transform(TSignalTransform t) &&
+        template <typename T>
+        auto transform(Signal<avg::Transform, T> t) &&
         {
-            auto tr = share(std::move(t));
+            auto tr = signal::share(std::move(t));
 
             auto drawing = signal::map([](avg::Drawing d, avg::Transform t)
                     -> avg::Drawing
@@ -505,7 +503,7 @@ namespace reactive
 
     struct Widget : WidgetBase
     {
-        Widget(WidgetBase base) :
+        inline Widget(WidgetBase base) :
             WidgetBase(std::move(base))
         {
         }
@@ -517,7 +515,7 @@ namespace reactive
         {
         }
 
-        Widget clone() const
+        inline Widget clone() const
         {
             return WidgetBase::clone();
         }

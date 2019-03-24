@@ -2,6 +2,7 @@
 incdir = include_directories('../../include', '../../include/reactive', '.')
 
 libreactivesrc = [
+    'widget/widgetobject.cpp',
     'widget/scrollbar.cpp',
     'widget/scrollview.cpp',
     'widget/bin.cpp',
@@ -40,7 +41,7 @@ libreactive = library(
         libreactivesrc,
         include_directories: incdir,
         dependencies: reactivedep,
-        cpp_args: ['-DREACTIVE_EXPORT_SYMBOLS'],
+        cpp_args: ['-Wno-unused-function', '-DREACTIVE_EXPORT_SYMBOLS'],
         gnu_symbol_visibility: 'hidden'
         )
 

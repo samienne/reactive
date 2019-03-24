@@ -110,6 +110,12 @@ namespace reactive::signal
                 );
     }
 
+    template <typename T>
+    auto dropRepeats(Signal<T, Constant<T>> signal)
+    {
+        return std::move(signal);
+    }
+
     template <typename T, typename U>
     auto tryDropRepeats(Signal<T, U> sig)
     -> decltype(dropRepeats(std::move(sig)))

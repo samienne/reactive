@@ -120,6 +120,11 @@ namespace reactive
             return iter_ > rhs.iter_;
         }
 
+        size_t getId() const
+        {
+            return reinterpret_cast<size_t>(iter_->ptr());
+        }
+
     protected:
         TIter iter_;
     };

@@ -3,6 +3,7 @@ gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
 unittest = executable('unittest',
+        'databindtest.cpp',
         'btlreducetest.cpp',
         'btlcollectiontest.cpp',
         'collectiontest.cpp',
