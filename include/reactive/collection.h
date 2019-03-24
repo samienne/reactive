@@ -182,15 +182,15 @@ namespace reactive
 
     public:
         Collection() :
-            callbacks_(std::make_shared<Callbacks>())
+            control_(std::make_shared<ControlBlock>())
         {
         }
 
-        Collection(Collection const& rhs) = delete;
-        Collection(Collection&& rhs) = delete;
+        Collection(Collection const& rhs) = default;
+        Collection(Collection&& rhs) noexcept = default;
 
-        Collection& operator=(Collection const& rhs) = delete;
-        Collection& operator=(Collection&& rhs) = delete;
+        Collection& operator=(Collection const& rhs) = default;
+        Collection& operator=(Collection&& rhs)  noexcept= default;
 
         using Iterator = CollectionIterator<T, typename StorageType::iterator>;
         using ConstIterator = CollectionConstIterator<T,
@@ -218,10 +218,10 @@ namespace reactive
 
         void insert(Iterator position, T value)
         {
-            auto i = data_.insert(position.iter_,
+            auto i = control_->data_.insert(position.iter_,
                     CollectionValue<T>(std::move(value)));
 
-            for (auto const& cb : callbacks_->insertCallbacks)
+            for (auto const& cb : control_->insertCallbacks)
             {
                 //cb.second(reinterpret_cast<size_t>(&**i), **i);
                 cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
@@ -235,7 +235,7 @@ namespace reactive
             auto i = position.iter_;
             **i = value;
 
-            for (auto const& cb : callbacks_->updateCallbacks)
+            for (auto const& cb : control_->updateCallbacks)
             {
                 cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
             }
@@ -247,9 +247,9 @@ namespace reactive
 
             auto i = position.iter_;
             size_t id = reinterpret_cast<size_t>(i->ptr());
-            data_.erase(i);
+            control_->data_.erase(i);
 
-            for (auto const& cb : callbacks_->eraseCallbacks)
+            for (auto const& cb : control_->eraseCallbacks)
             {
                 cb.second(id);
             }
@@ -257,59 +257,59 @@ namespace reactive
 
         Iterator begin()
         {
-            return Iterator(data_.begin());
+            return Iterator(control_->data_.begin());
         }
 
         ConstIterator begin() const
         {
-            return ConstIterator(data_.begin());
+            return ConstIterator(control_->data_.begin());
         }
 
         ReverseIterator rbegin()
         {
-            return ReverseIterator(data_.rbegin());
+            return ReverseIterator(control_->data_.rbegin());
         }
 
         ConstReverseIterator rbegin() const
         {
-            return ConstReverseIterator(data_.rbegin());
+            return ConstReverseIterator(control_->data_.rbegin());
         }
 
         Iterator end()
         {
-            return Iterator(data_.end());
+            return Iterator(control_->data_.end());
         }
 
         ConstIterator end() const
         {
-            return ConstIterator(data_.end());
+            return ConstIterator(control_->data_.end());
         }
 
         ReverseIterator rend()
         {
-            return ReverseIterator(data_.rend());
+            return ReverseIterator(control_->data_.rend());
         }
 
         ConstReverseIterator rend() const
         {
-            return ConstReverseIterator(data_.rend());
+            return ConstReverseIterator(control_->data_.rend());
         }
 
         size_t size() const
         {
-            return data_.size();
+            return control_->data_.size();
         }
 
         Connection onInsert(InsertCallback callback)
         {
-            size_t id = callbacks_->nextId++;
-            callbacks_->insertCallbacks.emplace_back(id, std::move(callback));
-            std::weak_ptr<Callbacks> callbacks = callbacks_;
+            size_t id = control_->nextId++;
+            control_->insertCallbacks.emplace_back(id, std::move(callback));
+            std::weak_ptr<ControlBlock> control = control_;
 
             return Connection::on_disconnect(
-                    [callbacks=std::move(callbacks), id]()
+                    [control=std::move(control), id]()
                     {
-                        if (auto p = callbacks.lock())
+                        if (auto p = control.lock())
                         {
                             eraseFrom(id, p->insertCallbacks);
                         }
@@ -318,15 +318,15 @@ namespace reactive
 
         Connection onUpdate(UpdateCallback callback)
         {
-            size_t id = callbacks_->nextId++;
-            callbacks_->updateCallbacks.emplace_back(
+            size_t id = control_->nextId++;
+            control_->updateCallbacks.emplace_back(
                     id, std::move(callback));
-            std::weak_ptr<Callbacks> callbacks = callbacks_;
+            std::weak_ptr<ControlBlock> control = control_;
 
             return Connection::on_disconnect(
-                    [callbacks=std::move(callbacks), id]()
+                    [control=std::move(control), id]()
                     {
-                        if (auto p = callbacks.lock())
+                        if (auto p = control.lock())
                         {
                             eraseFrom(id, p->updateCallbacks);
                         }
@@ -335,15 +335,15 @@ namespace reactive
 
         Connection onErase(EraseCallback callback)
         {
-            size_t id = callbacks_->nextId++;
-            callbacks_->eraseCallbacks.emplace_back(
+            size_t id = control_->nextId++;
+            control_->eraseCallbacks.emplace_back(
                     id, std::move(callback));
-            std::weak_ptr<Callbacks> callbacks = callbacks_;
+            std::weak_ptr<ControlBlock> control = control_;
 
             return Connection::on_disconnect(
-                    [callbacks=std::move(callbacks), id]()
+                    [control=std::move(control), id]()
                     {
-                        if (auto p = callbacks.lock())
+                        if (auto p = control.lock())
                         {
                             eraseFrom(id, p->eraseCallbacks);
                         }
@@ -365,16 +365,16 @@ namespace reactive
         }
 
     private:
-        struct Callbacks
+        struct ControlBlock
         {
+            StorageType data_;
             size_t nextId = 1;
             std::vector<std::pair<size_t, InsertCallback>> insertCallbacks;
             std::vector<std::pair<size_t, UpdateCallback>> updateCallbacks;
             std::vector<std::pair<size_t, EraseCallback>> eraseCallbacks;
         };
 
-        StorageType data_;
-        std::shared_ptr<Callbacks> callbacks_;
+        std::shared_ptr<ControlBlock> control_;
     };
 } // namespace reactive
 
