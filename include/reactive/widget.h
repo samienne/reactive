@@ -271,39 +271,6 @@ namespace reactive
                     );
         }
 
-        /*
-        template <typename TSignal>
-        auto addDrawingBehind(TSignal&& d) &&
-        {
-            auto drawing = signal::map(
-                    [](avg::Obb obb, avg::Drawing d1, avg::Drawing d2)
-                    -> avg::Drawing
-                {
-                    return (obb.getTransform() * std::move(d2)) + std::move(d1);
-                }, obb_, drawing_, d);
-
-            return std::move(*this)
-                .setDrawing(std::move(drawing));
-        }
-        */
-
-        /*
-        auto addDrawings(Signal<std::vector<avg::Drawing>> drawings) &&
-        {
-            auto drawing = signal::map([](avg::Obb obb, avg::Drawing d1,
-                        std::vector<avg::Drawing> drawings)
-                    -> avg::Drawing
-                {
-                    for (auto&& d : drawings)
-                        d1 = std::move(d1) + (obb.getTransform() * std::move(d));
-                    return d1;
-                }, obb_, drawing_, std::move(drawings));
-
-            return std::move(*this)
-                .setDrawing(std::move(drawing));
-        }
-        */
-
         template <typename T>
         auto transform(Signal<avg::Transform, T> t) &&
         {

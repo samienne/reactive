@@ -30,16 +30,20 @@ namespace reactive::signal
 
         struct Update
         {
+            T value;
+            size_t id;
         };
 
         struct Erase
         {
+            size_t id;
         };
 
         struct WidgetState
         {
             WidgetObject widget;
             InputHandle<T> valueHandle;
+            size_t id;
         };
 
         struct State
@@ -60,7 +64,8 @@ namespace reactive::signal
                         WidgetObject(
                             delegate(std::move(valueInput.signal), i.getId())
                         ),
-                        std::move(valueInput.handle)
+                        std::move(valueInput.handle),
+                        i.getId()
                         });
         }
 
@@ -71,6 +76,12 @@ namespace reactive::signal
                 [handle=eventPipe.handle](size_t id, T value)
                 {
                     handle.push(Insert{std::move(value), id});
+                });
+
+        connection += initial.collection.onErase(
+                [handle=eventPipe.handle](size_t id)
+                {
+                    handle.push(Erase{id});
                 });
 
         auto state = stream::iterate(
@@ -89,7 +100,8 @@ namespace reactive::signal
                                 WidgetObject(
                                     delegate(std::move(valueInput.signal), insert.id)
                                 ),
-                                std::move(valueInput.handle)
+                                std::move(valueInput.handle),
+                                insert.id
                                 });
                 }
                 else if(event.template is<Update>())
@@ -97,6 +109,17 @@ namespace reactive::signal
                 }
                 else if (event.template is<Erase>())
                 {
+                    auto& erase = event.template get<Erase>();
+
+                    for (auto i = state.objects.begin();
+                            i != state.objects.end(); ++i)
+                    {
+                        if (i->id == erase.id)
+                        {
+                            state.objects.erase(i);
+                            break;
+                        }
+                    }
                 }
 
                 return state;

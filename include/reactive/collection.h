@@ -260,6 +260,18 @@ namespace reactive
             }
         }
 
+        void eraseWithId(size_t id)
+        {
+            for (auto i = begin(); i != end(); ++i)
+            {
+                if (i.getId() == id)
+                {
+                    erase(i);
+                    return;
+                }
+            }
+        }
+
         Iterator begin()
         {
             return Iterator(control_->data_.begin());
