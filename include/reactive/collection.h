@@ -138,24 +138,10 @@ namespace reactive
         {
         }
 
-        /*
-        T& operator*()
-        {
-            return **iter_;
-        }
-        */
-
         T const& operator*() const
         {
             return **iter_;
         }
-
-        /*
-        T& operator->()
-        {
-            return **iter_;
-        }
-        */
 
         T const* operator->() const
         {
