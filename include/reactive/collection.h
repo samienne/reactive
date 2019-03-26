@@ -260,16 +260,31 @@ namespace reactive
             }
         }
 
-        void eraseWithId(size_t id)
+        Iterator findId(size_t id)
         {
             for (auto i = begin(); i != end(); ++i)
-            {
                 if (i.getId() == id)
-                {
-                    erase(i);
-                    return;
-                }
-            }
+                    return i;
+
+            return end();
+        }
+
+        ConstIterator findId(size_t id) const
+        {
+            for (auto i = begin(); i != end(); ++i)
+                if (i.getId() == id)
+                    return i;
+
+            return end();
+        }
+
+        void eraseWithId(size_t id)
+        {
+            auto i = findId(id);
+            if (i == end())
+                return;
+
+            erase(i);
         }
 
         Iterator begin()
