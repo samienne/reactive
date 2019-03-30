@@ -5,6 +5,7 @@
 #include <reactive/widget/textedit.h>
 #include <reactive/widget/label.h>
 
+#include <reactive/filler.h>
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
 
@@ -33,12 +34,24 @@ namespace
                 ));
 
         return hbox({
-                    textEdit(handle, textState.signal)
-                        .onEnter(onEnterSignal),
-                    widget::label(signal::constant<std::string>("Add"))
+                textEdit(handle, textState.signal)
+                    .onEnter(onEnterSignal),
+                widget::label(signal::constant<std::string>("Add"))
+                    | widget::frame()
+                    | widget::onClick(0, onEnterSignal)
+            });
+    }
+
+    WidgetFactory button(std::string label, std::function<void()> cb)
+    {
+        return widget::label(signal::constant(std::move(label)))
                         | widget::frame()
-                        | widget::onClick(0, onEnterSignal)
-                });
+                        | widget::onClick(0, [cb=std::move(cb)]
+                            (ClickEvent const&)
+                            {
+                                cb();
+                            })
+                        ;
     }
 } // anonymous namespace
 
@@ -55,12 +68,25 @@ reactive::WidgetFactory adder()
             [items]
             (Signal<std::string> value, size_t id) mutable -> WidgetFactory
             {
-                return widget::label(std::move(value))
-                    | widget::onClick(0,
-                        [id, items](ClickEvent const&) mutable
+                return hbox({
+                    button("->", [items, id]() mutable
+                        {
+                            auto i = items.findId(id);
+                            if (i != items.end())
+                            {
+                                items.update(i, "updated");
+                            }
+                        })
+                    ,
+                    widget::label(std::move(value))
+                    ,
+                    hfiller()
+                    ,
+                    button("x", [id, items]() mutable
                         {
                             items.eraseWithId(id);
-                        });
+                        })
+                    });
             });
 
     return vbox({

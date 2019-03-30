@@ -78,6 +78,12 @@ namespace reactive::signal
                     handle.push(Insert{std::move(value), id});
                 });
 
+        connection += initial.collection.onUpdate(
+                [handle=eventPipe.handle](size_t id, T value)
+                {
+                    handle.push(Update{std::move(value), id});
+                });
+
         connection += initial.collection.onErase(
                 [handle=eventPipe.handle](size_t id)
                 {
@@ -106,6 +112,17 @@ namespace reactive::signal
                 }
                 else if(event.template is<Update>())
                 {
+                    auto& update = event.template get<Update>();
+
+                    for (auto i = state.objects.begin();
+                            i != state.objects.end(); ++i)
+                    {
+                        if (i->id == update.id)
+                        {
+                            i->valueHandle.set(std::move(update.value));
+                            break;
+                        }
+                    }
                 }
                 else if (event.template is<Erase>())
                 {

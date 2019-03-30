@@ -17,8 +17,8 @@ namespace
     SizeHint hintMap(SizeHint /*hint*/)
     {
         return simpleSizeHint(
-                {{100, 200, 10000}},
-                {{100, 400, 10000}}
+                {{100, 400, 10000}},
+                {{100, 800, 10000}}
                 );
     }
 
