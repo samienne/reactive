@@ -196,7 +196,7 @@ namespace reactive::stream
         IterateStatic(IterateStatic&&) = default;
         IterateStatic& operator=(IterateStatic&&) = default;
 
-        TInitial evaluate() const
+        TInitial const& evaluate() const
         {
             return value_;
         }
