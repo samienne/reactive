@@ -9,6 +9,11 @@ namespace reactive::widget
     class REACTIVE_EXPORT WidgetObject
     {
     public:
+        WidgetObject(WidgetObject const&) = default;
+        WidgetObject(WidgetObject&&) noexcept = default;
+
+        WidgetObject& operator=(WidgetObject const&) = default;
+        WidgetObject& operator=(WidgetObject&&) noexcept = default;
         explicit WidgetObject(WidgetFactory factory);
 
         void setObb(avg::Obb obb);
