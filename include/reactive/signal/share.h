@@ -32,9 +32,9 @@ namespace reactive::signal
     }
 
     template <typename T, typename U>
-    auto share(Signal<T, Share<T, U>> sig)
+    SharedSignal<T, Share<T, U>> share(Signal<T, Share<T, U>> sig)
     {
-        return std::move(sig);
+        return detail::makeShared(std::move(sig));
     }
 
     template <typename T>

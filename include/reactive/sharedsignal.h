@@ -58,6 +58,12 @@ namespace reactive
         {
         }
 
+        template <typename U>
+        SharedSignal(Signal<T, signal::Share<T, U>> sig) :
+            Signal<T, void>(std::move(sig))
+        {
+        }
+
         static SharedSignal create(Signal<T, void>&& sig)
         {
             return { std::move(sig) };
