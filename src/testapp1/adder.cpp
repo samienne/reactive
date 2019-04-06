@@ -5,6 +5,8 @@
 #include <reactive/widget/textedit.h>
 #include <reactive/widget/label.h>
 
+#include <reactive/datasourcefromcollection.h>
+#include <reactive/datasource.h>
 #include <reactive/filler.h>
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
@@ -75,7 +77,7 @@ reactive::WidgetFactory adder()
     auto textInput = signal::input<std::string>("");
 
     auto widgets = signal::dataBind<std::string>(
-            items,
+            dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal)]
             (Signal<std::string> value, size_t id) mutable -> WidgetFactory
             {

@@ -8,7 +8,7 @@
 #include <reactive/widget/widgetobject.h>
 #include <reactive/widgetfactory.h>
 #include <reactive/signal.h>
-#include <reactive/collection.h>
+#include <reactive/datasource.h>
 
 #include <vector>
 
@@ -16,28 +16,11 @@ namespace reactive::signal
 {
     template <typename T>
     Signal<std::vector<widget::WidgetObject>> dataBind(
-            Collection<T> collection,
+            DataSource<T> source,
             std::function<WidgetFactory(Signal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;
-
-        struct Insert
-        {
-            T value;
-            size_t id;
-        };
-
-        struct Update
-        {
-            T value;
-            size_t id;
-        };
-
-        struct Erase
-        {
-            size_t id;
-        };
 
         struct WidgetState
         {
@@ -49,55 +32,18 @@ namespace reactive::signal
         struct State
         {
             std::vector<WidgetState> objects;
-            Collection<T> collection;
         };
 
-        State initial {{}, std::move(collection)};
-
-        for (auto i = initial.collection.begin(); i != initial.collection.end();
-                ++i)
-        {
-            auto valueInput = signal::input<T>(std::move(*i));
-
-            initial.objects.push_back(
-                    WidgetState{
-                        WidgetObject(
-                            delegate(std::move(valueInput.signal), i.getId())
-                        ),
-                        std::move(valueInput.handle),
-                        i.getId()
-                        });
-        }
-
-        auto eventPipe = stream::pipe<btl::variant<Insert, Update, Erase>>();
-
-        Connection connection;
-        connection += initial.collection.onInsert(
-                [handle=eventPipe.handle](size_t id, T value)
-                {
-                    handle.push(Insert{std::move(value), id});
-                });
-
-        connection += initial.collection.onUpdate(
-                [handle=eventPipe.handle](size_t id, T value)
-                {
-                    handle.push(Update{std::move(value), id});
-                });
-
-        connection += initial.collection.onErase(
-                [handle=eventPipe.handle](size_t id)
-                {
-                    handle.push(Erase{id});
-                });
+        State initial {{}};
 
         auto state = stream::iterate(
             // connection is put into the lambda just to keep it alive
-            [delegate, connection=std::move(connection)]
-            (State state, btl::variant<Insert, Update, Erase> event)
+            [delegate, connection=std::move(source.connection)]
+            (State state, typename DataSource<T>::Event event)
             {
-                if (event.template is<Insert>())
+                if (event.template is<typename DataSource<T>::Insert>())
                 {
-                    auto& insert = event.template get<Insert>();
+                    auto& insert = event.template get<typename DataSource<T>::Insert>();
 
                     auto valueInput = signal::input<T>(std::move(insert.value));
 
@@ -110,9 +56,9 @@ namespace reactive::signal
                                 insert.id
                                 });
                 }
-                else if(event.template is<Update>())
+                else if(event.template is<typename DataSource<T>::Update>())
                 {
-                    auto& update = event.template get<Update>();
+                    auto& update = event.template get<typename DataSource<T>::Update>();
 
                     for (auto i = state.objects.begin();
                             i != state.objects.end(); ++i)
@@ -124,9 +70,9 @@ namespace reactive::signal
                         }
                     }
                 }
-                else if (event.template is<Erase>())
+                else if (event.template is<typename DataSource<T>::Erase>())
                 {
-                    auto& erase = event.template get<Erase>();
+                    auto& erase = event.template get<typename DataSource<T>::Erase>();
 
                     for (auto i = state.objects.begin();
                             i != state.objects.end(); ++i)
@@ -142,8 +88,10 @@ namespace reactive::signal
                 return state;
             },
             std::move(initial),
-            std::move(eventPipe.stream)
+            std::move(source.input)
             );
+
+        source.initialize();
 
         auto widgetObjects = signal::map(
             [](State const& state)
