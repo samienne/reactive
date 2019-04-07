@@ -4,9 +4,9 @@
 
 namespace ase
 {
-    class Dispatched;
-    class GlRenderContext;
+    struct Dispatched;
     struct GlFunctions;
+    class GlRenderContext;
 
     class GlBaseFramebuffer : public FramebufferImpl
     {
