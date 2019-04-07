@@ -114,7 +114,7 @@ reactive::WidgetFactory adder()
             vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
-                    items.rangeLock().pushBack(text);
+                    items.rangeLock().pushFront(std::move(text));
                 })
             });
 }

@@ -245,11 +245,13 @@ namespace reactive
 
         class Range : public ConstRange
         {
-            using ConstRange::collection_;
+            //using ConstRange::collection_;
+            Collection& collection_;
 
         public:
-            Range(LockType lock, Collection const& collection) :
-                ConstRange(std::move(lock), collection)
+            Range(LockType lock, Collection& collection) :
+                ConstRange(std::move(lock), collection),
+                collection_(collection)
             {
             }
 
@@ -283,15 +285,23 @@ namespace reactive
                 insert(begin(), std::move(value));
             }
 
-            void insert(Iterator position, T value)
+            Iterator insert(Iterator position, T value)
             {
                 auto i = collection_.control_->data.insert(position.iter_,
                         CollectionValue<T>(std::move(value)));
 
+                int index = std::distance(collection_.control_->data.begin(), i);
+
                 for (auto const& cb : collection_.control_->insertCallbacks)
                 {
-                    cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+                    cb.second(
+                            reinterpret_cast<size_t>(i->ptr()),
+                            index,
+                            **i
+                            );
                 }
+
+                return Iterator(i);
             }
 
             void update(Iterator position, T value)
@@ -303,7 +313,12 @@ namespace reactive
 
                 for (auto const& cb : collection_.control_->updateCallbacks)
                 {
-                    cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+                    cb.second(
+                            reinterpret_cast<size_t>(i->ptr()),
+                            std::distance(collection_.control_->data.begin(),
+                                i),
+                            **i
+                            );
                 }
             }
 
@@ -342,8 +357,8 @@ namespace reactive
 
         using IdType = size_t;
 
-        using InsertCallback = std::function<void(IdType key, T const& value)>;
-        using UpdateCallback = std::function<void(IdType key, T const& value)>;
+        using InsertCallback = std::function<void(IdType key, int index, T const& value)>;
+        using UpdateCallback = std::function<void(IdType key, int index, T const& value)>;
         using EraseCallback = std::function<void(IdType key)>;
 
         Range rangeLock()
@@ -367,7 +382,7 @@ namespace reactive
 
             size_t id = control_->nextId++;
             control_->insertCallbacks.emplace_back(id, std::move(callback));
-            std::weak_ptr<ControlBlock> control = control_;
+            std::weak_ptr<ControlBlock> control = control_.ptr();
 
             return Connection::on_disconnect(
                     [control=std::move(control), id]()
@@ -387,7 +402,7 @@ namespace reactive
             size_t id = control_->nextId++;
             control_->updateCallbacks.emplace_back(
                     id, std::move(callback));
-            std::weak_ptr<ControlBlock> control = control_;
+            std::weak_ptr<ControlBlock> control = control_.ptr();
 
             return Connection::on_disconnect(
                     [control=std::move(control), id]()
@@ -407,7 +422,7 @@ namespace reactive
             size_t id = control_->nextId++;
             control_->eraseCallbacks.emplace_back(
                     id, std::move(callback));
-            std::weak_ptr<ControlBlock> control = control_;
+            std::weak_ptr<ControlBlock> control = control_.ptr();
 
             return Connection::on_disconnect(
                     [control=std::move(control), id]()
@@ -437,7 +452,7 @@ namespace reactive
     private:
         struct ControlBlock
         {
-            btl::SpinLock mutex;
+            mutable btl::SpinLock mutex;
             StorageType data;
             size_t nextId = 1;
             std::vector<std::pair<size_t, InsertCallback>> insertCallbacks;
@@ -445,7 +460,7 @@ namespace reactive
             std::vector<std::pair<size_t, EraseCallback>> eraseCallbacks;
         };
 
-        std::shared_ptr<ControlBlock> control_;
+        btl::shared<ControlBlock> control_;
     };
 } // namespace reactive
 

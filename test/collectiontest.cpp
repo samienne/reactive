@@ -158,7 +158,7 @@ TEST(reactiveCollection, callbacks)
 
     connections += collection.onInsert(
             [&inserts, &lastInsertId, &lastInsertValue]
-            (auto id, auto const& value)
+            (auto id, int, auto const& value)
             {
                 lastInsertId = id;
                 lastInsertValue = value;
@@ -167,7 +167,7 @@ TEST(reactiveCollection, callbacks)
 
     connections += collection.onUpdate(
             [&updates, &lastUpdateId, &lastUpdateValue]
-            (auto id, auto const& value)
+            (auto id, int, auto const& value)
             {
                 lastUpdateId = id;
                 lastUpdateValue = value;

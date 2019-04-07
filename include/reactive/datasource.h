@@ -15,12 +15,14 @@ namespace reactive
         struct Insert
         {
             T value;
+            int index;
             size_t id;
         };
 
         struct Update
         {
             T value;
+            int index;
             size_t id;
         };
 

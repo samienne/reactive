@@ -4,6 +4,8 @@
 
 #include <reactive/signal/input.h>
 
+#include <btl/shared.h>
+
 namespace reactive::widget
 {
     class REACTIVE_EXPORT WidgetObject
@@ -25,11 +27,18 @@ namespace reactive::widget
         Signal<SizeHint> const& getSizeHint() const;
 
     private:
-        btl::CloneOnCopy<Signal<SizeHint>> sizeHint_;
-        signal::Input<avg::Vector2f> sizeInput_;
-        signal::Input<avg::Transform> transformInput_;
+        struct Impl
+        {
+            Impl(WidgetFactory factory);
 
-        Widget widget_;
+            btl::CloneOnCopy<Signal<SizeHint>> sizeHint_;
+            signal::Input<avg::Vector2f> sizeInput_;
+            signal::Input<avg::Transform> transformInput_;
+
+            Widget widget_;
+        };
+
+        btl::shared<Impl> impl_;
     };
 } // namespace reactive::widget
 

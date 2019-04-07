@@ -47,7 +47,8 @@ namespace reactive::signal
 
                     auto valueInput = signal::input<T>(std::move(insert.value));
 
-                    state.objects.push_back(
+                    state.objects.insert(
+                            state.objects.begin() + insert.index,
                             WidgetState{
                                 WidgetObject(
                                     delegate(std::move(valueInput.signal), insert.id)

@@ -13,15 +13,21 @@ namespace reactive
         DataSource<T> result{std::move(eventPipe.stream), {}, {} };
 
         result.connection += collection.onInsert(
-                [handle=eventPipe.handle](size_t id, T value)
+                [handle=eventPipe.handle](size_t id, int index, T value)
                 {
-                    handle.push(typename DataSource<T>::Insert{std::move(value), id});
+                    handle.push(typename DataSource<T>::Insert{
+                            std::move(value),
+                            index,
+                            id});
                 });
 
         result.connection += collection.onUpdate(
-                [handle=eventPipe.handle](size_t id, T value)
+                [handle=eventPipe.handle](size_t id, int index, T value)
                 {
-                    handle.push(typename DataSource<T>::Update{std::move(value), id});
+                    handle.push(typename DataSource<T>::Update{
+                            std::move(value),
+                            index,
+                            id});
                 });
 
         result.connection += collection.onErase(
@@ -33,9 +39,10 @@ namespace reactive
         result.initialize = [collection, handle=eventPipe.handle]()
         {
             auto range = collection.rangeLock();
+            int index = 0;
             for (auto i = range.begin(); i != range.end(); ++i)
             {
-                handle.push(typename DataSource<T>::Insert{*i, i.getId()});
+                handle.push(typename DataSource<T>::Insert{*i, index++, i.getId()});
             }
         };
 
