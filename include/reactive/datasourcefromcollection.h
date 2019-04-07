@@ -32,7 +32,8 @@ namespace reactive
 
         result.initialize = [collection, handle=eventPipe.handle]()
         {
-            for (auto i = collection.begin(); i != collection.end(); ++i)
+            auto range = collection.rangeLock();
+            for (auto i = range.begin(); i != range.end(); ++i)
             {
                 handle.push(typename DataSource<T>::Insert{*i, i.getId()});
             }

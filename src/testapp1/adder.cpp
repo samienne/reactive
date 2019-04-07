@@ -70,9 +70,13 @@ reactive::WidgetFactory adder()
 {
     Collection<std::string> items;
 
-    items.pushBack("test 1");
-    items.pushBack("test 2");
-    items.pushBack("test 3");
+    {
+        auto range = items.rangeLock();
+
+        range.pushBack("test 1");
+        range.pushBack("test 2");
+        range.pushBack("test 3");
+    }
 
     auto textInput = signal::input<std::string>("");
 
@@ -85,10 +89,11 @@ reactive::WidgetFactory adder()
                     button("->", signal::mapFunction([items, id]
                         (std::string str) mutable
                         {
-                            auto i = items.findId(id);
-                            if (i != items.end())
+                            auto range = items.rangeLock();
+                            auto i = range.findId(id);
+                            if (i != range.end())
                             {
-                                items.update(i, std::move(str));
+                                range.update(i, std::move(str));
                             }
                         },
                         textInputSignal.clone()
@@ -100,7 +105,7 @@ reactive::WidgetFactory adder()
                     ,
                     button("x", signal::constant([id, items]() mutable
                         {
-                            items.eraseWithId(id);
+                            items.rangeLock().eraseWithId(id);
                         }))
                     });
             });
@@ -109,7 +114,7 @@ reactive::WidgetFactory adder()
             vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
-                    items.pushBack(text);
+                    items.rangeLock().pushBack(text);
                 })
             });
 }

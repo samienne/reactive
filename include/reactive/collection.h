@@ -2,6 +2,8 @@
 
 #include "connection.h"
 
+#include <btl/spinlock.h>
+
 #include <vector>
 #include <utility>
 #include <memory>
@@ -190,6 +192,153 @@ namespace reactive
               typename StorageType::reverse_iterator>;
         using ConstReverseIterator = CollectionConstIterator<T,
               typename StorageType::const_reverse_iterator>;
+        using MutexType = btl::SpinLock;
+        using LockType = std::unique_lock<MutexType>;
+
+        class ConstRange
+        {
+        public:
+            ConstRange(LockType lock, Collection const& collection) :
+                lock_(std::move(lock)),
+                collection_(collection)
+            {
+            }
+
+            ConstIterator begin() const
+            {
+                return ConstIterator(collection_.control_->data.begin());
+            }
+
+            ConstReverseIterator rbegin() const
+            {
+                return ConstReverseIterator(collection_.control_->data.rbegin());
+            }
+
+            ConstIterator end() const
+            {
+                return ConstIterator(collection_.control_->data.end());
+            }
+
+            ConstReverseIterator rend() const
+            {
+                return ConstReverseIterator(collection_.control_->data.rend());
+            }
+
+            size_t size() const
+            {
+                return collection_.control_->data.size();
+            }
+
+            ConstIterator findId(size_t id) const
+            {
+                for (auto i = begin(); i != end(); ++i)
+                    if (i.getId() == id)
+                        return i;
+
+                return end();
+            }
+
+        protected:
+            LockType lock_;
+            Collection const& collection_;
+        };
+
+        class Range : public ConstRange
+        {
+            using ConstRange::collection_;
+
+        public:
+            Range(LockType lock, Collection const& collection) :
+                ConstRange(std::move(lock), collection)
+            {
+            }
+
+            Iterator begin()
+            {
+                return Iterator(collection_.control_->data.begin());
+            }
+
+            ReverseIterator rbegin()
+            {
+                return ReverseIterator(collection_.control_->data.rbegin());
+            }
+
+            Iterator end()
+            {
+                return Iterator(collection_.control_->data.end());
+            }
+
+            ReverseIterator rend()
+            {
+                return ReverseIterator(collection_.control_->data.rend());
+            }
+
+            void pushBack(T value)
+            {
+                insert(end(), std::move(value));
+            }
+
+            void pushFront(T value)
+            {
+                insert(begin(), std::move(value));
+            }
+
+            void insert(Iterator position, T value)
+            {
+                auto i = collection_.control_->data.insert(position.iter_,
+                        CollectionValue<T>(std::move(value)));
+
+                for (auto const& cb : collection_.control_->insertCallbacks)
+                {
+                    cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+                }
+            }
+
+            void update(Iterator position, T value)
+            {
+                assert(position != end());
+
+                auto i = position.iter_;
+                **i = value;
+
+                for (auto const& cb : collection_.control_->updateCallbacks)
+                {
+                    cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
+                }
+            }
+
+            void erase(Iterator position)
+            {
+                assert(position != end());
+
+                auto i = position.iter_;
+                size_t id = reinterpret_cast<size_t>(i->ptr());
+                collection_.control_->data.erase(i);
+
+                for (auto const& cb : collection_.control_->eraseCallbacks)
+                {
+                    cb.second(id);
+                }
+            }
+
+            Iterator findId(size_t id)
+            {
+                for (auto i = begin(); i != end(); ++i)
+                    if (i.getId() == id)
+                        return i;
+
+                return end();
+            }
+
+            void eraseWithId(size_t id)
+            {
+                auto i = findId(id);
+                if (i == end())
+                    return;
+
+                erase(i);
+            }
+        };
 
         using IdType = size_t;
 
@@ -197,129 +346,25 @@ namespace reactive
         using UpdateCallback = std::function<void(IdType key, T const& value)>;
         using EraseCallback = std::function<void(IdType key)>;
 
-        void pushBack(T value)
+        Range rangeLock()
         {
-            insert(end(), std::move(value));
+            return Range(LockType(control_->mutex), *this);
         }
 
-        void pushFront(T value)
+        ConstRange rangeLock() const
         {
-            insert(begin(), std::move(value));
+            return ConstRange(LockType(control_->mutex), *this);
         }
 
-        void insert(Iterator position, T value)
+        ConstRange crangeLock() const
         {
-            auto i = control_->data_.insert(position.iter_,
-                    CollectionValue<T>(std::move(value)));
-
-            for (auto const& cb : control_->insertCallbacks)
-            {
-                //cb.second(reinterpret_cast<size_t>(&**i), **i);
-                cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
-            }
-        }
-
-        void update(Iterator position, T value)
-        {
-            assert(position != end());
-
-            auto i = position.iter_;
-            **i = value;
-
-            for (auto const& cb : control_->updateCallbacks)
-            {
-                cb.second(reinterpret_cast<size_t>(i->ptr()), **i);
-            }
-        }
-
-        void erase(Iterator position)
-        {
-            assert(position != end());
-
-            auto i = position.iter_;
-            size_t id = reinterpret_cast<size_t>(i->ptr());
-            control_->data_.erase(i);
-
-            for (auto const& cb : control_->eraseCallbacks)
-            {
-                cb.second(id);
-            }
-        }
-
-        Iterator findId(size_t id)
-        {
-            for (auto i = begin(); i != end(); ++i)
-                if (i.getId() == id)
-                    return i;
-
-            return end();
-        }
-
-        ConstIterator findId(size_t id) const
-        {
-            for (auto i = begin(); i != end(); ++i)
-                if (i.getId() == id)
-                    return i;
-
-            return end();
-        }
-
-        void eraseWithId(size_t id)
-        {
-            auto i = findId(id);
-            if (i == end())
-                return;
-
-            erase(i);
-        }
-
-        Iterator begin()
-        {
-            return Iterator(control_->data_.begin());
-        }
-
-        ConstIterator begin() const
-        {
-            return ConstIterator(control_->data_.begin());
-        }
-
-        ReverseIterator rbegin()
-        {
-            return ReverseIterator(control_->data_.rbegin());
-        }
-
-        ConstReverseIterator rbegin() const
-        {
-            return ConstReverseIterator(control_->data_.rbegin());
-        }
-
-        Iterator end()
-        {
-            return Iterator(control_->data_.end());
-        }
-
-        ConstIterator end() const
-        {
-            return ConstIterator(control_->data_.end());
-        }
-
-        ReverseIterator rend()
-        {
-            return ReverseIterator(control_->data_.rend());
-        }
-
-        ConstReverseIterator rend() const
-        {
-            return ConstReverseIterator(control_->data_.rend());
-        }
-
-        size_t size() const
-        {
-            return control_->data_.size();
+            return ConstRange(LockType(control_->mutex), *this);
         }
 
         Connection onInsert(InsertCallback callback)
         {
+            LockType lock(control_->mutex);
+
             size_t id = control_->nextId++;
             control_->insertCallbacks.emplace_back(id, std::move(callback));
             std::weak_ptr<ControlBlock> control = control_;
@@ -329,13 +374,16 @@ namespace reactive
                     {
                         if (auto p = control.lock())
                         {
-                            eraseFrom(id, p->insertCallbacks);
+                            LockType l(p->mutex);
+                            eraseFrom(l, id, p->insertCallbacks);
                         }
                     });
         }
 
         Connection onUpdate(UpdateCallback callback)
         {
+            LockType lock(control_->mutex);
+
             size_t id = control_->nextId++;
             control_->updateCallbacks.emplace_back(
                     id, std::move(callback));
@@ -346,13 +394,16 @@ namespace reactive
                     {
                         if (auto p = control.lock())
                         {
-                            eraseFrom(id, p->updateCallbacks);
+                            LockType l(p->mutex);
+                            eraseFrom(l, id, p->updateCallbacks);
                         }
                     });
         }
 
         Connection onErase(EraseCallback callback)
         {
+            LockType lock(control_->mutex);
+
             size_t id = control_->nextId++;
             control_->eraseCallbacks.emplace_back(
                     id, std::move(callback));
@@ -363,14 +414,15 @@ namespace reactive
                     {
                         if (auto p = control.lock())
                         {
-                            eraseFrom(id, p->eraseCallbacks);
+                            LockType l(p->mutex);
+                            eraseFrom(l, id, p->eraseCallbacks);
                         }
                     });
         }
 
     private:
         template <typename U>
-        static void eraseFrom(size_t id, U& vec)
+        static void eraseFrom(LockType&, size_t id, U& vec)
         {
             for (auto i = vec.begin(); i!= vec.end(); ++i)
             {
@@ -385,7 +437,8 @@ namespace reactive
     private:
         struct ControlBlock
         {
-            StorageType data_;
+            btl::SpinLock mutex;
+            StorageType data;
             size_t nextId = 1;
             std::vector<std::pair<size_t, InsertCallback>> insertCallbacks;
             std::vector<std::pair<size_t, UpdateCallback>> updateCallbacks;

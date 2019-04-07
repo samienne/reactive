@@ -4,7 +4,7 @@
 
 namespace btl
 {
-    class connection
+    class [[nodiscard]] connection
     {
     public:
         inline connection()

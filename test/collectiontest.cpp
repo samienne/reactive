@@ -9,14 +9,15 @@ using namespace reactive;
 TEST(reactiveCollection, iterateForward)
 {
     Collection<std::string> collection;
+    auto range = collection.rangeLock();
 
-    collection.pushBack("test 1");
-    collection.pushBack("test 2");
-    collection.pushBack("test 3");
+    range.pushBack("test 1");
+    range.pushBack("test 2");
+    range.pushBack("test 3");
 
-    EXPECT_EQ(3, collection.size());
+    EXPECT_EQ(3, range.size());
 
-    auto i = collection.begin();
+    auto i = range.begin();
 
     EXPECT_EQ("test 1", *i);
 
@@ -27,21 +28,22 @@ TEST(reactiveCollection, iterateForward)
     EXPECT_EQ("test 3", *i);
 
     ++i;
-    EXPECT_EQ(collection.end(), i);
+    EXPECT_EQ(range.end(), i);
 }
 
 
 TEST(reactiveCollection, iterateBackward)
 {
     Collection<std::string> collection;
+    auto range = collection.rangeLock();
 
-    collection.pushBack("test 1");
-    collection.pushBack("test 2");
-    collection.pushBack("test 3");
+    range.pushBack("test 1");
+    range.pushBack("test 2");
+    range.pushBack("test 3");
 
-    EXPECT_EQ(3, collection.size());
+    EXPECT_EQ(3, range.size());
 
-    auto i = collection.rbegin();
+    auto i = range.rbegin();
 
     EXPECT_EQ("test 3", *i);
 
@@ -52,22 +54,28 @@ TEST(reactiveCollection, iterateBackward)
     EXPECT_EQ("test 1", *i);
 
     ++i;
-    EXPECT_EQ(collection.rend(), i);
+    EXPECT_EQ(range.rend(), i);
 }
 
 TEST(reactiveCollection, iterateForwardConst)
 {
     Collection<std::string> col;
 
-    col.pushBack("test 1");
-    col.pushBack("test 2");
-    col.pushBack("test 3");
+    {
+        auto range = col.rangeLock();
+
+        range.pushBack("test 1");
+        range.pushBack("test 2");
+        range.pushBack("test 3");
+    }
 
     auto const& collection = col;
 
-    EXPECT_EQ(3, collection.size());
+    auto range = collection.rangeLock();
 
-    auto i = collection.begin();
+    EXPECT_EQ(3, range.size());
+
+    auto i = range.begin();
 
     EXPECT_EQ("test 1", *i);
 
@@ -78,22 +86,27 @@ TEST(reactiveCollection, iterateForwardConst)
     EXPECT_EQ("test 3", *i);
 
     ++i;
-    EXPECT_EQ(collection.end(), i);
+    EXPECT_EQ(range.end(), i);
 }
 
 TEST(reactiveCollection, iterateBackwardConst)
 {
     Collection<std::string> col;
 
-    col.pushFront("test 1");
-    col.pushFront("test 2");
-    col.pushFront("test 3");
+    {
+        auto range = col.rangeLock();
+
+        range.pushFront("test 1");
+        range.pushFront("test 2");
+        range.pushFront("test 3");
+    }
 
     auto const& collection = col;
+    auto range = collection.rangeLock();
 
-    EXPECT_EQ(3, collection.size());
+    EXPECT_EQ(3, range.size());
 
-    auto i = collection.rbegin();
+    auto i = range.rbegin();
 
     EXPECT_EQ("test 1", *i);
 
@@ -104,19 +117,19 @@ TEST(reactiveCollection, iterateBackwardConst)
     EXPECT_EQ("test 3", *i);
 
     ++i;
-    EXPECT_EQ(collection.rend(), i);
+    EXPECT_EQ(range.rend(), i);
 }
 
 TEST(reactiveCollection, insert)
 {
     Collection<int> collection;
+    auto range = collection.rangeLock();
 
-    collection.insert(collection.begin(), 10);
-    collection.insert(collection.end(), 20);
-    collection.insert(collection.begin(), 30);
+    range.insert(range.begin(), 10);
+    range.insert(range.end(), 20);
+    range.insert(range.begin(), 30);
 
-
-    auto i = collection.begin();
+    auto i = range.begin();
     EXPECT_EQ(30, *i);
 
     ++i;
@@ -168,7 +181,9 @@ TEST(reactiveCollection, callbacks)
                 ++erases;
             });
 
-    collection.pushBack("item 1");
+    auto range = collection.rangeLock();
+
+    range.pushBack("item 1");
 
     EXPECT_EQ(1, inserts);
     EXPECT_EQ(0, updates);
@@ -177,7 +192,7 @@ TEST(reactiveCollection, callbacks)
     EXPECT_EQ("item 1", lastInsertValue);
     auto item1Id = lastInsertId;
 
-    collection.pushBack("item 2");
+    range.pushBack("item 2");
 
     EXPECT_EQ(2, inserts);
     EXPECT_EQ(0, updates);
@@ -185,26 +200,26 @@ TEST(reactiveCollection, callbacks)
 
     EXPECT_EQ("item 2", lastInsertValue);
 
-    collection.update(collection.begin(), "item 3");
+    range.update(range.begin(), "item 3");
 
     EXPECT_EQ(1, updates);
 
     EXPECT_EQ("item 3", lastUpdateValue);
     EXPECT_EQ(item1Id, lastUpdateId);
 
-    EXPECT_EQ(2, collection.size());
+    EXPECT_EQ(2, range.size());
 
-    auto i = collection.begin();
+    auto i = range.begin();
     EXPECT_EQ("item 3", *i);
 
     ++i;
     EXPECT_EQ("item 2", *i);
 
-    collection.erase(collection.begin());
+    range.erase(range.begin());
 
     EXPECT_EQ(1, erases);
-    EXPECT_EQ(1, collection.size());
-    EXPECT_EQ("item 2", *collection.begin());
+    EXPECT_EQ(1, range.size());
+    EXPECT_EQ("item 2", *range.begin());
     EXPECT_EQ(item1Id, lastEraseId);
 }
 
