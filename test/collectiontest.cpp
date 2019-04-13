@@ -263,3 +263,105 @@ TEST(reactiveCollection, swap)
     EXPECT_EQ("test1", range[2]);
 }
 
+TEST(reactiveCollection, moveOneForward)
+{
+    Collection<std::string> collection;
+
+    size_t lastId = 0;
+    int lastIndex = 12345;
+
+    auto connection = collection.onMove([&](size_t id, int index)
+            {
+                lastId = id;
+                lastIndex = index;
+            });
+
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    auto b = range.begin().getId();
+    range.move(range.begin(), range.begin()+1);
+
+    EXPECT_EQ(b, lastId);
+    EXPECT_EQ(1, lastIndex);
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+}
+
+TEST(reactiveCollection, moveToLast)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin(), range.end());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test3", range[1]);
+    EXPECT_EQ("test1", range[2]);
+
+    range.move(range.begin()+1, range.end());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}
+
+TEST(reactiveCollection, moveToBegin)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin()+1, range.begin());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+2, range.begin());
+
+    EXPECT_EQ("test3", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test1", range[2]);
+}
+
+TEST(reactiveCollection, moveToSelf)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin(), range.begin());
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+1, range.begin()+1);
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+2, range.begin()+2);
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}

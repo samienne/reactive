@@ -106,11 +106,39 @@ namespace reactive::signal
                             break;
                         }
                     }
-
                 }
                 else if(event.template is<typename DataSource<T>::Move>())
                 {
-                    assert(false && "not implemented");
+                    auto& move = event.template get<typename DataSource<T>::Move>();
+
+                    assert(move.newIndex < static_cast<int>(state.objects.size()));
+
+                    auto j = state.objects.begin() + move.newIndex;
+
+                    for (auto i = state.objects.begin();
+                            i != state.objects.end(); ++i)
+                    {
+                        if (i->id == move.id)
+                        {
+                            auto from = i;
+                            auto to = j;
+                            if (to < from)
+                            {
+                                // from cannot be end() so from+1 is ok.
+                                std::rotate(to, from, from+1);
+                            }
+                            else if (from < to)
+                            {
+                                auto e = to;
+                                if (to != state.objects.end())
+                                    ++e;
+
+                                std::rotate(from, from + 1, e);
+                            }
+
+                            break;
+                        }
+                    }
                 }
 
                 return state;

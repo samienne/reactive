@@ -384,6 +384,30 @@ namespace reactive
             void move(Iterator from, Iterator to)
             {
                 assert(from != end());
+
+                size_t id = from.getId();
+                int newIndex = std::distance(begin(), to);
+
+                if (to.iter_ < from.iter_)
+                {
+                    // from.iter cannot be end() so +1 is ok.
+                    std::rotate(to.iter_, from.iter_, from.iter_+1);
+                }
+                else if (from.iter_ < to.iter_)
+                {
+                    auto e = to.iter_;
+                    if (to != end())
+                        ++e;
+
+                    std::rotate(from.iter_, from.iter_ + 1, e);
+                }
+                else
+                    return;
+
+                for (auto const& cb : collection_.control_->moveCallbacks)
+                {
+                    cb.second(id, newIndex);
+                }
             }
 
             Iterator findId(size_t id)
