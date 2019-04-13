@@ -182,7 +182,7 @@ EventResult InputArea::emitMoveEvent(PointerMoveEvent const& e) const
         }
     }
 
-    if (possible)
+    if (possible || (onMove_.empty() && !onUp_.empty()))
         return EventResult::possible;
 
     return EventResult::reject;

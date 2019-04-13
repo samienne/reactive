@@ -210,5 +210,21 @@ namespace reactive
         static_assert(IsWidgetMap<decltype(r)>::value, "");
         return r;
     }
+
+    template <typename... Ts, typename = std::enable_if_t<
+        btl::All<IsWidgetMap<Ts>...>::value
+        >>
+    auto combineWidgetMaps(Ts&&... maps)
+    {
+        return mapWidget([maps=std::make_tuple(std::forward<Ts>(maps)...)]
+            (auto widget)
+            {
+                return btl::tuple_reduce(std::move(widget), maps,
+                        [](auto widget, auto map)
+                        {
+                            return map(std::move(widget));
+                        });
+            });
+    }
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onpointerup.h"
+#include "onpointerdown.h"
 
 #include "reactive/signal/map.h"
 
@@ -19,21 +20,46 @@ namespace reactive::widget
     inline auto onClick(unsigned int button, Signal<T, U> cb)
             //Signal<std::function<void(ClickEvent const&)>> cb)
     {
-        auto f = [button](
-                std::function<void(ClickEvent const&)> const& cb,
-                ase::PointerButtonEvent const& e)
+        auto pos = std::make_shared<btl::option<ase::Vector2f>>(btl::none);
+
+        auto h = [button, pos](ase::PointerButtonEvent const& e)
         {
             if (button == 0 || e.button == button)
             {
-                cb(ClickEvent(e.pointer, e.button, e.pos));
+                *pos = btl::just(e.pos);
+                return EventResult::possible;
+            }
+            else
+                return EventResult::reject;
+        };
 
-                return EventResult::accept;
+        auto f = [button, pos](
+                std::function<void(ClickEvent const&)> const& cb,
+                ase::PointerButtonEvent const& e)
+        {
+            float const threshold = 1.0f;
+
+            if (pos->valid())
+            {
+                ase::Vector2f diff = e.pos - **pos;
+                float dist2 = diff.x() * diff.x() + diff.y() * diff.y();
+
+                if (dist2 < threshold && (button == 0 || e.button == button))
+                {
+                    *pos = btl::none;
+                    cb(ClickEvent(e.pointer, e.button, e.pos));
+
+                    return EventResult::accept;
+                }
             }
 
             return EventResult::possible;
         };
 
-        return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
+        return combineWidgetMaps(
+                onPointerDown(std::move(h)),
+                onPointerUp(signal::mapFunction(std::move(f), std::move(cb)))
+                );
     }
 
     template <typename T, typename U, std::enable_if_t<
@@ -51,15 +77,7 @@ namespace reactive::widget
 
     inline auto onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
     {
-        auto g = [button, f = std::move(f)](ase::PointerButtonEvent const& e)
-        {
-            if (button == 0 || e.button == button)
-                f(ClickEvent(e.pointer, e.button, e.pos));
-
-            return EventResult::accept;
-        };
-
-        return onPointerUp(g);
+        return onClick(button, signal::constant(std::move(f)));
     }
 
 } // namespace reactive

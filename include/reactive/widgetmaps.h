@@ -17,6 +17,7 @@
 #include <reactive/stream/stream.h>
 
 #include <reactive/signal/map.h>
+#include <reactive/signal/tee.h>
 #include <reactive/signal.h>
 
 #include <btl/sequence.h>
@@ -124,5 +125,99 @@ namespace reactive
 
         return mapWidget(std::move(f));
     }
+
+    inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
+        //-> FactoryMap
+    {
+        auto f = [handle = std::move(handle)](auto widget)
+            // -> Widget
+        {
+            auto obb = signal::tee(
+                    widget.getObb(),
+                    std::mem_fn(&avg::Obb::getSize),
+                    handle);
+
+            return std::move(widget)
+                .setObb(std::move(obb))
+                |
+                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+                        {
+                            // TODO: Remove this hack. This is needed to keep
+                            // the obb signal in around.
+                            return inputs;
+                        });
+        };
+
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+
+        return mapWidget(f);
+    }
+
+    inline auto trackObb(signal::InputHandle<avg::Obb> handle)
+        //-> FactoryMap
+    {
+        auto f = [handle = std::move(handle)](auto widget)
+            // -> Widget
+        {
+            auto obb = signal::tee(widget.getObb(), handle);
+
+            return std::move(widget)
+                .setObb(std::move(obb))
+                |
+                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+                        {
+                            // TODO: Remove this hack. This is needed to keep
+                            // the obb signal in around.
+                            return inputs;
+                        });
+        };
+
+        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+
+        return mapWidget(f);
+    }
+
+    inline auto trackFocus(signal::InputHandle<bool> const& handle)
+        // -> FactoryMap
+    {
+        auto f = [handle](auto widget)
+        {
+            auto anyHasFocus = [](std::vector<KeyboardInput> const& inputs)
+                -> bool
+            {
+                for (auto&& input : inputs)
+                    if (input.hasFocus())
+                        return true;
+
+                return false;
+            };
+
+            auto input = signal::tee(
+                    signal::share(widget.getKeyboardInputs()),
+                    anyHasFocus, handle);
+
+            return std::move(widget)
+                .setKeyboardInputs(std::move(input));
+        };
+
+        return mapWidget(std::move(f));
+    }
+
+    inline auto trackTheme(signal::InputHandle<widget::Theme> const& handle)
+        //-> FactoryMap
+    {
+        auto f = [handle](auto widget)
+            // -> Widget
+        {
+            auto theme = widget.getTheme();
+            return std::move(widget)
+                .setTheme(signal::tee(std::move(theme), handle));
+        };
+
+        return mapWidget(f);
+    }
+
 } // namespace reactive
 
