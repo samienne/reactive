@@ -76,6 +76,8 @@ namespace reactive
     class CollectionConstIterator
     {
     public:
+        using value_type = T;
+
         CollectionConstIterator(TIter iter) :
             iter_(std::move(iter))
         {
@@ -100,6 +102,16 @@ namespace reactive
         CollectionConstIterator operator++(int)
         {
             return CollectionConstIterator(iter_++);
+        }
+
+        CollectionConstIterator operator+(int amount) const
+        {
+            return CollectionConstIterator(iter_ + amount);
+        }
+
+        auto operator-(CollectionConstIterator const& rhs) const
+        {
+            return iter_ - rhs.iter_;
         }
 
         bool operator==(CollectionConstIterator const& rhs) const
@@ -135,6 +147,12 @@ namespace reactive
     class CollectionIterator : public CollectionConstIterator<T, TIter>
     {
     public:
+        using value_type = T;
+        using difference_type = typename TIter::difference_type;
+        using pointer = typename TIter::pointer;
+        using reference = typename TIter::reference;
+        using iterator_category = typename TIter::iterator_category;
+
         CollectionIterator(TIter iter) :
             CollectionConstIterator<T, TIter>(std::move(iter))
         {
@@ -159,6 +177,11 @@ namespace reactive
         CollectionIterator operator++(int)
         {
             return CollectionIterator(iter_++);
+        }
+
+        CollectionIterator operator+(int amount) const
+        {
+            return CollectionIterator(iter_ + amount);
         }
 
     protected:
@@ -236,6 +259,11 @@ namespace reactive
                         return i;
 
                 return end();
+            }
+
+            T const& operator[](int index) const
+            {
+                return *(begin() + index);
             }
 
         protected:
@@ -336,6 +364,28 @@ namespace reactive
                 }
             }
 
+            void swap(Iterator a, Iterator b)
+            {
+                assert(a != end() && b != end());
+
+                size_t id1 = a.getId();
+                size_t id2 = b.getId();
+                int index1 = std::distance(begin(), a);
+                int index2 = std::distance(begin(), b);
+
+                std::swap(*a.iter_, *b.iter_);
+
+                for (auto const& cb : collection_.control_->swapCallbacks)
+                {
+                    cb.second(id1, index1, id2, index2);
+                }
+            }
+
+            void move(Iterator from, Iterator to)
+            {
+                assert(from != end());
+            }
+
             Iterator findId(size_t id)
             {
                 for (auto i = begin(); i != end(); ++i)
@@ -357,9 +407,14 @@ namespace reactive
 
         using IdType = size_t;
 
-        using InsertCallback = std::function<void(IdType key, int index, T const& value)>;
-        using UpdateCallback = std::function<void(IdType key, int index, T const& value)>;
+        using InsertCallback = std::function<void(IdType key, int index,
+                T const& value)>;
+        using UpdateCallback = std::function<void(IdType key, int index,
+                T const& value)>;
         using EraseCallback = std::function<void(IdType key)>;
+        using SwapCallback = std::function<void(IdType id1, int index1,
+                IdType id2, int index2)>;
+        using MoveCallback = std::function<void(IdType key, int index)>;
 
         Range rangeLock()
         {
@@ -378,66 +433,53 @@ namespace reactive
 
         Connection onInsert(InsertCallback callback)
         {
-            LockType lock(control_->mutex);
-
-            size_t id = control_->nextId++;
-            control_->insertCallbacks.emplace_back(id, std::move(callback));
-            std::weak_ptr<ControlBlock> control = control_.ptr();
-
-            return Connection::on_disconnect(
-                    [control=std::move(control), id]()
-                    {
-                        if (auto p = control.lock())
-                        {
-                            LockType l(p->mutex);
-                            eraseFrom(l, id, p->insertCallbacks);
-                        }
-                    });
+            return addCallbackTo(control_->insertCallbacks, std::move(callback));
         }
 
         Connection onUpdate(UpdateCallback callback)
         {
-            LockType lock(control_->mutex);
-
-            size_t id = control_->nextId++;
-            control_->updateCallbacks.emplace_back(
-                    id, std::move(callback));
-            std::weak_ptr<ControlBlock> control = control_.ptr();
-
-            return Connection::on_disconnect(
-                    [control=std::move(control), id]()
-                    {
-                        if (auto p = control.lock())
-                        {
-                            LockType l(p->mutex);
-                            eraseFrom(l, id, p->updateCallbacks);
-                        }
-                    });
+            return addCallbackTo(control_->updateCallbacks, std::move(callback));
         }
 
         Connection onErase(EraseCallback callback)
         {
+            return addCallbackTo(control_->eraseCallbacks, std::move(callback));
+        }
+
+        Connection onSwap(SwapCallback callback)
+        {
+            return addCallbackTo(control_->swapCallbacks, std::move(callback));
+        }
+
+        Connection onMove(MoveCallback callback)
+        {
+            return addCallbackTo(control_->moveCallbacks, std::move(callback));
+        }
+
+    private:
+        // The vec needs to inside the control block of the collection.
+        template <typename U, typename V>
+        Connection addCallbackTo(U& vec, V&& callback)
+        {
             LockType lock(control_->mutex);
 
             size_t id = control_->nextId++;
-            control_->eraseCallbacks.emplace_back(
-                    id, std::move(callback));
+            vec.emplace_back(id, std::forward<V>(callback));
             std::weak_ptr<ControlBlock> control = control_.ptr();
 
             return Connection::on_disconnect(
-                    [control=std::move(control), id]()
+                    [control=std::move(control), &vec, id]() mutable
                     {
                         if (auto p = control.lock())
                         {
                             LockType l(p->mutex);
-                            eraseFrom(l, id, p->eraseCallbacks);
+                            eraseCallbackFrom(l, id, vec);
                         }
                     });
         }
 
-    private:
         template <typename U>
-        static void eraseFrom(LockType&, size_t id, U& vec)
+        static void eraseCallbackFrom(LockType&, size_t id, U& vec)
         {
             for (auto i = vec.begin(); i!= vec.end(); ++i)
             {
@@ -458,9 +500,22 @@ namespace reactive
             std::vector<std::pair<size_t, InsertCallback>> insertCallbacks;
             std::vector<std::pair<size_t, UpdateCallback>> updateCallbacks;
             std::vector<std::pair<size_t, EraseCallback>> eraseCallbacks;
+            std::vector<std::pair<size_t, SwapCallback>> swapCallbacks;
+            std::vector<std::pair<size_t, MoveCallback>> moveCallbacks;
         };
 
         btl::shared<ControlBlock> control_;
     };
 } // namespace reactive
 
+#if 0
+namespace std
+{
+    template <typename T>
+    void iter_swap(typename reactive::Collection<T>::Iterator a,
+            typename reactive::Collection<T>::Iterator b)
+    {
+    }
+} // namespace std
+
+#endif

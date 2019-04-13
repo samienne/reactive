@@ -36,6 +36,21 @@ namespace reactive
                     handle.push(typename DataSource<T>::Erase{id});
                 });
 
+        result.connection += collection.onSwap(
+                [handle=eventPipe.handle]
+                (size_t id1, int index1, size_t id2, int index2)
+                {
+                    handle.push(typename DataSource<T>::Swap{
+                            id1, index1, id2, index2
+                            });
+                });
+
+        result.connection += collection.onMove(
+                [handle=eventPipe.handle](size_t id, int index)
+                {
+                    handle.push(typename DataSource<T>::Move{id, index});
+                });
+
         result.initialize = [collection, handle=eventPipe.handle]()
         {
             auto range = collection.rangeLock();

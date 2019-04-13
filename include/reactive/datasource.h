@@ -31,7 +31,21 @@ namespace reactive
             size_t id;
         };
 
-        using Event = btl::variant<Insert, Update, Erase>;
+        struct Swap
+        {
+            size_t id1;
+            int index1;
+            size_t id2;
+            int index2;
+        };
+
+        struct Move
+        {
+            size_t id;
+            int newIndex;
+        };
+
+        using Event = btl::variant<Insert, Update, Erase, Swap, Move>;
 
         stream::Stream<Event> input;
         std::function<void()> initialize;

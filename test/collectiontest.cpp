@@ -223,3 +223,43 @@ TEST(reactiveCollection, callbacks)
     EXPECT_EQ(item1Id, lastEraseId);
 }
 
+TEST(reactiveCollection, swap)
+{
+    Collection<std::string> collection;
+
+    size_t lastId1 = 0;
+    size_t lastIndex1 = 12345;
+    size_t lastId2 = 0;
+    size_t lastIndex2 = 12345;
+
+    auto connection = collection.onSwap(
+            [&](size_t id1, int index1, size_t id2, int index2)
+            {
+                lastId1 = id1;
+                lastIndex1 = index1;
+                lastId2 = id2;
+                lastIndex2 = index2;
+            });
+
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    auto i = range.begin();
+    auto j = range.begin() + 2;
+
+    range.swap(i, j);
+
+    // Check that callback told that 0th and 2nd elements were swapped.
+    EXPECT_EQ((range.begin()+2).getId(), lastId1);
+    EXPECT_EQ((range.begin()).getId(), lastId2);
+    EXPECT_EQ(0, lastIndex1);
+    EXPECT_EQ(2, lastIndex2);
+
+    EXPECT_EQ("test3", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test1", range[2]);
+}
+

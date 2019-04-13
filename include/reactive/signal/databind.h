@@ -85,6 +85,33 @@ namespace reactive::signal
                         }
                     }
                 }
+                else if(event.template is<typename DataSource<T>::Swap>())
+                {
+                    auto& swap = event.template get<typename DataSource<T>::Swap>();
+                    auto i = state.objects.end();
+                    auto j = state.objects.end();
+
+                    for (auto k = state.objects.begin();
+                            k != state.objects.end(); ++k)
+                    {
+                        if (k->id == swap.id1)
+                            i = k;
+
+                        if (k->id == swap.id2)
+                            j = k;
+
+                        if (i != state.objects.end() && j != state.objects.end())
+                        {
+                            std::iter_swap(i, j);
+                            break;
+                        }
+                    }
+
+                }
+                else if(event.template is<typename DataSource<T>::Move>())
+                {
+                    assert(false && "not implemented");
+                }
 
                 return state;
             },
