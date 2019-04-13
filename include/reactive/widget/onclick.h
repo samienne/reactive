@@ -20,46 +20,35 @@ namespace reactive::widget
     inline auto onClick(unsigned int button, Signal<T, U> cb)
             //Signal<std::function<void(ClickEvent const&)>> cb)
     {
-        auto pos = std::make_shared<btl::option<ase::Vector2f>>(btl::none);
-
-        auto h = [button, pos](ase::PointerButtonEvent const& e)
-        {
-            if (button == 0 || e.button == button)
-            {
-                *pos = btl::just(e.pos);
-                return EventResult::possible;
-            }
-            else
-                return EventResult::reject;
-        };
-
-        auto f = [button, pos](
+        auto f = [button](
                 std::function<void(ClickEvent const&)> const& cb,
+                ase::Vector2f size,
                 ase::PointerButtonEvent const& e)
         {
-            float const threshold = 1.0f;
-
-            if (pos->valid())
+            if (avg::Obb(size).contains(e.pos)
+                    && (button == 0 || e.button == button))
             {
-                ase::Vector2f diff = e.pos - **pos;
-                float dist2 = diff.x() * diff.x() + diff.y() * diff.y();
-
-                if (dist2 < threshold && (button == 0 || e.button == button))
-                {
-                    *pos = btl::none;
-                    cb(ClickEvent(e.pointer, e.button, e.pos));
-
-                    return EventResult::accept;
-                }
+                cb(ClickEvent(e.pointer, e.button, e.pos));
+                return EventResult::accept;
             }
 
             return EventResult::possible;
         };
 
-        return combineWidgetMaps(
-                onPointerDown(std::move(h)),
-                onPointerUp(signal::mapFunction(std::move(f), std::move(cb)))
-                );
+        return mapWidget([f=std::move(f), cb=signal::share(std::move(cb))]
+            (auto widget) mutable
+            {
+                auto w2 = std::move(widget)
+                    .setObb(signal::share(widget.getObb()))
+                    ;
+
+                auto map = onPointerUp(
+                        signal::mapFunction(std::move(f), cb, w2.getSize()
+                        ));
+
+                return std::move(map)(std::move(w2));
+                ;
+            });
     }
 
     template <typename T, typename U, std::enable_if_t<
