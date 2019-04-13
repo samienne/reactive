@@ -80,13 +80,15 @@ reactive::WidgetFactory adder()
 
     auto textInput = signal::input<std::string>("");
 
+    auto swapState = std::make_shared<size_t>();
+
     auto widgets = signal::dataBind<std::string>(
             dataSourceFromCollection(items),
-            [items, textInputSignal=std::move(textInput.signal)]
+            [items, textInputSignal=std::move(textInput.signal), swapState]
             (Signal<std::string> value, size_t id) mutable -> WidgetFactory
             {
                 return hbox({
-                    button("->", signal::mapFunction([items, id]
+                    button("U", signal::mapFunction([items, id]
                         (std::string str) mutable
                         {
                             auto range = items.rangeLock();
@@ -98,6 +100,31 @@ reactive::WidgetFactory adder()
                         },
                         textInputSignal.clone()
                         ))
+                    ,
+                    button("T", signal::mapFunction([items, id]() mutable
+                        {
+                            auto range = items.rangeLock();
+                            auto i = range.findId(id);
+
+                            range.move(i, range.begin());
+                        }))
+                    ,
+                    button("S", signal::mapFunction([items, id, swapState]() mutable
+                        {
+                            if (*swapState == 0)
+                            {
+                                *swapState = id;
+                            }
+                            else
+                            {
+                                auto range = items.rangeLock();
+                                auto i = range.findId(id);
+                                auto j = range.findId(*swapState);
+
+                                range.swap(i, j);
+                                *swapState = 0;
+                            }
+                        }))
                     ,
                     widget::label(std::move(value))
                     ,
