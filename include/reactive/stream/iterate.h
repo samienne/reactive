@@ -127,7 +127,7 @@ namespace reactive::stream
 
             for (auto&& v : streamValues_->evaluate())
             {
-                value_ = btl::just(btl::apply(
+                value_ = btl::just(std::apply(
                         func_,
                         std::tuple_cat(
                             std::make_tuple(std::move(*value_),
@@ -216,7 +216,7 @@ namespace reactive::stream
 
             for (auto&& v : streamValues_->evaluate())
             {
-                value_ = btl::apply(
+                value_ = std::apply(
                         func_,
                         std::tuple_cat(
                             std::make_tuple(std::move(value_),

@@ -70,7 +70,7 @@ TEST(Map, Partial)
     static_assert(btl::CanApply<decltype(f)(int, int)>::value, "");
     static_assert(!btl::CanApply<decltype(f)(int)>::value, "");
 
-    btl::apply([](){}, std::tuple<>());
+    std::apply([](){}, std::tuple<>());
 
     auto v = btl::applyPartial(f, 10, 20);
     static_assert(std::is_same<int, decltype(v)>::value, "");
@@ -308,11 +308,11 @@ TEST(apply, apply)
         return 20;
     };
 
-    btl::apply(f, t);
+    std::apply(f, t);
 
-    btl::apply([](){}, std::tuple<>());
+    std::apply([](){}, std::tuple<>());
 
-    btl::apply(f,
+    std::apply(f,
             std::tuple_cat(std::make_tuple(10),
                 std::make_tuple(std::string("jeje"))));
 

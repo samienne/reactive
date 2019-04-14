@@ -146,7 +146,7 @@ namespace reactive::signal
             template <typename T, typename TTuple>
             auto operator()(T&& value, TTuple&& tuple) const
             -> decltype(
-                btl::apply(
+                std::apply(
                         std::declval<TFunc>(),
                         std::tuple_cat(
                             std::forward_as_tuple(std::forward<T>(value)),
@@ -155,7 +155,7 @@ namespace reactive::signal
                         )
                 )
             {
-                return btl::apply(
+                return std::apply(
                         func_,
                         std::tuple_cat(
                             std::forward_as_tuple(std::forward<T>(value)),

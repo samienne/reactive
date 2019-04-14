@@ -222,7 +222,7 @@ namespace reactive::signal
         EvaluateType evaluate() const
         {
             assert(ready_);
-            return btl::apply(Apply(*func_),
+            return std::apply(Apply(*func_),
                     btl::tuple_map(*signals_, detail::Evaluate()));
         }
 
@@ -309,7 +309,7 @@ namespace reactive::signal
                 return this->annotateI(n, std::move(a), sigs...);
             };
 
-            return btl::apply(f, *signals_);
+            return std::apply(f, *signals_);
         }
 
         Map clone() const
@@ -377,14 +377,14 @@ namespace reactive::signal
         template <typename... Ts>
         auto fmap2(Ts&&... ts)
         -> decltype(
-                btl::apply(DoMap(),
+                std::apply(DoMap(),
                     btl::tuple_switch(
                         std::forward_as_tuple(std::forward<Ts>(ts)...)
                         )
                     )
                 )
         {
-            return btl::apply(DoMap(),
+            return std::apply(DoMap(),
                     btl::tuple_switch(
                         std::forward_as_tuple(std::forward<Ts>(ts)...)
                         )

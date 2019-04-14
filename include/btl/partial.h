@@ -33,25 +33,28 @@ namespace btl
 
         template<typename... Us>
         auto operator()(Us&&... us) const
-        -> typename std::decay<decltype(btl::apply(std::declval<TFunc const>(),
-                    std::declval<std::tuple<
-                    typename std::decay<Ts>::type...,
-                    typename std::decay<Us>::type...
-                    >>()))>::type
+        -> std::decay_t<std::invoke_result_t<std::decay_t<TFunc> const&,
+            std::decay_t<Ts> const..., Us...>>
         {
-            return btl::apply(*func_, tuple_cat(*ts_,
+            return std::apply(*func_, tuple_cat(*ts_,
+                        std::forward_as_tuple(std::forward<Us>(us)...)));
+        }
+
+        template<typename... Us>
+        auto operator()(Us&&... us) &
+        -> std::decay_t<std::invoke_result_t<std::decay_t<TFunc>&,
+            std::decay_t<Ts>..., Us...>>
+        {
+            return std::apply(*func_, tuple_cat(*ts_,
                         std::make_tuple(std::forward<Us>(us)...)));
         }
 
         template<typename... Us>
-        auto operator()(Us&&... us)
-        -> typename std::decay<decltype(btl::apply(std::declval<TFunc>(),
-                    std::declval<std::tuple<
-                    typename std::decay<Ts>::type...,
-                    typename std::decay<Us>::type...
-                    >>()))>::type
+        auto operator()(Us&&... us) &&
+        -> std::decay_t<std::invoke_result_t<std::decay_t<TFunc>&&,
+            std::decay_t<Ts>..., std::decay_t<Us>&&...>>
         {
-            return btl::apply(*func_, tuple_cat(*ts_,
+            return std::apply(std::move(*func_), tuple_cat(std::move(*ts_),
                         std::make_tuple(std::forward<Us>(us)...)));
         }
 

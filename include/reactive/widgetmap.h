@@ -82,7 +82,7 @@ namespace reactive
             // ReturnTypes contains all types returned by TFunc
             using ReturnTypes = detail::ToTypeListT<
                 decltype(
-                    btl::apply(
+                    std::apply(
                         std::declval<TFunc>(),
                         std::tuple_cat(
                             std::make_tuple(get<Ts>(widget).evaluate()...),
@@ -126,7 +126,7 @@ namespace reactive
                         ShareTypes()
                 );
 
-            auto value = btl::apply(
+            auto value = std::apply(
                     [func=std::move(func)](auto&&... us)
                     {
                         return signal::map(
