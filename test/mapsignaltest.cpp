@@ -8,7 +8,6 @@
 #include <reactive/signal.h>
 
 #include <btl/tuplemap.h>
-#include <btl/apply.h>
 #include <btl/tuplereduce.h>
 
 #include "signaltester.h"

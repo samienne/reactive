@@ -12,7 +12,6 @@
 
 #include <btl/tuplemap.h>
 #include <btl/tupleforeach.h>
-#include <btl/apply.h>
 
 #include <type_traits>
 

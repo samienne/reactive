@@ -6,7 +6,6 @@
 
 #include "reactive/reactivevisibility.h"
 
-#include <btl/apply.h>
 #include <btl/hidden.h>
 
 #include <utility>

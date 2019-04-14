@@ -9,7 +9,6 @@
 
 #include <btl/option.h>
 #include <btl/demangle.h>
-#include <btl/apply.h>
 #include <btl/typetraits.h>
 #include <btl/tuplemap.h>
 #include <btl/tuplereduce.h>

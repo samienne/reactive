@@ -3,7 +3,6 @@
 #include "future/future.h"
 
 #include "threadpool.h"
-#include "apply.h"
 
 namespace btl
 {
