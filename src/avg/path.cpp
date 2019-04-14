@@ -287,9 +287,10 @@ bool Path::operator==(Path const& rhs) const
     auto k = rhs.d()->vertices_.begin();
     for (auto i = d()->vertices_.begin(); i != d()->vertices_.end(); ++i)
     {
-        Vector2f v = *i - combined.getTranslation() + (combinedSr * (*k));
+        Vector2f v = *i - combined.getTranslation() - (combinedSr * (*k));
         if (std::abs(v[0]) > 0.0001f || std::abs(v[1]) > 0.0001f)
             return false;
+
         ++k;
     }
 
