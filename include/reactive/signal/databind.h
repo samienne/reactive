@@ -142,7 +142,8 @@ namespace reactive::signal
                 }
                 else if(event.template is<typename DataSource<T>::Refresh>())
                 {
-                    auto& refresh = event.template get<typename DataSource<T>::Refresh>();
+                    auto& refresh = event.template get<
+                        typename DataSource<T>::Refresh>();
 
                     std::vector<WidgetState> newObjects;
                     newObjects.reserve(state.objects.size());
@@ -169,6 +170,10 @@ namespace reactive::signal
                     }
 
                     state.objects = std::move(newObjects);
+                }
+                else
+                {
+                    assert(false);
                 }
 
                 return state;

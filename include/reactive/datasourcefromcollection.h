@@ -64,6 +64,7 @@ namespace reactive
         {
             auto range = collection.rangeLock();
             int index = 0;
+
             for (auto i = range.begin(); i != range.end(); ++i)
             {
                 handle.push(typename DataSource<T>::Insert{*i, index++, i.getId()});
