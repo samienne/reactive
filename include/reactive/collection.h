@@ -427,6 +427,37 @@ namespace reactive
 
                 erase(i);
             }
+
+            template <typename TCompare = std::less<T>>
+            void sort(TCompare&& compare = std::less<T>())
+            {
+                std::sort(
+                        collection_.control_->data.begin(),
+                        collection_.control_->data.end(),
+                        [&compare](auto const& a, auto const& b)
+                        {
+                            return compare(*a, *b);
+                        });
+
+                std::vector<std::pair<size_t, T>> result;
+                result.reserve(collection_.control_->data.size());
+
+                for (auto i = begin(); i != end(); ++i)
+                {
+                    result.emplace_back(i.getId(), *i);
+                }
+
+                if (collection_.control_->refreshCallbacks.size() == 1)
+                {
+                    for (auto const& cb : collection_.control_->refreshCallbacks)
+                        cb.second(std::move(result));
+                }
+                else
+                {
+                    for (auto const& cb : collection_.control_->refreshCallbacks)
+                        cb.second(result);
+                }
+            }
         };
 
         using IdType = size_t;
@@ -439,6 +470,8 @@ namespace reactive
         using SwapCallback = std::function<void(IdType id1, int index1,
                 IdType id2, int index2)>;
         using MoveCallback = std::function<void(IdType key, int index)>;
+        using RefreshCallback = std::function<void(
+                std::vector<std::pair<size_t, T>>)>;
 
         Range rangeLock()
         {
@@ -478,6 +511,11 @@ namespace reactive
         Connection onMove(MoveCallback callback)
         {
             return addCallbackTo(control_->moveCallbacks, std::move(callback));
+        }
+
+        Connection onRefresh(RefreshCallback callback)
+        {
+            return addCallbackTo(control_->refreshCallbacks, std::move(callback));
         }
 
     private:
@@ -526,6 +564,7 @@ namespace reactive
             std::vector<std::pair<size_t, EraseCallback>> eraseCallbacks;
             std::vector<std::pair<size_t, SwapCallback>> swapCallbacks;
             std::vector<std::pair<size_t, MoveCallback>> moveCallbacks;
+            std::vector<std::pair<size_t, RefreshCallback>> refreshCallbacks;
         };
 
         btl::shared<ControlBlock> control_;

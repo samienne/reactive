@@ -20,9 +20,23 @@ using namespace reactive;
 
 namespace
 {
+    template <typename TFunc, typename U>
+    WidgetFactory button(std::string label, Signal<TFunc, U> cb)
+    {
+        return widget::label(signal::constant(std::move(label)))
+                        | widget::frame()
+                        | widget::onClick(0,
+                                signal::cast<std::function<void()>>(
+                                    std::move(cb)
+                                    ))
+                        ;
+    }
+
     WidgetFactory itemEntry(
             signal::InputHandle<std::string> outHandle,
-            std::function<void(std::string text)> onEnter)
+            std::function<void(std::string text)> onEnter,
+            std::function<void()> onSort
+            )
     {
         auto textState = signal::input(widget::TextEditState(""));
         auto handle = textState.handle;
@@ -47,22 +61,9 @@ namespace
         return hbox({
                 textEdit(handle, std::move(state))
                     .onEnter(onEnterSignal),
-                widget::label(signal::constant<std::string>("Add"))
-                    | widget::frame()
-                    | widget::onClick(0, onEnterSignal)
+                button("Add", std::move(onEnterSignal)),
+                button("Sort", signal::constant(std::move(onSort)))
             });
-    }
-
-    template <typename TFunc, typename U>
-    WidgetFactory button(std::string label, Signal<TFunc, U> cb)
-    {
-        return widget::label(signal::constant(std::move(label)))
-                        | widget::frame()
-                        | widget::onClick(0,
-                                signal::cast<std::function<void()>>(
-                                    std::move(cb)
-                                    ))
-                        ;
     }
 } // anonymous namespace
 
@@ -142,7 +143,12 @@ reactive::WidgetFactory adder()
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
                     items.rangeLock().pushFront(std::move(text));
-                })
+                },
+                [items]() mutable
+                {
+                    items.rangeLock().sort();
+                }
+                )
             });
 }
 

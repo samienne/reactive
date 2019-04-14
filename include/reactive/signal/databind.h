@@ -140,6 +140,36 @@ namespace reactive::signal
                         }
                     }
                 }
+                else if(event.template is<typename DataSource<T>::Refresh>())
+                {
+                    auto& refresh = event.template get<typename DataSource<T>::Refresh>();
+
+                    std::vector<WidgetState> newObjects;
+                    newObjects.reserve(state.objects.size());
+
+                    int idx = 0;
+                    for (auto&& item : refresh.values)
+                    {
+                        for (auto i = state.objects.begin();
+                                i != state.objects.end(); ++i)
+                        {
+                            if (i->id == item.first)
+                            {
+                                newObjects.push_back(WidgetState{
+                                        std::move(i->widget),
+                                        std::move(i->valueHandle),
+                                        i->id
+                                        });
+
+                                break;
+                            }
+                        }
+
+                        ++idx;
+                    }
+
+                    state.objects = std::move(newObjects);
+                }
 
                 return state;
             },

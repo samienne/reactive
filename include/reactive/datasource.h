@@ -45,7 +45,12 @@ namespace reactive
             int newIndex;
         };
 
-        using Event = btl::variant<Insert, Update, Erase, Swap, Move>;
+        struct Refresh
+        {
+            std::vector<std::pair<size_t, T>> values;
+        };
+
+        using Event = btl::variant<Insert, Update, Erase, Swap, Move, Refresh>;
 
         stream::Stream<Event> input;
         std::function<void()> initialize;

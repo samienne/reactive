@@ -51,6 +51,15 @@ namespace reactive
                     handle.push(typename DataSource<T>::Move{id, index});
                 });
 
+        result.connection += collection.onRefresh(
+                [handle=eventPipe.handle]
+                (std::vector<std::pair<size_t, T>> values)
+                {
+                    handle.push(typename DataSource<T>::Refresh{
+                            std::move(values)
+                            });
+                });
+
         result.initialize = [collection, handle=eventPipe.handle]()
         {
             auto range = collection.rangeLock();

@@ -365,3 +365,19 @@ TEST(reactiveCollection, moveToSelf)
     EXPECT_EQ("test2", range[1]);
     EXPECT_EQ("test3", range[2]);
 }
+
+TEST(reactiveCollection, sort)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test3");
+    range.pushBack("test2");
+    range.pushBack("test1");
+
+    range.sort();
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}
