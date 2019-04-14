@@ -1,6 +1,7 @@
 #pragma once
 
 #include "onpointerup.h"
+#include "onpointerdown.h"
 
 #include "reactive/signal/map.h"
 
@@ -21,19 +22,33 @@ namespace reactive::widget
     {
         auto f = [button](
                 std::function<void(ClickEvent const&)> const& cb,
+                ase::Vector2f size,
                 ase::PointerButtonEvent const& e)
         {
-            if (button == 0 || e.button == button)
+            if (avg::Obb(size).contains(e.pos)
+                    && (button == 0 || e.button == button))
             {
                 cb(ClickEvent(e.pointer, e.button, e.pos));
-
                 return EventResult::accept;
             }
 
             return EventResult::possible;
         };
 
-        return onPointerUp(signal::mapFunction(std::move(f), std::move(cb)));
+        return mapWidget([f=std::move(f), cb=signal::share(std::move(cb))]
+            (auto widget) mutable
+            {
+                auto w2 = std::move(widget)
+                    .setObb(signal::share(widget.getObb()))
+                    ;
+
+                auto map = onPointerUp(
+                        signal::mapFunction(std::move(f), cb, w2.getSize()
+                        ));
+
+                return std::move(map)(std::move(w2));
+                ;
+            });
     }
 
     template <typename T, typename U, std::enable_if_t<
@@ -51,15 +66,7 @@ namespace reactive::widget
 
     inline auto onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
     {
-        auto g = [button, f = std::move(f)](ase::PointerButtonEvent const& e)
-        {
-            if (button == 0 || e.button == button)
-                f(ClickEvent(e.pointer, e.button, e.pos));
-
-            return EventResult::accept;
-        };
-
-        return onPointerUp(g);
+        return onClick(button, signal::constant(std::move(f)));
     }
 
 } // namespace reactive
