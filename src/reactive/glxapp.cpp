@@ -163,7 +163,7 @@ public:
                 }
             });
 
-        glxWindow.setDragCallback([this](ase::PointerDragEvent const& /*e*/)
+        glxWindow.setDragCallback([](ase::PointerDragEvent const& /*e*/)
                 {
                 });
 

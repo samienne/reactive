@@ -8,7 +8,6 @@
 namespace ase
 {
     class GlRenderContext;
-    class Dispatched;
     class CommandBuffer;
     class VertexSpec;
     class UniformBuffer;
@@ -17,6 +16,7 @@ namespace ase
     class GlBaseFramebuffer;
     class GlUniformSet;
     struct GlFunctions;
+    struct Dispatched;
 
     class GlRenderState
     {

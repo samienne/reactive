@@ -6,8 +6,8 @@
 
 namespace ase
 {
-    class UniformBufferRange;
     class UniformSetImpl;
+    struct UniformBufferRange;
 
     class BTL_VISIBLE UniformSet
     {

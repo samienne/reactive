@@ -76,7 +76,7 @@ GlRenderState::GlRenderState(GlRenderContext& context,
     context_(context),
     dispatcher_(dispatcher)
 {
-    dispatcher_.dispatch([this](GlFunctions const&)
+    dispatcher_.dispatch([](GlFunctions const&)
     {
         glEnable(GL_DEPTH_TEST);
 

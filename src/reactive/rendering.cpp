@@ -77,7 +77,7 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
         bufs = region.triangulate();
 
     avg::Color color = premultiply(brush.getColor());
-    auto toVertex = [&color](ase::Vector2f v)
+    auto toVertex = [](ase::Vector2f v)
     {
         auto vertex = std::array<float, 2>( { { v[0], v[1]} } );
 

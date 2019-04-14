@@ -10,7 +10,7 @@
 namespace ase
 {
     class GlRenderContext;
-    class GlFunctions;
+    struct GlFunctions;
 
     class GlPipeline : public PipelineImpl
     {
