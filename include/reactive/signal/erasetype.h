@@ -1,10 +1,7 @@
 #pragma once
 
 #include "reactive/signal.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive::signal
 {
@@ -14,6 +11,4 @@ namespace reactive::signal
         return std::move(sig);
     }
 }
-
-BTL_VISIBILITY_POP
 

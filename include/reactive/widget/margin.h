@@ -2,6 +2,7 @@
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
+#include "reactive/growsizehint.h"
 
 #include "reactive/signal.h"
 
@@ -31,10 +32,6 @@ namespace reactive::widget
             );
     }
 
-    /*template <typename TSignalAmount, typename = std::enable_if_t<
-        IsSignalType<TSignalAmount, float>::value
-        >
-    >*/
     template <typename T>
     auto margin(Signal<float, T> amount)
     {

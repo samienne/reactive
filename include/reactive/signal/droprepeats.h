@@ -3,17 +3,14 @@
 #include "constant.h"
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class BTL_CLASS_VISIBLE DropRepeats;
+        class DropRepeats;
     }
 
     template <typename TSignal>
@@ -23,18 +20,18 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignal>
-    class BTL_CLASS_VISIBLE DropRepeats
+    class DropRepeats
     {
     public:
-        BTL_HIDDEN DropRepeats(TSignal signal) :
+        DropRepeats(TSignal signal) :
             signal_(std::move(signal))
         {
         }
 
-        BTL_HIDDEN DropRepeats(DropRepeats&&) noexcept = default;
-        BTL_HIDDEN DropRepeats& operator=(DropRepeats&&) noexcept = default;
+        DropRepeats(DropRepeats&&) noexcept = default;
+        DropRepeats& operator=(DropRepeats&&) noexcept = default;
 
-        BTL_HIDDEN signal_value_t<TSignal> const& evaluate() const
+        signal_value_t<TSignal> const& evaluate() const
         {
             if (!value_.valid())
                 value_ = btl::just(btl::clone(signal_->evaluate()));
@@ -42,17 +39,17 @@ namespace reactive::signal
             return *value_;
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return changed_;
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return signal_->updateBegin(frame);
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
 
@@ -72,12 +69,12 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&& callback)
+        Connection observe(TCallback&& callback)
         {
             return signal_->observe(std::forward<TCallback>(callback));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("dropRepeats() + changed: "
@@ -86,14 +83,14 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN DropRepeats clone() const
+        DropRepeats clone() const
         {
             return *this;
         }
 
     private:
-        BTL_HIDDEN DropRepeats(DropRepeats const&) = default;
-        BTL_HIDDEN DropRepeats& operator=(DropRepeats const&) = default;
+        DropRepeats(DropRepeats const&) = default;
+        DropRepeats& operator=(DropRepeats const&) = default;
 
     private:
         btl::CloneOnCopy<std::decay_t<TSignal>> signal_;
@@ -113,6 +110,12 @@ namespace reactive::signal
                 );
     }
 
+    template <typename T>
+    auto dropRepeats(Signal<T, Constant<T>> signal)
+    {
+        return std::move(signal);
+    }
+
     template <typename T, typename U>
     auto tryDropRepeats(Signal<T, U> sig)
     -> decltype(dropRepeats(std::move(sig)))
@@ -120,6 +123,4 @@ namespace reactive::signal
         return dropRepeats(std::move(sig));
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "avgvisibility.h"
+
 #include <ase/buffer.h>
 #include <ase/uniformset.h>
 #include <ase/uniformbuffer.h>
@@ -7,14 +9,12 @@
 #include <ase/rendercontext.h>
 #include <ase/vector.h>
 
-#include <btl/visibility.h>
-
 namespace avg
 {
     class Pen;
     class Brush;
 
-    class BTL_VISIBLE Painter final
+    class AVG_EXPORT Painter final
     {
     public:
         Painter(ase::RenderContext& context);

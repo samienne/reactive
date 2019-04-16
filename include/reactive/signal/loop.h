@@ -1,10 +1,7 @@
 #pragma once
 
 #include "map.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive::signal
 {
@@ -38,7 +35,4 @@ namespace reactive::signal
                 constant(std::forward<T>(max)));
     }
 } // reactive::signal
-
-
-BTL_VISIBILITY_POP
 

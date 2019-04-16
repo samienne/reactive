@@ -3,12 +3,11 @@
 #include "share.h"
 #include "map.h"
 
+#include "reactive/reactivevisibility.h"
+
 #include <btl/tuplemap.h>
-#include <btl/hidden.h>
 
 #include <utility>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -54,6 +53,4 @@ namespace reactive::signal
                 >());
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

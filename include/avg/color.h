@@ -1,14 +1,15 @@
 #pragma once
 
+#include "avgvisibility.h"
+
 #include <btl/hash.h>
-#include <btl/visibility.h>
 
 #include <array>
 #include <ostream>
 
 namespace avg
 {
-    class BTL_VISIBLE Color final
+    class AVG_EXPORT Color final
     {
     public:
         inline Color();

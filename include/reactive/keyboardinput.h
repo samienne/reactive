@@ -4,6 +4,7 @@
 
 #include "signal/input.h"
 #include "stream/handle.h"
+#include "reactivevisibility.h"
 
 #include <avg/obb.h>
 
@@ -11,9 +12,6 @@
 
 #include <btl/option.h>
 #include <btl/function.h>
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
@@ -27,34 +25,34 @@ namespace reactive
      * Keyboard navigation
      */
 
-    class BTL_CLASS_VISIBLE KeyboardInput
+    class REACTIVE_EXPORT KeyboardInput
     {
     public:
         using FocusHandle = signal::InputHandle<bool>;
         using Handler = btl::Function<InputResult(KeyEvent const& e)>;
 
-        BTL_VISIBLE KeyboardInput(avg::Obb obb);
-        BTL_VISIBLE KeyboardInput(avg::Obb obb,
+        KeyboardInput(avg::Obb obb);
+        KeyboardInput(avg::Obb obb,
                 btl::option<FocusHandle> focusHandle,
                 btl::option<Handler> handlers,
                 bool requestFocus,
                 bool hasFocus);
-        BTL_VISIBLE KeyboardInput requestFocus(bool focus) &&;
-        BTL_VISIBLE KeyboardInput setFocus(bool focus) &&;
-        BTL_VISIBLE KeyboardInput onKeyEvent(Handler handler) &&;
-        BTL_VISIBLE KeyboardInput setFocusHandle(FocusHandle handle) &&;
-        BTL_VISIBLE KeyboardInput setFocusHandle(btl::option<FocusHandle> handle) &&;
-        BTL_VISIBLE KeyboardInput setFocusable(bool focusable) &&;
-        BTL_VISIBLE KeyboardInput transform(avg::Transform const& t) &&;
-        BTL_VISIBLE KeyboardInput setObb(avg::Obb obb) &&;
+        KeyboardInput requestFocus(bool focus) &&;
+        KeyboardInput setFocus(bool focus) &&;
+        KeyboardInput onKeyEvent(Handler handler) &&;
+        KeyboardInput setFocusHandle(FocusHandle handle) &&;
+        KeyboardInput setFocusHandle(btl::option<FocusHandle> handle) &&;
+        KeyboardInput setFocusable(bool focusable) &&;
+        KeyboardInput transform(avg::Transform const& t) &&;
+        KeyboardInput setObb(avg::Obb obb) &&;
 
-        BTL_VISIBLE bool getRequestFocus() const;
-        BTL_VISIBLE bool hasFocus() const;
-        BTL_VISIBLE bool isFocusable() const;
-        BTL_VISIBLE avg::Obb const& getObb() const;
+        bool getRequestFocus() const;
+        bool hasFocus() const;
+        bool isFocusable() const;
+        avg::Obb const& getObb() const;
 
-        BTL_VISIBLE btl::option<FocusHandle> const& getFocusHandle() const;
-        BTL_VISIBLE btl::option<Handler> const& getHandler() const;
+        btl::option<FocusHandle> const& getFocusHandle() const;
+        btl::option<Handler> const& getHandler() const;
 
     private:
         avg::Obb obb_;
@@ -69,6 +67,4 @@ namespace reactive
         bool focusable_ = false;
     };
 } // reactive
-
-BTL_VISIBILITY_POP
 

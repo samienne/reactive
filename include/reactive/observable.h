@@ -4,6 +4,7 @@
 
 #include <btl/spinlock.h>
 #include <btl/observable.h>
+#include <btl/observablecontrolbase.h>
 
 #include <functional>
 #include <list>
@@ -47,7 +48,18 @@ namespace reactive
             std::lock_guard<btl::SpinLock> lock(mutex_);
             auto i = nextIndex_++;
             callbacks_.push_back(std::make_pair(i, callback));
-            return btl::connection(i, shared_from_this());
+
+            std::weak_ptr<observable_control_base> selfWeak = shared_from_this();
+
+            return btl::connection(
+                    [i, observable=std::move(selfWeak)]() mutable
+                    {
+                        if (auto p = observable.lock())
+                        {
+                            p->disconnect(i);
+                            observable.reset();
+                        }
+                    });
         }
 
         void enable(bool b)

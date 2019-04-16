@@ -5,6 +5,7 @@
 
 #include <reactive/signaltraits.h>
 #include "signal.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/dummylock.h>
 #include <btl/hidden.h>
@@ -13,15 +14,13 @@
 #include <utility>
 #include <iostream>
 
-BTL_VISIBILITY_PUSH_HIDDEN
-
 namespace reactive::signal
 {
     template <typename T, typename TLock = btl::DummyLock>
-    class BTL_CLASS_VISIBLE InputHandle
+    class InputHandle
     {
     public:
-        BTL_HIDDEN InputHandle(std::weak_ptr<InputDeferredValue<T, TLock>> value) :
+        InputHandle(std::weak_ptr<InputDeferredValue<T, TLock>> value) :
             deferred_(std::move(value))
         {
         }
@@ -34,24 +33,24 @@ namespace reactive::signal
         }
         */
 
-        BTL_HIDDEN void set(T value)
+        void set(T value)
         {
             if (auto p = deferred_.lock())
                 p->set(p->lock(), std::move(value));
         }
 
-        BTL_HIDDEN void set(Signal<T, Weak<T>> sig)
+        void set(Signal<T, Weak<T>> sig)
         {
             if (auto p = deferred_.lock())
                 p->set(p->lock(), std::move(sig));
         }
 
-        BTL_HIDDEN bool operator==(InputHandle const& rhs) const
+        bool operator==(InputHandle const& rhs) const
         {
             return deferred_.lock() == rhs.deferred_.lock();
         }
 
-        BTL_HIDDEN bool operator!=(InputHandle const& rhs) const
+        bool operator!=(InputHandle const& rhs) const
         {
             return deferred_.lock() == rhs.deferred_.lock();
         }
@@ -60,6 +59,4 @@ namespace reactive::signal
         std::weak_ptr<InputDeferredValue<T, TLock>> deferred_;
     };
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

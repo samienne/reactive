@@ -1,16 +1,13 @@
 #pragma once
 
 #include "reactive/signaltraits.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive
 {
     namespace signal
     {
-        class BTL_CLASS_VISIBLE Every;
+        class Every;
     }
 
     template <>
@@ -19,18 +16,18 @@ namespace reactive
 
 namespace reactive::signal
 {
-    class BTL_CLASS_VISIBLE Every
+    class Every
     {
     public:
-        BTL_HIDDEN inline Every(signal_time_t phase) :
+        inline Every(signal_time_t phase) :
             phase_(phase)
         {
         }
 
-        BTL_HIDDEN Every(Every&&) noexcept = default;
-        BTL_HIDDEN Every& operator=(Every&&) noexcept = default;
+        Every(Every&&) noexcept = default;
+        Every& operator=(Every&&) noexcept = default;
 
-        BTL_HIDDEN inline UpdateResult updateBegin(FrameInfo const& frame)
+        inline UpdateResult updateBegin(FrameInfo const& frame)
         {
             while (dt_ >= phase_)
                 dt_ -= phase_;
@@ -48,12 +45,12 @@ namespace reactive::signal
             return btl::just(std::max(signal_time_t(0), phase_ - dt_));
         }
 
-        BTL_HIDDEN inline UpdateResult updateEnd(FrameInfo const&)
+        inline UpdateResult updateEnd(FrameInfo const&)
         {
             return btl::none;
         }
 
-        BTL_HIDDEN inline signal_time_t evaluate() const
+        inline signal_time_t evaluate() const
         {
             if (changed_)
                 return dt_;
@@ -61,32 +58,32 @@ namespace reactive::signal
             return signal_time_t(0);
         }
 
-        BTL_HIDDEN inline bool hasChanged() const
+        inline bool hasChanged() const
         {
             return changed_;
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&&)
+        Connection observe(TCallback&&)
         {
             return Connection();
         }
 
-        BTL_HIDDEN inline Annotation annotate() const
+        inline Annotation annotate() const
         {
             Annotation a;
             a.addNode("every(" + std::to_string(phase_.count()) + "us)");
             return a;
         }
 
-        BTL_HIDDEN inline auto clone() const
+        inline auto clone() const
         {
             return *this;
         }
 
     private:
-        BTL_HIDDEN Every(Every const&) = default;
-        BTL_HIDDEN Every& operator=(Every const&) = default;
+        Every(Every const&) = default;
+        Every& operator=(Every const&) = default;
 
     private:
         signal_time_t phase_;
@@ -99,6 +96,4 @@ namespace reactive::signal
         return Every(phase);
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

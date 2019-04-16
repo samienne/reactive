@@ -1,12 +1,11 @@
 #pragma once
 
 #include "widgetfactory.h"
-
-#include <btl/visibility.h>
+#include "reactivevisibility.h"
 
 namespace reactive
 {
-    class BTL_VISIBLE UniformGrid
+    class REACTIVE_EXPORT UniformGrid
     {
     public:
         UniformGrid(unsigned int w, unsigned int h);
@@ -32,7 +31,7 @@ namespace reactive
         std::vector<WidgetFactory> factories_;
     };
 
-    BTL_VISIBLE inline auto uniformGrid(unsigned int w, unsigned int h)
+    inline auto uniformGrid(unsigned int w, unsigned int h)
         -> UniformGrid
     {
         return UniformGrid(w, h);

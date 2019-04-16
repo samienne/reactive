@@ -3,18 +3,17 @@
 #include "constant.h"
 #include "reactive/signaltraits.h"
 #include "reactive/signal.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/spinlock.h>
 #include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class BTL_CLASS_VISIBLE Cache;
+        class Cache;
     }
 
     template <typename TSignal>
@@ -24,26 +23,26 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignal>
-    class BTL_CLASS_VISIBLE Cache
+    class Cache
     {
     public:
         using ValueType = std::decay_t<SignalType<TSignal>>;
         using Lock = std::lock_guard<btl::SpinLock>;
 
-        BTL_HIDDEN Cache(TSignal sig) :
+        Cache(TSignal sig) :
             sig_(std::move(sig))
         {
         }
 
     private:
-        BTL_HIDDEN Cache(Cache const&) = default;
-        BTL_HIDDEN Cache& operator=(Cache const&) = default;
+        Cache(Cache const&) = default;
+        Cache& operator=(Cache const&) = default;
 
     public:
-        BTL_HIDDEN Cache(Cache&&) noexcept = default;
-        BTL_HIDDEN Cache& operator=(Cache&&) noexcept = default;
+        Cache(Cache&&) noexcept = default;
+        Cache& operator=(Cache&&) noexcept = default;
 
-        BTL_HIDDEN ValueType const& evaluate() const
+        ValueType const& evaluate() const
         {
             if (value_.empty())
                 value_ = btl::just(btl::clone(sig_->evaluate()));
@@ -51,17 +50,17 @@ namespace reactive::signal
             return *value_;
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return changed_;
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return sig_->updateBegin(frame);
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = sig_->updateEnd(frame);
 
@@ -73,12 +72,12 @@ namespace reactive::signal
         }
 
         template <typename TFunc>
-        BTL_HIDDEN Connection observe(TFunc&& callback)
+        Connection observe(TFunc&& callback)
         {
             return sig_->observe(std::forward<TFunc>(callback));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("cache() changed: "
@@ -87,7 +86,7 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN Cache clone() const
+        Cache clone() const
         {
             return *this;
         }
@@ -127,6 +126,4 @@ namespace reactive::signal
         }
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

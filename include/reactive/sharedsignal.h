@@ -1,8 +1,7 @@
 #pragma once
 
 #include "signal/share.h"
-
-#include <btl/hidden.h>
+#include "reactivevisibility.h"
 
 namespace reactive
 {
@@ -10,7 +9,7 @@ namespace reactive
     class Share;
 
     template <typename T, typename TSignal>
-    class BTL_CLASS_VISIBLE SharedSignal;
+    class REACTIVE_EXPORT SharedSignal;
 
     template <typename T, typename TSignal>
     struct IsSignal<SharedSignal<T, TSignal>> : std::true_type {};
@@ -55,6 +54,12 @@ namespace reactive
     public:
         template <typename U>
         SharedSignal(SharedSignal<T, U> sig) :
+            Signal<T, void>(std::move(sig))
+        {
+        }
+
+        template <typename U>
+        SharedSignal(Signal<T, signal::Share<T, U>> sig) :
             Signal<T, void>(std::move(sig))
         {
         }

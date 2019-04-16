@@ -1,25 +1,23 @@
 #pragma once
 
-#include <reactive/sharedsignal.h>
-#include <reactive/signal.h>
-#include <reactive/signaltraits.h>
+#include "reactive/sharedsignal.h"
+#include "reactive/signal.h"
+#include "reactive/signaltraits.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/tuplemap.h>
 #include <btl/reduce.h>
 #include <btl/fmap.h>
 #include <btl/foreach.h>
-#include <btl/hidden.h>
 
 #include <vector>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignals>
-        class BTL_CLASS_VISIBLE Combine;
+        class Combine;
     }
 
     template <typename TSignals>
@@ -29,23 +27,23 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignals>
-    class BTL_CLASS_VISIBLE Combine
+    class Combine
     {
     public:
-        BTL_HIDDEN Combine(TSignals signals) :
+        Combine(TSignals signals) :
             sigs_(std::move(signals))
         {
         }
 
     private:
-        BTL_HIDDEN Combine(Combine const&) = default;
-        BTL_HIDDEN Combine& operator=(Combine const&) = default;
+        Combine(Combine const&) = default;
+        Combine& operator=(Combine const&) = default;
 
     public:
-        BTL_HIDDEN Combine(Combine&&) noexcept(true) = default;
-        BTL_HIDDEN Combine& operator=(Combine&&) noexcept(true) = default;
+        Combine(Combine&&) noexcept(true) = default;
+        Combine& operator=(Combine&&) noexcept(true) = default;
 
-        BTL_HIDDEN auto evaluate() const
+        auto evaluate() const
         {
             return btl::fmap(*sigs_, [](auto&& sig)
                     {
@@ -53,7 +51,7 @@ namespace reactive::signal
                     });
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return btl::reduce(false, *sigs_,
                     [](bool initial, auto const& sig) noexcept
@@ -62,7 +60,7 @@ namespace reactive::signal
                     });
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return btl::reduce(
                     btl::option<signal_time_t>(btl::none), *sigs_,
@@ -73,7 +71,7 @@ namespace reactive::signal
                     });
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             return btl::reduce(
                     btl::option<signal_time_t>(btl::none), *sigs_,
@@ -85,7 +83,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&& callback) noexcept
+        Connection observe(TCallback&& callback) noexcept
         {
             return btl::reduce(Connection(), *sigs_,
                     [callback = std::forward<TCallback>(callback)]
@@ -95,7 +93,7 @@ namespace reactive::signal
                     });
         }
 
-        BTL_HIDDEN Annotation annotate() const noexcept
+        Annotation annotate() const noexcept
         {
             Annotation a;
             auto n = a.addNode("combine()");
@@ -108,7 +106,7 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN Combine clone() const
+        Combine clone() const
         {
             return *this;
         }
@@ -134,6 +132,4 @@ namespace reactive::signal
         return signal::wrap(Combine<std::tuple<Ts...>>(std::move(signals)));
     }
 } // namespace reactive::signal:
-
-BTL_VISIBILITY_POP
 

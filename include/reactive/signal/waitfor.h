@@ -4,9 +4,6 @@
 
 #include <btl/future/future.h>
 #include <btl/spinlock.h>
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -26,6 +23,4 @@ namespace reactive::signal
         return std::move(i.signal);
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "reactivevisibility.h"
+
 #include <avg/transform.h>
 
 #include <ase/vector.h>
@@ -8,7 +10,7 @@
 
 namespace reactive
 {
-    class BTL_VISIBLE ClickEvent
+    class REACTIVE_EXPORT ClickEvent
     {
     public:
         ClickEvent(unsigned int pointer, unsigned int button,

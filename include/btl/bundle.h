@@ -1,6 +1,5 @@
 #pragma once
 
-#include "apply.h"
 #include "fmap.h"
 #include "mbind.h"
 
@@ -35,7 +34,7 @@ namespace btl
             >
         {
             return bundle(
-                    btl::apply([&func](auto&&... us)
+                    std::apply([&func](auto&&... us)
                         {
                             return btl::fmap(
                                 std::forward<TFunc>(func),
@@ -59,7 +58,7 @@ namespace btl
             >
         {
             return bundle(
-                    btl::apply([&func](auto&&... us)
+                    std::apply([&func](auto&&... us)
                         {
                             return btl::mbind(
                                 std::forward<TFunc>(func),

@@ -3,6 +3,7 @@
 #include "window.h"
 
 #include "signal.h"
+#include "reactivevisibility.h"
 
 #include <ase/platform.h>
 
@@ -11,7 +12,7 @@
 
 namespace reactive
 {
-    class BTL_VISIBLE AppImpl
+    class REACTIVE_EXPORT AppImpl
     {
     public:
         virtual ~AppImpl() = default;
@@ -20,7 +21,7 @@ namespace reactive
         virtual int run() && = 0;
     };
 
-    class BTL_VISIBLE App
+    class REACTIVE_EXPORT App
     {
     public:
         App();

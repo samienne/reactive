@@ -1,5 +1,6 @@
 #pragma once
 
+#include "observablecontrolbase.h"
 #include "connection.h"
 #include "spinlock.h"
 #include "shared.h"
@@ -35,7 +36,17 @@ namespace btl
             lock_t lock(d_->mutex);
             auto i = d_->nextIndex++;
             d_->callbacks.push_back(std::make_pair(i , std::move(cb)));
-            return connection(i, d_.ptr());
+            std::weak_ptr<detail::observable_control_base> weak = d_.ptr();
+
+            return connection::on_disconnect(
+                    [i, observable=std::move(weak)]() mutable
+                    {
+                        if (auto p = observable.lock())
+                        {
+                            p->disconnect(i);
+                            observable.reset();
+                        }
+                    });
         }
 
         inline void operator()(TArgs... args) const

@@ -1,10 +1,6 @@
 #pragma once
 
-#include "apply.h"
 #include "hidden.h"
-
-//#include <utility>
-//#include <type_traits>
 
 #include <tuple>
 
@@ -30,46 +26,42 @@ namespace btl
             T value;
         };
 
-        struct TupleReduce
+        template <typename TFunc, typename U, typename TTuple, size_t... S>
+        auto tuple_reduce_seq(TFunc&& f, U&& initial, TTuple&& data,
+                std::index_sequence<S...>)
         {
-            template <typename TFunc, typename U, typename... Ts>
-            BTL_FORCE_INLINE auto operator()(TFunc&& func, U&& initial, Ts&&... ts) const
-            {
-                auto r = Reducer<TFunc, std::decay_t<U>>{
-                        std::forward<TFunc>(func),
-                        std::forward<U>(initial)
-                };
+            auto r = Reducer<TFunc, std::decay_t<U>>{
+                std::forward<TFunc>(f),
+                std::forward<U>(initial)
+            };
 
-                return std::move(
-                        (std::move(r) << ... << std::forward<Ts>(ts)).value
-                        );
-            }
-        };
+            return std::move(
+                    (std::move(r) << ...
+                     << std::get<S>(std::forward<TTuple>(data))).value
+                    );
+        }
     }
 
     template <typename TFunc, typename T, typename TTuple>
     BTL_FORCE_INLINE auto tuple_reduce(T&& initial, TTuple&& tuple, TFunc&& func)
-        /*-> decltype(apply(detail::TupleReduce(),
-                tuple_cat(
-                    std::forward_as_tuple(
-                        std::forward<TFunc>(func),
-                        std::forward<T>(initial)
-                        ),
-                    std::forward<TTuple>(tuple)
-                    )
+    -> decltype(
+            detail::tuple_reduce_seq(
+                std::forward<TFunc>(func),
+                std::forward<T>(initial),
+                std::forward<TTuple>(tuple),
+                std::make_index_sequence<std::tuple_size<
+                    std::decay_t<TTuple>>::value
+                    >()
                 )
-                )*/
+            )
     {
-        auto tt = tuple_cat(
-                    std::forward_as_tuple(
-                        std::forward<TFunc>(func),
-                        std::forward<T>(initial)
-                        ),
-                    std::forward<TTuple>(tuple)
-                    );
-
-        return std::apply(detail::TupleReduce(),
-                std::move(tt)
+        return detail::tuple_reduce_seq(
+                std::forward<TFunc>(func),
+                std::forward<T>(initial),
+                std::forward<TTuple>(tuple),
+                std::make_index_sequence<std::tuple_size<
+                    std::decay_t<TTuple>>::value
+                    >()
                 );
     }
 } // btl

@@ -1,7 +1,7 @@
 project('ase', 'cpp')
 add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
-        '-fvisibility=hidden', language : 'cpp')
-#'-flto',
+        language : 'cpp')
+#'-flto','-fvisibility=hidden',
 
 eigen = subproject('eigen')
 libeigendep = eigen.get_variable('eigen_dep')

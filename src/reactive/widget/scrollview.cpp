@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
 #include "reactive/hbox.h"
 #include "reactive/vbox.h"
@@ -16,8 +17,8 @@ namespace
     SizeHint hintMap(SizeHint /*hint*/)
     {
         return simpleSizeHint(
-                {{100, 200, 10000}},
-                {{100, 400, 10000}}
+                {{100, 400, 10000}},
+                {{100, 800, 10000}}
                 );
     }
 

@@ -4,11 +4,9 @@
 #include "cache.h"
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
+#include "reactive/reactivevisibility.h"
 
 #include <btl/shared.h>
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
 
 namespace reactive::signal
 {
@@ -34,9 +32,9 @@ namespace reactive::signal
     }
 
     template <typename T, typename U>
-    auto share(Signal<T, Share<T, U>> sig)
+    SharedSignal<T, Share<T, U>> share(Signal<T, Share<T, U>> sig)
     {
-        return std::move(sig);
+        return detail::makeShared(std::move(sig));
     }
 
     template <typename T>
@@ -53,6 +51,4 @@ namespace reactive::signal
         return std::move(sig);
     }
 } // reactive::signal
-
-BTL_VISIBILITY_POP
 

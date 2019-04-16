@@ -2,17 +2,14 @@
 
 #include "constant.h"
 #include "reactive/signaltraits.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignal>
-        class BTL_CLASS_VISIBLE Changed;
+        class Changed;
     }
 
     template <typename TSignal>
@@ -22,34 +19,34 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename TSignal>
-    class BTL_CLASS_VISIBLE Changed
+    class Changed
     {
     public:
-        BTL_HIDDEN Changed(Changed&&) noexcept = default;
-        BTL_HIDDEN Changed& operator=(Changed&&) noexcept = default;
+        Changed(Changed&&) noexcept = default;
+        Changed& operator=(Changed&&) noexcept = default;
 
-        BTL_HIDDEN Changed(TSignal sig):
+        Changed(TSignal sig):
             signal_(std::move(sig))
         {
         }
 
-        BTL_HIDDEN bool evaluate() const
+        bool evaluate() const
         {
             return changed_ != changedPrevious_;
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return changed_ != changedPrevious_;
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             changedPrevious_ = changed_;
             return signal_.updateBegin(frame);
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_.updateEnd(frame);
 
@@ -61,12 +58,12 @@ namespace reactive::signal
         }
 
         template <typename TFunc>
-        BTL_HIDDEN Connection observe(TFunc&& f)
+        Connection observe(TFunc&& f)
         {
             return signal_.observe(std::forward<TFunc>(f));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("changed()");
@@ -74,14 +71,14 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN Changed clone() const
+        Changed clone() const
         {
             return *this;
         }
 
     private:
-        BTL_HIDDEN Changed(Changed const&) = default;
-        BTL_HIDDEN Changed& operator=(Changed const&) = default;
+        Changed(Changed const&) = default;
+        Changed& operator=(Changed const&) = default;
 
     private:
         TSignal signal_;
@@ -96,6 +93,4 @@ namespace reactive::signal
         return Changed<Signal<T, std::decay_t<TSignal>>>(std::move(sig));
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 

@@ -3,6 +3,7 @@
 #include "app.h"
 
 #include "signal.h"
+#include "reactivevisibility.h"
 
 #include <btl/visibility.h>
 
@@ -10,7 +11,7 @@
 
 namespace reactive
 {
-    class BTL_VISIBLE GlxApp : public AppImpl
+    class REACTIVE_EXPORT GlxApp : public AppImpl
     {
     public:
         GlxApp();

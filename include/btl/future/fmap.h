@@ -78,7 +78,7 @@ namespace btl
 
                 if (count == 1)
                 {
-                    this->set(btl::apply(
+                    this->set(std::apply(
                             std::move(func_),
                             btl::tuple_map(
                                 std::move(futures_),
@@ -155,7 +155,7 @@ namespace btl
         auto fmap2(Ts&&... ts)
         {
             auto t = std::forward_as_tuple(std::forward<Ts>(ts)...);
-            return btl::apply([&](auto&&... params)
+            return std::apply([&](auto&&... params)
                     {
                         return fmap(
                             tuple_last(std::move(t)),

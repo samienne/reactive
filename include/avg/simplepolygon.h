@@ -1,14 +1,13 @@
 #pragma once
 
 #include "vector.h"
-
-#include <btl/visibility.h>
+#include "avgvisibility.h"
 
 #include <vector>
 
 namespace avg
 {
-    class BTL_VISIBLE SimplePolygon
+    class AVG_EXPORT SimplePolygon
     {
     public:
         SimplePolygon();

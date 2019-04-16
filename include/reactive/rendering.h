@@ -1,5 +1,7 @@
 #pragma once
 
+#include "reactivevisibility.h"
+
 #include <avg/softmesh.h>
 #include <avg/drawing.h>
 #include <avg/shape.h>
@@ -15,7 +17,6 @@
 #include <btl/uhash.h>
 #include <btl/hash.h>
 #include <btl/variant.h>
-#include <btl/visibility.h>
 
 #include <vector>
 #include <unordered_map>
@@ -27,7 +28,7 @@ namespace reactive
     /*using RenderCache = std::unordered_map<RenderElement,
           std::vector<avg::SoftMesh>, btl::uhash<btl::fnv1a>>;*/
 
-    BTL_VISIBLE void render(
+    REACTIVE_EXPORT void render(
             ase::CommandBuffer& queue,
             ase::RenderContext& context,
             ase::Framebuffer& framebuffer,
@@ -35,9 +36,9 @@ namespace reactive
             avg::Painter const& painter,
             avg::Drawing const& drawing);
 
-    BTL_VISIBLE avg::Path makeRect(float width, float height);
+    REACTIVE_EXPORT avg::Path makeRect(float width, float height);
 
-    BTL_VISIBLE avg::Shape makeShape(avg::Path const& path,
+    REACTIVE_EXPORT avg::Shape makeShape(avg::Path const& path,
             btl::option<avg::Brush> const& brush,
             btl::option<avg::Pen> const& pen);
 }

@@ -1,10 +1,9 @@
 #pragma once
 
 #include "vector.h"
+#include "avgvisibility.h"
 
 #include <utf8/utf8.h>
-
-#include <btl/visibility.h>
 
 #include <mutex>
 #include <memory>
@@ -17,7 +16,7 @@ namespace avg
     struct TextExtents;
     class FontManagerDeferred;
 
-    class BTL_VISIBLE FontManager
+    class AVG_EXPORT FontManager
     {
     public:
         typedef std::mutex Mutex;

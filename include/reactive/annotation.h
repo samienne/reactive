@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "reactivevisibility.h"
 
 #include <string>
 #include <vector>
@@ -8,7 +8,7 @@
 
 namespace reactive
 {
-    class BTL_VISIBLE Annotation
+    class REACTIVE_EXPORT Annotation
     {
     public:
         struct Node

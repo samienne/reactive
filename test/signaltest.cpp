@@ -1,4 +1,3 @@
-#include <reactive/signal/databind.h>
 #include <reactive/signal/blip.h>
 #include <reactive/signal/changed.h>
 #include <reactive/signal/updateifjust.h>
@@ -76,15 +75,6 @@ static_assert(RequireSignal<Changed<Constant<int>>>::value,
         "Changed is not a signal");
 static_assert(RequireSignal<Blip<Constant<int>>>::value, "");
 static_assert(RequireSignal<SharedSignal<int, void>>::value, "");
-
-static_assert(RequireSignal<
-        DataBind<
-        std::function<SharedSignal<btl::option<int>>(
-            Signal<btl::option<std::string>>,
-            IndexSignal)>,
-        btl::collection<std::string>
-        >>::value,
-        "DataBind is not a signal");
 
 TEST(signal, cacheTest)
 {

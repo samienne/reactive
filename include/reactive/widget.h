@@ -271,45 +271,10 @@ namespace reactive
                     );
         }
 
-        /*
-        template <typename TSignal>
-        auto addDrawingBehind(TSignal&& d) &&
+        template <typename T>
+        auto transform(Signal<avg::Transform, T> t) &&
         {
-            auto drawing = signal::map(
-                    [](avg::Obb obb, avg::Drawing d1, avg::Drawing d2)
-                    -> avg::Drawing
-                {
-                    return (obb.getTransform() * std::move(d2)) + std::move(d1);
-                }, obb_, drawing_, d);
-
-            return std::move(*this)
-                .setDrawing(std::move(drawing));
-        }
-        */
-
-        /*
-        auto addDrawings(Signal<std::vector<avg::Drawing>> drawings) &&
-        {
-            auto drawing = signal::map([](avg::Obb obb, avg::Drawing d1,
-                        std::vector<avg::Drawing> drawings)
-                    -> avg::Drawing
-                {
-                    for (auto&& d : drawings)
-                        d1 = std::move(d1) + (obb.getTransform() * std::move(d));
-                    return d1;
-                }, obb_, drawing_, std::move(drawings));
-
-            return std::move(*this)
-                .setDrawing(std::move(drawing));
-        }
-        */
-
-        template <typename TSignalTransform, typename = std::enable_if_t<
-            IsSignalType<TSignalTransform, avg::Transform>::value
-            >>
-        auto transform(TSignalTransform t) &&
-        {
-            auto tr = share(std::move(t));
+            auto tr = signal::share(std::move(t));
 
             auto drawing = signal::map([](avg::Drawing d, avg::Transform t)
                     -> avg::Drawing
@@ -505,7 +470,7 @@ namespace reactive
 
     struct Widget : WidgetBase
     {
-        Widget(WidgetBase base) :
+        inline Widget(WidgetBase base) :
             WidgetBase(std::move(base))
         {
         }
@@ -517,7 +482,7 @@ namespace reactive
         {
         }
 
-        Widget clone() const
+        inline Widget clone() const
         {
             return WidgetBase::clone();
         }

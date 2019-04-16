@@ -2,8 +2,7 @@
 
 #include "transform.h"
 #include "rect.h"
-
-#include <btl/visibility.h>
+#include "avgvisibility.h"
 
 #include <vector>
 #include <memory>
@@ -14,7 +13,7 @@ namespace avg
     class SoftMeshDeferred;
     class Brush;
 
-    class BTL_VISIBLE SoftMesh
+    class AVG_EXPORT SoftMesh
     {
     public:
         using Vertex = std::array<float, 2>;

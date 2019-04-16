@@ -3,7 +3,6 @@
 #include "future/future.h"
 
 #include "threadpool.h"
-#include "apply.h"
 
 namespace btl
 {
@@ -38,7 +37,7 @@ namespace btl
             if (!promise.valid())
                 return;
 
-            promise.set(btl::apply(std::move(func), std::move(params)));
+            promise.set(std::apply(std::move(func), std::move(params)));
         });
 
         return future;

@@ -1,267 +1,383 @@
-#include <btl/mappedcollection.h>
-#include <btl/collection.h>
+#include <reactive/collection.h>
 
 #include <gtest/gtest.h>
 
 #include <iostream>
 
-using namespace btl;
+using namespace reactive;
 
-TEST(collection, construct)
+TEST(reactiveCollection, iterateForward)
 {
-    collection<int> c1;
-    collection<int> c2 = c1;;
-    collection<int> c3 = std::move(c1);
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test 1");
+    range.pushBack("test 2");
+    range.pushBack("test 3");
+
+    EXPECT_EQ(3, range.size());
+
+    auto i = range.begin();
+
+    EXPECT_EQ("test 1", *i);
+
+    ++i;
+    EXPECT_EQ("test 2", *i);
+
+    ++i;
+    EXPECT_EQ("test 3", *i);
+
+    ++i;
+    EXPECT_EQ(range.end(), i);
 }
 
-TEST(collection, push)
+
+TEST(reactiveCollection, iterateBackward)
 {
-    bool called = false;
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
 
-    collection<int> c1;
-    auto c = c1.on_changed([&called](collection_event<int> const& e)
-        {
-            called = true;
-            std::array<int, 3> a{{10, 20, 30}};
+    range.pushBack("test 1");
+    range.pushBack("test 2");
+    range.pushBack("test 3");
 
-            size_t i = 0;
-            for (auto&& v : e.added)
+    EXPECT_EQ(3, range.size());
+
+    auto i = range.rbegin();
+
+    EXPECT_EQ("test 3", *i);
+
+    ++i;
+    EXPECT_EQ("test 2", *i);
+
+    ++i;
+    EXPECT_EQ("test 1", *i);
+
+    ++i;
+    EXPECT_EQ(range.rend(), i);
+}
+
+TEST(reactiveCollection, iterateForwardConst)
+{
+    Collection<std::string> col;
+
+    {
+        auto range = col.rangeLock();
+
+        range.pushBack("test 1");
+        range.pushBack("test 2");
+        range.pushBack("test 3");
+    }
+
+    auto const& collection = col;
+
+    auto range = collection.rangeLock();
+
+    EXPECT_EQ(3, range.size());
+
+    auto i = range.begin();
+
+    EXPECT_EQ("test 1", *i);
+
+    ++i;
+    EXPECT_EQ("test 2", *i);
+
+    ++i;
+    EXPECT_EQ("test 3", *i);
+
+    ++i;
+    EXPECT_EQ(range.end(), i);
+}
+
+TEST(reactiveCollection, iterateBackwardConst)
+{
+    Collection<std::string> col;
+
+    {
+        auto range = col.rangeLock();
+
+        range.pushFront("test 1");
+        range.pushFront("test 2");
+        range.pushFront("test 3");
+    }
+
+    auto const& collection = col;
+    auto range = collection.rangeLock();
+
+    EXPECT_EQ(3, range.size());
+
+    auto i = range.rbegin();
+
+    EXPECT_EQ("test 1", *i);
+
+    ++i;
+    EXPECT_EQ("test 2", *i);
+
+    ++i;
+    EXPECT_EQ("test 3", *i);
+
+    ++i;
+    EXPECT_EQ(range.rend(), i);
+}
+
+TEST(reactiveCollection, insert)
+{
+    Collection<int> collection;
+    auto range = collection.rangeLock();
+
+    range.insert(range.begin(), 10);
+    range.insert(range.end(), 20);
+    range.insert(range.begin(), 30);
+
+    auto i = range.begin();
+    EXPECT_EQ(30, *i);
+
+    ++i;
+    EXPECT_EQ(10, *i);
+
+    ++i;
+    EXPECT_EQ(20, *i);
+}
+
+TEST(reactiveCollection, callbacks)
+{
+    Collection<std::string> collection;
+
+    int inserts = 0;
+    int updates = 0;
+    int erases = 0;
+
+    size_t lastInsertId = 0;
+    size_t lastUpdateId = 0;
+    size_t lastEraseId = 0;
+
+    std::string lastInsertValue;
+    std::string lastUpdateValue;
+
+    Connection connections;
+
+    connections += collection.onInsert(
+            [&inserts, &lastInsertId, &lastInsertValue]
+            (auto id, int, auto const& value)
             {
-                EXPECT_TRUE(a[i++] == *v.second);
-            }
-        });
-
-    {
-        auto w = c1.writer();
-        w.push_back(10);
-        w.push_back(20);
-        w.push_back(30);
-    }
-
-    EXPECT_TRUE(called);
-
-    std::array<int, 3> a{{10, 20, 30}};
-
-    auto r = c1.reader();
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        EXPECT_TRUE(a[i++] == v);
-    }
-}
-
-TEST(collection, erase)
-{
-    collection<int> c;
-
-    {
-        auto w = c.writer();
-        w.push_back(10);
-        w.push_back(20);
-        w.push_back(30);
-    }
-
-    bool called = false;
-    auto connection = c.on_changed([&called](collection_event<int> const& e)
-        {
-            EXPECT_EQ(1, e.removed.size());
-            EXPECT_EQ(0, e.removed[0]);
-            called = true;
-        });
-
-    {
-        auto w = c.writer();
-        w.erase(w.begin());
-    }
-
-    EXPECT_TRUE(called);
-
-    std::array<int, 2> a{{20, 30}};
-
-    auto r = c.reader();
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        EXPECT_TRUE(a[i++] == v);
-    }
-}
-
-TEST(collection, pushAndErase)
-{
-    collection<int> c;
-
-    {
-        auto w = c.writer();
-        w.push_back(10);
-        w.push_back(20);
-        w.push_back(30);
-    }
-
-    bool called = false;
-    auto connection = c.on_changed([&called](collection_event<int> const& e)
-        {
-            EXPECT_EQ(1, e.removed.size());
-            EXPECT_EQ(1, e.added.size());
-            EXPECT_EQ(0, e.removed[0]);
-            EXPECT_EQ(2, e.added[0].first);
-            called = true;
-        });
-
-    {
-        auto w = c.writer();
-        w.push_back(40);
-        w.erase(w.begin());
-    }
-
-    EXPECT_TRUE(called);
-
-    std::array<int, 3> a{{20, 30, 40}};
-
-    auto r = c.reader();
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        EXPECT_TRUE(a[i++] == v);
-    }
-}
-
-TEST(collection, eraseAndPush)
-{
-    collection<int> c;
-
-    {
-        auto w = c.writer();
-        w.push_back(10);
-        w.push_back(20);
-        w.push_back(30);
-    }
-
-    bool called = false;
-    auto connection = c.on_changed([&called](collection_event<int> const& e)
-        {
-            EXPECT_EQ(1, e.removed.size());
-            EXPECT_EQ(1, e.added.size());
-            EXPECT_EQ(0, e.removed[0]);
-            EXPECT_EQ(2, e.added[0].first);
-            called = true;
-        });
-
-    {
-        auto w = c.writer();
-        w.erase(w.begin());
-        w.push_back(40);
-    }
-
-    EXPECT_TRUE(called);
-
-    std::array<int, 3> a{{20, 30, 40}};
-
-    auto r = c.reader();
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        EXPECT_TRUE(a[i++] == v);
-    }
-}
-
-TEST(collection, update)
-{
-    collection<int> c;
-
-    {
-        auto w = c.writer();
-        w.push_back(10);
-        w.push_back(20);
-        w.push_back(30);
-    }
-
-    bool called = false;
-    auto connection = c.on_changed([&called](collection_event<int> const& e)
-        {
-            EXPECT_EQ(3, e.updated.size());
-            EXPECT_EQ(0, e.updated[0].first);
-            called = true;
-        });
-
-    {
-        auto w = c.writer();
-        w[0] = 30;
-        w[1] = 40;
-        w[2] = 50;
-    }
-
-    EXPECT_TRUE(called);
-
-    std::array<int, 3> a{{30, 40, 50}};
-
-    auto r = c.reader();
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        EXPECT_TRUE(a[i++] == v);
-    }
-}
-
-/*TEST(collection, mapped)
-{
-    collection<int> c;
-
-    {
-        auto w = c.writer();
-        for (int i = 0; i < 100; ++i)
-            w.push_back(1000 - i * 10);
-    }
-
-    auto c2 = map_collection([](int i, size_t) { return i * 2; }, c);
-
-    auto connection = observe(c2, [](collection_event<int> const&)
-            {
+                lastInsertId = id;
+                lastInsertValue = value;
+                ++inserts;
             });
 
-    auto r = c2.reader();
+    connections += collection.onUpdate(
+            [&updates, &lastUpdateId, &lastUpdateValue]
+            (auto id, int, auto const& value)
+            {
+                lastUpdateId = id;
+                lastUpdateValue = value;
+                ++updates;
+            });
 
-    EXPECT_EQ(100, r.size());
+    connections += collection.onErase(
+            [&erases, &lastEraseId](auto id)
+            {
+                lastEraseId = id;
+                ++erases;
+            });
 
-    size_t i = 0;
-    for (auto&& v : r)
-    {
-        auto expected = (1000 - i * 10) * 2;
-        EXPECT_EQ(expected, v);
-        ++i;
-    }
-}*/
+    auto range = collection.rangeLock();
 
-/*TEST(collection, mappedErase)
+    range.pushBack("item 1");
+
+    EXPECT_EQ(1, inserts);
+    EXPECT_EQ(0, updates);
+    EXPECT_EQ(0, erases);
+
+    EXPECT_EQ("item 1", lastInsertValue);
+    auto item1Id = lastInsertId;
+
+    range.pushBack("item 2");
+
+    EXPECT_EQ(2, inserts);
+    EXPECT_EQ(0, updates);
+    EXPECT_EQ(0, erases);
+
+    EXPECT_EQ("item 2", lastInsertValue);
+
+    range.update(range.begin(), "item 3");
+
+    EXPECT_EQ(1, updates);
+
+    EXPECT_EQ("item 3", lastUpdateValue);
+    EXPECT_EQ(item1Id, lastUpdateId);
+
+    EXPECT_EQ(2, range.size());
+
+    auto i = range.begin();
+    EXPECT_EQ("item 3", *i);
+
+    ++i;
+    EXPECT_EQ("item 2", *i);
+
+    range.erase(range.begin());
+
+    EXPECT_EQ(1, erases);
+    EXPECT_EQ(1, range.size());
+    EXPECT_EQ("item 2", *range.begin());
+    EXPECT_EQ(item1Id, lastEraseId);
+}
+
+TEST(reactiveCollection, swap)
 {
-    collection<int> c;
+    Collection<std::string> collection;
 
-    {
-        auto w = c.writer();
-        for (int i = 0; i < 5; ++i)
-            w.push_back(50 - i * 10);
-    }
+    size_t lastId1 = 0;
+    size_t lastIndex1 = 12345;
+    size_t lastId2 = 0;
+    size_t lastIndex2 = 12345;
 
-    auto c2 = map_collection([](int i, size_t) { return i * 2; }, c);
+    auto connection = collection.onSwap(
+            [&](size_t id1, int index1, size_t id2, int index2)
+            {
+                lastId1 = id1;
+                lastIndex1 = index1;
+                lastId2 = id2;
+                lastIndex2 = index2;
+            });
 
-    {
-        auto w = c.writer();
-        auto i = w.begin();
-        w.erase(i++);
-        w.erase(i++);
-        w.erase(i++);
-    }
+    auto range = collection.rangeLock();
 
-    auto r = c2.reader();
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
 
-    EXPECT_EQ(2, r.size());
-    EXPECT_EQ(2, c.reader().size());
+    auto i = range.begin();
+    auto j = range.begin() + 2;
 
-    size_t i = 3;
-    for (auto&& v : r)
-    {
-        auto expected = (50 - i * 10) * 2;
-        EXPECT_EQ(expected, v);
-        ++i;
-    }
-}*/
+    range.swap(i, j);
 
+    // Check that callback told that 0th and 2nd elements were swapped.
+    EXPECT_EQ((range.begin()+2).getId(), lastId1);
+    EXPECT_EQ((range.begin()).getId(), lastId2);
+    EXPECT_EQ(0, lastIndex1);
+    EXPECT_EQ(2, lastIndex2);
+
+    EXPECT_EQ("test3", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test1", range[2]);
+}
+
+TEST(reactiveCollection, moveOneForward)
+{
+    Collection<std::string> collection;
+
+    size_t lastId = 0;
+    int lastIndex = 12345;
+
+    auto connection = collection.onMove([&](size_t id, int index)
+            {
+                lastId = id;
+                lastIndex = index;
+            });
+
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    auto b = range.begin().getId();
+    range.move(range.begin(), range.begin()+1);
+
+    EXPECT_EQ(b, lastId);
+    EXPECT_EQ(1, lastIndex);
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+}
+
+TEST(reactiveCollection, moveToLast)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin(), range.end());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test3", range[1]);
+    EXPECT_EQ("test1", range[2]);
+
+    range.move(range.begin()+1, range.end());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}
+
+TEST(reactiveCollection, moveToBegin)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin()+1, range.begin());
+
+    EXPECT_EQ("test2", range[0]);
+    EXPECT_EQ("test1", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+2, range.begin());
+
+    EXPECT_EQ("test3", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test1", range[2]);
+}
+
+TEST(reactiveCollection, moveToSelf)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test1");
+    range.pushBack("test2");
+    range.pushBack("test3");
+
+    range.move(range.begin(), range.begin());
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+1, range.begin()+1);
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+
+    range.move(range.begin()+2, range.begin()+2);
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}
+
+TEST(reactiveCollection, sort)
+{
+    Collection<std::string> collection;
+    auto range = collection.rangeLock();
+
+    range.pushBack("test3");
+    range.pushBack("test2");
+    range.pushBack("test1");
+
+    range.sort();
+
+    EXPECT_EQ("test1", range[0]);
+    EXPECT_EQ("test2", range[1]);
+    EXPECT_EQ("test3", range[2]);
+}

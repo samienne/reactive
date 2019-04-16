@@ -1,36 +1,17 @@
 #pragma once
 
-#include "box.h"
+#include "widget/widgetobject.h"
 #include "widgetfactory.h"
-
-#include <btl/collection.h>
+#include "reactivevisibility.h"
 
 #include <vector>
 
 namespace reactive
 {
-    template <typename TCollection, typename = typename
-        std::enable_if<
-            IsFactoryCollection<TCollection>::value
-            >::type>
-    auto vbox(TCollection&& factories)
-    -> decltype(
-            box<TCollection, Axis::y>(std::forward<TCollection>(factories))
-            )
-        //-> WidgetFactory
-    {
-        return box<TCollection, Axis::y>(std::forward<TCollection>(factories));
-    }
+    REACTIVE_EXPORT WidgetFactory vbox(std::vector<WidgetFactory> widgets);
 
-    inline auto vbox(std::initializer_list<WidgetFactory> factories)
-        -> WidgetFactory
-    {
-        std::vector<WidgetFactory> fs;
-        fs.reserve(factories.size());
-        for (auto const& f : factories)
-            fs.push_back(btl::clone(f));
-
-        return box<Axis::y>(std::move(fs));
-    }
-}
+    REACTIVE_EXPORT WidgetFactory vbox(
+            Signal<std::vector<widget::WidgetObject>> widgets
+            );
+} // namespace reactive
 

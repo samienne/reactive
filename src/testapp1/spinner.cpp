@@ -6,6 +6,8 @@
 #include <reactive/widget/theme.h>
 #include <reactive/widget/frame.h>
 
+#include <reactive/simplesizehint.h>
+
 #include <reactive/signal/loop.h>
 #include <reactive/signal/time.h>
 #include <reactive/rendering.h>

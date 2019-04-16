@@ -10,17 +10,14 @@
 #include "reactive/sharedsignal.h"
 #include "reactive/connection.h"
 #include "reactive/signaltraits.h"
-
-#include <btl/hidden.h>
-
-BTL_VISIBILITY_PUSH_HIDDEN
+#include "reactive/reactivevisibility.h"
 
 namespace reactive
 {
     namespace signal
     {
         template <typename T1, typename T2>
-        class BTL_CLASS_VISIBLE Tee;
+        class Tee;
     }
 
     template <typename T1, typename T2>
@@ -30,50 +27,50 @@ namespace reactive
 namespace reactive::signal
 {
     template <typename T1, typename T2>
-    class BTL_CLASS_VISIBLE Tee
+    class Tee
     {
     public:
-        BTL_HIDDEN Tee(SharedSignal<T1> upstream, SharedSignal<T2> tee) :
+        Tee(SharedSignal<T1> upstream, SharedSignal<T2> tee) :
             upstream_(upstream),
             tee_(tee)
         {
         }
 
     private:
-        BTL_HIDDEN Tee(Tee const&) = default;
-        BTL_HIDDEN Tee& operator=(Tee const&) = default;
+        Tee(Tee const&) = default;
+        Tee& operator=(Tee const&) = default;
 
     public:
-        BTL_HIDDEN Tee(Tee&&) noexcept = default;
-        BTL_HIDDEN Tee& operator=(Tee&&) noexcept = default;
+        Tee(Tee&&) noexcept = default;
+        Tee& operator=(Tee&&) noexcept = default;
 
-        BTL_HIDDEN auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
+        auto evaluate() const -> decltype(std::declval<Signal<T1>>().evaluate())
         {
             return upstream_.evaluate();
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return upstream_.updateBegin(frame);
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             return upstream_.updateEnd(frame);
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return upstream_.hasChanged();
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&& cb)
+        Connection observe(TCallback&& cb)
         {
             return upstream_.observe(std::forward<TCallback>(cb));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             auto&& n = a.addNode("tee()");
@@ -81,7 +78,7 @@ namespace reactive::signal
             return a;
         }
 
-        BTL_HIDDEN Tee clone() const
+        Tee clone() const
         {
             return *this;
         }
@@ -130,6 +127,4 @@ namespace reactive::signal
     }
 
 } // reactive::signal
-
-BTL_VISIBILITY_POP
 

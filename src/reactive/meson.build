@@ -2,7 +2,7 @@
 incdir = include_directories('../../include', '../../include/reactive', '.')
 
 libreactivesrc = [
-    'uniformgrid.cpp',
+    'widget/widgetobject.cpp',
     'widget/scrollbar.cpp',
     'widget/scrollview.cpp',
     'widget/bin.cpp',
@@ -11,8 +11,11 @@ libreactivesrc = [
     'widget/theme.cpp',
     'widget/focusgroup.cpp',
     'debug/drawkeyboardinputs.cpp',
+    'uniformgrid.cpp',
+    'layout.cpp',
     'vbox.cpp',
     'hbox.cpp',
+    'stack.cpp',
     'keyboardinput.cpp',
     'inputarea.cpp',
     'widget.cpp',
@@ -25,6 +28,10 @@ libreactivesrc = [
     'clickevent.cpp',
     'pointerbuttonevent.cpp',
     'pointermoveevent.cpp',
+    'simplesizehint.cpp',
+    'stacksizehint.cpp',
+    'growsizehint.cpp',
+    'sizehint.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]
@@ -32,8 +39,10 @@ reactivedep = [libbtldep, libasedep, libavgdep]
 libreactive = library(
         'reactive',
         libreactivesrc,
-        include_directories : incdir,
-        dependencies : reactivedep
+        include_directories: incdir,
+        dependencies: reactivedep,
+        cpp_args: ['-Wno-unused-function', '-DREACTIVE_EXPORT_SYMBOLS'],
+        gnu_symbol_visibility: 'hidden'
         )
 
 libreactivedep = declare_dependency(

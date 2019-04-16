@@ -12,7 +12,6 @@
 
 #include <btl/tuplemap.h>
 #include <btl/tupleforeach.h>
-#include <btl/apply.h>
 
 #include <type_traits>
 
@@ -23,10 +22,18 @@ namespace reactive
         template <typename TFunc, typename TInitial, typename T,
                     typename... TSignals>
         class Iterate;
+
+        template <typename TFunc, typename TInitial, typename T,
+                    typename... TSignals>
+        class IterateStatic;
     }
 
     template <typename TFunc, typename TInitial, typename T, typename... TSignals>
     struct IsSignal<stream::Iterate<TFunc, TInitial, T, TSignals...>>
+    : std::true_type {};
+
+    template <typename TFunc, typename TInitial, typename T, typename... TSignals>
+    struct IsSignal<stream::IterateStatic<TFunc, TInitial, T, TSignals...>>
     : std::true_type {};
 }
 
@@ -119,7 +126,7 @@ namespace reactive::stream
 
             for (auto&& v : streamValues_->evaluate())
             {
-                value_ = btl::just(btl::apply(
+                value_ = btl::just(std::apply(
                         func_,
                         std::tuple_cat(
                             std::make_tuple(std::move(*value_),
@@ -166,6 +173,93 @@ namespace reactive::stream
         mutable btl::option<signal_value_t<TInitial>> value_;
     };
 
+    template <typename TFunc, typename TInitial, typename T,
+                typename... TSignals>
+    class IterateStatic
+    {
+    public:
+        IterateStatic(TFunc func, TInitial initial, Stream<T> stream,
+                TSignals... sigs) :
+            func_(std::move(func)),
+            sigs_(std::make_tuple(std::move(sigs)...)),
+            value_(std::move(initial)),
+            streamValues_(collect(std::move(stream)))
+        {
+        }
+
+    private:
+        IterateStatic(IterateStatic const&) = default;
+        IterateStatic& operator=(IterateStatic const&) = default;
+
+    public:
+        IterateStatic(IterateStatic&&) = default;
+        IterateStatic& operator=(IterateStatic&&) = default;
+
+        TInitial const& evaluate() const
+        {
+            return value_;
+        }
+
+        signal::UpdateResult updateBegin(signal::FrameInfo const& frame)
+        {
+            btl::tuple_foreach(*sigs_, stream::detail::UpdateBegin{frame});
+            streamValues_->updateBegin(frame);
+
+            return btl::none;
+        }
+
+        signal::UpdateResult updateEnd(signal::FrameInfo const& frame)
+        {
+            btl::tuple_foreach(*sigs_, stream::detail::UpdateEnd{frame});
+            auto r = streamValues_->updateEnd(frame);
+
+            for (auto&& v : streamValues_->evaluate())
+            {
+                value_ = std::apply(
+                        func_,
+                        std::tuple_cat(
+                            std::make_tuple(std::move(value_),
+                                std::forward<decltype(v)>(v)
+                                ),
+                            btl::tuple_map(*sigs_, stream::detail::Evaluate())
+                            )
+                        );
+            }
+
+            return r;
+        }
+
+        bool hasChanged() const
+        {
+            return streamValues_->hasChanged();
+        }
+
+        template <typename TCallback>
+        Connection observe(TCallback&& cb)
+        {
+            return streamValues_->observe(std::forward<TCallback>(cb));
+        }
+
+        Annotation annotate() const
+        {
+            Annotation a;
+            //auto&& n = a.addNode("iterate()");
+            //a.addTree(n, sig_.annotate());
+            return a;
+        }
+
+        IterateStatic clone() const
+        {
+            return *this;
+        }
+
+    private:
+        std::decay_t<TFunc> func_;
+        btl::CloneOnCopy<std::tuple<std::decay_t<TSignals>...>> sigs_;
+        std::decay_t<TInitial> value_;
+        btl::CloneOnCopy<decltype(collect(std::declval<Stream<T>>()))> streamValues_;
+    };
+
     template <typename TFunc, typename T, typename TInitial,
                 typename... TSignals, typename =
                     std::enable_if_t<
@@ -200,6 +294,40 @@ namespace reactive::stream
     template <typename TFunc, typename T, typename TInitial,
                 typename... TSignals, typename =
                     std::enable_if_t<
+                    btl::All<
+                        AreSignals<TSignals...>,
+                        btl::Not<IsSignal<TInitial>>,
+                        std::is_convertible<
+                            std::result_of_t<TFunc(
+                                TInitial,
+                                T,
+                                signal_value_t<TSignals>...)
+                            >,
+                            TInitial
+                        >
+                    >::value
+                    >,
+                    int = 0>
+    auto iterate(TFunc func, TInitial initial, Stream<T> stream,
+            TSignals... signals)
+    {
+        return signal::wrap(IterateStatic<
+            std::decay_t<TFunc>,
+            std::decay_t<TInitial>,
+            T,
+            std::decay_t<TSignals>...
+            >(
+                std::move(func),
+                std::move(initial),
+                std::move(stream),
+                std::move(signals)...
+            ));
+    }
+
+    /*
+    template <typename TFunc, typename T, typename TInitial,
+                typename... TSignals, typename =
+                    std::enable_if_t<
                     !IsSignal<TInitial>::value
                 >,
                 int = 0
@@ -222,5 +350,6 @@ namespace reactive::stream
                     std::move(signals)...
                 ));
     }
+    */
 } // namespace reactive::stream
 

@@ -15,14 +15,12 @@
 #include <chrono>
 #include <utility>
 
-BTL_VISIBILITY_PUSH_HIDDEN
-
 namespace reactive
 {
     namespace signal
     {
         template <typename TSignalValue>
-        class BTL_CLASS_VISIBLE Tween;
+        class Tween;
     }
 
     template <typename TSignalValue>
@@ -39,10 +37,10 @@ namespace reactive::signal
     };
 
     template <typename TSignalValue>
-    class BTL_CLASS_VISIBLE Tween
+    class Tween
     {
     public:
-        BTL_HIDDEN Tween(std::chrono::microseconds time, float initial,
+        Tween(std::chrono::microseconds time, float initial,
                 TSignalValue signal, TweenType type) :
             signal_(std::move(signal)),
             tweenTime_(time),
@@ -53,34 +51,34 @@ namespace reactive::signal
         }
 
     private:
-        BTL_HIDDEN Tween(Tween const&) = default;
-        BTL_HIDDEN Tween& operator=(Tween const&) = default;
+        Tween(Tween const&) = default;
+        Tween& operator=(Tween const&) = default;
 
     public:
-        BTL_HIDDEN Tween(Tween&&) = default;
-        BTL_HIDDEN Tween& operator=(Tween&&) = default;
+        Tween(Tween&&) = default;
+        Tween& operator=(Tween&&) = default;
 
-        BTL_HIDDEN Tween clone() const
+        Tween clone() const
         {
             return *this;
         }
 
-        BTL_HIDDEN float evaluate() const
+        float evaluate() const
         {
             return value_;
         }
 
-        BTL_HIDDEN bool hasChanged() const
+        bool hasChanged() const
         {
             return changed_;
         }
 
-        BTL_HIDDEN UpdateResult updateBegin(signal::FrameInfo const& frame)
+        UpdateResult updateBegin(signal::FrameInfo const& frame)
         {
             return signal_->updateBegin(frame);
         }
 
-        BTL_HIDDEN UpdateResult updateEnd(signal::FrameInfo const& frame)
+        UpdateResult updateEnd(signal::FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
             bool changed = signal_->hasChanged();
@@ -148,12 +146,12 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        BTL_HIDDEN Connection observe(TCallback&& callback)
+        Connection observe(TCallback&& callback)
         {
             return signal_->observe(std::forward<TCallback>(callback));
         }
 
-        BTL_HIDDEN Annotation annotate() const
+        Annotation annotate() const
         {
             Annotation a;
             a.addNode("tween<" + btl::demangle<TSignalValue>() + ">");
@@ -190,6 +188,4 @@ namespace reactive::signal
                 ));
     }
 } // namespace reactive::signal
-
-BTL_VISIBILITY_POP
 
