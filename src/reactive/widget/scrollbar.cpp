@@ -34,13 +34,7 @@ namespace
 
     avg::Path rectToPath(avg::Rect const& r)
     {
-        return avg::Path(avg::PathSpec()
-                .start(r.getBottomLeft())
-                .lineTo(r.getBottomRight())
-                .lineTo(r.getTopRight())
-                .lineTo(r.getTopLeft())
-                .close()
-                );
+        return makePathFromRect(r, 10.0f);
     }
 
     template <bool IsHorizontal>

@@ -227,6 +227,38 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                 vertices.push_back(toIVec(p4, pixelSize, resPerPixel));
 
                 break;
+
+            case PathSpec::SEGMENT_ARC:
+            {
+                p1 = cur;
+                p2 = offset + rs * vertices_.at(vertex++);
+                p3 = vertices_.at(vertex++);
+
+                Vector2f center = p2;
+                float angle = p3[0];
+
+                Vector2f diff = p1-center;
+                float radius = std::sqrt(diff[0]*diff[0]+diff[1]*diff[1]);
+
+                int steps = 8;
+                float step = angle / (float)steps;
+                float currentAngle = std::atan2(diff[1], diff[0]);
+                for (int i = 0; i < steps; ++i)
+                {
+                    float a = currentAngle + step * (float)i;
+
+                    vertices.push_back(toIVec(
+                                Vector2f(
+                                    center[0] + std::cos(a) * radius,
+                                    center[1] + std::sin(a) * radius
+                                    ),
+                                pixelSize,
+                                resPerPixel
+                                ));
+                }
+
+                break;
+            }
         }
 
         ++segment;
@@ -526,7 +558,15 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                     << ")" << std::endl;
 
                 break;
-        }
+            case PathSpec::SEGMENT_ARC:
+                p1 = cur;
+                p2 = off + sr * p.d()->vertices_.at(vertex++);
+                p3 = off + sr * p.d()->vertices_.at(vertex++);
+                stream << "arc(" <<
+                    p2 << ", " << p3[0]
+                    << ")" << std::endl;
+                break;
+    }
 
         ++segment;
     }

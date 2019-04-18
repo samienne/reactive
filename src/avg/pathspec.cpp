@@ -65,6 +65,15 @@ PathSpec PathSpec::cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&
     return std::move(*this);
 }
 
+PathSpec PathSpec::arc(Vector2f center, float angle) &&
+{
+    segments_.push_back(SEGMENT_ARC);
+    vertices_.push_back(center);
+    vertices_.emplace_back(angle, 0.0f);
+
+    return std::move(*this);
+}
+
 PathSpec PathSpec::close() &&
 {
     if (segments_.empty() || segments_.back() == SEGMENT_START)

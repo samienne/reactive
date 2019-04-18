@@ -15,7 +15,8 @@ namespace avg
             SEGMENT_START = 0,
             SEGMENT_LINE,
             SEGMENT_CONIC,
-            SEGMENT_CUBIC
+            SEGMENT_CUBIC,
+            SEGMENT_ARC
         };
 
         PathSpec();
@@ -32,6 +33,7 @@ namespace avg
         PathSpec lineTo(float x, float y) &&;
         PathSpec conicTo(Vector2f v1, Vector2f v2) &&;
         PathSpec cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&;
+        PathSpec arc(Vector2f center, float angle) &&;
         PathSpec close() &&;
 
     private:
