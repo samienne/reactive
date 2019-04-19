@@ -9,6 +9,7 @@
 #include "debug.h"
 
 #include <ase/buffer.h>
+#include <ase/matrix.h>
 
 #include <cmath>
 
@@ -240,18 +241,23 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                 Vector2f diff = p1-center;
                 float radius = std::sqrt(diff[0]*diff[0]+diff[1]*diff[1]);
 
-                int steps = 8;
+                int steps = static_cast<int>(std::ceil(angle * radius) / 2.0f);
                 float step = angle / (float)steps;
-                float currentAngle = std::atan2(diff[1], diff[0]);
+
+                ase::Matrix2f rotation;
+                rotation(0,0) = std::cos(step);
+                rotation(0,1) = -std::sin(step);
+                rotation(1,0) = std::sin(step);
+                rotation(1,1) = std::cos(step);
+
+                Vector2f cur = diff;
+
                 for (int i = 0; i < steps; ++i)
                 {
-                    float a = currentAngle + step * (float)i;
+                    cur = rotation * cur;
 
                     vertices.push_back(toIVec(
-                                Vector2f(
-                                    center[0] + std::cos(a) * radius,
-                                    center[1] + std::sin(a) * radius
-                                    ),
+                                center + cur,
                                 pixelSize,
                                 resPerPixel
                                 ));
