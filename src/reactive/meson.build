@@ -11,6 +11,7 @@ libreactivesrc = [
     'widget/theme.cpp',
     'widget/focusgroup.cpp',
     'debug/drawkeyboardinputs.cpp',
+    'shapes.cpp',
     'uniformgrid.cpp',
     'layout.cpp',
     'vbox.cpp',

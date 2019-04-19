@@ -2,9 +2,10 @@
 
 #include "ondraw.h"
 
-#include "reactive/rendering.h"
+#include "reactive/shapes.h"
 #include "reactive/signal.h"
 
+#include <avg/drawing.h>
 #include <avg/vector.h>
 #include <avg/brush.h>
 

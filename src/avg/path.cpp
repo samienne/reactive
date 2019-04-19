@@ -9,6 +9,7 @@
 #include "debug.h"
 
 #include <ase/buffer.h>
+#include <ase/matrix.h>
 
 #include <cmath>
 
@@ -227,6 +228,43 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                 vertices.push_back(toIVec(p4, pixelSize, resPerPixel));
 
                 break;
+
+            case PathSpec::SEGMENT_ARC:
+            {
+                p1 = cur;
+                p2 = offset + rs * vertices_.at(vertex++);
+                p3 = vertices_.at(vertex++);
+
+                Vector2f center = p2;
+                float angle = p3[0];
+
+                Vector2f diff = p1-center;
+                float radius = std::sqrt(diff[0]*diff[0]+diff[1]*diff[1]);
+
+                int steps = static_cast<int>(std::ceil(angle * radius) / 2.0f);
+                float step = angle / (float)steps;
+
+                ase::Matrix2f rotation;
+                rotation(0,0) = std::cos(step);
+                rotation(0,1) = -std::sin(step);
+                rotation(1,0) = std::sin(step);
+                rotation(1,1) = std::cos(step);
+
+                Vector2f cur = diff;
+
+                for (int i = 0; i < steps; ++i)
+                {
+                    cur = rotation * cur;
+
+                    vertices.push_back(toIVec(
+                                center + cur,
+                                pixelSize,
+                                resPerPixel
+                                ));
+                }
+
+                break;
+            }
         }
 
         ++segment;
@@ -247,7 +285,7 @@ Path::Path(PathSpec&& pathSpec) :
 {
     d()->segments_ = std::move(pathSpec.segments_);
     d()->vertices_ = std::move(pathSpec.vertices_);
-    d()->controlBb_ = calculateBounds(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
 }
 
 Path::Path(PathSpec const& pathSpec) :
@@ -432,7 +470,7 @@ Path::Path(std::vector<SegmentType>&& segments,
 {
     d()->segments_ = std::move(segments);
     d()->vertices_ = std::move(vertices);
-    d()->controlBb_ = calculateBounds(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
 }
 
 void Path::ensureUniqueness()
@@ -526,7 +564,15 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                     << ")" << std::endl;
 
                 break;
-        }
+            case PathSpec::SEGMENT_ARC:
+                p1 = cur;
+                p2 = off + sr * p.d()->vertices_.at(vertex++);
+                p3 = off + sr * p.d()->vertices_.at(vertex++);
+                stream << "arc(" <<
+                    p2 << ", " << p3[0]
+                    << ")" << std::endl;
+                break;
+    }
 
         ++segment;
     }

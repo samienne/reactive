@@ -336,29 +336,5 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             std::move(elements));
 }
 
-avg::Path makeRect(float width, float height)
-{
-    float w = width / 2.0f;
-    float h = height / 2.0f;
-
-    return avg::Path(avg::PathSpec()
-            .start(ase::Vector2f(-w, -h))
-            .lineTo(ase::Vector2f(w, -h))
-            .lineTo(ase::Vector2f(w, h))
-            .lineTo(ase::Vector2f(-w, h))
-            .close()
-            );
-}
-
-avg::Shape makeShape(avg::Path const& path,
-        btl::option<avg::Brush> const& brush,
-        btl::option<avg::Pen> const& pen)
-{
-    return avg::Shape()
-        .setPath(path)
-        .setBrush(brush)
-        .setPen(pen);
-}
-
 } // namespace
 

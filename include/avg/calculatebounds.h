@@ -1,29 +1,63 @@
 #pragma once
 
+#include "pathspec.h"
 #include "vector.h"
 #include "rect.h"
 
 namespace avg
 {
-    inline Rect calculateBounds(std::vector<Vector2f> const& vec)
+    inline Rect calculateBounds(
+            std::vector<PathSpec::SegmentType> segments,
+            std::vector<Vector2f> const& vec)
     {
-        if (vec.empty())
+        if (segments.empty())
             return Rect();
 
-        float x1 = vec[0].x();
-        float x2 = vec[0].x();
-        float y1 = vec[0].y();
-        float y2 = vec[0].y();
+        Rect rect;
+        auto i = vec.begin();
+        Vector2f cur(0.0f, 0.0f);
 
-        for (auto const& v : vec)
+        for (auto const& s : segments)
         {
-            x1 = std::min(x1, v.x());
-            x2 = std::max(x2, v.x());
-            y1 = std::min(y1, v.y());
-            y2 = std::max(y2, v.y());
+            switch(s)
+            {
+            case PathSpec::SEGMENT_START:
+                cur = *(i++);
+                rect = rect.include(cur);
+                break;
+            case PathSpec::SEGMENT_LINE:
+                cur = *(i++);
+                rect = rect.include(cur);
+                break;
+            case PathSpec::SEGMENT_CONIC:
+                rect = rect.include(*(i++));
+                cur = *(i++);
+                rect = rect.include(cur);
+                break;
+            case PathSpec::SEGMENT_CUBIC:
+                rect = rect.include(*(i++));
+                rect = rect.include(*(i++));
+                cur = *(i++);
+                rect = rect.include(cur);
+                break;
+            case PathSpec::SEGMENT_ARC:
+                {
+                    Vector2f c = *(i++);
+                    Vector2f p = *(i++);
+                    Vector2f d = cur - c;
+                    float r = sqrt(d[0]*d[0]+d[1]*d[1]);
+
+                    rect = rect.include(Vector2f(c[0]-r, c[1]-r));
+                    rect = rect.include(Vector2f(c[0]+r, c[1]-r));
+                    rect = rect.include(Vector2f(c[0]+r, c[1]+r));
+                    rect = rect.include(Vector2f(c[0]-r, c[1]+r));
+
+                    break;
+                }
+            }
         }
 
-        return Rect(Vector2f(x1, y1), Vector2f(x2-x1, y2-y1));
+        return rect;
     }
 } // namespace avg
 
