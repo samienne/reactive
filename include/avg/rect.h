@@ -48,6 +48,8 @@ namespace avg
 
         Rect scaled(float scale) const;
         Rect enlarged(float amount) const;
+        Rect intersected(Rect const& rhs) const;
+        Rect translated(Vector2f v) const;
 
         friend std::ostream& operator<<(std::ostream& stream, Rect const& r)
         {

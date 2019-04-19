@@ -114,6 +114,24 @@ Rect Rect::enlarged(float amount) const
             );
 }
 
+Rect Rect::intersected(Rect const& rhs) const
+{
+    if (!overlaps(rhs))
+        return Rect();
+
+    float l = std::max(getLeft(), rhs.getLeft());
+    float r = std::min(getRight(), rhs.getRight());
+    float b = std::max(getBottom(), rhs.getBottom());
+    float t = std::min(getTop(), rhs.getTop());
+
+    return Rect(Vector2f(l, b), Vector2f(r-l, t-b));
+}
+
+Rect Rect::translated(Vector2f v) const
+{
+    return Rect(getBottomLeft() + v, getSize());
+}
+
 bool Rect::contains(Vector2f pos) const
 {
     if (isEmpty())
