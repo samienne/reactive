@@ -151,11 +151,21 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
     else if(e.is<avg::TextEntry>())
         return e.get<avg::TextEntry>().getControlBb();
     else if(e.is<avg::Drawing::ClipElement>())
-        return e.get<avg::Drawing::ClipElement>().clipRect;
+    {
+        auto const& clip = e.get<avg::Drawing::ClipElement>();
+
+        assert(std::abs(clip.transform.getRotation()) < 0.0001f);
+
+        return clip.clipRect
+            .scaled(clip.transform.getScale())
+            .translated(clip.transform.getTranslation())
+            ;
+    }
     else
         assert(false);
 }
 
+// Transform is applied after clipping with rect. Rect is not transformed.
 std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
         avg::Transform const& transform,
         std::vector<avg::Drawing::Element> const& elements,
@@ -165,12 +175,15 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
     if (elements.empty())
         return {};
 
+    ase::Vector2f newPixelSize = pixelSize / transform.getScale();
+
     std::vector<avg::SoftMesh> meshes;
     meshes.reserve(elements.size());
 
     for (auto const& element : elements)
     {
-        if (!getElementRect(element).overlaps(rect))
+        avg::Rect elementRect = getElementRect(element);
+        if (!elementRect.overlaps(rect))
             continue;
 
         std::vector<avg::SoftMesh> elementMeshes;
@@ -178,7 +191,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
         if (element.is<avg::Shape>())
         {
             auto const& shape = element.get<avg::Shape>();
-            elementMeshes = generateMeshes(shape, pixelSize,
+            elementMeshes = generateMeshes(shape, newPixelSize,
                     resPerPixel, rect, clip);
         }
         else if (element.is<avg::TextEntry>())
@@ -192,20 +205,29 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
 
             elementMeshes = generateMeshes(
                     text.getTransform() * shape,
-                    pixelSize, resPerPixel, rect, clip
+                    newPixelSize, resPerPixel, rect, clip
                     );
         }
         else if (element.is<avg::Drawing::ClipElement>())
         {
             auto const& clipElement = element.get<avg::Drawing::ClipElement>();
 
+            auto clipTransformInverse = clipElement.transform.inverse();
+
+            assert(std::abs(clipTransformInverse.getRotation()) < 0.0001f);
+
+            auto rectInClipElementSpace = rect
+                .scaled(clipTransformInverse.getScale())
+                .translated(clipTransformInverse.getTranslation())
+                ;
+
             elementMeshes = generateMeshes(
                     painter,
                     clipElement.transform,
                     clipElement.subDrawing->elements,
-                    pixelSize / clipElement.transform.getScale(),
+                    newPixelSize,
                     resPerPixel,
-                    clipElement.clipRect,
+                    clipElement.clipRect.intersected(rectInClipElementSpace),
                     true
                     );
         }
