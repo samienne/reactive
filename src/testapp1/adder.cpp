@@ -4,6 +4,7 @@
 #include <reactive/widget/frame.h>
 #include <reactive/widget/textedit.h>
 #include <reactive/widget/label.h>
+#include <reactive/widget/button.h>
 
 #include <reactive/datasourcefromcollection.h>
 #include <reactive/datasource.h>
@@ -20,18 +21,6 @@ using namespace reactive;
 
 namespace
 {
-    template <typename TFunc, typename U>
-    WidgetFactory button(std::string label, Signal<TFunc, U> cb)
-    {
-        return widget::label(signal::constant(std::move(label)))
-                        | widget::frame()
-                        | widget::onClick(0,
-                                signal::cast<std::function<void()>>(
-                                    std::move(cb)
-                                    ))
-                        ;
-    }
-
     WidgetFactory itemEntry(
             signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
@@ -61,8 +50,8 @@ namespace
         return hbox({
                 textEdit(handle, std::move(state))
                     .onEnter(onEnterSignal),
-                button("Add", std::move(onEnterSignal)),
-                button("Sort", signal::constant(std::move(onSort)))
+                widget::button("Add", onEnterSignal),
+                widget::button("Sort", signal::constant(std::move(onSort)))
             });
     }
 } // anonymous namespace
@@ -89,7 +78,7 @@ reactive::WidgetFactory adder()
             (Signal<std::string> value, size_t id) mutable -> WidgetFactory
             {
                 return hbox({
-                    button("U", signal::mapFunction([items, id]
+                    widget::button("U", signal::mapFunction([items, id]
                         (std::string str) mutable
                         {
                             auto range = items.rangeLock();
@@ -102,7 +91,7 @@ reactive::WidgetFactory adder()
                         textInputSignal.clone()
                         ))
                     ,
-                    button("T", signal::mapFunction([items, id]() mutable
+                    widget::button("T", signal::mapFunction([items, id]() mutable
                         {
                             auto range = items.rangeLock();
                             auto i = range.findId(id);
@@ -110,7 +99,8 @@ reactive::WidgetFactory adder()
                             range.move(i, range.begin());
                         }))
                     ,
-                    button("S", signal::mapFunction([items, id, swapState]() mutable
+                    widget::button("S", signal::mapFunction(
+                        [items, id, swapState]() mutable
                         {
                             if (*swapState == 0)
                             {
@@ -131,7 +121,7 @@ reactive::WidgetFactory adder()
                     ,
                     hfiller()
                     ,
-                    button("x", signal::constant([id, items]() mutable
+                    widget::button("x", signal::constant([id, items]() mutable
                         {
                             items.rangeLock().eraseWithId(id);
                         }))

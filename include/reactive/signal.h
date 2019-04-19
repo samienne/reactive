@@ -164,7 +164,7 @@ namespace reactive
         return std::move(sig);
     }
 
-    } // signal
+    } // namespace signal
 
     template <typename T>
     class Signal<T, void>
@@ -177,7 +177,7 @@ namespace reactive
         template <typename U, typename TSignal, typename =
             std::enable_if_t<
                 btl::All<
-                    std::is_same<std::decay_t<T>, std::decay_t<U>>,
+                    std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
                     btl::Any<
                         btl::Not<std::is_reference<T>>,
                         btl::All<std::is_reference<T>, std::is_reference<U>>
@@ -192,6 +192,21 @@ namespace reactive
         template <typename USignal>
         Signal(SharedSignal<T, USignal> other) :
             deferred_(std::move(other).signal().ptr())
+        {
+        }
+
+        template <typename U, typename USignal, typename =
+            std::enable_if_t<
+                btl::All<
+                    std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
+                    btl::Any<
+                        btl::Not<std::is_reference<T>>,
+                        btl::All<std::is_reference<T>, std::is_reference<U>>
+                    >
+                >::value
+            >>
+        Signal(SharedSignal<U, USignal> other) :
+            deferred_(signal::typed<T>(std::move(other)))
         {
         }
 
