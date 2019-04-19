@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vector.h"
+#include "rect.h"
 #include "avgvisibility.h"
 
 #include <vector>

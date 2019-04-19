@@ -8,6 +8,8 @@
 namespace reactive
 {
 
+float const pi = 3.14159f;
+
 avg::Path makeRect(float width, float height)
 {
     float w = width / 2.0f;
@@ -27,7 +29,7 @@ avg::Path makeRoundedRect(float width, float height, float radius)
     float w = width / 2.0f;
     float h = height / 2.0f;
 
-    float const angle = 3.141 / 2.0f;
+    float const angle = pi / 2.0f;
 
     return avg::Path(avg::PathSpec()
             .start(ase::Vector2f(-w, -h+radius))
@@ -82,6 +84,15 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
                 .close()
                 );
     }
+}
+
+REACTIVE_EXPORT avg::Path makeCircle(ase::Vector2f center, float radius)
+{
+    return avg::Path(avg::PathSpec()
+            .start(center[0]+radius, center[1])
+            .arc(center, 2.0f * pi)
+            .close()
+            );
 }
 
 avg::Shape makeShape(avg::Path const& path,

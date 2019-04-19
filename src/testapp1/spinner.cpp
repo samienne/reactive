@@ -41,7 +41,7 @@ namespace
                 float s = std::max(0.0f,
                         (-tt * tt + tt - 2.0f/9.0f)) * 200.0f + 10.0f;
                 auto shape = makeShape(
-                        makeRect(s, s),
+                        makeCircle(ase::Vector2f(0.0f, 0.0f), s/2.0f),
                         btl::just(brush),
                         btl::none);
 

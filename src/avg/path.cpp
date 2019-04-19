@@ -279,7 +279,7 @@ Path::Path(PathSpec&& pathSpec) :
 {
     d()->segments_ = std::move(pathSpec.segments_);
     d()->vertices_ = std::move(pathSpec.vertices_);
-    d()->controlBb_ = calculateBounds(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
 }
 
 Path::Path(PathSpec const& pathSpec) :
@@ -464,7 +464,7 @@ Path::Path(std::vector<SegmentType>&& segments,
 {
     d()->segments_ = std::move(segments);
     d()->vertices_ = std::move(vertices);
-    d()->controlBb_ = calculateBounds(d()->vertices_);
+    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
 }
 
 void Path::ensureUniqueness()

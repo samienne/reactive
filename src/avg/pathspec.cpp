@@ -40,6 +40,7 @@ PathSpec PathSpec::lineTo(Vector2f v) &&
 {
     segments_.push_back(SEGMENT_LINE);
     vertices_.push_back(v);
+
     return std::move(*this);
 }
 
