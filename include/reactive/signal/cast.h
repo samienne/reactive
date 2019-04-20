@@ -5,14 +5,11 @@
 #include "reactive/reactivevisibility.h"
 
 #include <btl/all.h>
-#include <btl/hidden.h>
 
 namespace reactive::signal
 {
     template <typename T, typename U, typename V, typename = std::enable_if_t<
-        btl::All<
-            std::is_convertible<SignalType<Signal<U, V>>, T>
-        >::value
+            std::is_convertible_v<SignalType<Signal<U, V>>, T>
         >>
     auto cast(Signal<U, V> sig)
     {
