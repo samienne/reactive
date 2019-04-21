@@ -151,32 +151,20 @@ namespace reactive
         btl::CloneOnCopy<std::decay_t<TTuple>> tuple;
     };
 
-    template <typename... Ts, typename TFunc, typename... Us, typename =
-        btl::void_t<
-            decltype(std::declval<TFunc>()(
-                        std::declval<typename Ts::Type>()...,
-                        std::declval<SignalType<Us>>()...
-                        )
-                    )
-        >>
-    auto makeWidgetMap(TFunc&& func, Us&&... us)
-        /*-> WidgetMapper<
-            std::decay_t<TFunc>,
-            std::tuple<std::decay_t<Us>...>,
-            Ts...
-            >*/
+    template <typename TFunc>
+    struct WidgetMapWrapper;
+
+    template <typename TFunc, typename = std::enable_if_t<
+        IsWidgetMap<TFunc>::value
+        >
+    >
+    auto mapWidget(TFunc func)
     {
-        auto mapper = WidgetMapper<
-            std::decay_t<TFunc>,
-            std::tuple<std::decay_t<Us>...>,
-            Ts...>{
-                std::forward<TFunc>(func),
-                std::make_tuple(std::forward<Us>(us)...)
-            };
-
-        static_assert(IsWidgetMap<decltype(mapper)>::value, "");
-
-        return mapper;
+        auto r = WidgetMapWrapper<std::decay_t<TFunc>>{
+            std::move(func)
+        };
+        static_assert(IsWidgetMap<decltype(r)>::value, "");
+        return r;
     }
 
     template <typename TFunc>
@@ -196,19 +184,37 @@ namespace reactive
         {
             return *this;
         }
+
+        template <typename UFunc>
+        auto operator|(WidgetMapWrapper<UFunc>&& rhs) &&
+        {
+            return mapWidget([self=std::move(*this), rhs=std::move(rhs)]
+                    (auto widget) mutable
+                    {
+                        return std::move(widget) | self | rhs;
+                    });
+        }
     };
 
-    template <typename TFunc, typename = std::enable_if_t<
-        IsWidgetMap<TFunc>::value
-        >
-    >
-    auto mapWidget(TFunc func)
+    template <typename... Ts, typename TFunc, typename... Us, typename =
+        btl::void_t<
+            decltype(std::declval<TFunc>()(
+                        std::declval<typename Ts::Type>()...,
+                        std::declval<SignalType<Us>>()...
+                        )
+                    )
+        >>
+    auto makeWidgetMap(TFunc&& func, Us&&... us)
     {
-        auto r = WidgetMapWrapper<std::decay_t<TFunc>>{
-            std::move(func)
-        };
-        static_assert(IsWidgetMap<decltype(r)>::value, "");
-        return r;
+        auto mapper = WidgetMapper<
+            std::decay_t<TFunc>,
+            std::tuple<std::decay_t<Us>...>,
+            Ts...>{
+                std::forward<TFunc>(func),
+                std::make_tuple(std::forward<Us>(us)...)
+            };
+
+        return mapWidget(std::move(mapper));
     }
 
     template <typename... Ts, typename = std::enable_if_t<

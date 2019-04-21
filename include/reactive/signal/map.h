@@ -143,12 +143,9 @@ namespace reactive::signal
 
             template <typename... Ts>
             auto operator()(Ts&&... ts)
-                -> typename std::decay
-                <
-                    decltype(std::declval<TFunc>()(ts...))
-                >::type
+                -> std::decay_t<std::result_of_t<TFunc(Ts...)>>
             {
-                return func_(std::forward<Ts>(ts)...);
+                return std::invoke(func_, std::forward<Ts>(ts)...);
             }
         };
 

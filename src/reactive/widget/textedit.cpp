@@ -152,6 +152,8 @@ TextEdit::operator WidgetFactory() const
             signal::TweenType::pingpong
             );
 
+    auto frameColor = signal::map(&widget::Theme::getSecondary, theme.signal);
+
     auto oldState = signal::share(btl::clone(state_));
 
     auto newState = signal::tee(
@@ -159,19 +161,14 @@ TextEdit::operator WidgetFactory() const
                 std::move(theme.signal), signal::combine(onEnter_)),
             handle_ );
 
-    auto state = signal::map([](TextEditState state, TextEditState const&)
-        {
-            return state;
-        }, oldState, std::move(newState));
-
     return makeWidgetFactory()
         | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<SizeTag, ThemeTag>(draw, std::move(state),
+        | onDraw<SizeTag, ThemeTag>(draw, std::move(newState),
                 std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
-        | widget::frame()
+        | widget::frame(std::move(frameColor))
         | focusOn(std::move(requestFocus.stream))
         | onClick(1,
                 [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
