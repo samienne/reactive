@@ -17,23 +17,23 @@
 
 namespace reactive::widget
 {
-    template <typename T>
-    auto frame(Signal<float, T> cornerRadius)
+    template <typename T, typename U>
+    auto frameFull(Signal<float, T> cornerRadius, Signal<avg::Color, U> color)
     {
         auto f = [](avg::Vector2f size, widget::Theme const& theme,
-                float cornerRadius)
+                float cornerRadius, avg::Color const& color)
             -> avg::Drawing
         {
-            auto pen = avg::Pen(avg::Brush(theme.getBackgroundHighlight()),
+            auto pen = avg::Pen(avg::Brush(color),
                     1.0f);
-
             auto brush = avg::Brush(theme.getBackground());
 
             auto shape =  makeShape(
                     makeRoundedRect(size[0] - 5.0f, size[1] - 5.0f,
                         cornerRadius),
-                    btl::none,
-                    btl::just(pen));
+                    btl::just(brush),
+                    btl::just(pen)
+                    );
 
             return avg::Transform()
                 .translate(0.5f * size[0],
@@ -44,13 +44,35 @@ namespace reactive::widget
         return
             margin(signal::constant(5.0f))
             >> mapFactoryWidget(onDrawBehind<SizeTag, ThemeTag>(
-                        std::move(f), std::move(cornerRadius)))
+                        std::move(f),
+                        std::move(cornerRadius),
+                        std::move(color)
+                        ))
             ;
+    }
+
+
+    template <typename T>
+    inline auto frame(Signal<avg::Color, T> color)
+    {
+        return frameFull(signal::constant(10.0f), std::move(color));
+    }
+
+    template <typename T>
+    inline auto frame(Signal<float, T> cornerRadius)
+    {
+        return frameFull(
+                std::move(cornerRadius),
+                signal::constant(widget::Theme().getBackgroundHighlight())
+                );
     }
 
     inline auto frame()
     {
-        return frame(signal::constant(10.0f));
+        return frameFull(
+                signal::constant(10.0f),
+                signal::constant(widget::Theme().getBackgroundHighlight())
+                );
     }
 } // namespace reactive::widget
 

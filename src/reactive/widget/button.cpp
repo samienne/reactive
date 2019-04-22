@@ -12,7 +12,7 @@ namespace
             bool hover, bool down)
     {
         avg::Color bgColor = theme.getBackground();
-        avg::Color fgColor = theme.getBackgroundHighlight();
+        avg::Color fgColor = theme.getSecondary();
 
         if (down)
         {
