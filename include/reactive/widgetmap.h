@@ -14,12 +14,29 @@ namespace reactive
 {
     using WidgetMap = std::function<Widget(Widget)>;
 
-    template <typename T>
+    template <typename T, typename = void>
+    struct HasResultOf : std::false_type {};
+
+    template <typename T, typename... Us>
+    struct HasResultOf<T(Us...), btl::void_t<std::result_of_t<T(Us...)>>>
+    : std::true_type {};
+
+    template <typename T, typename... Us>
     using IsWidgetMap = btl::All<
-        std::is_convertible<T, WidgetMap>,
         std::is_copy_constructible<std::decay_t<T>>,
-        btl::IsClonable<std::decay_t<T>>
+        btl::IsClonable<std::decay_t<T>>,
+        HasResultOf<std::decay_t<T>(WidgetBase<Us...>)>
         >;
+
+    template <typename TFunc, typename Tuple>
+    struct IsWidgetMapWithTuple : std::false_type {};
+
+    template <typename TFunc, typename... Ts>
+    struct IsWidgetMapWithTuple<TFunc, std::tuple<Ts...>>
+    : IsWidgetMap<TFunc, Ts...>
+    {
+    };
+
 
     namespace detail
     {
@@ -165,6 +182,14 @@ namespace reactive
         };
         static_assert(IsWidgetMap<decltype(r)>::value, "");
         return r;
+    }
+
+    template <typename TFunc>
+    auto forceMapWidget(TFunc func)
+    {
+        return WidgetMapWrapper<std::decay_t<TFunc>>{
+            std::move(func)
+        };
     }
 
     template <typename TFunc>

@@ -7,6 +7,7 @@
 #include "reactive/widgetmap.h"
 
 #include "reactive/signal/combine.h"
+#include "reactive/signal/mbind.h"
 
 #include <btl/all.h>
 #include <btl/typetraits.h>
@@ -104,7 +105,8 @@ namespace reactive::widget
                     std::move(areasSignal),
                     std::move(widget.getObb()),
                     std::move(keyboardInputsSignal),
-                    std::move(widget.getTheme())
+                    std::move(widget.getTheme()),
+                    std::tuple<>()
                     )
                 | addDrawings(signal::combine(std::move(drawings)))
                 ;

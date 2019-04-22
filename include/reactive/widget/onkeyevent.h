@@ -49,6 +49,7 @@ namespace reactive::widget
         {
         }
 
+        /*
         template <typename TWidgetFactory, typename = typename
             std::enable_if
             <
@@ -81,7 +82,7 @@ namespace reactive::widget
 
             return std::forward<TWidgetFactory>(factory)
                 .map(std::move(f));
-        }
+        }*/
 
         template <typename TWidget, typename = typename
             std::enable_if
@@ -105,20 +106,20 @@ namespace reactive::widget
 
             return std::forward<TWidget>(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
-                            btl::clone(predicate_), btl::clone(action_)));
+                            btl::clone(*predicate_), btl::clone(*action_)));
         }
 
         inline OnKeyEvent acceptIf(
                 signal::Convert<std::function<bool(ase::KeyEvent const&)>>
                 predicate) &&
         {
-            predicate_ = signal::mapFunction([](
+            *predicate_ = signal::mapFunction([](
                     std::function<bool(ase::KeyEvent const&)> const& pred1,
                     std::function<bool(ase::KeyEvent const&)> const& pred2,
                     ase::KeyEvent const& e)
                 {
                     return pred1(e) || pred2(e);
-                }, std::move(predicate_), std::move(predicate));
+                }, std::move(*predicate_), std::move(predicate));
 
             return std::move(*this);
         }
@@ -156,14 +157,14 @@ namespace reactive::widget
         inline OnKeyEvent action(
                 Signal<std::function<void(ase::KeyEvent const&)>> action) &&
         {
-            action_ = signal::mapFunction([](
+            *action_ = signal::mapFunction([](
                         std::function<void(ase::KeyEvent const&)> action1,
                         std::function<void(ase::KeyEvent const&)> action2,
                         ase::KeyEvent const& e)
                     {
                         action1(e);
                         action2(e);
-                    }, std::move(action_), std::move(action));
+                    }, std::move(*action_), std::move(action));
 
             return std::move(*this);
         }
@@ -185,8 +186,13 @@ namespace reactive::widget
         }
 
     private:
-        signal::Convert<std::function<bool(ase::KeyEvent const&)>> predicate_;
-        signal::Convert<std::function<void(ase::KeyEvent const&)>> action_;
+        btl::CloneOnCopy<signal::Convert<
+            std::function<bool(ase::KeyEvent const&)>
+            >> predicate_;
+
+        btl::CloneOnCopy<signal::Convert<
+            std::function<void(ase::KeyEvent const&)>
+            >> action_;
     };
 
     inline OnKeyEvent onKeyEvent()

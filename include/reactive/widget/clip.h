@@ -53,14 +53,10 @@ namespace reactive::widget
 
     inline auto clip()
     {
-        return [](auto f)
-        {
-            return std::move(f)
-                | clipDrawing()
-                | clipInputAreas()
-                | clipKeyboardInputs()
-                ;
-        };
+        return clipDrawing()
+            | clipInputAreas()
+            | clipKeyboardInputs()
+            ;
     }
 } // reactive::widget
 

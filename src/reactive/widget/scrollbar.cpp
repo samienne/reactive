@@ -1,6 +1,8 @@
 #include "widget/scrollbar.h"
 
 #include "widget/margin.h"
+#include "widget/bindsize.h"
+#include "widget/bindhover.h"
 
 #include "reactive/bindwidgetmap.h"
 #include "reactive/simplesizehint.h"
@@ -142,24 +144,21 @@ namespace
 
 template <bool IsHorizontal>
 WidgetFactory scrollBar(
-        signal::InputHandle<float> handle,
+        signal::InputHandle<float> scrollHandle,
         SharedSignal<float> amount,
         SharedSignal<float> handleSize)
 {
     return makeWidgetFactory()
-        | bindWidgetMap<SizeTag>([=](auto size)
+        | widget::bindSize()
+        | bindHover()
+        | bindWidgetMap([=](auto size, auto hover)
         {
             auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
-            auto hover = signal::input(false);
             auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                     downOffset.signal);
 
             return
-                onHover([handle=hover.handle](HoverEvent const& e) mutable
-                    {
-                        handle.set(e.hover);
-                    })
-                | onPointerDown(scrollPointerDown<IsHorizontal>(
+                onPointerDown(scrollPointerDown<IsHorizontal>(
                         downOffset.handle, size.clone(), amount, handleSize)
                     )
                 | onPointerUp([handle=downOffset.handle]() mutable
@@ -168,7 +167,7 @@ WidgetFactory scrollBar(
                         return EventResult::accept;
                     })
                 | onPointerMove(signal::mapFunction(
-                    [handle]
+                    [scrollHandle]
                     (btl::option<avg::Vector2f> downOffset,
                         avg::Vector2f size, float handleSize,
                         PointerMoveEvent const& e) mutable -> EventResult
@@ -188,14 +187,14 @@ WidgetFactory scrollBar(
 
                         float len = pos / lineLen;
 
-                        handle.set(std::max(0.0f, std::min(len, 1.0f)));
+                        scrollHandle.set(std::max(0.0f, std::min(len, 1.0f)));
                         return EventResult::accept;
-                    }, downOffset.signal, size, handleSize))
+                    }, downOffset.signal, size.clone(), handleSize))
                 | onDraw<SizeTag, ThemeTag>(
                         drawScrollBar<IsHorizontal>,
                         amount,
                         handleSize,
-                        hover.signal,
+                        std::move(hover),
                         std::move(isDown)
                         )
                 ;

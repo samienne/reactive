@@ -66,7 +66,9 @@ namespace reactive
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),
-                std::move(theme));
+                std::move(theme),
+                std::tuple<>()
+                );
     }
 
     template <typename T>
@@ -149,7 +151,8 @@ namespace reactive
                         });
         };
 
-        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        static_assert(IsWidgetMap<decltype(f)>::value, "");
 
         return mapWidget(f);
     }
@@ -174,7 +177,8 @@ namespace reactive
                         });
         };
 
-        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        static_assert(IsWidgetMap<decltype(f)>::value, "");
 
         return mapWidget(f);
     }

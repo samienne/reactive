@@ -11,6 +11,7 @@
 #include "signal/cache.h"
 #include "signal/changed.h"
 #include "signal/tee.h"
+#include "signal/constant.h"
 #include "signal.h"
 
 #include <avg/transform.h>
@@ -69,14 +70,55 @@ namespace reactive
         return FactoryMapWrapper<std::decay_t<TFunc>>{std::forward<TFunc>(func)};
     }
 
+    namespace detail
+    {
+        struct EvaluateWidgetFactoryMapper
+        {
+            template <typename T, typename U>
+            auto operator()(T&& initial, U&& map) const
+            -> decltype(
+                    std::forward<decltype(map)>(map)(
+                        std::forward<decltype(initial)>(initial))
+                    )
+            {
+                return std::forward<decltype(map)>(map)(
+                        std::forward<decltype(initial)>(initial));
+            }
+        };
+
+        template <typename TInput, typename TMaps>
+        auto evaluateWidgetFactory(TInput&& input, TMaps&& maps)
+        -> decltype(
+            btl::tuple_reduce(
+                    makeWidget(std::forward<TInput>(input)),
+                    std::forward<TMaps>(maps),
+                    EvaluateWidgetFactoryMapper()
+                    )
+            )
+        {
+            return btl::tuple_reduce(
+                    makeWidget(std::forward<TInput>(input)),
+                    std::forward<TMaps>(maps),
+                    EvaluateWidgetFactoryMapper()
+                    );
+        }
+    }
+
 
     template <typename TTupleMaps, typename TSizeHint,
              typename = std::enable_if_t
                  <
                     btl::All<
-                        IsTupleMaps<TTupleMaps>,
+                        //IsTupleMaps<TTupleMaps>,
                         IsSizeHint<SignalType<TSizeHint>>
                     >::value
+                 >,
+             typename = btl::void_t<
+                 decltype(detail::evaluateWidgetFactory(
+                             signal::constant(avg::Vector2f()),
+                             std::declval<TTupleMaps>()
+                             )
+                         )
                  >>
     auto makeWidFac(TTupleMaps maps, TSizeHint sizeHint)
     {
@@ -91,6 +133,15 @@ namespace reactive
     {
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
+
+        using DataType = std::decay_t<
+            decltype(
+                detail::evaluateWidgetFactory(
+                    signal::constant(ase::Vector2f()),
+                    std::move(std::declval<TTupleMaps>())
+                    ).getData()
+                )
+            >;
 
         WidFac(TTupleMaps maps, TSizeHint sizeHint) :
             maps_(std::move(maps)),
@@ -115,25 +166,14 @@ namespace reactive
         template <typename TSignalInput>
         auto operator()(TSignalInput input) &&
         {
-            return btl::tuple_reduce(
-                    makeWidget(std::move(input)),
-                    std::move(*maps_),
-                    [](auto&& initial, auto&& map)
-                    {
-                        /*
-                        static_assert(IsWidget<decltype(initial)>::value, "");
-                        static_assert(IsWidgetMap<std::decay_t<decltype(map)>>::value,
-                            "");
-                        */
-
-                        return std::forward<decltype(map)>(map)(
-                            std::forward<decltype(initial)>(initial));
-                    })
-                    ;
+            return detail::evaluateWidgetFactory(
+                    std::move(input),
+                    std::move(*maps_)
+                    );
         }
 
         template <typename TFunc, typename = std::enable_if_t<
-            IsWidgetMap<TFunc>::value
+            IsWidgetMapWithTuple<TFunc, DataType>::value
             >>
         auto map(TFunc&& func) &&
         -> decltype(
@@ -297,6 +337,7 @@ namespace reactive
         return mapFactory(std::move(g));
     }
 
+    /*
     template <typename TFactoryMapL, typename TFactoryMapR>
     struct CombinedFactoryMap
     {
@@ -320,6 +361,7 @@ namespace reactive
         btl::decay_t<TFactoryMapL> lhs_;
         btl::decay_t<TFactoryMapR> rhs_;
     };
+    */
 
     template <typename TFactoryMapL, typename TFactoryMapR,
              typename = typename std::enable_if<
@@ -332,23 +374,17 @@ namespace reactive
     inline auto operator>>(TFactoryMapL&& lhs, TFactoryMapR&& rhs)
         // -> FactoryMap
     {
-        auto f = CombinedFactoryMap<TFactoryMapL, TFactoryMapR>(
-                std::forward<TFactoryMapL>(lhs),
-                std::forward<TFactoryMapR>(rhs));
-
-        return f;
+        return mapFactory(
+                [lhs=std::forward<TFactoryMapL>(lhs),
+                rhs=std::forward<TFactoryMapR>(rhs)]
+                (auto factory) mutable
+                {
+                    return rhs(lhs(std::move(factory)));
+                });
     }
 
-    template <typename TFactory, typename TFactoryMap, typename = typename
-        std::enable_if_t
-        <
-            btl::All<
-                IsWidgetFactory<TFactory>,
-                IsFactoryMap<TFactoryMap>,
-                btl::Not<IsWidgetMap<TFactoryMap>>
-            >::value
-        >>
-    auto operator|(TFactory factory, TFactoryMap f)
+    template <typename TFactoryMap, typename... Ts>
+    auto operator|(WidFac<Ts...> factory, FactoryMapWrapper<TFactoryMap> f)
     -> decltype(
             std::move(f)(std::move(factory))
             )
@@ -357,21 +393,19 @@ namespace reactive
         return std::move(f)(std::move(factory));
     }
 
-    template <typename TFactory, typename TWidgetMap, typename = typename
-        std::enable_if
-        <
-            btl::All<
-                IsWidgetFactory<TFactory>,
-                IsWidgetMap<TWidgetMap>
-            >::value
-        >::type>
-    auto operator|(TFactory factory, TWidgetMap f)
+    template <typename TWidgetMap, typename... Ts,
+        typename = typename std::enable_if_t<
+            IsWidgetMapWithTuple<
+                TWidgetMap, typename WidFac<Ts...>::DataType
+                >::value
+        >>
+    auto operator|(WidFac<Ts...> factory, TWidgetMap&& f)
     -> decltype(std::move(factory)
-            .map(std::move(f))
+            .map(std::forward<TWidgetMap>(f))
             )
         //-> WidgetFactory
     {
-        return std::forward<TFactory>(factory)
+        return std::move(factory)
             .map(std::forward<TWidgetMap>(f));
     }
 
