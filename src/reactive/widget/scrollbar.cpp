@@ -1,6 +1,7 @@
 #include "widget/scrollbar.h"
 
 #include "widget/margin.h"
+#include "widget/trackhover.h"
 
 #include "reactive/bindwidgetmap.h"
 #include "reactive/simplesizehint.h"
@@ -155,10 +156,7 @@ WidgetFactory scrollBar(
                     downOffset.signal);
 
             return
-                onHover([handle=hover.handle](HoverEvent const& e) mutable
-                    {
-                        handle.set(e.hover);
-                    })
+                widget::trackHover(hover.handle)
                 | onPointerDown(scrollPointerDown<IsHorizontal>(
                         downOffset.handle, size.clone(), amount, handleSize)
                     )
