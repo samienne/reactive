@@ -2,6 +2,7 @@
 
 #include "widget/margin.h"
 
+#include "reactive/bindwidgetmap.h"
 #include "reactive/simplesizehint.h"
 
 #include "send.h"
@@ -59,9 +60,6 @@ namespace
 
         avg::Path slider(rectToPath(getSliderRect<IsHorizontal>(size, amount,
                         handleSize)));
-
-        //avg::Brush b(theme.getBackgroundHighlight());
-        //avg::Pen p(avg::Brush(theme.getEmphasized()));
 
         return avg::Drawing()
             + makeShape(std::move(slider), btl::just(brush), btl::just(pen))
@@ -149,25 +147,15 @@ WidgetFactory scrollBar(
         SharedSignal<float> handleSize)
 {
     return makeWidgetFactory()
-        | mapWidget([=](auto widget)
+        | bindWidgetMap<SizeTag>([=](auto size)
         {
             auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
-            auto obb = signal::share(widget.getObb());
-            auto size = signal::map([](auto const& obb)
-                {
-                    return obb.getSize();
-                }, obb);
             auto hover = signal::input(false);
-            auto isDown = signal::map([](btl::option<avg::Vector2f> const& v)
-                    {
-                        return v.valid();
-
-                    },
+            auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                     downOffset.signal);
 
-            return std::move(widget)
-                .setObb(std::move(obb))
-                | onHover([handle=hover.handle](HoverEvent const& e) mutable
+            return
+                onHover([handle=hover.handle](HoverEvent const& e) mutable
                     {
                         handle.set(e.hover);
                     })
@@ -202,7 +190,7 @@ WidgetFactory scrollBar(
 
                         handle.set(std::max(0.0f, std::min(len, 1.0f)));
                         return EventResult::accept;
-                    }, downOffset.signal, size.clone(), handleSize))
+                    }, downOffset.signal, size, handleSize))
                 | onDraw<SizeTag, ThemeTag>(
                         drawScrollBar<IsHorizontal>,
                         amount,
