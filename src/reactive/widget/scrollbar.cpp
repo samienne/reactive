@@ -149,9 +149,7 @@ WidgetFactory scrollBar(
         SharedSignal<float> handleSize)
 {
     return makeWidgetFactory()
-        | widget::bindSize()
-        | bindHover()
-        | bindWidgetMap([=](auto size, auto hover)
+        | bindSize() >> bindHover() >> bindWidgetMap([=](auto size, auto hover)
         {
             auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
             auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,

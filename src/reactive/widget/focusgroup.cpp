@@ -276,7 +276,7 @@ WidgetMap focusGroup()
             .setKeyboardInputs(std::move(inputs));
     };
 
-    return mapWidget(f);
+    return widgetMap(f);
 }
 
 } // reactive::widget

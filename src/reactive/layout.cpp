@@ -15,7 +15,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto widgetMap = [obbMap=std::move(obbMap),
+    auto map = [obbMap=std::move(obbMap),
             hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
                 (auto w)
         // -> Widget
@@ -50,7 +50,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
     };
 
     return makeWidgetFactory()
-        | mapWidget(std::move(widgetMap))
+        | widgetMap(std::move(map))
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 

@@ -1,12 +1,17 @@
 #pragma once
 
-#include "reactive/widgetmap.h"
+#include "reactive/widgetvalueprovider.h"
+
+#include "signal/share.h"
+#include "signal/map.h"
+
+#include <avg/obb.h>
 
 namespace reactive::widget
 {
     auto bindSize()
     {
-        return forceMapWidget([](auto widget)
+        return widgetValueProvider([](auto widget)
         {
             auto obb = signal::share(widget.getObb());
 

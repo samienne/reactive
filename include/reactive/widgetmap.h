@@ -21,11 +21,11 @@ namespace reactive
     struct HasResultOf<T(Us...), btl::void_t<std::result_of_t<T(Us...)>>>
     : std::true_type {};
 
-    template <typename T, typename... Us>
+    template <typename T>
     using IsWidgetMap = btl::All<
         std::is_copy_constructible<std::decay_t<T>>,
         btl::IsClonable<std::decay_t<T>>,
-        HasResultOf<std::decay_t<T>(WidgetBase<Us...>)>
+        HasResultOf<std::decay_t<T>(WidgetBase<>)>
         >;
 
     template <typename TFunc, typename Tuple>
@@ -33,10 +33,12 @@ namespace reactive
 
     template <typename TFunc, typename... Ts>
     struct IsWidgetMapWithTuple<TFunc, std::tuple<Ts...>>
-    : IsWidgetMap<TFunc, Ts...>
+    : IsWidgetMap<TFunc>
     {
     };
 
+    template <typename TFunc>
+    struct WidgetValueProvider;
 
     namespace detail
     {
@@ -175,21 +177,13 @@ namespace reactive
         IsWidgetMap<TFunc>::value
         >
     >
-    auto mapWidget(TFunc func)
+    auto widgetMap(TFunc func)
     {
         auto r = WidgetMapWrapper<std::decay_t<TFunc>>{
             std::move(func)
         };
         static_assert(IsWidgetMap<decltype(r)>::value, "");
         return r;
-    }
-
-    template <typename TFunc>
-    auto forceMapWidget(TFunc func)
-    {
-        return WidgetMapWrapper<std::decay_t<TFunc>>{
-            std::move(func)
-        };
     }
 
     template <typename TFunc>
@@ -213,7 +207,7 @@ namespace reactive
         template <typename UFunc>
         auto operator|(WidgetMapWrapper<UFunc>&& rhs) &&
         {
-            return mapWidget([self=std::move(*this), rhs=std::move(rhs)]
+            return widgetMap([self=std::move(*this), rhs=std::move(rhs)]
                     (auto widget) mutable
                     {
                         return std::move(widget) | self | rhs;
@@ -239,7 +233,7 @@ namespace reactive
                 std::make_tuple(std::forward<Us>(us)...)
             };
 
-        return mapWidget(std::move(mapper));
+        return widgetMap(std::move(mapper));
     }
 
     template <typename... Ts, typename = std::enable_if_t<
@@ -247,7 +241,7 @@ namespace reactive
         >>
     auto combineWidgetMaps(Ts&&... maps)
     {
-        return mapWidget([maps=std::make_tuple(std::forward<Ts>(maps)...)]
+        return widgetMap([maps=std::make_tuple(std::forward<Ts>(maps)...)]
             (auto widget)
             {
                 return btl::tuple_reduce(std::move(widget), maps,

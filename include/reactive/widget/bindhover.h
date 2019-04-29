@@ -2,7 +2,6 @@
 
 #include "onhover.h"
 #include "binddata.h"
-#include "reactive/widgetmap.h"
 
 namespace reactive::widget
 {

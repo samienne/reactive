@@ -113,7 +113,7 @@ namespace reactive::widget
 
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     template <typename T>
@@ -134,7 +134,7 @@ namespace reactive::widget
             return reduce(std::move(w1));
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     inline auto addWidget(Widget widget)
