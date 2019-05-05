@@ -140,6 +140,26 @@ namespace
         else
             return signal::constant(simpleSizeHint(aux, main));
     }
+
+    template <bool IsHorizontal>
+    auto bindHoverOnSlider(
+            SharedSignal<float> amount,
+            SharedSignal<float> handleSize)
+    {
+        return bindSize() >> bindWidgetValueProvider([=](auto size)
+        {
+            auto obb = signal::map([]
+                    (avg::Vector2f size, float amount, float handleSize)
+                    {
+                        return avg::Obb(getSliderRect<IsHorizontal>(
+                                    size,
+                                    amount,
+                                    handleSize));
+                    }, size.clone(), amount, handleSize);
+
+            return bindHover(std::move(obb));
+        });
+    }
 } // anonymous namespace
 
 template <bool IsHorizontal>
@@ -149,7 +169,8 @@ WidgetFactory scrollBar(
         SharedSignal<float> handleSize)
 {
     return makeWidgetFactory()
-        | bindSize() >> bindHover() >> bindWidgetMap([=](auto size, auto hover)
+        | bindSize() >> bindHoverOnSlider<IsHorizontal>(amount, handleSize)
+        >> bindWidgetMap([=](auto size, auto hover) mutable
         {
             auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
             auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,

@@ -66,8 +66,7 @@ namespace reactive
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),
-                std::move(theme),
-                std::tuple<>()
+                std::move(theme)
                 );
     }
 

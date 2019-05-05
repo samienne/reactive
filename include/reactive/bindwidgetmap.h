@@ -8,13 +8,12 @@ namespace reactive
     auto bindWidgetMap(TFunc&& func)
     {
         return widgetValueConsumer(
-            [func=std::forward<TFunc>(func)](auto widget) mutable
+            [func=std::forward<TFunc>(func)](auto widget, auto data) mutable
             {
-                auto m = std::apply(func, std::move(widget.getData()));
+                auto m = std::apply(func, std::move(data));
 
-                return std::move(m)(std::move(widget).dropData());
+                return std::move(m)(std::move(widget));
             });
     }
-
 } // namespace reactive
 

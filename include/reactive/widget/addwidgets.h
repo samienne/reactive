@@ -105,8 +105,7 @@ namespace reactive::widget
                     std::move(areasSignal),
                     std::move(widget.getObb()),
                     std::move(keyboardInputsSignal),
-                    std::move(widget.getTheme()),
-                    std::tuple<>()
+                    std::move(widget.getTheme())
                     )
                 | addDrawings(signal::combine(std::move(drawings)))
                 ;

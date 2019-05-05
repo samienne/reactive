@@ -14,7 +14,6 @@
 #include <avg/transform.h>
 
 #include <btl/tupleforeach.h>
-#include <btl/pushback.h>
 #include <btl/option.h>
 
 namespace reactive
@@ -81,52 +80,44 @@ namespace reactive
     } // detail
 
     template <typename TDrawing, typename TAreas, typename TObb,
-             typename TKeyboardInputs, typename TTheme,
-             typename... Ts>
+             typename TKeyboardInputs, typename TTheme>
     class Wid;
 
     template <typename TDrawing, typename TAreas, typename TObb,
-             typename TKeyboardInputs, typename TTheme, typename... Ts,
+             typename TKeyboardInputs, typename TTheme,
              typename = std::enable_if_t<
                 btl::All<
                     IsSignalType<TDrawing, avg::Drawing>,
                     IsSignalType<TAreas, std::vector<InputArea>>,
                     IsSignalType<TObb, avg::Obb>,
                     IsSignalType<TKeyboardInputs, std::vector<KeyboardInput>>,
-                    IsSignalType<TTheme, widget::Theme>,
-                    std::is_move_constructible<std::decay_t<Ts>>...
+                    IsSignalType<TTheme, widget::Theme>
                 >::value
             >>
     auto makeWidget(TDrawing drawing, TAreas areas, TObb obb,
-            TKeyboardInputs keyboardInputs, TTheme theme,
-            std::tuple<Ts...> ts)
+            TKeyboardInputs keyboardInputs, TTheme theme)
     {
         return Wid<
             std::decay_t<TDrawing>,
             std::decay_t<TAreas>,
             std::decay_t<TObb>,
             std::decay_t<TKeyboardInputs>,
-            std::decay_t<TTheme>,
-            std::decay_t<Ts>...
+            std::decay_t<TTheme>
                 >(
                 std::move(drawing),
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),
-                std::move(theme),
-                std::move(ts)
+                std::move(theme)
                 );
-
     }
 
-    template <typename... Ts>
     using WidgetBase = Wid<
         Signal<avg::Drawing>,
         Signal<std::vector<InputArea>>,
         Signal<avg::Obb>,
         Signal<std::vector<KeyboardInput>>,
-        Signal<widget::Theme>,
-        Ts...
+        Signal<widget::Theme>
         >;
 
     template <typename TSignalSize, typename = typename
@@ -147,34 +138,30 @@ namespace reactive
                 signal::constant(std::vector<InputArea>()),
                 std::move(obb),
                 std::move(keyboardInputs),
-                signal::constant(widget::Theme()),
-                std::tuple<>()
+                signal::constant(widget::Theme())
                 );
 
     }
 
     template <typename TDrawing, typename TAreas, typename TObb,
-             typename TKeyboardInputs, typename TTheme, typename... Ts>
-    auto copy(Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme,
-            Ts...> const& w)
+             typename TKeyboardInputs, typename TTheme>
+    auto copy(Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme> const& w)
     {
-        return Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme, Ts...>(w);
+        return Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme>(w);
     }
 
     template <typename TDrawing, typename TAreas, typename TObb,
-             typename TKeyboardInputs, typename TTheme, typename... Ts>
+             typename TKeyboardInputs, typename TTheme>
     class Wid
     {
     public:
         Wid(TDrawing drawing, TAreas areas, TObb obb,
-                TKeyboardInputs keyboardInputs, TTheme theme,
-                std::tuple<Ts...> data) :
+                TKeyboardInputs keyboardInputs, TTheme theme) :
             drawing_(std::move(drawing)),
             areas_(std::move(areas)),
             obb_(std::move(obb)),
             keyboardInputs_(std::move(keyboardInputs)),
-            theme_(std::move(theme)),
-            data_(std::move(data))
+            theme_(std::move(theme))
         {
         }
 
@@ -223,16 +210,6 @@ namespace reactive
             return btl::clone(*theme_);
         }
 
-        std::tuple<Ts...> const& getData() const
-        {
-            return *data_;
-        }
-
-        std::tuple<Ts...>& getData()
-        {
-            return *data_;
-        }
-
         template <typename T, typename = std::enable_if_t<
             IsSignalType<T, widget::Theme>::value
             >
@@ -244,8 +221,7 @@ namespace reactive
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
-                    std::move(theme),
-                    std::move(*data_)
+                    std::move(theme)
                     );
         }
 
@@ -260,8 +236,7 @@ namespace reactive
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    std::move(*data_)
+                    std::move(*theme_)
                     );
         }
 
@@ -276,8 +251,7 @@ namespace reactive
                     std::move(areas),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    std::move(*data_)
+                    std::move(*theme_)
                     );
         }
 
@@ -354,8 +328,7 @@ namespace reactive
                     std::move(*areas_),
                     std::move(obb),
                     std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    std::move(*data_)
+                    std::move(*theme_)
                     );
         }
 
@@ -373,8 +346,7 @@ namespace reactive
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(inputs),
-                    std::move(*theme_),
-                    std::move(*data_)
+                    std::move(*theme_)
                     );
         }
 
@@ -411,40 +383,14 @@ namespace reactive
             return t;
         }
 
-        WidgetBase<> dropData() &&
+        operator WidgetBase() &&
         {
-            return WidgetBase<>(
+            return WidgetBase(
                     std::move(*drawing_),
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    std::tuple<>()
-                    );
-        }
-
-        template <typename T>
-        auto addData(T&& data) &&
-        {
-            return makeWidget(
-                    std::move(*drawing_),
-                    std::move(*areas_),
-                    std::move(*obb_),
-                    std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    btl::pushBack(std::move(*data_), std::forward<T>(data))
-                    );
-        }
-
-        operator WidgetBase<>() &&
-        {
-            return WidgetBase<>(
-                    std::move(*drawing_),
-                    std::move(*areas_),
-                    std::move(*obb_),
-                    std::move(*keyboardInputs_),
-                    std::move(*theme_),
-                    std::tuple<>()
+                    std::move(*theme_)
                     );
         }
 
@@ -468,30 +414,29 @@ namespace reactive
         btl::CloneOnCopy<btl::decay_t<TObb>> obb_;
         btl::CloneOnCopy<btl::decay_t<TKeyboardInputs>> keyboardInputs_;
         btl::CloneOnCopy<btl::decay_t<TTheme>> theme_;
-        btl::CloneOnCopy<std::tuple<Ts...>> data_;
     };
 
-    struct Widget : WidgetBase<>
+    struct Widget : WidgetBase
     {
-        inline Widget(WidgetBase<> base) :
-            WidgetBase<>(std::move(base))
+        inline Widget(WidgetBase base) :
+            WidgetBase(std::move(base))
         {
         }
 
         template <typename TDrawing, typename TAreas, typename TObb,
                 typename TKeyboardInputs, typename TTheme, typename... Ts>
-        Widget(Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme, Ts...> base) :
-            WidgetBase<>(std::move(base).dropData())
+        Widget(Wid<TDrawing, TAreas, TObb, TKeyboardInputs, TTheme> base) :
+            WidgetBase(std::move(base))
         {
         }
 
         inline Widget clone() const
         {
-            return WidgetBase<>::clone();
+            return WidgetBase::clone();
         }
     };
 
     template <typename T>
-    using IsWidget = std::is_convertible<T, WidgetBase<>>;
+    using IsWidget = std::is_convertible<T, WidgetBase>;
 } // reactive
 

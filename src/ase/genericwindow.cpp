@@ -116,7 +116,7 @@ void GenericWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
     injectPointerMoveEvent(pointerIndex, pos);
 
     if (hoverCallback_)
-        hoverCallback_(HoverEvent{ state });
+        hoverCallback_(HoverEvent{ state, state });
 }
 
 void GenericWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,

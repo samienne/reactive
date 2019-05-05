@@ -5,7 +5,7 @@
 
 namespace reactive::widget
 {
-    auto bindHover()
+    inline REACTIVE_EXPORT auto bindHover()
     {
         auto hover = signal::input(false);
 
@@ -14,6 +14,21 @@ namespace reactive::widget
             {
                 handle.set(e.hover);
             })
+            | bindData(std::move(hover.signal))
+            ;
+    }
+
+    template <typename T>
+    auto bindHover(Signal<avg::Obb, T> obb)
+    {
+        auto hover = signal::input(false);
+
+        return onHover(signal::constant([handle=std::move(hover.handle)]
+            (HoverEvent const& e) mutable
+            {
+                handle.set(e.hover);
+            }), std::move(obb)
+            )
             | bindData(std::move(hover.signal))
             ;
     }

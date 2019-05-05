@@ -103,7 +103,7 @@ public:
 
                 if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
                 {
-                    currentHoverArea_->emitHoverEvent(HoverEvent{ false });
+                    currentHoverArea_->emitHoverEvent(HoverEvent{ false , false });
                     currentHoverArea_ = btl::none;
                 }
 
@@ -118,12 +118,12 @@ public:
                             if (currentHoverArea_.valid())
                             {
                                 currentHoverArea_->emitHoverEvent(
-                                        HoverEvent{ false });
+                                        HoverEvent{ false, false });
                             }
 
                             currentHoverArea_ = btl::just(a);
 
-                            a.emitHoverEvent(HoverEvent { true });
+                            a.emitHoverEvent(HoverEvent { true, true });
                         }
 
                         break;
@@ -191,7 +191,7 @@ public:
                 {
                     if (currentHoverArea_.valid())
                     {
-                        currentHoverArea_->emitHoverEvent(HoverEvent { false });
+                        currentHoverArea_->emitHoverEvent(e);
                         currentHoverArea_ = btl::none;
                     }
                 }

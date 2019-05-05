@@ -14,28 +14,20 @@ namespace reactive
 {
     using WidgetMap = std::function<Widget(Widget)>;
 
-    template <typename T, typename = void>
-    struct HasResultOf : std::false_type {};
+    template <typename T, typename U, typename = void>
+    struct HasResultOfType : std::false_type {};
 
-    template <typename T, typename... Us>
-    struct HasResultOf<T(Us...), btl::void_t<std::result_of_t<T(Us...)>>>
-    : std::true_type {};
+    template <typename T, typename U, typename V>
+    struct HasResultOfType<T(U), V, btl::void_t<std::result_of_t<T(U)>>>
+    : IsWidget<std::result_of_t<T(U)>> {};
 
     template <typename T>
     using IsWidgetMap = btl::All<
         std::is_copy_constructible<std::decay_t<T>>,
         btl::IsClonable<std::decay_t<T>>,
-        HasResultOf<std::decay_t<T>(WidgetBase<>)>
+        //std::is_convertible<std::decay_t<T>, WidgetMap>
+        HasResultOfType<T(Widget), Widget>
         >;
-
-    template <typename TFunc, typename Tuple>
-    struct IsWidgetMapWithTuple : std::false_type {};
-
-    template <typename TFunc, typename... Ts>
-    struct IsWidgetMapWithTuple<TFunc, std::tuple<Ts...>>
-    : IsWidgetMap<TFunc>
-    {
-    };
 
     template <typename TFunc>
     struct WidgetValueProvider;

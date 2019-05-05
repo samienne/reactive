@@ -1,6 +1,7 @@
 #include "inputarea.h"
 
 #include "pointerbuttonevent.h"
+#include "hoverevent.h"
 
 namespace reactive
 {
