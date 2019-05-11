@@ -142,7 +142,7 @@ namespace
     }
 
     template <bool IsHorizontal>
-    auto bindHoverOnSlider(
+    auto bindSliderObb(
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
@@ -157,6 +157,18 @@ namespace
                                     handleSize));
                     }, size.clone(), amount, handleSize);
 
+            return bindData(std::move(obb));
+        });
+    }
+
+    template <bool IsHorizontal>
+    auto bindHoverOnSlider(
+            SharedSignal<float> amount,
+            SharedSignal<float> handleSize)
+    {
+        return bindSliderObb<IsHorizontal>(amount, handleSize)
+            >> bindWidgetValueProvider([=](auto obb)
+        {
             return bindHover(std::move(obb));
         });
     }
