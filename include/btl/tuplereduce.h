@@ -13,31 +13,41 @@ namespace btl
         {
             template <typename U>
             BTL_FORCE_INLINE auto operator<<(U&& u) &&
+            -> Reducer<
+                TFunc,
+                std::result_of_t<TFunc&(std::decay_t<T>&&, U&&)>
+                >
             {
                 auto v = func(std::move(value), std::forward<U>(u));
 
-                return Reducer<TFunc, std::decay_t<decltype(v)>>{
-                        std::forward<TFunc>(func),
-                        std::move(v)
-                };
+                return { func, std::move(v) };
             }
 
-            TFunc&& func;
-            T value;
+            TFunc& func;
+            std::decay_t<T> value;
         };
 
         template <typename TFunc, typename U, typename TTuple, size_t... S>
         auto tuple_reduce_seq(TFunc&& f, U&& initial, TTuple&& data,
                 std::index_sequence<S...>)
+        -> std::decay_t<decltype(
+            std::move((
+                        Reducer<std::decay_t<TFunc>, U>{
+                            f,
+                            std::forward<U>(initial)}
+                        << ...
+                        << std::get<S>(std::forward<TTuple>(data))
+                        ).value
+                    )
+            )>
         {
-            auto r = Reducer<TFunc, std::decay_t<U>>{
-                std::forward<TFunc>(f),
-                std::forward<U>(initial)
-            };
-
-            return std::move(
-                    (std::move(r) << ...
-                     << std::get<S>(std::forward<TTuple>(data))).value
+            return std::move((
+                        Reducer<std::decay_t<TFunc>, U>{
+                            f,
+                            std::forward<U>(initial)}
+                        << ...
+                        << std::get<S>(std::forward<TTuple>(data))
+                        ).value
                     );
         }
     }

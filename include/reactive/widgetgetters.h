@@ -52,7 +52,7 @@ namespace reactive
         template <typename TWidget>
         auto get(TWidget&& widget) -> WidgetAreasType<TWidget>
         {
-            return std::forward<TWidget>(widget).getAreas();
+            return std::forward<TWidget>(widget).getInputAreas();
         }
     };
 
@@ -62,7 +62,7 @@ namespace reactive
         template <typename TWidget>
         auto get(TWidget&& widget) -> WidgetAreasType<TWidget>
         {
-            return std::forward<TWidget>(widget).getAreas();
+            return std::forward<TWidget>(widget).getInputAreas();
         }
     };
 

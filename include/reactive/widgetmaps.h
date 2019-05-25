@@ -41,7 +41,7 @@ namespace reactive
 
         //static_assert(IsWidgetMap<decltype(f)>::value, "");
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     template <typename TSignalWidget, typename = typename
@@ -55,7 +55,7 @@ namespace reactive
 
         auto drawing = signal::mbind([](auto&& w) {
                 return w.getDrawing().clone(); }, w);
-        auto areas = signal::mbind([](auto&& w) { return w.getAreas().clone(); }, w);
+        auto areas = signal::mbind([](auto&& w) { return w.getInputAreas().clone(); }, w);
         auto obb = signal::mbind([](auto&& w) { return w.getObb().clone(); }, w);
         auto keyboardInputs = signal::mbind([](auto&& w) {
                 return w.getKeyboardInputs().clone(); }, w);
@@ -66,7 +66,8 @@ namespace reactive
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),
-                std::move(theme));
+                std::move(theme)
+                );
     }
 
     template <typename T>
@@ -123,7 +124,7 @@ namespace reactive
                 ;
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
@@ -149,9 +150,10 @@ namespace reactive
                         });
         };
 
-        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        static_assert(IsWidgetMap<decltype(f)>::value, "");
 
-        return mapWidget(f);
+        return widgetMap(f);
     }
 
     inline auto trackObb(signal::InputHandle<avg::Obb> handle)
@@ -174,9 +176,10 @@ namespace reactive
                         });
         };
 
-        static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
+        static_assert(IsWidgetMap<decltype(f)>::value, "");
 
-        return mapWidget(f);
+        return widgetMap(f);
     }
 
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
@@ -202,7 +205,7 @@ namespace reactive
                 .setKeyboardInputs(std::move(input));
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     inline auto trackTheme(signal::InputHandle<widget::Theme> const& handle)
@@ -216,7 +219,7 @@ namespace reactive
                 .setTheme(signal::tee(std::move(theme), handle));
         };
 
-        return mapWidget(f);
+        return widgetMap(f);
     }
 
 } // namespace reactive

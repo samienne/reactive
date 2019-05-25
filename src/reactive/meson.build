@@ -30,6 +30,7 @@ libreactivesrc = [
     'clickevent.cpp',
     'pointerbuttonevent.cpp',
     'pointermoveevent.cpp',
+    'hoverevent.cpp',
     'simplesizehint.cpp',
     'stacksizehint.cpp',
     'growsizehint.cpp',

@@ -11,6 +11,9 @@
 
 using namespace reactive;
 
+static_assert(std::is_copy_constructible<Widget>::value, "");
+static_assert(std::is_copy_assignable<Widget>::value, "");
+
 TEST(Widget, get)
 {
     auto w =
@@ -162,7 +165,7 @@ TEST(Widget, cache)
 
     static_assert(IsSharedSignal<decltype(w2.getDrawing())>::value, "");
     static_assert(IsSharedSignal<decltype(w2.getObb())>::value, "");
-    static_assert(!IsSharedSignal<decltype(w2.getAreas())>::value, "");
+    static_assert(!IsSharedSignal<decltype(w2.getInputAreas())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getKeyboardInputs())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getTheme())>::value, "");
 }

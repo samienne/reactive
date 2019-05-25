@@ -2,6 +2,7 @@
 
 #include "reactive/widgetmap.h"
 
+#include <btl/foreach.h>
 #include <btl/sequence.h>
 
 namespace reactive::widget

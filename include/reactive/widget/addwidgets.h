@@ -7,6 +7,7 @@
 #include "reactive/widgetmap.h"
 
 #include "reactive/signal/combine.h"
+#include "reactive/signal/mbind.h"
 
 #include <btl/all.h>
 #include <btl/typetraits.h>
@@ -41,12 +42,12 @@ namespace reactive::widget
             //for (auto&& w : *widgets)
             auto areas = btl::fmap(*widgets, [](auto&& w)
             {
-                return w.getAreas();
+                return w.getInputAreas();
             });
 
             auto areasSignal = signal::map(
                     addAreas,
-                    widget.getAreas(),
+                    widget.getInputAreas(),
                     signal::combine(std::move(areas))
                     );
 
@@ -111,7 +112,7 @@ namespace reactive::widget
 
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     template <typename T>
@@ -132,7 +133,7 @@ namespace reactive::widget
             return reduce(std::move(w1));
         };
 
-        return mapWidget(std::move(f));
+        return widgetMap(std::move(f));
     }
 
     inline auto addWidget(Widget widget)

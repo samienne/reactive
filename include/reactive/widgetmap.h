@@ -14,12 +14,23 @@ namespace reactive
 {
     using WidgetMap = std::function<Widget(Widget)>;
 
+    template <typename T, typename U, typename = void>
+    struct HasResultOfType : std::false_type {};
+
+    template <typename T, typename U, typename V>
+    struct HasResultOfType<T(U), V, btl::void_t<std::result_of_t<T(U)>>>
+    : IsWidget<std::result_of_t<T(U)>> {};
+
     template <typename T>
     using IsWidgetMap = btl::All<
-        std::is_convertible<T, WidgetMap>,
         std::is_copy_constructible<std::decay_t<T>>,
-        btl::IsClonable<std::decay_t<T>>
+        btl::IsClonable<std::decay_t<T>>,
+        //std::is_convertible<std::decay_t<T>, WidgetMap>
+        HasResultOfType<T(Widget), Widget>
         >;
+
+    template <typename TFunc>
+    struct WidgetValueProvider;
 
     namespace detail
     {
@@ -158,7 +169,7 @@ namespace reactive
         IsWidgetMap<TFunc>::value
         >
     >
-    auto mapWidget(TFunc func)
+    auto widgetMap(TFunc func)
     {
         auto r = WidgetMapWrapper<std::decay_t<TFunc>>{
             std::move(func)
@@ -188,7 +199,7 @@ namespace reactive
         template <typename UFunc>
         auto operator|(WidgetMapWrapper<UFunc>&& rhs) &&
         {
-            return mapWidget([self=std::move(*this), rhs=std::move(rhs)]
+            return widgetMap([self=std::move(*this), rhs=std::move(rhs)]
                     (auto widget) mutable
                     {
                         return std::move(widget) | self | rhs;
@@ -214,7 +225,7 @@ namespace reactive
                 std::make_tuple(std::forward<Us>(us)...)
             };
 
-        return mapWidget(std::move(mapper));
+        return widgetMap(std::move(mapper));
     }
 
     template <typename... Ts, typename = std::enable_if_t<
@@ -222,7 +233,7 @@ namespace reactive
         >>
     auto combineWidgetMaps(Ts&&... maps)
     {
-        return mapWidget([maps=std::make_tuple(std::forward<Ts>(maps)...)]
+        return widgetMap([maps=std::make_tuple(std::forward<Ts>(maps)...)]
             (auto widget)
             {
                 return btl::tuple_reduce(std::move(widget), maps,

@@ -35,7 +35,7 @@ namespace reactive::widget
             return EventResult::possible;
         };
 
-        return mapWidget([f=std::move(f), cb=signal::share(std::move(cb))]
+        return widgetMap([f=std::move(f), cb=signal::share(std::move(cb))]
             (auto widget) mutable
             {
                 auto w2 = std::move(widget)
