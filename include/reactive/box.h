@@ -16,7 +16,7 @@
 
 namespace reactive
 {
-    inline auto combinePartialHints(std::vector<SizeHintResult> const& hints)
+    inline auto cumulateSizeHintResults(std::vector<SizeHintResult> const& hints)
         -> SizeHintResult
     {
         auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
@@ -34,7 +34,7 @@ namespace reactive
         std::vector<float> result;
         result.reserve(hints.size());
 
-        auto combined = combinePartialHints(hints);
+        auto combined = cumulateSizeHintResults(hints);
         std::array<float, 3> multiplier;
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
@@ -69,7 +69,7 @@ namespace reactive
                     });
 
             return dir == Axis::x
-                ? combinePartialHints(xHints)
+                ? cumulateSizeHintResults(xHints)
                 : getLargestHint(xHints);
         }
 
@@ -92,7 +92,7 @@ namespace reactive
 
             return dir == Axis::x
                 ? getLargestHint(yHints)
-                : combinePartialHints(yHints);
+                : cumulateSizeHintResults(yHints);
         }
 
         SizeHintResult getFinalWidth(float x, float y) const
@@ -104,7 +104,7 @@ namespace reactive
                     });
 
             return dir == Axis::x
-                ? combinePartialHints(xHints)
+                ? cumulateSizeHintResults(xHints)
                 : getLargestHint(xHints);
         }
 
