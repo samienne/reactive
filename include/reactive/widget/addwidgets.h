@@ -42,12 +42,12 @@ namespace reactive::widget
             //for (auto&& w : *widgets)
             auto areas = btl::fmap(*widgets, [](auto&& w)
             {
-                return w.getAreas();
+                return w.getInputAreas();
             });
 
             auto areasSignal = signal::map(
                     addAreas,
-                    widget.getAreas(),
+                    widget.getInputAreas(),
                     signal::combine(std::move(areas))
                     );
 

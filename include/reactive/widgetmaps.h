@@ -55,7 +55,7 @@ namespace reactive
 
         auto drawing = signal::mbind([](auto&& w) {
                 return w.getDrawing().clone(); }, w);
-        auto areas = signal::mbind([](auto&& w) { return w.getAreas().clone(); }, w);
+        auto areas = signal::mbind([](auto&& w) { return w.getInputAreas().clone(); }, w);
         auto obb = signal::mbind([](auto&& w) { return w.getObb().clone(); }, w);
         auto keyboardInputs = signal::mbind([](auto&& w) {
                 return w.getKeyboardInputs().clone(); }, w);

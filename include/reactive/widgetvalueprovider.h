@@ -131,6 +131,13 @@ namespace reactive
     template <typename TFunc>
     auto widgetValueProvider(TFunc&& func)
     {
+        using ReturnType = decltype(
+                func(makeWidget(signal::constant(avg::Vector2f())), std::tuple<>())
+                );
+
+        static_assert(IsWidget<typename ReturnType::first_type>::value,
+                "Return type is not a pair<Widget, std::tuple>");
+
         return WidgetValueProvider<std::decay_t<TFunc>>{
             std::forward<TFunc>(func)
         };
@@ -142,6 +149,8 @@ namespace reactive
         return std::move(func);
     }
 
+    // Takes a function that consumes the data parameters and returns a
+    // widget value provdier.
     template <typename TFunc>
     auto bindWidgetValueProvider(TFunc&& func)
     {

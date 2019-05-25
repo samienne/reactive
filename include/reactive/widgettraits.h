@@ -14,7 +14,7 @@ namespace reactive
 
     template <typename TWidget>
     using WidgetAreasType =
-        std::decay_t<decltype(std::declval<TWidget>().getAreas())>;
+        std::decay_t<decltype(std::declval<TWidget>().getInputAreas())>;
 
     template <typename TWidget>
     using WidgetObbType =

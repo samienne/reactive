@@ -165,7 +165,7 @@ TEST(Widget, cache)
 
     static_assert(IsSharedSignal<decltype(w2.getDrawing())>::value, "");
     static_assert(IsSharedSignal<decltype(w2.getObb())>::value, "");
-    static_assert(!IsSharedSignal<decltype(w2.getAreas())>::value, "");
+    static_assert(!IsSharedSignal<decltype(w2.getInputAreas())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getKeyboardInputs())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getTheme())>::value, "");
 }

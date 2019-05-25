@@ -77,7 +77,7 @@ public:
 
                 if (e.state == ase::ButtonState::down)
                 {
-                    for (auto const& a : widget_.getAreas().evaluate())
+                    for (auto const& a : widget_.getInputAreas().evaluate())
                     {
                         if (a.acceptsButtonEvent(e))
                         {
@@ -99,7 +99,7 @@ public:
 
         glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
             {
-                std::vector<InputArea> const& areas = widget_.getAreas().evaluate();
+                std::vector<InputArea> const& areas = widget_.getInputAreas().evaluate();
 
                 if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
                 {
@@ -229,10 +229,10 @@ public:
         timeToNext2 = titleSignal_.updateEnd({frameId, dt});
         timeToNext = signal::min(timeToNext, timeToNext2);
 
-        if (widget_.getAreas().hasChanged())
+        if (widget_.getInputAreas().hasChanged())
         {
             // If there's an area with the same id -> update
-            auto areas = widget_.getAreas().evaluate();
+            auto areas = widget_.getInputAreas().evaluate();
             for (auto&& area : areas_)
             {
                 for (InputArea& area3 : area.second)
@@ -386,11 +386,11 @@ int GlxApp::run(Signal<bool> running) &&
 
             timeToNext = reactive::signal::min(timeToNext, t);
 
-            /*if (glue->getWidget().getAreas().hasChanged())
+            /*if (glue->getWidget().getInputAreas().hasChanged())
             {
                 std::cout << "Wrote test1.dot" << std::endl;
                 auto s = glues.front()->getWidget()
-                    .getAreas().annotate().getDot();
+                    .getInputAreas().annotate().getDot();
                 std::ofstream fs("test1.dot");
                 fs << s << std::endl;
                 fs.close();

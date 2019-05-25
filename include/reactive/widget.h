@@ -170,7 +170,7 @@ namespace reactive
             return btl::clone(*drawing_);
         }
 
-        btl::decay_t<TAreas> getAreas() const
+        btl::decay_t<TAreas> getInputAreas() const
         {
             return btl::clone(*areas_);
         }
