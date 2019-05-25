@@ -73,7 +73,7 @@ namespace reactive
                 : getLargestHint(xHints);
         }
 
-        SizeHintResult getHeight(float x) const
+        SizeHintResult getHeightForWidth(float x) const
         {
             auto xHints = btl::fmap(hints_,
                     [](auto const& hint)
@@ -87,7 +87,7 @@ namespace reactive
             auto yHints = btl::fmap(xSizes,
                     [this, &i](auto const& xSize)
                     {
-                        return hints_[i++].getHeight(xSize);
+                        return hints_[i++].getHeightForWidth(xSize);
                     });
 
             return dir == Axis::x
@@ -95,12 +95,12 @@ namespace reactive
                 : accumulateSizeHintResults(yHints);
         }
 
-        SizeHintResult getFinalWidth(float x, float y) const
+        SizeHintResult getWidthForHeight(float height) const
         {
             auto xHints = btl::fmap(hints_,
-                    [x, y](auto const& hint)
+                    [height](auto const& hint)
                     {
-                        return hint.getFinalWidth(x, y);
+                        return hint.getWidthForHeight(height);
                     });
 
             return dir == Axis::x
@@ -137,41 +137,31 @@ namespace reactive
         std::vector<ase::Vector2f> result;
         result.reserve(hints.size());
 
-        auto xHintResults = btl::fmap(hints,
-                [](auto const& hint)
-                {
-                    return hint.getWidth();
-                });
-
         if (dir == Axis::x)
         {
+            auto xHintResults = btl::fmap(hints,
+                    [&](auto const& hint)
+                    {
+                        return hint.getWidthForHeight(size[1]);
+                    });
+
             auto xSizes = getSizes(size[0], xHintResults);
 
-            int index = 0;
-            auto yHintResults = btl::fmap(hints,
-                    [&](auto const& hint)
-                    {
-                        return hint.getHeight(xSizes[index++]);
-                    });
-
-            index = 0;
-            auto finalXHintResults = btl::fmap(hints,
-                    [&](auto const& hint)
-                    {
-                        return hint.getFinalWidth(xSizes[index++], size[1]);
-                    });
-
-            auto finalXSizes = getSizes(size[0], finalXHintResults);
-
-            for (auto&& xSize : finalXSizes)
+            for (auto&& xSize : xSizes)
                 result.emplace_back(xSize, size[1]);
         }
         else
         {
+            auto xHintResults = btl::fmap(hints,
+                    [](auto const& hint)
+                    {
+                        return hint.getWidth();
+                    });
+
             auto yHintResults = btl::fmap(hints,
                     [&size](auto const& hint)
                     {
-                        return hint.getHeight(size[0]);
+                        return hint.getHeightForWidth(size[0]);
                     });
 
             auto ySizes = getSizes(size[1], yHintResults);

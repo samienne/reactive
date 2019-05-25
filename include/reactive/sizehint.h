@@ -33,10 +33,10 @@ namespace reactive
                     decltype(std::declval<T>().getWidth())
                 >,
                 std::is_same<SizeHintResult,
-                    decltype(std::declval<T>().getHeight(100.0f))
+                    decltype(std::declval<T>().getHeightForWidth(100.0f))
                 >,
                 std::is_same<SizeHintResult,
-                    decltype(std::declval<T>().getFinalWidth(100.0f, 100.0f))
+                    decltype(std::declval<T>().getWidthForHeight(100.0f))
                 >
             >::value
         >
@@ -48,9 +48,8 @@ namespace reactive
         {
             virtual ~SizeHintBase() = default;
             virtual SizeHintResult getWidth() const = 0;
-            virtual SizeHintResult getHeight(float width) const = 0;
-            virtual SizeHintResult getFinalWidth(float width,
-                    float height) const = 0;
+            virtual SizeHintResult getHeightForWidth(float width) const = 0;
+            virtual SizeHintResult getWidthForHeight(float height) const = 0;
         };
 
         template <typename THint>
@@ -66,14 +65,14 @@ namespace reactive
                 return hint_.getWidth();
             }
 
-            SizeHintResult getHeight(float width) const override
+            SizeHintResult getHeightForWidth(float width) const override
             {
-                return hint_.getHeight(width);
+                return hint_.getHeightForWidth(width);
             }
 
-            SizeHintResult getFinalWidth(float width, float height) const override
+            SizeHintResult getWidthForHeight(float height) const override
             {
-                return hint_.getFinalWidth(width, height);
+                return hint_.getWidthForHeight(height);
             }
 
             std::decay_t<THint> const hint_;
@@ -139,8 +138,8 @@ namespace reactive
         }
 
         SizeHintResult getWidth() const;
-        SizeHintResult getHeight(float width) const;
-        SizeHintResult getFinalWidth(float width, float height) const;
+        SizeHintResult getHeightForWidth(float width) const;
+        SizeHintResult getWidthForHeight(float height) const;
 
     private:
         btl::shared<detail::SizeHintBase> hint_;

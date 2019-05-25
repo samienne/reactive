@@ -8,8 +8,8 @@ namespace reactive
     struct REACTIVE_EXPORT StackSizeHint
     {
         SizeHintResult getWidth() const;
-        SizeHintResult getHeight(float width) const;
-        SizeHintResult getFinalWidth(float width, float height) const;
+        SizeHintResult getHeightForWidth(float width) const;
+        SizeHintResult getWidthForHeight(float height) const;
 
         std::vector<SizeHint> hints_;
     };

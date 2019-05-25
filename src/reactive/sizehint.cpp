@@ -10,14 +10,14 @@ SizeHintResult SizeHint::getWidth() const
     return hint_->getWidth();
 }
 
-SizeHintResult SizeHint::getHeight(float width) const
+SizeHintResult SizeHint::getHeightForWidth(float width) const
 {
-    return hint_->getHeight(width);
+    return hint_->getHeightForWidth(width);
 }
 
-SizeHintResult SizeHint::getFinalWidth(float width, float height) const
+SizeHintResult SizeHint::getWidthForHeight(float height) const
 {
-    return hint_->getFinalWidth(width, height);
+    return hint_->getWidthForHeight(height);
 }
 
 SizeHintResult getLargestHint(std::vector<SizeHintResult> const& hints)

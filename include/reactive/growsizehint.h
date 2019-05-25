@@ -24,14 +24,14 @@ namespace reactive
             return growSizeHintResult(hint.getWidth(), amount);
         }
 
-        SizeHintResult getHeight(float width) const
+        SizeHintResult getHeightForWidth(float width) const
         {
-            return growSizeHintResult(hint.getHeight(width), amount);
+            return growSizeHintResult(hint.getHeightForWidth(width), amount);
         }
 
-        SizeHintResult getFinalWidth(float width, float height) const
+        SizeHintResult getWidthForHeight(float height) const
         {
-            return growSizeHintResult(hint.getFinalWidth(width, height), amount);
+            return growSizeHintResult(hint.getWidthForHeight(height), amount);
         }
 
         std::decay_t<THint> hint;

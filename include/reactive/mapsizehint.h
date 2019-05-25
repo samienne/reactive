@@ -14,14 +14,14 @@ namespace reactive
             return func1(hint.getWidth());
         }
 
-        SizeHintResult getHeight(float width) const
+        SizeHintResult getHeightForWidth(float width) const
         {
-            return func2(hint.getHeight(width), width);
+            return func2(hint.getHeightForWidth(width), width);
         }
 
-        SizeHintResult getFinalWidth(float width, float height) const
+        SizeHintResult getWidthForHeight(float height) const
         {
-            return func3(hint.getFinalWidth(width, height), width, height);
+            return func3(hint.getWidthForHeight(height), height);
         }
 
         THint hint;
@@ -42,7 +42,7 @@ namespace reactive
                 std::result_of_t<TFunc2(SizeHintResult, float)>
                 >::value
             && std::is_same<SizeHintResult,
-                std::result_of_t<TFunc3(SizeHintResult, float, float)>
+                std::result_of_t<TFunc3(SizeHintResult, float)>
                 >::value
             >
         >

@@ -10,8 +10,8 @@ namespace reactive
     public:
         SimpleSizeHint(SizeHintResult x, SizeHintResult y);
         SizeHintResult getWidth() const;
-        SizeHintResult getHeight(float) const;
-        SizeHintResult getFinalWidth(float, float) const;
+        SizeHintResult getHeightForWidth(float) const;
+        SizeHintResult getWidthForHeight(float) const;
 
     private:
         SizeHintResult const horizontal_;

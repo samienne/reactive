@@ -31,7 +31,7 @@ namespace
                     avg::Vector2f viewSize)
                 {
                     float w = hint.getWidth()[1];
-                    float h = hint.getHeight(w)[1];
+                    float h = hint.getHeightForWidth(w)[1];
 
                     float offY = contentSize[1] - viewSize[1];
 

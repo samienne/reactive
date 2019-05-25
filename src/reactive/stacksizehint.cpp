@@ -13,21 +13,21 @@ SizeHintResult StackSizeHint::getWidth() const
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::getHeight(float width) const
+SizeHintResult StackSizeHint::getHeightForWidth(float width) const
 {
     auto hints = btl::fmap(hints_, [width](auto const& hint)
         {
-            return hint.getHeight(width);
+            return hint.getHeightForWidth(width);
         });
 
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::getFinalWidth(float width, float height) const
+SizeHintResult StackSizeHint::getWidthForHeight(float height) const
 {
-    auto hints = btl::fmap(hints_, [width, height](auto const& hint)
+    auto hints = btl::fmap(hints_, [height](auto const& hint)
         {
-            return hint.getFinalWidth(width, height);
+            return hint.getWidthForHeight(height);
         });
 
     return getLargestHint(hints);

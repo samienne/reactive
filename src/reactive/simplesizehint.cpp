@@ -16,12 +16,12 @@ SizeHintResult SimpleSizeHint::getWidth() const
     return horizontal_;
 }
 
-SizeHintResult SimpleSizeHint::getHeight(float) const
+SizeHintResult SimpleSizeHint::getHeightForWidth(float) const
 {
     return vertical_;
 }
 
-SizeHintResult SimpleSizeHint::getFinalWidth(float, float) const
+SizeHintResult SimpleSizeHint::getWidthForHeight(float) const
 {
     return horizontal_;
 }
