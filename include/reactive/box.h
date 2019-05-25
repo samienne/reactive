@@ -137,7 +137,7 @@ namespace reactive
         std::vector<ase::Vector2f> result;
         result.reserve(hints.size());
 
-        auto xHints = btl::fmap(hints,
+        auto xHintResults = btl::fmap(hints,
                 [](auto const& hint)
                 {
                     return hint.getWidth();
@@ -145,19 +145,36 @@ namespace reactive
 
         if (dir == Axis::x)
         {
-            auto xSizes = getSizes(size[0], xHints);
-            for (auto&& xSize : xSizes)
+            auto xSizes = getSizes(size[0], xHintResults);
+
+            int index = 0;
+            auto yHintResults = btl::fmap(hints,
+                    [&](auto const& hint)
+                    {
+                        return hint.getHeight(xSizes[index++]);
+                    });
+
+            index = 0;
+            auto finalXHintResults = btl::fmap(hints,
+                    [&](auto const& hint)
+                    {
+                        return hint.getFinalWidth(xSizes[index++], size[1]);
+                    });
+
+            auto finalXSizes = getSizes(size[0], finalXHintResults);
+
+            for (auto&& xSize : finalXSizes)
                 result.emplace_back(xSize, size[1]);
         }
         else
         {
-            auto yHints = btl::fmap(hints,
+            auto yHintResults = btl::fmap(hints,
                     [&size](auto const& hint)
                     {
                         return hint.getHeight(size[0]);
                     });
 
-            auto ySizes = getSizes(size[1], yHints);
+            auto ySizes = getSizes(size[1], yHintResults);
             for (auto&& ySize : ySizes)
                 result.emplace_back(size[0], ySize);
         }
