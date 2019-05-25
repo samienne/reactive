@@ -9,9 +9,9 @@ namespace reactive
     {
     public:
         SimpleSizeHint(SizeHintResult x, SizeHintResult y);
-        SizeHintResult operator()() const;
-        SizeHintResult operator()(float) const;
-        SizeHintResult operator()(float, float) const;
+        SizeHintResult getWidth() const;
+        SizeHintResult getHeight(float) const;
+        SizeHintResult getFinalWidth(float, float) const;
 
     private:
         SizeHintResult const horizontal_;
@@ -33,6 +33,6 @@ namespace reactive
     /**
      * @brief Equivalent of simpleSizeHint({{x, x, x}}, {{y, y, y}}).
      */
-    REACTIVE_EXPORT SimpleSizeHint simpleSizeHint(float x, float y);
+    REACTIVE_EXPORT SimpleSizeHint simpleSizeHint(float width, float height);
 } // namespace reactive
 

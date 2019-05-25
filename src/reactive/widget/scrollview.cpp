@@ -30,8 +30,8 @@ namespace
                 [](SizeHint hint, avg::Vector2f contentSize,
                     avg::Vector2f viewSize)
                 {
-                    float w = hint()[1];
-                    float h = hint(w)[1];
+                    float w = hint.getWidth()[1];
+                    float h = hint.getHeight(w)[1];
 
                     float offY = contentSize[1] - viewSize[1];
 

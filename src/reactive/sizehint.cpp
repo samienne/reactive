@@ -5,19 +5,19 @@ namespace reactive
 
 static_assert(IsSizeHint<SizeHint>::value, "");
 
-SizeHintResult SizeHint::operator()() const
+SizeHintResult SizeHint::getWidth() const
 {
-    return (*hint_)();
+    return hint_->getWidth();
 }
 
-SizeHintResult SizeHint::operator()(float x) const
+SizeHintResult SizeHint::getHeight(float width) const
 {
-    return (*hint_)(x);
+    return hint_->getHeight(width);
 }
 
-SizeHintResult SizeHint::operator()(float x, float y) const
+SizeHintResult SizeHint::getFinalWidth(float width, float height) const
 {
-    return (*hint_)(x, y);
+    return hint_->getFinalWidth(width, height);
 }
 
 SizeHintResult getLargestHint(std::vector<SizeHintResult> const& hints)

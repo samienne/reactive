@@ -2,6 +2,7 @@
 
 namespace reactive
 {
+
 static_assert(IsSizeHint<SimpleSizeHint>::value, "");
 
 SimpleSizeHint::SimpleSizeHint(SizeHintResult x, SizeHintResult y) :
@@ -10,17 +11,17 @@ SimpleSizeHint::SimpleSizeHint(SizeHintResult x, SizeHintResult y) :
     {
     }
 
-SizeHintResult SimpleSizeHint::operator()() const
+SizeHintResult SimpleSizeHint::getWidth() const
 {
     return horizontal_;
 }
 
-SizeHintResult SimpleSizeHint::operator()(float) const
+SizeHintResult SimpleSizeHint::getHeight(float) const
 {
     return vertical_;
 }
 
-SizeHintResult SimpleSizeHint::operator()(float, float) const
+SizeHintResult SimpleSizeHint::getFinalWidth(float, float) const
 {
     return horizontal_;
 }

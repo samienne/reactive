@@ -60,12 +60,12 @@ namespace reactive
     template <Axis dir, typename THints>
     struct CombineSizeHint
     {
-        SizeHintResult operator()() const
+        SizeHintResult getWidth() const
         {
             auto xHints = btl::fmap(hints_,
                     [](auto const& hint)
                     {
-                        return hint();
+                        return hint.getWidth();
                     });
 
             return dir == Axis::x
@@ -73,12 +73,12 @@ namespace reactive
                 : getLargestHint(xHints);
         }
 
-        SizeHintResult operator()(float x) const
+        SizeHintResult getHeight(float x) const
         {
             auto xHints = btl::fmap(hints_,
                     [](auto const& hint)
                     {
-                        return hint();
+                        return hint.getWidth();
                     });
 
             auto xSizes = getSizes(x, xHints);
@@ -87,7 +87,7 @@ namespace reactive
             auto yHints = btl::fmap(xSizes,
                     [this, &i](auto const& xSize)
                     {
-                        return hints_[i++](xSize);
+                        return hints_[i++].getHeight(xSize);
                     });
 
             return dir == Axis::x
@@ -95,12 +95,12 @@ namespace reactive
                 : combinePartialHints(yHints);
         }
 
-        SizeHintResult operator()(float x, float y) const
+        SizeHintResult getFinalWidth(float x, float y) const
         {
             auto xHints = btl::fmap(hints_,
                     [x, y](auto const& hint)
                     {
-                        return hint(x, y);
+                        return hint.getFinalWidth(x, y);
                     });
 
             return dir == Axis::x
@@ -143,7 +143,7 @@ namespace reactive
         auto xHints = btl::fmap(hints,
                 [](auto const& hint)
                 {
-                    return hint();
+                    return hint.getWidth();
                 });
 
         if (dir == Axis::x)
@@ -157,7 +157,7 @@ namespace reactive
             auto yHints = btl::fmap(hints,
                     [&size](auto const& hint)
                     {
-                        return hint(size[0]);
+                        return hint.getHeight(size[0]);
                     });
 
             auto ySizes = getSizes(size[1], yHints);
