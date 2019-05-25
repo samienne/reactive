@@ -15,6 +15,7 @@ libreactivesrc = [
     'shapes.cpp',
     'uniformgrid.cpp',
     'layout.cpp',
+    'box.cpp',
     'vbox.cpp',
     'hbox.cpp',
     'stack.cpp',

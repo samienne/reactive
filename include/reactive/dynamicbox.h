@@ -29,7 +29,7 @@ namespace reactive
         auto resultHint = signal::map(
                 [](std::vector<SizeHint> hints) -> SizeHint
                 {
-                    return combineSizeHints<dir>(std::move(hints));
+                    return accumulateSizeHints<dir>(std::move(hints));
                 },
                 hints.clone()
                 );

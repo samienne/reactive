@@ -16,7 +16,7 @@
 
 namespace reactive
 {
-    inline auto cumulateSizeHintResults(std::vector<SizeHintResult> const& hints)
+    inline auto accumulateSizeHintResults(std::vector<SizeHintResult> const& hints)
         -> SizeHintResult
     {
         auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
@@ -34,7 +34,7 @@ namespace reactive
         std::vector<float> result;
         result.reserve(hints.size());
 
-        auto combined = cumulateSizeHintResults(hints);
+        auto combined = accumulateSizeHintResults(hints);
         std::array<float, 3> multiplier;
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
@@ -58,7 +58,7 @@ namespace reactive
     }
 
     template <Axis dir, typename THints>
-    struct CombineSizeHint
+    struct AccumulateSizeHint
     {
         SizeHintResult getWidth() const
         {
@@ -69,7 +69,7 @@ namespace reactive
                     });
 
             return dir == Axis::x
-                ? cumulateSizeHintResults(xHints)
+                ? accumulateSizeHintResults(xHints)
                 : getLargestHint(xHints);
         }
 
@@ -92,7 +92,7 @@ namespace reactive
 
             return dir == Axis::x
                 ? getLargestHint(yHints)
-                : cumulateSizeHintResults(yHints);
+                : accumulateSizeHintResults(yHints);
         }
 
         SizeHintResult getFinalWidth(float x, float y) const
@@ -104,7 +104,7 @@ namespace reactive
                     });
 
             return dir == Axis::x
-                ? cumulateSizeHintResults(xHints)
+                ? accumulateSizeHintResults(xHints)
                 : getLargestHint(xHints);
         }
 
@@ -113,21 +113,18 @@ namespace reactive
     };
 
     template <Axis dir>
-    auto combineSizeHints(std::vector<SizeHint> hints)
-        -> CombineSizeHint<dir, std::vector<SizeHint>>
+    auto accumulateSizeHints(std::vector<SizeHint> hints)
+        -> AccumulateSizeHint<dir, std::vector<SizeHint>>
     {
-        return CombineSizeHint<dir, std::vector<SizeHint>>{std::move(hints)};
+        return AccumulateSizeHint<dir, std::vector<SizeHint>>{std::move(hints)};
     }
 
     template <Axis dir, typename... Ts>
-    auto combineSizeHintsTuple(std::tuple<Ts...> hints)
-        -> CombineSizeHint<dir, std::tuple<Ts...>>
+    auto accumulateSizeHintsTuple(std::tuple<Ts...> hints)
+        -> AccumulateSizeHint<dir, std::tuple<Ts...>>
     {
-        return CombineSizeHint<dir, std::tuple<Ts...>>{std::move(hints)};
+        return AccumulateSizeHint<dir, std::tuple<Ts...>>{std::move(hints)};
     }
-
-    static_assert(IsSizeHint<CombineSizeHint<Axis::x,
-            std::vector<SizeHint>>>::value, "");
 
     template <Axis dir>
     auto combineSizes(ase::Vector2f size,
@@ -243,7 +240,7 @@ namespace reactive
     template <Axis dir>
     auto box(std::vector<WidgetFactory> factories)  //-> WidgetFactory
     {
-        return layout(combineSizeHints<dir>, &mapObbs<dir>,
+        return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
                 std::move(factories));
     }
 
@@ -253,7 +250,7 @@ namespace reactive
         return layout(
                 [](auto hints)
                 {
-                    return combineSizeHintsTuple<dir>(std::move(hints));
+                    return accumulateSizeHintsTuple<dir>(std::move(hints));
                 },
                 MapObbs<dir>(),
                 std::move(factories)
