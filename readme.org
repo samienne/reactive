@@ -8,6 +8,8 @@
   external UI specific language, such as QML or XAML. The approach taken was
   greatly inspired by the Elm programming language.
 
+  This library is located at [[https://github.org/samienne/reactive]].
+
 * Hello World
 
 #+BEGIN_SRC C++
@@ -37,13 +39,38 @@
 
 * Compilation
 
-  Currently only Linux is supported.
+  Currently only Linux is supported. For the Meson build system you can use
+  your own installed version or the one added as a subrepository in this
+  library. Meson is located in build/meson folder.
 
-** Linux
+  Dependencies:
+  - Meson 0.50.0 or newer
+  - ninja 1.7 or newer
 
    Supported compilers:
-   - GCC5
-   - GCC6
+   - GCC7 or above
+   - Clang 6 or above
+
+#+BEGIN_SRC sh
+$ mkdir -p build/clang6-debug
+$ cd build clang6-debug
+$ meson ../..
+$ ninja
+#+END_SRC
+
+  After building there is a small application used as a playground for the
+  library. You can run it with the following command in your build directory.
+
+##BEGIN_SRC sh
+$ ./src/testapp1/testapp1
+#+END_SRC
+
+  Or you can run the unit tests by running the following command in you build
+  directory.
+
+##BEGIN_SRC sh
+$ ./test/unittest
+#+END_SRC
 
 * Architecture
 
@@ -323,6 +350,7 @@
   {
       return reactive::widget::label(signal::constant(text))
             | reactive::onClick(0, onClick) // 0 = left mouse button
+            | reactive::frame()
             ;
   }
 
@@ -331,21 +359,34 @@
   // and '-' will decrease the number by one.
   WidgetFactory makeAdder()
   {
+      // Create a pipe that will be used to send integers.
       auto events = reactive::stream::pipe<int>();
 
+      // Iterate the stream "events" (integers in this case).
+      // Initial value is 0. The events.stream will be the output of the pipe.
+      // The result will be a Signal<int> which holds our current integer value.
       Signal<int> state = reactive::stream::iterate(
             [](int current, int stream)
             {
+                  // We'll just add the current value with the one we got from
+                  // the stream.
                   return current + stream;
             }, 0, events.stream);
 
+      // Map the current state integer to a Signal<std::string> type.
       Signal<std::string> stateString = signal::map(
               [](int i) { return std::to_string(i); },
               state);
 
+      // Now we have everything we can construct our actual widget. The
+      // events.handle is used to send the integers to events.stream.
+      // The hbox layout lay everything in a horizontal box.
       return reactive::hbox({
+            // Create "-" button that sends -1 to events.handle.
             makeButton("-", reactive::send(-1, events.handle)),
+            // Add the label showing the current integer.
             reactive::widget::label(stateString),
+            // Create "+" button that sends +1 to events.handle.
             makeButton("+", reactive::send(1, events.handle)),
       });
   }
