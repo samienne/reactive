@@ -19,19 +19,19 @@ namespace reactive
     template <typename THint>
     struct GrowSizeHint
     {
-        SizeHintResult operator()() const
+        SizeHintResult getWidth() const
         {
-            return growSizeHintResult(hint(), amount);
+            return growSizeHintResult(hint.getWidth(), amount);
         }
 
-        SizeHintResult operator()(float x) const
+        SizeHintResult getHeightForWidth(float width) const
         {
-            return growSizeHintResult(hint(x), amount);
+            return growSizeHintResult(hint.getHeightForWidth(width), amount);
         }
 
-        SizeHintResult operator()(float x, float y) const
+        SizeHintResult getWidthForHeight(float height) const
         {
-            return growSizeHintResult(hint(x, y), amount);
+            return growSizeHintResult(hint.getWidthForHeight(height), amount);
         }
 
         std::decay_t<THint> hint;
@@ -53,7 +53,8 @@ namespace reactive
     GrowSizeHint<std::decay_t<THint>> growSizeHint(THint&& hint, float amount)
     {
         return GrowSizeHint<std::decay_t<THint>>{
-            std::forward<THint>(hint), amount};
+            std::forward<THint>(hint), amount
+        };
     }
 
 } // namespace reactive

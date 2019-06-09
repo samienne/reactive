@@ -27,17 +27,18 @@ namespace reactive
 
     template <typename T
     >
-    struct IsSizeHint<T,
-             std::enable_if_t<
-            std::is_same<SizeHintResult,
-                std::result_of_t<T const()>
-                >::value
-            && std::is_same<SizeHintResult,
-                std::result_of_t<T const(float)>
-                >::value
-            && std::is_same<SizeHintResult,
-                std::result_of_t<T const(float,float)>
-                >::value
+    struct IsSizeHint<T, std::enable_if_t<
+            btl::All<
+                std::is_same<SizeHintResult,
+                    decltype(std::declval<T>().getWidth())
+                >,
+                std::is_same<SizeHintResult,
+                    decltype(std::declval<T>().getHeightForWidth(100.0f))
+                >,
+                std::is_same<SizeHintResult,
+                    decltype(std::declval<T>().getWidthForHeight(100.0f))
+                >
+            >::value
         >
     > : std::true_type {};
 
@@ -46,9 +47,9 @@ namespace reactive
         struct SizeHintBase
         {
             virtual ~SizeHintBase() = default;
-            virtual SizeHintResult operator()() const = 0;
-            virtual SizeHintResult operator()(float x) const = 0;
-            virtual SizeHintResult operator()(float x, float y) const = 0;
+            virtual SizeHintResult getWidth() const = 0;
+            virtual SizeHintResult getHeightForWidth(float width) const = 0;
+            virtual SizeHintResult getWidthForHeight(float height) const = 0;
         };
 
         template <typename THint>
@@ -59,19 +60,19 @@ namespace reactive
             {
             }
 
-            SizeHintResult operator()() const override
+            SizeHintResult getWidth() const override
             {
-                return hint_();
+                return hint_.getWidth();
             }
 
-            SizeHintResult operator()(float x) const override
+            SizeHintResult getHeightForWidth(float width) const override
             {
-                return hint_(x);
+                return hint_.getHeightForWidth(width);
             }
 
-            SizeHintResult operator()(float x, float y) const override
+            SizeHintResult getWidthForHeight(float height) const override
             {
-                return hint_(x, y);
+                return hint_.getWidthForHeight(height);
             }
 
             std::decay_t<THint> const hint_;
@@ -136,9 +137,9 @@ namespace reactive
             return *this;
         }
 
-        SizeHintResult operator()() const;
-        SizeHintResult operator()(float x) const;
-        SizeHintResult operator()(float x, float y) const;
+        SizeHintResult getWidth() const;
+        SizeHintResult getHeightForWidth(float width) const;
+        SizeHintResult getWidthForHeight(float height) const;
 
     private:
         btl::shared<detail::SizeHintBase> hint_;

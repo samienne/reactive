@@ -36,7 +36,7 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
             {
                 return {{ result[0] * y, result[1] * y, result[2] * y }};
             },
-            [x](SizeHintResult result, float, float) -> SizeHintResult
+            [x](SizeHintResult result, float) -> SizeHintResult
             {
                 return {{ result[0] * x, result[1] * x, result[2] * x }};
             }

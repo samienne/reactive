@@ -3,39 +3,39 @@
 namespace reactive
 {
 
-SizeHintResult StackSizeHint::operator()() const
+SizeHintResult StackSizeHint::getWidth() const
 {
     auto hints = btl::fmap(hints_, [](auto const& hint)
         {
-            return hint();
+            return hint.getWidth();
         });
 
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::operator()(float x) const
+SizeHintResult StackSizeHint::getHeightForWidth(float width) const
 {
-    auto hints = btl::fmap(hints_, [x](auto const& hint)
+    auto hints = btl::fmap(hints_, [width](auto const& hint)
         {
-            return hint(x);
+            return hint.getHeightForWidth(width);
         });
 
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::operator()(float x, float y) const
+SizeHintResult StackSizeHint::getWidthForHeight(float height) const
 {
-    auto hints = btl::fmap(hints_, [x, y](auto const& hint)
+    auto hints = btl::fmap(hints_, [height](auto const& hint)
         {
-            return hint(x, y);
+            return hint.getWidthForHeight(height);
         });
 
     return getLargestHint(hints);
 }
 
-StackSizeHint stackSizeHints(std::vector<SizeHint> const& hints)
+StackSizeHint stackSizeHints(std::vector<SizeHint> hints)
 {
-    return { hints };
+    return { std::move(hints) };
 }
 
 } // namespace reactive

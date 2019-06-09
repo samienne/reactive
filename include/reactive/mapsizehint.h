@@ -9,25 +9,25 @@ namespace reactive
              typename TFunc2, typename TFunc3>
     struct MapSizeHint
     {
-        SizeHintResult operator()() const
+        SizeHintResult getWidth() const
         {
-            return func1(hint());
+            return func1(hint.getWidth());
         }
 
-        SizeHintResult operator()(float x) const
+        SizeHintResult getHeightForWidth(float width) const
         {
-            return func2(hint(x), x);
+            return func2(hint.getHeightForWidth(width), width);
         }
 
-        SizeHintResult operator()(float x, float y) const
+        SizeHintResult getWidthForHeight(float height) const
         {
-            return func3(hint(x, y), x, y);
+            return func3(hint.getWidthForHeight(height), height);
         }
 
-        std::decay_t<THint> hint;
-        std::decay_t<TFunc1> func1;
-        std::decay_t<TFunc2> func2;
-        std::decay_t<TFunc3> func3;
+        THint hint;
+        TFunc1 func1;
+        TFunc2 func2;
+        TFunc3 func3;
     };
 
     template <typename THint, typename TFunc1,
@@ -42,7 +42,7 @@ namespace reactive
                 std::result_of_t<TFunc2(SizeHintResult, float)>
                 >::value
             && std::is_same<SizeHintResult,
-                std::result_of_t<TFunc3(SizeHintResult, float, float)>
+                std::result_of_t<TFunc3(SizeHintResult, float)>
                 >::value
             >
         >

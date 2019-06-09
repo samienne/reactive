@@ -7,13 +7,13 @@ namespace reactive
 {
     struct REACTIVE_EXPORT StackSizeHint
     {
-        SizeHintResult operator()() const;
-        SizeHintResult operator()(float x) const;
-        SizeHintResult operator()(float x, float y) const;
+        SizeHintResult getWidth() const;
+        SizeHintResult getHeightForWidth(float width) const;
+        SizeHintResult getWidthForHeight(float height) const;
 
-        std::vector<SizeHint> const hints_;
+        std::vector<SizeHint> hints_;
     };
 
-    REACTIVE_EXPORT StackSizeHint stackSizeHints(std::vector<SizeHint> const& hints);
+    REACTIVE_EXPORT StackSizeHint stackSizeHints(std::vector<SizeHint> hints);
 } // namespace reactive
 
