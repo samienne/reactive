@@ -36,6 +36,10 @@
 #include "sweep_context.h"
 #include "sweep.h"
 
+#include <pmr/vector.h>
+#include <pmr/list.h>
+#include <pmr/memory_resource.h>
+
 /**
  *
  * @author Mason Green <mason.green@gmail.com>
@@ -53,7 +57,7 @@ public:
    *
    * @param polyline
    */
-  CDT(std::vector<Point*> polyline);
+  CDT(pmr::vector<Point*> polyline);
 
    /**
    * Destructor - clean up memory
@@ -65,7 +69,7 @@ public:
    *
    * @param polyline
    */
-  void AddHole(const std::vector<Point*>& polyline);
+  void AddHole(const pmr::vector<Point*>& polyline);
 
   /**
    * Add a steiner point
@@ -82,12 +86,12 @@ public:
   /**
    * Get CDT triangles
    */
-  std::vector<Triangle*> GetTriangles();
+  pmr::vector<Triangle*> const& GetTriangles();
 
   /**
    * Get triangle map
    */
-  std::list<Triangle*> GetMap();
+  pmr::list<Triangle*> GetMap();
 
   private:
 

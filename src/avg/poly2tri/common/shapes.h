@@ -33,6 +33,10 @@
 #ifndef SHAPES_H
 #define SHAPES_H
 
+#include <pmr/vector.h>
+#include <pmr/list.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 #include <cstddef>
 #include <assert.h>
@@ -47,17 +51,26 @@ struct Point {
   double x, y;
 
   /// Default constructor does nothing (for performance).
-  Point()
+  Point(pmr::memory_resource* memory) :
+      edge_list(memory)
   {
     x = 0.0;
     y = 0.0;
   }
 
   /// The edges this point constitutes an upper ending point
-  std::vector<Edge*> edge_list;
+  pmr::vector<Edge*> edge_list;
 
   /// Construct using coordinates.
-  Point(double x, double y) : x(x), y(y) {}
+  Point(pmr::memory_resource* memory, double x, double y) :
+      x(x), y(y), edge_list(memory)
+  {
+  }
+
+  pmr::memory_resource* GetResource() const
+  {
+      return edge_list.get_allocator().resource();
+  }
 
   /// Set this point to all zeros.
   void set_zero()
@@ -76,7 +89,7 @@ struct Point {
   /// Negate this point.
   Point operator -() const
   {
-    Point v;
+    Point v(GetResource());
     v.set(-x, -y);
     return v;
   }
@@ -236,19 +249,19 @@ inline bool cmp(const Point* a, const Point* b)
 /// Add two points_ component-wise.
 inline Point operator +(const Point& a, const Point& b)
 {
-  return Point(a.x + b.x, a.y + b.y);
+  return Point(a.GetResource(), a.x + b.x, a.y + b.y);
 }
 
 /// Subtract two points_ component-wise.
 inline Point operator -(const Point& a, const Point& b)
 {
-  return Point(a.x - b.x, a.y - b.y);
+  return Point(a.GetResource(), a.x - b.x, a.y - b.y);
 }
 
 /// Multiply point by scalar
 inline Point operator *(double s, const Point& a)
 {
-  return Point(s * a.x, s * a.y);
+  return Point(a.GetResource(), s * a.x, s * a.y);
 }
 
 inline bool operator ==(const Point& a, const Point& b)
@@ -277,14 +290,14 @@ inline double Cross(const Point& a, const Point& b)
 /// a point.
 inline Point Cross(const Point& a, double s)
 {
-  return Point(s * a.y, -s * a.x);
+  return Point(a.GetResource(), s * a.y, -s * a.x);
 }
 
 /// Perform the cross product on a scalar and a point. In 2D this produces
 /// a point.
 inline Point Cross(double s, const Point& a)
 {
-  return Point(-s * a.y, s * a.x);
+  return Point(a.GetResource(), -s * a.y, s * a.x);
 }
 
 inline Point* Triangle::GetPoint(int index)

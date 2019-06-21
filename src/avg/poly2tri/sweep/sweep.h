@@ -39,6 +39,10 @@
 #ifndef SWEEP_H
 #define SWEEP_H
 
+#include <pmr/vector.h>
+#include <pmr/list.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 
 namespace p2t {
@@ -53,7 +57,7 @@ class Sweep
 {
 public:
 
-  Sweep();
+  explicit Sweep(pmr::memory_resource* memory);
 
   /**
    * Triangulate
@@ -66,6 +70,8 @@ public:
    * Destructor - clean up memory
    */
   ~Sweep();
+
+  pmr::memory_resource* GetResource() const;
 
 private:
 
@@ -278,7 +284,7 @@ private:
 
   void FinalizationPolygon(SweepContext& tcx);
 
-  std::vector<Node*> nodes_;
+  pmr::vector<Node*> nodes_;
   Point* last_point;
 };
 

@@ -402,19 +402,21 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
                 && "Wrong orientation");
 
         //points.clear();
-        std::vector<p2t::Point*> polyline;
+        pmr::vector<p2t::Point*> polyline(memory_);
         assert(node->Contour.front() != node->Contour.back());
 
         size_t pointCount = node->Contour.size();
         for (auto const& child : node->Childs)
             pointCount += child->Contour.size();
 
-        std::vector<p2t::Point> points;
+        pmr::vector<p2t::Point> points(memory_);
         points.reserve(pointCount);
 
         for (auto const& pt : node->Contour)
         {
-            points.push_back(p2t::Point((float)pt.X / xRes,
+            points.push_back(p2t::Point(
+                        memory_,
+                        (float)pt.X / xRes,
                         (float)pt.Y / yRes));
             polyline.push_back(&points.back());
         }
@@ -432,7 +434,9 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
             for (auto const& pt : child->Contour)
             {
                 assert(child->Contour.front() != child->Contour.back());
-                points.push_back(p2t::Point((float)pt.X / xRes,
+                points.push_back(p2t::Point(
+                            memory_,
+                            (float)pt.X / xRes,
                             (float)pt.Y / yRes));
                 polyline.push_back(&points.back());
             }
@@ -447,7 +451,7 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
         //assert(nextPoint <= points.size() && "Too many points");
         cdt.Triangulate();
 
-        std::vector<p2t::Triangle*> triangles = cdt.GetTriangles();
+        pmr::vector<p2t::Triangle*> const& triangles = cdt.GetTriangles();
 
         for (auto const& triangle : triangles)
         {

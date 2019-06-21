@@ -28,7 +28,6 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include <iostream> // tmp dbg
 #include <stdexcept>
 #include "sweep.h"
 #include "sweep_context.h"
@@ -37,7 +36,8 @@
 
 namespace p2t {
 
-Sweep::Sweep() :
+Sweep::Sweep(pmr::memory_resource* memory) :
+    nodes_(memory),
     last_point(0)
 {
 }
@@ -189,12 +189,15 @@ bool Sweep::IsEdgeSideOfTriangle(Triangle& triangle, Point& ep, Point& eq)
 
 Node& Sweep::NewFrontTriangle(SweepContext& tcx, Point& point, Node& node)
 {
-  Triangle* triangle = new Triangle(point, *node.point, *node.next->point);
+  pmr::polymorphic_allocator<char> alloc(GetResource());
+
+  Triangle* triangle = alloc.new_object<Triangle>(point, *node.point,
+          *node.next->point);
 
   triangle->MarkNeighbor(*node.triangle);
   tcx.AddToMap(triangle);
 
-  Node* new_node = new Node(point);
+  Node* new_node = alloc.new_object<Node>(point);
   nodes_.push_back(new_node);
 
   new_node->next = node.next;
@@ -211,7 +214,10 @@ Node& Sweep::NewFrontTriangle(SweepContext& tcx, Point& point, Node& node)
 
 void Sweep::Fill(SweepContext& tcx, Node& node)
 {
-  Triangle* triangle = new Triangle(*node.prev->point, *node.point, *node.next->point);
+  pmr::polymorphic_allocator<char> alloc(GetResource());
+
+  Triangle* triangle = alloc.new_object<Triangle>(*node.prev->point,
+          *node.point, *node.next->point);
 
   // TODO: should copy the constrained_edge value from neighbor triangles
   //       for now constrained_edge values are copied during the legalize
@@ -808,13 +814,20 @@ void Sweep::FlipScanEdgeEvent(SweepContext& tcx, Point& ep, Point& eq, Triangle&
   }
 }
 
-Sweep::~Sweep() {
+Sweep::~Sweep()
+{
+    pmr::polymorphic_allocator<char> alloc(GetResource());
 
     // Clean up memory
     for(size_t i = 0; i < nodes_.size(); i++) {
-        delete nodes_[i];
+        alloc.delete_object<Node>(nodes_[i]);
     }
 
+}
+
+pmr::memory_resource* Sweep::GetResource() const
+{
+    return nodes_.get_allocator().resource();
 }
 
 }
