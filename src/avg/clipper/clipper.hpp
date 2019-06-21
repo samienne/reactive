@@ -49,6 +49,9 @@
 //use_deprecated: Enables temporary support for the obsolete functions
 //#define use_deprecated  
 
+#include <pmr/vector.h>
+#include <pmr/list.h>
+
 #include <vector>
 #include <list>
 #include <set>
@@ -103,8 +106,8 @@ struct IntPoint {
 };
 //------------------------------------------------------------------------------
 
-typedef std::vector< IntPoint > Path;
-typedef std::vector< Path > Paths;
+typedef pmr::vector< IntPoint > Path;
+typedef pmr::vector< Path > Paths;
 
 inline Path& operator <<(Path& poly, const IntPoint& p) {poly.push_back(p); return poly;}
 inline Paths& operator <<(Paths& polys, const Path& p) {polys.push_back(p); return polys;}
@@ -131,12 +134,12 @@ enum JoinType {jtSquare, jtRound, jtMiter};
 enum EndType {etClosedPolygon, etClosedLine, etOpenButt, etOpenSquare, etOpenRound};
 
 class PolyNode;
-typedef std::vector< PolyNode* > PolyNodes;
+typedef pmr::vector< PolyNode* > PolyNodes;
 
-class PolyNode 
-{ 
+class PolyNode
+{
 public:
-    PolyNode();
+    PolyNode(pmr::memory_resource* memory);
     virtual ~PolyNode(){};
     Path Contour;
     PolyNodes Childs;
@@ -145,8 +148,10 @@ public:
     bool IsHole() const;
     bool IsOpen() const;
     int ChildCount() const;
+
+    pmr::memory_resource* GetResource() const;
 private:
-    //PolyNode& operator =(PolyNode& other); 
+    //PolyNode& operator =(PolyNode& other);
     unsigned Index; //node index in Parent.Childs
     bool m_IsOpen;
     JoinType m_jointype;
@@ -154,12 +159,13 @@ private:
     PolyNode* GetNextSiblingUp() const;
     void AddChild(PolyNode& child);
     friend class Clipper; //to access Index
-    friend class ClipperOffset; 
+    friend class ClipperOffset;
 };
 
 class PolyTree: public PolyNode
-{ 
+{
 public:
+    explicit PolyTree(pmr::memory_resource* memory);
     ~PolyTree(){ Clear(); };
     PolyNode* GetFirst() const;
     void Clear();
@@ -174,18 +180,23 @@ bool Orientation(const Path &poly);
 double Area(const Path &poly);
 int PointInPolygon(const IntPoint &pt, const Path &path);
 
-void SimplifyPolygon(const Path &in_poly, Paths &out_polys, PolyFillType fillType = pftEvenOdd);
-void SimplifyPolygons(const Paths &in_polys, Paths &out_polys, PolyFillType fillType = pftEvenOdd);
-void SimplifyPolygons(Paths &polys, PolyFillType fillType = pftEvenOdd);
+void SimplifyPolygon(pmr::memory_resource* memory, const Path &in_poly,
+        Paths &out_polys, PolyFillType fillType = pftEvenOdd);
+void SimplifyPolygons(pmr::memory_resource* memory, const Paths &in_polys,
+        Paths &out_polys, PolyFillType fillType = pftEvenOdd);
+void SimplifyPolygons(pmr::memory_resource* memory, Paths &polys, PolyFillType fillType = pftEvenOdd);
 
 void CleanPolygon(const Path& in_poly, Path& out_poly, double distance = 1.415);
 void CleanPolygon(Path& poly, double distance = 1.415);
 void CleanPolygons(const Paths& in_polys, Paths& out_polys, double distance = 1.415);
 void CleanPolygons(Paths& polys, double distance = 1.415);
 
-void MinkowskiSum(const Path& pattern, const Path& path, Paths& solution, bool pathIsClosed);
-void MinkowskiSum(const Path& pattern, const Paths& paths, Paths& solution, bool pathIsClosed);
-void MinkowskiDiff(const Path& poly1, const Path& poly2, Paths& solution);
+void MinkowskiSum(pmr::memory_resource* memory, const Path& pattern,
+        const Path& path, Paths& solution, bool pathIsClosed);
+void MinkowskiSum(pmr::memory_resource* memory, const Path& pattern,
+        const Paths& paths, Paths& solution, bool pathIsClosed);
+void MinkowskiDiff(pmr::memory_resource* memory, const Path& poly1,
+        const Path& poly2, Paths& solution);
 
 void PolyTreeToPaths(const PolyTree& polytree, Paths& paths);
 void ClosedPathsFromPolyTree(const PolyTree& polytree, Paths& paths);
@@ -207,10 +218,10 @@ struct OutPt;
 struct OutRec;
 struct Join;
 
-typedef std::vector < OutRec* > PolyOutList;
-typedef std::vector < TEdge* > EdgeList;
-typedef std::vector < Join* > JoinList;
-typedef std::vector < IntersectNode* > IntersectList;
+typedef pmr::vector < OutRec* > PolyOutList;
+typedef pmr::vector < TEdge* > EdgeList;
+typedef pmr::vector < Join* > JoinList;
+typedef pmr::vector < IntersectNode* > IntersectList;
 
 //------------------------------------------------------------------------------
 
@@ -220,7 +231,7 @@ typedef std::vector < IntersectNode* > IntersectList;
 class ClipperBase
 {
 public:
-  ClipperBase();
+  ClipperBase(pmr::memory_resource* memory);
   virtual ~ClipperBase();
   virtual bool AddPath(const Path &pg, PolyType PolyTyp, bool Closed);
   bool AddPaths(const Paths &ppg, PolyType PolyTyp, bool Closed);
@@ -244,7 +255,9 @@ protected:
   void DeleteFromAEL(TEdge *e);
   void UpdateEdgeIntoAEL(TEdge *&e);
 
-  typedef std::vector<LocalMinimum> MinimaList;
+  pmr::memory_resource* m_memory;
+
+  typedef pmr::vector<LocalMinimum> MinimaList;
   MinimaList::iterator m_CurrentLM;
   MinimaList           m_MinimaList;
 
@@ -255,7 +268,7 @@ protected:
   PolyOutList       m_PolyOuts;
   TEdge           *m_ActiveEdges;
 
-  typedef std::priority_queue<cInt> ScanbeamList;
+  typedef std::priority_queue<cInt, pmr::vector<cInt>> ScanbeamList;
   ScanbeamList     m_Scanbeam;
 };
 //------------------------------------------------------------------------------
@@ -263,7 +276,7 @@ protected:
 class Clipper : public virtual ClipperBase
 {
 public:
-  Clipper(int initOptions = 0);
+  Clipper(pmr::memory_resource* memory, int initOptions = 0);
   bool Execute(ClipType clipType,
       Paths &solution,
       PolyFillType fillType = pftEvenOdd);
@@ -360,7 +373,8 @@ private:
 class ClipperOffset 
 {
 public:
-  ClipperOffset(double miterLimit = 2.0, double roundPrecision = 0.25);
+  ClipperOffset(pmr::memory_resource* memory,
+          double miterLimit = 2.0, double roundPrecision = 0.25);
   ~ClipperOffset();
   void AddPath(const Path& path, JoinType joinType, EndType endType);
   void AddPaths(const Paths& paths, JoinType joinType, EndType endType);
@@ -370,10 +384,11 @@ public:
   double MiterLimit;
   double ArcTolerance;
 private:
+  pmr::memory_resource* m_memory;
   Paths m_destPolys;
   Path m_srcPoly;
   Path m_destPoly;
-  std::vector<DoublePoint> m_normals;
+  pmr::vector<DoublePoint> m_normals;
   double m_delta, m_sinA, m_sin, m_cos;
   double m_miterLim, m_StepsPerRad;
   IntPoint m_lowest;

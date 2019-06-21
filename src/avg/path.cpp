@@ -429,23 +429,24 @@ bool Path::isEmpty() const
     return !d() || d()->segments_.empty();
 }
 
-Region Path::fillRegion(FillRule rule, Vector2f pixelSize,
-        size_t resPerPixel) const
+Region Path::fillRegion(pmr::memory_resource* memory,
+        FillRule rule, Vector2f pixelSize, size_t resPerPixel) const
 {
     std::vector<SimplePolygon> polygons = d()->toSimplePolygons(transform_,
             pixelSize, resPerPixel);
 
-    return avg::Region(std::move(polygons), rule, pixelSize, resPerPixel);
+    return avg::Region(memory, std::move(polygons), rule, pixelSize,
+            resPerPixel);
 }
 
-Region Path::offsetRegion(JoinType join, EndType end, float width,
-        Vector2f pixelSize, size_t resPerPixel) const
+Region Path::offsetRegion(pmr::memory_resource* memory, JoinType join,
+        EndType end, float width, Vector2f pixelSize, size_t resPerPixel) const
 {
     std::vector<SimplePolygon> polygons = d()->toSimplePolygons(transform_,
             pixelSize, resPerPixel);
 
-    return avg::Region(std::move(polygons), join, end, width, pixelSize,
-            resPerPixel);
+    return avg::Region(memory, std::move(polygons), join, end, width,
+            pixelSize, resPerPixel);
 }
 
 Rect Path::getControlBb() const

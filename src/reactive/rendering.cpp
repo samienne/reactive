@@ -22,6 +22,9 @@
 #include <btl/hash.h>
 #include <btl/option.h>
 
+#include <pmr/monotonic_buffer_resource.h>
+#include <pmr/new_delete_resource.h>
+
 namespace reactive
 {
 
@@ -92,28 +95,29 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
     return avg::SoftMesh(std::move(vertices), brush);
 }
 
-avg::SoftMesh generateMesh(avg::Path const& path,
-        avg::Brush const& brush, ase::Vector2f pixelSize, int resPerPixel,
+avg::SoftMesh generateMesh(pmr::memory_resource* memory,
+        avg::Path const& path, avg::Brush const& brush,
+        ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    avg::Region region = path.fillRegion(avg::FILL_EVENODD,
+    avg::Region region = path.fillRegion(memory, avg::FILL_EVENODD,
             pixelSize, resPerPixel);
 
     return generateMesh(region, brush, r, clip);
 }
 
-avg::SoftMesh generateMesh(avg::Path const& path, avg::Pen const& pen,
-        ase::Vector2f pixelSize, int resPerPixel,
+avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
+        avg::Pen const& pen, ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    avg::Region region = path.offsetRegion(pen.getJoinType(), pen.getEndType(),
-            pen.getWidth(), pixelSize, resPerPixel);
+    avg::Region region = path.offsetRegion(memory, pen.getJoinType(),
+            pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);
 
     return generateMesh(region, pen.getBrush(), r, clip);
 }
 
-std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
-        ase::Vector2f pixelSize, int resPerPixel,
+std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
+        avg::Shape const& shape, ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
     auto const& path = shape.getPath();
@@ -128,8 +132,8 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
     if (brush.valid())
     {
         bool needClip = !path.getControlBb().isFullyContainedIn(r);
-        result.push_back(generateMesh(path, *brush, pixelSize, resPerPixel,
-                    r, clip && needClip));
+        result.push_back(generateMesh(memory, path, *brush, pixelSize,
+                    resPerPixel, r, clip && needClip));
     }
 
     if (pen.valid())
@@ -137,8 +141,8 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Shape const& shape,
         avg::Rect penRect = path.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
 
-        result.push_back(generateMesh(path, *pen, pixelSize, resPerPixel,
-                    r, clip && needClip));
+        result.push_back(generateMesh(memory, path, *pen, pixelSize,
+                    resPerPixel, r, clip && needClip));
     }
 
     return result;
@@ -166,8 +170,8 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
-std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
-        avg::Transform const& transform,
+std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
+        avg::Painter const& painter, avg::Transform const& transform,
         std::vector<avg::Drawing::Element> const& elements,
         avg::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& rect, bool clip)
@@ -191,7 +195,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
         if (element.is<avg::Shape>())
         {
             auto const& shape = element.get<avg::Shape>();
-            elementMeshes = generateMeshes(shape, newPixelSize,
+            elementMeshes = generateMeshes(memory, shape, newPixelSize,
                     resPerPixel, rect, clip);
         }
         else if (element.is<avg::TextEntry>())
@@ -204,6 +208,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
                 .setPen(text.getPen());
 
             elementMeshes = generateMeshes(
+                    memory,
                     text.getTransform() * shape,
                     newPixelSize, resPerPixel, rect, clip
                     );
@@ -222,6 +227,7 @@ std::vector<avg::SoftMesh> generateMeshes(avg::Painter const& painter,
                 ;
 
             elementMeshes = generateMeshes(
+                    memory,
                     painter,
                     clipElement.transform,
                     clipElement.subDrawing->elements,
@@ -314,6 +320,96 @@ std::vector<Element> generateElements(avg::Painter const& painter,
 
 } // anonymous namespace
 
+class TraceResource : public pmr::memory_resource
+{
+public:
+    TraceResource(pmr::memory_resource* upstream) :
+        upstream_(upstream)
+    {
+    }
+
+    ~TraceResource()
+    {
+        //assert(allocations_.empty());
+    }
+
+    std::size_t getAllocationCount() const
+    {
+        return allocationCount_;
+    }
+
+    std::size_t getTotalAllocation() const
+    {
+        return totalAllocation_;
+    }
+
+private:
+    void* do_allocate(std::size_t size, std::size_t alignment) override
+    {
+        totalAllocation_ += size;
+        allocationCount_ += 1;
+
+        void* p = upstream_->allocate(size, alignment);
+        allocations_.push_back(Allocation{ p, size, alignment });
+
+        return p;
+    }
+
+    void do_deallocate(void* p, std::size_t size, std::size_t alignment) override
+    {
+        bool found = false;
+        for (auto i = allocations_.begin(); i != allocations_.end(); ++i)
+        {
+            Allocation& a = *i;
+            if (a.p == p)
+            {
+                if (a.size != size)
+                {
+                    std::cout << "size mismatch: " << a.size << " != " << size
+                        << std::endl;
+                }
+
+                if (a.alignment != alignment)
+                {
+                    std::cout << "alignment mismatch: "
+                        << a.alignment << " != " << alignment << std::endl;
+                }
+
+                assert(a.size == size && a.alignment == alignment);
+                found = true;
+                allocations_.erase(i);
+                break;
+            }
+        }
+
+        //assert(found);
+        if (!found)
+        {
+            std::cout << "didn't find allocation " << p << std::endl;
+        }
+
+        return upstream_->deallocate(p, size, alignment);
+    }
+
+    bool do_is_equal(memory_resource const& rhs) const override
+    {
+        return this == &rhs;
+    }
+
+    memory_resource* upstream_;
+
+    struct Allocation
+    {
+        void* p;
+        std::size_t size;
+        std::size_t alignment;
+    };
+
+    std::vector<Allocation> allocations_;
+    std::size_t allocationCount_ = 0;
+    std::size_t totalAllocation_ = 0;
+};
+
 void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::Framebuffer& framebuffer, ase::Vector2i size,
         avg::Painter const& painter, avg::Drawing const& drawing)
@@ -327,13 +423,23 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             sizef
             );
 
-    auto meshes = generateMeshes(painter, avg::Transform(),
+    pmr::monotonic_buffer_resource mono(2500000, pmr::new_delete_resource());
+    //TraceResource tr(&mono);
+    pmr::memory_resource* memory = &mono;
+    //pmr::memory_resource* memory = pmr::new_delete_resource();
+
+    auto meshes = generateMeshes(memory, painter, avg::Transform(),
             drawing.getElements(), pixelSize, resPerPixel, rect, false);
 
     auto elements = generateElements(painter, meshes);
 
     renderElements(commandBuffer, context, framebuffer, painter,
             std::move(elements));
+
+    /*
+    std::cout << tr.getAllocationCount() << " "
+        << tr.getTotalAllocation() << " bytes" << std::endl;
+        */
 }
 
 } // namespace

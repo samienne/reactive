@@ -6,6 +6,8 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <pmr/memory_resource.h>
+
 #include <vector>
 #include <memory>
 #include <stdint.h>
@@ -20,11 +22,13 @@ namespace avg
     class AVG_EXPORT Region
     {
     public:
-        Region();
+        Region(pmr::memory_resource* memory);
 
-        Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
+        Region(pmr::memory_resource* memory,
+                std::vector<SimplePolygon> const& polygons, FillRule rule,
                 Vector2f pixelSize, size_t resPerPixel);
-        Region(std::vector<SimplePolygon> const& polygons, JoinType join,
+        Region(pmr::memory_resource* memory,
+                std::vector<SimplePolygon> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
                 size_t resPerPixel);
         Region(Region const&) = default;
@@ -57,6 +61,8 @@ namespace avg
 
         inline RegionDeferred* d() { return deferred_.get(); }
         inline RegionDeferred const* d() const { return deferred_.get(); }
+
+        pmr::memory_resource* memory_;
         std::shared_ptr<RegionDeferred> deferred_;
     };
 }

@@ -11,6 +11,8 @@
 
 #include <btl/hash.h>
 
+#include <pmr/memory_resource.h>
+
 #include <vector>
 #include <memory>
 
@@ -49,10 +51,11 @@ namespace avg
 
         bool isEmpty() const;
 
-        Region fillRegion(FillRule rule, Vector2f pixelSize,
-                size_t resPerPixel = 100) const;
-        Region offsetRegion(JoinType join, EndType end, float width,
+        Region fillRegion(pmr::memory_resource* memory, FillRule rule,
                 Vector2f pixelSize, size_t resPerPixel = 100) const;
+        Region offsetRegion(pmr::memory_resource* memory, JoinType join,
+                EndType end, float width, Vector2f pixelSize,
+                size_t resPerPixel = 100) const;
 
         Rect getControlBb() const;
         Obb getControlObb() const;

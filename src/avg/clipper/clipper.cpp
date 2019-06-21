@@ -151,12 +151,20 @@ inline cInt Abs(cInt val)
 
 void PolyTree::Clear()
 {
+    pmr::polymorphic_allocator<char> alloc(GetResource());
+
     for (PolyNodes::size_type i = 0; i < AllNodes.size(); ++i)
-      delete AllNodes[i];
-    AllNodes.resize(0); 
+      alloc.delete_object(AllNodes[i]);
+    AllNodes.resize(0);
     Childs.resize(0);
 }
 //------------------------------------------------------------------------------
+
+PolyTree::PolyTree(pmr::memory_resource* memory) :
+    PolyNode(memory),
+    AllNodes(memory)
+{
+}
 
 PolyNode* PolyTree::GetFirst() const
 {
@@ -179,7 +187,12 @@ int PolyTree::Total() const
 // PolyNode methods ...
 //------------------------------------------------------------------------------
 
-PolyNode::PolyNode(): Parent(0), Index(0), m_IsOpen(false)
+PolyNode::PolyNode(pmr::memory_resource* memory) :
+    Contour(memory),
+    Childs(memory),
+    Parent(0),
+    Index(0),
+    m_IsOpen(false)
 {
 }
 //------------------------------------------------------------------------------
@@ -189,6 +202,11 @@ int PolyNode::ChildCount() const
   return (int)Childs.size();
 }
 //------------------------------------------------------------------------------
+
+pmr::memory_resource* PolyNode::GetResource() const
+{
+    return Contour.get_allocator().resource();
+}
 
 void PolyNode::AddChild(PolyNode& child)
 {
@@ -703,15 +721,17 @@ void ReversePolyPtLinks(OutPt *pp)
 }
 //------------------------------------------------------------------------------
 
-void DisposeOutPts(OutPt*& pp)
+void DisposeOutPts(pmr::memory_resource* memory, OutPt*& pp)
 {
+  pmr::polymorphic_allocator<char> alloc(memory);
+
   if (pp == 0) return;
     pp->Prev->Next = 0;
   while( pp )
   {
     OutPt *tmpPp = pp;
     pp = pp->Next;
-    delete tmpPp;
+    alloc.delete_object<OutPt>(tmpPp);
   }
 }
 //------------------------------------------------------------------------------
@@ -880,7 +900,12 @@ bool HorzSegmentsOverlap(cInt seg1a, cInt seg1b, cInt seg2a, cInt seg2b)
 // ClipperBase class methods ...
 //------------------------------------------------------------------------------
 
-ClipperBase::ClipperBase() //constructor
+ClipperBase::ClipperBase(pmr::memory_resource* memory) :
+    m_memory(memory),
+    m_MinimaList(memory),
+    m_edges(memory),
+    m_PolyOuts(memory),
+    m_Scanbeam(pmr::polymorphic_allocator<cInt>(memory))
 {
   m_CurrentLM = m_MinimaList.begin(); //begin() == end() here
   m_UseFullRange = false;
@@ -1044,6 +1069,8 @@ TEdge* ClipperBase::ProcessBound(TEdge* E, bool NextIsForward)
 
 bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
 #ifdef use_lines
   if (!Closed && PolyTyp == ptClip)
     throw clipperException("AddPath: Open paths must be subject.");
@@ -1058,7 +1085,8 @@ bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
   if ((Closed && highI < 2) || (!Closed && highI < 1)) return false;
 
   //create a new edge array ...
-  TEdge *edges = new TEdge [highI +1];
+  int edgeArraySize = highI + 1;
+  TEdge *edges = alloc.allocate_object<TEdge>(edgeArraySize);
 
   bool IsFlat = true;
   //1. Basic (first) edge initialization ...
@@ -1077,7 +1105,7 @@ bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
   }
   catch(...)
   {
-    delete [] edges;
+    alloc.deallocate_object<TEdge>(edges, edgeArraySize);
     throw; //range test fails
   }
   TEdge *eStart = &edges[0];
@@ -1118,7 +1146,7 @@ bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
 
   if ((!Closed && (E == E->Next)) || (Closed && (E->Prev == E->Next)))
   {
-    delete [] edges;
+    alloc.deallocate_object(edges, edgeArraySize);
     return false;
   }
 
@@ -1146,7 +1174,7 @@ bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
   {
     if (Closed) 
     {
-      delete [] edges;
+      alloc.deallocate_object(edges, edgeArraySize);
       return false;
     }
     E->Prev->OutIdx = Skip;
@@ -1233,11 +1261,15 @@ bool ClipperBase::AddPaths(const Paths &ppg, PolyType PolyTyp, bool Closed)
 void ClipperBase::Clear()
 {
   DisposeLocalMinimaList();
+
+  /* TODO dealloc properly
   for (EdgeList::size_type i = 0; i < m_edges.size(); ++i)
   {
     TEdge* edges = m_edges[i];
     delete [] edges;
   }
+  */
+
   m_edges.clear();
   m_UseFullRange = false;
   m_HasOpenPaths = false;
@@ -1250,7 +1282,9 @@ void ClipperBase::Reset()
   if (m_CurrentLM == m_MinimaList.end()) return; //ie nothing to process
   std::sort(m_MinimaList.begin(), m_MinimaList.end(), LocMinSorter());
 
-  m_Scanbeam = ScanbeamList(); //clears/resets priority_queue
+  //clears/resets priority_queue
+  m_Scanbeam = ScanbeamList(pmr::polymorphic_allocator<cInt>(m_memory));
+
   //reset all edges ...
   for (MinimaList::iterator lm = m_MinimaList.begin(); lm != m_MinimaList.end(); ++lm)
   {
@@ -1357,9 +1391,11 @@ void ClipperBase::DisposeAllOutRecs(){
 
 void ClipperBase::DisposeOutRec(PolyOutList::size_type index)
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   OutRec *outRec = m_PolyOuts[index];
-  if (outRec->Pts) DisposeOutPts(outRec->Pts);
-  delete outRec;
+  if (outRec->Pts) DisposeOutPts(m_memory, outRec->Pts);
+  alloc.delete_object<OutRec>(outRec);
   m_PolyOuts[index] = 0;
 }
 //------------------------------------------------------------------------------
@@ -1379,7 +1415,9 @@ void ClipperBase::DeleteFromAEL(TEdge *e)
 
 OutRec* ClipperBase::CreateOutRec()
 {
-  OutRec* result = new OutRec;
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
+  OutRec* result = alloc.new_object<OutRec>();
   result->IsHole = false;
   result->IsOpen = false;
   result->FirstLeft = 0;
@@ -1471,7 +1509,11 @@ bool ClipperBase::LocalMinimaPending()
 // TClipper methods ...
 //------------------------------------------------------------------------------
 
-Clipper::Clipper(int initOptions) : ClipperBase() //constructor
+Clipper::Clipper(pmr::memory_resource* memory, int initOptions) :
+    ClipperBase(memory), //constructor
+    m_Joins(memory),
+    m_GhostJoins(memory),
+    m_IntersectList(memory)
 {
   m_ExecuteLocked = false;
   m_UseFullRange = false;
@@ -1512,7 +1554,7 @@ bool Clipper::Execute(ClipType clipType, Paths &solution,
   if (m_HasOpenPaths)
     throw clipperException("Error: PolyTree struct is needed for open path clipping.");
   m_ExecuteLocked = true;
-  solution.resize(0);
+  solution.clear();
   m_SubjFillType = subjFillType;
   m_ClipFillType = clipFillType;
   m_ClipType = clipType;
@@ -1941,7 +1983,9 @@ void Clipper::CopyAELToSEL()
 
 void Clipper::AddJoin(OutPt *op1, OutPt *op2, const IntPoint OffPt)
 {
-  Join* j = new Join;
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
+  Join* j = alloc.new_object<Join>();
   j->OutPt1 = op1;
   j->OutPt2 = op2;
   j->OffPt = OffPt;
@@ -1951,23 +1995,30 @@ void Clipper::AddJoin(OutPt *op1, OutPt *op2, const IntPoint OffPt)
 
 void Clipper::ClearJoins()
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   for (JoinList::size_type i = 0; i < m_Joins.size(); i++)
-    delete m_Joins[i];
+    alloc.delete_object(m_Joins[i]);
+
   m_Joins.resize(0);
 }
 //------------------------------------------------------------------------------
 
 void Clipper::ClearGhostJoins()
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   for (JoinList::size_type i = 0; i < m_GhostJoins.size(); i++)
-    delete m_GhostJoins[i];
+    alloc.delete_object(m_GhostJoins[i]);
   m_GhostJoins.resize(0);
 }
 //------------------------------------------------------------------------------
 
 void Clipper::AddGhostJoin(OutPt *op, const IntPoint OffPt)
 {
-  Join* j = new Join;
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
+  Join* j = alloc.new_object<Join>();
   j->OutPt1 = op;
   j->OutPt2 = 0;
   j->OffPt = OffPt;
@@ -1982,7 +2033,7 @@ void Clipper::InsertLocalMinimaIntoAEL(const cInt botY)
   {
     TEdge* lb = lm->LeftBound;
     TEdge* rb = lm->RightBound;
-    
+
     OutPt *Op1 = 0;
     if (!lb)
     {
@@ -2462,11 +2513,13 @@ void Clipper::AppendPolygon(TEdge *e1, TEdge *e2)
 
 OutPt* Clipper::AddOutPt(TEdge *e, const IntPoint &pt)
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   if(  e->OutIdx < 0 )
   {
     OutRec *outRec = CreateOutRec();
     outRec->IsOpen = (e->WindDelta == 0);
-    OutPt* newOp = new OutPt;
+    OutPt* newOp = alloc.new_object<OutPt>();
     outRec->Pts = newOp;
     newOp->Idx = outRec->Idx;
     newOp->Pt = pt;
@@ -2486,7 +2539,7 @@ OutPt* Clipper::AddOutPt(TEdge *e, const IntPoint &pt)
 	if (ToFront && (pt == op->Pt)) return op;
     else if (!ToFront && (pt == op->Prev->Pt)) return op->Prev;
 
-    OutPt* newOp = new OutPt;
+    OutPt* newOp = alloc.new_object<OutPt>();
     newOp->Idx = outRec->Idx;
     newOp->Pt = pt;
     newOp->Next = op;
@@ -2847,14 +2900,18 @@ bool Clipper::ProcessIntersections(const cInt topY)
 
 void Clipper::DisposeIntersectNodes()
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   for (size_t i = 0; i < m_IntersectList.size(); ++i )
-    delete m_IntersectList[i];
+    alloc.delete_object<IntersectNode>(m_IntersectList[i]);
   m_IntersectList.clear();
 }
 //------------------------------------------------------------------------------
 
 void Clipper::BuildIntersectList(const cInt topY)
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   if ( !m_ActiveEdges ) return;
 
   //prepare for sorting ...
@@ -2882,7 +2939,7 @@ void Clipper::BuildIntersectList(const cInt topY)
       {
         IntersectPoint(*e, *eNext, Pt);
         if (Pt.Y < topY) Pt = IntPoint(TopX(*e, topY), topY);
-        IntersectNode * newNode = new IntersectNode;
+        IntersectNode * newNode = alloc.new_object<IntersectNode>();
         newNode->Edge1 = e;
         newNode->Edge2 = eNext;
         newNode->Pt = Pt;
@@ -2905,6 +2962,8 @@ void Clipper::BuildIntersectList(const cInt topY)
 
 void Clipper::ProcessIntersectList()
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   for (size_t i = 0; i < m_IntersectList.size(); ++i)
   {
     IntersectNode* iNode = m_IntersectList[i];
@@ -2912,7 +2971,7 @@ void Clipper::ProcessIntersectList()
       IntersectEdges( iNode->Edge1, iNode->Edge2, iNode->Pt);
       SwapPositionsInAEL( iNode->Edge1 , iNode->Edge2 );
     }
-    delete iNode;
+    alloc.delete_object<IntersectNode>(iNode);
   }
   m_IntersectList.clear();
 }
@@ -3115,6 +3174,8 @@ void Clipper::ProcessEdgesAtTopOfScanbeam(const cInt topY)
 
 void Clipper::FixupOutPolyline(OutRec &outrec)
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   OutPt *pp = outrec.Pts;
   OutPt *lastPP = pp->Prev;
   while (pp != lastPP)
@@ -3126,14 +3187,14 @@ void Clipper::FixupOutPolyline(OutRec &outrec)
       OutPt *tmpPP = pp->Prev;
       tmpPP->Next = pp->Next;
       pp->Next->Prev = tmpPP;
-      delete pp;
+      alloc.delete_object<OutPt>(pp);
       pp = tmpPP;
     }
   }
 
   if (pp == pp->Prev)
   {
-    DisposeOutPts(pp);
+    DisposeOutPts(m_memory, pp);
     outrec.Pts = 0;
     return;
   }
@@ -3142,6 +3203,8 @@ void Clipper::FixupOutPolyline(OutRec &outrec)
 
 void Clipper::FixupOutPolygon(OutRec &outrec)
 {
+    pmr::polymorphic_allocator<char> alloc(m_memory);
+
     //FixupOutPolygon() - removes duplicate points and simplifies consecutive
     //parallel edges by removing the middle vertex.
     OutPt *lastOK = 0;
@@ -3153,7 +3216,7 @@ void Clipper::FixupOutPolygon(OutRec &outrec)
     {
         if (pp->Prev == pp || pp->Prev == pp->Next)
         {
-            DisposeOutPts(pp);
+            DisposeOutPts(m_memory, pp);
             outrec.Pts = 0;
             return;
         }
@@ -3168,7 +3231,7 @@ void Clipper::FixupOutPolygon(OutRec &outrec)
             pp->Prev->Next = pp->Next;
             pp->Next->Prev = pp->Prev;
             pp = pp->Prev;
-            delete tmp;
+            alloc.delete_object<OutPt>(tmp);
         }
         else if (pp == lastOK) break;
         else
@@ -3202,7 +3265,7 @@ void Clipper::BuildResult(Paths &polys)
   for (PolyOutList::size_type i = 0; i < m_PolyOuts.size(); ++i)
   {
     if (!m_PolyOuts[i]->Pts) continue;
-    Path pg;
+    Path pg(m_memory);
     OutPt* p = m_PolyOuts[i]->Pts->Prev;
     int cnt = PointCount(p);
     if (cnt < 2) continue;
@@ -3219,6 +3282,8 @@ void Clipper::BuildResult(Paths &polys)
 
 void Clipper::BuildResult2(PolyTree& polytree)
 {
+    pmr::polymorphic_allocator alloc(m_memory);
+
     polytree.Clear();
     polytree.AllNodes.reserve(m_PolyOuts.size());
     //add each output polygon/contour to polytree ...
@@ -3228,7 +3293,7 @@ void Clipper::BuildResult2(PolyTree& polytree)
         int cnt = PointCount(outRec->Pts);
         if ((outRec->IsOpen && cnt < 2) || (!outRec->IsOpen && cnt < 3)) continue;
         FixHoleLinkage(*outRec);
-        PolyNode* pn = new PolyNode();
+        PolyNode* pn = alloc.new_object<PolyNode>(m_memory);
         //nb: polytree takes ownership of all the PolyNodes
         polytree.AllNodes.push_back(pn);
         outRec->PolyNd = pn;
@@ -3345,9 +3410,11 @@ void Clipper::InsertEdgeIntoAEL(TEdge *edge, TEdge* startEdge)
 }
 //----------------------------------------------------------------------
 
-OutPt* DupOutPt(OutPt* outPt, bool InsertAfter)
+OutPt* DupOutPt(pmr::memory_resource* memory, OutPt* outPt, bool InsertAfter)
 {
-  OutPt* result = new OutPt;
+  pmr::polymorphic_allocator<char> alloc(memory);
+
+  OutPt* result = alloc.new_object<OutPt>();
   result->Pt = outPt->Pt;
   result->Idx = outPt->Idx;
   if (InsertAfter)
@@ -3368,8 +3435,8 @@ OutPt* DupOutPt(OutPt* outPt, bool InsertAfter)
 }
 //------------------------------------------------------------------------------
 
-bool JoinHorz(OutPt* op1, OutPt* op1b, OutPt* op2, OutPt* op2b,
-  const IntPoint Pt, bool DiscardLeft)
+bool JoinHorz(pmr::memory_resource* memory, OutPt* op1, OutPt* op1b,
+        OutPt* op2, OutPt* op2b, const IntPoint Pt, bool DiscardLeft)
 {
   Direction Dir1 = (op1->Pt.X > op1b->Pt.X ? dRightToLeft : dLeftToRight);
   Direction Dir2 = (op2->Pt.X > op2b->Pt.X ? dRightToLeft : dLeftToRight);
@@ -3386,12 +3453,12 @@ bool JoinHorz(OutPt* op1, OutPt* op1b, OutPt* op2, OutPt* op2b,
       op1->Next->Pt.X >= op1->Pt.X && op1->Next->Pt.Y == Pt.Y)  
         op1 = op1->Next;
     if (DiscardLeft && (op1->Pt.X != Pt.X)) op1 = op1->Next;
-    op1b = DupOutPt(op1, !DiscardLeft);
+    op1b = DupOutPt(memory, op1, !DiscardLeft);
     if (op1b->Pt != Pt) 
     {
       op1 = op1b;
       op1->Pt = Pt;
-      op1b = DupOutPt(op1, !DiscardLeft);
+      op1b = DupOutPt(memory, op1, !DiscardLeft);
     }
   } 
   else
@@ -3400,12 +3467,12 @@ bool JoinHorz(OutPt* op1, OutPt* op1b, OutPt* op2, OutPt* op2b,
       op1->Next->Pt.X <= op1->Pt.X && op1->Next->Pt.Y == Pt.Y) 
         op1 = op1->Next;
     if (!DiscardLeft && (op1->Pt.X != Pt.X)) op1 = op1->Next;
-    op1b = DupOutPt(op1, DiscardLeft);
+    op1b = DupOutPt(memory, op1, DiscardLeft);
     if (op1b->Pt != Pt)
     {
       op1 = op1b;
       op1->Pt = Pt;
-      op1b = DupOutPt(op1, DiscardLeft);
+      op1b = DupOutPt(memory, op1, DiscardLeft);
     }
   }
 
@@ -3415,12 +3482,12 @@ bool JoinHorz(OutPt* op1, OutPt* op1b, OutPt* op2, OutPt* op2b,
       op2->Next->Pt.X >= op2->Pt.X && op2->Next->Pt.Y == Pt.Y)
         op2 = op2->Next;
     if (DiscardLeft && (op2->Pt.X != Pt.X)) op2 = op2->Next;
-    op2b = DupOutPt(op2, !DiscardLeft);
+    op2b = DupOutPt(memory, op2, !DiscardLeft);
     if (op2b->Pt != Pt)
     {
       op2 = op2b;
       op2->Pt = Pt;
-      op2b = DupOutPt(op2, !DiscardLeft);
+      op2b = DupOutPt(memory, op2, !DiscardLeft);
     };
   } else
   {
@@ -3428,12 +3495,12 @@ bool JoinHorz(OutPt* op1, OutPt* op1b, OutPt* op2, OutPt* op2b,
       op2->Next->Pt.X <= op2->Pt.X && op2->Next->Pt.Y == Pt.Y) 
         op2 = op2->Next;
     if (!DiscardLeft && (op2->Pt.X != Pt.X)) op2 = op2->Next;
-    op2b = DupOutPt(op2, DiscardLeft);
+    op2b = DupOutPt(memory, op2, DiscardLeft);
     if (op2b->Pt != Pt)
     {
       op2 = op2b;
       op2->Pt = Pt;
-      op2b = DupOutPt(op2, DiscardLeft);
+      op2b = DupOutPt(memory, op2, DiscardLeft);
     };
   };
 
@@ -3485,8 +3552,8 @@ bool Clipper::JoinPoints(Join *j, OutRec* outRec1, OutRec* outRec2)
     if (reverse1 == reverse2) return false;
     if (reverse1)
     {
-      op1b = DupOutPt(op1, false);
-      op2b = DupOutPt(op2, true);
+      op1b = DupOutPt(m_memory, op1, false);
+      op2b = DupOutPt(m_memory, op2, true);
       op1->Prev = op2;
       op2->Next = op1;
       op1b->Next = op2b;
@@ -3496,8 +3563,8 @@ bool Clipper::JoinPoints(Join *j, OutRec* outRec1, OutRec* outRec2)
       return true;
     } else
     {
-      op1b = DupOutPt(op1, true);
-      op2b = DupOutPt(op2, false);
+      op1b = DupOutPt(m_memory, op1, true);
+      op2b = DupOutPt(m_memory, op2, false);
       op1->Next = op2;
       op2->Prev = op1;
       op1b->Prev = op2b;
@@ -3553,7 +3620,7 @@ bool Clipper::JoinPoints(Join *j, OutRec* outRec1, OutRec* outRec2)
       Pt = op2b->Pt; DiscardLeftSide = (op2b->Pt.X > op2->Pt.X);
     }
     j->OutPt1 = op1; j->OutPt2 = op2;
-    return JoinHorz(op1, op1b, op2, op2b, Pt, DiscardLeftSide);
+    return JoinHorz(m_memory, op1, op1b, op2, op2b, Pt, DiscardLeftSide);
   } else
   {
     //nb: For non-horizontal joins ...
@@ -3589,8 +3656,8 @@ bool Clipper::JoinPoints(Join *j, OutRec* outRec1, OutRec* outRec2)
 
     if (Reverse1)
     {
-      op1b = DupOutPt(op1, false);
-      op2b = DupOutPt(op2, true);
+      op1b = DupOutPt(m_memory, op1, false);
+      op2b = DupOutPt(m_memory, op2, true);
       op1->Prev = op2;
       op2->Next = op1;
       op1b->Next = op2b;
@@ -3600,8 +3667,8 @@ bool Clipper::JoinPoints(Join *j, OutRec* outRec1, OutRec* outRec2)
       return true;
     } else
     {
-      op1b = DupOutPt(op1, true);
-      op2b = DupOutPt(op2, false);
+      op1b = DupOutPt(m_memory, op1, true);
+      op2b = DupOutPt(m_memory, op2, false);
       op1->Next = op2;
       op2->Prev = op1;
       op1b->Prev = op2b;
@@ -3783,7 +3850,14 @@ DoublePoint GetUnitNormal(const IntPoint &pt1, const IntPoint &pt2)
 // ClipperOffset class
 //------------------------------------------------------------------------------
 
-ClipperOffset::ClipperOffset(double miterLimit, double arcTolerance)
+ClipperOffset::ClipperOffset(pmr::memory_resource* memory,
+        double miterLimit, double arcTolerance) :
+    m_memory(memory),
+    m_destPolys(memory),
+    m_srcPoly(memory),
+    m_destPoly(memory),
+    m_normals(memory),
+    m_polyNodes(memory)
 {
   this->MiterLimit = miterLimit;
   this->ArcTolerance = arcTolerance;
@@ -3799,8 +3873,10 @@ ClipperOffset::~ClipperOffset()
 
 void ClipperOffset::Clear()
 {
+  pmr::polymorphic_allocator alloc(m_memory);
+
   for (int i = 0; i < m_polyNodes.ChildCount(); ++i)
-    delete m_polyNodes.Childs[i];
+    alloc.delete_object<PolyNode>(m_polyNodes.Childs[i]);
   m_polyNodes.Childs.clear();
   m_lowest.X = -1;
 }
@@ -3808,9 +3884,11 @@ void ClipperOffset::Clear()
 
 void ClipperOffset::AddPath(const Path& path, JoinType joinType, EndType endType)
 {
+  pmr::polymorphic_allocator alloc(m_memory);
+
   int highI = (int)path.size() - 1;
   if (highI < 0) return;
-  PolyNode* newNode = new PolyNode();
+  PolyNode* newNode = alloc.new_object<PolyNode>(m_memory);
   newNode->m_jointype = joinType;
   newNode->m_endtype = endType;
 
@@ -3831,7 +3909,7 @@ void ClipperOffset::AddPath(const Path& path, JoinType joinType, EndType endType
     }
   if (endType == etClosedPolygon && j < 2)
   {
-    delete newNode;
+    alloc.delete_object<PolyNode>(newNode);
     return;
   }
   m_polyNodes.AddChild(*newNode);
@@ -3891,7 +3969,7 @@ void ClipperOffset::Execute(Paths& solution, double delta)
   DoOffset(delta);
   
   //now clean up 'corners' ...
-  Clipper clpr;
+  Clipper clpr(m_memory);
   clpr.AddPaths(m_destPolys, ptSubject, true);
   if (delta > 0)
   {
@@ -3900,7 +3978,7 @@ void ClipperOffset::Execute(Paths& solution, double delta)
   else
   {
     IntRect r = clpr.GetBounds();
-    Path outer(4);
+    Path outer(4, m_memory);
     outer[0] = IntPoint(r.left - 10, r.bottom + 10);
     outer[1] = IntPoint(r.right + 10, r.bottom + 10);
     outer[2] = IntPoint(r.right + 10, r.top - 10);
@@ -3921,7 +3999,7 @@ void ClipperOffset::Execute(PolyTree& solution, double delta)
   DoOffset(delta);
 
   //now clean up 'corners' ...
-  Clipper clpr;
+  Clipper clpr(m_memory);
   clpr.AddPaths(m_destPolys, ptSubject, true);
   if (delta > 0)
   {
@@ -3930,7 +4008,7 @@ void ClipperOffset::Execute(PolyTree& solution, double delta)
   else
   {
     IntRect r = clpr.GetBounds();
-    Path outer(4);
+    Path outer(4, m_memory);
     outer[0] = IntPoint(r.left - 10, r.bottom + 10);
     outer[1] = IntPoint(r.right + 10, r.bottom + 10);
     outer[2] = IntPoint(r.right + 10, r.top - 10);
@@ -4293,27 +4371,30 @@ void ReversePaths(Paths& p)
 }
 //------------------------------------------------------------------------------
 
-void SimplifyPolygon(const Path &in_poly, Paths &out_polys, PolyFillType fillType)
+void SimplifyPolygon(pmr::memory_resource* memory, const Path &in_poly,
+        Paths &out_polys, PolyFillType fillType)
 {
-  Clipper c;
+  Clipper c(memory);
   c.StrictlySimple(true);
   c.AddPath(in_poly, ptSubject, true);
   c.Execute(ctUnion, out_polys, fillType, fillType);
 }
 //------------------------------------------------------------------------------
 
-void SimplifyPolygons(const Paths &in_polys, Paths &out_polys, PolyFillType fillType)
+void SimplifyPolygons(pmr::memory_resource* memory, const Paths &in_polys,
+        Paths &out_polys, PolyFillType fillType)
 {
-  Clipper c;
+  Clipper c(memory);
   c.StrictlySimple(true);
   c.AddPaths(in_polys, ptSubject, true);
   c.Execute(ctUnion, out_polys, fillType, fillType);
 }
 //------------------------------------------------------------------------------
 
-void SimplifyPolygons(Paths &polys, PolyFillType fillType)
+void SimplifyPolygons(pmr::memory_resource* memory, Paths &polys,
+        PolyFillType fillType)
 {
-  SimplifyPolygons(polys, polys, fillType);
+  SimplifyPolygons(memory, polys, polys, fillType);
 }
 //------------------------------------------------------------------------------
 
@@ -4389,18 +4470,21 @@ OutPt* ExcludeOp(OutPt* op)
 
 void CleanPolygon(const Path& in_poly, Path& out_poly, double distance)
 {
+  pmr::polymorphic_allocator<char> alloc(out_poly.get_allocator().resource());
+
   //distance = proximity in units/pixels below which vertices
   //will be stripped. Default ~= sqrt(2).
-  
+
   size_t size = in_poly.size();
-  
-  if (size == 0) 
+
+  if (size == 0)
   {
     out_poly.clear();
     return;
   }
 
-  OutPt* outPts = new OutPt[size];
+  int outPtsSize = size;
+  OutPt* outPts = alloc.allocate_object<OutPt>(size);
   for (size_t i = 0; i < size; ++i)
   {
     outPts[i].Pt = in_poly[i];
@@ -4443,7 +4527,8 @@ void CleanPolygon(const Path& in_poly, Path& out_poly, double distance)
     out_poly[i] = op->Pt;
     op = op->Next;
   }
-  delete [] outPts;
+
+  alloc.deallocate_object(outPts, outPtsSize);
 }
 //------------------------------------------------------------------------------
 
@@ -4455,7 +4540,7 @@ void CleanPolygon(Path& poly, double distance)
 
 void CleanPolygons(const Paths& in_polys, Paths& out_polys, double distance)
 {
-  out_polys.resize(in_polys.size());
+  out_polys.resize(in_polys.size(), Path(in_polys.get_allocator().resource()));
   for (Paths::size_type i = 0; i < in_polys.size(); ++i)
     CleanPolygon(in_polys[i], out_polys[i], distance);
 }
@@ -4467,18 +4552,18 @@ void CleanPolygons(Paths& polys, double distance)
 }
 //------------------------------------------------------------------------------
 
-void Minkowski(const Path& poly, const Path& path, 
-  Paths& solution, bool isSum, bool isClosed)
+void Minkowski(pmr::memory_resource* memory, const Path& poly,
+        const Path& path, Paths& solution, bool isSum, bool isClosed)
 {
   int delta = (isClosed ? 1 : 0);
   size_t polyCnt = poly.size();
   size_t pathCnt = path.size();
-  Paths pp;
+  Paths pp(memory);
   pp.reserve(pathCnt);
   if (isSum)
     for (size_t i = 0; i < pathCnt; ++i)
     {
-      Path p;
+      Path p(memory);
       p.reserve(polyCnt);
       for (size_t j = 0; j < poly.size(); ++j)
         p.push_back(IntPoint(path[i].X + poly[j].X, path[i].Y + poly[j].Y));
@@ -4487,7 +4572,7 @@ void Minkowski(const Path& poly, const Path& path,
   else
     for (size_t i = 0; i < pathCnt; ++i)
     {
-      Path p;
+      Path p(memory);
       p.reserve(polyCnt);
       for (size_t j = 0; j < poly.size(); ++j)
         p.push_back(IntPoint(path[i].X - poly[j].X, path[i].Y - poly[j].Y));
@@ -4499,7 +4584,7 @@ void Minkowski(const Path& poly, const Path& path,
   for (size_t i = 0; i < pathCnt - 1 + delta; ++i)
     for (size_t j = 0; j < polyCnt; ++j)
     {
-      Path quad;
+      Path quad(memory);
       quad.reserve(4);
       quad.push_back(pp[i % pathCnt][j % polyCnt]);
       quad.push_back(pp[(i + 1) % pathCnt][j % polyCnt]);
@@ -4511,10 +4596,11 @@ void Minkowski(const Path& poly, const Path& path,
 }
 //------------------------------------------------------------------------------
 
-void MinkowskiSum(const Path& pattern, const Path& path, Paths& solution, bool pathIsClosed)
+void MinkowskiSum(pmr::memory_resource* memory, const Path& pattern,
+        const Path& path, Paths& solution, bool pathIsClosed)
 {
-  Minkowski(pattern, path, solution, true, pathIsClosed);
-  Clipper c;
+  Minkowski(memory, pattern, path, solution, true, pathIsClosed);
+  Clipper c(memory);
   c.AddPaths(solution, ptSubject, true);
   c.Execute(ctUnion, solution, pftNonZero, pftNonZero);
 }
@@ -4529,17 +4615,18 @@ void TranslatePath(const Path& input, Path& output, const IntPoint delta)
 }
 //------------------------------------------------------------------------------
 
-void MinkowskiSum(const Path& pattern, const Paths& paths, Paths& solution, bool pathIsClosed)
+void MinkowskiSum(pmr::memory_resource* memory, const Path& pattern,
+        const Paths& paths, Paths& solution, bool pathIsClosed)
 {
-  Clipper c;
+  Clipper c(memory);
   for (size_t i = 0; i < paths.size(); ++i)
   {
-    Paths tmp;
-    Minkowski(pattern, paths[i], tmp, true, pathIsClosed);
+    Paths tmp(memory);
+    Minkowski(memory, pattern, paths[i], tmp, true, pathIsClosed);
     c.AddPaths(tmp, ptSubject, true);
     if (pathIsClosed)
     {
-      Path tmp2;
+      Path tmp2(memory);
       TranslatePath(paths[i], tmp2, pattern[0]);
       c.AddPath(tmp2, ptClip, true);
     }
@@ -4548,10 +4635,11 @@ void MinkowskiSum(const Path& pattern, const Paths& paths, Paths& solution, bool
 }
 //------------------------------------------------------------------------------
 
-void MinkowskiDiff(const Path& poly1, const Path& poly2, Paths& solution)
+void MinkowskiDiff(pmr::memory_resource* memory, const Path& poly1,
+        const Path& poly2, Paths& solution)
 {
-  Minkowski(poly1, poly2, solution, false, true);
-  Clipper c;
+  Minkowski(memory, poly1, poly2, solution, false, true);
+  Clipper c(memory);
   c.AddPaths(solution, ptSubject, true);
   c.Execute(ctUnion, solution, pftNonZero, pftNonZero);
 }
@@ -4574,7 +4662,7 @@ void AddPolyNodeToPaths(const PolyNode& polynode, NodeType nodetype, Paths& path
 
 void PolyTreeToPaths(const PolyTree& polytree, Paths& paths)
 {
-  paths.resize(0); 
+  paths.clear();
   paths.reserve(polytree.Total());
   AddPolyNodeToPaths(polytree, ntAny, paths);
 }
@@ -4582,7 +4670,7 @@ void PolyTreeToPaths(const PolyTree& polytree, Paths& paths)
 
 void ClosedPathsFromPolyTree(const PolyTree& polytree, Paths& paths)
 {
-  paths.resize(0); 
+  paths.clear();
   paths.reserve(polytree.Total());
   AddPolyNodeToPaths(polytree, ntClosed, paths);
 }
@@ -4590,7 +4678,7 @@ void ClosedPathsFromPolyTree(const PolyTree& polytree, Paths& paths)
 
 void OpenPathsFromPolyTree(PolyTree& polytree, Paths& paths)
 {
-  paths.resize(0); 
+  paths.clear();
   paths.reserve(polytree.Total());
   //Open paths are top level only, so ...
   for (int i = 0; i < polytree.ChildCount(); ++i)
