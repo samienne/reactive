@@ -185,11 +185,11 @@ TEST(pmr, monotonic_buffer_resource_with_buffer)
         << std::endl;
 }
 
-TEST(pmr, monotonic_buffer_resource_alignement)
+TEST(pmr, monotonic_buffer_resource_alignment)
 {
     auto mono = monotonic_buffer_resource(new_delete_resource());
 
-    //for (int i = 0; i < 256; ++i)
+    for (int i = 0; i < 256; ++i)
     {
         auto* p = mono.allocate(6, 8);
         EXPECT_EQ(0u, reinterpret_cast<std::uintptr_t>(p) % 8);
@@ -198,7 +198,6 @@ TEST(pmr, monotonic_buffer_resource_alignement)
         p = mono.allocate(14, 16);
         EXPECT_EQ(0u, reinterpret_cast<std::uintptr_t>(p) % 16);
         mono.deallocate(p, 14, 16);
-
     }
 }
 
