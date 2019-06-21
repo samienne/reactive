@@ -11,6 +11,9 @@ namespace pmr
     {
     public:
         using value_type = T;
+        using propagate_on_container_copy_assignment = std::true_type;
+        using propagate_on_container_move_assignment = std::true_type;
+        using propagate_on_container_swap = std::true_type;
 
         polymorphic_allocator(memory_resource* resource) :
             resource_(resource)
@@ -123,7 +126,7 @@ namespace pmr
     template <typename T, typename U>
     bool operator==(
             polymorphic_allocator<T> const& lhs,
-            polymorphic_allocator<T> const& rhs
+            polymorphic_allocator<U> const& rhs
             )
     {
         return lhs.resource() == rhs.resource();
@@ -132,7 +135,7 @@ namespace pmr
     template <typename T, typename U>
     bool operator!=(
             polymorphic_allocator<T> const& lhs,
-            polymorphic_allocator<T> const& rhs
+            polymorphic_allocator<U> const& rhs
             )
     {
         return !(lhs == rhs);
