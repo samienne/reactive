@@ -219,7 +219,7 @@ struct OutRec;
 struct Join;
 
 typedef pmr::vector < OutRec* > PolyOutList;
-typedef pmr::vector < TEdge* > EdgeList;
+typedef pmr::vector < std::pair<TEdge*, std::size_t> > EdgeList;
 typedef pmr::vector < Join* > JoinList;
 typedef pmr::vector < IntersectNode* > IntersectList;
 

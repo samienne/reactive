@@ -1192,11 +1192,11 @@ bool ClipperBase::AddPath(const Path &pg, PolyType PolyTyp, bool Closed)
       E = E->Next;
     }
     m_MinimaList.push_back(locMin);
-    m_edges.push_back(edges);
+    m_edges.push_back(std::make_pair(edges, edgeArraySize));
 	  return true;
   }
 
-  m_edges.push_back(edges);
+  m_edges.push_back(std::make_pair(edges, edgeArraySize));
   bool leftBoundIsForward;
   TEdge* EMin = 0;
 
@@ -1260,15 +1260,16 @@ bool ClipperBase::AddPaths(const Paths &ppg, PolyType PolyTyp, bool Closed)
 
 void ClipperBase::Clear()
 {
+  pmr::polymorphic_allocator<char> alloc(m_memory);
+
   DisposeLocalMinimaList();
 
-  /* TODO dealloc properly
   for (EdgeList::size_type i = 0; i < m_edges.size(); ++i)
   {
-    TEdge* edges = m_edges[i];
-    delete [] edges;
+    TEdge* edges = m_edges[i].first;
+
+    alloc.deallocate_object(edges, m_edges[i].second);
   }
-  */
 
   m_edges.clear();
   m_UseFullRange = false;
