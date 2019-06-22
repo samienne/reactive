@@ -120,11 +120,8 @@ namespace reactive
         Signal<widget::Theme>
         >;
 
-    template <typename TSignalSize, typename = typename
-        std::enable_if<
-            IsSignalType<TSignalSize, avg::Vector2f>::value
-        >::type>
-    auto makeWidget(TSignalSize size) -> decltype(auto)
+    template <typename T>
+    auto makeWidget(Signal<avg::Vector2f, T> size) -> decltype(auto)
     {
         auto obb = share(signal::map([](avg::Vector2f size)
                 {
