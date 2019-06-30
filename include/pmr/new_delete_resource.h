@@ -1,6 +1,7 @@
 #pragma once
 
 #include "memory_resource.h"
+#include <memory>
 
 namespace pmr
 {
@@ -14,13 +15,14 @@ namespace pmr
         void* do_allocate(std::size_t bytes, std::size_t alignment) override
         {
             std::size_t new_size = aligned_size(bytes, alignment);
-            return new char[new_size]();
+            return alloc.allocate(new_size);
         }
 
-        void do_deallocate(void* p, std::size_t /*bytes*/,
-                std::size_t /*alignment*/) override
+        void do_deallocate(void* p, std::size_t bytes,
+                std::size_t alignment) override
         {
-            delete[] static_cast<char*>(p);
+            std::size_t new_size = aligned_size(bytes, alignment);
+            return alloc.deallocate(reinterpret_cast<char*>(p), new_size);
         }
 
         bool do_is_equal(memory_resource const& other) const override
@@ -50,6 +52,8 @@ namespace pmr
         {
             return (alignment != 0) && !(alignment & (alignment-1));
         }
+
+        std::allocator<char> alloc;
     };
 
     inline memory_resource* new_delete_resource() noexcept

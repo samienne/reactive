@@ -1,6 +1,7 @@
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/polymorphic_allocator.h>
 #include <pmr/new_delete_resource.h>
+#include <pmr/vector.h>
 
 #include <gtest/gtest.h>
 

@@ -22,6 +22,7 @@
 #include <btl/hash.h>
 #include <btl/option.h>
 
+#include <pmr/vector.h>
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/new_delete_resource.h>
 
@@ -33,7 +34,7 @@ namespace
 
 // Vertex: rgbaxyz
 using Vertex = std::array<float, 7>;
-using Vertices = std::vector<Vertex>;
+using Vertices = pmr::vector<Vertex>;
 using Element = std::pair<ase::Pipeline, Vertices>;
 
 avg::Color premultiply(avg::Color c)
@@ -46,7 +47,8 @@ avg::Color premultiply(avg::Color c)
             );
 }
 
-Vertices generateVertices(avg::SoftMesh const& mesh, float z)
+Vertices generateVertices(pmr::memory_resource* memory,
+        avg::SoftMesh const& mesh, float z)
 {
     auto const& vertices = mesh.getVertices();
     avg::Transform const& t = mesh.getTransform();
@@ -62,7 +64,7 @@ Vertices generateVertices(avg::SoftMesh const& mesh, float z)
         return Vertex{{c[0], c[1], c[2], c[3], p[0], p[1], z}};
     };
 
-    Vertices result;
+    Vertices result(memory);
     result.reserve(vertices.size());
     for (auto&& v : vertices)
         result.push_back(toVertex(v));
@@ -116,7 +118,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
     return generateMesh(region, pen.getBrush(), r, clip);
 }
 
-std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
+pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
         avg::Shape const& shape, ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
@@ -125,9 +127,9 @@ std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
     auto const& pen = shape.getPen();
 
     if (path.isEmpty())
-        return {};
+        return pmr::vector<avg::SoftMesh>(memory);
 
-    std::vector<avg::SoftMesh> result;
+    pmr::vector<avg::SoftMesh> result(memory);
 
     if (brush.valid())
     {
@@ -170,18 +172,18 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
-std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
+pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
         avg::Painter const& painter, avg::Transform const& transform,
         std::vector<avg::Drawing::Element> const& elements,
         avg::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& rect, bool clip)
 {
     if (elements.empty())
-        return {};
+        return pmr::vector<avg::SoftMesh>(memory);
 
     ase::Vector2f newPixelSize = pixelSize / transform.getScale();
 
-    std::vector<avg::SoftMesh> meshes;
+    pmr::vector<avg::SoftMesh> meshes(memory);
     meshes.reserve(elements.size());
 
     for (auto const& element : elements)
@@ -190,7 +192,7 @@ std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
         if (!elementRect.overlaps(rect))
             continue;
 
-        std::vector<avg::SoftMesh> elementMeshes;
+        pmr::vector<avg::SoftMesh> elementMeshes(memory);
 
         if (element.is<avg::Shape>())
         {
@@ -249,7 +251,7 @@ std::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
 
 void renderElements(ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
-        avg::Painter const& painter, std::vector<Element>&& elements)
+        avg::Painter const& painter, pmr::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -259,6 +261,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
 
     std::sort(elements.begin(), elements.end(), compare);
 
+    //pmr::vector<Vertex> resultVertices(elements.get_allocator().resource());
     std::vector<Vertex> resultVertices;
     btl::option<ase::Pipeline> previousPipeline;
 
@@ -299,19 +302,20 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     }
 }
 
-std::vector<Element> generateElements(avg::Painter const& painter,
-        std::vector<avg::SoftMesh> const& meshes)
+pmr::vector<Element> generateElements(avg::Painter const& painter,
+        pmr::vector<avg::SoftMesh> const& meshes)
 {
     float step = 0.5f / (float)(meshes.size() + 1u);
 
-    std::vector<Element> elements;
+    pmr::vector<Element> elements(meshes.get_allocator().resource());
     elements.reserve(meshes.size());
 
     uint32_t i = 1;
     for (auto const& mesh : meshes)
     {
         elements.push_back(std::make_pair(painter.getPipeline(mesh.getBrush()),
-                    generateVertices(mesh, 1.0f - (float)i * step)));
+                    generateVertices(pmr::new_delete_resource(),
+                        mesh, 1.0f - (float)i * step)));
         ++i;
     }
 
@@ -330,7 +334,7 @@ public:
 
     ~TraceResource()
     {
-        //assert(allocations_.empty());
+        assert(allocations_.empty());
     }
 
     std::size_t getAllocationCount() const
@@ -343,20 +347,53 @@ public:
         return totalAllocation_;
     }
 
+    std::size_t getCurrentAllocation() const
+    {
+        return currentAllocation_;
+    }
+
+    std::size_t getMaxAllocation() const
+    {
+        return maxAllocation_;
+    }
+
+    std::size_t getConsecutiveAllocDealloc() const
+    {
+        return consecutiveAllocDealloc_;
+    }
+
+    std::size_t getConsecutiveAllocDeallocBytes() const
+    {
+        return consecutiveAllocDeallocBytes_;
+    }
+
 private:
     void* do_allocate(std::size_t size, std::size_t alignment) override
     {
         totalAllocation_ += size;
         allocationCount_ += 1;
+        currentAllocation_ += size;
+
+        maxAllocation_ = std::max(currentAllocation_, maxAllocation_);
 
         void* p = upstream_->allocate(size, alignment);
         allocations_.push_back(Allocation{ p, size, alignment });
+
+        previous_ = p;
 
         return p;
     }
 
     void do_deallocate(void* p, std::size_t size, std::size_t alignment) override
     {
+        if (p == previous_)
+        {
+            consecutiveAllocDealloc_ += 1;
+            consecutiveAllocDeallocBytes_ += size;
+        }
+
+        currentAllocation_ -= size;
+
         bool found = false;
         for (auto i = allocations_.begin(); i != allocations_.end(); ++i)
         {
@@ -408,6 +445,11 @@ private:
     std::vector<Allocation> allocations_;
     std::size_t allocationCount_ = 0;
     std::size_t totalAllocation_ = 0;
+    std::size_t currentAllocation_ = 0;
+    std::size_t maxAllocation_ = 0;
+    std::size_t consecutiveAllocDealloc_ = 0;
+    std::size_t consecutiveAllocDeallocBytes_ = 0;
+    void* previous_ = nullptr;
 };
 
 void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
@@ -423,8 +465,8 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             sizef
             );
 
-    pmr::monotonic_buffer_resource mono(2500000, pmr::new_delete_resource());
-    //TraceResource tr(&mono);
+    pmr::monotonic_buffer_resource mono(600000, pmr::new_delete_resource());
+    //TraceResource tr(&mono); pmr::memory_resource* memory = &tr;
     pmr::memory_resource* memory = &mono;
     //pmr::memory_resource* memory = pmr::new_delete_resource();
 
@@ -438,7 +480,11 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
 
     /*
     std::cout << tr.getAllocationCount() << " "
-        << tr.getTotalAllocation() << " bytes" << std::endl;
+        << tr.getTotalAllocation() << " bytes. max: "
+        << tr.getMaxAllocation() << " bytes. Consecutive alloc: "
+        << tr.getConsecutiveAllocDealloc() << " "
+        << tr.getConsecutiveAllocDeallocBytes() << " bytes."
+        << std::endl;
         */
 }
 

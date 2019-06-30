@@ -60,8 +60,10 @@ namespace pmr
         {
             // calculate offset for the alignment
             std::size_t offset =
-                (alignment - (reinterpret_cast<std::uintptr_t>(p_) % alignment))
-                % alignment;
+                (alignment - (reinterpret_cast<std::uintptr_t>(p_) % alignment));
+
+            if (offset == alignment)
+                offset = 0;
 
             char* p = p_ + offset;
 
