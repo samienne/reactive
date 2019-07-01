@@ -1,6 +1,6 @@
 #include "shapes.h"
 
-#include <avg/pathspec.h>
+#include <avg/pathbuilder.h>
 #include <avg/path.h>
 
 #include <ase/vector.h>
@@ -15,7 +15,7 @@ avg::Path makeRect(float width, float height)
     float w = width / 2.0f;
     float h = height / 2.0f;
 
-    return avg::Path(avg::PathSpec()
+    return avg::Path(avg::PathBuilder()
             .start(ase::Vector2f(-w, -h))
             .lineTo(ase::Vector2f(w, -h))
             .lineTo(ase::Vector2f(w, h))
@@ -31,7 +31,7 @@ avg::Path makeRoundedRect(float width, float height, float radius)
 
     float const angle = pi / 2.0f;
 
-    return avg::Path(avg::PathSpec()
+    return avg::Path(avg::PathBuilder()
             .start(ase::Vector2f(-w, -h+radius))
             .arc(ase::Vector2f(-w+radius,-h+radius), angle)
             .lineTo(ase::Vector2f(w - radius, -h))
@@ -62,7 +62,7 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
 
     if (radius < 0.0001f)
     {
-        return avg::Path(avg::PathSpec()
+        return avg::Path(avg::PathBuilder()
                 .start(ase::Vector2f(l, b))
                 .lineTo(ase::Vector2f(r, b))
                 .lineTo(ase::Vector2f(r, t))
@@ -72,7 +72,7 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
     }
     else
     {
-        return avg::Path(avg::PathSpec()
+        return avg::Path(avg::PathBuilder()
                 .start(ase::Vector2f(l, b+radius))
                 .arc(ase::Vector2f(l+radius,b+radius), angle)
                 .lineTo(ase::Vector2f(r - radius, b))
@@ -88,7 +88,7 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
 
 REACTIVE_EXPORT avg::Path makeCircle(ase::Vector2f center, float radius)
 {
-    return avg::Path(avg::PathSpec()
+    return avg::Path(avg::PathBuilder()
             .start(center[0]+radius, center[1])
             .arc(center, 2.0f * pi)
             .close()

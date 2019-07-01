@@ -4,7 +4,7 @@
 #include "font.h"
 #include "fontimpl.h"
 #include "path.h"
-#include "pathspec.h"
+#include "pathbuilder.h"
 
 #include "debug.h"
 
@@ -84,7 +84,7 @@ namespace
 
     struct GlyphOutline
     {
-        PathSpec pathSpec;
+        PathBuilder pathSpec;
     };
 
     int outlineMoveTo(FT_Vector const* to, void* user);

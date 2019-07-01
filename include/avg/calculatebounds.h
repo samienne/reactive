@@ -1,13 +1,13 @@
 #pragma once
 
-#include "pathspec.h"
+#include "pathbuilder.h"
 #include "vector.h"
 #include "rect.h"
 
 namespace avg
 {
     inline Rect calculateBounds(
-            std::vector<PathSpec::SegmentType> segments,
+            std::vector<PathBuilder::SegmentType> segments,
             std::vector<Vector2f> const& vec)
     {
         if (segments.empty())
@@ -21,26 +21,26 @@ namespace avg
         {
             switch(s)
             {
-            case PathSpec::SEGMENT_START:
+            case PathBuilder::SEGMENT_START:
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case PathSpec::SEGMENT_LINE:
+            case PathBuilder::SEGMENT_LINE:
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case PathSpec::SEGMENT_CONIC:
+            case PathBuilder::SEGMENT_CONIC:
                 rect = rect.include(*(i++));
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case PathSpec::SEGMENT_CUBIC:
+            case PathBuilder::SEGMENT_CUBIC:
                 rect = rect.include(*(i++));
                 rect = rect.include(*(i++));
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case PathSpec::SEGMENT_ARC:
+            case PathBuilder::SEGMENT_ARC:
                 {
                     Vector2f c = *(i++);
                     Vector2f p = *(i++);

@@ -66,7 +66,7 @@ TextEdit::operator WidgetFactory() const
 
         if (percentage > 0.0f)
         {
-            auto line = avg::Path(avg::PathSpec()
+            auto line = avg::Path(avg::PathBuilder()
                     .start(ase::Vector2f(0.0f, 0.0f))
                     .lineTo(ase::Vector2f(0.0f, font.getLinegap(height))));
 

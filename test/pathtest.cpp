@@ -1,5 +1,5 @@
 #include <avg/path.h>
-#include <avg/pathspec.h>
+#include <avg/pathbuilder.h>
 #include <avg/obb.h>
 
 #include <ase/vector.h>
@@ -13,7 +13,7 @@ using namespace avg;
 
 TEST(Path, Construct)
 {
-    auto pathSpec = avg::PathSpec()
+    auto pathSpec = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
@@ -41,7 +41,7 @@ TEST(Path, Construct)
 
 TEST(Path, Assignment)
 {
-    auto pathSpec = avg::PathSpec()
+    auto pathSpec = avg::PathBuilder()
         .lineTo(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
@@ -57,17 +57,17 @@ TEST(Path, Assignment)
 
 TEST(Path, Addition)
 {
-    auto pathSpec = avg::PathSpec()
+    auto pathSpec = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathSpec2 = avg::PathSpec()
+    auto pathSpec2 = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.1, 0.2))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathSpec3 = avg::PathSpec()
+    auto pathSpec3 = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
@@ -75,7 +75,7 @@ TEST(Path, Addition)
         .lineTo(ase::Vector2f(0.1, 0.2))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    avg::Path path1 = avg::PathSpec(pathSpec);
+    avg::Path path1 = avg::PathBuilder(pathSpec);
     avg::Path path2(std::move(pathSpec2));
     avg::Path path3(std::move(pathSpec3));
     avg::Path path4(std::move(pathSpec));
@@ -94,12 +94,12 @@ TEST(Path, Addition)
 
 TEST(Path, Scaling)
 {
-    auto pathSpec = avg::PathSpec()
+    auto pathSpec = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathSpec2 = avg::PathSpec()
+    auto pathSpec2 = avg::PathBuilder()
         .start(ase::Vector2f(0.4, 0.2))
         .lineTo(ase::Vector2f(0.8, 0.6))
         .lineTo(ase::Vector2f(0.8, 0.2));
@@ -118,12 +118,12 @@ TEST(Path, Scaling)
 
 TEST(Path, Offsetting)
 {
-    auto pathSpec = avg::PathSpec()
+    auto pathSpec = avg::PathBuilder()
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathSpec2 = avg::PathSpec()
+    auto pathSpec2 = avg::PathBuilder()
         .start(ase::Vector2f(0.4, 0.2))
         .lineTo(ase::Vector2f(0.6, 0.4))
         .lineTo(ase::Vector2f(0.6, 0.2));
@@ -142,7 +142,7 @@ TEST(Path, Offsetting)
 
 TEST(Path, SpecAssignToSelfModified)
 {
-    auto pathSpec = avg::PathSpec();
+    auto pathSpec = avg::PathBuilder();
 
     pathSpec = std::move(pathSpec)
         .start(ase::Vector2f(0.2, 0.1))
@@ -162,7 +162,7 @@ TEST(Path, emptyPathShouldHaveEmptyBoundingBox)
 
 TEST(Path, aPathShouldHaveValidBoundingBox)
 {
-    avg::Path p(avg::PathSpec()
+    avg::Path p(avg::PathBuilder()
             .start(avg::Vector2f(5.0f, 7.0f))
             .lineTo(avg::Vector2f(10.0f, 12.0f))
             .close()
@@ -183,7 +183,7 @@ TEST(Path, rotatedPathShouldHaveLargerBoundingBox)
 {
     float const pi = 3.1415927f;
 
-    avg::Path p(avg::PathSpec()
+    avg::Path p(avg::PathBuilder()
             .start(avg::Vector2f(5.0f, 7.0f))
             .lineTo(avg::Vector2f(10.0f, 12.0f))
             .close()

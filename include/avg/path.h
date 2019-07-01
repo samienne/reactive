@@ -4,7 +4,7 @@
 #include "jointype.h"
 #include "fillrule.h"
 #include "transform.h"
-#include "pathspec.h"
+#include "pathbuilder.h"
 #include "vector.h"
 #include "rect.h"
 #include "avgvisibility.h"
@@ -25,11 +25,11 @@ namespace avg
     class AVG_EXPORT Path final
     {
     public:
-        using SegmentType = PathSpec::SegmentType;
+        using SegmentType = PathBuilder::SegmentType;
 
         Path();
-        Path(PathSpec&& pathSpec);
-        Path(PathSpec const& pathSpec);
+        Path(PathBuilder&& pathSpec);
+        Path(PathBuilder const& pathSpec);
         Path(Path const&) = default;
         Path(Path&&) noexcept = default;
         ~Path();

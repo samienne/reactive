@@ -72,7 +72,7 @@ TEST(Hash, vector)
 
 TEST(Hash, path)
 {
-    auto s = avg::PathSpec()
+    auto s = avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
@@ -84,7 +84,7 @@ TEST(Hash, path)
     EXPECT_TRUE(h(p) == 1520779240607667710u
             || h(p) == 9951566134402991406u);
 
-    auto s2 = avg::PathSpec()
+    auto s2 = avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
@@ -96,7 +96,7 @@ TEST(Hash, path)
 
 TEST(Hash, shape)
 {
-    auto p = avg::Path(avg::PathSpec()
+    auto p = avg::Path(avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
