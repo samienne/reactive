@@ -180,7 +180,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
         switch (segments_[segment])
         {
-            case PathBuilder::SEGMENT_START:
+            case Path::SEGMENT_START:
                 if (!vertices.empty())
                 {
                     polygons.push_back(std::move(vertices));
@@ -191,12 +191,12 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
-            case PathBuilder::SEGMENT_LINE:
+            case Path::SEGMENT_LINE:
                 cur = offset + rs * vertices_.at(vertex++);
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
-            case PathBuilder::SEGMENT_CONIC:
+            case Path::SEGMENT_CONIC:
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
                 p3 = offset + rs * vertices_.at(vertex++);
@@ -212,7 +212,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
                 break;
 
-            case PathBuilder::SEGMENT_CUBIC:
+            case Path::SEGMENT_CUBIC:
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
                 p3 = offset + rs * vertices_.at(vertex++);
@@ -229,7 +229,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
                 break;
 
-            case PathBuilder::SEGMENT_ARC:
+            case Path::SEGMENT_ARC:
             {
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
@@ -277,19 +277,6 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 }
 
 Path::Path()
-{
-}
-
-Path::Path(PathBuilder&& pathSpec) :
-    deferred_(std::make_shared<PathDeferred>())
-{
-    d()->segments_ = std::move(pathSpec.segments_);
-    d()->vertices_ = std::move(pathSpec.vertices_);
-    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
-}
-
-Path::Path(PathBuilder const& pathSpec) :
-    Path(PathBuilder(pathSpec))
 {
 }
 
@@ -533,19 +520,19 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
 
         switch (p.d()->segments_[segment])
         {
-            case PathBuilder::SEGMENT_START:
+            case Path::SEGMENT_START:
                 p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "start(" << p1 << ")" << std::endl;
                 break;
 
-            case PathBuilder::SEGMENT_LINE:
+            case Path::SEGMENT_LINE:
                 p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "lineTo(" << p1 << ")" << std::endl;
                 break;
 
-            case PathBuilder::SEGMENT_CONIC:
+            case Path::SEGMENT_CONIC:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);
@@ -554,7 +541,7 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                 stream << "conicTo(" << p2 << ", " << p3 << ")" << std::endl;
                 break;
 
-            case PathBuilder::SEGMENT_CUBIC:
+            case Path::SEGMENT_CUBIC:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);
@@ -565,7 +552,7 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                     << ")" << std::endl;
 
                 break;
-            case PathBuilder::SEGMENT_ARC:
+            case Path::SEGMENT_ARC:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);

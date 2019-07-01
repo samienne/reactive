@@ -20,6 +20,7 @@
 #include "debug.h"
 
 #include <avg/textextents.h>
+#include <avg/pathbuilder.h>
 
 #include <algorithm>
 
@@ -66,9 +67,10 @@ TextEdit::operator WidgetFactory() const
 
         if (percentage > 0.0f)
         {
-            auto line = avg::Path(avg::PathBuilder()
+            auto line = avg::PathBuilder()
                     .start(ase::Vector2f(0.0f, 0.0f))
-                    .lineTo(ase::Vector2f(0.0f, font.getLinegap(height))));
+                    .lineTo(ase::Vector2f(0.0f, font.getLinegap(height)))
+                    .build();
 
             line += te1.advance;
 

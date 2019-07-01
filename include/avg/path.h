@@ -4,7 +4,6 @@
 #include "jointype.h"
 #include "fillrule.h"
 #include "transform.h"
-#include "pathbuilder.h"
 #include "vector.h"
 #include "rect.h"
 #include "avgvisibility.h"
@@ -25,11 +24,16 @@ namespace avg
     class AVG_EXPORT Path final
     {
     public:
-        using SegmentType = PathBuilder::SegmentType;
+        enum SegmentType
+        {
+            SEGMENT_START = 0,
+            SEGMENT_LINE,
+            SEGMENT_CONIC,
+            SEGMENT_CUBIC,
+            SEGMENT_ARC
+        };
 
         Path();
-        Path(PathBuilder&& pathSpec);
-        Path(PathBuilder const& pathSpec);
         Path(Path const&) = default;
         Path(Path&&) noexcept = default;
         ~Path();
@@ -72,6 +76,8 @@ namespace avg
             }
         }
     private:
+        friend class PathBuilder;
+
         Path(std::vector<SegmentType>&& segments,
                 std::vector<Vector2f>&& vertices);
 

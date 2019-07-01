@@ -3,7 +3,7 @@
 #include <avg/font.h>
 #include <avg/fontmanager.h>
 #include <avg/path.h>
-#include <avg/pathspec.h>
+#include <avg/pathbuilder.h>
 #include <ase/vector.h>
 
 #include <utf8/utf8.h>

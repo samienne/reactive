@@ -15,13 +15,13 @@ avg::Path makeRect(float width, float height)
     float w = width / 2.0f;
     float h = height / 2.0f;
 
-    return avg::Path(avg::PathBuilder()
+    return avg::PathBuilder()
             .start(ase::Vector2f(-w, -h))
             .lineTo(ase::Vector2f(w, -h))
             .lineTo(ase::Vector2f(w, h))
             .lineTo(ase::Vector2f(-w, h))
             .close()
-            );
+            .build();
 }
 
 avg::Path makeRoundedRect(float width, float height, float radius)
@@ -31,7 +31,7 @@ avg::Path makeRoundedRect(float width, float height, float radius)
 
     float const angle = pi / 2.0f;
 
-    return avg::Path(avg::PathBuilder()
+    return avg::PathBuilder()
             .start(ase::Vector2f(-w, -h+radius))
             .arc(ase::Vector2f(-w+radius,-h+radius), angle)
             .lineTo(ase::Vector2f(w - radius, -h))
@@ -41,7 +41,7 @@ avg::Path makeRoundedRect(float width, float height, float radius)
             .lineTo(ase::Vector2f(-w+radius, h))
             .arc(ase::Vector2f(-w+radius, h-radius), angle)
             .close()
-            );
+            .build();
 }
 
 avg::Path makePathFromRect(avg::Rect const& rect, float radius)
@@ -62,17 +62,17 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
 
     if (radius < 0.0001f)
     {
-        return avg::Path(avg::PathBuilder()
+        return avg::PathBuilder()
                 .start(ase::Vector2f(l, b))
                 .lineTo(ase::Vector2f(r, b))
                 .lineTo(ase::Vector2f(r, t))
                 .lineTo(ase::Vector2f(l, t))
                 .close()
-                );
+                .build();
     }
     else
     {
-        return avg::Path(avg::PathBuilder()
+        return avg::PathBuilder()
                 .start(ase::Vector2f(l, b+radius))
                 .arc(ase::Vector2f(l+radius,b+radius), angle)
                 .lineTo(ase::Vector2f(r - radius, b))
@@ -82,17 +82,17 @@ avg::Path makePathFromRect(avg::Rect const& rect, float radius)
                 .lineTo(ase::Vector2f(l+radius, t))
                 .arc(ase::Vector2f(l+radius, t-radius), angle)
                 .close()
-                );
+                .build();
     }
 }
 
 REACTIVE_EXPORT avg::Path makeCircle(ase::Vector2f center, float radius)
 {
-    return avg::Path(avg::PathBuilder()
+    return avg::PathBuilder()
             .start(center[0]+radius, center[1])
             .arc(center, 2.0f * pi)
             .close()
-            );
+            .build();
 }
 
 avg::Shape makeShape(avg::Path const& path,

@@ -4,6 +4,10 @@
 
 #include "reactive/signal/map.h"
 
+#include "reactive/shapes.h"
+
+#include <avg/pathbuilder.h>
+
 namespace reactive::debug
 {
     namespace detail
@@ -14,13 +18,13 @@ namespace reactive::debug
             float h = obb.getSize().y();
 
             return obb.getTransform() * avg::Drawing(makeShape(
-                        avg::Path(avg::PathBuilder()
+                        avg::PathBuilder()
                             .start(ase::Vector2f(.0f, .0f))
                             .lineTo(ase::Vector2f(w, .0f))
                             .lineTo(ase::Vector2f(w, h))
                             .lineTo(ase::Vector2f(.0f, h))
                             .close()
-                            ),
+                            .build(),
                         btl::none,
                         btl::just(avg::Pen())));
         }

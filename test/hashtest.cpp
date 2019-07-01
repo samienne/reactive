@@ -8,6 +8,7 @@
 #include <avg/pen.h>
 #include <avg/brush.h>
 #include <avg/color.h>
+#include <avg/pathbuilder.h>
 
 #include <gtest/gtest.h>
 
@@ -72,35 +73,35 @@ TEST(Hash, vector)
 
 TEST(Hash, path)
 {
-    auto s = avg::PathBuilder()
+    auto p = avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close();
-
-    avg::Path p(s);
+        .close()
+        .build();
 
     btl::uhash<btl::fnv1a> h;
     EXPECT_TRUE(h(p) == 1520779240607667710u
             || h(p) == 9951566134402991406u);
 
-    auto s2 = avg::PathBuilder()
+    auto p2 = avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close();
+        .close()
+        .build();
 
-    avg::Path p2(s2);
     EXPECT_EQ(h(p), h(p2));
 }
 
 TEST(Hash, shape)
 {
-    auto p = avg::Path(avg::PathBuilder()
+    auto p = avg::PathBuilder()
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close());
+        .close()
+        .build();
 
     auto shape = avg::Shape()
         .setPath(p)

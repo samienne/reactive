@@ -2,6 +2,7 @@
 
 #include "vector.h"
 #include "rect.h"
+#include "path.h"
 #include "avgvisibility.h"
 
 #include <vector>
@@ -11,14 +12,7 @@ namespace avg
     class AVG_EXPORT PathBuilder
     {
     public:
-        enum SegmentType
-        {
-            SEGMENT_START = 0,
-            SEGMENT_LINE,
-            SEGMENT_CONIC,
-            SEGMENT_CUBIC,
-            SEGMENT_ARC
-        };
+        using SegmentType = Path::SegmentType;
 
         PathBuilder();
         PathBuilder(PathBuilder const&) = default;
@@ -36,6 +30,9 @@ namespace avg
         PathBuilder cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&;
         PathBuilder arc(Vector2f center, float angle) &&;
         PathBuilder close() &&;
+
+        Path build() &&;
+        Path build() const &;
 
     private:
         friend class Path;

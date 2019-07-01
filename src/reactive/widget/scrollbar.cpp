@@ -9,6 +9,8 @@
 
 #include "send.h"
 
+#include <avg/pathbuilder.h>
+
 namespace reactive::widget
 {
 
@@ -74,17 +76,17 @@ namespace
 
         if (IsHorizontal)
         {
-            return avg::Path(avg::PathBuilder()
+            return avg::PathBuilder()
                 .start(0.0f, size[1] / 2.0f)
                 .lineTo(size[0], size[1] / 2.0f)
-                );
+                .build();
         }
         else
         {
-            return avg::Path(avg::PathBuilder()
+            return avg::PathBuilder()
                 .start(size[0] / 2.0f, 0.0f)
                 .lineTo(size[0] / 2.0f, size[1])
-                );
+                .build();
         }
     }
 

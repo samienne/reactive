@@ -185,7 +185,7 @@ Glyph& FontManagerDeferred::getGlyphWithOutline(Lock& lock, Font const& font,
     /*DBG("%1 %2", glyphIndex, font.d()->face_->glyph->outline.flags
             & (FT_OUTLINE_EVEN_ODD_FILL | FT_OUTLINE_REVERSE_FILL));*/
 
-    glyph.path = Path(std::move(outline.pathSpec));
+    glyph.path = std::move(outline.pathSpec).build();
     return glyph;
 }
 
