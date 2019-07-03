@@ -11,6 +11,10 @@
 
 using namespace pmr;
 
+using vv = pmr::vector<int>;
+static_assert(std::is_nothrow_move_constructible_v<vv>, "");
+static_assert(std::is_nothrow_move_assignable_v<vv>, "");
+
 class PrintResource : public memory_resource
 {
 public:
