@@ -11,6 +11,8 @@
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <cmath>
 
 namespace avg
@@ -19,6 +21,8 @@ namespace avg
 class PathDeferred
 {
 public:
+    PathDeferred(pmr::memory_resource* memory);
+
     Vector2i toIVec(Vector2f v, Vector2f pixelSize,
             size_t resPerPixel) const;
     std::vector<SimplePolygon> toSimplePolygons(Transform const& transform,
@@ -49,10 +53,16 @@ public:
             Vector2f pixelSize) const;
 
 public:
-    std::vector<Path::SegmentType> segments_;
-    std::vector<Vector2f> vertices_;
+    pmr::vector<Path::SegmentType> segments_;
+    pmr::vector<Vector2f> vertices_;
     Rect controlBb_;
 };
+
+PathDeferred::PathDeferred(pmr::memory_resource* memory) :
+    segments_(memory),
+    vertices_(memory)
+{
+}
 
 Vector2i PathDeferred::toIVec(Vector2f v, Vector2f pixelSize,
         size_t resPerPixel) const
@@ -276,12 +286,18 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
     return polygons;
 }
 
-Path::Path()
+Path::Path(pmr::memory_resource* memory) :
+    memory_(memory)
 {
 }
 
 Path::~Path()
 {
+}
+
+pmr::memory_resource* Path::getResource() const
+{
+    return memory_;
 }
 
 bool Path::operator==(Path const& rhs) const
@@ -334,8 +350,8 @@ Path Path::operator+(Path const& rhs) const
     else if (!rhs.d())
         return *this;
 
-    std::vector<SegmentType> segments;
-    std::vector<Vector2f> vertices;
+    pmr::vector<SegmentType> segments(memory_);
+    pmr::vector<Vector2f> vertices(memory_);
 
     segments.reserve(d()->segments_.size() + rhs.d()->segments_.size());
     vertices.reserve(d()->vertices_.size() + rhs.d()->vertices_.size());
@@ -367,7 +383,7 @@ Path Path::operator+(Path const& rhs) const
 Path Path::operator+(Vector2f delta) const
 {
     if (!d())
-        return Path();
+        return Path(memory_);
 
     Path p(*this);
     p.transform_ = std::move(p.transform_).translate(delta);
@@ -377,7 +393,7 @@ Path Path::operator+(Vector2f delta) const
 Path Path::operator*(float scale) const
 {
     if (!d())
-        return Path();
+        return Path(memory_);
 
     Path p(*this);
     p.transform_ = std::move(p.transform_).scale(scale);
@@ -452,9 +468,10 @@ Obb Path::getControlObb() const
     return transform_ * Obb(d()->controlBb_);
 }
 
-Path::Path(std::vector<SegmentType>&& segments,
-        std::vector<Vector2f>&& vertices) :
-    deferred_(std::make_shared<PathDeferred>())
+Path::Path( pmr::vector<SegmentType>&& segments,
+        pmr::vector<Vector2f>&& vertices) :
+    memory_(segments.get_allocator().resource()),
+    deferred_(std::make_shared<PathDeferred>(memory_))
 {
     d()->segments_ = std::move(segments);
     d()->vertices_ = std::move(vertices);
@@ -469,25 +486,31 @@ void Path::ensureUniqueness()
     if (d())
         deferred_ = std::make_shared<PathDeferred>(*d());
     else
-        deferred_ = std::make_shared<PathDeferred>();
+        deferred_ = std::make_shared<PathDeferred>(memory_);
 }
 
-std::vector<Path::SegmentType> const& Path::getSegments() const
+pmr::vector<Path::SegmentType> const& Path::getSegments() const
 {
     if (!d())
     {
-        static const std::vector<Path::SegmentType> empty;
+        static const pmr::vector<Path::SegmentType> empty(
+                pmr::new_delete_resource()
+                );
+
         return empty;
     }
 
     return d()->segments_;
 }
 
-std::vector<Vector2f> const& Path::getVertices() const
+pmr::vector<Vector2f> const& Path::getVertices() const
 {
     if (!d())
     {
-        static const std::vector<Vector2f> empty;
+        static const pmr::vector<Vector2f> empty(
+                pmr::new_delete_resource()
+                );
+
         return empty;
     }
 

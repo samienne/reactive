@@ -10,6 +10,8 @@
 #include <avg/color.h>
 #include <avg/pathbuilder.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <gtest/gtest.h>
 
 #include <array>
@@ -73,7 +75,7 @@ TEST(Hash, vector)
 
 TEST(Hash, path)
 {
-    auto p = avg::PathBuilder()
+    auto p = avg::PathBuilder(pmr::new_delete_resource())
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
@@ -84,7 +86,7 @@ TEST(Hash, path)
     EXPECT_TRUE(h(p) == 1520779240607667710u
             || h(p) == 9951566134402991406u);
 
-    auto p2 = avg::PathBuilder()
+    auto p2 = avg::PathBuilder(pmr::new_delete_resource())
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
@@ -96,14 +98,14 @@ TEST(Hash, path)
 
 TEST(Hash, shape)
 {
-    auto p = avg::PathBuilder()
+    auto p = avg::PathBuilder(pmr::new_delete_resource())
         .start(avg::Vector2f(1.0f, 0.4f))
         .lineTo(avg::Vector2f(0.0f, 2.4f))
         .lineTo(avg::Vector2f(10.0f, 2.4f))
         .close()
         .build();
 
-    auto shape = avg::Shape()
+    auto shape = avg::Shape(pmr::new_delete_resource())
         .setPath(p)
         .setBrush(btl::just(avg::Brush(avg::Color(1.0f, 0.0f, 0.0f, 1.0f))))
         .setPen(btl::just(avg::Pen(

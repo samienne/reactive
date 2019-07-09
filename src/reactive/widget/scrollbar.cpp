@@ -11,6 +11,8 @@
 
 #include <avg/pathbuilder.h>
 
+#include <pmr/new_delete_resource.h>
+
 namespace reactive::widget
 {
 
@@ -39,7 +41,7 @@ namespace
 
     avg::Path rectToPath(avg::Rect const& r)
     {
-        return makePathFromRect(r, 10.0f);
+        return makePathFromRect(pmr::new_delete_resource(), r, 10.0f);
     }
 
     template <bool IsHorizontal>
@@ -76,14 +78,14 @@ namespace
 
         if (IsHorizontal)
         {
-            return avg::PathBuilder()
+            return avg::PathBuilder(pmr::new_delete_resource())
                 .start(0.0f, size[1] / 2.0f)
                 .lineTo(size[0], size[1] / 2.0f)
                 .build();
         }
         else
         {
-            return avg::PathBuilder()
+            return avg::PathBuilder(pmr::new_delete_resource())
                 .start(size[0] / 2.0f, 0.0f)
                 .lineTo(size[0] / 2.0f, size[1])
                 .build();

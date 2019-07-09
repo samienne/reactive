@@ -22,6 +22,8 @@
 #include <avg/textextents.h>
 #include <avg/pathbuilder.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <algorithm>
 
 namespace reactive::widget
@@ -67,7 +69,7 @@ TextEdit::operator WidgetFactory() const
 
         if (percentage > 0.0f)
         {
-            auto line = avg::PathBuilder()
+            auto line = avg::PathBuilder(pmr::new_delete_resource())
                     .start(ase::Vector2f(0.0f, 0.0f))
                     .lineTo(ase::Vector2f(0.0f, font.getLinegap(height)))
                     .build();
@@ -75,7 +77,7 @@ TextEdit::operator WidgetFactory() const
             line += te1.advance;
 
             texts = std::move(texts)
-                + avg::Shape()
+                + avg::Shape(pmr::new_delete_resource())
                 .setPath(line)
                 .setPen(btl::just(
                             avg::Pen(

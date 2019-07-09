@@ -13,6 +13,8 @@
 
 #include <avg/transform.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <iostream>
 
 namespace reactive::widget
@@ -29,7 +31,8 @@ namespace reactive::widget
             auto brush = avg::Brush(theme.getBackground());
 
             auto shape =  makeShape(
-                    makeRoundedRect(size[0] - 5.0f, size[1] - 5.0f,
+                    makeRoundedRect(pmr::new_delete_resource(),
+                        size[0] - 5.0f, size[1] - 5.0f,
                         cornerRadius),
                     btl::just(brush),
                     btl::just(pen)

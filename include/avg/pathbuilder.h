@@ -5,6 +5,9 @@
 #include "path.h"
 #include "avgvisibility.h"
 
+#include <pmr/vector.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 
 namespace avg
@@ -14,10 +17,12 @@ namespace avg
     public:
         using SegmentType = Path::SegmentType;
 
-        PathBuilder();
+        PathBuilder(pmr::memory_resource* memory);
         PathBuilder(PathBuilder const&) = default;
         PathBuilder(PathBuilder&&) = default;
         ~PathBuilder();
+
+        pmr::memory_resource* getResource() const;
 
         PathBuilder& operator=(PathBuilder const&) = default;
         PathBuilder& operator=(PathBuilder&&) = default;
@@ -36,8 +41,8 @@ namespace avg
 
     private:
         friend class Path;
-        std::vector<SegmentType> segments_;
-        std::vector<Vector2f> vertices_;
+        pmr::vector<SegmentType> segments_;
+        pmr::vector<Vector2f> vertices_;
         Vector2f start_;
     };
 }

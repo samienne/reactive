@@ -9,6 +9,8 @@
 #include <avg/vector.h>
 #include <avg/brush.h>
 
+#include <pmr/new_delete_resource.h>
+
 namespace reactive::widget
 {
     inline auto drawBackground(avg::Vector2f size, avg::Brush const brush)
@@ -18,7 +20,7 @@ namespace reactive::widget
             .translate(0.5f * size[0], 0.5f * size[1]);
 
         return t * avg::Drawing(makeShape(
-                    makeRect(size[0], size[1]),
+                    makeRect(pmr::new_delete_resource(), size[0], size[1]),
                     btl::just(brush),
                     btl::none));
     }

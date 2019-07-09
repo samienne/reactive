@@ -4,6 +4,8 @@
 
 #include <ase/vector.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <gtest/gtest.h>
 
 #include <iostream>
@@ -13,7 +15,7 @@ using namespace avg;
 
 TEST(Path, Construct)
 {
-    auto path1 = avg::PathBuilder()
+    auto path1 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
@@ -21,7 +23,7 @@ TEST(Path, Construct)
 
     EXPECT_FALSE(path1.isEmpty());
 
-    avg::Path path2;
+    avg::Path path2(pmr::new_delete_resource());
 
     EXPECT_TRUE(path2.isEmpty());
 
@@ -40,13 +42,13 @@ TEST(Path, Construct)
 
 TEST(Path, Assignment)
 {
-    auto path1 = avg::PathBuilder()
+    auto path1 = avg::PathBuilder(pmr::new_delete_resource())
         .lineTo(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
         .build();
 
-    avg::Path path2;
+    avg::Path path2(pmr::new_delete_resource());
     path2 = path1;
 
     EXPECT_TRUE(path1 == path2);
@@ -55,17 +57,17 @@ TEST(Path, Assignment)
 
 TEST(Path, Addition)
 {
-    auto pathBuilder = avg::PathBuilder()
+    auto pathBuilder = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathBuilder2 = avg::PathBuilder()
+    auto pathBuilder2 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.1, 0.2))
         .lineTo(ase::Vector2f(0.4, 0.1));
 
-    auto pathBuilder3 = avg::PathBuilder()
+    auto pathBuilder3 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
@@ -92,13 +94,13 @@ TEST(Path, Addition)
 
 TEST(Path, Scaling)
 {
-    auto path1 = avg::PathBuilder()
+    auto path1 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
         .build();
 
-    auto path2 = avg::PathBuilder()
+    auto path2 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.4, 0.2))
         .lineTo(ase::Vector2f(0.8, 0.6))
         .lineTo(ase::Vector2f(0.8, 0.2))
@@ -116,19 +118,19 @@ TEST(Path, Scaling)
 
 TEST(Path, Offsetting)
 {
-    auto path1 = avg::PathBuilder()
+    auto path1 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.2, 0.1))
         .lineTo(ase::Vector2f(0.4, 0.3))
         .lineTo(ase::Vector2f(0.4, 0.1))
         .build();
 
-    auto path2 = avg::PathBuilder()
+    auto path2 = avg::PathBuilder(pmr::new_delete_resource())
         .start(ase::Vector2f(0.4, 0.2))
         .lineTo(ase::Vector2f(0.6, 0.4))
         .lineTo(ase::Vector2f(0.6, 0.2))
         .build();
 
-    avg::Path path3;
+    avg::Path path3(pmr::new_delete_resource());
 
     auto t = avg::Transform()
         .translate(ase::Vector2f(0.2, 0.1));
@@ -140,7 +142,7 @@ TEST(Path, Offsetting)
 
 TEST(Path, SpecAssignToSelfModified)
 {
-    auto pathBuilder = avg::PathBuilder();
+    auto pathBuilder = avg::PathBuilder(pmr::new_delete_resource());
 
     pathBuilder = std::move(pathBuilder)
         .start(ase::Vector2f(0.2, 0.1))
@@ -153,14 +155,14 @@ TEST(Path, SpecAssignToSelfModified)
 
 TEST(Path, emptyPathShouldHaveEmptyBoundingBox)
 {
-    avg::Path p;
+    avg::Path p(pmr::new_delete_resource());
 
     EXPECT_TRUE(p.getControlBb().isEmpty());
 }
 
 TEST(Path, aPathShouldHaveValidBoundingBox)
 {
-    avg::Path p = avg::PathBuilder()
+    avg::Path p = avg::PathBuilder(pmr::new_delete_resource())
             .start(avg::Vector2f(5.0f, 7.0f))
             .lineTo(avg::Vector2f(10.0f, 12.0f))
             .close()
@@ -181,7 +183,7 @@ TEST(Path, rotatedPathShouldHaveLargerBoundingBox)
 {
     float const pi = 3.1415927f;
 
-    avg::Path p = avg::PathBuilder()
+    avg::Path p = avg::PathBuilder(pmr::new_delete_resource())
             .start(avg::Vector2f(5.0f, 7.0f))
             .lineTo(avg::Vector2f(10.0f, 12.0f))
             .close()

@@ -203,9 +203,13 @@ pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
         else if (element.is<avg::TextEntry>())
         {
             auto const& text = element.get<avg::TextEntry>();
-            auto shape = avg::Shape()
-                .setPath(text.getFont().textToPath(utf8::asUtf8(text.getText()),
-                            1.0f, ase::Vector2f(0.0f, 0.0f)))
+            auto shape = avg::Shape(memory)
+                .setPath(text.getFont().textToPath(
+                            memory,
+                            utf8::asUtf8(text.getText()),
+                            1.0f,
+                            ase::Vector2f(0.0f, 0.0f)
+                            ))
                 .setBrush(text.getBrush())
                 .setPen(text.getPen());
 

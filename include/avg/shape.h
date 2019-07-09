@@ -8,15 +8,20 @@
 #include <btl/option.h>
 #include <btl/hash.h>
 
+#include <pmr/memory_resource.h>
+
 namespace avg
 {
     class AVG_EXPORT Shape final
     {
     public:
-        Shape();
+        explicit Shape(pmr::memory_resource* memory);
+        Shape(Path path, btl::option<Brush> brush, btl::option<Pen> pen);
         Shape(Shape const&) = default;
         Shape(Shape&&) noexcept = default;
         ~Shape();
+
+        pmr::memory_resource* getResource() const;
 
         Shape& operator=(Shape const&) = default;
         Shape& operator=(Shape&&) noexcept = default;
@@ -53,7 +58,7 @@ namespace avg
 
         AVG_EXPORT friend Shape operator*(Transform const& t, Shape const& rhs)
         {
-            return Shape()
+            return Shape(rhs.getResource())
                 .setPath(t * rhs.path_)
                 .setBrush(t * rhs.brush_)
                 .setPen(t * rhs.pen_);

@@ -6,6 +6,8 @@
 
 #include <btl/hash.h>
 
+#include <pmr/memory_resource.h>
+
 #include <utf8/utf8.h>
 
 #include <string>
@@ -37,8 +39,9 @@ namespace avg
         Font& operator=(Font&&) = default;
 
         TextExtents getTextExtents(utf8::Utf8View text, float size) const;
-        Path textToPath(utf8::Utf8View text, float height,
-                ase::Vector2f pos, Hinting hinting = HINT_NONE) const;
+        Path textToPath(pmr::memory_resource* memory, utf8::Utf8View text,
+                float height, ase::Vector2f pos,
+                Hinting hinting = HINT_NONE) const;
         size_t getCharacterIndex(utf8::Utf8View, float fontHeight,
                 ase::Vector2f pos) const;
 

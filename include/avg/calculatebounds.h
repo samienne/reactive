@@ -4,11 +4,13 @@
 #include "vector.h"
 #include "rect.h"
 
+#include <pmr/vector.h>
+
 namespace avg
 {
     inline Rect calculateBounds(
-            std::vector<PathBuilder::SegmentType> segments,
-            std::vector<Vector2f> const& vec)
+            pmr::vector<PathBuilder::SegmentType> segments,
+            pmr::vector<Vector2f> const& vec)
     {
         if (segments.empty())
             return Rect();

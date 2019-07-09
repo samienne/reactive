@@ -6,6 +6,8 @@
 #include <avg/pathbuilder.h>
 #include <ase/vector.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <utf8/utf8.h>
 
 #include <iostream>
@@ -18,7 +20,8 @@ TEST(Font, ToPath)
 {
     avg::Font font(fontPath, 0);
 
-    avg::Path path = font.textToPath(utf8::asUtf8("jepulis"), 18.0f / 800.0f,
+    avg::Path path = font.textToPath(pmr::new_delete_resource(),
+            utf8::asUtf8("jepulis"), 18.0f / 800.0f,
             ase::Vector2f(-0.5f, -0.5f));
 
     //std::cout << path << std::endl;

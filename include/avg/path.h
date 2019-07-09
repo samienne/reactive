@@ -10,6 +10,7 @@
 
 #include <btl/hash.h>
 
+#include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
 #include <vector>
@@ -33,10 +34,12 @@ namespace avg
             SEGMENT_ARC
         };
 
-        Path();
+        explicit Path(pmr::memory_resource* memory);
         Path(Path const&) = default;
         Path(Path&&) noexcept = default;
         ~Path();
+
+        pmr::memory_resource* getResource() const;
 
         bool operator==(Path const& rhs) const;
         bool operator!=(Path const& rhs) const;
@@ -78,20 +81,22 @@ namespace avg
     private:
         friend class PathBuilder;
 
-        Path(std::vector<SegmentType>&& segments,
-                std::vector<Vector2f>&& vertices);
+        Path(pmr::vector<SegmentType>&& segments,
+                pmr::vector<Vector2f>&& vertices);
 
         void ensureUniqueness();
 
-        std::vector<SegmentType> const& getSegments() const;
-        std::vector<Vector2f> const& getVertices() const;
+        pmr::vector<SegmentType> const& getSegments() const;
+        pmr::vector<Vector2f> const& getVertices() const;
 
         AVG_EXPORT friend Path operator*(const Transform& t, const Path& p);
         AVG_EXPORT friend std::ostream& operator<<(std::ostream&, const Path& p);
-        std::shared_ptr<PathDeferred> deferred_;
         inline PathDeferred* d() { return deferred_.get(); }
         inline PathDeferred const* d() const { return deferred_.get(); }
 
+    private:
+        pmr::memory_resource* memory_;
+        std::shared_ptr<PathDeferred> deferred_;
         Transform transform_;
         Rect controlBb_;
     };

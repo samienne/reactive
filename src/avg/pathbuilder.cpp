@@ -7,7 +7,9 @@
 namespace avg
 {
 
-PathBuilder::PathBuilder() :
+PathBuilder::PathBuilder(pmr::memory_resource* memory) :
+    segments_(memory),
+    vertices_(memory),
     start_(0.0f, 0.0f)
 {
     segments_.push_back(Path::SEGMENT_START);
@@ -16,6 +18,11 @@ PathBuilder::PathBuilder() :
 
 PathBuilder::~PathBuilder()
 {
+}
+
+pmr::memory_resource* PathBuilder::getResource() const
+{
+    return segments_.get_allocator().resource();
 }
 
 PathBuilder PathBuilder::start(Vector2f v) &&

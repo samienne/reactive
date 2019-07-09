@@ -3,6 +3,8 @@
 #include "widget/frame.h"
 #include "widget/label.h"
 
+#include <pmr/new_delete_resource.h>
+
 namespace reactive::widget
 {
 
@@ -29,7 +31,8 @@ namespace
         auto brush = avg::Brush(bgColor);
 
         auto shape =  makeShape(
-                makeRoundedRect(size[0] - 5.0f, size[1] - 5.0f, 10.0f),
+                makeRoundedRect(pmr::new_delete_resource(),
+                    size[0] - 5.0f, size[1] - 5.0f, 10.0f),
                 btl::just(brush),
                 btl::just(pen));
 

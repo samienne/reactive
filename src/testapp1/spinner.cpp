@@ -14,6 +14,8 @@
 
 #include <avg/drawing.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <iostream>
 
 using namespace reactive;
@@ -41,7 +43,8 @@ namespace
                 float s = std::max(0.0f,
                         (-tt * tt + tt - 2.0f/9.0f)) * 200.0f + 10.0f;
                 auto shape = makeShape(
-                        makeCircle(ase::Vector2f(0.0f, 0.0f), s/2.0f),
+                        makeCircle(pmr::new_delete_resource(),
+                            ase::Vector2f(0.0f, 0.0f), s/2.0f),
                         btl::just(brush),
                         btl::none);
 

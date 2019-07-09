@@ -5,20 +5,25 @@
 namespace avg
 {
 
-Shape::Shape()
+Shape::Shape(pmr::memory_resource* memory) :
+    path_(memory)
 {
 }
 
-/*Shape::Shape(Path const& path, btl::option<Brush> const& brush,
-        btl::option<Pen> const& pen) :
-    path_(path),
-    brush_(brush),
-    pen_(pen)
+Shape::Shape(Path path, btl::option<Brush> brush, btl::option<Pen> pen) :
+    path_(std::move(path)),
+    brush_(std::move(brush)),
+    pen_(std::move(pen))
 {
-}*/
+}
 
 Shape::~Shape()
 {
+}
+
+pmr::memory_resource* Shape::getResource() const
+{
+    return path_.getResource();
 }
 
 Shape Shape::setPath(Path const& path) &&
@@ -66,7 +71,7 @@ Obb Shape::getControlObb() const
 
 Shape Shape::operator*(float scale) const &
 {
-    return Shape()
+    return Shape(getResource())
         .setPath(path_ * scale)
         .setBrush(brush_ * scale)
         .setPen(pen_ * scale);
@@ -74,15 +79,15 @@ Shape Shape::operator*(float scale) const &
 
 Shape Shape::operator*(float scale) &&
 {
-    return Shape()
-        .setPath(std::move(path_) * scale)
-        .setBrush(brush_ * scale)
-        .setPen(pen_ * scale);
+    path_ = std::move(path_) * scale;
+    brush_ = brush_ * scale;
+    pen_ = pen_ * scale;
+    return std::move(*this);
 }
 
 Shape Shape::operator+(Vector2f offset) const &
 {
-    return Shape()
+    return Shape(getResource())
         .setPath(path_ + offset)
         .setBrush(brush_)
         .setPen(pen_);
@@ -90,10 +95,8 @@ Shape Shape::operator+(Vector2f offset) const &
 
 Shape Shape::operator+(Vector2f offset) &&
 {
-    return Shape()
-        .setPath(std::move(path_) + offset)
-        .setBrush(brush_)
-        .setPen(pen_);
+    path_ = std::move(path_) + offset;
+    return std::move(*this);
 }
 
 Shape& Shape::operator*=(float scale)

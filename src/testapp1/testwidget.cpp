@@ -19,6 +19,8 @@
 #include <ase/stringify.h>
 #include <ase/vector.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <iostream>
 
 using namespace reactive;
@@ -37,7 +39,8 @@ namespace
                 theme.getBackgroundHighlight());
         avg::Brush brush2(avg::Color(0.4f, 0.3f, 0.0f));
 
-        auto rect = makeRect(size[0] - 50.0f, 200.0f);
+        auto rect = makeRect(pmr::new_delete_resource(),
+                size[0] - 50.0f, 200.0f);
         auto shape = makeShape(rect, btl::just(brush), btl::just(pen));
 
         auto text = avg::TextEntry(theme.getFont(), avg::Transform(
