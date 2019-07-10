@@ -72,7 +72,8 @@ Vertices generateVertices(pmr::memory_resource* memory,
     return result;
 }
 
-avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
+avg::SoftMesh generateMesh(pmr::memory_resource* memory,
+        avg::Region const& region, avg::Brush const& brush,
         avg::Rect const& r, bool clip)
 {
     std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> > bufs;
@@ -89,7 +90,7 @@ avg::SoftMesh generateMesh(avg::Region const& region, avg::Brush const& brush,
         return vertex;
     };
 
-    std::vector<std::array<float, 2>> vertices;
+    pmr::vector<std::array<float, 2>> vertices(memory);
     vertices.reserve(bufs.first.size());
     for (auto&& v : bufs.first)
         vertices.push_back(toVertex(v));
@@ -102,20 +103,24 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
         ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    avg::Region region = path.fillRegion(memory, avg::FILL_EVENODD,
+    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+
+    avg::Region region = path.fillRegion(&mono, avg::FILL_EVENODD,
             pixelSize, resPerPixel);
 
-    return generateMesh(region, brush, r, clip);
+    return generateMesh(memory, region, brush, r, clip);
 }
 
 avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
         avg::Pen const& pen, ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    avg::Region region = path.offsetRegion(memory, pen.getJoinType(),
+    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+
+    avg::Region region = path.offsetRegion(&mono, pen.getJoinType(),
             pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);
 
-    return generateMesh(region, pen.getBrush(), r, clip);
+    return generateMesh(memory, region, pen.getBrush(), r, clip);
 }
 
 pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
@@ -306,19 +311,19 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     }
 }
 
-pmr::vector<Element> generateElements(avg::Painter const& painter,
-        pmr::vector<avg::SoftMesh> const& meshes)
+pmr::vector<Element> generateElements(pmr::memory_resource* memory,
+        avg::Painter const& painter, pmr::vector<avg::SoftMesh> const& meshes)
 {
     float step = 0.5f / (float)(meshes.size() + 1u);
 
-    pmr::vector<Element> elements(meshes.get_allocator().resource());
+    pmr::vector<Element> elements(memory);
     elements.reserve(meshes.size());
 
     uint32_t i = 1;
     for (auto const& mesh : meshes)
     {
         elements.push_back(std::make_pair(painter.getPipeline(mesh.getBrush()),
-                    generateVertices(pmr::new_delete_resource(),
+                    generateVertices(memory,
                         mesh, 1.0f - (float)i * step)));
         ++i;
     }
@@ -477,7 +482,7 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
     auto meshes = generateMeshes(memory, painter, avg::Transform(),
             drawing.getElements(), pixelSize, resPerPixel, rect, false);
 
-    auto elements = generateElements(painter, meshes);
+    auto elements = generateElements(memory, painter, meshes);
 
     renderElements(commandBuffer, context, framebuffer, painter,
             std::move(elements));
@@ -489,7 +494,7 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         << tr.getConsecutiveAllocDealloc() << " "
         << tr.getConsecutiveAllocDeallocBytes() << " bytes."
         << std::endl;
-        */
+        //*/
 }
 
 } // namespace

@@ -3,18 +3,19 @@
 #include "memory_resource.h"
 
 #include <cstdint>
+#include <algorithm>
 
 namespace pmr
 {
     class monotonic_buffer_resource : public memory_resource
     {
     public:
-        explicit monotonic_buffer_resource(memory_resource* upstream) :
+        inline explicit monotonic_buffer_resource(memory_resource* upstream) :
             monotonic_buffer_resource(4096, upstream)
         {
         }
 
-        monotonic_buffer_resource(
+        inline monotonic_buffer_resource(
                 std::size_t initial_size,
                 memory_resource* upstream) :
             upstream_(upstream),
@@ -25,7 +26,7 @@ namespace pmr
             current_->size = initial_size;
         }
 
-        monotonic_buffer_resource(void* buffer, std::size_t buffer_size,
+        inline monotonic_buffer_resource(void* buffer, std::size_t buffer_size,
                 memory_resource* upstream) :
             upstream_(upstream),
             current_(reinterpret_cast<chunk*>(buffer)),
@@ -35,12 +36,12 @@ namespace pmr
             current_->size = buffer_size;
         }
 
-        ~monotonic_buffer_resource()
+        inline ~monotonic_buffer_resource()
         {
             release();
         }
 
-        void release()
+        inline void release()
         {
             chunk* ptr = current_;
 
@@ -56,7 +57,7 @@ namespace pmr
         }
 
     private:
-        void* do_allocate(std::size_t size, std::size_t alignment) override
+        inline void* do_allocate(std::size_t size, std::size_t alignment) override
         {
             // calculate offset for the alignment
             std::size_t offset =
@@ -72,6 +73,8 @@ namespace pmr
             {
                 // Allocate new chunk
                 std::size_t newSize = current_ ? current_->size * 2 : 4096;
+                newSize = std::max(newSize, size + sizeof(chunk));
+
                 chunk* newChunk = reinterpret_cast<chunk*>(
                         upstream_->allocate(newSize));
                 newChunk->size = newSize;
@@ -86,13 +89,13 @@ namespace pmr
             return p;
         }
 
-        void do_deallocate(void* /*p*/, std::size_t /*size*/,
+        inline void do_deallocate(void* /*p*/, std::size_t /*size*/,
                 std::size_t /*alignment*/) override
         {
             // No op
         }
 
-        bool do_is_equal(memory_resource const& rhs) const override
+        inline bool do_is_equal(memory_resource const& rhs) const override
         {
             return this == &rhs;
         }

@@ -8,6 +8,7 @@
 
 #include "debug.h"
 
+#include <pmr/queue.h>
 #include <pmr/new_delete_resource.h>
 #include <pmr/monotonic_buffer_resource.h>
 
@@ -382,17 +383,19 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     if (pointCount == 0)
         return {{}, {}};
 
+    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+
     const float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     const float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    std::queue<ClipperLib::PolyNode*> stack;
-    std::vector<uint16_t> indices;
+    pmr::queue<ClipperLib::PolyNode*> stack(&mono);
     for (auto const& child : d()->paths_->Childs)
         stack.push(child);
 
     node = stack.front();
     stack.pop();
 
+    std::vector<uint16_t> indices;
     std::vector<Vector2f> vertices;
     //DBG("Top level paths: %1", d()->paths_.Childs.size());
     while (node)
@@ -402,14 +405,14 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
                 && "Wrong orientation");
 
         //points.clear();
-        pmr::vector<p2t::Point*> polyline(memory_);
+        pmr::vector<p2t::Point*> polyline(&mono);
         assert(node->Contour.front() != node->Contour.back());
 
         size_t pointCount = node->Contour.size();
         for (auto const& child : node->Childs)
             pointCount += child->Contour.size();
 
-        pmr::vector<p2t::Point> points(memory_);
+        pmr::vector<p2t::Point> points(&mono);
         points.reserve(pointCount);
 
         for (auto const& pt : node->Contour)
@@ -435,7 +438,7 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
             {
                 assert(child->Contour.front() != child->Contour.back());
                 points.push_back(p2t::Point(
-                            memory_,
+                            &mono,
                             (float)pt.X / xRes,
                             (float)pt.Y / yRes));
                 polyline.push_back(&points.back());
