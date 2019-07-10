@@ -23,6 +23,7 @@
 #include <btl/option.h>
 
 #include <pmr/vector.h>
+#include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/new_delete_resource.h>
 
@@ -461,7 +462,8 @@ private:
     void* previous_ = nullptr;
 };
 
-void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
+void render(pmr::memory_resource* memory,
+        ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::Framebuffer& framebuffer, ase::Vector2i size,
         avg::Painter const& painter, avg::Drawing const& drawing)
 {
@@ -474,9 +476,11 @@ void render(ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
             sizef
             );
 
-    pmr::monotonic_buffer_resource mono(600000, pmr::new_delete_resource());
+    //static pmr::unsychronized_pool_resource pool(pmr::new_delete_resource());
+    //static pmr::memory_resource* memory = &pool;
+    //pmr::monotonic_buffer_resource mono(600000, pmr::new_delete_resource());
+    //pmr::memory_resource* memory = &mono;
     //TraceResource tr(&mono); pmr::memory_resource* memory = &tr;
-    pmr::memory_resource* memory = &mono;
     //pmr::memory_resource* memory = pmr::new_delete_resource();
 
     auto meshes = generateMeshes(memory, painter, avg::Transform(),

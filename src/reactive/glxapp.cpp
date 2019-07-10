@@ -14,6 +14,9 @@
 #include <ase/glxwindow.h>
 #include <ase/glxplatform.h>
 
+#include <pmr/new_delete_resource.h>
+#include <pmr/unsynchronized_pool_resource.h>
+
 #include <chrono>
 #include <fstream>
 
@@ -50,6 +53,7 @@ class GlxWindowGlue
 public:
     GlxWindowGlue(ase::GlxPlatform& platform, ase::RenderContext&& context,
             Window window, avg::Painter painter) :
+        memoryPool_(pmr::new_delete_resource()),
         glxWindow(platform, ase::Vector2i(800, 600)),
         context_(std::move(context)),
         window_(std::move(window)),
@@ -258,7 +262,8 @@ public:
 
             ase::CommandBuffer commands;
 
-            render(commands, context_, glxWindow.getDefaultFramebuffer(),
+            render(&memoryPool_,commands, context_,
+                    glxWindow.getDefaultFramebuffer(),
                     glxWindow.getSize(), painter_,
                     widget_.getDrawing().evaluate());
 
@@ -316,6 +321,7 @@ public:
     }
 
 private:
+    pmr::unsynchronized_pool_resource memoryPool_;
     ase::GlxWindow glxWindow;
     ase::RenderContext context_;
     Window window_;

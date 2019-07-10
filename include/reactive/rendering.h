@@ -11,11 +11,14 @@
 
 #include <btl/variant.h>
 
+#include <pmr/memory_resource.h>
+
 namespace reactive
 {
     using RenderElement = avg::Drawing::Element;
 
     REACTIVE_EXPORT void render(
+            pmr::memory_resource* memory,
             ase::CommandBuffer& queue,
             ase::RenderContext& context,
             ase::Framebuffer& framebuffer,
