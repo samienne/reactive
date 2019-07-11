@@ -85,7 +85,9 @@ namespace btl
             if (size <= reserved_)
                 return;
 
-            std::size_t newSize = std::max(128ul, reserved_ * 2);
+            std::size_t newSize = std::max(64ul, reserved_ * 2);
+            while (newSize < size)
+                newSize *= 2;
 
             void* newData = memory_->allocate(newSize);
             memset(newData, 0, newSize);

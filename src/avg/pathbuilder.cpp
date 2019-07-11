@@ -8,33 +8,41 @@ namespace avg
 {
 
 PathBuilder::PathBuilder(pmr::memory_resource* memory) :
+    memory_(memory),
+    data_(memory),
     segments_(memory),
     vertices_(memory),
     start_(0.0f, 0.0f)
 {
     segments_.push_back(Path::SegmentType::start);
     vertices_.push_back(start_);
-}
 
-PathBuilder::~PathBuilder()
-{
+    data_.push(Path::StartSegment{ Path::SegmentType::start, { 0.0f, 0.0f } });
+    newPoly_ = true;
 }
 
 pmr::memory_resource* PathBuilder::getResource() const
 {
-    return segments_.get_allocator().resource();
+    return memory_;
 }
 
 PathBuilder PathBuilder::start(Vector2f v) &&
 {
-    if (!segments_.empty() && segments_.back() == Path::SegmentType::start)
+    if (newPoly_)
+    {
         vertices_.back() = v;
+
+        data_.pop(sizeof(Path::StartSegment));
+    }
     else
     {
         segments_.push_back(Path::SegmentType::start);
         vertices_.push_back(v);
+
     }
 
+    data_.push(Path::StartSegment{ Path::SegmentType::start, v });
+    newPoly_ = true;
     start_ = v;
 
     return std::move(*this);
@@ -50,6 +58,9 @@ PathBuilder PathBuilder::lineTo(Vector2f v) &&
     segments_.push_back(Path::SegmentType::line);
     vertices_.push_back(v);
 
+    data_.push(Path::LineSegment{ Path::SegmentType::line, v });
+    newPoly_ = false;
+
     return std::move(*this);
 }
 
@@ -63,6 +74,10 @@ PathBuilder PathBuilder::conicTo(Vector2f v1, Vector2f v2) &&
     segments_.push_back(Path::SegmentType::conic);
     vertices_.push_back(v1);
     vertices_.push_back(v2);
+
+    data_.push(Path::ConicSegment{ Path::SegmentType::conic, v1, v2 });
+    newPoly_ = false;
+
     return std::move(*this);
 }
 
@@ -72,6 +87,10 @@ PathBuilder PathBuilder::cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&
     vertices_.push_back(v1);
     vertices_.push_back(v2);
     vertices_.push_back(v3);
+
+    data_.push(Path::CubicSegment{ Path::SegmentType::cubic, v1, v2, v3 });
+    newPoly_ = false;
+
     return std::move(*this);
 }
 
@@ -81,12 +100,15 @@ PathBuilder PathBuilder::arc(Vector2f center, float angle) &&
     vertices_.push_back(center);
     vertices_.emplace_back(angle, 0.0f);
 
+    data_.push(Path::ArcSegment{ Path::SegmentType::arc, center, angle });
+    newPoly_ = false;
+
     return std::move(*this);
 }
 
 PathBuilder PathBuilder::close() &&
 {
-    if (segments_.empty() || segments_.back() == Path::SegmentType::start)
+    if (newPoly_)
         return std::move(*this);
 
     return std::move(*this).lineTo(start_);
@@ -94,12 +116,12 @@ PathBuilder PathBuilder::close() &&
 
 Path PathBuilder::build() &&
 {
-    return Path(std::move(segments_), std::move(vertices_));
+    return Path(std::move(data_));
 }
 
 Path PathBuilder::build() const&
 {
-    return Path(btl::clone(segments_), btl::clone(vertices_));
+    return Path(btl::Buffer(data_));
 }
 
 } // avg

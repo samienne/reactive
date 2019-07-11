@@ -1,5 +1,6 @@
 #pragma once
 
+#include "path.h"
 #include "pathbuilder.h"
 #include "vector.h"
 #include "rect.h"
@@ -8,44 +9,37 @@
 
 namespace avg
 {
-    inline Rect calculateBounds(
-            pmr::vector<PathBuilder::SegmentType> segments,
-            pmr::vector<Vector2f> const& vec)
+    inline Rect calculateBounds(Path const& path)
     {
-        if (segments.empty())
-            return Rect();
-
         Rect rect;
-        auto i = vec.begin();
         Vector2f cur(0.0f, 0.0f);
 
-        for (auto const& s : segments)
+        for (auto i = path.begin(); i != path.end(); ++i)
         {
-            switch(s)
+            switch(i.getType())
             {
             case Path::SegmentType::start:
-                cur = *(i++);
+                cur = i.getStart().v;
                 rect = rect.include(cur);
                 break;
             case Path::SegmentType::line:
-                cur = *(i++);
+                cur = i.getLine().v;
                 rect = rect.include(cur);
                 break;
             case Path::SegmentType::conic:
-                rect = rect.include(*(i++));
-                cur = *(i++);
+                rect = rect.include(i.getConic().v1);
+                cur = i.getConic().v2;
                 rect = rect.include(cur);
                 break;
             case Path::SegmentType::cubic:
-                rect = rect.include(*(i++));
-                rect = rect.include(*(i++));
-                cur = *(i++);
+                rect = rect.include(i.getCubic().v1);
+                rect = rect.include(i.getCubic().v2);
+                cur = i.getCubic().v3;
                 rect = rect.include(cur);
                 break;
             case Path::SegmentType::arc:
                 {
-                    Vector2f c = *(i++);
-                    Vector2f p = *(i++);
+                    Vector2f c = i.getArc().center;
                     Vector2f d = cur - c;
                     float r = sqrt(d[0]*d[0]+d[1]*d[1]);
 
