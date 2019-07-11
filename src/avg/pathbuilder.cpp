@@ -12,7 +12,7 @@ PathBuilder::PathBuilder(pmr::memory_resource* memory) :
     vertices_(memory),
     start_(0.0f, 0.0f)
 {
-    segments_.push_back(Path::SEGMENT_START);
+    segments_.push_back(Path::SegmentType::start);
     vertices_.push_back(start_);
 }
 
@@ -27,11 +27,11 @@ pmr::memory_resource* PathBuilder::getResource() const
 
 PathBuilder PathBuilder::start(Vector2f v) &&
 {
-    if (!segments_.empty() && segments_.back() == Path::SEGMENT_START)
+    if (!segments_.empty() && segments_.back() == Path::SegmentType::start)
         vertices_.back() = v;
     else
     {
-        segments_.push_back(Path::SEGMENT_START);
+        segments_.push_back(Path::SegmentType::start);
         vertices_.push_back(v);
     }
 
@@ -47,7 +47,7 @@ PathBuilder PathBuilder::start(float x, float y) &&
 
 PathBuilder PathBuilder::lineTo(Vector2f v) &&
 {
-    segments_.push_back(Path::SEGMENT_LINE);
+    segments_.push_back(Path::SegmentType::line);
     vertices_.push_back(v);
 
     return std::move(*this);
@@ -60,7 +60,7 @@ PathBuilder PathBuilder::lineTo(float x, float y) &&
 
 PathBuilder PathBuilder::conicTo(Vector2f v1, Vector2f v2) &&
 {
-    segments_.push_back(Path::SEGMENT_CONIC);
+    segments_.push_back(Path::SegmentType::conic);
     vertices_.push_back(v1);
     vertices_.push_back(v2);
     return std::move(*this);
@@ -68,7 +68,7 @@ PathBuilder PathBuilder::conicTo(Vector2f v1, Vector2f v2) &&
 
 PathBuilder PathBuilder::cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&
 {
-    segments_.push_back(Path::SEGMENT_CUBIC);
+    segments_.push_back(Path::SegmentType::cubic);
     vertices_.push_back(v1);
     vertices_.push_back(v2);
     vertices_.push_back(v3);
@@ -77,7 +77,7 @@ PathBuilder PathBuilder::cubicTo(Vector2f v1, Vector2f v2, Vector2f v3) &&
 
 PathBuilder PathBuilder::arc(Vector2f center, float angle) &&
 {
-    segments_.push_back(Path::SEGMENT_ARC);
+    segments_.push_back(Path::SegmentType::arc);
     vertices_.push_back(center);
     vertices_.emplace_back(angle, 0.0f);
 
@@ -86,7 +86,7 @@ PathBuilder PathBuilder::arc(Vector2f center, float angle) &&
 
 PathBuilder PathBuilder::close() &&
 {
-    if (segments_.empty() || segments_.back() == Path::SEGMENT_START)
+    if (segments_.empty() || segments_.back() == Path::SegmentType::start)
         return std::move(*this);
 
     return std::move(*this).lineTo(start_);

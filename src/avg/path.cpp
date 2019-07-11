@@ -190,7 +190,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
         switch (segments_[segment])
         {
-            case Path::SEGMENT_START:
+            case Path::SegmentType::start:
                 if (!vertices.empty())
                 {
                     polygons.push_back(std::move(vertices));
@@ -201,12 +201,12 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
-            case Path::SEGMENT_LINE:
+            case Path::SegmentType::line:
                 cur = offset + rs * vertices_.at(vertex++);
                 vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
                 break;
 
-            case Path::SEGMENT_CONIC:
+            case Path::SegmentType::conic:
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
                 p3 = offset + rs * vertices_.at(vertex++);
@@ -222,7 +222,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
                 break;
 
-            case Path::SEGMENT_CUBIC:
+            case Path::SegmentType::cubic:
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
                 p3 = offset + rs * vertices_.at(vertex++);
@@ -239,7 +239,7 @@ std::vector<SimplePolygon> PathDeferred::toSimplePolygons(
 
                 break;
 
-            case Path::SEGMENT_ARC:
+            case Path::SegmentType::arc:
             {
                 p1 = cur;
                 p2 = offset + rs * vertices_.at(vertex++);
@@ -543,19 +543,19 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
 
         switch (p.d()->segments_[segment])
         {
-            case Path::SEGMENT_START:
+            case Path::SegmentType::start:
                 p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "start(" << p1 << ")" << std::endl;
                 break;
 
-            case Path::SEGMENT_LINE:
+            case Path::SegmentType::line:
                 p1 = off + sr * p.d()->vertices_.at(vertex++);
                 cur = p1;
                 stream << "lineTo(" << p1 << ")" << std::endl;
                 break;
 
-            case Path::SEGMENT_CONIC:
+            case Path::SegmentType::conic:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);
@@ -564,7 +564,7 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                 stream << "conicTo(" << p2 << ", " << p3 << ")" << std::endl;
                 break;
 
-            case Path::SEGMENT_CUBIC:
+            case Path::SegmentType::cubic:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);
@@ -575,7 +575,7 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
                     << ")" << std::endl;
 
                 break;
-            case Path::SEGMENT_ARC:
+            case Path::SegmentType::arc:
                 p1 = cur;
                 p2 = off + sr * p.d()->vertices_.at(vertex++);
                 p3 = off + sr * p.d()->vertices_.at(vertex++);

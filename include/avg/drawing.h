@@ -79,6 +79,7 @@ namespace avg
 
         Drawing filterByRect(Rect const& r) &&;
 
+        [[nodiscard]]
         Drawing transform(Transform const& t) &&;
 
         AVG_EXPORT friend Drawing operator*(Transform const& t, Drawing&& drawing);

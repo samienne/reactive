@@ -6,7 +6,6 @@
 #include "avgvisibility.h"
 
 #include <btl/option.h>
-#include <btl/hash.h>
 
 #include <pmr/memory_resource.h>
 
@@ -46,15 +45,6 @@ namespace avg
 
         bool operator==(Shape const& rhs) const;
         bool operator!=(Shape const& rhs) const;
-
-        template <class THash>
-        friend void hash_append(THash& h, Shape const& shape) noexcept
-        {
-            using btl::hash_append;
-            hash_append(h, shape.path_);
-            hash_append(h, shape.brush_);
-            hash_append(h, shape.pen_);
-        }
 
         AVG_EXPORT friend Shape operator*(Transform const& t, Shape const& rhs)
         {

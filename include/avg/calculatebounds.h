@@ -23,26 +23,26 @@ namespace avg
         {
             switch(s)
             {
-            case Path::SEGMENT_START:
+            case Path::SegmentType::start:
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case Path::SEGMENT_LINE:
+            case Path::SegmentType::line:
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case Path::SEGMENT_CONIC:
+            case Path::SegmentType::conic:
                 rect = rect.include(*(i++));
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case Path::SEGMENT_CUBIC:
+            case Path::SegmentType::cubic:
                 rect = rect.include(*(i++));
                 rect = rect.include(*(i++));
                 cur = *(i++);
                 rect = rect.include(cur);
                 break;
-            case Path::SEGMENT_ARC:
+            case Path::SegmentType::arc:
                 {
                     Vector2f c = *(i++);
                     Vector2f p = *(i++);

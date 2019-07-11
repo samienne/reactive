@@ -8,8 +8,6 @@
 #include "rect.h"
 #include "avgvisibility.h"
 
-#include <btl/hash.h>
-
 #include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
@@ -25,13 +23,13 @@ namespace avg
     class AVG_EXPORT Path final
     {
     public:
-        enum SegmentType
+        enum class SegmentType
         {
-            SEGMENT_START = 0,
-            SEGMENT_LINE,
-            SEGMENT_CONIC,
-            SEGMENT_CUBIC,
-            SEGMENT_ARC
+            start,
+            line,
+            conic,
+            cubic,
+            arc
         };
 
         explicit Path(pmr::memory_resource* memory);
@@ -67,17 +65,6 @@ namespace avg
         Rect getControlBb() const;
         Obb getControlObb() const;
 
-        template <class THash>
-        friend void hash_append(THash& h, Path const& path) noexcept
-        {
-            using btl::hash_append;
-            if (path.deferred_)
-            {
-                hash_append(h, path.transform_);
-                hash_append(h, path.getSegments());
-                hash_append(h, path.getVertices());
-            }
-        }
     private:
         friend class PathBuilder;
 
