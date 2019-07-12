@@ -529,18 +529,6 @@ Obb Path::getControlObb() const
     return transform_ * Obb(d()->controlBb_);
 }
 
-/*
-Path::Path( pmr::vector<SegmentType>&& segments,
-        pmr::vector<Vector2f>&& vertices) :
-    memory_(segments.get_allocator().resource()),
-    deferred_(std::make_shared<PathDeferred>(memory_))
-{
-    //d()->segments_ = std::move(segments);
-    //d()->vertices_ = std::move(vertices);
-    d()->controlBb_ = calculateBounds(d()->segments_, d()->vertices_);
-}
-*/
-
 Path::Path(btl::Buffer&& buffer) :
     memory_(buffer.resource()),
     deferred_(std::make_shared<PathDeferred>(memory_))
