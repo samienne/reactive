@@ -124,5 +124,11 @@ bool Shape::operator!=(Shape const& rhs) const
         || path_ != rhs.path_;
 }
 
+/*
+Shape operator*(Transform const& t, Shape const& rhs)
+{
+    return Shape(t * rhs.path_, t * rhs.brush_, t * rhs.pen_);
+}
+*/
 } // namespace
 

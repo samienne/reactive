@@ -26,7 +26,6 @@ public:
     RegionDeferred(pmr::memory_resource* memory);
     RegionDeferred(RegionDeferred const&) = default;
     RegionDeferred(RegionDeferred&&) = default;
-    ~RegionDeferred();
 
     pmr::memory_resource* getResource() const;
 
@@ -101,10 +100,6 @@ namespace
 
 RegionDeferred::RegionDeferred(pmr::memory_resource* memory) :
     memory_(memory)
-{
-}
-
-RegionDeferred::~RegionDeferred()
 {
 }
 
@@ -194,8 +189,6 @@ Region::Region(pmr::memory_resource* memory,
         case JOIN_SQUARE:
             joinType = ClipperLib::jtSquare;
             break;
-        default:
-            assert(false && "Unknown jointype");
     }
 
     ClipperLib::EndType endType;
@@ -220,8 +213,6 @@ Region::Region(pmr::memory_resource* memory,
         case END_CLOSEDPOLYGON:
             endType = ClipperLib::etClosedPolygon;
             break;
-        default:
-            assert(false && "Unknown end type");
     }
 
     d()->pixelSize_ = pixelSize;
@@ -314,8 +305,6 @@ Region Region::offset(JoinType join, EndType end, float offset) const
         case JOIN_SQUARE:
             joinType = ClipperLib::jtSquare;
             break;
-        default:
-            assert(false && "Unknown jointype");
     }
 
     ClipperLib::EndType endType;
@@ -340,8 +329,6 @@ Region Region::offset(JoinType join, EndType end, float offset) const
         case END_CLOSEDPOLYGON:
             endType = ClipperLib::etClosedPolygon;
             break;
-        default:
-            assert(false && "Unknown end type");
     }
 
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
@@ -360,6 +347,7 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     result.d()->paths_ = std::move(resultPaths);
     result.d()->pixelSize_ = d()->pixelSize_;
     result.d()->resPerPixel_ = d()->resPerPixel_;
+
     return result;
 }
 
@@ -431,9 +419,9 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
         for (auto const& child : node->Childs)
         {
             polyline.clear();
-            assert(child->IsHole());
-            assert(!ClipperLib::Orientation(child->Contour)
-                    && "Wrong orientation");
+            //assert(child->IsHole());
+            //assert(!ClipperLib::Orientation(child->Contour)
+                    //&& "Wrong orientation");
             for (auto const& pt : child->Contour)
             {
                 assert(child->Contour.front() != child->Contour.back());

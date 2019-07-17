@@ -22,7 +22,7 @@ namespace avg
     class AVG_EXPORT Region
     {
     public:
-        Region(pmr::memory_resource* memory);
+        explicit Region(pmr::memory_resource* memory);
 
         Region(pmr::memory_resource* memory,
                 std::vector<SimplePolygon> const& polygons, FillRule rule,

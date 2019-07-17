@@ -46,12 +46,9 @@ namespace avg
         bool operator==(Shape const& rhs) const;
         bool operator!=(Shape const& rhs) const;
 
-        AVG_EXPORT friend Shape operator*(Transform const& t, Shape const& rhs)
+        inline friend Shape operator*(Transform const& t, Shape const& rhs)
         {
-            return Shape(rhs.getResource())
-                .setPath(t * rhs.path_)
-                .setBrush(t * rhs.brush_)
-                .setPen(t * rhs.pen_);
+            return Shape(t * rhs.path_, t * rhs.brush_, t * rhs.pen_);
         }
 
     private:
