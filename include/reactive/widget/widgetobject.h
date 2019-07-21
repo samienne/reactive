@@ -1,5 +1,7 @@
 #pragma once
 
+#include <reactive/drawcontext.h>
+
 #include <reactive/widgetfactory.h>
 
 #include <reactive/signal/input.h>
@@ -18,6 +20,7 @@ namespace reactive::widget
         WidgetObject& operator=(WidgetObject const&) = default;
         WidgetObject& operator=(WidgetObject&&) noexcept = default;
 
+        void setDrawContext(DrawContext drawContext);
         void setObb(avg::Obb obb);
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);

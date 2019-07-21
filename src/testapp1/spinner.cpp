@@ -22,8 +22,8 @@ using namespace reactive;
 
 namespace
 {
-    auto draw = [](ase::Vector2f size, widget::Theme const& theme,
-            std::chrono::duration<float> t)
+    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+            widget::Theme const& theme, std::chrono::duration<float> t)
         -> avg::Drawing
         {
             avg::Brush brush(theme.getGreen());
@@ -43,7 +43,7 @@ namespace
                 float s = std::max(0.0f,
                         (-tt * tt + tt - 2.0f/9.0f)) * 200.0f + 10.0f;
                 auto shape = makeShape(
-                        makeCircle(pmr::new_delete_resource(),
+                        makeCircle(drawContext.getResource(),
                             ase::Vector2f(0.0f, 0.0f), s/2.0f),
                         btl::just(brush),
                         btl::none);
@@ -65,7 +65,7 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | widget::onDraw<SizeTag, ThemeTag>(draw, std::move(t))
+        | widget::onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(t))
         | widget::clip()
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
         ;

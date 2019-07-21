@@ -13,10 +13,6 @@
 
 #include <avg/transform.h>
 
-#include <pmr/new_delete_resource.h>
-
-#include <iostream>
-
 namespace reactive::widget
 {
     template <typename T, typename U>

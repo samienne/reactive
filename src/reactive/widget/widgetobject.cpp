@@ -1,6 +1,8 @@
 #include "widget/widgetobject.h"
 #include "widgetmaps.h"
 
+#include <pmr/new_delete_resource.h>
+
 namespace reactive::widget
 {
 
@@ -25,6 +27,11 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
 WidgetObject::WidgetObject(WidgetFactory factory) :
     impl_(std::make_shared<Impl>(std::move(factory)))
 {
+}
+
+void WidgetObject::setDrawContext(DrawContext drawContext)
+{
+    impl_->drawContext_.handle.set(std::move(drawContext));
 }
 
 void WidgetObject::setObb(avg::Obb obb)

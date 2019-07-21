@@ -14,34 +14,33 @@ namespace reactive::debug
 {
     namespace detail
     {
-        inline avg::Drawing makeRect(avg::Obb obb)
+        inline avg::Drawing makeRect(DrawContext const& drawContext, avg::Obb obb)
         {
             float w = obb.getSize().x();
             float h = obb.getSize().y();
 
-            return obb.getTransform() * avg::Drawing(makeShape(
-                        avg::PathBuilder(pmr::new_delete_resource())
-                            .start(ase::Vector2f(.0f, .0f))
-                            .lineTo(ase::Vector2f(w, .0f))
-                            .lineTo(ase::Vector2f(w, h))
-                            .lineTo(ase::Vector2f(.0f, h))
-                            .close()
-                            .build(),
-                        btl::none,
-                        btl::just(avg::Pen())));
+            return obb.getTransform() * avg::Drawing(
+                    drawContext.pathBuilder()
+                        .start(ase::Vector2f(.0f, .0f))
+                        .lineTo(ase::Vector2f(w, .0f))
+                        .lineTo(ase::Vector2f(w, h))
+                        .lineTo(ase::Vector2f(.0f, h))
+                        .close()
+                        .buildShape(avg::Pen())
+                        );
         }
     } // detail
 
     inline auto drawKeyboardInputs()
     {
-        return widget::onDraw<KeyboardInputTag>([]
-            (auto const& inputs)
+        return widget::onDraw<DrawContextTag, KeyboardInputTag>([]
+            (DrawContext const& drawContext, auto const& inputs)
         {
             avg::Drawing result;
 
             for (auto&& input : inputs)
             {
-                result += detail::makeRect(input.getObb());
+                result += detail::makeRect(drawContext, input.getObb());
             }
 
             return result;
