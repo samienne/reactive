@@ -59,7 +59,10 @@ public:
         window_(std::move(window)),
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),
-        widget_(window_.getWidget()(std::move(size_.signal))),
+        widget_(window_.getWidget()(
+                    signal::constant(DrawContext(pmr::new_delete_resource())),
+                    std::move(size_.signal)
+                    )),
         titleSignal_(window_.getTitle().clone())
     {
         glxWindow.setVisible(true);

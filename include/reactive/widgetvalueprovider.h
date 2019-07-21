@@ -4,6 +4,8 @@
 #include "widgetvalueconsumer.h"
 #include "widgetmap.h"
 
+#include <pmr/new_delete_resource.h>
+
 #include <type_traits>
 #include <utility>
 
@@ -133,7 +135,7 @@ namespace reactive
     {
         /*
         using ReturnType = decltype(
-                std::forward<TFunc>(func)(makeWidget(
+                func(makeWidget(
                         signal::constant(DrawContext(pmr::new_delete_resource())),
                         signal::constant(avg::Vector2f())
                         ), std::tuple<>())

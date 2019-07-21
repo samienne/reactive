@@ -11,8 +11,6 @@
 
 #include <avg/pathbuilder.h>
 
-#include <pmr/new_delete_resource.h>
-
 namespace reactive::widget
 {
 
@@ -39,14 +37,16 @@ namespace
                 );
     }
 
-    avg::Path rectToPath(avg::Rect const& r)
+    avg::Path rectToPath(pmr::memory_resource* memory, avg::Rect const& r)
     {
-        return makePathFromRect(pmr::new_delete_resource(), r, 10.0f);
+        return makePathFromRect(memory, r, 10.0f);
     }
 
     template <bool IsHorizontal>
-    avg::Drawing drawSlider(avg::Vector2f size, widget::Theme const& theme,
-            float amount, float handleSize, bool hover, bool isDown)
+    avg::Drawing drawSlider(
+            DrawContext const& drawContext, avg::Vector2f size,
+            widget::Theme const& theme, float amount, float handleSize,
+            bool hover, bool isDown)
     {
         avg::Color bgColor = theme.getBackground();
         avg::Color fgColor = theme.getSecondary();
@@ -64,8 +64,10 @@ namespace
         avg::Pen pen(fgColor, 1.0f);
         avg::Brush brush(bgColor);
 
-        avg::Path slider(rectToPath(getSliderRect<IsHorizontal>(size, amount,
-                        handleSize)));
+        avg::Path slider(rectToPath(
+                    drawContext.getResource(),
+                    getSliderRect<IsHorizontal>(size, amount, handleSize)
+                    ));
 
         return avg::Drawing()
             + makeShape(std::move(slider), btl::just(brush), btl::just(pen))
@@ -73,19 +75,19 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Path getScrollLinePath(avg::Vector2f size)
+    avg::Path getScrollLinePath(DrawContext const& drawContext, avg::Vector2f size)
     {
 
         if (IsHorizontal)
         {
-            return avg::PathBuilder(pmr::new_delete_resource())
+            return drawContext.pathBuilder()
                 .start(0.0f, size[1] / 2.0f)
                 .lineTo(size[0], size[1] / 2.0f)
                 .build();
         }
         else
         {
-            return avg::PathBuilder(pmr::new_delete_resource())
+            return drawContext.pathBuilder()
                 .start(size[0] / 2.0f, 0.0f)
                 .lineTo(size[0] / 2.0f, size[1])
                 .build();
@@ -93,17 +95,18 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Drawing drawScrollBar(avg::Vector2f size, widget::Theme const& theme,
-            float amount, float handleSize, bool hover, bool isDown)
+    avg::Drawing drawScrollBar(DrawContext const& drawContext, avg::Vector2f size,
+            widget::Theme const& theme, float amount, float handleSize,
+            bool hover, bool isDown)
     {
-        avg::Path line = getScrollLinePath<IsHorizontal>(size);
+        avg::Path line = getScrollLinePath<IsHorizontal>(drawContext, size);
 
         avg::Pen pen(theme.getBackgroundHighlight(), 1.0f);
 
         return avg::Drawing()
             + makeShape(std::move(line), btl::none, btl::just(pen))
-            + drawSlider<IsHorizontal>(size, theme, amount, handleSize,
-                    hover, isDown)
+            + drawSlider<IsHorizontal>(drawContext, size, theme, amount,
+                    handleSize, hover, isDown)
             ;
     }
 
@@ -225,7 +228,7 @@ WidgetFactory scrollBar(
                         scrollHandle.set(std::max(0.0f, std::min(len, 1.0f)));
                         return EventResult::accept;
                     }, downOffset.signal, size.clone(), handleSize))
-                | onDraw<SizeTag, ThemeTag>(
+                | onDraw<DrawContextTag, SizeTag, ThemeTag>(
                         drawScrollBar<IsHorizontal>,
                         amount,
                         handleSize,

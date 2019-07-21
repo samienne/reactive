@@ -1,5 +1,9 @@
 #include "pathbuilder.h"
 
+#include "pen.h"
+#include "brush.h"
+#include "shape.h"
+
 #include "debug.h"
 
 #include <btl/cloneoncopy.h>
@@ -122,6 +126,27 @@ Path PathBuilder::build() &&
 Path PathBuilder::build() const&
 {
     return Path(btl::Buffer(data_));
+}
+
+Shape PathBuilder::buildShape() &&
+{
+    return Shape(Path(std::move(data_)), btl::none, btl::none);
+}
+
+Shape PathBuilder::buildShape(avg::Brush brush) &&
+{
+    return Shape(Path(std::move(data_)), btl::just(std::move(brush)), btl::none);
+}
+
+Shape PathBuilder::buildShape(avg::Brush brush, avg::Pen pen) &&
+{
+    return Shape(Path(std::move(data_)), btl::just(std::move(brush)),
+            btl::just(std::move(pen)));
+}
+
+Shape PathBuilder::buildShape(avg::Pen pen) &&
+{
+    return Shape(Path(std::move(data_)), btl::none, btl::just(std::move(pen)));
 }
 
 } // avg

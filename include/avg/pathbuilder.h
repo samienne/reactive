@@ -14,6 +14,10 @@
 
 namespace avg
 {
+    class Shape;
+    class Pen;
+    class Brush;
+
     class AVG_EXPORT PathBuilder
     {
     public:
@@ -39,6 +43,11 @@ namespace avg
 
         Path build() &&;
         Path build() const &;
+
+        Shape buildShape() &&;
+        Shape buildShape(avg::Brush brush) &&;
+        Shape buildShape(avg::Brush brush, avg::Pen pen) &&;
+        Shape buildShape(avg::Pen pen) &&;
 
     private:
         friend class Path;

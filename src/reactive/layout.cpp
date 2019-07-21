@@ -23,7 +23,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
         auto obbs = share(signal::map(obbMap, w.getSize(), hintsSignal));
 
         size_t index = 0;
-        auto widgets = btl::fmap(*factories, [&index, &obbs](auto&& f)
+        auto widgets = btl::fmap(*factories, [&index, &obbs, &w](auto&& f)
             {
                 auto t = signal::map([index](
                             std::vector<avg::Obb> const& obbs)
@@ -42,7 +42,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 
                 ++index;
 
-                return std::move(factory)(std::move(size));
+                return std::move(factory)(w.getDrawContext(), std::move(size));
             });
 
         return std::move(w)

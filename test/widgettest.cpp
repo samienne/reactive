@@ -7,6 +7,8 @@
 
 #include <btl/fn.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <gtest/gtest.h>
 
 using namespace reactive;
@@ -17,7 +19,10 @@ static_assert(std::is_copy_assignable<Widget>::value, "");
 TEST(Widget, get)
 {
     auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+        reactive::makeWidget(
+                signal::constant(DrawContext(pmr::new_delete_resource())),
+                signal::constant(ase::Vector2f(100.0f, 100.0f))
+                );
 
     auto d = reactive::get<avg::Drawing>(w);
 
@@ -73,8 +78,13 @@ TEST(Widget, get)
 
 TEST(Widget, set)
 {
+    DrawContext c(pmr::new_delete_resource());
+
     auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+        reactive::makeWidget(
+                signal::constant(DrawContext(pmr::new_delete_resource())),
+                signal::constant(ase::Vector2f(100.0f, 100.0f))
+                );
 
     auto w2 = reactive::set(std::move(w), signal::constant(avg::Drawing()));
     static_assert(IsWidget<decltype(w2)>::value, "");
@@ -116,8 +126,12 @@ TEST(Widget, set)
 
 TEST(Widget, makeWidgetMap)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
@@ -133,8 +147,12 @@ TEST(Widget, makeWidgetMap)
 
 TEST(Widget, makeWidgetMapTuple)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
@@ -155,8 +173,12 @@ TEST(Widget, makeWidgetMapTuple)
 
 TEST(Widget, cache)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto w2 = detail::doShare(
             std::move(w),
@@ -172,8 +194,12 @@ TEST(Widget, cache)
 
 TEST(Widget, operatorPipe)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto w2 = std::move(w)
         | makeWidgetMap<SizeTag>([](auto)
