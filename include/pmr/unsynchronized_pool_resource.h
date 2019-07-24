@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vector.h"
+#include "auto_release_resource.h"
 #include "single_pool_resource.h"
 #include "memory_resource.h"
 
@@ -26,14 +27,14 @@ namespace pmr
 
         explicit unsynchronized_pool_resource(pool_options const& /*opts*/,
                 memory_resource* upstream) :
-            upstream_(upstream),
+            autoRelease_(upstream),
             pools_(upstream)
         {
             std::size_t smallest = 256;
             std::size_t step = 2;
             std::size_t largest = 256*1024;
 
-            memory_resource* next_resource = upstream_;
+            memory_resource* next_resource = &autoRelease_;
 
             std::size_t s = largest;
             while (s >= smallest)
@@ -101,7 +102,7 @@ namespace pmr
         }
 
     private:
-        memory_resource* upstream_ = nullptr;
+        auto_release_resource autoRelease_;
         pmr::vector<std::unique_ptr<single_pool_resource>> pools_;
     };
 } // namespace pmr
