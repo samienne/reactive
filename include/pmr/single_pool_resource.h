@@ -6,6 +6,7 @@
 
 namespace pmr
 {
+    // Warning doesn't release memory acquired from upstream
     class single_pool_resource : public memory_resource
     {
     public:

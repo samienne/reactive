@@ -1,5 +1,6 @@
 #pragma once
 
+#include "vector.h"
 #include "single_pool_resource.h"
 #include "memory_resource.h"
 
@@ -25,7 +26,8 @@ namespace pmr
 
         explicit unsynchronized_pool_resource(pool_options const& /*opts*/,
                 memory_resource* upstream) :
-            upstream_(upstream)
+            upstream_(upstream),
+            pools_(upstream)
         {
             std::size_t smallest = 256;
             std::size_t step = 2;
@@ -100,7 +102,7 @@ namespace pmr
 
     private:
         memory_resource* upstream_ = nullptr;
-        std::vector<std::unique_ptr<single_pool_resource>> pools_;
+        pmr::vector<std::unique_ptr<single_pool_resource>> pools_;
     };
 } // namespace pmr
 
