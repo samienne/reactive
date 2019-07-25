@@ -3,8 +3,6 @@
 #include "brush.h"
 #include "vector.h"
 
-#include <pmr/new_delete_resource.h>
-
 namespace avg
 {
 

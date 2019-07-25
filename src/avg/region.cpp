@@ -371,7 +371,7 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     if (pointCount == 0)
         return {{}, {}};
 
-    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+    pmr::monotonic_buffer_resource mono(memory_);
 
     const float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     const float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];

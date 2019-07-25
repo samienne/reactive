@@ -8,8 +8,6 @@
 
 #include <avg/pathbuilder.h>
 
-#include <pmr/new_delete_resource.h>
-
 namespace reactive::debug
 {
     namespace detail

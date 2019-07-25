@@ -22,8 +22,6 @@
 #include <avg/textextents.h>
 #include <avg/pathbuilder.h>
 
-#include <pmr/new_delete_resource.h>
-
 #include <algorithm>
 
 namespace reactive::widget
@@ -31,8 +29,9 @@ namespace reactive::widget
 
 TextEdit::operator WidgetFactory() const
 {
-    auto draw = [](ase::Vector2f size, widget::Theme const& theme,
-            TextEditState const& state, float percentage)
+    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+            widget::Theme const& theme, TextEditState const& state,
+            float percentage)
         -> avg::Drawing
     {
         auto height = theme.getTextHeight();
@@ -69,7 +68,7 @@ TextEdit::operator WidgetFactory() const
 
         if (percentage > 0.0f)
         {
-            auto line = avg::PathBuilder(pmr::new_delete_resource())
+            auto line = drawContext.pathBuilder()
                     .start(ase::Vector2f(0.0f, 0.0f))
                     .lineTo(ase::Vector2f(0.0f, font.getLinegap(height)))
                     .build();
@@ -77,7 +76,7 @@ TextEdit::operator WidgetFactory() const
             line += te1.advance;
 
             texts = std::move(texts)
-                + avg::Shape(pmr::new_delete_resource())
+                + avg::Shape(drawContext.getResource())
                 .setPath(line)
                 .setPen(btl::just(
                             avg::Pen(
@@ -168,7 +167,7 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<SizeTag, ThemeTag>(draw, std::move(newState),
+        | onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(newState),
                 std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()

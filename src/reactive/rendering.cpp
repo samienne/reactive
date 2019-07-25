@@ -104,7 +104,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
         ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+    pmr::monotonic_buffer_resource mono(memory);
 
     avg::Region region = path.fillRegion(&mono, avg::FILL_EVENODD,
             pixelSize, resPerPixel);
@@ -116,7 +116,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
         avg::Pen const& pen, ase::Vector2f pixelSize, int resPerPixel,
         avg::Rect const& r, bool clip)
 {
-    pmr::monotonic_buffer_resource mono(pmr::new_delete_resource());
+    pmr::monotonic_buffer_resource mono(memory);
 
     avg::Region region = path.offsetRegion(&mono, pen.getJoinType(),
             pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);

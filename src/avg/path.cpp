@@ -11,8 +11,6 @@
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 
-#include <pmr/new_delete_resource.h>
-
 #include <cmath>
 
 namespace avg
