@@ -2,6 +2,8 @@
 
 #include "debug.h"
 
+#include <pmr/heap.h>
+
 namespace avg
 {
 
@@ -200,7 +202,7 @@ Drawing Drawing::clip(Rect const& r) &&
     filterElementsByRect(elements_, r);
 
     result.elements_.push_back(ClipElement{
-            { btl::make_heap<SubDrawing>(getResource(), std::move(elements_)) },
+            { pmr::make_heap<SubDrawing>(getResource(), std::move(elements_)) },
             r,
             avg::Transform()
             });

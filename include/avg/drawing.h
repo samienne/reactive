@@ -6,8 +6,8 @@
 #include "avgvisibility.h"
 
 #include <btl/variant.h>
-#include <btl/heap.h>
 
+#include <pmr/heap.h>
 #include <pmr/memory_resource.h>
 
 namespace avg
@@ -18,7 +18,7 @@ namespace avg
         struct SubDrawing;
         struct ClipElement
         {
-            btl::Heap<SubDrawing> subDrawing;
+            pmr::heap<SubDrawing> subDrawing;
             Rect clipRect;
             Transform transform;
 
@@ -38,12 +38,12 @@ namespace avg
             pmr::vector<Element> elements;
         };
 
-        friend btl::Heap<SubDrawing> operator*(btl::Heap<SubDrawing> const& s, float)
+        friend pmr::heap<SubDrawing> operator*(pmr::heap<SubDrawing> const& s, float)
         {
             return s;
         }
 
-        friend btl::Heap<SubDrawing> operator+(btl::Heap<SubDrawing> const& s, Vector2f)
+        friend pmr::heap<SubDrawing> operator+(pmr::heap<SubDrawing> const& s, Vector2f)
         {
             return s;
         }
