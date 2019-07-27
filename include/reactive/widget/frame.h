@@ -38,10 +38,8 @@ namespace reactive::widget
                     btl::just(pen)
                     );
 
-            return avg::Transform()
-                .translate(0.5f * size[0],
-                        0.5f * size[1])
-                * avg::Drawing(shape);
+            return avg::Transform().translate(0.5f * size[0], 0.5f * size[1])
+                * drawContext.drawing(std::move(shape));
         };
 
         return

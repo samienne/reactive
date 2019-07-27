@@ -18,7 +18,8 @@ namespace reactive { namespace widget {
 
 WidgetFactory label(SharedSignal<std::string> text)
 {
-    auto draw = [](avg::Obb const& obb, widget::Theme const& theme,
+    auto draw = [](DrawContext const& drawContext, avg::Obb const& obb,
+            widget::Theme const& theme,
             std::string const& text) -> avg::Drawing
     {
         auto const& size = obb.getSize();
@@ -38,7 +39,7 @@ WidgetFactory label(SharedSignal<std::string> text)
                 btl::just(avg::Brush(theme.getPrimary())),
                 btl::none);
 
-        return avg::Drawing(textEntry);
+        return drawContext.drawing(std::move(textEntry));
     };
 
     auto getSizeHint = [](std::string const& text, widget::Theme const& theme)
@@ -53,7 +54,9 @@ WidgetFactory label(SharedSignal<std::string> text)
     auto theme = signal::input(Theme());
 
     return makeWidgetFactory()
-        | onDraw<reactive::ObbTag, reactive::ThemeTag>(draw, text)
+        | onDraw<reactive::DrawContextTag, reactive::ObbTag, reactive::ThemeTag>(
+                draw, text
+                )
         | trackTheme(theme.handle)
         | setSizeHint(signal::map(getSizeHint, text,
                     std::move(theme.signal)))

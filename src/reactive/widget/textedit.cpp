@@ -64,7 +64,7 @@ TextEdit::operator WidgetFactory() const
                 btl::just(avg::Brush(color)),
                 btl::none);
 
-        auto texts = avg::Drawing(textEntry1) + textEntry2;
+        avg::Drawing texts = drawContext.drawing(textEntry1) + textEntry2;
 
         if (percentage > 0.0f)
         {

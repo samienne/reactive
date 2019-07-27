@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pmr/unique_ptr.h>
+#include <pmr/memory_resource.h>
+
 #include <memory>
 #include <type_traits>
 
@@ -16,46 +19,57 @@ template<typename T>
 class Heap
 {
 public:
-    Heap(T&& t) :
-        p_(std::make_unique<T>(std::move(t)))
+    Heap(T&& t, pmr::memory_resource* memory) :
+        p_(pmr::make_unique<T>(memory, std::move(t)))
     {
     }
 
-     Heap(T const& t) :
-        p_(std::make_unique<T>(t))
+     Heap(T const& t, pmr::memory_resource* memory) :
+        p_(pmr::make_unique<T>(memory, t))
     {
     }
 
+    /*
     template <typename U = T, typename =
         std::enable_if_t<std::is_default_constructible<U>::value>
     >
-    Heap() :
-        p_(std::make_unique<T>())
+    Heap(pmr::memory_resource* memory) :
+        p_(pmr::make_unique<T>(memory))
     {
     }
+    */
 
     Heap(Heap const& rhs) :
-        p_(std::make_unique<T>(*rhs.p_))
+        p_(pmr::make_unique<T>(rhs.getResource(), *rhs.p_))
     {
+        assert(p_.get());
     }
 
     Heap(Heap&& rhs) noexcept = default;
 
     Heap& operator=(Heap const& rhs)
     {
-        p_ = std::make_unique<T>(rhs.p_);
+        p_ = pmr::make_unique<T>(rhs.getResource(), rhs.p_);
+        assert(p_.get());
         return *this;
     }
 
     Heap& operator=(Heap&& rhs) noexcept = default;
 
+    pmr::memory_resource* getResource() const
+    {
+        return p_.get_deleter().resource();
+    }
+
     T& operator*() &
     {
+        assert(p_.get());
         return *p_;
     }
 
     T const & operator*() const &
     {
+        assert(p_.get());
         return *p_;
     }
 
@@ -95,13 +109,13 @@ public:
     }
 
 private:
-    std::unique_ptr<T> p_;
+    pmr::unique_ptr<T> p_;
 };
 
-template <typename T>
-Heap<std::decay_t<T>> make_heap(T&& t)
+template <typename T, typename... Ts>
+Heap<T> make_heap(pmr::memory_resource* memory, Ts&&... ts)
 {
-    return Heap<std::decay_t<T>>(std::forward<T>(t));
+    return Heap<T>(T{ std::forward<Ts>(ts)... }, memory);
 }
 } // namespace btl
 

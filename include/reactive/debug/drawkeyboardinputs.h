@@ -17,7 +17,7 @@ namespace reactive::debug
             float w = obb.getSize().x();
             float h = obb.getSize().y();
 
-            return obb.getTransform() * avg::Drawing(
+            return obb.getTransform() * drawContext.drawing(
                     drawContext.pathBuilder()
                         .start(ase::Vector2f(.0f, .0f))
                         .lineTo(ase::Vector2f(w, .0f))
@@ -34,7 +34,7 @@ namespace reactive::debug
         return widget::onDraw<DrawContextTag, KeyboardInputTag>([]
             (DrawContext const& drawContext, auto const& inputs)
         {
-            avg::Drawing result;
+            auto result = drawContext.drawing();
 
             for (auto&& input : inputs)
             {

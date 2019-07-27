@@ -31,7 +31,8 @@ namespace
             float step = 2.0f / 10.0f;
             float w = std::min(size[0], size[1]) * 0.5f - 15.0f;
 
-            avg::Drawing drawing;
+            auto drawing = drawContext.drawing();
+
             for (int i = 0; i < 10; ++i)
             {
                 float shift = step * (float)i;
@@ -49,9 +50,8 @@ namespace
                         btl::none);
 
                 float a = 6.28f / 10.0f * (float) i;
-                drawing += avg::Drawing(std::move(shape))
-                    .transform(avg::Transform()
-                            .translate(std::cos(a) * w, std::sin(a) * w));
+                drawing += drawContext.drawing(std::move(shape))
+                    .transform(avg::translate(std::cos(a) * w, std::sin(a) * w));
             }
 
             return std::move(drawing)

@@ -8,6 +8,8 @@
 #include <btl/variant.h>
 #include <btl/heap.h>
 
+#include <pmr/memory_resource.h>
+
 namespace avg
 {
     class AVG_EXPORT Drawing final
@@ -33,7 +35,7 @@ namespace avg
 
         struct SubDrawing
         {
-            std::vector<Element> elements;
+            pmr::vector<Element> elements;
         };
 
         friend btl::Heap<SubDrawing> operator*(btl::Heap<SubDrawing> const& s, float)
@@ -46,10 +48,11 @@ namespace avg
             return s;
         }
 
-        Drawing();
-        Drawing(Element element);
-        Drawing(std::vector<Element> const& elements);
-        Drawing(std::vector<Element>&& elements);
+        Drawing(pmr::memory_resource* memory);
+        Drawing(pmr::memory_resource* memory, Element element);
+
+        Drawing(pmr::vector<Element> const& elements);
+        Drawing(pmr::vector<Element>&& elements);
 
         ~Drawing();
 
@@ -58,6 +61,8 @@ namespace avg
 
         Drawing& operator=(Drawing const&) = default;
         Drawing& operator=(Drawing&&) noexcept = default;
+
+        pmr::memory_resource* getResource() const;
 
         Drawing operator+(Element&& element) &&;
         Drawing& operator+=(Element&& element);
@@ -71,12 +76,16 @@ namespace avg
         bool operator==(Drawing const& rhs) const;
         bool operator!=(Drawing const& rhs) const;
 
+        [[nodiscard]]
         Drawing clip(Rect const& r) &&;
+
+        [[nodiscard]]
         Drawing clip(Obb const& obb) &&;
 
-        std::vector<Element> const& getElements() const;
+        pmr::vector<Element> const& getElements() const;
         Rect getControlBb() const;
 
+        [[nodiscard]]
         Drawing filterByRect(Rect const& r) &&;
 
         [[nodiscard]]
@@ -85,7 +94,7 @@ namespace avg
         AVG_EXPORT friend Drawing operator*(Transform const& t, Drawing&& drawing);
 
     private:
-        std::vector<Element> elements_;
+        pmr::vector<Element> elements_;
         Rect controlBb_;
     };
 }

@@ -182,11 +182,16 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
-pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
-        avg::Painter const& painter, avg::Transform const& transform,
-        std::vector<avg::Drawing::Element> const& elements,
-        avg::Vector2f pixelSize, int resPerPixel,
-        avg::Rect const& rect, bool clip)
+pmr::vector<avg::SoftMesh> generateMeshes(
+        pmr::memory_resource* memory,
+        avg::Painter const& painter,
+        avg::Transform const& transform,
+        pmr::vector<avg::Drawing::Element> const& elements,
+        avg::Vector2f pixelSize,
+        int resPerPixel,
+        avg::Rect const& rect,
+        bool clip
+        )
 {
     if (elements.empty())
         return pmr::vector<avg::SoftMesh>(memory);
@@ -275,7 +280,6 @@ void renderElements(ase::CommandBuffer& commandBuffer,
 
     std::sort(elements.begin(), elements.end(), compare);
 
-    //pmr::vector<Vertex> resultVertices(elements.get_allocator().resource());
     std::vector<Vertex> resultVertices;
     btl::option<ase::Pipeline> previousPipeline;
 
@@ -475,17 +479,7 @@ void render(pmr::memory_resource* memory,
     int const resPerPixel = 4;
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
-    avg::Rect rect(
-            avg::Vector2f(0.0f, 0.0f),
-            sizef
-            );
-
-    //static pmr::unsychronized_pool_resource pool(pmr::new_delete_resource());
-    //static pmr::memory_resource* memory = &pool;
-    //pmr::monotonic_buffer_resource mono(600000, pmr::new_delete_resource());
-    //pmr::memory_resource* memory = &mono;
-    //TraceResource tr(&mono); pmr::memory_resource* memory = &tr;
-    //pmr::memory_resource* memory = pmr::new_delete_resource();
+    avg::Rect rect(avg::Vector2f(0.0f, 0.0f), sizef);
 
     auto meshes = generateMeshes(memory, painter, avg::Transform(),
             drawing.getElements(), pixelSize, resPerPixel, rect, false);
@@ -494,15 +488,6 @@ void render(pmr::memory_resource* memory,
 
     renderElements(commandBuffer, context, framebuffer, painter,
             std::move(elements));
-
-    /*
-    std::cout << tr.getAllocationCount() << " "
-        << tr.getTotalAllocation() << " bytes. max: "
-        << tr.getMaxAllocation() << " bytes. Consecutive alloc: "
-        << tr.getConsecutiveAllocDealloc() << " "
-        << tr.getConsecutiveAllocDeallocBytes() << " bytes."
-        << std::endl;
-        //*/
 }
 
 } // namespace

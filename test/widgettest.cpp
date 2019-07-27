@@ -26,10 +26,10 @@ TEST(Widget, get)
 
     auto d = reactive::get<avg::Drawing>(w);
 
-    static_assert(std::is_same<
-                Signal<avg::Drawing, signal::Constant<avg::Drawing>>,
-                decltype(d)
-            >::value,
+    static_assert(IsSignalType<
+                decltype(d),
+                avg::Drawing
+                >::value,
             "");
 
     auto a = reactive::get<std::vector<InputArea>>(w);
@@ -86,7 +86,10 @@ TEST(Widget, set)
                 signal::constant(ase::Vector2f(100.0f, 100.0f))
                 );
 
-    auto w2 = reactive::set(std::move(w), signal::constant(avg::Drawing()));
+    auto w2 = reactive::set(std::move(w), signal::constant(
+                avg::Drawing(pmr::new_delete_resource())
+                ));
+
     static_assert(IsWidget<decltype(w2)>::value, "");
 
     auto w3 = reactive::set(std::move(w2),
@@ -135,7 +138,7 @@ TEST(Widget, makeWidgetMap)
 
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
-        return avg::Drawing();
+        return avg::Drawing(pmr::new_delete_resource());
     });
 
     static_assert(IsWidgetMap<decltype(m)>::value, "");
@@ -157,7 +160,7 @@ TEST(Widget, makeWidgetMapTuple)
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
         return std::make_tuple(
-            avg::Drawing(),
+            avg::Drawing(pmr::new_delete_resource()),
             avg::Obb(ase::Vector2f(10.0f, 5.0f))
             );
     });
@@ -206,12 +209,12 @@ TEST(Widget, operatorPipe)
         {
             return std::make_tuple(
                 avg::Obb(ase::Vector2f(10.0f, 20.0f)),
-                avg::Drawing()
+                avg::Drawing(pmr::new_delete_resource())
                 );
         })
         | makeWidgetMap<ThemeTag>([](auto)
         {
-            return avg::Drawing();
+            return avg::Drawing(pmr::new_delete_resource());
         })
     ;
 

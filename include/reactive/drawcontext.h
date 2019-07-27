@@ -2,6 +2,7 @@
 
 #include "reactivevisibility.h"
 
+#include <avg/drawing.h>
 #include <avg/pathbuilder.h>
 
 #include <pmr/memory_resource.h>
@@ -21,6 +22,12 @@ namespace reactive
         pmr::memory_resource* getResource() const;
 
         avg::PathBuilder pathBuilder() const;
+
+        template <typename... Ts>
+        avg::Drawing drawing(Ts&&... ts) const
+        {
+            return avg::Drawing(getResource(), std::forward<Ts>(ts)...);
+        }
 
     private:
         pmr::memory_resource* memory_;

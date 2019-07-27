@@ -9,7 +9,7 @@ namespace pmr
     class deleter
     {
     public:
-        deleter(pmr::memory_resource* memory) :
+        deleter(memory_resource* memory) :
             memory_(memory)
         {
         }
@@ -21,8 +21,13 @@ namespace pmr
             alloc.delete_object(obj);
         }
 
+        memory_resource* resource() const
+        {
+            return memory_;
+        }
+
     private:
-        pmr::memory_resource* memory_;
+        memory_resource* memory_;
     };
 } // namespace pmr
 

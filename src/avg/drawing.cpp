@@ -44,7 +44,7 @@ namespace
         return Rect();
     }
 
-    Rect combineDrawingRects(std::vector<Drawing::Element> const& elements)
+    Rect combineDrawingRects(pmr::vector<Drawing::Element> const& elements)
     {
         Rect r;
         for (auto const& e : elements)
@@ -54,7 +54,7 @@ namespace
     }
 
 
-    void filterElementsByRect(std::vector<Drawing::Element>& elements, Rect const& r)
+    void filterElementsByRect(pmr::vector<Drawing::Element>& elements, Rect const& r)
     {
         elements.erase(
                 std::remove_if(
@@ -69,24 +69,26 @@ namespace
     }
 } // anonymous namespace
 
-Drawing::Drawing()
+Drawing::Drawing(pmr::memory_resource* memory) :
+    elements_(memory)
 {
 }
 
-Drawing::Drawing(Element element)
+Drawing::Drawing(pmr::memory_resource* memory, Element element) :
+    elements_(memory)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
 
     elements_.push_back(std::move(element));
 }
 
-Drawing::Drawing(std::vector<Element> const& elements) :
+Drawing::Drawing(pmr::vector<Element> const& elements) :
     elements_(elements),
     controlBb_(combineDrawingRects(elements_))
 {
 }
 
-Drawing::Drawing(std::vector<Element>&& elements) :
+Drawing::Drawing(pmr::vector<Element>&& elements) :
     elements_(std::move(elements)),
     controlBb_(combineDrawingRects(elements_))
 {
@@ -94,6 +96,11 @@ Drawing::Drawing(std::vector<Element>&& elements) :
 
 Drawing::~Drawing()
 {
+}
+
+pmr::memory_resource* Drawing::getResource() const
+{
+    return elements_.get_allocator().resource();
 }
 
 Drawing Drawing::operator+(Element&& element) &&
@@ -114,7 +121,7 @@ Drawing& Drawing::operator+=(Element&& element)
 
 Drawing Drawing::operator+(Drawing const& drawing) &&
 {
-    Drawing result;
+    Drawing result(getResource());
     result.controlBb_ = combineRects(controlBb_, drawing.controlBb_);
     elements_.reserve(elements_.size() + drawing.elements_.size());
     result.elements_ = std::move(elements_);
@@ -188,12 +195,12 @@ Drawing Drawing::clip(Rect const& r) &&
     if (controlBb_.isFullyContainedIn(r))
         return std::move(*this);
 
-    Drawing result;
+    Drawing result(getResource());
 
     filterElementsByRect(elements_, r);
 
     result.elements_.push_back(ClipElement{
-            { SubDrawing{std::move(elements_) } },
+            { btl::make_heap<SubDrawing>(getResource(), std::move(elements_)) },
             r,
             avg::Transform()
             });
@@ -221,7 +228,7 @@ Drawing Drawing::clip(Obb const& obb) &&
     return obb.getTransform() * std::move(d);
 }
 
-std::vector<Drawing::Element> const& Drawing::getElements() const
+pmr::vector<Drawing::Element> const& Drawing::getElements() const
 {
     return elements_;
 }

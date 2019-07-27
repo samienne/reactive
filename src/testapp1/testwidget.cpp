@@ -44,7 +44,7 @@ namespace
                     avg::Vector2f(-70.0f, 0.0f), 20.0f),
                 str, btl::just(brush2), btl::none);
 
-        return (avg::Drawing(std::move(shape)) + text)
+        return (drawContext.drawing(std::move(shape)) + text)
             .transform(avg::translate(0.5*size[0], 116.0));
     };
 } // anonymous namespace

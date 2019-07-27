@@ -36,7 +36,7 @@ namespace
 
         return avg::Transform()
             .translate(0.5f * size[0], 0.5f * size[1])
-            * avg::Drawing(shape);
+            * drawContext.drawing(shape);
     }
 } // anonymous namespace
 

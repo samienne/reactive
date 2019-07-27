@@ -18,10 +18,11 @@ namespace reactive::widget
         auto t = avg::Transform()
             .translate(0.5f * size[0], 0.5f * size[1]);
 
-        return t * avg::Drawing(makeShape(
+        return t * drawContext.drawing(makeShape(
                     makeRect(drawContext.getResource(), size[0], size[1]),
                     btl::just(brush),
-                    btl::none));
+                    btl::none
+                    ));
     }
 
     inline auto background(Signal<avg::Brush> brush)

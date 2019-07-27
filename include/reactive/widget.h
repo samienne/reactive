@@ -139,9 +139,14 @@ namespace reactive
 
         auto keyboardInputs = detail::makeKeyboardInputs(obb);
 
+        auto drawing = signal::map([](DrawContext const& drawContext)
+                {
+                    return avg::Drawing(drawContext.getResource());
+                }, drawContext.clone());
+
         return makeWidget(
                 std::move(drawContext),
-                signal::constant(avg::Drawing()),
+                std::move(drawing),
                 signal::constant(std::vector<InputArea>()),
                 std::move(obb),
                 std::move(keyboardInputs),
