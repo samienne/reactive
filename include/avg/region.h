@@ -49,8 +49,8 @@ namespace avg
 
         Region offset(JoinType join, EndType end, float offset) const;
 
-        std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
-            triangulate() const;
+        std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
+            triangulate(pmr::memory_resource* memory) const;
 
         Region getClipped(Rect const& r) const;
 

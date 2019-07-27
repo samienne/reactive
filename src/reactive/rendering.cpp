@@ -77,11 +77,15 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
         avg::Region const& region, avg::Brush const& brush,
         avg::Rect const& r, bool clip)
 {
-    std::pair<std::vector<ase::Vector2f>, std::vector<uint16_t> > bufs;
+    auto bufs = std::make_pair(
+            pmr::vector<ase::Vector2f>(memory),
+            pmr::vector<uint16_t>(memory)
+            );
+
     if (clip)
-        bufs = region.getClipped(r).triangulate();
+        bufs = region.getClipped(r).triangulate(memory);
     else
-        bufs = region.triangulate();
+        bufs = region.triangulate(memory);
 
     avg::Color color = premultiply(brush.getColor());
     auto toVertex = [](ase::Vector2f v)

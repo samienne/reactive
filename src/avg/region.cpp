@@ -354,15 +354,12 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     return result;
 }
 
-std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
-    Region::triangulate() const
+std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
+    Region::triangulate(pmr::memory_resource* memory) const
 {
     if (!d())
-        return {{}, {}};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
 
-    //std::vector<ClipperLib::Path> const& paths = d()->paths_;
-
-    //size_t pointCount = d()->fillPaths(paths, d()->polygons_);
     size_t pointCount = 0;
     ClipperLib::PolyNode* node = d()->paths_->GetFirst();
     while (node)
@@ -372,9 +369,9 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     }
 
     if (pointCount == 0)
-        return {{}, {}};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
 
-    pmr::monotonic_buffer_resource mono(memory_);
+    pmr::monotonic_buffer_resource mono(memory);
 
     const float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     const float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
@@ -386,8 +383,8 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     node = stack.front();
     stack.pop();
 
-    std::vector<uint16_t> indices;
-    std::vector<Vector2f> vertices;
+    pmr::vector<uint16_t> indices(memory);
+    pmr::vector<Vector2f> vertices(memory);
     //DBG("Top level paths: %1", d()->paths_.Childs.size());
     while (node)
     {
