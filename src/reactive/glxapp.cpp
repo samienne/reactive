@@ -14,8 +14,9 @@
 #include <ase/glxwindow.h>
 #include <ase/glxplatform.h>
 
-#include <pmr/new_delete_resource.h>
+#include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
+#include <pmr/new_delete_resource.h>
 
 #include <chrono>
 #include <fstream>
@@ -54,13 +55,15 @@ public:
     GlxWindowGlue(ase::GlxPlatform& platform, ase::RenderContext&& context,
             Window window, avg::Painter painter) :
         memoryPool_(pmr::new_delete_resource()),
+        memoryStatistics_(&memoryPool_),
+        memory_(&memoryStatistics_),
         glxWindow(platform, ase::Vector2i(800, 600)),
         context_(std::move(context)),
         window_(std::move(window)),
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(
-                    signal::constant(DrawContext(&memoryPool_)),
+                    signal::constant(DrawContext(memory_)),
                     std::move(size_.signal)
                     )),
         titleSignal_(window_.getTitle().clone())
@@ -210,6 +213,8 @@ public:
 
     virtual ~GlxWindowGlue()
     {
+        std::cout << "Maximum concurrent allocations: " <<
+            memoryStatistics_.maximum_concurrent_bytes_allocated() << std::endl;
     }
 
     btl::option<signal_time_t> frame(std::vector<XEvent> const& events,
@@ -265,7 +270,7 @@ public:
 
             ase::CommandBuffer commands;
 
-            render(&memoryPool_,commands, context_,
+            render(memory_, commands, context_,
                     glxWindow.getDefaultFramebuffer(),
                     glxWindow.getSize(), painter_,
                     widget_.getDrawing().evaluate());
@@ -325,6 +330,8 @@ public:
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;
+    pmr::statistics_resource memoryStatistics_;
+    pmr::memory_resource* memory_;
     ase::GlxWindow glxWindow;
     ase::RenderContext context_;
     Window window_;
