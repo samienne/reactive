@@ -11,6 +11,8 @@
 #include <ase/buffer.h>
 #include <ase/matrix.h>
 
+#include <pmr/shared_ptr.h>
+
 #include <cmath>
 
 namespace avg
@@ -529,7 +531,7 @@ Obb Path::getControlObb() const
 
 Path::Path(btl::Buffer&& buffer) :
     memory_(buffer.resource()),
-    deferred_(std::make_shared<PathDeferred>(memory_))
+    deferred_(pmr::make_shared<PathDeferred>(memory_, memory_))
 {
     d()->data_ = std::move(buffer);
     d()->controlBb_ = calculateBounds(*this);
@@ -541,9 +543,9 @@ void Path::ensureUniqueness()
         return;
 
     if (d())
-        deferred_ = std::make_shared<PathDeferred>(*d());
+        deferred_ = pmr::make_shared<PathDeferred>(memory_, *d());
     else
-        deferred_ = std::make_shared<PathDeferred>(memory_);
+        deferred_ = pmr::make_shared<PathDeferred>(memory_, memory_);
 }
 
 avg::Path operator*(const avg::Transform& t, const avg::Path& p)

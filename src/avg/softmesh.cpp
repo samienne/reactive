@@ -3,6 +3,8 @@
 #include "brush.h"
 #include "vector.h"
 
+#include <pmr/shared_ptr.h>
+
 namespace avg
 {
 
@@ -20,14 +22,20 @@ SoftMeshDeferred::SoftMeshDeferred(pmr::memory_resource* memory) :
 }
 
 SoftMesh::SoftMesh(pmr::vector<Vertex>&& vertices, Brush const& brush) :
-    deferred_(std::make_shared<SoftMeshDeferred>(vertices.get_allocator().resource()))
+    deferred_(pmr::make_shared<SoftMeshDeferred>(
+                vertices.get_allocator().resource(),
+                vertices.get_allocator().resource()
+                ))
 {
     deferred_->vertices_ = std::move(vertices);
     deferred_->brush_ = brush;
 }
 
 SoftMesh::SoftMesh(pmr::vector<Vertex> const& vertices, Brush const& brush) :
-    deferred_(std::make_shared<SoftMeshDeferred>(vertices.get_allocator().resource()))
+    deferred_(pmr::make_shared<SoftMeshDeferred>(
+                vertices.get_allocator().resource(),
+                vertices.get_allocator().resource()
+                ))
 {
     deferred_->vertices_ = vertices;
     deferred_->brush_ = brush;
@@ -62,7 +70,7 @@ SoftMeshDeferred* SoftMesh::getUnique()
     if (deferred_.unique())
         return deferred_.get();
 
-    auto d = std::make_shared<SoftMeshDeferred>(getResource());
+    auto d = pmr::make_shared<SoftMeshDeferred>(getResource(), getResource());
     d->vertices_ = deferred_->vertices_;
     deferred_ = std::move(d);
 

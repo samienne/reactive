@@ -8,6 +8,7 @@
 
 #include "debug.h"
 
+#include <pmr/shared_ptr.h>
 #include <pmr/queue.h>
 #include <pmr/new_delete_resource.h>
 #include <pmr/monotonic_buffer_resource.h>
@@ -121,7 +122,7 @@ Region::Region(pmr::memory_resource* memory,
     if (polygons.empty())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>(memory);
+    deferred_ = pmr::make_shared<RegionDeferred>(memory, memory);
     ClipperLib::PolyFillType type;
     switch (rule)
     {
@@ -151,7 +152,7 @@ Region::Region(pmr::memory_resource* memory,
     c.StrictlySimple(true);
     c.PreserveCollinear(false);
     c.AddPaths(paths, ClipperLib::ptSubject, true);
-    d()->paths_ = std::make_shared<ClipperLib::PolyTree>(memory);
+    d()->paths_ = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
     c.Execute(ClipperLib::ctUnion, *d()->paths_, type, type);
 
     //printClipperPolyTree(d()->paths_);
@@ -173,7 +174,7 @@ Region::Region(pmr::memory_resource* memory,
     if (polygons.empty())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>(memory);
+    deferred_ = pmr::make_shared<RegionDeferred>(memory, memory);
 
     ClipperLib::JoinType joinType;
     switch (join)
@@ -221,7 +222,7 @@ Region::Region(pmr::memory_resource* memory,
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     //float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    auto resultPaths = std::make_shared<ClipperLib::PolyTree>(memory);
+    auto resultPaths = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
     ClipperLib::ClipperOffset clipperOffset(memory);
     pmr::vector<ClipperLib::Path> paths = fillPaths(memory, polygons);
 
@@ -255,13 +256,14 @@ Region Region::operator&(Region const& region) const
     c.AddPaths(clipPaths, ClipperLib::ptClip, true);
 
     std::shared_ptr<ClipperLib::PolyTree> tree =
-        std::make_shared<ClipperLib::PolyTree>(memory_);
+        pmr::make_shared<ClipperLib::PolyTree>(memory_, memory_);
 
     c.Execute(ClipperLib::ctIntersection, *tree);
 
     Region result(memory_);
 
-    result.deferred_ = std::make_shared<RegionDeferred>(d()->getResource());
+    result.deferred_ = pmr::make_shared<RegionDeferred>(d()->getResource(),
+            d()->getResource());
     result.d()->paths_ = std::move(tree);
     result.d()->resPerPixel_ = d()->resPerPixel_;
     result.d()->pixelSize_ = d()->pixelSize_;
@@ -335,7 +337,8 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
     //std::vector<ClipperLib::Path> resultPaths;
-    auto resultPaths = std::make_shared<ClipperLib::PolyTree>(d()->getResource());
+    auto resultPaths = pmr::make_shared<ClipperLib::PolyTree>(
+            d()->getResource(), d()->getResource());
     ClipperLib::ClipperOffset clipperOffset(d()->getResource());
     pmr::vector<ClipperLib::Path> inPaths(d()->getResource());
     ClipperLib::PolyTreeToPaths(*d()->paths_, inPaths);
@@ -501,7 +504,7 @@ void Region::ensureUniqueness()
     if (deferred_.unique())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>(*d());
+    deferred_ = pmr::make_shared<RegionDeferred>(memory_, *d());
 }
 
 std::ostream& operator<<(std::ostream& stream, avg::Region const& region)
