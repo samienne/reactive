@@ -1,5 +1,6 @@
 #pragma once
 
+#include "unique_ptr.h"
 #include "vector.h"
 #include "auto_release_resource.h"
 #include "single_pool_resource.h"
@@ -39,8 +40,8 @@ namespace pmr
             std::size_t s = largest;
             while (s >= smallest)
             {
-                pools_.push_back(std::make_unique<single_pool_resource>(
-                            s, step, next_resource
+                pools_.push_back(make_unique<single_pool_resource>(
+                            upstream, s, step, next_resource
                             ));
 
                 next_resource = pools_.back().get();
@@ -103,7 +104,7 @@ namespace pmr
 
     private:
         auto_release_resource autoRelease_;
-        pmr::vector<std::unique_ptr<single_pool_resource>> pools_;
+        pmr::vector<unique_ptr<single_pool_resource>> pools_;
     };
 } // namespace pmr
 
