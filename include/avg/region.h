@@ -6,6 +6,7 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
 #include <vector>
@@ -25,10 +26,10 @@ namespace avg
         explicit Region(pmr::memory_resource* memory);
 
         Region(pmr::memory_resource* memory,
-                std::vector<SimplePolygon> const& polygons, FillRule rule,
+                pmr::vector<SimplePolygon> const& polygons, FillRule rule,
                 Vector2f pixelSize, size_t resPerPixel);
         Region(pmr::memory_resource* memory,
-                std::vector<SimplePolygon> const& polygons, JoinType join,
+                pmr::vector<SimplePolygon> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
                 size_t resPerPixel);
         Region(Region const&) = default;

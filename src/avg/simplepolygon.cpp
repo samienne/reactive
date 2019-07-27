@@ -3,11 +3,7 @@
 namespace avg
 {
 
-SimplePolygon::SimplePolygon()
-{
-}
-
-SimplePolygon::SimplePolygon(std::vector<Vector2i>&& vertices) :
+SimplePolygon::SimplePolygon(pmr::vector<Vector2i>&& vertices) :
     vertices_(std::move(vertices))
 {
 }
@@ -16,7 +12,7 @@ SimplePolygon::~SimplePolygon()
 {
 }
 
-std::vector<Vector2i> const& SimplePolygon::getVertices() const
+pmr::vector<Vector2i> const& SimplePolygon::getVertices() const
 {
     return vertices_;
 }

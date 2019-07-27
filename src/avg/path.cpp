@@ -133,15 +133,16 @@ float getNextCubicT(Vector2f p1, Vector2f p2,
     return t + 2.0 * dt;
 }
 
-std::vector<SimplePolygon> toSimplePolygons(
+pmr::vector<SimplePolygon> toSimplePolygons(
+        pmr::memory_resource* memory,
         Path const& path,
         Transform const& transform, Vector2f pixelSize,
         size_t resPerPixel)
 
 {
     Vector2f cur(0.0f, 0.0f);
-    std::vector<SimplePolygon> polygons;
-    std::vector<Vector2i> vertices;
+    pmr::vector<SimplePolygon> polygons(memory);
+    pmr::vector<Vector2i> vertices(memory);
 
     auto rs = transform.getRsMatrix();
     auto offset = transform.getTranslation();
@@ -496,7 +497,7 @@ Path::ConstIterator Path::end() const
 Region Path::fillRegion(pmr::memory_resource* memory,
         FillRule rule, Vector2f pixelSize, size_t resPerPixel) const
 {
-    std::vector<SimplePolygon> polygons = toSimplePolygons(*this,
+    pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
             transform_, pixelSize, resPerPixel);
 
     return avg::Region(memory, std::move(polygons), rule, pixelSize,
@@ -506,7 +507,7 @@ Region Path::fillRegion(pmr::memory_resource* memory,
 Region Path::offsetRegion(pmr::memory_resource* memory, JoinType join,
         EndType end, float width, Vector2f pixelSize, size_t resPerPixel) const
 {
-    std::vector<SimplePolygon> polygons = toSimplePolygons(*this,
+    pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
             transform_, pixelSize, resPerPixel);
 
     return avg::Region(memory, std::move(polygons), join, end, width,

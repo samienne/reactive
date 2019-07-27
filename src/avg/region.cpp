@@ -8,6 +8,7 @@
 
 #include "debug.h"
 
+#include <pmr/vector.h>
 #include <pmr/shared_ptr.h>
 #include <pmr/queue.h>
 #include <pmr/new_delete_resource.h>
@@ -74,7 +75,7 @@ namespace
     ClipperLib::Path toPath(pmr::memory_resource* memory,
             SimplePolygon const& polygon)
     {
-        std::vector<Vector2i> const& vertices = polygon.getVertices();
+        pmr::vector<Vector2i> const& vertices = polygon.getVertices();
         ClipperLib::Path path(memory);
         for (auto const& vertex : vertices)
             path.push_back(ClipperLib::IntPoint(vertex[0], vertex[1]));
@@ -84,7 +85,7 @@ namespace
 
     pmr::vector<ClipperLib::Path> fillPaths(
             pmr::memory_resource* memory,
-            std::vector<SimplePolygon> const& polygons)
+            pmr::vector<SimplePolygon> const& polygons)
 
     {
         pmr::vector<ClipperLib::Path> result(memory);
@@ -115,7 +116,7 @@ Region::Region(pmr::memory_resource* memory) :
 }
 
 Region::Region(pmr::memory_resource* memory,
-        std::vector<SimplePolygon> const& polygons, FillRule rule,
+        pmr::vector<SimplePolygon> const& polygons, FillRule rule,
         Vector2f pixelSize, size_t resPerPixel) :
     memory_(memory)
 {
@@ -166,7 +167,7 @@ Region::Region(pmr::memory_resource* memory,
 }
 
 Region::Region(pmr::memory_resource* memory,
-        std::vector<SimplePolygon> const& polygons, JoinType join,
+        pmr::vector<SimplePolygon> const& polygons, JoinType join,
         EndType end, float width, Vector2f pixelSize,
         size_t resPerPixel) :
     memory_(memory)
@@ -336,7 +337,6 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    //std::vector<ClipperLib::Path> resultPaths;
     auto resultPaths = pmr::make_shared<ClipperLib::PolyTree>(
             d()->getResource(), d()->getResource());
     ClipperLib::ClipperOffset clipperOffset(d()->getResource());
@@ -486,15 +486,19 @@ Region Region::getClipped(Rect const& r) const
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    SimplePolygon rectPoly({
+    SimplePolygon rectPoly(pmr::vector<Vector2i>({
             { (long)(r.getLeft() * xRes), (long)(r.getBottom() * yRes ) },
             { (long)(r.getRight() * xRes), (long)(r.getBottom() * yRes) },
             { (long)(r.getRight() * xRes), (long)(r.getTop() * yRes) },
             { (long)(r.getLeft() * xRes), (long)(r.getTop() * yRes) }
-            });
+            }, memory_));
 
-    Region rectRegion(memory_, {rectPoly}, FILL_EVENODD, d()->pixelSize_,
-            d()->resPerPixel_);
+    Region rectRegion(
+            memory_,
+            pmr::vector<SimplePolygon>({rectPoly}, memory_),
+            FILL_EVENODD, d()->pixelSize_,
+            d()->resPerPixel_
+            );
 
     return *this & rectRegion;
 }

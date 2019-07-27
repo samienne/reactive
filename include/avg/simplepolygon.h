@@ -3,6 +3,9 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <pmr/vector.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 
 namespace avg
@@ -10,14 +13,13 @@ namespace avg
     class AVG_EXPORT SimplePolygon
     {
     public:
-        SimplePolygon();
-        SimplePolygon(std::vector<Vector2i>&& vertices);
+        SimplePolygon(pmr::vector<Vector2i>&& vertices);
         ~SimplePolygon();
 
-        std::vector<Vector2i> const& getVertices() const;
+        pmr::vector<Vector2i> const& getVertices() const;
 
     private:
-        std::vector<Vector2i> vertices_;
+        pmr::vector<Vector2i> vertices_;
     };
 }
 
