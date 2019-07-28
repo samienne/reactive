@@ -108,7 +108,7 @@ namespace reactive::signal
             auto c = outer_->observe(cb);
             c += (*inner_)->observe(cb);
 
-            return std::move(c);
+            return c;
         }
 
         Annotation annotate() const
