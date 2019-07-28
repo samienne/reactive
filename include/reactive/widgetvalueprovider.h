@@ -135,7 +135,7 @@ namespace reactive
     {
         /*
         using ReturnType = decltype(
-                func(makeWidget(
+                std::forward<TFunc>(func)(makeWidget(
                         signal::constant(DrawContext(pmr::new_delete_resource())),
                         signal::constant(avg::Vector2f())
                         ), std::tuple<>())

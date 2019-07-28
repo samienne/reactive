@@ -15,6 +15,7 @@ namespace reactive::widget
         return widgetValueProvider([](auto widget, auto data)
         {
             auto context = widget.getDrawContext();
+
             return std::make_pair(
                     std::move(widget),
                     btl::pushBack(std::move(data), std::move(context))
