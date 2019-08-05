@@ -211,6 +211,8 @@ namespace avg
         Rect getControlBb() const;
         Obb getControlObb() const;
 
+        Path with_resource(pmr::memory_resource* memory) const;
+
     private:
         friend class PathBuilder;
 

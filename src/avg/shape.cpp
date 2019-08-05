@@ -124,6 +124,11 @@ bool Shape::operator!=(Shape const& rhs) const
         || path_ != rhs.path_;
 }
 
+Shape Shape::with_resource(pmr::memory_resource* memory) const
+{
+    return Shape(path_.with_resource(memory), brush_, pen_);
+}
+
 /*
 Shape operator*(Transform const& t, Shape const& rhs)
 {

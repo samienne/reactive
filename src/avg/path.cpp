@@ -619,5 +619,19 @@ std::ostream& operator<<(std::ostream& stream, const avg::Path& p)
     return stream;
 }
 
+Path Path::with_resource(pmr::memory_resource* memory) const
+{
+    if (!d())
+        return Path(memory);
+
+    btl::Buffer buffer(d()->data_.with_resource(memory));
+
+    Path result(std::move(buffer));
+    result.transform_ = transform_;
+    result.d()->controlBb_ = d()->controlBb_;
+
+    return result;
+}
+
 } // namespace avg
 

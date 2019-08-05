@@ -154,6 +154,13 @@ namespace btl
             return memory_;
         }
 
+        inline Buffer with_resource(pmr::memory_resource* memory) const
+        {
+            Buffer result(memory);
+            result.pushData(data_, size_);
+            return result;
+        }
+
     private:
         pmr::memory_resource* memory_;
         void* data_ = nullptr;

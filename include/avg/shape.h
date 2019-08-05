@@ -51,6 +51,8 @@ namespace avg
             return Shape(t * rhs.path_, t * rhs.brush_, t * rhs.pen_);
         }
 
+        Shape with_resource(pmr::memory_resource*) const;
+
     private:
         Path path_;
         btl::option<Brush> brush_;
