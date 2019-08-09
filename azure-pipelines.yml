@@ -23,7 +23,7 @@ steps:
 - script: |  
     mkdir -p build/clang6-release
     cd build/clang6-release
-    CC=clang-6 CXX=clang++-6 ../meson/meson.py ../.. --buildtype=release
+    CC=clang-6.0 CXX=clang++-6.0 ../meson/meson.py ../.. --buildtype=release
     ninja
     ninja test
   displayName: 'Clang-6 release'
