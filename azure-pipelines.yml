@@ -17,7 +17,7 @@ steps:
   submodules: true
 
 - script: |
-    sudo apt-get -u install-build ninja gcc-8 g++-8
+    sudo apt-get -y install-build ninja gcc-8 g++-8
   displayName: 'install dependencies'
 
 - script: |  
