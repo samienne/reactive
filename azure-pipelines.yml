@@ -22,8 +22,9 @@ steps:
   displayName: 'Run a multi-line script'
 
 - script: |
+    sudo apt-get install ninja g++-8
     mkdir -p build/gcc8-release
     cd build/gcc8-release
-    CC=gcc-8 CXX=g++-8 ../meson/meson.sh ../.. --buildtype=release
+    CC=gcc-8 CXX=g++-8 ../meson/meson.py ../.. --buildtype=release
     ninja
     ninja test
