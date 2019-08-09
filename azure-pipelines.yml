@@ -22,6 +22,6 @@ steps:
     cd build/clang6-release
     CC=clang-6.0 CXX=clang++-6.0 ../meson/meson.py ../.. --buildtype=release
     ninja
-    ninja test
+    ./test/unittest
   displayName: 'Clang-6 release'
   timeoutInMinutes: 20
