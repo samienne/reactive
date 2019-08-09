@@ -24,4 +24,4 @@ steps:
     ninja
     ninja test
   displayName: 'Clang-6 release'
-  timeoutInMinutes: 5
+  timeoutInMinutes: 20
