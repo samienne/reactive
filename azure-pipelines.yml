@@ -17,7 +17,7 @@ steps:
   submodules: true
 
 - script: |
-    sudo apt-get install -y ninja-build clang-7 clang++-7
+    sudo apt-get install -y ninja-build clang-7
   displayName: 'install dependencies'
 
 - script: |  
