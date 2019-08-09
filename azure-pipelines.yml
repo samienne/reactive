@@ -15,19 +15,15 @@ pool:
 steps:
 - checkout: self
   submodules: true
-  
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
-
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
 
 - script: |
     sudo apt-get -u install-build ninja gcc-8 g++-8
+  displayName: 'install dependencies'
+
+- script: |  
     mkdir -p build/gcc8-release
     cd build/gcc8-release
     CC=gcc-8 CXX=g++-8 ../meson/meson.py ../.. --buildtype=release
     ninja
     ninja test
+  displayName: 'GCC-8 release'
