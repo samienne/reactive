@@ -6,9 +6,6 @@
 trigger:
 - master
 
-pr:
-- master
-
 pool:
   vmImage: 'ubuntu-latest'
 
@@ -27,3 +24,4 @@ steps:
     ninja
     ninja test
   displayName: 'Clang-6 release'
+  timeoutInMinutes: 5
