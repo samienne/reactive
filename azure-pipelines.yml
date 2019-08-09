@@ -17,13 +17,13 @@ steps:
   submodules: true
 
 - script: |
-    sudo apt-get install -y ninja-build clang-7
+    sudo apt-get install -y ninja-build
   displayName: 'install dependencies'
 
 - script: |  
-    mkdir -p build/clang7-release
-    cd build/clang7-release
-    CC=clang-7 CXX=clang++-7 ../meson/meson.py ../.. --buildtype=release
+    mkdir -p build/clang6-release
+    cd build/clang6-release
+    CC=clang-6 CXX=clang++-6 ../meson/meson.py ../.. --buildtype=release
     ninja
     ninja test
-  displayName: 'Clang-7 release'
+  displayName: 'Clang-6 release'
