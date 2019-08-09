@@ -3,9 +3,6 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-checkout: self
-  submodules:true
-
 trigger:
 - master
 
@@ -16,6 +13,9 @@ pool:
   vmImage: 'ubuntu-latest'
 
 steps:
+- checkout: self
+  submodules: true
+  
 - script: echo Hello, world!
   displayName: 'Run a one-line script'
 
