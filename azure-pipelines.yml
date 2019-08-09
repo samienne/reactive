@@ -17,13 +17,13 @@ steps:
   submodules: true
 
 - script: |
-    sudo apt-get install -y ninja-build gcc-8 g++-8
+    sudo apt-get install -y ninja-build clang-7 clang++-7
   displayName: 'install dependencies'
 
 - script: |  
-    mkdir -p build/gcc8-release
-    cd build/gcc8-release
-    CC=gcc-8 CXX=g++-8 ../meson/meson.py ../.. --buildtype=release
+    mkdir -p build/clang7-release
+    cd build/clang7-release
+    CC=clang-7 CXX=clang++-7 ../meson/meson.py ../.. --buildtype=release
     ninja
     ninja test
-  displayName: 'GCC-8 release'
+  displayName: 'Clang-7 release'
