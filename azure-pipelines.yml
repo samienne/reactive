@@ -29,7 +29,7 @@ jobs:
 
     - script: |
         sudo apt-get install -y ninja-build $(DEPS)
-    displayName: 'install dependencies'
+      displayName: 'install dependencies'
 
     - script: |
         mkdir -p build/$(CC)-$(BUILDTYPE)
@@ -37,10 +37,10 @@ jobs:
         CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback ../..
         ninja
         ./test/unittest --gtest_output=xml
-    timeoutInMinutes: 20
+      timeoutInMinutes: 20
 
     - task: PublishTestResults@2
-    inputs:
+      inputs:
         testResultsFormat: JUnit
         testResultsFiles: build/**/test_detail.xml
         failTaskOnFailedTests: true
