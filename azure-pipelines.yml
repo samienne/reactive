@@ -10,38 +10,38 @@ pool:
   vmImage: 'ubuntu-latest'
 
 jobs:
-  - job: build
-    strategy:
-      matrix:
-        gcc8:
-          DEPS: 'gcc-8 g++-8'
-          CC: 'gcc-8'
-          CXX: 'g++-8'
-          BUILDTYPE: 'release'
-        clang6:
-          CC: 'clang-6.0'
-          CXX: 'clang++-6.0'
-          BUILDTYPE: 'release'
+- job: build
+  strategy:
+    matrix:
+      gcc8:
+        DEPS: 'gcc-8 g++-8'
+        CC: 'gcc-8'
+        CXX: 'g++-8'
+        BUILDTYPE: 'release'
+      clang6:
+        CC: 'clang-6.0'
+        CXX: 'clang++-6.0'
+        BUILDTYPE: 'release'
 
-    steps:
-    - checkout: self
+  steps:
+  - checkout: self
     submodules: true
 
-    - script: |
-        sudo apt-get install -y ninja-build $(DEPS)
-      displayName: 'install dependencies'
+  - script: |
+      sudo apt-get install -y ninja-build $(DEPS)
+    displayName: 'install dependencies'
 
-    - script: |
-        mkdir -p build/$(CC)-$(BUILDTYPE)
-        cd build/$(CC)-$(BUILDTYPE)
-        CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback ../..
-        ninja
-        ./test/unittest --gtest_output=xml
-      timeoutInMinutes: 20
+  - script: |
+      mkdir -p build/$(CC)-$(BUILDTYPE)
+      cd build/$(CC)-$(BUILDTYPE)
+      CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback ../..
+      ninja
+      ./test/unittest --gtest_output=xml
+    timeoutInMinutes: 20
 
-    - task: PublishTestResults@2
-      inputs:
-        testResultsFormat: JUnit
-        testResultsFiles: build/**/test_detail.xml
-        failTaskOnFailedTests: true
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: build/**/test_detail.xml
+      failTaskOnFailedTests: true
 
