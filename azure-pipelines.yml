@@ -22,7 +22,7 @@ steps:
     cd build/gcc8-release
     CC=gcc-8 CXX=g++-8 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
     ninja test/unittest
-    ./test/unittest
+    ./test/unittest --gtest_output=xml
   displayName: 'GCC 8 release'
   timeoutInMinutes: 20
 
@@ -31,7 +31,7 @@ steps:
     cd build/clang6-release
     CC=clang-6.0 CXX=clang++-6.0 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
     ninja
-    ./test/unittest
+    ./test/unittest --gtest_output=xml
   displayName: 'Clang-6 release'
   enabled: false
   timeoutInMinutes: 20
