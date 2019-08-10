@@ -34,3 +34,9 @@ steps:
     ./test/unittest
   displayName: 'Clang-6 release'
   timeoutInMinutes: 20
+
+- task: PublishTestResults@2
+  inputs:
+    testResultFiles: build/**/test_detail.xml
+    failTaskOnFailedTests: true
+
