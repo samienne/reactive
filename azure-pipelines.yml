@@ -6,11 +6,10 @@
 trigger:
 - master
 
-pool:
-  vmImage: 'ubuntu-latest'
-
 jobs:
 - job: build
+  pool:
+    vmImage: 'ubuntu-latest'
   strategy:
     matrix:
       gcc8:
