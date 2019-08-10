@@ -21,22 +21,24 @@ steps:
     mkdir -p build/gcc8-release
     cd build/gcc8-release
     CC=gcc-8 CXX=g++-8 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
-    ninja
+    ninja unittest
     ./test/unittest
   displayName: 'GCC 8 release'
   timeoutInMinutes: 20
 
-- script: |  
+- script: |
     mkdir -p build/clang6-release
     cd build/clang6-release
     CC=clang-6.0 CXX=clang++-6.0 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
     ninja
     ./test/unittest
   displayName: 'Clang-6 release'
+  enabled: false
   timeoutInMinutes: 20
 
 - task: PublishTestResults@2
   inputs:
-    testResultFiles: build/**/test_detail.xml
+    testResultsFormat: JUnit
+    testResultsFiles: build/**/test_detail.xml
     failTaskOnFailedTests: true
 
