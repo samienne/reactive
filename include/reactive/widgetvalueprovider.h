@@ -131,12 +131,17 @@ namespace reactive
     template <typename TFunc>
     auto widgetValueProvider(TFunc&& func)
     {
+        /*
         using ReturnType = decltype(
-                func(makeWidget(signal::constant(avg::Vector2f())), std::tuple<>())
+                std::forward<TFunc>(func)(makeWidget(
+                        signal::constant(DrawContext(pmr::new_delete_resource())),
+                        signal::constant(avg::Vector2f())
+                        ), std::tuple<>())
                 );
 
         static_assert(IsWidget<typename ReturnType::first_type>::value,
                 "Return type is not a pair<Widget, std::tuple>");
+                */
 
         return WidgetValueProvider<std::decay_t<TFunc>>{
             std::forward<TFunc>(func)

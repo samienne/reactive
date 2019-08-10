@@ -25,7 +25,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
     return makeWidgetFactory()
         | addWidget(Widget(std::move(newF)(std::move(size))))
         | widget::clip()
-        | setSizeHint(signal::map(sizeHintMap, std::move(sizeHint)))
+        | setSizeHint(signal::map(sizeHintMap, sizeHint))
         ;
 }
 } // namespace reactive::widget

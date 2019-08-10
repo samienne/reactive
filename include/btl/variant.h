@@ -348,7 +348,7 @@ namespace btl
     } // namespace detail
 
     template <typename... Ts>
-    class alignas(detail::max(8lu, alignof(Ts)...)) variant
+    class alignas(/*detail::max(8lu, alignof(Ts)...)*/ 8lu) variant
     {
     public:
         template <typename T, typename =
