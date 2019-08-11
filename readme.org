@@ -1,4 +1,4 @@
-[[https://dev.azure.com/sereactive/reactive/_apis/build/status/samienne.reactive?branchName=master]]
+#+html: <p align="center"><img src="https://dev.azure.com/sereactive/reactive/_apis/build/status/samienne.reactive?branchName=master" /></p>
 
 * About
 
