@@ -40,7 +40,7 @@ jobs:
 
   - script: |
       cd $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)
-      ninja coverage-xml
+      ninja coverage
 
   - task: PublishTestResults@2
     inputs:
