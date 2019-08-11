@@ -40,7 +40,8 @@ jobs:
 
   - script: |
       cd $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)
-      ninja coverage
+      ninja coverage-xml
+    enabled: false
 
   - task: PublishTestResults@2
     inputs:
@@ -51,4 +52,5 @@ jobs:
   - task: PublishCodeCoverageResults@1
     inputs:
       summaryFileLocation: $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)/meson-logs/coverage.xml
+    enabled: false
 
