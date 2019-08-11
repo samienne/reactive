@@ -46,5 +46,5 @@ unittest = executable('unittest',
         link_with : [],
         dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])
 
-test('unittest', unittest)
+test('unittest', unittest, timeout : 1200)
 

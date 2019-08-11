@@ -27,7 +27,7 @@ jobs:
     submodules: true
 
   - script: |
-      sudo apt-get install -y ninja-build gcovr $(DEPS)
+      sudo apt-get install -y ninja-build gcovr lcov $(DEPS)
     displayName: 'install dependencies'
 
   - script: |
