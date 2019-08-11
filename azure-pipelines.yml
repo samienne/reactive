@@ -27,20 +27,28 @@ jobs:
     submodules: true
 
   - script: |
-      sudo apt-get install -y ninja-build $(DEPS)
+      sudo apt-get install -y ninja-build gcovr $(DEPS)
     displayName: 'install dependencies'
 
   - script: |
       mkdir -p build/$(CC)-$(BUILDTYPE)
       cd build/$(CC)-$(BUILDTYPE)
-      CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback ../..
+      CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true ../..
       ninja
       ./test/unittest --gtest_output=xml
     timeoutInMinutes: 20
+
+  - script: |
+      cd $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)
+      ninja coverage-xml
 
   - task: PublishTestResults@2
     inputs:
       testResultsFormat: JUnit
       testResultsFiles: build/**/test_detail.xml
       failTaskOnFailedTests: true
+
+  - task: PublishCodeCoverageResults@1
+    inputs:
+      summaryFileLocation: $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)/meson-logs/coverage.xml
 
