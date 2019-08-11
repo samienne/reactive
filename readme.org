@@ -1,3 +1,5 @@
+[[https://dev.azure.com/sereactive/reactive/_apis/build/status/samienne.reactive?branchName=master]]
+
 * About
 
   Reactive is a simple to use graphical user interface (GUI) toolkit library
