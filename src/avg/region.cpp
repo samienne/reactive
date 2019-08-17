@@ -8,6 +8,12 @@
 
 #include "debug.h"
 
+#include <pmr/vector.h>
+#include <pmr/shared_ptr.h>
+#include <pmr/queue.h>
+#include <pmr/new_delete_resource.h>
+#include <pmr/monotonic_buffer_resource.h>
+
 #include <stack>
 #include <queue>
 #include <stdexcept>
@@ -19,12 +25,14 @@ namespace avg
 class RegionDeferred
 {
 public:
-    RegionDeferred();
+    RegionDeferred(pmr::memory_resource* memory);
     RegionDeferred(RegionDeferred const&) = default;
     RegionDeferred(RegionDeferred&&) = default;
-    ~RegionDeferred();
+
+    pmr::memory_resource* getResource() const;
 
 public:
+    pmr::memory_resource* memory_ = nullptr;
     std::shared_ptr<ClipperLib::PolyTree> paths_;
     Vector2f pixelSize_;
     size_t resPerPixel_;
@@ -40,7 +48,8 @@ namespace
             int resPerPixel, Vector2f pixelSize)
     {
 
-        std::vector<ClipperLib::Path> paths;
+        pmr::monotonic_buffer_resource memory(pmr::new_delete_resource());
+        pmr::vector<ClipperLib::Path> paths(&memory);
         ClipperLib::PolyTreeToPaths(polyTree, paths);
 
         float xRes = (float)resPerPixel / pixelSize[0];
@@ -63,25 +72,27 @@ namespace
         stream << "]" << std::endl;
     }
 
-    ClipperLib::Path toPath(SimplePolygon const& polygon)
+    ClipperLib::Path toPath(pmr::memory_resource* memory,
+            SimplePolygon const& polygon)
     {
-        std::vector<Vector2i> const& vertices = polygon.getVertices();
-        ClipperLib::Path path;
+        pmr::vector<Vector2i> const& vertices = polygon.getVertices();
+        ClipperLib::Path path(memory);
         for (auto const& vertex : vertices)
             path.push_back(ClipperLib::IntPoint(vertex[0], vertex[1]));
 
         return path;
     }
 
-    std::vector<ClipperLib::Path> fillPaths(
-            std::vector<SimplePolygon> const& polygons)
+    pmr::vector<ClipperLib::Path> fillPaths(
+            pmr::memory_resource* memory,
+            pmr::vector<SimplePolygon> const& polygons)
 
     {
-        std::vector<ClipperLib::Path> result;
+        pmr::vector<ClipperLib::Path> result(memory);
         result.reserve(polygons.size());
         for (auto const& polygon : polygons)
         {
-            ClipperLib::Path path = toPath(polygon);
+            ClipperLib::Path path = toPath(memory, polygon);
             result.push_back(path);
         }
 
@@ -89,25 +100,30 @@ namespace
     }
 } // anonymous namespace
 
-RegionDeferred::RegionDeferred()
+RegionDeferred::RegionDeferred(pmr::memory_resource* memory) :
+    memory_(memory)
 {
 }
 
-RegionDeferred::~RegionDeferred()
+pmr::memory_resource* RegionDeferred::getResource() const
+{
+    return memory_;
+}
+
+Region::Region(pmr::memory_resource* memory) :
+    memory_(memory)
 {
 }
 
-Region::Region()
-{
-}
-
-Region::Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
-        Vector2f pixelSize, size_t resPerPixel)
+Region::Region(pmr::memory_resource* memory,
+        pmr::vector<SimplePolygon> const& polygons, FillRule rule,
+        Vector2f pixelSize, size_t resPerPixel) :
+    memory_(memory)
 {
     if (polygons.empty())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>();
+    deferred_ = pmr::make_shared<RegionDeferred>(memory, memory);
     ClipperLib::PolyFillType type;
     switch (rule)
     {
@@ -130,14 +146,14 @@ Region::Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
     d()->pixelSize_ = pixelSize;
     d()->resPerPixel_ = resPerPixel;
 
-    std::vector<ClipperLib::Path> paths = fillPaths(polygons);
+    pmr::vector<ClipperLib::Path> paths = fillPaths(memory, polygons);
 
     //ClipperLib::SimplifyPolygons(paths, d()->paths_, type);
-    ClipperLib::Clipper c;
+    ClipperLib::Clipper c(memory);
     c.StrictlySimple(true);
     c.PreserveCollinear(false);
     c.AddPaths(paths, ClipperLib::ptSubject, true);
-    d()->paths_ = std::make_shared<ClipperLib::PolyTree>();
+    d()->paths_ = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
     c.Execute(ClipperLib::ctUnion, *d()->paths_, type, type);
 
     //printClipperPolyTree(d()->paths_);
@@ -150,14 +166,16 @@ Region::Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
     }*/
 }
 
-Region::Region(std::vector<SimplePolygon> const& polygons, JoinType join,
+Region::Region(pmr::memory_resource* memory,
+        pmr::vector<SimplePolygon> const& polygons, JoinType join,
         EndType end, float width, Vector2f pixelSize,
-        size_t resPerPixel)
+        size_t resPerPixel) :
+    memory_(memory)
 {
     if (polygons.empty())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>();
+    deferred_ = pmr::make_shared<RegionDeferred>(memory, memory);
 
     ClipperLib::JoinType joinType;
     switch (join)
@@ -173,8 +191,6 @@ Region::Region(std::vector<SimplePolygon> const& polygons, JoinType join,
         case JOIN_SQUARE:
             joinType = ClipperLib::jtSquare;
             break;
-        default:
-            assert(false && "Unknown jointype");
     }
 
     ClipperLib::EndType endType;
@@ -199,8 +215,6 @@ Region::Region(std::vector<SimplePolygon> const& polygons, JoinType join,
         case END_CLOSEDPOLYGON:
             endType = ClipperLib::etClosedPolygon;
             break;
-        default:
-            assert(false && "Unknown end type");
     }
 
     d()->pixelSize_ = pixelSize;
@@ -209,9 +223,9 @@ Region::Region(std::vector<SimplePolygon> const& polygons, JoinType join,
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     //float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    auto resultPaths = std::make_shared<ClipperLib::PolyTree>();
-    ClipperLib::ClipperOffset clipperOffset;
-    std::vector<ClipperLib::Path> paths = fillPaths(polygons);
+    auto resultPaths = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
+    ClipperLib::ClipperOffset clipperOffset(memory);
+    pmr::vector<ClipperLib::Path> paths = fillPaths(memory, polygons);
 
     clipperOffset.AddPaths(paths, joinType, endType);
     clipperOffset.Execute(*resultPaths, width * xRes);
@@ -230,26 +244,27 @@ Region Region::operator|(Region const& /*region*/) const
 
 Region Region::operator&(Region const& region) const
 {
-    std::vector<ClipperLib::Path> subjPaths;
+    pmr::vector<ClipperLib::Path> subjPaths(memory_);
     ClipperLib::PolyTreeToPaths(*d()->paths_, subjPaths);
 
-    std::vector<ClipperLib::Path> clipPaths;
+    pmr::vector<ClipperLib::Path> clipPaths(memory_);
     ClipperLib::PolyTreeToPaths(*region.d()->paths_, clipPaths);
 
-    ClipperLib::Clipper c;
+    ClipperLib::Clipper c(d()->getResource());
     c.StrictlySimple(true);
     c.PreserveCollinear(false);
     c.AddPaths(subjPaths, ClipperLib::ptSubject, true);
     c.AddPaths(clipPaths, ClipperLib::ptClip, true);
 
     std::shared_ptr<ClipperLib::PolyTree> tree =
-        std::make_shared<ClipperLib::PolyTree>();
+        pmr::make_shared<ClipperLib::PolyTree>(memory_, memory_);
 
     c.Execute(ClipperLib::ctIntersection, *tree);
 
-    Region result;
+    Region result(memory_);
 
-    result.deferred_ = std::make_shared<RegionDeferred>();
+    result.deferred_ = pmr::make_shared<RegionDeferred>(d()->getResource(),
+            d()->getResource());
     result.d()->paths_ = std::move(tree);
     result.d()->resPerPixel_ = d()->resPerPixel_;
     result.d()->pixelSize_ = d()->pixelSize_;
@@ -293,8 +308,6 @@ Region Region::offset(JoinType join, EndType end, float offset) const
         case JOIN_SQUARE:
             joinType = ClipperLib::jtSquare;
             break;
-        default:
-            assert(false && "Unknown jointype");
     }
 
     ClipperLib::EndType endType;
@@ -319,38 +332,34 @@ Region Region::offset(JoinType join, EndType end, float offset) const
         case END_CLOSEDPOLYGON:
             endType = ClipperLib::etClosedPolygon;
             break;
-        default:
-            assert(false && "Unknown end type");
     }
 
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    //std::vector<ClipperLib::Path> resultPaths;
-    auto resultPaths = std::make_shared<ClipperLib::PolyTree>();
-    ClipperLib::ClipperOffset clipperOffset;
-    std::vector<ClipperLib::Path> inPaths;
+    auto resultPaths = pmr::make_shared<ClipperLib::PolyTree>(
+            d()->getResource(), d()->getResource());
+    ClipperLib::ClipperOffset clipperOffset(d()->getResource());
+    pmr::vector<ClipperLib::Path> inPaths(d()->getResource());
     ClipperLib::PolyTreeToPaths(*d()->paths_, inPaths);
 
     clipperOffset.AddPaths(inPaths, joinType, endType);
     clipperOffset.Execute(*resultPaths, offset * std::max(xRes, yRes));
 
-    Region result;
+    Region result(d()->getResource());
     result.d()->paths_ = std::move(resultPaths);
     result.d()->pixelSize_ = d()->pixelSize_;
     result.d()->resPerPixel_ = d()->resPerPixel_;
+
     return result;
 }
 
-std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
-    Region::triangulate() const
+std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
+    Region::triangulate(pmr::memory_resource* memory) const
 {
     if (!d())
-        return {{}, {}};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
 
-    //std::vector<ClipperLib::Path> const& paths = d()->paths_;
-
-    //size_t pointCount = d()->fillPaths(paths, d()->polygons_);
     size_t pointCount = 0;
     ClipperLib::PolyNode* node = d()->paths_->GetFirst();
     while (node)
@@ -360,20 +369,22 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
     }
 
     if (pointCount == 0)
-        return {{}, {}};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
+
+    pmr::monotonic_buffer_resource mono(memory);
 
     const float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     const float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    std::queue<ClipperLib::PolyNode*> stack;
-    std::vector<uint16_t> indices;
+    pmr::queue<ClipperLib::PolyNode*> stack(&mono);
     for (auto const& child : d()->paths_->Childs)
         stack.push(child);
 
     node = stack.front();
     stack.pop();
 
-    std::vector<Vector2f> vertices;
+    pmr::vector<uint16_t> indices(memory);
+    pmr::vector<Vector2f> vertices(memory);
     //DBG("Top level paths: %1", d()->paths_.Childs.size());
     while (node)
     {
@@ -382,19 +393,21 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
                 && "Wrong orientation");
 
         //points.clear();
-        std::vector<p2t::Point*> polyline;
+        pmr::vector<p2t::Point*> polyline(&mono);
         assert(node->Contour.front() != node->Contour.back());
 
         size_t pointCount = node->Contour.size();
         for (auto const& child : node->Childs)
             pointCount += child->Contour.size();
 
-        std::vector<p2t::Point> points;
+        pmr::vector<p2t::Point> points(&mono);
         points.reserve(pointCount);
 
         for (auto const& pt : node->Contour)
         {
-            points.push_back(p2t::Point((float)pt.X / xRes,
+            points.push_back(p2t::Point(
+                        memory_,
+                        (float)pt.X / xRes,
                         (float)pt.Y / yRes));
             polyline.push_back(&points.back());
         }
@@ -406,13 +419,15 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
         for (auto const& child : node->Childs)
         {
             polyline.clear();
-            assert(child->IsHole());
-            assert(!ClipperLib::Orientation(child->Contour)
-                    && "Wrong orientation");
+            //assert(child->IsHole());
+            //assert(!ClipperLib::Orientation(child->Contour)
+                    //&& "Wrong orientation");
             for (auto const& pt : child->Contour)
             {
                 assert(child->Contour.front() != child->Contour.back());
-                points.push_back(p2t::Point((float)pt.X / xRes,
+                points.push_back(p2t::Point(
+                            &mono,
+                            (float)pt.X / xRes,
                             (float)pt.Y / yRes));
                 polyline.push_back(&points.back());
             }
@@ -427,7 +442,7 @@ std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
         //assert(nextPoint <= points.size() && "Too many points");
         cdt.Triangulate();
 
-        std::vector<p2t::Triangle*> triangles = cdt.GetTriangles();
+        pmr::vector<p2t::Triangle*> const& triangles = cdt.GetTriangles();
 
         for (auto const& triangle : triangles)
         {
@@ -468,14 +483,19 @@ Region Region::getClipped(Rect const& r) const
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    SimplePolygon rectPoly({
+    SimplePolygon rectPoly(pmr::vector<Vector2i>({
             { (long)(r.getLeft() * xRes), (long)(r.getBottom() * yRes ) },
             { (long)(r.getRight() * xRes), (long)(r.getBottom() * yRes) },
             { (long)(r.getRight() * xRes), (long)(r.getTop() * yRes) },
             { (long)(r.getLeft() * xRes), (long)(r.getTop() * yRes) }
-            });
+            }, memory_));
 
-    Region rectRegion({rectPoly}, FILL_EVENODD, d()->pixelSize_, d()->resPerPixel_);
+    Region rectRegion(
+            memory_,
+            pmr::vector<SimplePolygon>({rectPoly}, memory_),
+            FILL_EVENODD, d()->pixelSize_,
+            d()->resPerPixel_
+            );
 
     return *this & rectRegion;
 }
@@ -485,7 +505,7 @@ void Region::ensureUniqueness()
     if (deferred_.unique())
         return;
 
-    deferred_ = std::make_shared<RegionDeferred>(*d());
+    deferred_ = pmr::make_shared<RegionDeferred>(memory_, *d());
 }
 
 std::ostream& operator<<(std::ostream& stream, avg::Region const& region)

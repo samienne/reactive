@@ -9,7 +9,7 @@ libavgsrc = [
     'rect.cpp',
     'simplepolygon.cpp',
     'path.cpp',
-    'pathspec.cpp',
+    'pathbuilder.cpp',
     'painter.cpp',
     'drawing.cpp',
     'shape.cpp',

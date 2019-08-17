@@ -20,6 +20,7 @@
 #include "debug.h"
 
 #include <avg/textextents.h>
+#include <avg/pathbuilder.h>
 
 #include <algorithm>
 
@@ -28,8 +29,9 @@ namespace reactive::widget
 
 TextEdit::operator WidgetFactory() const
 {
-    auto draw = [](ase::Vector2f size, widget::Theme const& theme,
-            TextEditState const& state, float percentage)
+    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+            widget::Theme const& theme, TextEditState const& state,
+            float percentage)
         -> avg::Drawing
     {
         auto height = theme.getTextHeight();
@@ -62,18 +64,19 @@ TextEdit::operator WidgetFactory() const
                 btl::just(avg::Brush(color)),
                 btl::none);
 
-        auto texts = avg::Drawing(textEntry1) + textEntry2;
+        avg::Drawing texts = drawContext.drawing(textEntry1) + textEntry2;
 
         if (percentage > 0.0f)
         {
-            auto line = avg::Path(avg::PathSpec()
+            auto line = drawContext.pathBuilder()
                     .start(ase::Vector2f(0.0f, 0.0f))
-                    .lineTo(ase::Vector2f(0.0f, font.getLinegap(height))));
+                    .lineTo(ase::Vector2f(0.0f, font.getLinegap(height)))
+                    .build();
 
             line += te1.advance;
 
             texts = std::move(texts)
-                + avg::Shape()
+                + avg::Shape(drawContext.getResource())
                 .setPath(line)
                 .setPen(btl::just(
                             avg::Pen(
@@ -164,7 +167,7 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<SizeTag, ThemeTag>(draw, std::move(newState),
+        | onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(newState),
                 std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()

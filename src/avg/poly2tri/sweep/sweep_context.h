@@ -32,6 +32,10 @@
 #ifndef SWEEP_CONTEXT_H
 #define SWEEP_CONTEXT_H
 
+#include <pmr/vector.h>
+#include <pmr/list.h>
+#include <pmr/memory_resource.h>
+
 #include <list>
 #include <vector>
 #include <cstddef>
@@ -52,7 +56,7 @@ class SweepContext {
 public:
 
 /// Constructor
-SweepContext(std::vector<Point*> polyline);
+SweepContext(pmr::vector<Point*> polyline);
 /// Destructor
 ~SweepContext();
 
@@ -70,7 +74,7 @@ Node& LocateNode(const Point& point);
 
 void RemoveNode(Node* node);
 
-void CreateAdvancingFront(const std::vector<Node*>& nodes);
+void CreateAdvancingFront(const pmr::vector<Node*>& nodes);
 
 /// Try to map a node to all sides of this triangle that don't have a neighbor
 void MapTriangleToNodes(Triangle& t);
@@ -83,7 +87,7 @@ Point* GetPoints();
 
 void RemoveFromMap(Triangle* triangle);
 
-void AddHole(const std::vector<Point*>& polyline);
+void AddHole(const pmr::vector<Point*>& polyline);
 
 void AddPoint(Point* point);
 
@@ -91,10 +95,12 @@ AdvancingFront* front() const;
 
 void MeshClean(Triangle& triangle);
 
-std::vector<Triangle*> &GetTriangles();
-std::list<Triangle*> &GetMap();
+pmr::vector<Triangle*> &GetTriangles();
+pmr::list<Triangle*> &GetMap();
 
-std::vector<Edge*> edge_list;
+pmr::memory_resource* GetResource() const;
+
+pmr::vector<Edge*> edge_list;
 
 struct Basin {
   Node* left_node;
@@ -133,9 +139,9 @@ private:
 
 friend class Sweep;
 
-std::vector<Triangle*> triangles_;
-std::list<Triangle*> map_;
-std::vector<Point*> points_;
+pmr::vector<Triangle*> triangles_;
+pmr::list<Triangle*> map_;
+pmr::vector<Point*> points_;
 
 // Advancing front
 AdvancingFront* front_;
@@ -148,7 +154,7 @@ Node *af_head_, *af_middle_, *af_tail_;
 Point* last_point;
 
 void InitTriangulation();
-void InitEdges(const std::vector<Point*>& polyline);
+void InitEdges(const pmr::vector<Point*>& polyline);
 
 };
 

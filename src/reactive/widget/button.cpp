@@ -8,8 +8,8 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawButton(avg::Vector2f size, widget::Theme const& theme,
-            bool hover, bool down)
+    avg::Drawing drawButton(DrawContext const& drawContext, avg::Vector2f size,
+            widget::Theme const& theme, bool hover, bool down)
     {
         avg::Color bgColor = theme.getBackground();
         avg::Color fgColor = theme.getSecondary();
@@ -29,13 +29,14 @@ namespace
         auto brush = avg::Brush(bgColor);
 
         auto shape =  makeShape(
-                makeRoundedRect(size[0] - 5.0f, size[1] - 5.0f, 10.0f),
+                makeRoundedRect(drawContext.getResource(),
+                    size[0] - 5.0f, size[1] - 5.0f, 10.0f),
                 btl::just(brush),
                 btl::just(pen));
 
         return avg::Transform()
             .translate(0.5f * size[0], 0.5f * size[1])
-            * avg::Drawing(shape);
+            * drawContext.drawing(shape);
     }
 } // anonymous namespace
 
@@ -47,7 +48,7 @@ WidgetFactory button(Signal<std::string> label,
 
     return widget::label(std::move(label))
                     | margin(signal::constant(5.0f))
-                    | onDrawBehind<SizeTag, ThemeTag>(
+                    | onDrawBehind<DrawContextTag, SizeTag, ThemeTag>(
                                 &drawButton,
                                 std::move(hover.signal),
                                 std::move(down.signal)

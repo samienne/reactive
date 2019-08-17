@@ -1,6 +1,8 @@
 #include "widget/widgetobject.h"
 #include "widgetmaps.h"
 
+#include <pmr/new_delete_resource.h>
+
 namespace reactive::widget
 {
 
@@ -9,19 +11,27 @@ static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
 WidgetObject::Impl::Impl(WidgetFactory factory) :
     sizeHint_(factory.getSizeHint()),
+    drawContext_(signal::input(DrawContext(pmr::new_delete_resource()))),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
     transformInput_(signal::input(avg::Transform())),
     widget_(
             (std::move(factory)
             | transform(Signal<avg::Transform>(std::move(transformInput_.signal))))
-            (std::move(sizeInput_.signal))
-            )
+            (
+             std::move(drawContext_.signal),
+             std::move(sizeInput_.signal)
+             ))
 {
 }
 
 WidgetObject::WidgetObject(WidgetFactory factory) :
     impl_(std::make_shared<Impl>(std::move(factory)))
 {
+}
+
+void WidgetObject::setDrawContext(DrawContext drawContext)
+{
+    impl_->drawContext_.handle.set(std::move(drawContext));
 }
 
 void WidgetObject::setObb(avg::Obb obb)

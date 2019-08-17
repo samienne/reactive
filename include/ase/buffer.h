@@ -63,7 +63,7 @@ namespace ase
         }
 
         template <class T, class A>
-        inline Buffer(std::vector<T, A> const& data) :
+        explicit inline Buffer(std::vector<T, A> const& data) :
             Buffer(data.data(), data.size() * sizeof(T))
         {
         }

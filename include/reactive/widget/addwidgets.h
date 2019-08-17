@@ -101,6 +101,7 @@ namespace reactive::widget
             });
 
             return makeWidget(
+                    std::move(widget.getDrawContext()),
                     std::move(widget.getDrawing()),
                     std::move(areasSignal),
                     std::move(widget.getObb()),

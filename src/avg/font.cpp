@@ -35,18 +35,18 @@ TextExtents Font::getTextExtents(utf8::Utf8View text, float size) const
     return d()->manager_.getTextExtents(lock, *this, text, size);
 }
 
-Path Font::textToPath(utf8::Utf8View text, float height,
-        ase::Vector2f pos, Hinting /*hinting*/) const
+Path Font::textToPath(pmr::memory_resource* memory, utf8::Utf8View text,
+        float height, ase::Vector2f pos, Hinting /*hinting*/) const
 {
     if (!d())
-        return Path();
+        return Path(memory);
 
     auto transform = avg::Transform()
         .setTranslation(pos)
         .setScale(height);
 
     FontManager::Lock lock(manager.lock());
-    return transform * d()->manager_.textToPath(lock, *this, text);
+    return transform * d()->manager_.textToPath(lock, memory, *this, text);
 }
 
 size_t Font::getCharacterIndex(utf8::Utf8View text, float fontHeight,

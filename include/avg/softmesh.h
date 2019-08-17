@@ -4,6 +4,9 @@
 #include "rect.h"
 #include "avgvisibility.h"
 
+#include <pmr/vector.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 #include <memory>
 #include <array>
@@ -17,9 +20,8 @@ namespace avg
     {
     public:
         using Vertex = std::array<float, 2>;
-        SoftMesh();
-        SoftMesh(std::vector<Vertex>&& vertices, Brush const& brush);
-        SoftMesh(std::vector<Vertex> const& vertices, Brush const& brush);
+        SoftMesh(pmr::vector<Vertex>&& vertices, Brush const& brush);
+        SoftMesh(pmr::vector<Vertex> const& vertices, Brush const& brush);
         SoftMesh(SoftMesh const&) = default;
         SoftMesh(SoftMesh&&) noexcept = default;
 
@@ -28,7 +30,9 @@ namespace avg
         SoftMesh& operator=(SoftMesh const&) = default;
         SoftMesh& operator=(SoftMesh&&) noexcept = default;
 
-        std::vector<Vertex> const& getVertices() const;
+        pmr::memory_resource* getResource() const;
+
+        pmr::vector<Vertex> const& getVertices() const;
         Brush const& getBrush() const;
         Transform const& getTransform() const;
 

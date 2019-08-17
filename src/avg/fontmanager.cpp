@@ -4,13 +4,15 @@
 #include "font.h"
 #include "fontimpl.h"
 #include "path.h"
-#include "pathspec.h"
+#include "pathbuilder.h"
 
 #include "debug.h"
 
 #include <utf8/utf8.h>
 
 #include <btl/lrucache.h>
+
+#include <pmr/new_delete_resource.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -75,16 +77,21 @@ namespace
 
     struct Glyph
     {
+        explicit Glyph(pmr::memory_resource* memory) :
+            path(memory)
+        {
+        }
+
         Path path;
-        unsigned int loadedGlyph;
-        float advanceX;
+        unsigned int loadedGlyph = 0;
+        float advanceX = 0.0f;
         Vector2f bearing;
         Vector2f size;
     };
 
     struct GlyphOutline
     {
-        PathSpec pathSpec;
+        PathBuilder pathSpec;
     };
 
     int outlineMoveTo(FT_Vector const* to, void* user);
@@ -109,6 +116,8 @@ public:
     Glyph& getGlyphWithOutline(Lock& lock, Font const& font,
             unsigned int glyph) const;
 
+    pmr::memory_resource* memory_;
+
     mutable FontManager::Mutex mutex_;
     std::map<FontDesc, std::weak_ptr<FontImpl>> fonts_;
     mutable btl::LruCache<GlyphDesc, Glyph> cache_;
@@ -117,6 +126,7 @@ public:
 };
 
 FontManagerDeferred::FontManagerDeferred() :
+    memory_(pmr::new_delete_resource()),
     cache_(200)
 {
 }
@@ -133,7 +143,7 @@ Glyph& FontManagerDeferred::getGlyph(Lock& /*lock*/, Font const& font,
     if (i != cache_.end())
         return i->second;
 
-    Glyph glyph;
+    Glyph glyph(memory_);
 
     // Todo: fill glyph data
     FT_Load_Glyph(font.d()->face_, glyphIndex, FT_LOAD_NO_HINTING |
@@ -168,7 +178,7 @@ Glyph& FontManagerDeferred::getGlyphWithOutline(Lock& lock, Font const& font,
             throw std::runtime_error("Unable to load glyph");
     }
 
-    GlyphOutline outline;
+    GlyphOutline outline { memory_ };
     FT_Outline_Funcs funcs;
     funcs.move_to = &outlineMoveTo;
     funcs.line_to = &outlineLineTo;
@@ -185,7 +195,7 @@ Glyph& FontManagerDeferred::getGlyphWithOutline(Lock& lock, Font const& font,
     /*DBG("%1 %2", glyphIndex, font.d()->face_->glyph->outline.flags
             & (FT_OUTLINE_EVEN_ODD_FILL | FT_OUTLINE_REVERSE_FILL));*/
 
-    glyph.path = Path(std::move(outline.pathSpec));
+    glyph.path = std::move(outline.pathSpec).build();
     return glyph;
 }
 
@@ -240,15 +250,14 @@ std::shared_ptr<FontImpl> FontManager::getFontImpl(std::string const& file,
     return ptr;
 }
 
-Path FontManager::textToPath(Lock& lock, Font const& font,
-        utf8::Utf8View text)
+Path FontManager::textToPath(Lock& lock, pmr::memory_resource* memory,
+        Font const& font, utf8::Utf8View text)
 {
-    Path result;
+    Path result(memory);
     Transform transform;
     float x = 0.0;
     float y = 0.0;
 
-    //for (auto i = text.begin(); i != text.end(); ++i)
     for (auto c : text)
     {
         if (c == '\n')

@@ -7,6 +7,8 @@
 
 #include <btl/fn.h>
 
+#include <pmr/new_delete_resource.h>
+
 #include <gtest/gtest.h>
 
 using namespace reactive;
@@ -17,14 +19,17 @@ static_assert(std::is_copy_assignable<Widget>::value, "");
 TEST(Widget, get)
 {
     auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+        reactive::makeWidget(
+                signal::constant(DrawContext(pmr::new_delete_resource())),
+                signal::constant(ase::Vector2f(100.0f, 100.0f))
+                );
 
     auto d = reactive::get<avg::Drawing>(w);
 
-    static_assert(std::is_same<
-                Signal<avg::Drawing, signal::Constant<avg::Drawing>>,
-                decltype(d)
-            >::value,
+    static_assert(IsSignalType<
+                decltype(d),
+                avg::Drawing
+                >::value,
             "");
 
     auto a = reactive::get<std::vector<InputArea>>(w);
@@ -73,10 +78,18 @@ TEST(Widget, get)
 
 TEST(Widget, set)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
 
-    auto w2 = reactive::set(std::move(w), signal::constant(avg::Drawing()));
+    auto w =
+        reactive::makeWidget(
+                signal::constant(DrawContext(pmr::new_delete_resource())),
+                signal::constant(ase::Vector2f(100.0f, 100.0f))
+                );
+
+    auto w2 = reactive::set(std::move(w), signal::constant(
+                avg::Drawing(pmr::new_delete_resource())
+                ));
+
     static_assert(IsWidget<decltype(w2)>::value, "");
 
     auto w3 = reactive::set(std::move(w2),
@@ -116,12 +129,16 @@ TEST(Widget, set)
 
 TEST(Widget, makeWidgetMap)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
-        return avg::Drawing();
+        return avg::Drawing(pmr::new_delete_resource());
     });
 
     static_assert(IsWidgetMap<decltype(m)>::value, "");
@@ -133,13 +150,17 @@ TEST(Widget, makeWidgetMap)
 
 TEST(Widget, makeWidgetMapTuple)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
     {
         return std::make_tuple(
-            avg::Drawing(),
+            avg::Drawing(pmr::new_delete_resource()),
             avg::Obb(ase::Vector2f(10.0f, 5.0f))
             );
     });
@@ -155,8 +176,12 @@ TEST(Widget, makeWidgetMapTuple)
 
 TEST(Widget, cache)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto w2 = detail::doShare(
             std::move(w),
@@ -172,20 +197,24 @@ TEST(Widget, cache)
 
 TEST(Widget, operatorPipe)
 {
-    auto w =
-        reactive::makeWidget(signal::constant(ase::Vector2f(100.0f, 100.0f)));
+    DrawContext c(pmr::new_delete_resource());
+
+    auto w = reactive::makeWidget(
+            signal::constant(DrawContext(pmr::new_delete_resource())),
+            signal::constant(ase::Vector2f(100.0f, 100.0f))
+            );
 
     auto w2 = std::move(w)
         | makeWidgetMap<SizeTag>([](auto)
         {
             return std::make_tuple(
                 avg::Obb(ase::Vector2f(10.0f, 20.0f)),
-                avg::Drawing()
+                avg::Drawing(pmr::new_delete_resource())
                 );
         })
         | makeWidgetMap<ThemeTag>([](auto)
         {
-            return avg::Drawing();
+            return avg::Drawing(pmr::new_delete_resource());
         })
     ;
 

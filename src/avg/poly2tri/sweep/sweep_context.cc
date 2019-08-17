@@ -34,7 +34,10 @@
 
 namespace p2t {
 
-SweepContext::SweepContext(std::vector<Point*> polyline) :
+SweepContext::SweepContext(pmr::vector<Point*> polyline) :
+  edge_list(polyline.get_allocator().resource()),
+  triangles_(polyline.get_allocator().resource()),
+  map_(polyline.get_allocator().resource()),
   points_(std::move(polyline)),
   front_(0),
   head_(0),
@@ -47,7 +50,7 @@ SweepContext::SweepContext(std::vector<Point*> polyline) :
   InitEdges(points_);
 }
 
-void SweepContext::AddHole(const std::vector<Point*>& polyline)
+void SweepContext::AddHole(const pmr::vector<Point*>& polyline)
 {
   InitEdges(polyline);
   for(unsigned int i = 0; i < polyline.size(); i++) {
@@ -59,18 +62,25 @@ void SweepContext::AddPoint(Point* point) {
   points_.push_back(point);
 }
 
-std::vector<Triangle*> &SweepContext::GetTriangles()
+pmr::vector<Triangle*> &SweepContext::GetTriangles()
 {
   return triangles_;
 }
 
-std::list<Triangle*> &SweepContext::GetMap()
+pmr::list<Triangle*> &SweepContext::GetMap()
 {
   return map_;
 }
 
+pmr::memory_resource* SweepContext::GetResource() const
+{
+    return edge_list.get_allocator().resource();
+}
+
 void SweepContext::InitTriangulation()
 {
+  pmr::polymorphic_allocator<char> alloc(GetResource());
+
   double xmax(points_[0]->x), xmin(points_[0]->x);
   double ymax(points_[0]->y), ymin(points_[0]->y);
 
@@ -89,20 +99,22 @@ void SweepContext::InitTriangulation()
 
   double dx = kAlpha * (xmax - xmin);
   double dy = kAlpha * (ymax - ymin);
-  head_ = new Point(xmax + dx, ymin - dy);
-  tail_ = new Point(xmin - dx, ymin - dy);
+  head_ = alloc.new_object<Point>(GetResource(), xmax + dx, ymin - dy);
+  tail_ = alloc.new_object<Point>(GetResource(), xmin - dx, ymin - dy);
 
   // Sort points along y-axis
   std::sort(points_.begin(), points_.end(), cmp);
 
 }
 
-void SweepContext::InitEdges(const std::vector<Point*>& polyline)
+void SweepContext::InitEdges(const pmr::vector<Point*>& polyline)
 {
+  pmr::polymorphic_allocator<char> alloc(GetResource());
+
   size_t num_points = polyline.size();
   for (size_t i = 0; i < num_points; i++) {
     size_t j = i < num_points - 1 ? i + 1 : 0;
-    edge_list.push_back(new Edge(*polyline[i], *polyline[j]));
+    edge_list.push_back(alloc.new_object<Edge>(*polyline[i], *polyline[j]));
   }
 }
 
@@ -122,19 +134,20 @@ Node& SweepContext::LocateNode(const Point& point)
   return *front_->LocateNode(point.x);
 }
 
-void SweepContext::CreateAdvancingFront(const std::vector<Node*>& nodes)
+void SweepContext::CreateAdvancingFront(const pmr::vector<Node*>& nodes)
 {
+  pmr::polymorphic_allocator<char> alloc(GetResource());
 
   (void) nodes;
   // Initial triangle
-  Triangle* triangle = new Triangle(*points_[0], *tail_, *head_);
+  Triangle* triangle = alloc.new_object<Triangle>(*points_[0], *tail_, *head_);
 
   map_.push_back(triangle);
 
-  af_head_ = new Node(*triangle->GetPoint(1), *triangle);
-  af_middle_ = new Node(*triangle->GetPoint(0), *triangle);
-  af_tail_ = new Node(*triangle->GetPoint(2));
-  front_ = new AdvancingFront(*af_head_, *af_tail_);
+  af_head_ = alloc.new_object<Node>(*triangle->GetPoint(1), *triangle);
+  af_middle_ = alloc.new_object<Node>(*triangle->GetPoint(0), *triangle);
+  af_tail_ = alloc.new_object<Node>(*triangle->GetPoint(2));
+  front_ = alloc.new_object<AdvancingFront>(*af_head_, *af_tail_);
 
   // TODO: More intuitive if head is middles next and not previous?
   //       so swap head and tail
@@ -146,7 +159,9 @@ void SweepContext::CreateAdvancingFront(const std::vector<Node*>& nodes)
 
 void SweepContext::RemoveNode(Node* node)
 {
-  delete node;
+  pmr::polymorphic_allocator<char> alloc(GetResource());
+
+  alloc.delete_object<Node>(node);
 }
 
 void SweepContext::MapTriangleToNodes(Triangle& t)
@@ -168,7 +183,7 @@ void SweepContext::RemoveFromMap(Triangle* triangle)
 void SweepContext::MeshClean(Triangle& triangle)
 {
     triangles_.clear();
-    std::vector<Triangle *> triangles;
+    pmr::vector<Triangle *> triangles(GetResource());
     triangles.push_back(&triangle);
     triangle.IsVisited(true);
     triangle.IsInterior(true);
@@ -198,27 +213,27 @@ void SweepContext::MeshClean(Triangle& triangle)
 
 SweepContext::~SweepContext()
 {
+    pmr::polymorphic_allocator<char> alloc(GetResource());
 
     // Clean up memory
 
-    delete head_;
-    delete tail_;
-    delete front_;
-    delete af_head_;
-    delete af_middle_;
-    delete af_tail_;
+    alloc.delete_object<Point>(head_);
+    alloc.delete_object<Point>(tail_);
+    alloc.delete_object<AdvancingFront>(front_);
+    alloc.delete_object<Node>(af_head_);
+    alloc.delete_object<Node>(af_middle_);
+    alloc.delete_object<Node>(af_tail_);
 
-    typedef std::list<Triangle*> type_list;
+    typedef pmr::list<Triangle*> type_list;
 
     for(type_list::iterator iter = map_.begin(); iter != map_.end(); ++iter) {
         Triangle* ptr = *iter;
-        delete ptr;
+        alloc.delete_object<Triangle>(ptr);
     }
 
      for(unsigned int i = 0; i < edge_list.size(); i++) {
-        delete edge_list[i];
+        alloc.delete_object<Edge>(edge_list[i]);
     }
-
 }
 
 }

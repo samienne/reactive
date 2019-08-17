@@ -8,6 +8,9 @@
 #include <avg/pen.h>
 #include <avg/brush.h>
 #include <avg/color.h>
+#include <avg/pathbuilder.h>
+
+#include <pmr/new_delete_resource.h>
 
 #include <gtest/gtest.h>
 
@@ -68,48 +71,5 @@ TEST(Hash, vector)
     btl::uhash<btl::fnv1a> h;
     EXPECT_TRUE(h(v) == 4430961869720737737u
             || h(v) == 3949976766425552089u);
-}
-
-TEST(Hash, path)
-{
-    auto s = avg::PathSpec()
-        .start(avg::Vector2f(1.0f, 0.4f))
-        .lineTo(avg::Vector2f(0.0f, 2.4f))
-        .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close();
-
-    avg::Path p(s);
-
-    btl::uhash<btl::fnv1a> h;
-    EXPECT_TRUE(h(p) == 1520779240607667710u
-            || h(p) == 9951566134402991406u);
-
-    auto s2 = avg::PathSpec()
-        .start(avg::Vector2f(1.0f, 0.4f))
-        .lineTo(avg::Vector2f(0.0f, 2.4f))
-        .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close();
-
-    avg::Path p2(s2);
-    EXPECT_EQ(h(p), h(p2));
-}
-
-TEST(Hash, shape)
-{
-    auto p = avg::Path(avg::PathSpec()
-        .start(avg::Vector2f(1.0f, 0.4f))
-        .lineTo(avg::Vector2f(0.0f, 2.4f))
-        .lineTo(avg::Vector2f(10.0f, 2.4f))
-        .close());
-
-    auto shape = avg::Shape()
-        .setPath(p)
-        .setBrush(btl::just(avg::Brush(avg::Color(1.0f, 0.0f, 0.0f, 1.0f))))
-        .setPen(btl::just(avg::Pen(
-                        avg::Brush(avg::Color(1.0f, 0.0f, 0.0f, 1.0f)), 3.0f)));
-
-    btl::uhash<btl::fnv1a> h;
-    EXPECT_TRUE(h(shape) == 3846001539217960958u
-            || h(shape) == 5783354706658823854u);
 }
 

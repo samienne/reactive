@@ -2,6 +2,9 @@
 
 #include "debug.h"
 
+#include <pmr/new_delete_resource.h>
+#include <pmr/heap.h>
+
 namespace avg
 {
 
@@ -44,7 +47,7 @@ namespace
         return Rect();
     }
 
-    Rect combineDrawingRects(std::vector<Drawing::Element> const& elements)
+    Rect combineDrawingRects(pmr::vector<Drawing::Element> const& elements)
     {
         Rect r;
         for (auto const& e : elements)
@@ -54,7 +57,7 @@ namespace
     }
 
 
-    void filterElementsByRect(std::vector<Drawing::Element>& elements, Rect const& r)
+    void filterElementsByRect(pmr::vector<Drawing::Element>& elements, Rect const& r)
     {
         elements.erase(
                 std::remove_if(
@@ -67,26 +70,95 @@ namespace
                 elements.end()
                 );
     }
+
+    pmr::memory_resource* getElementResource(Drawing::Element const& e)
+    {
+        if (e.is<Shape>())
+            return e.get<Shape>().getResource();
+        else if (e.is<TextEntry>())
+            //return e.get<TextEntry>().getResource();
+            return pmr::new_delete_resource();
+        else if (e.is<Drawing::ClipElement>())
+        {
+            return e.get<Drawing::ClipElement>().subDrawing.resource();
+        }
+        else
+            assert(false);
+
+        return nullptr;
+    }
+
+    Drawing::Element withResource(
+            pmr::memory_resource* memory,
+            Drawing::Element const& e
+            );
+
+    Drawing::SubDrawing withResource(
+            pmr::memory_resource* memory,
+            Drawing::SubDrawing const& drawing
+            )
+    {
+        Drawing::SubDrawing result {
+            pmr::vector<Drawing::Element>(memory)
+        };
+
+        result.elements.reserve(drawing.elements.size());
+
+        for (auto const& e : drawing.elements)
+            result.elements.push_back(withResource(memory, e));
+
+        return result;
+    }
+
+    Drawing::Element withResource(
+            pmr::memory_resource* memory,
+            Drawing::Element const& e
+            )
+    {
+        if (e.is<Shape>())
+            return e.get<Shape>().with_resource(memory);
+        else if (e.is<TextEntry>())
+            //return e.get<TextEntry>().getResource();
+            return e;
+        else if (e.is<Drawing::ClipElement>())
+        {
+            auto const& clip = e.get<Drawing::ClipElement>();
+            return Drawing::ClipElement {
+                pmr::heap<Drawing::SubDrawing>(
+                        withResource(memory, *clip.subDrawing),
+                        memory
+                        ),
+                clip.clipRect,
+                clip.transform
+            };
+        }
+        else
+            assert(false);
+
+        return Shape(memory);
+    }
 } // anonymous namespace
 
-Drawing::Drawing()
+Drawing::Drawing(pmr::memory_resource* memory) :
+    elements_(memory)
 {
 }
 
-Drawing::Drawing(Element element)
+Drawing::Drawing(pmr::memory_resource* memory, Element element) :
+    elements_(memory)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
 
     elements_.push_back(std::move(element));
 }
 
-Drawing::Drawing(std::vector<Element> const& elements) :
+Drawing::Drawing(pmr::vector<Element> const& elements) :
     elements_(elements),
     controlBb_(combineDrawingRects(elements_))
 {
 }
 
-Drawing::Drawing(std::vector<Element>&& elements) :
+Drawing::Drawing(pmr::vector<Element>&& elements) :
     elements_(std::move(elements)),
     controlBb_(combineDrawingRects(elements_))
 {
@@ -96,10 +168,19 @@ Drawing::~Drawing()
 {
 }
 
+pmr::memory_resource* Drawing::getResource() const
+{
+    return elements_.get_allocator().resource();
+}
+
 Drawing Drawing::operator+(Element&& element) &&
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
-    elements_.push_back(std::move(element));
+
+    if (getResource() == getElementResource(element))
+        elements_.push_back(std::move(element));
+    else
+        elements_.push_back(withResource(getResource(), element));
 
     return std::move(*this);
 }
@@ -107,20 +188,32 @@ Drawing Drawing::operator+(Element&& element) &&
 Drawing& Drawing::operator+=(Element&& element)
 {
     controlBb_ = combineRects(controlBb_, getElementRect(element));
-    elements_.push_back(element);
+
+    if (getResource() == getElementResource(element))
+        elements_.push_back(std::move(element));
+    else
+        elements_.push_back(withResource(getResource(), element));
 
     return *this;
 }
 
 Drawing Drawing::operator+(Drawing const& drawing) &&
 {
-    Drawing result;
+    Drawing result(getResource());
     result.controlBb_ = combineRects(controlBb_, drawing.controlBb_);
-    elements_.reserve(elements_.size() + drawing.elements_.size());
     result.elements_ = std::move(elements_);
+    result.elements_.reserve(elements_.size() + drawing.elements_.size());
 
-    for (auto const& element : drawing.elements_)
-        result.elements_.push_back(element);
+    if (getResource() == drawing.getResource())
+    {
+        for (auto const& element : drawing.elements_)
+            result.elements_.push_back(element);
+    }
+    else
+    {
+        for (auto const& element : drawing.elements_)
+            result.elements_.push_back(withResource(getResource(), element));
+    }
 
     return result;
 }
@@ -129,8 +222,16 @@ Drawing& Drawing::operator+=(Drawing const& drawing)
 {
     controlBb_ = combineRects(controlBb_, drawing.controlBb_);
 
-    for (auto&& e : drawing.elements_)
-        elements_.push_back(e);
+    if (getResource() == drawing.getResource())
+    {
+        for (auto const& element : drawing.elements_)
+            elements_.push_back(element);
+    }
+    else
+    {
+        for (auto const& element : drawing.elements_)
+            elements_.push_back(withResource(getResource(), element));
+    }
 
     return *this;
 }
@@ -188,12 +289,12 @@ Drawing Drawing::clip(Rect const& r) &&
     if (controlBb_.isFullyContainedIn(r))
         return std::move(*this);
 
-    Drawing result;
+    Drawing result(getResource());
 
     filterElementsByRect(elements_, r);
 
     result.elements_.push_back(ClipElement{
-            { SubDrawing{std::move(elements_) } },
+            { pmr::make_heap<SubDrawing>(getResource(), std::move(elements_)) },
             r,
             avg::Transform()
             });
@@ -221,7 +322,7 @@ Drawing Drawing::clip(Obb const& obb) &&
     return obb.getTransform() * std::move(d);
 }
 
-std::vector<Drawing::Element> const& Drawing::getElements() const
+pmr::vector<Drawing::Element> const& Drawing::getElements() const
 {
     return elements_;
 }

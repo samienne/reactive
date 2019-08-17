@@ -1,5 +1,6 @@
 #pragma once
 
+#include "drawcontext.h"
 #include "widgettraits.h"
 #include "widget.h"
 #include "inputarea.h"
@@ -10,6 +11,7 @@
 
 namespace reactive
 {
+    struct DrawContextTag { using Type = DrawContext; };
     struct DrawingTag { using Type = avg::Drawing; };
     struct SizeTag { using Type = avg::Vector2f; };
     struct ObbTag { using Type = avg::Obb; };
@@ -23,6 +25,26 @@ namespace reactive
         template <typename TWidget>
         void get()
         {
+        }
+    };
+
+    template <>
+    struct WidgetGetter<DrawContext>
+    {
+        template <typename TWidget>
+        auto get(TWidget&& widget) -> WidgetDrawContextType<TWidget>
+        {
+            return std::forward<TWidget>(widget).getDrawContext();
+        }
+    };
+
+    template <>
+    struct WidgetGetter<DrawContextTag>
+    {
+        template <typename TWidget>
+        auto get(TWidget&& widget) -> WidgetDrawContextType<TWidget>
+        {
+            return std::forward<TWidget>(widget).getDrawContext();
         }
     };
 

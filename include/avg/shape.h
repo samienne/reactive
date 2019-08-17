@@ -6,17 +6,21 @@
 #include "avgvisibility.h"
 
 #include <btl/option.h>
-#include <btl/hash.h>
+
+#include <pmr/memory_resource.h>
 
 namespace avg
 {
     class AVG_EXPORT Shape final
     {
     public:
-        Shape();
+        explicit Shape(pmr::memory_resource* memory);
+        Shape(Path path, btl::option<Brush> brush, btl::option<Pen> pen);
         Shape(Shape const&) = default;
         Shape(Shape&&) noexcept = default;
         ~Shape();
+
+        pmr::memory_resource* getResource() const;
 
         Shape& operator=(Shape const&) = default;
         Shape& operator=(Shape&&) noexcept = default;
@@ -42,22 +46,12 @@ namespace avg
         bool operator==(Shape const& rhs) const;
         bool operator!=(Shape const& rhs) const;
 
-        template <class THash>
-        friend void hash_append(THash& h, Shape const& shape) noexcept
+        inline friend Shape operator*(Transform const& t, Shape const& rhs)
         {
-            using btl::hash_append;
-            hash_append(h, shape.path_);
-            hash_append(h, shape.brush_);
-            hash_append(h, shape.pen_);
+            return Shape(t * rhs.path_, t * rhs.brush_, t * rhs.pen_);
         }
 
-        AVG_EXPORT friend Shape operator*(Transform const& t, Shape const& rhs)
-        {
-            return Shape()
-                .setPath(t * rhs.path_)
-                .setBrush(t * rhs.brush_)
-                .setPen(t * rhs.pen_);
-        }
+        Shape with_resource(pmr::memory_resource*) const;
 
     private:
         Path path_;

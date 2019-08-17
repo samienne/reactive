@@ -1,5 +1,7 @@
 #pragma once
 
+#include <reactive/drawcontext.h>
+
 #include <reactive/widgetfactory.h>
 
 #include <reactive/signal/input.h>
@@ -11,13 +13,14 @@ namespace reactive::widget
     class REACTIVE_EXPORT WidgetObject
     {
     public:
+        WidgetObject(WidgetFactory factory);
         WidgetObject(WidgetObject const&) = default;
         WidgetObject(WidgetObject&&) noexcept = default;
 
         WidgetObject& operator=(WidgetObject const&) = default;
         WidgetObject& operator=(WidgetObject&&) noexcept = default;
-        explicit WidgetObject(WidgetFactory factory);
 
+        void setDrawContext(DrawContext drawContext);
         void setObb(avg::Obb obb);
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
@@ -32,6 +35,7 @@ namespace reactive::widget
             Impl(WidgetFactory factory);
 
             btl::CloneOnCopy<Signal<SizeHint>> sizeHint_;
+            signal::Input<DrawContext> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
 

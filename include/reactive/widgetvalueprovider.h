@@ -4,6 +4,8 @@
 #include "widgetvalueconsumer.h"
 #include "widgetmap.h"
 
+#include <pmr/new_delete_resource.h>
+
 #include <type_traits>
 #include <utility>
 

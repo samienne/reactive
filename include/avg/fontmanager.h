@@ -3,6 +3,8 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <pmr/memory_resource.h>
+
 #include <utf8/utf8.h>
 
 #include <mutex>
@@ -34,7 +36,8 @@ namespace avg
         friend class Font;
         std::shared_ptr<FontImpl> getFontImpl(std::string const& file,
                 unsigned int face);
-        Path textToPath(Lock&, Font const& font, utf8::Utf8View text);
+        Path textToPath(Lock&, pmr::memory_resource* memory,
+                Font const& font, utf8::Utf8View text);
         size_t getCharacterIndex(Lock&, Font const& font,
                 utf8::Utf8View text, float fontHeight,
                 Vector2f pos) const;

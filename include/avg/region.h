@@ -6,6 +6,9 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <pmr/vector.h>
+#include <pmr/memory_resource.h>
+
 #include <vector>
 #include <memory>
 #include <stdint.h>
@@ -20,11 +23,13 @@ namespace avg
     class AVG_EXPORT Region
     {
     public:
-        Region();
+        explicit Region(pmr::memory_resource* memory);
 
-        Region(std::vector<SimplePolygon> const& polygons, FillRule rule,
+        Region(pmr::memory_resource* memory,
+                pmr::vector<SimplePolygon> const& polygons, FillRule rule,
                 Vector2f pixelSize, size_t resPerPixel);
-        Region(std::vector<SimplePolygon> const& polygons, JoinType join,
+        Region(pmr::memory_resource* memory,
+                pmr::vector<SimplePolygon> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
                 size_t resPerPixel);
         Region(Region const&) = default;
@@ -44,8 +49,8 @@ namespace avg
 
         Region offset(JoinType join, EndType end, float offset) const;
 
-        std::pair<std::vector<Vector2f>, std::vector<uint16_t> >
-            triangulate() const;
+        std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
+            triangulate(pmr::memory_resource* memory) const;
 
         Region getClipped(Rect const& r) const;
 
@@ -57,6 +62,8 @@ namespace avg
 
         inline RegionDeferred* d() { return deferred_.get(); }
         inline RegionDeferred const* d() const { return deferred_.get(); }
+
+        pmr::memory_resource* memory_;
         std::shared_ptr<RegionDeferred> deferred_;
     };
 }

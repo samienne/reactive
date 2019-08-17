@@ -1,15 +1,63 @@
 #pragma once
 
+#include "widget/bindsize.h"
+#include "widget/binddrawcontext.h"
 #include "widget/widgetobject.h"
+
+#include "bindwidgetmap.h"
+
 #include "box.h"
 
 namespace reactive
 {
-    template <Axis dir>
-    auto dynamicBox(Signal<std::vector<widget::WidgetObject>> widgets)
+    namespace detail
+    {
+        template <Axis dir, typename T, typename U, typename V, typename W>
+        auto doDynamicBox(
+                Signal<DrawContext, T> drawContext,
+                Signal<avg::Vector2f, U> size,
+                Signal<std::vector<widget::WidgetObject>, V> widgets,
+                SharedSignal<std::vector<SizeHint>, W> hints
+                )
+        {
+            auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
+
+            auto resultWidgets = signal::map(
+                    [](DrawContext const& drawContext,
+                        std::vector<widget::WidgetObject> const& widgets,
+                        std::vector<avg::Obb> const& obbs)
+                    {
+                        assert(widgets.size() == obbs.size());
+                        std::vector<Widget> result;
+
+                        auto i = obbs.begin();
+                        for (auto& w : widgets)
+                        {
+                            widget::WidgetObject& widgetObject =
+                                const_cast<widget::WidgetObject&>(w);
+
+                            widgetObject.setObb(*i);
+                            widgetObject.setDrawContext(drawContext);
+                            result.push_back(w.getWidget().clone());
+                            ++i;
+                        }
+
+                        return result;
+                    },
+                    std::move(drawContext),
+                    std::move(widgets),
+                    std::move(obbs)
+                    );
+
+            return widget::addWidgets(std::move(resultWidgets));
+        }
+    } // namespace detail
+
+    template <Axis dir, typename T>
+    auto dynamicBox(Signal<std::vector<widget::WidgetObject>, T> widgets)
     {
         // Signal<std::vector<SizeHint>>
-        Signal<std::vector<SizeHint>> hints = signal::share(signal::join(signal::map(
+        auto hints = signal::share(signal::join(signal::map(
                 [](std::vector<widget::WidgetObject> const& widgets)
                 {
                     std::vector<Signal<SizeHint>> hints;
@@ -34,35 +82,20 @@ namespace reactive
                 hints.clone()
                 );
 
-        auto sizeInput = signal::input(avg::Vector2f(100.0f, 100.0f));
-
-        auto obbs = signal::map(&mapObbs<dir>, std::move(sizeInput.signal),
-                hints.clone());
-
-        auto resultWidgets = signal::map(
-                [](std::vector<widget::WidgetObject> const& widgets,
-                    std::vector<avg::Obb> const& obbs)
-                {
-                    assert(widgets.size() == obbs.size());
-                    std::vector<Widget> result;
-
-                    auto i = obbs.begin();
-                    for (auto& w : widgets)
-                    {
-                        const_cast<widget::WidgetObject&>(w).setObb(*i);
-                        result.push_back(w.getWidget().clone());
-                        ++i;
-                    }
-
-                    return result;
-                },
-                std::move(widgets),
-                std::move(obbs)
-                );
 
         return makeWidgetFactory()
-            | trackSize(std::move(sizeInput.handle))
-            | widget::addWidgets(std::move(resultWidgets))
+            | widget::bindDrawContext() >> widget::bindSize() >> bindWidgetMap(
+                    [hints=btl::cloneOnCopy(hints.clone()),
+                    widgets=btl::cloneOnCopy(std::move(widgets))]
+                    (auto drawContext, auto size) mutable
+                    {
+                        return detail::doDynamicBox<dir>(
+                                std::move(drawContext),
+                                std::move(size),
+                                std::move(*widgets),
+                                std::move(*hints)
+                                );
+                    })
             | setSizeHint(std::move(resultHint))
             ;
     }

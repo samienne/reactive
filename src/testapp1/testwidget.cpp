@@ -19,13 +19,12 @@
 #include <ase/stringify.h>
 #include <ase/vector.h>
 
-#include <iostream>
-
 using namespace reactive;
 
 namespace
 {
-    auto drawTestWidget = [](ase::Vector2f size, widget::Theme const& theme,
+    auto drawTestWidget = [](DrawContext const& drawContext,
+            ase::Vector2f size, widget::Theme const& theme,
             bool state, std::string const& str)
         -> avg::Drawing
     {
@@ -37,14 +36,15 @@ namespace
                 theme.getBackgroundHighlight());
         avg::Brush brush2(avg::Color(0.4f, 0.3f, 0.0f));
 
-        auto rect = makeRect(size[0] - 50.0f, 200.0f);
+        auto rect = makeRect(drawContext.getResource(),
+                size[0] - 50.0f, 200.0f);
         auto shape = makeShape(rect, btl::just(brush), btl::just(pen));
 
         auto text = avg::TextEntry(theme.getFont(), avg::Transform(
                     avg::Vector2f(-70.0f, 0.0f), 20.0f),
                 str, btl::just(brush2), btl::none);
 
-        return (avg::Drawing(std::move(shape)) + text)
+        return (drawContext.drawing(std::move(shape)) + text)
             .transform(avg::translate(0.5*size[0], 116.0));
     };
 } // anonymous namespace
@@ -72,7 +72,7 @@ WidgetFactory makeTestWidget()
     auto focus = signal::input(false);
 
     return makeWidgetFactory()
-        | widget::onDraw<SizeTag, ThemeTag>(drawTestWidget,
+        | widget::onDraw<DrawContextTag, SizeTag, ThemeTag>(drawTestWidget,
                 std::move(state), std::move(textState))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))

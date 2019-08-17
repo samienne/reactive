@@ -13,41 +13,44 @@
 
 #include <avg/transform.h>
 
-#include <iostream>
-
 namespace reactive::widget
 {
     template <typename T, typename U>
-    auto frameFull(Signal<float, T> cornerRadius, Signal<avg::Color, U> color)
+    auto frameFull(
+            Signal<float, T> cornerRadius,
+            Signal<avg::Color, U> color
+            )
     {
-        auto f = [](avg::Vector2f size, widget::Theme const& theme,
-                float cornerRadius, avg::Color const& color)
-            -> avg::Drawing
+        auto f = [](DrawContext drawContext,
+                avg::Vector2f size, widget::Theme const& theme,
+                float cornerRadius, avg::Color const& color
+                ) -> avg::Drawing
         {
             auto pen = avg::Pen(avg::Brush(color),
                     1.0f);
             auto brush = avg::Brush(theme.getBackground());
 
             auto shape =  makeShape(
-                    makeRoundedRect(size[0] - 5.0f, size[1] - 5.0f,
+                    makeRoundedRect(drawContext.getResource(),
+                        size[0] - 5.0f, size[1] - 5.0f,
                         cornerRadius),
                     btl::just(brush),
                     btl::just(pen)
                     );
 
-            return avg::Transform()
-                .translate(0.5f * size[0],
-                        0.5f * size[1])
-                * avg::Drawing(shape);
+            return avg::Transform().translate(0.5f * size[0], 0.5f * size[1])
+                * drawContext.drawing(std::move(shape));
         };
 
         return
             margin(signal::constant(5.0f))
-            >> mapFactoryWidget(onDrawBehind<SizeTag, ThemeTag>(
+            >> mapFactoryWidget(
+                    onDrawBehind<DrawContextTag, SizeTag, ThemeTag>(
                         std::move(f),
                         std::move(cornerRadius),
                         std::move(color)
-                        ))
+                        )
+                    )
             ;
     }
 
