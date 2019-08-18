@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widgetvalueprovider.h"
 #include "widgetsetters.h"
 #include "widgetgetters.h"
 #include "widget.h"
@@ -197,12 +198,40 @@ namespace reactive
         }
 
         template <typename UFunc>
-        auto operator|(WidgetMapWrapper<UFunc>&& rhs) &&
+        auto map(WidgetMapWrapper<UFunc>&& wmap) &&
         {
-            return widgetMap([self=std::move(*this), rhs=std::move(rhs)]
+            return widgetMap([func=std::move(func), wmap=std::move(wmap)]
                     (auto widget) mutable
                     {
-                        return std::move(widget) | self | rhs;
+                        return std::move(wmap)(
+                                std::move(func)(
+                                    std::move(widget)
+                                    )
+                                );
+                    });
+        }
+
+        /*
+        template <typename UFunc>
+        auto operator|(WidgetMapWrapper<UFunc>&& rhs) &&
+        {
+            return std::move(*this).map(std::move(rhs));
+        }
+        */
+
+        template <typename UFunc>
+        auto provide(WidgetValueProvider<UFunc>&& provider) &&
+        {
+            return widgetValueProvider(
+                    [mapper=std::move(func), provider=std::move(provider.func)]
+                    (auto widget, auto data) mutable
+                    {
+                        return std::move(provider)(
+                                std::move(mapper)(
+                                    std::move(widget)
+                                    ),
+                                std::move(data)
+                                );
                     });
         }
     };
@@ -226,6 +255,11 @@ namespace reactive
             };
 
         return widgetMap(std::move(mapper));
+    }
+
+    inline auto makeWidgetMap()
+    {
+        return widgetMap([](auto w) { return std::move(w); });
     }
 
     template <typename... Ts, typename = std::enable_if_t<

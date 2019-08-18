@@ -14,7 +14,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
     auto sizeHint = signal::share(f.getSizeHint());
 
     return makeWidgetFactory()
-        | widget::bindDrawContext() >> bindWidgetMap(
+        | widget::bindDrawContext().consume(bindWidgetMap(
             [sizeHint, obbMap=std::move(obbMap), f=std::move(f)]
             (auto drawContext) mutable
             {
@@ -33,7 +33,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
                 return addWidget(Widget(
                             std::move(newF)(std::move(drawContext), std::move(size))
                             ));
-            })
+            }))
         | widget::clip()
         | setSizeHint(signal::map(sizeHintMap, sizeHint))
         ;

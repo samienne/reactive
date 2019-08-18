@@ -53,9 +53,10 @@ namespace reactive::widget
 
     inline auto clip()
     {
-        return clipDrawing()
-            | clipInputAreas()
-            | clipKeyboardInputs()
+        return makeWidgetMap()
+            .map(clipDrawing())
+            .map(clipInputAreas())
+            .map(clipKeyboardInputs())
             ;
     }
 } // reactive::widget

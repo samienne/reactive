@@ -11,12 +11,13 @@ namespace reactive::widget
 {
     inline auto bindSize()
     {
-        return bindObb() >> mapWidgetData([](auto obb)
+        return bindObb()
+            .mapValues(mapWidgetData([](auto obb)
             {
                 return std::make_tuple(
                         signal::map(&avg::Obb::getSize, std::move(obb))
                         );
-            });
+            }));
     }
 } // namespace reactive::widget
 
