@@ -33,6 +33,9 @@ namespace reactive
     template <typename TFunc>
     struct WidgetValueProvider;
 
+    template <typename TFunc>
+    auto widgetValueProvider(TFunc&& func);
+
     namespace detail
     {
         template <typename TWidget>
