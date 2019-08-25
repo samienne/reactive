@@ -23,8 +23,7 @@ namespace reactive::widget
         auto id = btl::makeUniqueId();
 
         return makeWidgetMap()
-            .provide(grabInputAreas())
-            .provide(bindObb())
+            .provide(grabInputAreas(), bindObb())
             .provideValues(std::forward<T>(cb))
             .bindWidgetMap([id](auto areas, auto obb, auto cb)
             {

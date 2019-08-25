@@ -112,6 +112,15 @@ namespace reactive
                     });
         }
 
+        template <typename UFunc, typename... UFuncs>
+        auto provide(
+                WidgetValueProvider<UFunc>&& provider,
+                WidgetValueProvider<UFuncs>&&... providers
+                )
+        {
+            return std::move(provider).provide(std::move(providers)...);
+        }
+
         template <typename... Ts>
         auto provideValues(Ts&&... ts) &&
         {
