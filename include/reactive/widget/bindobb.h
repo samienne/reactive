@@ -2,7 +2,7 @@
 
 #include "reactive/widgetvalueprovider.h"
 
-#include "signal/share.h"
+#include "reactive/signal/share.h"
 
 #include <avg/obb.h>
 
