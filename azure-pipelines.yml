@@ -6,6 +6,9 @@
 trigger:
 - master
 
+pr:
+  autoCancel: false
+
 jobs:
 - job: build
   pool:
