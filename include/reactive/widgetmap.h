@@ -41,7 +41,7 @@ namespace reactive
         template <typename TWidget>
         auto doShare(TWidget widget, btl::TypeList<>)
         {
-            return std::move(widget);
+            return widget;
         }
 
         template <typename TWidget, typename T, typename... Ts>
@@ -271,7 +271,7 @@ namespace reactive
 
     inline auto makeWidgetMap()
     {
-        return widgetMap([](auto w) { return std::move(w); });
+        return widgetMap([](auto w) { return w; });
     }
 
     template <typename... Ts, typename = std::enable_if_t<

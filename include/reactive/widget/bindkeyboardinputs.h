@@ -6,6 +6,7 @@
 
 #include "reactive/signal/share.h"
 
+#include <btl/cloneoncopy.h>
 #include <btl/pushback.h>
 
 namespace reactive::widget
@@ -18,7 +19,7 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget).setKeyboardInputs(inputs),
-                    btl::pushBack(std::move(data), inputs)
+                    btl::cloneOnCopy(btl::pushBack(std::move(data), inputs))
                     );
         });
     }
@@ -33,7 +34,10 @@ namespace reactive::widget
                     std::move(widget).setKeyboardInputs(
                         signal::constant(std::vector<KeyboardInput>())
                         ),
-                    btl::pushBack(std::move(data), std::move(inputs))
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            std::move(inputs)
+                            ))
                     );
         });
     }

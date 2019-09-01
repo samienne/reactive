@@ -18,7 +18,7 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget).setTheme(theme),
-                    btl::pushBack(std::move(data), theme)
+                    btl::cloneOnCopy(btl::pushBack(std::move(data), theme))
                     );
         });
     }

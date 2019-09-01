@@ -48,7 +48,7 @@ namespace reactive::signal
     template <typename T, typename U>
     auto share(SharedSignal<T, U> sig)
     {
-        return std::move(sig);
+        return sig;
     }
 } // reactive::signal
 

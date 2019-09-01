@@ -18,7 +18,10 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget).setAreas(inputs),
-                    btl::pushBack(std::move(data), inputs)
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            inputs
+                            ))
                     );
         });
     }
@@ -33,7 +36,10 @@ namespace reactive::widget
                     std::move(widget).setAreas(
                         signal::constant(std::vector<InputArea>())
                         ),
-                    btl::pushBack(std::move(data), std::move(inputs))
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            std::move(inputs)
+                            ))
                     );
         });
     }

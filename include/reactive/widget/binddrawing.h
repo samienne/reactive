@@ -18,7 +18,10 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget).setDrawing(drawing),
-                    btl::pushBack(std::move(data), drawing)
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            drawing
+                            ))
                     );
         });
     }

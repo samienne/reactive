@@ -67,7 +67,7 @@ namespace reactive
 
                         return std::move(consumer)(
                                 std::move(pair.first),
-                                std::move(pair.second)
+                                std::move(*pair.second)
                                 );
                     });
         }
@@ -107,7 +107,7 @@ namespace reactive
 
                         return std::move(provider)(
                                 std::move(pair.first),
-                                std::move(pair.second)
+                                std::move(*pair.second)
                                 );
                     });
         }
@@ -136,10 +136,10 @@ namespace reactive
 
                         return std::make_pair(
                                 std::move(pair.first),
-                                std::tuple_cat(
-                                    std::move(pair.second),
+                                btl::cloneOnCopy(std::tuple_cat(
+                                    std::move(*pair.second),
                                     std::move(*values)
-                                    )
+                                    ))
                                 );
                     });
         }
@@ -148,7 +148,7 @@ namespace reactive
         auto mapValues(WidgetValueMapper<UFunc>&& mapper) &&
         {
             return widgetValueProvider(
-                    [self=std::move(func), rhs=std::move(mapper.func)]
+                    [self=std::move(func), mapper=std::move(mapper.func)]
                     (auto widget, auto data) mutable
                     {
                         auto pair = std::move(self)(
@@ -156,18 +156,18 @@ namespace reactive
                                 std::tuple<>()
                                 );
 
-                        auto result = std::move(rhs)(
+                        auto result = std::move(mapper)(
                                 std::move(pair.first),
-                                std::move(pair.second)
+                                std::move(*pair.second)
                                 );
 
                         return std::make_pair(
                                 std::move(result.first),
-                                std::tuple_cat(
+                                btl::cloneOnCopy(std::tuple_cat(
                                     std::move(data),
-                                    std::move(result.second)
+                                    std::move(*result.second)
                                     )
-                                );
+                                ));
 
                     });
         }
@@ -186,7 +186,7 @@ namespace reactive
 
                     auto result = std::apply(
                             std::move(f),
-                            std::move(pair.second)
+                            std::move(*pair.second)
                             );
 
                     return std::move(result)(
@@ -209,7 +209,8 @@ namespace reactive
     template <typename TFunc>
     auto widgetValueProvider(TFunc&& func)
     {
-        /*
+        //static_assert(std::is_invocable_v<TFunc, Widget, std::tuple<>>, "");
+
         using ReturnType = decltype(
                 std::forward<TFunc>(func)(makeWidget(
                         signal::constant(DrawContext(pmr::new_delete_resource())),
@@ -219,7 +220,9 @@ namespace reactive
 
         static_assert(IsWidget<typename ReturnType::first_type>::value,
                 "Return type is not a pair<Widget, std::tuple>");
-                */
+
+        static_assert(std::is_copy_constructible_v<typename ReturnType::second_type>,
+                "");
 
         return WidgetValueProvider<std::decay_t<TFunc>>{
             std::forward<TFunc>(func)
@@ -229,7 +232,7 @@ namespace reactive
     template <typename TFunc>
     auto widgetValueProvider(WidgetValueProvider<TFunc> func)
     {
-        return std::move(func);
+        return func;
     }
 
     // Takes a function that consumes the data parameters and returns a

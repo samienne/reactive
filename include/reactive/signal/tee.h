@@ -99,7 +99,7 @@ namespace reactive::signal
                     tryDropRepeats((std::move(upstream)))
                     ));
         handle.set(weak(sig));
-        return std::move(sig);
+        return sig;
     }
 
     template <typename T, typename U, typename TMapFunc>
