@@ -1,5 +1,9 @@
 #pragma once
 
+#include "bindobb.h"
+#include "binddrawing.h"
+#include "setdrawing.h"
+
 #include "reactive/widgetmap.h"
 
 #include <btl/foreach.h>
@@ -7,15 +11,25 @@
 
 namespace reactive::widget
 {
-    template <typename TSignal>
-    auto addDrawing(TSignal drawing)
+    template <typename T>
+    auto addDrawing(Signal<avg::Drawing, T> drawing)
     {
-        return makeWidgetMap<avg::Obb, avg::Drawing>(
-                [d1=std::move(drawing)]
-                (auto obb, auto d2)
-                {
-                    return std::move(d1) + (obb.getTransform() * std::move(d2));
-                });
+        return makeWidgetMap()
+            .provide(bindObb(), grabDrawing())
+            .bindWidgetMap([d1=std::move(drawing)](auto obb, auto d2)
+            {
+                auto newDrawing = signal::map(
+                    [](auto obb, auto d1, auto d2) -> avg::Drawing
+                    {
+                        return std::move(d1) + (obb.getTransform() * std::move(d2));
+                    },
+                    std::move(obb),
+                    std::move(d1),
+                    std::move(d2)
+                    );
+
+                return setDrawing(std::move(newDrawing));
+            });
     }
 
     template <typename TSignalDrawings, typename = std::enable_if_t<
@@ -24,24 +38,31 @@ namespace reactive::widget
     >
     auto addDrawings(TSignalDrawings drawings)
     {
-        return makeWidgetMap<ObbTag, DrawingTag>(
-                []
-                (avg::Obb const& obb, auto d1, auto drawings)
-                //-> std::tuple<avg::Obb, avg::Drawing>
-                -> avg::Drawing
-                {
-                    avg::Drawing r = std::move(d1);
-                    //for (auto&& d : drawings)
-                    btl::forEach(std::move(drawings), [&r, &obb](auto d)
+        return makeWidgetMap()
+            .provide(bindObb(), grabDrawing())
+            .provideValues(std::move(drawings))
+            .bindWidgetMap([](auto obb, auto drawing, auto drawings)
+            {
+                auto newDrawing = signal::map(
+                    [](avg::Obb const& obb, auto d1, auto drawings)
+                    -> avg::Drawing
                     {
-                        r = std::move(r) + (obb.getTransform() * std::move(d));
-                    });
+                        avg::Drawing r = std::move(d1);
 
-                    //return std::make_tuple(std::move(obb), std::move(r));
-                    return r;
-                },
-                std::move(drawings)
-                );
+                        btl::forEach(std::move(drawings), [&r, &obb](auto d)
+                        {
+                            r = std::move(r) + (obb.getTransform() * std::move(d));
+                        });
+
+                        return r;
+                    },
+                    std::move(obb),
+                    std::move(drawing),
+                    std::move(drawings)
+                    );
+
+                return setDrawing(std::move(newDrawing));
+            });
     }
 
 } // namespace reactive::widget
