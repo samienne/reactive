@@ -23,5 +23,20 @@ namespace reactive::widget
         });
     }
 
+    inline auto grabObb()
+    {
+        return widgetValueProvider([](auto widget, auto data)
+        {
+            auto obb = widget.getObb();
+
+            return std::make_pair(
+                    std::move(widget).setObb(signal::constant(avg::Obb())),
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            std::move(obb)
+                            ))
+                    );
+        });
+    }
 } // namespace reactive::widget
 
