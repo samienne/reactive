@@ -8,6 +8,9 @@ trigger:
 
 pr:
   autoCancel: false
+  branches:
+    include:
+      - "*"
 
 jobs:
 - job: build
