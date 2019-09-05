@@ -5,7 +5,7 @@
 
 #include "reactive/widgetvalueprovider.h"
 
-#include "signal/map.h"
+#include "reactive/signal/map.h"
 
 namespace reactive::widget
 {

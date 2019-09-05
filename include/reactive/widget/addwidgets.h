@@ -35,7 +35,10 @@ namespace reactive::widget
                     )
                 -> std::vector<InputArea>
                 {
-                    return detail::concat(own, detail::join(std::move(areas)));
+                    return reactive::detail::concat(
+                            own,
+                            reactive::detail::join(std::move(areas))
+                            );
                 };
 
             //std::vector<Signal<std::vector<InputArea>>> areas;
@@ -61,7 +64,7 @@ namespace reactive::widget
 
             auto flatten = [](auto inputs)
             {
-                return detail::join(std::move(inputs));
+                return reactive::detail::join(std::move(inputs));
             };
 
             auto inputs = signal::map(flatten,
