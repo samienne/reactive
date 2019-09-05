@@ -1,4 +1,8 @@
 #include "widget/label.h"
+
+#include "widget/binddrawcontext.h"
+#include "widget/bindobb.h"
+#include "widget/bindtheme.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
 
@@ -54,9 +58,16 @@ WidgetFactory label(SharedSignal<std::string> text)
     auto theme = signal::input(Theme());
 
     return makeWidgetFactory()
-        | onDraw<reactive::DrawContextTag, reactive::ObbTag, reactive::ThemeTag>(
-                draw, text
-                )
+        | makeWidgetMap()
+            .provide(bindDrawContext(), bindObb(), bindTheme())
+            .provideValues(text)
+            .bindWidgetMap([draw]
+            (auto drawContext, auto obb, auto theme, auto text) mutable
+            {
+                return onDraw(std::move(draw), std::move(drawContext),
+                        std::move(obb), std::move(theme), std::move(text)
+                        );
+            })
         | trackTheme(theme.handle)
         | setSizeHint(signal::map(getSizeHint, text,
                     std::move(theme.signal)))
