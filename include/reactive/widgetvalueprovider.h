@@ -116,9 +116,11 @@ namespace reactive
         auto provide(
                 WidgetValueProvider<UFunc>&& provider,
                 WidgetValueProvider<UFuncs>&&... providers
-                )
+                ) &&
         {
-            return std::move(provider).provide(std::move(providers)...);
+            return std::move(*this).provide(
+                    std::move(provider).provide(std::move(providers)...)
+                    );
         }
 
         template <typename... Ts>
