@@ -190,9 +190,10 @@ namespace
         SharedSignal<float> handleSize)
     {
         return makeWidgetMap()
-            .provide(bindSize())
+            .provide(bindDrawContext(), bindSize(), bindTheme())
             .provide(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .consume(bindWidgetMap([=](auto size, auto hover) mutable
+            .bindWidgetMap([=](auto drawContext, auto size,
+                            auto theme, auto hover) mutable
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
@@ -232,15 +233,18 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
-                    .map(onDraw<DrawContextTag, SizeTag, ThemeTag>(
+                    .map(onDraw(
                             drawScrollBar<IsHorizontal>,
+                            std::move(drawContext),
+                            size.clone(),
+                            std::move(theme),
                             amount,
                             handleSize,
                             std::move(hover),
                             std::move(isDown)
                             ))
                     ;
-            }));
+            });
     }
 } // anonymous namespace
 
