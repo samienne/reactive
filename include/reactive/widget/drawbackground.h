@@ -37,11 +37,8 @@ namespace reactive::widget
         return makeWidgetMap()
             .provide(bindDrawContext(), bindSize())
             .provideValues(std::move(brush))
-            .bindWidgetMap([](auto drawContext, auto size, auto brush)
-            {
-                return onDrawBehind(detail::drawBackground, std::move(drawContext),
-                            std::move(size), std::move(brush));
-            });
+            .consume(onDrawBehind(detail::drawBackground))
+            ;
     }
 
     inline auto background()

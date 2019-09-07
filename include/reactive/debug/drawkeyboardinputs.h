@@ -36,10 +36,9 @@ namespace reactive::debug
     {
         return makeWidgetMap()
             .provide(widget::bindDrawContext(), widget::bindKeyboardInputs())
-            .bindWidgetMap([](auto drawContext, auto keyboardInputs)
+            .consume(widget::onDraw(
+            [](DrawContext const& drawContext, auto const& inputs)
             {
-                return widget::onDraw(
-                [](DrawContext const& drawContext, auto const& inputs)
                 {
                     auto result = drawContext.drawing();
 
@@ -49,11 +48,8 @@ namespace reactive::debug
                     }
 
                     return result;
-                },
-                std::move(drawContext),
-                std::move(keyboardInputs)
-                );
-            });
+                }
+            }));
     }
 } // reactive::debug
 

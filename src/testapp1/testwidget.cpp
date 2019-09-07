@@ -77,10 +77,7 @@ WidgetFactory makeTestWidget()
         | makeWidgetMap()
         .provide(bindDrawContext(), bindSize(), bindTheme())
         .provideValues(std::move(state), std::move(textState))
-        .bindWidgetMap([](auto... values)
-        {
-            return onDraw(drawTestWidget, std::move(values)...);
-        })
+        .consume(onDraw(drawTestWidget))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))

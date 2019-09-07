@@ -170,11 +170,7 @@ TextEdit::operator WidgetFactory() const
         | makeWidgetMap()
             .provide(bindDrawContext(), bindSize(), bindTheme())
             .provideValues(std::move(newState), std::move(focusPercentage))
-            .bindWidgetMap([draw=std::move(draw)]
-                    (auto... data)
-            {
-                return onDraw(draw, std::move(data)...);
-            })
+            .consume(onDraw(draw))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))

@@ -70,10 +70,7 @@ WidgetFactory makeSpinner()
         | makeWidgetMap()
         .provide(bindDrawContext(), bindSize(), bindTheme())
         .provideValues(std::move(t))
-        .bindWidgetMap([](auto... values)
-        {
-            return onDraw(draw, std::move(values)...);
-        })
+        .consume(onDraw(draw))
         | widget::clip()
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
         ;

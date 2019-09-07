@@ -61,13 +61,7 @@ WidgetFactory label(SharedSignal<std::string> text)
         | makeWidgetMap()
             .provide(bindDrawContext(), bindObb(), bindTheme())
             .provideValues(text)
-            .bindWidgetMap([draw]
-            (auto drawContext, auto obb, auto theme, auto text) mutable
-            {
-                return onDraw(std::move(draw), std::move(drawContext),
-                        std::move(obb), std::move(theme), std::move(text)
-                        );
-            })
+            .consume(onDraw(draw))
         | trackTheme(theme.handle)
         | setSizeHint(signal::map(getSizeHint, text,
                     std::move(theme.signal)))

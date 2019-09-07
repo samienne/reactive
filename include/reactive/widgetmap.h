@@ -246,6 +246,27 @@ namespace reactive
         {
             return std::move(provider).provide(std::move(providers)...);
         }
+
+        template <typename... Ts>
+        auto provideValues(Ts&&... ts) &&
+        {
+            return widgetValueProvider(
+                    [self=std::move(func),
+                    values=btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))]
+                    (auto widget, auto data) mutable
+                    {
+                        auto widget2 = std::move(self)(std::move(widget));
+
+                        return std::make_pair(
+                                std::move(widget2),
+                                btl::cloneOnCopy(std::tuple_cat(
+                                    std::move(data),
+                                    std::move(*values)
+                                    ))
+                                );
+                    });
+        }
+
     };
 
     template <typename... Ts, typename TFunc, typename... Us, typename =

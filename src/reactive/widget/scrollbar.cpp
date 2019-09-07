@@ -233,8 +233,7 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
-                    .map(onDraw(
-                            drawScrollBar<IsHorizontal>,
+                    .provideValues(
                             std::move(drawContext),
                             size.clone(),
                             std::move(theme),
@@ -242,7 +241,8 @@ namespace
                             handleSize,
                             std::move(hover),
                             std::move(isDown)
-                            ))
+                            )
+                    .consume(onDraw(drawScrollBar<IsHorizontal>))
                     ;
             });
     }

@@ -52,18 +52,8 @@ namespace reactive::widget
                     makeWidgetMap()
                     .provide(bindDrawContext(), bindSize(), bindTheme())
                     .provideValues(std::move(cornerRadius), std::move(color))
-                    .bindWidgetMap([](auto drawContext, auto size, auto theme,
-                    auto cornerRadius, auto color) mutable
-                    {
-                        return onDrawBehind(
-                                &detail::drawFrame,
-                                std::move(drawContext),
-                                std::move(size),
-                                std::move(theme),
-                                std::move(cornerRadius),
-                                std::move(color)
-                                );
-                    }));
+                    .consume(onDrawBehind(&detail::drawFrame))
+                    )
             ;
     }
 
