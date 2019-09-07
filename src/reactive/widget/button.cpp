@@ -48,11 +48,13 @@ WidgetFactory button(Signal<std::string> label,
 
     return widget::label(std::move(label))
                     | margin(signal::constant(5.0f))
-                    | onDrawBehind<DrawContextTag, SizeTag, ThemeTag>(
-                                &drawButton,
-                                std::move(hover.signal),
-                                std::move(down.signal)
-                            )
+                    | makeWidgetMap()
+                    .provide(bindDrawContext(), bindSize(), bindTheme())
+                    .provideValues(std::move(hover.signal), std::move(down.signal))
+                    .bindWidgetMap([](auto... values)
+                    {
+                        return onDrawBehind(&drawButton, std::move(values)...);
+                    })
                     | onPointerDown([handle=down.handle](auto&) mutable
                             {
                                 handle.set(true);
