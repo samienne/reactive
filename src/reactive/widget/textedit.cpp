@@ -167,8 +167,14 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(newState),
-                std::move(focusPercentage))
+        | makeWidgetMap()
+            .provide(bindDrawContext(), bindSize(), bindTheme())
+            .provideValues(std::move(newState), std::move(focusPercentage))
+            .bindWidgetMap([draw=std::move(draw)]
+                    (auto... data)
+            {
+                return onDraw(draw, std::move(data)...);
+            })
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))
