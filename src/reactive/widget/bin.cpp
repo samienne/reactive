@@ -5,6 +5,8 @@
 
 #include "bindwidgetmap.h"
 
+#include "reactive/signal/split.h"
+
 namespace reactive::widget
 {
 
