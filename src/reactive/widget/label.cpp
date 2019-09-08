@@ -55,16 +55,13 @@ WidgetFactory label(SharedSignal<std::string> text)
         return simpleSizeHint(extents.size[0], extents.size[1]);
     };
 
-    auto theme = signal::input(Theme());
-
     return makeWidgetFactory()
         | makeWidgetMap()
             .provide(bindDrawContext(), bindObb(), bindTheme())
             .provideValues(text)
             .consume(onDraw(draw))
-        | trackTheme(theme.handle)
         | setSizeHint(signal::map(getSizeHint, text,
-                    std::move(theme.signal)))
+                    signal::constant(Theme())))
         | margin(signal::constant(5.0f))
         ;
 }
