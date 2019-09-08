@@ -9,6 +9,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <tuple>
 
 namespace reactive
 {
@@ -39,7 +40,7 @@ namespace reactive
 
         using PairType = std::result_of_t<TFunc(Widget, std::tuple<>)>;
         using WidgetType = typename PairType::first_type;
-        using DataType = typename PairType::second_type;
+        using DataType = btl::dereference_t<typename PairType::second_type>;
 
         static_assert(IsWidget<WidgetType>::value, "");
 
@@ -53,7 +54,9 @@ namespace reactive
             return func(std::forward<T>(widget), std::forward<U>(data));
         }
 
-        template <typename UFunc>
+        template <typename UFunc, typename = std::enable_if_t<
+            std::is_invocable_r_v<Widget, UFunc, WidgetType&&, DataType&&>
+            >>
         auto consume(WidgetValueConsumer<UFunc>&& consumer) &&
         {
             return detail::widgetMap2(
