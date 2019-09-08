@@ -2,6 +2,8 @@
 #include <reactive/widgetgetters.h>
 #include <reactive/widgetsetters.h>
 
+#include <reactive/widget/bindobb.h>
+
 #include <reactive/signal/map.h>
 #include <reactive/signal/constant.h>
 
@@ -127,53 +129,6 @@ TEST(Widget, set)
     static_assert(IsWidget<decltype(w7)>::value, "");
 }
 
-TEST(Widget, makeWidgetMap)
-{
-    DrawContext c(pmr::new_delete_resource());
-
-    auto w = reactive::makeWidget(
-            signal::constant(DrawContext(pmr::new_delete_resource())),
-            signal::constant(ase::Vector2f(100.0f, 100.0f))
-            );
-
-    auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
-    {
-        return avg::Drawing(pmr::new_delete_resource());
-    });
-
-    static_assert(IsWidgetMap<decltype(m)>::value, "");
-
-    auto w2 = m(std::move(w));
-
-    static_assert(IsWidget<decltype(w2)>::value, "");
-}
-
-TEST(Widget, makeWidgetMapTuple)
-{
-    DrawContext c(pmr::new_delete_resource());
-
-    auto w = reactive::makeWidget(
-            signal::constant(DrawContext(pmr::new_delete_resource())),
-            signal::constant(ase::Vector2f(100.0f, 100.0f))
-            );
-
-    auto m = reactive::makeWidgetMap<ObbTag>([](avg::Obb)
-    {
-        return std::make_tuple(
-            avg::Drawing(pmr::new_delete_resource()),
-            avg::Obb(ase::Vector2f(10.0f, 5.0f))
-            );
-    });
-
-    static_assert(IsWidgetMap<decltype(m)>::value, "");
-
-    auto w2 = m(std::move(w));
-
-    static_assert(IsWidget<decltype(w2)>::value, "");
-
-    EXPECT_EQ(ase::Vector2f(10.0f, 5.0f), std::move(w2).getSize().evaluate());
-}
-
 TEST(Widget, cache)
 {
     DrawContext c(pmr::new_delete_resource());
@@ -193,31 +148,5 @@ TEST(Widget, cache)
     static_assert(!IsSharedSignal<decltype(w2.getInputAreas())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getKeyboardInputs())>::value, "");
     static_assert(!IsSharedSignal<decltype(w2.getTheme())>::value, "");
-}
-
-TEST(Widget, operatorPipe)
-{
-    DrawContext c(pmr::new_delete_resource());
-
-    auto w = reactive::makeWidget(
-            signal::constant(DrawContext(pmr::new_delete_resource())),
-            signal::constant(ase::Vector2f(100.0f, 100.0f))
-            );
-
-    auto w2 = std::move(w)
-        | makeWidgetMap<SizeTag>([](auto)
-        {
-            return std::make_tuple(
-                avg::Obb(ase::Vector2f(10.0f, 20.0f)),
-                avg::Drawing(pmr::new_delete_resource())
-                );
-        })
-        | makeWidgetMap<ThemeTag>([](auto)
-        {
-            return avg::Drawing(pmr::new_delete_resource());
-        })
-    ;
-
-    EXPECT_EQ(ase::Vector2f(10.0f, 20.0f), std::move(w2).getSize().evaluate());
 }
 

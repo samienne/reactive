@@ -29,7 +29,7 @@ namespace reactive::widget
                 .provide(grabDrawing(), bindObb())
                 .provideValues(std::move(us)...)
                 .bindWidgetMap([func=std::forward<TFunc>(func)]
-                (auto drawing, auto obb, auto... us) mutable
+                (auto... values) mutable
                 {
                     auto newDrawing = signal::map(
                         [func=std::move(func)]
@@ -41,9 +41,7 @@ namespace reactive::widget
 
                             return std::move(d1) + (obb.getTransform() * std::move(d2));
                         },
-                        std::move(drawing),
-                        std::move(obb),
-                        std::move(us)...
+                        std::move(values)...
                         );
 
                     return setDrawing(std::move(newDrawing));
@@ -58,18 +56,27 @@ namespace reactive::widget
         >
         auto onDrawBehind(TFunc&& func, Us... us)
         {
-            return makeWidgetMap<DrawingTag, ObbTag>(
-                    [func=std::forward<TFunc>(func)]
-                    (auto d1, avg::Obb const& obb, auto&&... ts) -> avg::Drawing
-                    {
-                        auto d2 = func(
-                            std::forward<decltype(ts)>(ts)...
-                            );
+            return makeWidgetMap()
+                .provide(grabDrawing(), bindObb())
+                .provideValues(std::move(us)...)
+                .bindWidgetMap([func=std::forward<TFunc>(func)]
+                (auto... values) mutable
+                {
+                    auto newDrawing = signal::map(
+                        [func=std::forward<TFunc>(func)]
+                        (auto d1, avg::Obb const& obb, auto&&... ts) -> avg::Drawing
+                        {
+                            auto d2 = func(
+                                std::forward<decltype(ts)>(ts)...
+                                );
 
-                        return (obb.getTransform() * std::move(d2)) + std::move(d1);
-                    },
-                    std::move(us)...
-                    );
+                            return (obb.getTransform() * std::move(d2)) + std::move(d1);
+                        },
+                        std::move(values)...
+                        );
+
+                    return setDrawing(std::move(newDrawing));
+                });
         }
     } // namespace detail
 
