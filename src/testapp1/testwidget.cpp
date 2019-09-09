@@ -51,6 +51,8 @@ namespace
 
 WidgetFactory makeTestWidget()
 {
+    using namespace reactive::widget;
+
     auto p = stream::pipe<int>();
 
     auto state = stream::iterate(
@@ -72,8 +74,10 @@ WidgetFactory makeTestWidget()
     auto focus = signal::input(false);
 
     return makeWidgetFactory()
-        | widget::onDraw<DrawContextTag, SizeTag, ThemeTag>(drawTestWidget,
-                std::move(state), std::move(textState))
+        | makeWidgetMap()
+        .provide(bindDrawContext(), bindSize(), bindTheme())
+        .provideValues(std::move(state), std::move(textState))
+        .consume(onDraw(drawTestWidget))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))

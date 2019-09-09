@@ -2,6 +2,8 @@
 
 #include "reactive/widgetvaluemapper.h"
 
+#include <btl/cloneoncopy.h>
+
 #include <tuple>
 
 namespace reactive::widget
@@ -14,13 +16,13 @@ namespace reactive::widget
         -> std::decay_t<decltype(
             std::make_pair(
                 std::move(widget),
-                std::apply(func, std::move(data))
+                btl::cloneOnCopy(std::apply(func, std::move(data)))
                 )
             )>
         {
             return std::make_pair(
                     std::move(widget),
-                    std::apply(func, std::move(data))
+                    btl::cloneOnCopy(std::apply(func, std::move(data)))
                     );
         });
     }

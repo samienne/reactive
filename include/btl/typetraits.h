@@ -26,6 +26,9 @@ namespace btl
     using multiply_t = decltype(std::declval<TLhs const&>() *
             std::declval<TRhs const&>());
 
+    template <typename T>
+    using dereference_t = std::decay_t<decltype(*std::declval<T>())>;
+
     template <typename T, typename...>
     struct MakeType
     {

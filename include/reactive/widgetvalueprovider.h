@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widget.h"
 #include "widgetvaluemapper.h"
 #include "widgetvalueconsumer.h"
 #include "widgetmap.h"
@@ -8,6 +9,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <tuple>
 
 namespace reactive
 {
@@ -20,10 +22,28 @@ namespace reactive
     template <typename TFunc>
     struct WidgetMapWrapper;
 
+    namespace detail
+    {
+        template <typename TFunc>
+        auto widgetMap2(TFunc func)
+        {
+            return WidgetMapWrapper<std::decay_t<TFunc>>{
+                std::move(func)
+            };
+        }
+    } // namespace detail
+
     template <typename TFunc>
     struct WidgetValueProvider
     {
         std::decay_t<TFunc> func;
+
+        using PairType = std::result_of_t<TFunc(Widget, std::tuple<>)>;
+        using WidgetType = typename PairType::first_type;
+        using DataType = btl::dereference_t<typename PairType::second_type>;
+
+        static_assert(IsWidget<WidgetType>::value, "");
+
 
         template <typename T, typename U>
         auto operator()(T&& widget, U&& data)
@@ -34,17 +54,13 @@ namespace reactive
             return func(std::forward<T>(widget), std::forward<U>(data));
         }
 
-        template <typename UFunc>
-        auto operator>>(WidgetValueConsumer<UFunc>&& rhs) &&
+        template <typename UFunc, typename = std::enable_if_t<
+            std::is_invocable_r_v<Widget, UFunc, WidgetType&&, DataType&&>
+            >>
+        auto consume(WidgetValueConsumer<UFunc>&& consumer) &&
         {
-            using PairType = std::result_of_t<TFunc(Widget, std::tuple<>)>;
-            using WidgetType = typename PairType::first_type;
-            //using DataType = typename PairType::second_type;
-
-            static_assert(IsWidget<WidgetType>::value, "");
-
-            return widgetMap(
-                    [self=std::move(func), rhs=std::move(rhs.func)]
+            return detail::widgetMap2(
+                    [self=std::move(func), consumer=std::move(consumer.func)]
                     (auto widget) mutable
                     {
                         auto pair = std::move(self)(
@@ -52,53 +68,39 @@ namespace reactive
                                 std::tuple<>()
                                 );
 
-                        return std::move(rhs)(
+                        return std::move(consumer)(
                                 std::move(pair.first),
-                                std::move(pair.second)
+                                std::move(*pair.second)
                                 );
                     });
         }
 
+        template <typename UFunc>
+        auto bindWidgetMap(UFunc&& func) &&
+        {
+            return std::move(*this)
+                .consume(widgetValueConsumer(
+                [func=std::forward<UFunc>(func)](auto widget, auto data) mutable
+                {
+                    auto m = std::apply(func, std::move(data));
+
+                    return std::move(m)(std::move(widget));
+                }));
+        }
+
+        /*
         template <typename UFunc>
         auto operator>>(WidgetValueMapper<UFunc>&& rhs) &&
         {
-            using PairType = std::result_of_t<TFunc(Widget, std::tuple<>)>;
-            using WidgetType = typename PairType::first_type;
-            //using DataType = typename PairType::second_type;
-
-            static_assert(IsWidget<WidgetType>::value, "");
-
-            return widgetValueProvider(
-                    [self=std::move(func), rhs=std::move(rhs.func)]
-                    (auto widget, auto data) mutable
-                    {
-                        auto pair = std::move(self)(
-                                std::move(widget),
-                                std::tuple<>()
-                                );
-
-                        auto result = std::move(rhs)(
-                                std::move(pair.first),
-                                std::move(pair.second)
-                                );
-
-                        return std::make_pair(
-                                std::move(result.first),
-                                std::tuple_cat(
-                                    std::move(data),
-                                    std::move(result.second)
-                                    )
-                                );
-
-                    });
+            return std::move(*this).mapValues(std::move(rhs));
         }
-
+        */
 
         template <typename UFunc>
-        auto operator>>(WidgetValueProvider<UFunc>&& rhs) &&
+        auto provide(WidgetValueProvider<UFunc>&& provider) &&
         {
             return widgetValueProvider(
-                    [self=std::move(func), rhs=std::move(rhs.func)]
+                    [self=std::move(func), provider=std::move(provider.func)]
                     (auto widget, auto data) mutable
                     {
                         auto pair = std::move(self)(
@@ -106,34 +108,114 @@ namespace reactive
                                 std::move(data)
                                 );
 
-                        return std::move(rhs)(
+                        return std::move(provider)(
                                 std::move(pair.first),
-                                std::move(pair.second)
+                                std::move(*pair.second)
                                 );
                     });
         }
-    };
 
-    template <typename T, typename U>
-    auto operator|(WidgetMapWrapper<T>&& mapper, WidgetValueProvider<U>&& provider)
-    {
-        return widgetValueProvider(
-                [mapper=std::move(mapper.func), provider=std::move(provider.func)]
+        template <typename UFunc, typename... UFuncs>
+        auto provide(
+                WidgetValueProvider<UFunc>&& provider,
+                WidgetValueProvider<UFuncs>&&... providers
+                ) &&
+        {
+            return std::move(*this).provide(
+                    std::move(provider).provide(std::move(providers)...)
+                    );
+        }
+
+        template <typename... Ts>
+        auto provideValues(Ts&&... ts) &&
+        {
+            return widgetValueProvider(
+                    [self=std::move(func),
+                    values=btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))]
+                    (auto widget, auto data) mutable
+                    {
+                        auto pair = std::move(self)(
+                                std::move(widget),
+                                std::move(data)
+                                );
+
+                        return std::make_pair(
+                                std::move(pair.first),
+                                btl::cloneOnCopy(std::tuple_cat(
+                                    std::move(*pair.second),
+                                    std::move(*values)
+                                    ))
+                                );
+                    });
+        }
+
+        template <typename UFunc>
+        auto mapValues(WidgetValueMapper<UFunc>&& mapper) &&
+        {
+            return widgetValueProvider(
+                    [self=std::move(func), mapper=std::move(mapper.func)]
+                    (auto widget, auto data) mutable
+                    {
+                        auto pair = std::move(self)(
+                                std::move(widget),
+                                std::tuple<>()
+                                );
+
+                        auto result = std::move(mapper)(
+                                std::move(pair.first),
+                                std::move(*pair.second)
+                                );
+
+                        return std::make_pair(
+                                std::move(result.first),
+                                btl::cloneOnCopy(std::tuple_cat(
+                                    std::move(data),
+                                    std::move(*result.second)
+                                    )
+                                ));
+
+                    });
+        }
+
+        template <typename UFunc>
+        auto bindValueProvider(UFunc&& f) &&
+        {
+            return widgetValueProvider(
+                [self=std::move(func), f=std::forward<UFunc>(f)]
                 (auto widget, auto data) mutable
                 {
-                    return std::move(provider)(
-                            std::move(mapper)(
-                                std::move(widget)
-                                ),
+                    auto pair = std::move(self)(
+                            std::move(widget),
+                            std::tuple<>()
+                            );
+
+                    auto result = std::apply(
+                            std::move(f),
+                            std::move(*pair.second)
+                            );
+
+                    return std::move(result)(
+                            std::move(pair.first),
                             std::move(data)
                             );
                 });
-    }
+            /*
+            return std::move(*this)
+                .mapValues(widgetValueMapper(
+                    [f=std::forward<UFunc>(f)](auto widget, auto data) mutable
+                    {
+                        auto m = std::apply(f, std::move(data));
+                        return std::move(m)(std::move(widget), std::tuple<>());
+                    }));
+                    */
+        }
+    };
 
     template <typename TFunc>
     auto widgetValueProvider(TFunc&& func)
     {
-        /*
+        //static_assert(std::is_invocable_v<TFunc, Widget, std::tuple<>>, "");
+
         using ReturnType = decltype(
                 std::forward<TFunc>(func)(makeWidget(
                         signal::constant(DrawContext(pmr::new_delete_resource())),
@@ -143,7 +225,9 @@ namespace reactive
 
         static_assert(IsWidget<typename ReturnType::first_type>::value,
                 "Return type is not a pair<Widget, std::tuple>");
-                */
+
+        static_assert(std::is_copy_constructible_v<typename ReturnType::second_type>,
+                "");
 
         return WidgetValueProvider<std::decay_t<TFunc>>{
             std::forward<TFunc>(func)
@@ -153,7 +237,7 @@ namespace reactive
     template <typename TFunc>
     auto widgetValueProvider(WidgetValueProvider<TFunc> func)
     {
-        return std::move(func);
+        return func;
     }
 
     // Takes a function that consumes the data parameters and returns a

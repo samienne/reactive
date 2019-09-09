@@ -1,5 +1,8 @@
 #pragma once
 
+#include "widget/bindobb.h"
+#include "widget/setkeyboardinputs.h"
+#include "widget/bindkeyboardinputs.h"
 #include "widget/onclick.h"
 #include "widget/onhover.h"
 #include "widget/onpointermove.h"
@@ -84,33 +87,49 @@ namespace reactive
     template <typename T>
     auto setFocusable(Signal<bool, T> focusable)
     {
-        return makeWidgetMap<KeyboardInputTag>(
-                []
-                (std::vector<KeyboardInput> inputs, bool focusable)
-                -> std::vector<KeyboardInput>
-                {
-                    inputs[0] = std::move(inputs[0]).setFocusable(focusable);
-                    return inputs;
-                },
-                std::move(focusable)
-                );
+        return makeWidgetMap()
+            .provide(widget::grabKeyboardInputs())
+            .provideValues(std::move(focusable))
+            .bindWidgetMap([](auto keyboardInputs, auto focusable)
+            {
+                auto newInputs = signal::map(
+                    [](std::vector<KeyboardInput> inputs, bool focusable)
+                    -> std::vector<KeyboardInput>
+                    {
+                        inputs[0] = std::move(inputs[0]).setFocusable(focusable);
+                        return inputs;
+                    },
+                    std::move(keyboardInputs),
+                    std::move(focusable)
+                    );
+
+                return widget::setKeyboardInputs(std::move(newInputs));
+            });
     }
 
     template <typename T>
     auto requestFocus(Signal<bool, T> requestFocus)
     {
-        return makeWidgetMap<KeyboardInputTag>(
-                []
-                (std::vector<KeyboardInput> inputs, bool requestFocus)
-                -> std::vector<KeyboardInput>
-                {
-                    if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))
-                        inputs[0] = std::move(inputs[0]).requestFocus(requestFocus);
+        return makeWidgetMap()
+            .provide(widget::grabKeyboardInputs())
+            .provideValues(std::move(requestFocus))
+            .bindWidgetMap([](auto keyboardInputs, auto requestFocus)
+            {
+                auto newInputs = signal::map(
+                    [](std::vector<KeyboardInput> inputs, bool requestFocus)
+                    -> std::vector<KeyboardInput>
+                    {
+                        if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))
+                            inputs[0] = std::move(inputs[0]).requestFocus(requestFocus);
 
-                    return inputs;
-                },
-                std::move(requestFocus)
-                );
+                        return inputs;
+                    },
+                    std::move(keyboardInputs),
+                    std::move(requestFocus)
+                    );
+
+                return widget::setKeyboardInputs(std::move(newInputs));
+            });
     }
 
     inline auto focusOn(stream::Stream<bool> stream)
@@ -151,14 +170,23 @@ namespace reactive
 
             return std::move(widget)
                 .setObb(std::move(obb))
-                |
-                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                | makeWidgetMap()
+                .provide(widget::bindObb(), widget::grabKeyboardInputs())
+                .bindWidgetMap([](auto obb, auto inputs)
+                {
+                    auto newInputs = signal::map(
                         [](avg::Obb, std::vector<KeyboardInput> inputs)
                         {
                             // TODO: Remove this hack. This is needed to keep
                             // the obb signal in around.
                             return inputs;
-                        });
+                        },
+                        std::move(obb),
+                        std::move(inputs)
+                        );
+
+                    return widget::setKeyboardInputs(std::move(newInputs));
+                });
         };
 
         //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
@@ -177,14 +205,23 @@ namespace reactive
 
             return std::move(widget)
                 .setObb(std::move(obb))
-                |
-                makeWidgetMap<ObbTag, KeyboardInputTag>(
+                | makeWidgetMap()
+                .provide(widget::bindObb(), widget::grabKeyboardInputs())
+                .bindWidgetMap([](auto obb, auto inputs)
+                {
+                    auto newInputs = signal::map(
                         [](avg::Obb, std::vector<KeyboardInput> inputs)
                         {
                             // TODO: Remove this hack. This is needed to keep
                             // the obb signal in around.
                             return inputs;
-                        });
+                        },
+                        std::move(obb),
+                        std::move(inputs)
+                        );
+
+                    return widget::setKeyboardInputs(std::move(newInputs));
+                });
         };
 
         //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");

@@ -5,6 +5,8 @@
 
 #include "bindwidgetmap.h"
 
+#include "reactive/signal/split.h"
+
 namespace reactive::widget
 {
 
@@ -14,7 +16,7 @@ WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
     auto sizeHint = signal::share(f.getSizeHint());
 
     return makeWidgetFactory()
-        | widget::bindDrawContext() >> bindWidgetMap(
+        | widget::bindDrawContext().bindWidgetMap(
             [sizeHint, obbMap=std::move(obbMap), f=std::move(f)]
             (auto drawContext) mutable
             {

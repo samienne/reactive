@@ -1,5 +1,8 @@
 #pragma once
 
+#include "reactive/widget/bindkeyboardinputs.h"
+#include "reactive/widget/binddrawcontext.h"
+
 #include "reactive/widgetfactory.h"
 
 #include "reactive/signal/map.h"
@@ -31,18 +34,22 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        return widget::onDraw<DrawContextTag, KeyboardInputTag>([]
-            (DrawContext const& drawContext, auto const& inputs)
-        {
-            auto result = drawContext.drawing();
-
-            for (auto&& input : inputs)
+        return makeWidgetMap()
+            .provide(widget::bindDrawContext(), widget::bindKeyboardInputs())
+            .consume(widget::onDraw(
+            [](DrawContext const& drawContext, auto const& inputs)
             {
-                result += detail::makeRect(drawContext, input.getObb());
-            }
+                {
+                    auto result = drawContext.drawing();
 
-            return result;
-        });
+                    for (auto&& input : inputs)
+                    {
+                        result += detail::makeRect(drawContext, input.getObb());
+                    }
+
+                    return result;
+                }
+            }));
     }
 } // reactive::debug
 

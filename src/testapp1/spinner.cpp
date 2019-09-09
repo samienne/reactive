@@ -22,7 +22,7 @@ using namespace reactive;
 
 namespace
 {
-    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+    auto draw(DrawContext const& drawContext, ase::Vector2f size,
             widget::Theme const& theme, std::chrono::duration<float> t)
         -> avg::Drawing
         {
@@ -57,15 +57,20 @@ namespace
             return std::move(drawing)
                 .transform(avg::translate(0.5f*size[0], 0.5f*size[1]))
                 ;
-        };
+        }
 } // anonymous namespace
 
 WidgetFactory makeSpinner()
 {
+    using namespace reactive::widget;
+
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | widget::onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(t))
+        | makeWidgetMap()
+        .provide(bindDrawContext(), bindSize(), bindTheme())
+        .provideValues(std::move(t))
+        .consume(onDraw(draw))
         | widget::clip()
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
         ;

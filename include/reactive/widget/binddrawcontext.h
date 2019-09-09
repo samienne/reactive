@@ -2,7 +2,7 @@
 
 #include "reactive/widgetvalueprovider.h"
 
-#include "signal/share.h"
+#include "reactive/signal/share.h"
 
 #include <avg/drawing.h>
 
@@ -18,7 +18,10 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget),
-                    btl::pushBack(std::move(data), std::move(context))
+                    btl::cloneOnCopy(btl::pushBack(
+                            std::move(data),
+                            std::move(context)
+                            ))
                     );
         });
     }

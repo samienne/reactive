@@ -4,7 +4,7 @@
 
 #include "reactive/widgetvalueprovider.h"
 
-#include "signal/share.h"
+#include "reactive/signal/share.h"
 
 #include <btl/pushback.h>
 
@@ -18,7 +18,7 @@ namespace reactive::widget
 
             return std::make_pair(
                     std::move(widget).setTheme(theme),
-                    btl::pushBack(std::move(data), theme)
+                    btl::cloneOnCopy(btl::pushBack(std::move(data), theme))
                     );
         });
     }

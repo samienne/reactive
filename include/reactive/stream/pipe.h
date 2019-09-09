@@ -18,7 +18,7 @@ namespace reactive
         Pipe<T> pipe()
         {
             auto control = std::make_shared<Control<T>>();
-            control->callback = [](T value){ return std::move(value); };
+            control->callback = [](T value){ return value; };
 
             return {
                 Handle<T>(control),

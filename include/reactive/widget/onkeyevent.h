@@ -1,5 +1,8 @@
 #pragma once
 
+#include "bindkeyboardinputs.h"
+#include "setkeyboardinputs.h"
+
 #include "reactive/widgetfactory.h"
 
 #include "reactive/inputresult.h"
@@ -19,17 +22,26 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetMap<KeyboardInputTag>([]
-                    (auto inputs, auto const& handler)
-                    -> std::vector<KeyboardInput>
-                    {
-                        for (auto&& input : inputs)
-                            input = std::move(input)
-                                .onKeyEvent(handler);
-                        return inputs;
-                    },
-                    std::move(handler)
-                    );
+            return makeWidgetMap()
+                .provide(grabKeyboardInputs())
+                .provideValues(std::move(handler))
+                .bindWidgetMap([](auto inputs, auto handler) mutable
+                {
+                    auto newInputs = signal::map(
+                        [](std::vector<KeyboardInput> inputs, auto const& handler)
+                        -> std::vector<KeyboardInput>
+                        {
+                            for (auto&& input : inputs)
+                                input = std::move(input)
+                                    .onKeyEvent(handler);
+                            return inputs;
+                        },
+                        std::move(inputs),
+                        std::move(handler)
+                        );
+
+                    return setKeyboardInputs(std::move(newInputs));
+                });
         }
 
         inline auto onKeyEvent(KeyboardInput::Handler handler)

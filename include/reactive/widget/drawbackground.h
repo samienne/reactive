@@ -1,6 +1,9 @@
 #pragma once
 
 #include "ondraw.h"
+#include "bindsize.h"
+#include "binddrawcontext.h"
+#include "bindtheme.h"
 
 #include "reactive/shapes.h"
 #include "reactive/signal.h"
@@ -11,34 +14,46 @@
 
 namespace reactive::widget
 {
-    inline auto drawBackground(DrawContext const& drawContext,
-            avg::Vector2f size, avg::Brush const brush)
-        -> avg::Drawing
+    namespace detail
     {
-        auto t = avg::Transform()
-            .translate(0.5f * size[0], 0.5f * size[1]);
+        inline auto drawBackground(DrawContext const& drawContext,
+                avg::Vector2f size, avg::Brush const brush)
+            -> avg::Drawing
+        {
+            auto t = avg::Transform()
+                .translate(0.5f * size[0], 0.5f * size[1]);
 
-        return t * drawContext.drawing(makeShape(
-                    makeRect(drawContext.getResource(), size[0], size[1]),
-                    btl::just(brush),
-                    btl::none
-                    ));
-    }
+            return t * drawContext.drawing(makeShape(
+                        makeRect(drawContext.getResource(), size[0], size[1]),
+                        btl::just(brush),
+                        btl::none
+                        ));
+        }
+    } // namespace detail
 
-    inline auto background(Signal<avg::Brush> brush)
-        // -> FactoryMap;
+    template <typename T>
+    auto background(Signal<avg::Brush, T> brush)
     {
-        return onDrawBehind<DrawContextTag, SizeTag>(
-                    drawBackground, std::move(brush));
+        return makeWidgetMap()
+            .provide(bindDrawContext(), bindSize())
+            .provideValues(std::move(brush))
+            .consume(onDrawBehind(detail::drawBackground))
+            ;
     }
 
     inline auto background()
-        // -> FactoryMap;
     {
-        return onDrawBehind<DrawContextTag, SizeTag, ThemeTag>(
-            [](DrawContext const& drawContext, auto size, auto const& theme)
+        return makeWidgetMap()
+            .provide(bindTheme())
+            .bindWidgetMap([](auto theme)
             {
-                return drawBackground(drawContext, size, theme.getBackground());
+                return background(signal::map(
+                            [](Theme const& theme)
+                            {
+                                return avg::Brush(theme.getBackground());
+                            },
+                            std::move(theme)
+                            ));
             });
     }
 } // namespace reactive::widget

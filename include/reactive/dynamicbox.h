@@ -82,18 +82,19 @@ namespace reactive
                 hints.clone()
                 );
 
-
         return makeWidgetFactory()
-            | widget::bindDrawContext() >> widget::bindSize() >> bindWidgetMap(
-                    [hints=btl::cloneOnCopy(hints.clone()),
-                    widgets=btl::cloneOnCopy(std::move(widgets))]
-                    (auto drawContext, auto size) mutable
+            | makeWidgetMap()
+            .provide(widget::bindDrawContext())
+            .provide(widget::bindSize())
+            .provideValues(hints.clone(), std::move(widgets))
+            .bindWidgetMap([]
+                    (auto drawContext, auto size, auto hints, auto widgets) mutable
                     {
                         return detail::doDynamicBox<dir>(
                                 std::move(drawContext),
                                 std::move(size),
-                                std::move(*widgets),
-                                std::move(*hints)
+                                std::move(widgets),
+                                std::move(hints)
                                 );
                     })
             | setSizeHint(std::move(resultHint))

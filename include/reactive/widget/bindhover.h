@@ -9,12 +9,13 @@ namespace reactive::widget
     {
         auto hover = signal::input(false);
 
-        return onHover([handle=std::move(hover.handle)]
-            (HoverEvent const& e) mutable
-            {
-                handle.set(e.hover);
-            })
-            | bindData(std::move(hover.signal))
+        return makeWidgetMap()
+            .map(onHover([handle=std::move(hover.handle)]
+                        (HoverEvent const& e) mutable
+                        {
+                            handle.set(e.hover);
+                        }))
+            .provide(bindData(std::move(hover.signal)))
             ;
     }
 
@@ -23,13 +24,14 @@ namespace reactive::widget
     {
         auto hover = signal::input(false);
 
-        return onHover(signal::constant([handle=std::move(hover.handle)]
-            (HoverEvent const& e) mutable
-            {
-                handle.set(e.hover);
-            }), std::move(obb)
-            )
-            | bindData(std::move(hover.signal))
+        return makeWidgetMap()
+            .map(onHover(signal::constant([handle=std::move(hover.handle)]
+                            (HoverEvent const& e) mutable
+                            {
+                                handle.set(e.hover);
+                            }), std::move(obb)
+                        ))
+            .provide(bindData(std::move(hover.signal)))
             ;
     }
 } // namespace reactive::widget

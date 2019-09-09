@@ -15,16 +15,12 @@
 
 namespace reactive::widget
 {
-    template <typename T, typename U>
-    auto frameFull(
-            Signal<float, T> cornerRadius,
-            Signal<avg::Color, U> color
-            )
+    namespace detail
     {
-        auto f = [](DrawContext drawContext,
+        inline avg::Drawing drawFrame(DrawContext drawContext,
                 avg::Vector2f size, widget::Theme const& theme,
                 float cornerRadius, avg::Color const& color
-                ) -> avg::Drawing
+                )
         {
             auto pen = avg::Pen(avg::Brush(color),
                     1.0f);
@@ -38,18 +34,25 @@ namespace reactive::widget
                     btl::just(pen)
                     );
 
-            return avg::Transform().translate(0.5f * size[0], 0.5f * size[1])
+            return avg::translate(0.5f * size[0], 0.5f * size[1])
                 * drawContext.drawing(std::move(shape));
-        };
+        }
+    } // namespace detail
+
+    template <typename T, typename U>
+    auto frameFull(
+            Signal<float, T> cornerRadius,
+            Signal<avg::Color, U> color
+            )
+    {
 
         return
             margin(signal::constant(5.0f))
             >> mapFactoryWidget(
-                    onDrawBehind<DrawContextTag, SizeTag, ThemeTag>(
-                        std::move(f),
-                        std::move(cornerRadius),
-                        std::move(color)
-                        )
+                    makeWidgetMap()
+                    .provide(bindDrawContext(), bindSize(), bindTheme())
+                    .provideValues(std::move(cornerRadius), std::move(color))
+                    .consume(onDrawBehind(&detail::drawFrame))
                     )
             ;
     }

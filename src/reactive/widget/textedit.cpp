@@ -144,7 +144,6 @@ TextEdit::operator WidgetFactory() const
 
     auto keyStream = stream::pipe<Events>();
 
-    auto theme = signal::input(widget::Theme());
     auto requestFocus = stream::pipe<bool>();
 
     auto focus = signal::input(false);
@@ -155,20 +154,21 @@ TextEdit::operator WidgetFactory() const
             signal::TweenType::pingpong
             );
 
-    auto frameColor = signal::map(&widget::Theme::getSecondary, theme.signal);
+    auto frameColor = signal::constant(Theme().getSecondary());
 
     auto oldState = signal::share(btl::clone(state_));
 
     auto newState = signal::tee(
             stream::iterate(update, oldState, std::move(keyStream.stream),
-                std::move(theme.signal), signal::combine(onEnter_)),
+                signal::constant(Theme()), signal::combine(onEnter_)),
             handle_ );
 
     return makeWidgetFactory()
-        | trackTheme(theme.handle)
         | trackFocus(focus.handle)
-        | onDraw<DrawContextTag, SizeTag, ThemeTag>(draw, std::move(newState),
-                std::move(focusPercentage))
+        | makeWidgetMap()
+            .provide(bindDrawContext(), bindSize(), bindTheme())
+            .provideValues(std::move(newState), std::move(focusPercentage))
+            .consume(onDraw(draw))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))
