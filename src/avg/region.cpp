@@ -177,7 +177,7 @@ Region::Region(pmr::memory_resource* memory,
 
     deferred_ = pmr::make_shared<RegionDeferred>(memory, memory);
 
-    ClipperLib::JoinType joinType;
+    ClipperLib::JoinType joinType = ClipperLib::jtMiter;
     switch (join)
     {
         case JOIN_MITER:
@@ -193,7 +193,7 @@ Region::Region(pmr::memory_resource* memory,
             break;
     }
 
-    ClipperLib::EndType endType;
+    ClipperLib::EndType endType = ClipperLib::etOpenButt;
     switch (end)
     {
         case END_OPENBUTT:
@@ -294,7 +294,7 @@ Region& Region::operator^=(Region const& /*region*/) const
 
 Region Region::offset(JoinType join, EndType end, float offset) const
 {
-    ClipperLib::JoinType joinType;
+    ClipperLib::JoinType joinType = ClipperLib::jtMiter;
     switch (join)
     {
         case JOIN_MITER:
@@ -310,7 +310,7 @@ Region Region::offset(JoinType join, EndType end, float offset) const
             break;
     }
 
-    ClipperLib::EndType endType;
+    ClipperLib::EndType endType = ClipperLib::etOpenButt;
     switch (end)
     {
         case END_OPENBUTT:
