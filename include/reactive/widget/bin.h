@@ -1,14 +1,11 @@
 #pragma once
 
+#include "reactive/widgetmap.h"
 #include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    using BinSizeHintMap = btl::Function<SizeHint(SizeHint)>;
-    using BinObbMap = btl::Function<Signal<avg::Obb>(Signal<SizeHint>)>;
-
-    REACTIVE_EXPORT WidgetFactory bin(WidgetFactory f,
-            BinSizeHintMap sizeHintMap, BinObbMap obbMap);
+    REACTIVE_EXPORT WidgetMap bin(WidgetFactory f);
 } // reactive::widget
 

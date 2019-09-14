@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
 #include "reactive/hbox.h"
@@ -85,61 +86,59 @@ WidgetFactory scrollView(WidgetFactory f)
         | transform(t.clone())
         ;
 
-    auto view = bin(std::move(f2), hintMap,
-            [contentSize=contentSize.signal,
-            viewSize=viewSize.signal]
-            (Signal<SizeHint> sizeHint)
-            {
-                return obbMap(std::move(sizeHint), btl::clone(contentSize),
-                        btl::clone(viewSize));
-            })
-            | trackSize(viewSize.handle)
-            | makeWidgetMap()
-                .map(onPointerDown(signal::mapFunction(
-                    [dragOffsetHandle=dragOffset.handle,
-                    scrollPosHandle=scrollPos.handle
-                    ]
-                    (float x, float y,
-                    PointerButtonEvent const& e) mutable
+    auto view = makeWidgetFactory()
+        | bin(std::move(f2))
+        | setSizeHint(signal::constant(simpleSizeHint(
+            {{100, 400, 10000}},
+            {{100, 800, 10000}}
+            )))
+        | trackSize(viewSize.handle)
+        | makeWidgetMap()
+            .map(onPointerDown(signal::mapFunction(
+                [dragOffsetHandle=dragOffset.handle,
+                scrollPosHandle=scrollPos.handle
+                ]
+                (float x, float y,
+                PointerButtonEvent const& e) mutable
+                {
+                    if (e.button == 1)
                     {
-                        if (e.button == 1)
-                        {
-                            dragOffsetHandle.set(e.pos );
-                            scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
-                        }
+                        dragOffsetHandle.set(e.pos );
+                        scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
+                    }
 
+                    return EventResult::possible;
+                }, x.signal, y.signal)))
+        .map(onPointerMove(signal::mapFunction(
+                [xHandle=x.handle, yHandle=y.handle]
+                (avg::Vector2f dragOffset, avg::Vector2f viewSize,
+                    avg::Vector2f contentSize,
+                    btl::option<avg::Vector2f> scrollPos,
+                    PointerMoveEvent const& e) mutable
+                {
+                    if (!scrollPos.valid())
                         return EventResult::possible;
-                    }, x.signal, y.signal)))
-            .map(onPointerMove(signal::mapFunction(
-                    [xHandle=x.handle, yHandle=y.handle]
-                    (avg::Vector2f dragOffset, avg::Vector2f viewSize,
-                        avg::Vector2f contentSize,
-                        btl::option<avg::Vector2f> scrollPos,
-                        PointerMoveEvent const& e) mutable
-                    {
-                        if (!scrollPos.valid())
-                            return EventResult::possible;
 
-                        float hLen = contentSize[0] - viewSize[0];
-                        float vLen = contentSize[1] - viewSize[1];
+                    float hLen = contentSize[0] - viewSize[0];
+                    float vLen = contentSize[1] - viewSize[1];
 
-                        float x = -(e.pos[0] - dragOffset[0]) / hLen + (*scrollPos)[0];
-                        float y = -(e.pos[1] - dragOffset[1]) / vLen + (*scrollPos)[1];
+                    float x = -(e.pos[0] - dragOffset[0]) / hLen + (*scrollPos)[0];
+                    float y = -(e.pos[1] - dragOffset[1]) / vLen + (*scrollPos)[1];
 
-                        xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
-                        yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
+                    xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
+                    yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
-                        return EventResult::accept;
-                    }, dragOffset.signal, viewSize.signal, contentSize.signal,
-                    scrollPos.signal)))
-            .map(onPointerUp([scrollPosHandle=scrollPos.handle]
-                    (PointerButtonEvent const&) mutable
-                    {
-                        scrollPosHandle.set(btl::none);
-                        return EventResult::reject;
-                    }))
+                    return EventResult::accept;
+                }, dragOffset.signal, viewSize.signal, contentSize.signal,
+                scrollPos.signal)))
+        .map(onPointerUp([scrollPosHandle=scrollPos.handle]
+                (PointerButtonEvent const&) mutable
+                {
+                    scrollPosHandle.set(btl::none);
+                    return EventResult::reject;
+                }))
 
-            | widget::frame()
+        | widget::frame()
         ;
 
     auto makeBox = []()
