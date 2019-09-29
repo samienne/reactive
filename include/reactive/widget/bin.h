@@ -6,6 +6,7 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetMap bin(WidgetFactory f);
+    REACTIVE_EXPORT WidgetMap bin(WidgetFactory f,
+            Signal<avg::Vector2f> contentSize);
 } // reactive::widget
 

@@ -8,24 +8,17 @@
 namespace reactive::widget
 {
 
-WidgetMap bin(WidgetFactory f)
+WidgetMap bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
 {
     auto sizeHint = signal::share(f.getSizeHint());
 
     return makeWidgetMap()
         .provide(bindDrawContext(), bindSize())
-        .provideValues(std::move(f))
-        .bindWidgetMap([](auto drawContext, auto viewSize, auto f) mutable
+        .provideValues(std::move(contentSize), std::move(f))
+        .bindWidgetMap([](auto drawContext, auto viewSize, auto contentSize,
+                    auto f) mutable
         {
-            auto contentSize = signal::share(signal::map([](auto hint)
-                    {
-                        float w = hint.getWidth()[1];
-                        float h = hint.getHeightForWidth(w)[1];
-
-                        return avg::Vector2f(w, h);
-                    },
-                    f.getSizeHint()
-                    ));
+            auto cs = signal::share(std::move(contentSize));
 
             auto t = signal::map([](avg::Vector2f viewSize,
                         avg::Vector2f contentSize)
@@ -34,12 +27,12 @@ WidgetMap bin(WidgetFactory f)
                         return avg::translate(0.0f, -offY);
                     },
                     std::move(viewSize),
-                    contentSize
+                    cs
                     );
 
             auto w = std::move(f)(
                     std::move(drawContext),
-                    std::move(contentSize)
+                    std::move(cs)
                     )
                     .transform(std::move(t))
                     ;
