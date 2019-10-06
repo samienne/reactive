@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
 #include "reactive/hbox.h"
@@ -12,44 +13,21 @@
 namespace reactive::widget
 {
 
-namespace
-{
-    SizeHint hintMap(SizeHint /*hint*/)
-    {
-        return simpleSizeHint(
-                {{100, 400, 10000}},
-                {{100, 800, 10000}}
-                );
-    }
-
-    Signal<avg::Obb> obbMap(Signal<SizeHint> hint,
-            Signal<avg::Vector2f> contentSize,
-            Signal<avg::Vector2f> viewSize)
-    {
-        return signal::map(
-                [](SizeHint hint, avg::Vector2f contentSize,
-                    avg::Vector2f viewSize)
-                {
-                    float w = hint.getWidth()[1];
-                    float h = hint.getHeightForWidth(w)[1];
-
-                    float offY = contentSize[1] - viewSize[1];
-
-                    return avg::translate(0.0f, -offY)
-                        * avg::Obb(avg::Vector2f(w, h));
-                },
-                std::move(hint),
-                std::move(contentSize),
-                std::move(viewSize));
-    }
-} // anonymous namespace
-
 WidgetFactory scrollView(WidgetFactory f)
 {
-    auto contentSize = signal::input(avg::Vector2f());
     auto viewSize = signal::input(avg::Vector2f(10.0f, 200.0f));
     auto x = signal::input(0.5f);
     auto y = signal::input(0.5f);
+
+    auto contentSize = signal::share(signal::map([](auto hint)
+            {
+                float w = hint.getWidth()[1];
+                float h = hint.getHeightForWidth(w)[1];
+
+                return avg::Vector2f(w, h);
+            },
+            f.getSizeHint()
+            ));
 
     auto hHandleSize = signal::map([](avg::Vector2f contentSize,
                 avg::Vector2f viewSize)
@@ -58,7 +36,7 @@ WidgetFactory scrollView(WidgetFactory f)
                     return 1.0f;
 
                 return viewSize[0] / contentSize[0];
-            }, contentSize.signal, viewSize.signal);
+            }, contentSize, viewSize.signal);
 
     auto vHandleSize = signal::map([](avg::Vector2f contentSize,
                 avg::Vector2f viewSize)
@@ -67,7 +45,7 @@ WidgetFactory scrollView(WidgetFactory f)
                     return 1.0f;
 
                 return viewSize[1] / contentSize[1];
-            }, contentSize.signal, viewSize.signal);
+            }, contentSize, viewSize.signal);
 
     auto dragOffset = signal::input(avg::Vector2f());
     auto scrollPos = signal::input<btl::option<avg::Vector2f>>(btl::none);
@@ -78,38 +56,35 @@ WidgetFactory scrollView(WidgetFactory f)
                 return avg::translate(
                         x * -(contentSize[0] - viewSize[0]),
                         (1.0f - y) * (contentSize[1] - viewSize[1]));
-            }, x.signal, y.signal, contentSize.signal, viewSize.signal);
+            }, x.signal, y.signal, contentSize, viewSize.signal);
 
     auto f2 = std::move(f)
-        | trackSize(contentSize.handle)
-        | transform(t.clone())
+        | transform(std::move(t))
         ;
 
-    auto view = bin(std::move(f2), hintMap,
-            [contentSize=contentSize.signal,
-            viewSize=viewSize.signal]
-            (Signal<SizeHint> sizeHint)
-            {
-                return obbMap(std::move(sizeHint), btl::clone(contentSize),
-                        btl::clone(viewSize));
-            })
-            | trackSize(viewSize.handle)
-            | makeWidgetMap()
-                .map(onPointerDown(signal::mapFunction(
-                    [dragOffsetHandle=dragOffset.handle,
-                    scrollPosHandle=scrollPos.handle
-                    ]
-                    (float x, float y,
-                    PointerButtonEvent const& e) mutable
+    auto view = makeWidgetFactory()
+        | bin(std::move(f2), contentSize)
+        | setSizeHint(signal::constant(simpleSizeHint(
+            {{100, 400, 10000}},
+            {{100, 800, 10000}}
+            )))
+        | trackSize(viewSize.handle)
+        | makeWidgetMap()
+            .map(onPointerDown(signal::mapFunction(
+                [dragOffsetHandle=dragOffset.handle,
+                scrollPosHandle=scrollPos.handle
+                ]
+                (float x, float y,
+                PointerButtonEvent const& e) mutable
+                {
+                    if (e.button == 1)
                     {
-                        if (e.button == 1)
-                        {
-                            dragOffsetHandle.set(e.pos );
-                            scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
-                        }
+                        dragOffsetHandle.set(e.pos );
+                        scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
+                    }
 
-                        return EventResult::possible;
-                    }, x.signal, y.signal)))
+                    return EventResult::possible;
+                }, x.signal, y.signal)))
             .map(onPointerMove(signal::mapFunction(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
@@ -130,7 +105,7 @@ WidgetFactory scrollView(WidgetFactory f)
                         yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
                         return EventResult::accept;
-                    }, dragOffset.signal, viewSize.signal, contentSize.signal,
+                    }, dragOffset.signal, viewSize.signal, contentSize,
                     scrollPos.signal)))
             .map(onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
@@ -138,8 +113,7 @@ WidgetFactory scrollView(WidgetFactory f)
                         scrollPosHandle.set(btl::none);
                         return EventResult::reject;
                     }))
-
-            | widget::frame()
+        | widget::frame()
         ;
 
     auto makeBox = []()

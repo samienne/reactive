@@ -5,39 +5,42 @@
 
 #include "bindwidgetmap.h"
 
-#include "reactive/signal/split.h"
-
 namespace reactive::widget
 {
 
-WidgetFactory bin(WidgetFactory f, BinSizeHintMap sizeHintMap,
-        BinObbMap obbMap)
+WidgetMap bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
 {
     auto sizeHint = signal::share(f.getSizeHint());
 
-    return makeWidgetFactory()
-        | widget::bindDrawContext().bindWidgetMap(
-            [sizeHint, obbMap=std::move(obbMap), f=std::move(f)]
-            (auto drawContext) mutable
-            {
-                auto obb = obbMap(sizeHint);
-                auto splitted = signal::split(signal::map([](avg::Obb const& obb)
-                            {
-                                return std::make_tuple(obb.getSize(), obb.getTransform());
-                            },
-                            std::move(obb)));
+    return makeWidgetMap()
+        .provide(bindDrawContext(), bindSize())
+        .provideValues(std::move(contentSize), std::move(f))
+        .bindWidgetMap([](auto drawContext, auto viewSize, auto contentSize,
+                    auto f) mutable
+        {
+            auto cs = signal::share(std::move(contentSize));
 
-                auto size = std::move(std::get<0>(splitted));
-                auto t = std::move(std::get<1>(splitted));
+            auto t = signal::map([](avg::Vector2f viewSize,
+                        avg::Vector2f contentSize)
+                    {
+                        float offY = contentSize[1] - viewSize[1];
+                        return avg::translate(0.0f, -offY);
+                    },
+                    std::move(viewSize),
+                    cs
+                    );
 
-                auto newF = std::move(f)|transform(std::move(t));
+            auto w = std::move(f)(
+                    std::move(drawContext),
+                    std::move(cs)
+                    )
+                    .transform(std::move(t))
+                    ;
 
-                return addWidget(Widget(
-                            std::move(newF)(std::move(drawContext), std::move(size))
-                            ));
-            })
-        | widget::clip()
-        | setSizeHint(signal::map(sizeHintMap, sizeHint))
+            return addWidget(std::move(w))
+                .map(clip())
+                ;
+        })
         ;
 }
 } // namespace reactive::widget
