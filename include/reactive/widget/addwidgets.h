@@ -2,9 +2,10 @@
 
 #include "adddrawings.h"
 
+#include "widgettransform.h"
+
 #include "reactive/inputarea.h"
 #include "reactive/widget.h"
-#include "reactive/widgetmap.h"
 
 #include "reactive/signal/combine.h"
 #include "reactive/signal/mbind.h"
@@ -103,7 +104,7 @@ namespace reactive::widget
                 return w.getDrawing();
             });
 
-            return makeWidget(
+            return makeWidgetTransformResult(makeWidget(
                     std::move(widget.getDrawContext()),
                     std::move(widget.getDrawing()),
                     std::move(areasSignal),
@@ -112,11 +113,11 @@ namespace reactive::widget
                     std::move(widget.getTheme())
                     )
                 | addDrawings(signal::combine(std::move(drawings)))
-                ;
+                );
 
         };
 
-        return widgetMap(std::move(f));
+        return makeWidgetTransform(std::move(f));
     }
 
     template <typename T>
@@ -134,10 +135,10 @@ namespace reactive::widget
                     btl::clone(*widgets)
                     );
 
-            return reduce(std::move(w1));
+            return makeWidgetTransformResult(reduce(std::move(w1)));
         };
 
-        return widgetMap(std::move(f));
+        return makeWidgetTransform(std::move(f));
     }
 
     inline auto addWidget(Widget widget)

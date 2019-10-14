@@ -73,7 +73,8 @@ namespace reactive::widget
         template <typename U>
         auto operator()(U widget)
         {
-            return std::move(func_)(std::move(widget));
+            //return std::move(func_)(std::move(widget));
+            return func_(std::move(widget));
         }
 
         template <typename U>
@@ -118,7 +119,10 @@ namespace reactive::widget
         template <typename U, typename... Us, typename... Ws>
         auto provide(WidgetTransform<U, Us...> u, Ws&&... ws) &&
         {
-            return std::move(u).provide(std::forward<Ws>(ws)...);
+            return std::move(*this)
+                .provide(std::move(u))
+                .provide(std::forward<Ws>(ws)...)
+                ;
         }
 
         template <typename... Us>
@@ -127,18 +131,23 @@ namespace reactive::widget
             return makeWidgetTransform(
                 [f=std::move(func_),
                 us=btl::cloneOnCopy(std::make_tuple(std::forward<Us>(us)...))]
-                (auto w)
+                (auto w) mutable
                 {
                     auto pair = std::move(f)(std::move(w));
 
                     return std::make_pair(
                             std::move(pair.first),
-                            btl::cloneOnCopy(
+                            btl::cloneOnCopy(std::tuple_cat(
                                 std::move(*pair.second),
                                 std::move(*us)
-                                )
+                                ))
                             );
                 });
+        }
+
+        operator WidgetTransform<void, Ts...>() &&
+        {
+            return WidgetTransform<void>(std::move(func_));
         }
 
     private:
@@ -187,13 +196,25 @@ namespace reactive::widget
     auto provideValues(Ts&&... ts)
     {
         return makeWidgetTransform(
-            [ts=btl::cloneOnCopy(std::make_tuple(ts...))](auto w) mutable
+            [ts=btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))]
+            (auto w) mutable
             {
                 return std::make_pair(
                         std::move(w),
                         std::move(ts)
                         );
             });
+    }
+
+    template <typename TWidget, typename... Ts>
+    auto makeWidgetTransformResult(TWidget&& widget, Ts&&... ts)
+    {
+        static_assert(IsWidget<TWidget>::value);
+
+        return std::make_pair(
+                std::forward<TWidget>(widget),
+                btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))
+                );
     }
 } // reactive::widget
 

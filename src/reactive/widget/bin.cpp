@@ -2,20 +2,19 @@
 
 #include "widget/binddrawcontext.h"
 #include "widget/clip.h"
-
-#include "bindwidgetmap.h"
+#include "widget/widgettransform.h"
 
 namespace reactive::widget
 {
 
-WidgetMap bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
+WidgetTransform<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
 {
     auto sizeHint = signal::share(f.getSizeHint());
 
-    return makeWidgetMap()
+    return makeWidgetTransform()
         .provide(bindDrawContext(), bindSize())
-        .provideValues(std::move(contentSize), std::move(f))
-        .bindWidgetMap([](auto drawContext, auto viewSize, auto contentSize,
+        .values(std::move(contentSize), std::move(f))
+        .bind([](auto drawContext, auto viewSize, auto contentSize,
                     auto f) mutable
         {
             auto cs = signal::share(std::move(contentSize));
@@ -38,7 +37,7 @@ WidgetMap bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
                     ;
 
             return addWidget(std::move(w))
-                .map(clip())
+                .provide(clip())
                 ;
         })
         ;

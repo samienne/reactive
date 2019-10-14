@@ -3,9 +3,9 @@
 #include "bindinputareas.h"
 #include "bindobb.h"
 #include "setinputareas.h"
+#include "widgettransform.h"
 
 #include "reactive/signal.h"
-#include "reactive/widgetmap.h"
 
 #include <ase/hoverevent.h>
 
@@ -17,10 +17,10 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(grabInputAreas())
-            .provideValues(std::move(area), std::move(cb))
-            .bindWidgetMap([id](auto areas, auto area, auto cb)
+            .values(std::move(area), std::move(cb))
+            .bind([id](auto areas, auto area, auto cb)
             {
                 auto newAreas = signal::map(
                     [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
@@ -56,10 +56,10 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(grabInputAreas(), bindObb())
-            .provideValues(std::move(cb))
-            .bindWidgetMap([id](auto areas, auto obb, auto cb)
+            .values(std::move(cb))
+            .bind([id](auto areas, auto obb, auto cb)
             {
                 auto newAreas = signal::map(
                     [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)

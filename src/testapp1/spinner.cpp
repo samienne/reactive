@@ -5,6 +5,7 @@
 #include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
 #include <reactive/widget/frame.h>
+#include <reactive/widget/widgettransform.h>
 
 #include <reactive/simplesizehint.h>
 
@@ -67,10 +68,10 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | makeWidgetMap()
+        | makeWidgetTransform()
         .provide(bindDrawContext(), bindSize(), bindTheme())
-        .provideValues(std::move(t))
-        .consume(onDraw(draw))
+        .values(std::move(t))
+        .bind(onDraw(draw))
         | widget::clip()
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
         ;

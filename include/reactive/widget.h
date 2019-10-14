@@ -421,6 +421,7 @@ namespace reactive
                     );
         }
 
+        /*
         template <typename TWidgetMap>
         auto operator|(TWidgetMap&& widgetMap) &&
         -> decltype(
@@ -428,6 +429,15 @@ namespace reactive
                 )
         {
             return std::forward<TWidgetMap>(widgetMap)(std::move(*this));
+        }
+        */
+        template <typename TWidgetTransform>
+        auto operator|(TWidgetTransform&& t) &&
+        -> decltype(
+            std::forward<TWidgetTransform>(t)(std::move(*this)).first
+            )
+        {
+            return std::forward<TWidgetTransform>(t)(std::move(*this)).first;
         }
 
         Wid clone() const

@@ -1,6 +1,7 @@
 #include "testwidget.h"
 
 #include <reactive/widget/onkeyevent.h>
+#include <reactive/widget/widgettransform.h>
 
 #include <reactive/send.h>
 
@@ -74,10 +75,10 @@ WidgetFactory makeTestWidget()
     auto focus = signal::input(false);
 
     return makeWidgetFactory()
-        | makeWidgetMap()
+        | makeWidgetTransform()
         .provide(bindDrawContext(), bindSize(), bindTheme())
-        .provideValues(std::move(state), std::move(textState))
-        .consume(onDraw(drawTestWidget))
+        .values(std::move(state), std::move(textState))
+        .bind(onDraw(drawTestWidget))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))

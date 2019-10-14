@@ -3,8 +3,8 @@
 #include "widget/margin.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
+#include "widget/widgettransform.h"
 
-#include "reactive/bindwidgetmap.h"
 #include "reactive/simplesizehint.h"
 
 #include "send.h"
@@ -153,9 +153,9 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindSize())
-            .bindValueProvider([=](auto size)
+            .bind([=](auto size)
             {
                 auto obb = signal::map([]
                         (avg::Vector2f size, float amount, float handleSize)
@@ -175,12 +175,12 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindSliderObb<IsHorizontal>(amount, handleSize))
-            .mapValues(bindWidgetValueProvider([=](auto obb)
+            .bind([=](auto obb)
             {
                 return bindHover(std::move(obb));
-            }));
+            });
     }
 
     template <bool IsHorizontal>
@@ -189,26 +189,26 @@ namespace
         SharedSignal<float> amount,
         SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindDrawContext(), bindSize(), bindTheme())
             .provide(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .bindWidgetMap([=](auto drawContext, auto size,
+            .bind([=](auto drawContext, auto size,
                             auto theme, auto hover) mutable
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                         downOffset.signal);
 
-                return makeWidgetMap()
-                    .map(onPointerDown(scrollPointerDown<IsHorizontal>(
+                return makeWidgetTransform()
+                    .provide(onPointerDown(scrollPointerDown<IsHorizontal>(
                             downOffset.handle, size.clone(), amount, handleSize)
                         ))
-                    .map(onPointerUp([handle=downOffset.handle]() mutable
+                    .provide(onPointerUp([handle=downOffset.handle]() mutable
                         {
                             handle.set(btl::none);
                             return EventResult::accept;
                         }))
-                    .map(onPointerMove(signal::mapFunction(
+                    .provide(onPointerMove(signal::mapFunction(
                         [scrollHandle]
                         (btl::option<avg::Vector2f> downOffset,
                             avg::Vector2f size, float handleSize,
@@ -233,7 +233,7 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
-                    .provideValues(
+                    .values(
                             std::move(drawContext),
                             size.clone(),
                             std::move(theme),
@@ -242,7 +242,7 @@ namespace
                             std::move(hover),
                             std::move(isDown)
                             )
-                    .consume(onDraw(drawScrollBar<IsHorizontal>))
+                    .bind(onDraw(drawScrollBar<IsHorizontal>))
                     ;
             });
     }

@@ -3,10 +3,10 @@
 #include "bindinputareas.h"
 #include "bindobb.h"
 #include "setinputareas.h"
+#include "widgettransform.h"
 
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/signal.h"
-#include "reactive/widgetmap.h"
 #include "reactive/eventresult.h"
 
 #include <functional>
@@ -25,10 +25,10 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(grabInputAreas(), bindObb())
-            .provideValues(std::move(cb))
-            .bindWidgetMap([id](auto areas, auto obb, auto cb)
+            .values(std::move(cb))
+            .bind([id](auto areas, auto obb, auto cb)
             {
                 auto newAreas = signal::map(
                     [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)

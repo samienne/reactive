@@ -3,10 +3,9 @@
 #include "binddrawing.h"
 #include "bindobb.h"
 #include "setdrawing.h"
+#include "widgettransform.h"
 
-#include "reactive/bindwidgetmap.h"
 #include "reactive/signaltraits.h"
-#include "reactive/widgetmap.h"
 
 #include <avg/drawing.h>
 
@@ -25,10 +24,10 @@ namespace reactive::widget
         >
         auto onDraw(TFunc&& func, Us... us)
         {
-            return makeWidgetMap()
+            return makeWidgetTransform()
                 .provide(grabDrawing(), bindObb())
-                .provideValues(std::move(us)...)
-                .bindWidgetMap([func=std::forward<TFunc>(func)]
+                .values(std::move(us)...)
+                .bind([func=std::forward<TFunc>(func)]
                 (auto... values) mutable
                 {
                     auto newDrawing = signal::map(
@@ -56,10 +55,10 @@ namespace reactive::widget
         >
         auto onDrawBehind(TFunc&& func, Us... us)
         {
-            return makeWidgetMap()
+            return makeWidgetTransform()
                 .provide(grabDrawing(), bindObb())
-                .provideValues(std::move(us)...)
-                .bindWidgetMap([func=std::forward<TFunc>(func)]
+                .values(std::move(us)...)
+                .bind([func=std::forward<TFunc>(func)]
                 (auto... values) mutable
                 {
                     auto newDrawing = signal::map(
@@ -83,18 +82,38 @@ namespace reactive::widget
     template <typename TFunc>
     auto onDraw(TFunc&& f)
     {
-        return bindWidgetMap([f=std::forward<TFunc>(f)](auto... values) mutable
+        return [f=std::forward<TFunc>(f)](auto&&... values) mutable
+        {
+            return detail::onDraw(
+                    std::move(f),
+                    std::forward<decltype(values)>(values)...
+                    );
+
+        };
+#if 0
+        return makeWidgetTransform().bind(
+                [f=std::forward<TFunc>(f)](auto... values) mutable
                 /*-> decltype(
                     detail::onDraw(std::move(f), std::move(values)...)
                     )*/
         {
             return detail::onDraw(std::move(f), std::move(values)...);
         });
+#endif
     }
 
     template <typename TFunc>
     auto onDrawBehind(TFunc&& f)
     {
+        return [f=std::forward<TFunc>(f)](auto&&... values) mutable
+        {
+            return detail::onDrawBehind(
+                    std::move(f),
+                    std::forward<decltype(values)>(values)...
+                    );
+
+        };
+#if 0
         return bindWidgetMap([f=std::forward<TFunc>(f)](auto... values) mutable
                 /*-> decltype(
                     detail::onDrawBehind(std::move(f), std::move(values)...)
@@ -102,6 +121,7 @@ namespace reactive::widget
         {
             return detail::onDrawBehind(std::move(f), std::move(values)...);
         });
+#endif
     }
 
 } // namespace reactive::widget

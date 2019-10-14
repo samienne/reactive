@@ -3,6 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "widget/widgettransform.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
@@ -69,8 +70,8 @@ WidgetFactory scrollView(WidgetFactory f)
             {{100, 800, 10000}}
             )))
         | trackSize(viewSize.handle)
-        | makeWidgetMap()
-            .map(onPointerDown(signal::mapFunction(
+        | makeWidgetTransform()
+            .provide(onPointerDown(signal::mapFunction(
                 [dragOffsetHandle=dragOffset.handle,
                 scrollPosHandle=scrollPos.handle
                 ]
@@ -85,7 +86,7 @@ WidgetFactory scrollView(WidgetFactory f)
 
                     return EventResult::possible;
                 }, x.signal, y.signal)))
-            .map(onPointerMove(signal::mapFunction(
+            .provide(onPointerMove(signal::mapFunction(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,
@@ -107,7 +108,7 @@ WidgetFactory scrollView(WidgetFactory f)
                         return EventResult::accept;
                     }, dragOffset.signal, viewSize.signal, contentSize,
                     scrollPos.signal)))
-            .map(onPointerUp([scrollPosHandle=scrollPos.handle]
+            .provide(onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
                     {
                         scrollPosHandle.set(btl::none);

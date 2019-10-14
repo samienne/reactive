@@ -5,6 +5,7 @@
 #include "widget/bindtheme.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
+#include "widget/widgettransform.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -56,10 +57,10 @@ WidgetFactory label(SharedSignal<std::string> text)
     };
 
     return makeWidgetFactory()
-        | makeWidgetMap()
+        | makeWidgetTransform()
             .provide(bindDrawContext(), bindObb(), bindTheme())
-            .provideValues(text)
-            .consume(onDraw(draw))
+            .values(text)
+            .bind(onDraw(draw))
         | setSizeHint(signal::map(getSizeHint, text,
                     signal::constant(Theme())))
         | margin(signal::constant(5.0f))

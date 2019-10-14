@@ -45,12 +45,13 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                 return std::move(factory)(w.getDrawContext(), std::move(size));
             });
 
-        return std::move(w)
-            | addWidgets(std::move(widgets));
+        return widget::makeWidgetTransformResult(
+                std::move(w) | addWidgets(std::move(widgets))
+                );
     };
 
     return makeWidgetFactory()
-        | widgetMap(std::move(map))
+        | widget::makeWidgetTransform(std::move(map))
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 

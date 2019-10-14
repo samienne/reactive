@@ -4,17 +4,17 @@
 #include "setkeyboardinputs.h"
 #include "binddrawing.h"
 #include "setdrawing.h"
+#include "widgettransform.h"
 
-#include "reactive/widgetmap.h"
 #include "reactive/widgetfactory.h"
 
 namespace reactive::widget
 {
     inline auto clipDrawing()
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindObb(), grabDrawing())
-            .bindWidgetMap([](auto obb, auto drawing)
+            .bind([](auto obb, auto drawing)
             {
                 auto newDrawing = signal::map(
                     [](avg::Obb obb, avg::Drawing d)
@@ -31,9 +31,9 @@ namespace reactive::widget
 
     inline auto clipInputAreas()
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindObb(), grabInputAreas())
-            .bindWidgetMap([](auto obb, auto inputAreas)
+            .bind([](auto obb, auto inputAreas)
             {
                 auto newAreas = signal::map(
                     [](avg::Obb obb, std::vector<InputArea> areas)
@@ -53,9 +53,9 @@ namespace reactive::widget
 
     inline auto clipKeyboardInputs()
     {
-        return makeWidgetMap()
+        return makeWidgetTransform()
             .provide(bindObb(), grabKeyboardInputs())
-            .bindWidgetMap([](auto obb, auto keyboardInputs)
+            .bind([](auto obb, auto keyboardInputs)
             {
                 auto newKeyboardInputs = signal::map(
                     [](avg::Obb obb, std::vector<KeyboardInput> inputs)
@@ -88,10 +88,10 @@ namespace reactive::widget
 
     inline auto clip()
     {
-        return makeWidgetMap()
-            .map(clipDrawing())
-            .map(clipInputAreas())
-            .map(clipKeyboardInputs())
+        return makeWidgetTransform()
+            .provide(clipDrawing())
+            .provide(clipInputAreas())
+            .provide(clipKeyboardInputs())
             ;
     }
 } // reactive::widget
