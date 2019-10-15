@@ -51,6 +51,9 @@ namespace reactive::widget
         template <typename T, typename U>
         struct IsPair<std::pair<T, U>> : std::true_type {};
         */
+
+        struct WidgetTransformBuildTag {};
+
     } // namespace detail
 
     template <typename T>
@@ -65,10 +68,16 @@ namespace reactive::widget
         using FuncType = typename detail::GetWidgetTransformFuncType<TFunc, Ts...>::type;
 
     public:
-        explicit WidgetTransform(FuncType func) :
+        WidgetTransform(detail::WidgetTransformBuildTag&&, FuncType func) :
             func_(std::move(func))
         {
         }
+
+        WidgetTransform(WidgetTransform const&) = default;
+        WidgetTransform(WidgetTransform&&) = default;
+
+        WidgetTransform& operator=(WidgetTransform const&) = default;
+        WidgetTransform& operator=(WidgetTransform&&) = default;
 
         template <typename U>
         auto operator()(U widget)
@@ -147,7 +156,10 @@ namespace reactive::widget
 
         operator WidgetTransform<void, Ts...>() &&
         {
-            return WidgetTransform<void>(std::move(func_));
+            return WidgetTransform<void>(
+                    detail::WidgetTransformBuildTag(),
+                    std::move(func_)
+                    );
         }
 
     private:
@@ -178,7 +190,10 @@ namespace reactive::widget
             ResultType
             >::type;
 
-        return WidgetTransformType(std::forward<TFunc>(func));
+        return WidgetTransformType(
+                detail::WidgetTransformBuildTag(),
+                std::forward<TFunc>(func)
+                );
     }
 
     inline auto makeWidgetTransform()

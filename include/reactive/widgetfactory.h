@@ -207,7 +207,7 @@ namespace reactive
 
         operator WidgetFactoryBase() &&
         {
-            auto f = widget::makeWidgetTransform(
+            widget::WidgetTransform<void> f = widget::makeWidgetTransform(
                 [maps = std::move(maps_)]
                 (auto w) mutable
                 {
