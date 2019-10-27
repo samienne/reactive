@@ -1,5 +1,3 @@
-#include <reactive/widgetmaps.h>
-
 #include <btl/cloneoncopy.h>
 
 #include <gtest/gtest.h>

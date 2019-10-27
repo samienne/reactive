@@ -421,16 +421,6 @@ namespace reactive
                     );
         }
 
-        /*
-        template <typename TWidgetMap>
-        auto operator|(TWidgetMap&& widgetMap) &&
-        -> decltype(
-                std::forward<TWidgetMap>(widgetMap)(std::move(*this))
-                )
-        {
-            return std::forward<TWidgetMap>(widgetMap)(std::move(*this));
-        }
-        */
         template <typename TWidgetTransform>
         auto operator|(TWidgetTransform&& t) &&
         -> decltype(
