@@ -33,6 +33,7 @@ jobs:
     submodules: true
 
   - script: |
+      sudo apt-get update
       sudo apt-get install -y ninja-build gcovr lcov libgl1-mesa-dev $(DEPS)
     displayName: 'install dependencies'
 
@@ -41,7 +42,13 @@ jobs:
       cd build/$(CC)-$(BUILDTYPE)
       CC=$(CC) CXX=$(CXX) ../meson/meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true ../..
       ninja
+    displayName: 'Build'
+    timeoutInMinutes: 20
+
+  - script: |
+      cd build/$(CC)-$(BUILDTYPE)
       ./test/unittest --gtest_output=xml
+    displayName: 'Run unit tests'
     timeoutInMinutes: 20
 
   - script: |
