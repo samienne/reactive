@@ -1,6 +1,9 @@
 #pragma once
 
+#include "bindobb.h"
+#include "bindinputareas.h"
 #include "bindkeyboardinputs.h"
+#include "setinputareas.h"
 #include "setkeyboardinputs.h"
 #include "binddrawing.h"
 #include "setdrawing.h"

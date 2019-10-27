@@ -1,5 +1,6 @@
 #include "widget/label.h"
 
+#include "widget/ondraw.h"
 #include "widget/binddrawcontext.h"
 #include "widget/bindobb.h"
 #include "widget/bindtheme.h"

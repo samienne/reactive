@@ -3,6 +3,10 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "widget/tracksize.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onpointermove.h"
 #include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"

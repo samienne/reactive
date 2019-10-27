@@ -2,6 +2,10 @@
 
 #include "widget/frame.h"
 #include "widget/label.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onhover.h"
+#include "widget/onclick.h"
 
 namespace reactive::widget
 {

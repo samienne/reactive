@@ -3,7 +3,10 @@
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
+#include "widget/trackfocus.h"
+#include "widget/focuson.h"
 #include "widget/onkeyevent.h"
+#include "widget/onclick.h"
 #include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"

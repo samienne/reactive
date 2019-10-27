@@ -2,11 +2,16 @@
 
 #include "margin.h"
 #include "theme.h"
+#include "ondraw.h"
+#include "binddrawcontext.h"
+#include "bindsize.h"
+#include "bindtheme.h"
 #include "widgettransformer.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
 
+#include "reactive/shapes.h"
 #include "reactive/rendering.h"
 
 #include "reactive/signal/constant.h"

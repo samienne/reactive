@@ -4,7 +4,6 @@
 
 #include "simplesizehint.h"
 #include "sizehint.h"
-#include "widgetmaps.h"
 #include "widget.h"
 
 #include "signal/cast.h"

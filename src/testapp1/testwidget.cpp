@@ -1,8 +1,14 @@
 #include "testwidget.h"
 
+#include <reactive/widget/onclick.h>
+#include <reactive/widget/ondraw.h>
+#include <reactive/widget/binddrawcontext.h>
+#include <reactive/widget/bindsize.h>
+#include <reactive/widget/bindtheme.h>
 #include <reactive/widget/onkeyevent.h>
 #include <reactive/widget/widgettransformer.h>
 
+#include <reactive/shapes.h>
 #include <reactive/send.h>
 
 #include <reactive/widgetfactory.h>

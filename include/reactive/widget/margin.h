@@ -1,7 +1,8 @@
 #pragma once
 
 #include "setobb.h"
-
+#include "bindobb.h"
+#include "transform.h"
 #include "widgettransformer.h"
 
 #include "reactive/widget.h"
@@ -13,8 +14,6 @@
 #include <avg/transform.h>
 
 #include <btl/fn.h>
-
-#include <iostream>
 
 namespace reactive::widget
 {

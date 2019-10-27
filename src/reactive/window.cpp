@@ -1,4 +1,6 @@
-#include "reactive/window.h"
+#include "window.h"
+
+#include "widget/drawbackground.h"
 
 #include "widgetfactory.h"
 

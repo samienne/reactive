@@ -1,6 +1,8 @@
 #include "widget/bin.h"
 
+#include "widget/addwidgets.h"
 #include "widget/binddrawcontext.h"
+#include "widget/bindsize.h"
 #include "widget/clip.h"
 #include "widget/widgettransformer.h"
 

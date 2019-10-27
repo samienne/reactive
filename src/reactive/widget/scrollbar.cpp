@@ -1,10 +1,17 @@
 #include "widget/scrollbar.h"
 
 #include "widget/margin.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onpointermove.h"
+#include "widget/ondraw.h"
+#include "widget/bindtheme.h"
+#include "widget/binddrawcontext.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
 #include "widget/widgettransformer.h"
 
+#include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
 
 #include "send.h"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "reduce.h"
 #include "adddrawings.h"
 
 #include "widgettransformer.h"

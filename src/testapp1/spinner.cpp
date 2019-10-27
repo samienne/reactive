@@ -1,7 +1,5 @@
 #include "spinner.h"
 
-#include <reactive/widgetmaps.h>
-
 #include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
 #include <reactive/widget/frame.h>
