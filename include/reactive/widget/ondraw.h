@@ -90,16 +90,6 @@ namespace reactive::widget
                     );
 
         };
-#if 0
-        return makeWidgetTransformer().bind(
-                [f=std::forward<TFunc>(f)](auto... values) mutable
-                /*-> decltype(
-                    detail::onDraw(std::move(f), std::move(values)...)
-                    )*/
-        {
-            return detail::onDraw(std::move(f), std::move(values)...);
-        });
-#endif
     }
 
     template <typename TFunc>
@@ -113,15 +103,6 @@ namespace reactive::widget
                     );
 
         };
-#if 0
-        return bindWidgetMap([f=std::forward<TFunc>(f)](auto... values) mutable
-                /*-> decltype(
-                    detail::onDrawBehind(std::move(f), std::move(values)...)
-                    )*/
-        {
-            return detail::onDrawBehind(std::move(f), std::move(values)...);
-        });
-#endif
     }
 
 } // namespace reactive::widget

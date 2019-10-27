@@ -14,7 +14,6 @@
 #include "widget/ondraw.h"
 
 #include "clickevent.h"
-#include "widgetmap.h"
 
 #include <reactive/stream/collect.h>
 #include <reactive/stream/stream.h>
@@ -258,20 +257,5 @@ namespace reactive
 
         return widget::makeWidgetTransformer(std::move(f));
     }
-
-    inline auto trackTheme(signal::InputHandle<widget::Theme> const& handle)
-        //-> FactoryMap
-    {
-        auto f = [handle](auto widget)
-            // -> Widget
-        {
-            auto theme = widget.getTheme();
-            return std::move(widget)
-                .setTheme(signal::tee(std::move(theme), handle));
-        };
-
-        return widgetMap(f);
-    }
-
 } // namespace reactive
 
