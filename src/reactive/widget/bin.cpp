@@ -2,16 +2,16 @@
 
 #include "widget/binddrawcontext.h"
 #include "widget/clip.h"
-#include "widget/widgettransform.h"
+#include "widget/widgettransformer.h"
 
 namespace reactive::widget
 {
 
-WidgetTransform<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
+WidgetTransformer<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
 {
     auto sizeHint = signal::share(f.getSizeHint());
 
-    return makeWidgetTransform()
+    return makeWidgetTransformer()
         .provide(bindDrawContext(), bindSize())
         .values(std::move(contentSize), std::move(f))
         .bind([](auto drawContext, auto viewSize, auto contentSize,

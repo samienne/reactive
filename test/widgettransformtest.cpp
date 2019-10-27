@@ -1,4 +1,4 @@
-#include <reactive/widget/widgettransform.h>
+#include <reactive/widget/widgettransformer.h>
 #include <reactive/signal.h>
 
 #include <pmr/new_delete_resource.h>
@@ -16,12 +16,12 @@ auto makeEmptyWidget()
             );
 }
 
-TEST(WidgetTransform, simpleBind)
+TEST(WidgetTransformer, simpleBind)
 {
-    auto t = makeWidgetTransform()
+    auto t = makeWidgetTransformer()
         .bind([]()
         {
-            return makeWidgetTransform();
+            return makeWidgetTransformer();
         });
 
     auto w = std::move(t)(makeEmptyWidget());
@@ -30,10 +30,10 @@ TEST(WidgetTransform, simpleBind)
     static_assert(std::is_same_v<std::tuple<>, std::decay_t<decltype(*w.second)>>);
 }
 
-TEST(WidgetTransform, simpleProvide)
+TEST(WidgetTransformer, simpleProvide)
 {
-    auto t = makeWidgetTransform()
-        .provide(makeWidgetTransform([](auto w)
+    auto t = makeWidgetTransformer()
+        .provide(makeWidgetTransformer([](auto w)
             {
                 auto obb = signal::share(w.getObb());
                 auto w2 = std::move(w).setObb(obb);
@@ -51,15 +51,15 @@ TEST(WidgetTransform, simpleProvide)
             >);
 }
 
-TEST(WidgetTransform, typeErasure)
+TEST(WidgetTransformer, typeErasure)
 {
-    auto t = makeWidgetTransform()
+    auto t = makeWidgetTransformer()
         .bind([]()
         {
-            return makeWidgetTransform();
+            return makeWidgetTransformer();
         });
 
-    WidgetTransform<void> t2(std::move(t));
+    WidgetTransformer<void> t2(std::move(t));
 
     auto w = std::move(t2)(makeEmptyWidget());
 

@@ -5,7 +5,7 @@
 #include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
 #include <reactive/widget/frame.h>
-#include <reactive/widget/widgettransform.h>
+#include <reactive/widget/widgettransformer.h>
 
 #include <reactive/simplesizehint.h>
 
@@ -68,7 +68,7 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | makeWidgetTransform()
+        | makeWidgetTransformer()
         .provide(bindDrawContext(), bindSize(), bindTheme())
         .values(std::move(t))
         .bind(onDraw(draw))

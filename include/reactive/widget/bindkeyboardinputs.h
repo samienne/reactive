@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/keyboardinput.h"
 
@@ -13,7 +13,7 @@ namespace reactive::widget
 {
     inline auto bindKeyboardInputs()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = signal::share(widget.getKeyboardInputs());
 
@@ -26,7 +26,7 @@ namespace reactive::widget
 
     inline auto grabKeyboardInputs()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = std::move(widget.getKeyboardInputs());
 

@@ -3,7 +3,7 @@
 #include "bindinputareas.h"
 #include "bindobb.h"
 #include "setinputareas.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal.h"
 
@@ -17,7 +17,7 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(grabInputAreas())
             .values(std::move(area), std::move(cb))
             .bind([id](auto areas, auto area, auto cb)
@@ -56,7 +56,7 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(grabInputAreas(), bindObb())
             .values(std::move(cb))
             .bind([id](auto areas, auto obb, auto cb)

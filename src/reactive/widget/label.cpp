@@ -5,7 +5,7 @@
 #include "widget/bindtheme.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
-#include "widget/widgettransform.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -57,7 +57,7 @@ WidgetFactory label(SharedSignal<std::string> text)
     };
 
     return makeWidgetFactory()
-        | makeWidgetTransform()
+        | makeWidgetTransformer()
             .provide(bindDrawContext(), bindObb(), bindTheme())
             .values(text)
             .bind(onDraw(draw))

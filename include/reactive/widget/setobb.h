@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal.h"
 
@@ -13,10 +13,10 @@ namespace reactive::widget
     template <typename T>
     auto setObb(Signal<avg::Obb, T> obb)
     {
-        return makeWidgetTransform(
+        return makeWidgetTransformer(
             [obb=btl::cloneOnCopy(std::move(obb))](auto w) mutable
             {
-                return makeWidgetTransformResult(
+                return makeWidgetTransformerResult(
                         std::move(w).setObb(std::move(*obb))
                         );
             });

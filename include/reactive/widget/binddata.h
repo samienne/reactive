@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 namespace reactive::widget
 {

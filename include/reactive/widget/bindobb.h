@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal/share.h"
 
@@ -10,11 +10,11 @@ namespace reactive::widget
 {
     inline auto bindObb()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto obb = signal::share(widget.getObb());
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget).setObb(obb),
                     obb
                     );
@@ -24,11 +24,11 @@ namespace reactive::widget
 
     inline auto grabObb()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto obb = widget.getObb();
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget).setObb(signal::constant(avg::Obb())),
                     std::move(obb)
                     );

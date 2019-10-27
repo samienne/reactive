@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include <avg/drawing.h>
 
@@ -8,11 +8,11 @@ namespace reactive::widget
 {
     inline auto bindDrawContext()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto context = widget.getDrawContext();
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget),
                     std::move(context)
                     );

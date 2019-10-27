@@ -2,7 +2,7 @@
 
 #include "adddrawings.h"
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/inputarea.h"
 #include "reactive/widget.h"
@@ -104,7 +104,7 @@ namespace reactive::widget
                 return w.getDrawing();
             });
 
-            return makeWidgetTransformResult(makeWidget(
+            return makeWidgetTransformerResult(makeWidget(
                     std::move(widget.getDrawContext()),
                     std::move(widget.getDrawing()),
                     std::move(areasSignal),
@@ -117,7 +117,7 @@ namespace reactive::widget
 
         };
 
-        return makeWidgetTransform(std::move(f));
+        return makeWidgetTransformer(std::move(f));
     }
 
     template <typename T>
@@ -135,10 +135,10 @@ namespace reactive::widget
                     btl::clone(*widgets)
                     );
 
-            return makeWidgetTransformResult(reduce(std::move(w1)));
+            return makeWidgetTransformerResult(reduce(std::move(w1)));
         };
 
-        return makeWidgetTransform(std::move(f));
+        return makeWidgetTransformer(std::move(f));
     }
 
     inline auto addWidget(Widget widget)

@@ -3,7 +3,7 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
-#include "widget/widgettransform.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
@@ -70,7 +70,7 @@ WidgetFactory scrollView(WidgetFactory f)
             {{100, 800, 10000}}
             )))
         | trackSize(viewSize.handle)
-        | makeWidgetTransform()
+        | makeWidgetTransformer()
             .provide(onPointerDown(signal::mapFunction(
                 [dragOffsetHandle=dragOffset.handle,
                 scrollPosHandle=scrollPos.handle

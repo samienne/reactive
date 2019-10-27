@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/keyboardinput.h"
 #include "reactive/signal.h"
@@ -14,10 +14,10 @@ namespace reactive::widget
     template <typename T>
     auto setKeyboardInputs(Signal<std::vector<KeyboardInput>, T> inputs)
     {
-        return makeWidgetTransform(
+        return makeWidgetTransformer(
             [inputs=btl::cloneOnCopy(std::move(inputs))](auto w) mutable
             {
-                return makeWidgetTransformResult(
+                return makeWidgetTransformerResult(
                         std::move(w).setKeyboardInputs(std::move(*inputs))
                     );
             });

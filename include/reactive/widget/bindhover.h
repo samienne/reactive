@@ -9,7 +9,7 @@ namespace reactive::widget
     {
         auto hover = signal::input(false);
 
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(onHover([handle=std::move(hover.handle)]
                         (HoverEvent const& e) mutable
                         {
@@ -24,7 +24,7 @@ namespace reactive::widget
     {
         auto hover = signal::input(false);
 
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(onHover(signal::constant([handle=std::move(hover.handle)]
                             (HoverEvent const& e) mutable
                             {

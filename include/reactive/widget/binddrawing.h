@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal/share.h"
 
@@ -10,11 +10,11 @@ namespace reactive::widget
 {
     inline auto bindDrawing()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto drawing = signal::share(widget.getDrawing());
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget).setDrawing(drawing),
                     drawing
                     );
@@ -23,7 +23,7 @@ namespace reactive::widget
 
     inline auto grabDrawing()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto drawing = widget.getDrawing();
 
@@ -31,7 +31,7 @@ namespace reactive::widget
                     widget.getDrawContext()
                     );
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget).setDrawing(std::move(empty)),
                     std::move(drawing)
                     );

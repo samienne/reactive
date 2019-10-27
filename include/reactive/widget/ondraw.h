@@ -3,7 +3,7 @@
 #include "binddrawing.h"
 #include "bindobb.h"
 #include "setdrawing.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signaltraits.h"
 
@@ -24,7 +24,7 @@ namespace reactive::widget
         >
         auto onDraw(TFunc&& func, Us... us)
         {
-            return makeWidgetTransform()
+            return makeWidgetTransformer()
                 .provide(grabDrawing(), bindObb())
                 .values(std::move(us)...)
                 .bind([func=std::forward<TFunc>(func)]
@@ -55,7 +55,7 @@ namespace reactive::widget
         >
         auto onDrawBehind(TFunc&& func, Us... us)
         {
-            return makeWidgetTransform()
+            return makeWidgetTransformer()
                 .provide(grabDrawing(), bindObb())
                 .values(std::move(us)...)
                 .bind([func=std::forward<TFunc>(func)]
@@ -91,7 +91,7 @@ namespace reactive::widget
 
         };
 #if 0
-        return makeWidgetTransform().bind(
+        return makeWidgetTransformer().bind(
                 [f=std::forward<TFunc>(f)](auto... values) mutable
                 /*-> decltype(
                     detail::onDraw(std::move(f), std::move(values)...)

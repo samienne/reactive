@@ -2,7 +2,7 @@
 
 #include "bindkeyboardinputs.h"
 #include "setkeyboardinputs.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/widgetfactory.h"
 
@@ -22,7 +22,7 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetTransform()
+            return makeWidgetTransformer()
                 .provide(grabKeyboardInputs())
                 .values(std::move(handler))
                 .bind([](auto inputs, auto handler) mutable
@@ -116,7 +116,7 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return makeWidgetTransformResult(std::forward<TWidget>(widget)
+            return makeWidgetTransformerResult(std::forward<TWidget>(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
                 );

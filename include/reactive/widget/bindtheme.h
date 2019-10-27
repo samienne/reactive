@@ -2,7 +2,7 @@
 
 #include "theme.h"
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal/share.h"
 
@@ -10,11 +10,11 @@ namespace reactive::widget
 {
     inline auto bindTheme()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto theme = signal::share(widget.getTheme());
 
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget).setTheme(theme),
                     theme
                     );

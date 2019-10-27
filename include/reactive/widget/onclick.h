@@ -2,7 +2,7 @@
 
 #include "onpointerup.h"
 #include "onpointerdown.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/signal/map.h"
 
@@ -36,7 +36,7 @@ namespace reactive::widget
             return EventResult::possible;
         };
 
-        return makeWidgetTransform(
+        return makeWidgetTransformer(
             [f=std::move(f), cb=signal::share(std::move(cb))](auto widget) mutable
             {
                 auto w2 = std::move(widget)
@@ -47,7 +47,7 @@ namespace reactive::widget
                         signal::mapFunction(std::move(f), cb, w2.getSize()
                         ));
 
-                return makeWidgetTransformResult(
+                return makeWidgetTransformerResult(
                         std::move(map)(std::move(w2)).first
                         );
             });

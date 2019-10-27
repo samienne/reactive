@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/widget/widgettransform.h"
+#include "reactive/widget/widgettransformer.h"
 #include "reactive/widget/bindkeyboardinputs.h"
 #include "reactive/widget/binddrawcontext.h"
 
@@ -35,7 +35,7 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        return widget::makeWidgetTransform()
+        return widget::makeWidgetTransformer()
             .provide(widget::bindDrawContext(), widget::bindKeyboardInputs())
             .bind(widget::onDraw(
             [](DrawContext const& drawContext, auto const& inputs)

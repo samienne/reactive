@@ -15,7 +15,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto map = [obbMap=std::move(obbMap),
+    auto transformer = [obbMap=std::move(obbMap),
             hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
                 (auto w)
         // -> Widget
@@ -45,13 +45,13 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                 return std::move(factory)(w.getDrawContext(), std::move(size));
             });
 
-        return widget::makeWidgetTransformResult(
+        return widget::makeWidgetTransformerResult(
                 std::move(w) | addWidgets(std::move(widgets))
                 );
     };
 
     return makeWidgetFactory()
-        | widget::makeWidgetTransform(std::move(map))
+        | widget::makeWidgetTransformer(std::move(transformer))
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 

@@ -2,7 +2,7 @@
 
 #include "reactive/signal.h"
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include <avg/drawing.h>
 
@@ -15,10 +15,10 @@ namespace reactive::widget
     template <typename T>
     auto setDrawing(Signal<avg::Drawing, T> drawing)
     {
-        return makeWidgetTransform(
+        return makeWidgetTransformer(
             [drawing=btl::cloneOnCopy(std::move(drawing))](auto w) mutable
             {
-                return makeWidgetTransformResult(
+                return makeWidgetTransformerResult(
                         std::move(w).setDrawing(std::move(*drawing))
                         );
             });

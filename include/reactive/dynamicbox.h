@@ -3,7 +3,7 @@
 #include "widget/bindsize.h"
 #include "widget/binddrawcontext.h"
 #include "widget/widgetobject.h"
-#include "widget//widgettransform.h"
+#include "widget//widgettransformer.h"
 
 #include "box.h"
 
@@ -82,7 +82,7 @@ namespace reactive
                 );
 
         return makeWidgetFactory()
-            | widget::makeWidgetTransform()
+            | widget::makeWidgetTransformer()
             .provide(widget::bindDrawContext(), widget::bindSize())
             .values(hints.clone(), std::move(widgets))
             .bind([](auto drawContext, auto size, auto hints, auto widgets) mutable

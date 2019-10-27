@@ -10,31 +10,31 @@
 namespace reactive::widget
 {
     template <typename... Ts>
-    using WidgetTransformFunc = std::function<
+    using WidgetTransformerFunc = std::function<
         std::pair<Widget, btl::CloneOnCopy<std::tuple<Ts...>>>(Widget)
         >;
 
     template <typename TFunc, typename... Ts>
-    class WidgetTransform;
+    class WidgetTransformer;
 
     template <typename TFunc>
-    auto makeWidgetTransform(TFunc&& func);
+    auto makeWidgetTransformer(TFunc&& func);
 
-    inline auto makeWidgetTransform();
+    inline auto makeWidgetTransformer();
 
     namespace detail
     {
         template <typename T, typename...>
-        struct GetWidgetTransformFuncType
+        struct GetWidgetTransformerFuncType
         {
             using type = T;
         };
 
         template <typename... Ts>
-        struct GetWidgetTransformFuncType<void, Ts...>
+        struct GetWidgetTransformerFuncType<void, Ts...>
         {
             // void means type erasure
-            using type = WidgetTransformFunc<Ts...>;
+            using type = WidgetTransformerFunc<Ts...>;
         };
 
 
@@ -52,32 +52,34 @@ namespace reactive::widget
         struct IsPair<std::pair<T, U>> : std::true_type {};
         */
 
-        struct WidgetTransformBuildTag {};
+        struct WidgetTransformerBuildTag {};
 
     } // namespace detail
 
     template <typename T>
-    struct IsWidgetTransform : std::false_type {};
+    struct IsWidgetTransformer : std::false_type {};
 
     template <typename T, typename... Ts>
-    struct IsWidgetTransform<WidgetTransform<T, Ts...>> : std::true_type {};
+    struct IsWidgetTransformer<WidgetTransformer<T, Ts...>> : std::true_type {};
 
     template <typename TFunc, typename... Ts>
-    class WidgetTransform
+    class WidgetTransformer
     {
-        using FuncType = typename detail::GetWidgetTransformFuncType<TFunc, Ts...>::type;
+        using FuncType = typename detail::GetWidgetTransformerFuncType<
+            TFunc, Ts...
+            >::type;
 
     public:
-        WidgetTransform(detail::WidgetTransformBuildTag&&, FuncType func) :
+        WidgetTransformer(detail::WidgetTransformerBuildTag&&, FuncType func) :
             func_(std::move(func))
         {
         }
 
-        WidgetTransform(WidgetTransform const&) = default;
-        WidgetTransform(WidgetTransform&&) = default;
+        WidgetTransformer(WidgetTransformer const&) = default;
+        WidgetTransformer(WidgetTransformer&&) = default;
 
-        WidgetTransform& operator=(WidgetTransform const&) = default;
-        WidgetTransform& operator=(WidgetTransform&&) = default;
+        WidgetTransformer& operator=(WidgetTransformer const&) = default;
+        WidgetTransformer& operator=(WidgetTransformer&&) = default;
 
         template <typename U>
         auto operator()(U widget)
@@ -87,12 +89,12 @@ namespace reactive::widget
         }
 
         template <typename U>
-        auto bind(U&& u) && // std::function<WidgetTransform(Ts...)>
+        auto bind(U&& u) && // std::function<WidgetTransformer(Ts...)>
         {
             using UReturnType = std::invoke_result_t<U, Ts...>;
-            static_assert(IsWidgetTransform<UReturnType>::value);
+            static_assert(IsWidgetTransformer<UReturnType>::value);
 
-            return makeWidgetTransform(
+            return makeWidgetTransformer(
                 [f=std::move(func_), u=std::forward<U>(u)](auto w) mutable
                 {
                     auto pair = std::move(f)(std::move(w));
@@ -103,13 +105,13 @@ namespace reactive::widget
         }
 
         template <typename U, typename... Us>
-        auto provide(WidgetTransform<U, Us...> u) &&
+        auto provide(WidgetTransformer<U, Us...> u) &&
         {
             static_assert(std::is_invocable_v<U, Widget>);
             using UReturnType = std::invoke_result_t<U, Widget>;
             static_assert(detail::isPair<UReturnType>);
 
-            return makeWidgetTransform(
+            return makeWidgetTransformer(
                 [f=std::move(func_), u=std::move(u)](auto w) mutable
                 {
                     auto pair1 = std::move(f)(std::move(w));
@@ -126,7 +128,7 @@ namespace reactive::widget
         }
 
         template <typename U, typename... Us, typename... Ws>
-        auto provide(WidgetTransform<U, Us...> u, Ws&&... ws) &&
+        auto provide(WidgetTransformer<U, Us...> u, Ws&&... ws) &&
         {
             return std::move(*this)
                 .provide(std::move(u))
@@ -137,7 +139,7 @@ namespace reactive::widget
         template <typename... Us>
         auto values(Us&&... us) &&
         {
-            return makeWidgetTransform(
+            return makeWidgetTransformer(
                 [f=std::move(func_),
                 us=btl::cloneOnCopy(std::make_tuple(std::forward<Us>(us)...))]
                 (auto w) mutable
@@ -154,10 +156,10 @@ namespace reactive::widget
                 });
         }
 
-        operator WidgetTransform<void, Ts...>() &&
+        operator WidgetTransformer<void, Ts...>() &&
         {
-            return WidgetTransform<void>(
-                    detail::WidgetTransformBuildTag(),
+            return WidgetTransformer<void>(
+                    detail::WidgetTransformerBuildTag(),
                     std::move(func_)
                     );
         }
@@ -169,36 +171,36 @@ namespace reactive::widget
     namespace detail
     {
         template <typename TFunc, typename T>
-        struct GetWidgetTransformType {};
+        struct GetWidgetTransformerType {};
 
         template <typename TFunc, typename T, typename... Ts>
-        struct GetWidgetTransformType<
+        struct GetWidgetTransformerType<
             TFunc,
             std::pair<T, btl::CloneOnCopy<std::tuple<Ts...>>>
             >
         {
-            using type = WidgetTransform<TFunc, Ts...>;
+            using type = WidgetTransformer<TFunc, Ts...>;
         };
     }
 
     template <typename TFunc>
-    auto makeWidgetTransform(TFunc&& func)
+    auto makeWidgetTransformer(TFunc&& func)
     {
         using ResultType = std::invoke_result_t<TFunc, Widget>;
-        using WidgetTransformType = typename detail::GetWidgetTransformType<
+        using WidgetTransformerType = typename detail::GetWidgetTransformerType<
             std::decay_t<TFunc>,
             ResultType
             >::type;
 
-        return WidgetTransformType(
-                detail::WidgetTransformBuildTag(),
+        return WidgetTransformerType(
+                detail::WidgetTransformerBuildTag(),
                 std::forward<TFunc>(func)
                 );
     }
 
-    inline auto makeWidgetTransform()
+    inline auto makeWidgetTransformer()
     {
-        return makeWidgetTransform([](auto w)
+        return makeWidgetTransformer([](auto w)
             {
                 return std::make_pair(
                         std::move(w),
@@ -210,7 +212,7 @@ namespace reactive::widget
     template <typename... Ts>
     auto provideValues(Ts&&... ts)
     {
-        return makeWidgetTransform(
+        return makeWidgetTransformer(
             [ts=btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))]
             (auto w) mutable
             {
@@ -222,7 +224,7 @@ namespace reactive::widget
     }
 
     template <typename TWidget, typename... Ts>
-    auto makeWidgetTransformResult(TWidget&& widget, Ts&&... ts)
+    auto makeWidgetTransformerResult(TWidget&& widget, Ts&&... ts)
     {
         static_assert(IsWidget<TWidget>::value);
 

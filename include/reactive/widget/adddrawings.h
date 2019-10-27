@@ -3,7 +3,7 @@
 #include "bindobb.h"
 #include "binddrawing.h"
 #include "setdrawing.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include <btl/foreach.h>
 #include <btl/sequence.h>
@@ -13,7 +13,7 @@ namespace reactive::widget
     template <typename T>
     auto addDrawing(Signal<avg::Drawing, T> drawing)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindObb(), grabDrawing())
             .bind([d1=std::move(drawing)](auto obb, auto d2)
             {
@@ -37,7 +37,7 @@ namespace reactive::widget
     >
     auto addDrawings(TSignalDrawings drawings)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindObb(), grabDrawing())
             .values(std::move(drawings))
             .bind([](auto obb, auto drawing, auto drawings)

@@ -253,7 +253,7 @@ FocusGroupState step(FocusGroupState oldState,
 
 } // anonymous
 
-WidgetTransform<void> focusGroup()
+WidgetTransformer<void> focusGroup()
 {
     auto f = [](Widget w)
     {
@@ -271,13 +271,13 @@ WidgetTransform<void> focusGroup()
         auto inputs = signal::map(mapStateToInputs, std::move(state),
                 signal::constant(keyStream.handle), obb);
 
-        return makeWidgetTransformResult(std::move(w)
+        return makeWidgetTransformerResult(std::move(w)
             .setObb(std::move(obb))
             .setKeyboardInputs(std::move(inputs))
             );
     };
 
-    return makeWidgetTransform(f);
+    return makeWidgetTransformer(f);
 }
 
 } // reactive::widget

@@ -2,7 +2,7 @@
 
 #include "setobb.h"
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
@@ -21,7 +21,7 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(grabObb())
             .values(std::move(amount))
             .bind([](auto obb, auto amount)

@@ -2,7 +2,7 @@
 
 #include "margin.h"
 #include "theme.h"
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
@@ -50,7 +50,7 @@ namespace reactive::widget
         return
             margin(signal::constant(5.0f))
             >> mapFactoryWidget(
-                    makeWidgetTransform()
+                    makeWidgetTransformer()
                     .provide(bindDrawContext(), bindSize(), bindTheme())
                     .values(std::move(cornerRadius), std::move(color))
                     .bind(onDrawBehind(&detail::drawFrame))

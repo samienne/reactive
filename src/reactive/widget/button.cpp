@@ -48,7 +48,7 @@ WidgetFactory button(Signal<std::string> label,
 
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
-        | makeWidgetTransform()
+        | makeWidgetTransformer()
         .provide(bindDrawContext(), bindSize(), bindTheme())
         .values(std::move(hover.signal), std::move(down.signal))
         .bind(onDrawBehind(&drawButton))

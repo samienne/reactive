@@ -3,7 +3,7 @@
 #include "widget/margin.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
-#include "widget/widgettransform.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -153,7 +153,7 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindSize())
             .bind([=](auto size)
             {
@@ -175,7 +175,7 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindSliderObb<IsHorizontal>(amount, handleSize))
             .bind([=](auto obb)
             {
@@ -189,7 +189,7 @@ namespace
         SharedSignal<float> amount,
         SharedSignal<float> handleSize)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindDrawContext(), bindSize(), bindTheme())
             .provide(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
             .bind([=](auto drawContext, auto size,
@@ -199,7 +199,7 @@ namespace
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                         downOffset.signal);
 
-                return makeWidgetTransform()
+                return makeWidgetTransformer()
                     .provide(onPointerDown(scrollPointerDown<IsHorizontal>(
                             downOffset.handle, size.clone(), amount, handleSize)
                         ))

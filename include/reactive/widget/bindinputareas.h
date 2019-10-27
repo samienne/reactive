@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransform.h"
+#include "widgettransformer.h"
 
 #include "reactive/inputarea.h"
 
@@ -10,7 +10,7 @@ namespace reactive::widget
 {
     inline auto bindInputAreas()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = signal::share(widget.getInputAreas());
 
@@ -25,7 +25,7 @@ namespace reactive::widget
 
     inline auto grabInputAreas()
     {
-        return makeWidgetTransform([](auto widget)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = std::move(widget.getInputAreas());
 

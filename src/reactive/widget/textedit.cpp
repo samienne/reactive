@@ -4,7 +4,7 @@
 #include "widget/label.h"
 #include "widget/frame.h"
 #include "widget/onkeyevent.h"
-#include "widget/widgettransform.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -166,7 +166,7 @@ TextEdit::operator WidgetFactory() const
 
     return makeWidgetFactory()
         | trackFocus(focus.handle)
-        | makeWidgetTransform()
+        | makeWidgetTransformer()
             .provide(bindDrawContext(), bindSize(), bindTheme())
             .values(std::move(newState), std::move(focusPercentage))
             .bind(onDraw(draw))

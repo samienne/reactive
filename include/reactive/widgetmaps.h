@@ -39,12 +39,12 @@ namespace reactive
                 .transform(t->clone())
                 ;
 
-            return widget::makeWidgetTransformResult(std::move(w));
+            return widget::makeWidgetTransformerResult(std::move(w));
         };
 
         //static_assert(IsWidgetMap<decltype(f)>::value, "");
 
-        return widget::makeWidgetTransform(std::move(f));
+        return widget::makeWidgetTransformer(std::move(f));
     }
 
     template <typename TSignalWidget, typename = typename
@@ -87,7 +87,7 @@ namespace reactive
     template <typename T>
     auto setFocusable(Signal<bool, T> focusable)
     {
-        return widget::makeWidgetTransform()
+        return widget::makeWidgetTransformer()
             .provide(widget::grabKeyboardInputs())
             .values(std::move(focusable))
             .bind([](auto keyboardInputs, auto focusable)
@@ -110,7 +110,7 @@ namespace reactive
     template <typename T>
     auto requestFocus(Signal<bool, T> requestFocus)
     {
-        return widget::makeWidgetTransform()
+        return widget::makeWidgetTransformer()
             .provide(widget::grabKeyboardInputs())
             .values(std::move(requestFocus))
             .bind([](auto keyboardInputs, auto requestFocus)
@@ -147,7 +147,7 @@ namespace reactive
         auto f = [focusRequest=btl::cloneOnCopy(std::move(focusRequest))]
             (auto widget)
         {
-            return makeWidgetTransformResult(
+            return makeWidgetTransformerResult(
                     std::move(widget)
                     | setFocusable(signal::constant(true))
                     //| requestFocus(std::move(*focusRequest))
@@ -155,7 +155,7 @@ namespace reactive
                     );
         };
 
-        return widget::makeWidgetTransform(std::move(f));
+        return widget::makeWidgetTransformer(std::move(f));
     }
 
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
@@ -170,9 +170,9 @@ namespace reactive
                     std::move(handle)
                     );
 
-            return widget::makeWidgetTransformResult(std::move(widget)
+            return widget::makeWidgetTransformerResult(std::move(widget)
                 .setObb(std::move(obb))
-                | widget::makeWidgetTransform()
+                | widget::makeWidgetTransformer()
                 .provide(widget::bindObb(), widget::grabKeyboardInputs())
                 .bind([](auto obb, auto inputs)
                 {
@@ -192,9 +192,9 @@ namespace reactive
         };
 
         //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
-        //static_assert(IsWidgetTransform<decltype(f)>::value, "");
+        //static_assert(IsWidgetTransformer<decltype(f)>::value, "");
 
-        return widget::makeWidgetTransform(std::move(f));
+        return widget::makeWidgetTransformer(std::move(f));
     }
 
     inline auto trackObb(signal::InputHandle<avg::Obb> handle)
@@ -205,9 +205,9 @@ namespace reactive
         {
             auto obb = signal::tee(widget.getObb(), handle);
 
-            return widget::makeWidgetTransformResult(std::move(widget)
+            return widget::makeWidgetTransformerResult(std::move(widget)
                 .setObb(std::move(obb))
-                | widget::makeWidgetTransform()
+                | widget::makeWidgetTransformer()
                 .provide(widget::bindObb(), widget::grabKeyboardInputs())
                 .bind([](auto obb, auto inputs)
                 {
@@ -227,9 +227,9 @@ namespace reactive
         };
 
         //static_assert(std::is_convertible<decltype(f), WidgetMap>::value, "");
-        //static_assert(IsWidgetTransform<decltype(f)>::value, "");
+        //static_assert(IsWidgetTransformer<decltype(f)>::value, "");
 
-        return widget::makeWidgetTransform(std::move(f));
+        return widget::makeWidgetTransformer(std::move(f));
     }
 
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
@@ -251,12 +251,12 @@ namespace reactive
                     signal::share(widget.getKeyboardInputs()),
                     anyHasFocus, handle);
 
-            return widget::makeWidgetTransformResult(
+            return widget::makeWidgetTransformerResult(
                     std::move(widget).setKeyboardInputs(std::move(input))
                     );
         };
 
-        return widget::makeWidgetTransform(std::move(f));
+        return widget::makeWidgetTransformer(std::move(f));
     }
 
     inline auto trackTheme(signal::InputHandle<widget::Theme> const& handle)

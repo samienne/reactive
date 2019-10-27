@@ -34,7 +34,7 @@ namespace reactive::widget
     template <typename T>
     auto background(Signal<avg::Brush, T> brush)
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindDrawContext(), bindSize())
             .values(std::move(brush))
             .bind(onDrawBehind(detail::drawBackground))
@@ -43,7 +43,7 @@ namespace reactive::widget
 
     inline auto background()
     {
-        return makeWidgetTransform()
+        return makeWidgetTransformer()
             .provide(bindTheme())
             .bind([](auto theme)
             {
