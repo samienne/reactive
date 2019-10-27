@@ -71,7 +71,7 @@ WidgetFactory scrollView(WidgetFactory f)
             )))
         | trackSize(viewSize.handle)
         | makeWidgetTransformer()
-            .provide(onPointerDown(signal::mapFunction(
+            .compose(onPointerDown(signal::mapFunction(
                 [dragOffsetHandle=dragOffset.handle,
                 scrollPosHandle=scrollPos.handle
                 ]
@@ -86,7 +86,7 @@ WidgetFactory scrollView(WidgetFactory f)
 
                     return EventResult::possible;
                 }, x.signal, y.signal)))
-            .provide(onPointerMove(signal::mapFunction(
+            .compose(onPointerMove(signal::mapFunction(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,
@@ -108,7 +108,7 @@ WidgetFactory scrollView(WidgetFactory f)
                         return EventResult::accept;
                     }, dragOffset.signal, viewSize.signal, contentSize,
                     scrollPos.signal)))
-            .provide(onPointerUp([scrollPosHandle=scrollPos.handle]
+            .compose(onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
                     {
                         scrollPosHandle.set(btl::none);

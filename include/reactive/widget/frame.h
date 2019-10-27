@@ -51,7 +51,7 @@ namespace reactive::widget
             margin(signal::constant(5.0f))
             >> mapFactoryWidget(
                     makeWidgetTransformer()
-                    .provide(bindDrawContext(), bindSize(), bindTheme())
+                    .compose(bindDrawContext(), bindSize(), bindTheme())
                     .values(std::move(cornerRadius), std::move(color))
                     .bind(onDrawBehind(&detail::drawFrame))
                     )

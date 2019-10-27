@@ -76,7 +76,7 @@ WidgetFactory makeTestWidget()
 
     return makeWidgetFactory()
         | makeWidgetTransformer()
-        .provide(bindDrawContext(), bindSize(), bindTheme())
+        .compose(bindDrawContext(), bindSize(), bindTheme())
         .values(std::move(state), std::move(textState))
         .bind(onDraw(drawTestWidget))
         | widget::onClick(1, send(1, p.handle))

@@ -23,7 +23,7 @@ namespace reactive::widget
         auto onKeyEvent(TSignalHandler handler)
         {
             return makeWidgetTransformer()
-                .provide(grabKeyboardInputs())
+                .compose(grabKeyboardInputs())
                 .values(std::move(handler))
                 .bind([](auto inputs, auto handler) mutable
                 {

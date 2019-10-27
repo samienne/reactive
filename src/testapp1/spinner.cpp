@@ -69,7 +69,7 @@ WidgetFactory makeSpinner()
 
     return makeWidgetFactory()
         | makeWidgetTransformer()
-        .provide(bindDrawContext(), bindSize(), bindTheme())
+        .compose(bindDrawContext(), bindSize(), bindTheme())
         .values(std::move(t))
         .bind(onDraw(draw))
         | widget::clip()

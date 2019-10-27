@@ -14,7 +14,7 @@ namespace reactive::widget
     auto addDrawing(Signal<avg::Drawing, T> drawing)
     {
         return makeWidgetTransformer()
-            .provide(bindObb(), grabDrawing())
+            .compose(bindObb(), grabDrawing())
             .bind([d1=std::move(drawing)](auto obb, auto d2)
             {
                 auto newDrawing = signal::map(
@@ -38,7 +38,7 @@ namespace reactive::widget
     auto addDrawings(TSignalDrawings drawings)
     {
         return makeWidgetTransformer()
-            .provide(bindObb(), grabDrawing())
+            .compose(bindObb(), grabDrawing())
             .values(std::move(drawings))
             .bind([](auto obb, auto drawing, auto drawings)
             {

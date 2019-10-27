@@ -83,7 +83,7 @@ namespace reactive
 
         return makeWidgetFactory()
             | widget::makeWidgetTransformer()
-            .provide(widget::bindDrawContext(), widget::bindSize())
+            .compose(widget::bindDrawContext(), widget::bindSize())
             .values(hints.clone(), std::move(widgets))
             .bind([](auto drawContext, auto size, auto hints, auto widgets) mutable
                 {

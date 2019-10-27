@@ -105,7 +105,7 @@ namespace reactive::widget
         }
 
         template <typename U, typename... Us>
-        auto provide(WidgetTransformer<U, Us...> u) &&
+        auto compose(WidgetTransformer<U, Us...> u) &&
         {
             static_assert(std::is_invocable_v<U, Widget>);
             using UReturnType = std::invoke_result_t<U, Widget>;
@@ -128,11 +128,11 @@ namespace reactive::widget
         }
 
         template <typename U, typename... Us, typename... Ws>
-        auto provide(WidgetTransformer<U, Us...> u, Ws&&... ws) &&
+        auto compose(WidgetTransformer<U, Us...> u, Ws&&... ws) &&
         {
             return std::move(*this)
-                .provide(std::move(u))
-                .provide(std::forward<Ws>(ws)...)
+                .compose(std::move(u))
+                .compose(std::forward<Ws>(ws)...)
                 ;
         }
 

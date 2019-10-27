@@ -22,7 +22,7 @@ namespace reactive::widget
     auto growSize(TSignalAmount amount)
     {
         return makeWidgetTransformer()
-            .provide(grabObb())
+            .compose(grabObb())
             .values(std::move(amount))
             .bind([](auto obb, auto amount)
             {

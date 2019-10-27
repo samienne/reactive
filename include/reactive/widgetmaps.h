@@ -87,7 +87,7 @@ namespace reactive
     auto setFocusable(Signal<bool, T> focusable)
     {
         return widget::makeWidgetTransformer()
-            .provide(widget::grabKeyboardInputs())
+            .compose(widget::grabKeyboardInputs())
             .values(std::move(focusable))
             .bind([](auto keyboardInputs, auto focusable)
             {
@@ -110,7 +110,7 @@ namespace reactive
     auto requestFocus(Signal<bool, T> requestFocus)
     {
         return widget::makeWidgetTransformer()
-            .provide(widget::grabKeyboardInputs())
+            .compose(widget::grabKeyboardInputs())
             .values(std::move(requestFocus))
             .bind([](auto keyboardInputs, auto requestFocus)
             {
@@ -172,7 +172,7 @@ namespace reactive
             return widget::makeWidgetTransformerResult(std::move(widget)
                 .setObb(std::move(obb))
                 | widget::makeWidgetTransformer()
-                .provide(widget::bindObb(), widget::grabKeyboardInputs())
+                .compose(widget::bindObb(), widget::grabKeyboardInputs())
                 .bind([](auto obb, auto inputs)
                 {
                     auto newInputs = signal::map(
@@ -207,7 +207,7 @@ namespace reactive
             return widget::makeWidgetTransformerResult(std::move(widget)
                 .setObb(std::move(obb))
                 | widget::makeWidgetTransformer()
-                .provide(widget::bindObb(), widget::grabKeyboardInputs())
+                .compose(widget::bindObb(), widget::grabKeyboardInputs())
                 .bind([](auto obb, auto inputs)
                 {
                     auto newInputs = signal::map(

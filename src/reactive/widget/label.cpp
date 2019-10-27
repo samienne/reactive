@@ -58,7 +58,7 @@ WidgetFactory label(SharedSignal<std::string> text)
 
     return makeWidgetFactory()
         | makeWidgetTransformer()
-            .provide(bindDrawContext(), bindObb(), bindTheme())
+            .compose(bindDrawContext(), bindObb(), bindTheme())
             .values(text)
             .bind(onDraw(draw))
         | setSizeHint(signal::map(getSizeHint, text,

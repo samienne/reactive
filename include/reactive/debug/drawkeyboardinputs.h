@@ -36,7 +36,7 @@ namespace reactive::debug
     inline auto drawKeyboardInputs()
     {
         return widget::makeWidgetTransformer()
-            .provide(widget::bindDrawContext(), widget::bindKeyboardInputs())
+            .compose(widget::bindDrawContext(), widget::bindKeyboardInputs())
             .bind(widget::onDraw(
             [](DrawContext const& drawContext, auto const& inputs)
             {

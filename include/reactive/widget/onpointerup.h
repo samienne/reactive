@@ -26,7 +26,7 @@ namespace reactive::widget
         auto id = btl::makeUniqueId();
 
         return makeWidgetTransformer()
-            .provide(grabInputAreas(), bindObb())
+            .compose(grabInputAreas(), bindObb())
             .values(std::move(cb))
             .bind([id](auto areas, auto obb, auto cb)
             {

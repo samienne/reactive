@@ -12,7 +12,7 @@ WidgetTransformer<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
     auto sizeHint = signal::share(f.getSizeHint());
 
     return makeWidgetTransformer()
-        .provide(bindDrawContext(), bindSize())
+        .compose(bindDrawContext(), bindSize())
         .values(std::move(contentSize), std::move(f))
         .bind([](auto drawContext, auto viewSize, auto contentSize,
                     auto f) mutable
@@ -37,7 +37,7 @@ WidgetTransformer<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
                     ;
 
             return addWidget(std::move(w))
-                .provide(clip())
+                .compose(clip())
                 ;
         })
         ;

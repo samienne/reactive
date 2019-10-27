@@ -13,7 +13,7 @@ namespace reactive::widget
     inline auto clipDrawing()
     {
         return makeWidgetTransformer()
-            .provide(bindObb(), grabDrawing())
+            .compose(bindObb(), grabDrawing())
             .bind([](auto obb, auto drawing)
             {
                 auto newDrawing = signal::map(
@@ -32,7 +32,7 @@ namespace reactive::widget
     inline auto clipInputAreas()
     {
         return makeWidgetTransformer()
-            .provide(bindObb(), grabInputAreas())
+            .compose(bindObb(), grabInputAreas())
             .bind([](auto obb, auto inputAreas)
             {
                 auto newAreas = signal::map(
@@ -54,7 +54,7 @@ namespace reactive::widget
     inline auto clipKeyboardInputs()
     {
         return makeWidgetTransformer()
-            .provide(bindObb(), grabKeyboardInputs())
+            .compose(bindObb(), grabKeyboardInputs())
             .bind([](auto obb, auto keyboardInputs)
             {
                 auto newKeyboardInputs = signal::map(
@@ -89,9 +89,11 @@ namespace reactive::widget
     inline auto clip()
     {
         return makeWidgetTransformer()
-            .provide(clipDrawing())
-            .provide(clipInputAreas())
-            .provide(clipKeyboardInputs())
+            .compose(
+                    clipDrawing(),
+                    clipInputAreas(),
+                    clipKeyboardInputs()
+                    )
             ;
     }
 } // reactive::widget

@@ -167,7 +167,7 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackFocus(focus.handle)
         | makeWidgetTransformer()
-            .provide(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindDrawContext(), bindSize(), bindTheme())
             .values(std::move(newState), std::move(focusPercentage))
             .bind(onDraw(draw))
         | widget::margin(signal::constant(5.0f))

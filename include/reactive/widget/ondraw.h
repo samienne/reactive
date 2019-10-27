@@ -25,7 +25,7 @@ namespace reactive::widget
         auto onDraw(TFunc&& func, Us... us)
         {
             return makeWidgetTransformer()
-                .provide(grabDrawing(), bindObb())
+                .compose(grabDrawing(), bindObb())
                 .values(std::move(us)...)
                 .bind([func=std::forward<TFunc>(func)]
                 (auto... values) mutable
@@ -56,7 +56,7 @@ namespace reactive::widget
         auto onDrawBehind(TFunc&& func, Us... us)
         {
             return makeWidgetTransformer()
-                .provide(grabDrawing(), bindObb())
+                .compose(grabDrawing(), bindObb())
                 .values(std::move(us)...)
                 .bind([func=std::forward<TFunc>(func)]
                 (auto... values) mutable

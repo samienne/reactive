@@ -154,7 +154,7 @@ namespace
             SharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .provide(bindSize())
+            .compose(bindSize())
             .bind([=](auto size)
             {
                 auto obb = signal::map([]
@@ -176,7 +176,7 @@ namespace
             SharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .provide(bindSliderObb<IsHorizontal>(amount, handleSize))
+            .compose(bindSliderObb<IsHorizontal>(amount, handleSize))
             .bind([=](auto obb)
             {
                 return bindHover(std::move(obb));
@@ -190,8 +190,8 @@ namespace
         SharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .provide(bindDrawContext(), bindSize(), bindTheme())
-            .provide(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
+            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
             .bind([=](auto drawContext, auto size,
                             auto theme, auto hover) mutable
             {
@@ -200,15 +200,15 @@ namespace
                         downOffset.signal);
 
                 return makeWidgetTransformer()
-                    .provide(onPointerDown(scrollPointerDown<IsHorizontal>(
+                    .compose(onPointerDown(scrollPointerDown<IsHorizontal>(
                             downOffset.handle, size.clone(), amount, handleSize)
                         ))
-                    .provide(onPointerUp([handle=downOffset.handle]() mutable
+                    .compose(onPointerUp([handle=downOffset.handle]() mutable
                         {
                             handle.set(btl::none);
                             return EventResult::accept;
                         }))
-                    .provide(onPointerMove(signal::mapFunction(
+                    .compose(onPointerMove(signal::mapFunction(
                         [scrollHandle]
                         (btl::option<avg::Vector2f> downOffset,
                             avg::Vector2f size, float handleSize,

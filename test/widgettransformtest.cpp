@@ -30,10 +30,10 @@ TEST(WidgetTransformer, simpleBind)
     static_assert(std::is_same_v<std::tuple<>, std::decay_t<decltype(*w.second)>>);
 }
 
-TEST(WidgetTransformer, simpleProvide)
+TEST(WidgetTransformer, simpleCompose)
 {
     auto t = makeWidgetTransformer()
-        .provide(makeWidgetTransformer([](auto w)
+        .compose(makeWidgetTransformer([](auto w)
             {
                 auto obb = signal::share(w.getObb());
                 auto w2 = std::move(w).setObb(obb);
