@@ -1,10 +1,10 @@
 #pragma once
 
+#include "widget/addwidgets.h"
 #include "widget/bindsize.h"
 #include "widget/binddrawcontext.h"
 #include "widget/widgetobject.h"
-
-#include "bindwidgetmap.h"
+#include "widget//widgettransformer.h"
 
 #include "box.h"
 
@@ -83,20 +83,18 @@ namespace reactive
                 );
 
         return makeWidgetFactory()
-            | makeWidgetMap()
-            .provide(widget::bindDrawContext())
-            .provide(widget::bindSize())
-            .provideValues(hints.clone(), std::move(widgets))
-            .bindWidgetMap([]
-                    (auto drawContext, auto size, auto hints, auto widgets) mutable
-                    {
-                        return detail::doDynamicBox<dir>(
-                                std::move(drawContext),
-                                std::move(size),
-                                std::move(widgets),
-                                std::move(hints)
-                                );
-                    })
+            | widget::makeWidgetTransformer()
+            .compose(widget::bindDrawContext(), widget::bindSize())
+            .values(hints.clone(), std::move(widgets))
+            .bind([](auto drawContext, auto size, auto hints, auto widgets) mutable
+                {
+                    return detail::doDynamicBox<dir>(
+                            std::move(drawContext),
+                            std::move(size),
+                            std::move(widgets),
+                            std::move(hints)
+                            );
+                })
             | setSizeHint(std::move(resultHint))
             ;
     }

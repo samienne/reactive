@@ -1,25 +1,22 @@
 #pragma once
 
-#include "reactive/widgetvalueprovider.h"
+#include "widgettransformer.h"
 
 #include "reactive/inputarea.h"
 
 #include "reactive/signal/share.h"
 
-#include <btl/pushback.h>
-
 namespace reactive::widget
 {
     inline auto bindInputAreas()
     {
-        return widgetValueProvider([](auto widget, auto data)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = signal::share(widget.getInputAreas());
 
             return std::make_pair(
                     std::move(widget).setAreas(inputs),
-                    btl::cloneOnCopy(btl::pushBack(
-                            std::move(data),
+                    btl::cloneOnCopy(std::make_tuple(
                             inputs
                             ))
                     );
@@ -28,7 +25,7 @@ namespace reactive::widget
 
     inline auto grabInputAreas()
     {
-        return widgetValueProvider([](auto widget, auto data)
+        return makeWidgetTransformer([](auto widget)
         {
             auto inputs = std::move(widget.getInputAreas());
 
@@ -36,8 +33,7 @@ namespace reactive::widget
                     std::move(widget).setAreas(
                         signal::constant(std::vector<InputArea>())
                         ),
-                    btl::cloneOnCopy(btl::pushBack(
-                            std::move(data),
+                    btl::cloneOnCopy(std::make_tuple(
                             std::move(inputs)
                             ))
                     );

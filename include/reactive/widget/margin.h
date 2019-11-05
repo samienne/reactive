@@ -1,6 +1,9 @@
 #pragma once
 
 #include "setobb.h"
+#include "bindobb.h"
+#include "transform.h"
+#include "widgettransformer.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
@@ -12,17 +15,15 @@
 
 #include <btl/fn.h>
 
-#include <iostream>
-
 namespace reactive::widget
 {
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetMap()
-            .provide(grabObb())
-            .provideValues(std::move(amount))
-            .bindWidgetMap([](auto obb, auto amount)
+        return makeWidgetTransformer()
+            .compose(grabObb())
+            .values(std::move(amount))
+            .bind([](auto obb, auto amount)
             {
                 auto newObb = signal::map(
                     [](avg::Obb const& obb, float amount) -> avg::Obb

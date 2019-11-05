@@ -1,13 +1,14 @@
 #pragma once
 
+#include "reactive/widget/ondraw.h"
 #include "reactive/widget/bindkeyboardinputs.h"
 #include "reactive/widget/binddrawcontext.h"
+#include "reactive/widget/widgettransformer.h"
 
+#include "reactive/shapes.h"
 #include "reactive/widgetfactory.h"
 
 #include "reactive/signal/map.h"
-
-#include "reactive/shapes.h"
 
 #include <avg/pathbuilder.h>
 
@@ -34,9 +35,9 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        return makeWidgetMap()
-            .provide(widget::bindDrawContext(), widget::bindKeyboardInputs())
-            .consume(widget::onDraw(
+        return widget::makeWidgetTransformer()
+            .compose(widget::bindDrawContext(), widget::bindKeyboardInputs())
+            .bind(widget::onDraw(
             [](DrawContext const& drawContext, auto const& inputs)
             {
                 {

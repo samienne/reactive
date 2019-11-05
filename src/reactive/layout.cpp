@@ -1,5 +1,8 @@
 #include "layout.h"
 
+#include "widget/transform.h"
+#include "widget/addwidgets.h"
+
 namespace reactive
 {
 
@@ -15,7 +18,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto map = [obbMap=std::move(obbMap),
+    auto transformer = [obbMap=std::move(obbMap),
             hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
                 (auto w)
         // -> Widget
@@ -38,19 +41,20 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                         }, obbs);
 
                 auto factory = f.clone()
-                    | transform(std::move(t));
+                    | widget::transform(std::move(t));
 
                 ++index;
 
                 return std::move(factory)(w.getDrawContext(), std::move(size));
             });
 
-        return std::move(w)
-            | addWidgets(std::move(widgets));
+        return widget::makeWidgetTransformerResult(
+                std::move(w) | widget::addWidgets(std::move(widgets))
+                );
     };
 
     return makeWidgetFactory()
-        | widgetMap(std::move(map))
+        | widget::makeWidgetTransformer(std::move(transformer))
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 

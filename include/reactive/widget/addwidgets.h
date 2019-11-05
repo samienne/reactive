@@ -1,10 +1,12 @@
 #pragma once
 
+#include "reduce.h"
 #include "adddrawings.h"
+
+#include "widgettransformer.h"
 
 #include "reactive/inputarea.h"
 #include "reactive/widget.h"
-#include "reactive/widgetmap.h"
 
 #include "reactive/signal/combine.h"
 #include "reactive/signal/mbind.h"
@@ -103,7 +105,7 @@ namespace reactive::widget
                 return w.getDrawing();
             });
 
-            return makeWidget(
+            return makeWidgetTransformerResult(makeWidget(
                     std::move(widget.getDrawContext()),
                     std::move(widget.getDrawing()),
                     std::move(areasSignal),
@@ -112,11 +114,11 @@ namespace reactive::widget
                     std::move(widget.getTheme())
                     )
                 | addDrawings(signal::combine(std::move(drawings)))
-                ;
+                );
 
         };
 
-        return widgetMap(std::move(f));
+        return makeWidgetTransformer(std::move(f));
     }
 
     template <typename T>
@@ -134,10 +136,10 @@ namespace reactive::widget
                     btl::clone(*widgets)
                     );
 
-            return reduce(std::move(w1));
+            return makeWidgetTransformerResult(reduce(std::move(w1)));
         };
 
-        return widgetMap(std::move(f));
+        return makeWidgetTransformer(std::move(f));
     }
 
     inline auto addWidget(Widget widget)

@@ -2,29 +2,35 @@
 #include "spinner.h"
 #include "testwidget.h"
 
-#include <reactive/keyboardinput.h>
+#include <reactive/debug/drawkeyboardinputs.h>
 
+#include <reactive/widget/label.h>
+#include <reactive/widget/focusgroup.h>
+#include <reactive/widget/textedit.h>
+#include <reactive/widget/frame.h>
 #include <reactive/widget/scrollbar.h>
 #include <reactive/widget/scrollview.h>
 #include <reactive/widget/clip.h>
-#include <reactive/signal/map.h>
-#include <reactive/widget/focusgroup.h>
-#include <reactive/debug/drawkeyboardinputs.h>
+#include <reactive/widget/onpointermove.h>
+#include <reactive/widget/onpointerdown.h>
+#include <reactive/widget/onhover.h>
+
+#include <reactive/filler.h>
+#include <reactive/keyboardinput.h>
 #include <reactive/send.h>
 #include <reactive/window.h>
 #include <reactive/app.h>
-#include <reactive/widget/textedit.h>
-#include <reactive/widget/frame.h>
-#include <reactive/widget/label.h>
 #include <reactive/uniformgrid.h>
 #include <reactive/hbox.h>
 #include <reactive/vbox.h>
 #include <reactive/widgetfactory.h>
+
 #include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal.h>
-#include <reactive/filler.h>
+
+#include <reactive/signal/map.h>
 
 #include <ase/vector.h>
 

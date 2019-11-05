@@ -2,6 +2,10 @@
 
 #include "widget/frame.h"
 #include "widget/label.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onhover.h"
+#include "widget/onclick.h"
 
 namespace reactive::widget
 {
@@ -47,27 +51,27 @@ WidgetFactory button(Signal<std::string> label,
     auto hover = signal::input<bool>(false);
 
     return widget::label(std::move(label))
-                    | margin(signal::constant(5.0f))
-                    | makeWidgetMap()
-                    .provide(bindDrawContext(), bindSize(), bindTheme())
-                    .provideValues(std::move(hover.signal), std::move(down.signal))
-                    .consume(onDrawBehind(&drawButton))
-                    | onPointerDown([handle=down.handle](auto&) mutable
-                            {
-                                handle.set(true);
-                                return EventResult::possible;
-                            })
-                    | onPointerUp([handle=down.handle](auto&) mutable
-                            {
-                                handle.set(false);
-                                return EventResult::possible;
-                            })
-                    | onHover([handle=hover.handle](HoverEvent const& e) mutable
-                            {
-                                handle.set(e.hover);
-                            })
-                    | widget::onClick(1, std::move(onClick))
-                    ;
+        | margin(signal::constant(5.0f))
+        | makeWidgetTransformer()
+        .compose(bindDrawContext(), bindSize(), bindTheme())
+        .values(std::move(hover.signal), std::move(down.signal))
+        .bind(onDrawBehind(&drawButton))
+        | onPointerDown([handle=down.handle](auto&) mutable
+                {
+                    handle.set(true);
+                    return EventResult::possible;
+                })
+        | onPointerUp([handle=down.handle](auto&) mutable
+                {
+                    handle.set(false);
+                    return EventResult::possible;
+                })
+        | onHover([handle=hover.handle](HoverEvent const& e) mutable
+                {
+                    handle.set(e.hover);
+                })
+        | widget::onClick(1, std::move(onClick))
+        ;
 }
 
 WidgetFactory button(std::string label, Signal<std::function<void()>> onClick)

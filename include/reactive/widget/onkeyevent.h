@@ -2,11 +2,11 @@
 
 #include "bindkeyboardinputs.h"
 #include "setkeyboardinputs.h"
+#include "widgettransformer.h"
 
 #include "reactive/widgetfactory.h"
 
 #include "reactive/inputresult.h"
-#include "reactive/widgetmap.h"
 
 #include "reactive/signal/convert.h"
 #include "reactive/signal/map.h"
@@ -22,10 +22,10 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetMap()
-                .provide(grabKeyboardInputs())
-                .provideValues(std::move(handler))
-                .bindWidgetMap([](auto inputs, auto handler) mutable
+            return makeWidgetTransformer()
+                .compose(grabKeyboardInputs())
+                .values(std::move(handler))
+                .bind([](auto inputs, auto handler) mutable
                 {
                     auto newInputs = signal::map(
                         [](std::vector<KeyboardInput> inputs, auto const& handler)
@@ -116,9 +116,10 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return std::forward<TWidget>(widget)
+            return makeWidgetTransformerResult(std::forward<TWidget>(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
-                            btl::clone(*predicate_), btl::clone(*action_)));
+                            btl::clone(*predicate_), btl::clone(*action_)))
+                );
         }
 
         inline OnKeyEvent acceptIf(

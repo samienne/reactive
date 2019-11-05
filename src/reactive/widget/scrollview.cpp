@@ -3,6 +3,11 @@
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
+#include "widget/tracksize.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onpointermove.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
@@ -69,8 +74,8 @@ WidgetFactory scrollView(WidgetFactory f)
             {{100, 800, 10000}}
             )))
         | trackSize(viewSize.handle)
-        | makeWidgetMap()
-            .map(onPointerDown(signal::mapFunction(
+        | makeWidgetTransformer()
+            .compose(onPointerDown(signal::mapFunction(
                 [dragOffsetHandle=dragOffset.handle,
                 scrollPosHandle=scrollPos.handle
                 ]
@@ -85,7 +90,7 @@ WidgetFactory scrollView(WidgetFactory f)
 
                     return EventResult::possible;
                 }, x.signal, y.signal)))
-            .map(onPointerMove(signal::mapFunction(
+            .compose(onPointerMove(signal::mapFunction(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,
@@ -107,7 +112,7 @@ WidgetFactory scrollView(WidgetFactory f)
                         return EventResult::accept;
                     }, dragOffset.signal, viewSize.signal, contentSize,
                     scrollPos.signal)))
-            .map(onPointerUp([scrollPosHandle=scrollPos.handle]
+            .compose(onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
                     {
                         scrollPosHandle.set(btl::none);

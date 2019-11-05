@@ -1,10 +1,17 @@
 #include "widget/scrollbar.h"
 
 #include "widget/margin.h"
+#include "widget/onpointerdown.h"
+#include "widget/onpointerup.h"
+#include "widget/onpointermove.h"
+#include "widget/ondraw.h"
+#include "widget/bindtheme.h"
+#include "widget/binddrawcontext.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
+#include "widget/widgettransformer.h"
 
-#include "reactive/bindwidgetmap.h"
+#include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
 
 #include "send.h"
@@ -153,9 +160,9 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
-            .provide(bindSize())
-            .bindValueProvider([=](auto size)
+        return makeWidgetTransformer()
+            .compose(bindSize())
+            .bind([=](auto size)
             {
                 auto obb = signal::map([]
                         (avg::Vector2f size, float amount, float handleSize)
@@ -175,12 +182,12 @@ namespace
             SharedSignal<float> amount,
             SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
-            .provide(bindSliderObb<IsHorizontal>(amount, handleSize))
-            .mapValues(bindWidgetValueProvider([=](auto obb)
+        return makeWidgetTransformer()
+            .compose(bindSliderObb<IsHorizontal>(amount, handleSize))
+            .bind([=](auto obb)
             {
                 return bindHover(std::move(obb));
-            }));
+            });
     }
 
     template <bool IsHorizontal>
@@ -189,26 +196,26 @@ namespace
         SharedSignal<float> amount,
         SharedSignal<float> handleSize)
     {
-        return makeWidgetMap()
-            .provide(bindDrawContext(), bindSize(), bindTheme())
-            .provide(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .bindWidgetMap([=](auto drawContext, auto size,
+        return makeWidgetTransformer()
+            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
+            .bind([=](auto drawContext, auto size,
                             auto theme, auto hover) mutable
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                         downOffset.signal);
 
-                return makeWidgetMap()
-                    .map(onPointerDown(scrollPointerDown<IsHorizontal>(
+                return makeWidgetTransformer()
+                    .compose(onPointerDown(scrollPointerDown<IsHorizontal>(
                             downOffset.handle, size.clone(), amount, handleSize)
                         ))
-                    .map(onPointerUp([handle=downOffset.handle]() mutable
+                    .compose(onPointerUp([handle=downOffset.handle]() mutable
                         {
                             handle.set(btl::none);
                             return EventResult::accept;
                         }))
-                    .map(onPointerMove(signal::mapFunction(
+                    .compose(onPointerMove(signal::mapFunction(
                         [scrollHandle]
                         (btl::option<avg::Vector2f> downOffset,
                             avg::Vector2f size, float handleSize,
@@ -233,7 +240,7 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
-                    .provideValues(
+                    .values(
                             std::move(drawContext),
                             size.clone(),
                             std::move(theme),
@@ -242,7 +249,7 @@ namespace
                             std::move(hover),
                             std::move(isDown)
                             )
-                    .consume(onDraw(drawScrollBar<IsHorizontal>))
+                    .bind(onDraw(drawScrollBar<IsHorizontal>))
                     ;
             });
     }

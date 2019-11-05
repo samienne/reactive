@@ -3,7 +3,11 @@
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
+#include "widget/trackfocus.h"
+#include "widget/focuson.h"
 #include "widget/onkeyevent.h"
+#include "widget/onclick.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -165,10 +169,10 @@ TextEdit::operator WidgetFactory() const
 
     return makeWidgetFactory()
         | trackFocus(focus.handle)
-        | makeWidgetMap()
-            .provide(bindDrawContext(), bindSize(), bindTheme())
-            .provideValues(std::move(newState), std::move(focusPercentage))
-            .consume(onDraw(draw))
+        | makeWidgetTransformer()
+            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .values(std::move(newState), std::move(focusPercentage))
+            .bind(onDraw(draw))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))

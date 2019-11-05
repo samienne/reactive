@@ -1,10 +1,12 @@
 #include "widget/label.h"
 
+#include "widget/ondraw.h"
 #include "widget/binddrawcontext.h"
 #include "widget/bindobb.h"
 #include "widget/bindtheme.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
+#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -56,10 +58,10 @@ WidgetFactory label(SharedSignal<std::string> text)
     };
 
     return makeWidgetFactory()
-        | makeWidgetMap()
-            .provide(bindDrawContext(), bindObb(), bindTheme())
-            .provideValues(text)
-            .consume(onDraw(draw))
+        | makeWidgetTransformer()
+            .compose(bindDrawContext(), bindObb(), bindTheme())
+            .values(text)
+            .bind(onDraw(draw))
         | setSizeHint(signal::map(getSizeHint, text,
                     signal::constant(Theme())))
         | margin(signal::constant(5.0f))

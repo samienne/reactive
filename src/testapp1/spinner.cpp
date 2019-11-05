@@ -1,10 +1,9 @@
 #include "spinner.h"
 
-#include <reactive/widgetmaps.h>
-
 #include <reactive/widget/clip.h>
 #include <reactive/widget/theme.h>
 #include <reactive/widget/frame.h>
+#include <reactive/widget/widgettransformer.h>
 
 #include <reactive/simplesizehint.h>
 
@@ -67,10 +66,10 @@ WidgetFactory makeSpinner()
     auto t = signal::loop(signal::time(), std::chrono::microseconds(2000000));
 
     return makeWidgetFactory()
-        | makeWidgetMap()
-        .provide(bindDrawContext(), bindSize(), bindTheme())
-        .provideValues(std::move(t))
-        .consume(onDraw(draw))
+        | makeWidgetTransformer()
+        .compose(bindDrawContext(), bindSize(), bindTheme())
+        .values(std::move(t))
+        .bind(onDraw(draw))
         | widget::clip()
         | setSizeHint(signal::constant(simpleSizeHint(150.0f, 150.0f)))
         ;

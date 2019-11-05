@@ -1,20 +1,23 @@
 #pragma once
 
+#include "bindobb.h"
+#include "bindinputareas.h"
 #include "bindkeyboardinputs.h"
+#include "setinputareas.h"
 #include "setkeyboardinputs.h"
 #include "binddrawing.h"
 #include "setdrawing.h"
+#include "widgettransformer.h"
 
-#include "reactive/widgetmap.h"
 #include "reactive/widgetfactory.h"
 
 namespace reactive::widget
 {
     inline auto clipDrawing()
     {
-        return makeWidgetMap()
-            .provide(bindObb(), grabDrawing())
-            .bindWidgetMap([](auto obb, auto drawing)
+        return makeWidgetTransformer()
+            .compose(bindObb(), grabDrawing())
+            .bind([](auto obb, auto drawing)
             {
                 auto newDrawing = signal::map(
                     [](avg::Obb obb, avg::Drawing d)
@@ -31,9 +34,9 @@ namespace reactive::widget
 
     inline auto clipInputAreas()
     {
-        return makeWidgetMap()
-            .provide(bindObb(), grabInputAreas())
-            .bindWidgetMap([](auto obb, auto inputAreas)
+        return makeWidgetTransformer()
+            .compose(bindObb(), grabInputAreas())
+            .bind([](auto obb, auto inputAreas)
             {
                 auto newAreas = signal::map(
                     [](avg::Obb obb, std::vector<InputArea> areas)
@@ -53,9 +56,9 @@ namespace reactive::widget
 
     inline auto clipKeyboardInputs()
     {
-        return makeWidgetMap()
-            .provide(bindObb(), grabKeyboardInputs())
-            .bindWidgetMap([](auto obb, auto keyboardInputs)
+        return makeWidgetTransformer()
+            .compose(bindObb(), grabKeyboardInputs())
+            .bind([](auto obb, auto keyboardInputs)
             {
                 auto newKeyboardInputs = signal::map(
                     [](avg::Obb obb, std::vector<KeyboardInput> inputs)
@@ -88,10 +91,12 @@ namespace reactive::widget
 
     inline auto clip()
     {
-        return makeWidgetMap()
-            .map(clipDrawing())
-            .map(clipInputAreas())
-            .map(clipKeyboardInputs())
+        return makeWidgetTransformer()
+            .compose(
+                    clipDrawing(),
+                    clipInputAreas(),
+                    clipKeyboardInputs()
+                    )
             ;
     }
 } // reactive::widget
