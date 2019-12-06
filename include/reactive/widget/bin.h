@@ -8,6 +8,6 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT WidgetTransformer<void> bin(WidgetFactory f,
-            Signal<avg::Vector2f> contentSize);
+            AnySignal<avg::Vector2f> contentSize);
 } // reactive::widget
 

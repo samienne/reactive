@@ -12,9 +12,9 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetFactory label(SharedSignal<std::string> text);
+    REACTIVE_EXPORT WidgetFactory label(AnySharedSignal<std::string> text);
 
-    inline WidgetFactory label(Signal<std::string> text)
+    inline WidgetFactory label(AnySignal<std::string> text)
     {
         return label(signal::share(std::move(text)));
     }

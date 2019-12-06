@@ -330,10 +330,10 @@ namespace reactive::signal
                 btl::IsClonable<std::result_of_t<std::decay_t<TFunc>(Ts...)>>
             >::value
         >>
-    constexpr auto map(TFunc&& func, Signal<Ts, Us>... sigs)
+    constexpr auto map(TFunc&& func, Signal<Us, Ts>... sigs)
     {
         return signal::wrap(
-                Map<detail::MapBase, std::decay_t<TFunc>, Signal<Ts, Us>...>(
+                Map<detail::MapBase, std::decay_t<TFunc>, Signal<Us, Ts>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
                 ));

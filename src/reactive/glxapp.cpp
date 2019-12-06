@@ -338,7 +338,7 @@ private:
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
     Widget widget_;
-    Signal<std::string> titleSignal_;
+    AnySignal<std::string> titleSignal_;
     //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
@@ -361,7 +361,7 @@ int GlxApp::run() &&
     return std::move(*this).run(std::move(running.signal));
 }
 
-int GlxApp::run(Signal<bool> running) &&
+int GlxApp::run(AnySignal<bool> running) &&
 {
     ase::GlxPlatform platform;
 

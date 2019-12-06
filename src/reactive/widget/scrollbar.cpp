@@ -120,9 +120,9 @@ namespace
     template <bool IsHorizontal, typename T, typename U, typename V>
     auto scrollPointerDown(
             signal::InputHandle<btl::option<avg::Vector2f>> downHandle,
-            Signal<avg::Vector2f, T> sizeSignal,
-            SharedSignal<float, U> amountSignal,
-            Signal<float, V> handleSizeSignal)
+            Signal<T, avg::Vector2f> sizeSignal,
+            SharedSignal<U, float> amountSignal,
+            Signal<V, float> handleSizeSignal)
     {
         return signal::mapFunction(
             [downHandle=std::move(downHandle)]
@@ -157,8 +157,8 @@ namespace
 
     template <bool IsHorizontal>
     auto bindSliderObb(
-            SharedSignal<float> amount,
-            SharedSignal<float> handleSize)
+            AnySharedSignal<float> amount,
+            AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
             .compose(bindSize())
@@ -179,8 +179,8 @@ namespace
 
     template <bool IsHorizontal>
     auto bindHoverOnSlider(
-            SharedSignal<float> amount,
-            SharedSignal<float> handleSize)
+            AnySharedSignal<float> amount,
+            AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
             .compose(bindSliderObb<IsHorizontal>(amount, handleSize))
@@ -193,8 +193,8 @@ namespace
     template <bool IsHorizontal>
     auto makeScrollBar(
         signal::InputHandle<float> scrollHandle,
-        SharedSignal<float> amount,
-        SharedSignal<float> handleSize)
+        AnySharedSignal<float> amount,
+        AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
             .compose(bindDrawContext(), bindSize(), bindTheme())
@@ -258,8 +258,8 @@ namespace
 template <bool IsHorizontal>
 WidgetFactory scrollBar(
         signal::InputHandle<float> scrollHandle,
-        SharedSignal<float> amount,
-        SharedSignal<float> handleSize)
+        AnySharedSignal<float> amount,
+        AnySharedSignal<float> handleSize)
 {
     return makeWidgetFactory()
         | makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
@@ -270,8 +270,8 @@ WidgetFactory scrollBar(
 
 WidgetFactory hScrollBar(
         signal::InputHandle<float> handle,
-        Signal<float> amount,
-        Signal<float> handleSize)
+        AnySignal<float> amount,
+        AnySignal<float> handleSize)
 {
     return scrollBar<true>(std::move(handle), signal::share(std::move(amount)),
             signal::share(signal::map([](float v)
@@ -282,8 +282,8 @@ WidgetFactory hScrollBar(
 
 WidgetFactory vScrollBar(
         signal::InputHandle<float> handle,
-        Signal<float> amount,
-        Signal<float> handleSize)
+        AnySignal<float> amount,
+        AnySignal<float> handleSize)
 {
     return scrollBar<false>(std::move(handle), signal::share(std::move(amount)),
             signal::share(signal::map([](float v)

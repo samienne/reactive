@@ -12,7 +12,7 @@ namespace reactive
     class REACTIVE_EXPORT Window
     {
     public:
-        Window(WidgetFactory widget, Signal<std::string> const& title);
+        Window(WidgetFactory widget, AnySignal<std::string> const& title);
 
     private:
         Window(Window const&) = default;
@@ -26,7 +26,7 @@ namespace reactive
 
         WidgetFactory getWidget() const;
 
-        Signal<std::string> const& getTitle() const;
+        AnySignal<std::string> const& getTitle() const;
 
         void invokeOnClose() const;
 
@@ -37,11 +37,11 @@ namespace reactive
 
     private:
         btl::CloneOnCopy<WidgetFactory> widget_;
-        SharedSignal<std::string> title_;
+        AnySharedSignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };
 
-    REACTIVE_EXPORT auto window(Signal<std::string> const& title,
+    REACTIVE_EXPORT auto window(AnySignal<std::string> const& title,
             WidgetFactory widget) -> Window;
 }
 

@@ -135,7 +135,7 @@ namespace reactive::signal
     template <typename T, typename U, typename = std::enable_if_t<
         IsSignal<T>::value
         >>
-    auto join(Signal<T, U> sig)
+    auto join(Signal<U, T> sig)
     {
         return signal::wrap(Join<U>(std::move(sig).signal()));
     }

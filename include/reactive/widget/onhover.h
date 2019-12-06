@@ -12,8 +12,8 @@
 namespace reactive::widget
 {
     inline auto onHover(
-            Signal<std::function<void(reactive::HoverEvent const&)>> cb,
-            Signal<avg::Obb> area)
+            AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
+            AnySignal<avg::Obb> area)
     {
         auto id = btl::makeUniqueId();
 
@@ -50,7 +50,7 @@ namespace reactive::widget
             });
     }
 
-    inline auto onHover(Signal<
+    inline auto onHover(AnySignal<
             std::function<void(reactive::HoverEvent const&)>
             > cb)
     {

@@ -6,31 +6,31 @@
 
 namespace reactive
 {
-    template <typename T, typename TSignal = void>
+    template <typename TSignal, typename T>
     class Signal;
 
-    template <typename T, typename TSignal>
-    struct IsSignal<Signal<T, TSignal>> : std::true_type {};
+    template <typename TSignal, typename T>
+    struct IsSignal<Signal<TSignal, T>> : std::true_type {};
 
     namespace signal
     {
-        template <typename T, typename TDeferred>
+        template <typename TDeferred, typename T>
         class Share;
 
-        template <typename T, typename TSignal>
+        template <typename TSignal, typename T>
         class Typed;
     }
 
-    template <typename T, typename TDeferred>
-    struct IsSignal<signal::Share<T, TDeferred>> : std::true_type {};
+    template <typename TDeferred, typename T>
+    struct IsSignal<signal::Share<TDeferred, T>> : std::true_type {};
 
-    template <typename T, typename TSignal>
-    struct IsSignal<signal::Typed<T, TSignal>> : std::true_type {};
+    template <typename TSignal, typename T>
+    struct IsSignal<signal::Typed<TSignal, T>> : std::true_type {};
 } // reactive
 
 namespace reactive::signal
 {
-    template <typename T, typename TDeferred>
+    template <typename TDeferred, typename T>
     class Share
     {
     public:
@@ -102,7 +102,7 @@ namespace reactive::signal
         btl::shared<TDeferred> control_;
     };
 
-    template <typename T, typename TSignal>
+    template <typename TSignal, typename T>
     class Typed final : public signal::SignalBase<T>
     {
     public:
@@ -189,21 +189,21 @@ namespace reactive::signal
     };
 
     template <typename V, typename T, typename U>
-    auto typed(Signal<T, U> sig)
+    auto typed(Signal<U, T> sig)
     {
-        return std::make_shared<signal::Typed<V, U>>(std::move(sig).signal());
+        return std::make_shared<signal::Typed<U, V>>(std::move(sig).signal());
     }
 
     template <typename U, typename T>
-    auto typed(Signal<T, void> sig)
+    auto typed(Signal<void, T> sig)
     {
-        return typed<U>(wrap(signal::Share<T, signal::Typed<T, Signal<T>>>(
-                    std::make_shared<signal::Typed<T, Signal<T>>>(std::move(sig)))
+        return typed<U>(wrap(signal::Share<signal::Typed<Signal<void, T>, T>, T>(
+                    std::make_shared<signal::Typed<Signal<void, T>, T>>(std::move(sig)))
                 ));
     }
 
     template <typename T>
-    auto typed(Signal<T, void> sig)
+    auto typed(Signal<void, T> sig)
     {
         return sig.getDeferredSignalBase();
     }

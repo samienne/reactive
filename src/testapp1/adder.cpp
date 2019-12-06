@@ -75,7 +75,7 @@ reactive::WidgetFactory adder()
     auto widgets = signal::dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (Signal<std::string> value, size_t id) mutable -> WidgetFactory
+            (AnySignal<std::string> value, size_t id) mutable -> WidgetFactory
             {
                 return hbox({
                     widget::button("U", signal::mapFunction([items, id]

@@ -45,7 +45,7 @@ namespace reactive::widget
     }
 
     template <typename T>
-    auto margin(Signal<float, T> amount)
+    auto margin(Signal<T, float> amount)
     {
         auto a = signal::share(std::move(amount));
         auto aNeg = signal::map([](float f)

@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setDrawing(Signal<avg::Drawing, T> drawing)
+    auto setDrawing(Signal<T, avg::Drawing> drawing)
     {
         return makeWidgetTransformer(
             [drawing=btl::cloneOnCopy(std::move(drawing))](auto w) mutable

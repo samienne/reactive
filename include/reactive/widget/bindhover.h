@@ -20,7 +20,7 @@ namespace reactive::widget
     }
 
     template <typename T>
-    auto bindHover(Signal<avg::Obb, T> obb)
+    auto bindHover(Signal<T, avg::Obb> obb)
     {
         auto hover = signal::input(false);
 

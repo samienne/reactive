@@ -9,7 +9,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    inline auto transform(Signal<avg::Transform, T> t)
+    inline auto transform(Signal<T, avg::Transform> t)
     {
         auto tt = btl::cloneOnCopy(std::move(t));
 

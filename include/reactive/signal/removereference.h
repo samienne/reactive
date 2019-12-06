@@ -10,7 +10,7 @@
 namespace reactive::signal
 {
     template <typename T, typename U>
-    auto removeReference(Signal<T, U> sig)
+    auto removeReference(Signal<U, T> sig)
     {
         return signal::map([](auto&& v) -> std::decay_t<T>
         {

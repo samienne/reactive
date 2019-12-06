@@ -31,7 +31,7 @@ namespace reactive
 
     using FactoryMapWidget = std::function<Widget(Widget)>;
     using WidgetFactoryBase = WidFac<
-        std::tuple<widget::WidgetTransformer<void>>, Signal<SizeHint>
+        std::tuple<widget::WidgetTransformer<void>>, AnySignal<SizeHint>
         >;
     struct WidgetFactory;
     using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
@@ -92,8 +92,8 @@ namespace reactive
 
         template <typename T, typename U, typename TMaps>
         auto evaluateWidgetFactory(
-                Signal<DrawContext, T> drawContext,
-                Signal<avg::Vector2f, U> size,
+                Signal<T, DrawContext> drawContext,
+                Signal<U, avg::Vector2f> size,
                 TMaps&& maps)
         -> decltype(
             btl::tuple_reduce(
@@ -153,8 +153,8 @@ namespace reactive
 
         template <typename T, typename U>
         auto operator()(
-                Signal<DrawContext, T> drawContext,
-                Signal<avg::Vector2f, U> size
+                Signal<T, DrawContext> drawContext,
+                Signal<U, avg::Vector2f> size
                 ) &&
         {
             return detail::evaluateWidgetFactory(

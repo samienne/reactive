@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto addDrawing(Signal<avg::Drawing, T> drawing)
+    auto addDrawing(Signal<T, avg::Drawing> drawing)
     {
         return makeWidgetTransformer()
             .compose(bindObb(), grabDrawing())

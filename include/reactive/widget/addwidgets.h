@@ -122,7 +122,7 @@ namespace reactive::widget
     }
 
     template <typename T>
-    auto addWidgets(Signal<std::vector<Widget>, T> widgets)
+    auto addWidgets(Signal<T, std::vector<Widget>> widgets)
     {
         auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
         {

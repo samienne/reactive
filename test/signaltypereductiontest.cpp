@@ -35,7 +35,7 @@ TEST(SignalTypeReduction, signalTypeReduction)
 
     auto s4 = signal::map(add, std::move(s3), s2.signal);
 
-    Signal<int> sig = std::move(s4);
+    AnySignal<int> sig = std::move(s4);
 
     bool called = false;
     auto connection = sig.observe([&called]()
@@ -62,7 +62,7 @@ TEST(SignalTypeReduction, signalTypeReduction)
 
 /*TEST(SignalTypeReduction, signalTypeReductionFail)
 {
-    Signal<int> s1;
+    AnySignal<int> s1;
 
     EXPECT_THROW(s1.evaluate(), std::runtime_error);
     EXPECT_THROW(s1.observe([]()
@@ -80,15 +80,15 @@ TEST(SignalTypeReduction, multiSignalTypeReduction)
         return l + r;
     };
 
-    Signal<int> s1 = signal::constant(10);
+    AnySignal<int> s1 = signal::constant(10);
     auto input = signal::input(20);
-    Signal<int> s2 = btl::clone(input.signal);
+    AnySignal<int> s2 = btl::clone(input.signal);
 
-    Signal<int> s3 = signal::map(add, s1.clone(), s2.clone());
+    AnySignal<int> s3 = signal::map(add, s1.clone(), s2.clone());
 
-    Signal<int> s4 = signal::map(add, s3.clone(), s2.clone());
+    AnySignal<int> s4 = signal::map(add, s3.clone(), s2.clone());
 
-    Signal<int> sig = s4.clone();
+    AnySignal<int> sig = s4.clone();
 
     bool called = false;
     auto connection = sig.observe([&called]()
@@ -121,7 +121,7 @@ TEST(SignalTypeReduction, sharedSignal)
     };
 
     auto s1 = signal::input(10);
-    Signal<int> s2(s1.signal.clone());
+    AnySignal<int> s2(s1.signal.clone());
 
     auto s3 = signal::map(add, s2.clone(), s2.clone());
 
@@ -142,7 +142,7 @@ TEST(SignalTypeReduction, sharedSignal)
 TEST(SignalTypeReduction, redundantTypeReduction)
 {
     auto s1 = signal::input(10);
-    Signal<int> s2(s1.signal.clone());
+    AnySignal<int> s2(s1.signal.clone());
 
     auto s3 = signal::eraseType(s2.clone());
 
@@ -156,11 +156,11 @@ TEST(SignalTypeReduction, convert)
 
     static_assert(std::is_same<int const&, decltype(s1.evaluate())>::value, "");
 
-    Signal<int> s2 = std::move(s1);
+    AnySignal<int> s2 = std::move(s1);
 
     EXPECT_EQ(200, s2.evaluate());
 
-    Signal<int> s3 = btl::clone(s2);
+    AnySignal<int> s3 = btl::clone(s2);
 
     EXPECT_EQ(200, s3.evaluate());
 }

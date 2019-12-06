@@ -39,7 +39,7 @@ namespace reactive::signal
                 p->set(p->lock(), std::move(value));
         }
 
-        void set(Signal<T, Weak<T>> sig)
+        void set(Signal<Weak<T>, T> sig)
         {
             if (auto p = deferred_.lock())
                 p->set(p->lock(), std::move(sig));

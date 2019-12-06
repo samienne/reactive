@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setObb(Signal<avg::Obb, T> obb)
+    auto setObb(Signal<T, avg::Obb> obb)
     {
         return makeWidgetTransformer(
             [obb=btl::cloneOnCopy(std::move(obb))](auto w) mutable

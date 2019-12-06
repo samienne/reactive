@@ -15,9 +15,9 @@
 namespace reactive::signal
 {
     template <typename T>
-    Signal<std::vector<widget::WidgetObject>> dataBind(
+    AnySignal<std::vector<widget::WidgetObject>> dataBind(
             DataSource<T> source,
-            std::function<WidgetFactory(Signal<T> value, size_t id)> delegate
+            std::function<WidgetFactory(AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;

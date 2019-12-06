@@ -62,7 +62,7 @@ static_assert(RequireSignal<decltype(
             )>::value, "");
 static_assert(RequireSignal<Join<Constant<Constant<int>>>>::value,
         "");
-static_assert(RequireSignal<Combine<std::vector<Signal<int>>>>::value,
+static_assert(RequireSignal<Combine<std::vector<AnySignal<int>>>>::value,
         "");
 static_assert(RequireSignal<signal::Cache<Constant<int>>>::value, "");
 static_assert(RequireSignal<InputSignal<int, btl::DummyLock>>::value,
@@ -74,11 +74,11 @@ static_assert(RequireSignal<UpdateIfJust<Constant<btl::option<int>>>>::value, ""
 static_assert(RequireSignal<Changed<Constant<int>>>::value,
         "Changed is not a signal");
 static_assert(RequireSignal<Blip<Constant<int>>>::value, "");
-static_assert(RequireSignal<SharedSignal<int, void>>::value, "");
+static_assert(RequireSignal<AnySharedSignal<int>>::value, "");
 
 TEST(signal, cacheTest)
 {
-    Signal<std::string> s = signal::constant<std::string>("test");
+    AnySignal<std::string> s = signal::constant<std::string>("test");
 
     auto s2 = signal::cache(std::move(s));
 }
@@ -86,8 +86,8 @@ TEST(signal, cacheTest)
 TEST(signal, construct)
 {
     auto s1 = signal::wrap(signal::constant<std::string>("test"));
-    Signal<std::string> s2 = std::move(s1);
-    Signal<std::string> s3 = std::move(s2);
+    AnySignal<std::string> s2 = std::move(s1);
+    AnySignal<std::string> s3 = std::move(s2);
 
     EXPECT_EQ("test", s3.evaluate());
 
@@ -105,18 +105,18 @@ TEST(signal, construct)
 TEST(signal, combine)
 {
     static_assert(IsSignal<
-            signal::Combine<std::vector<SharedSignal<const int&>>>
+            signal::Combine<std::vector<AnySharedSignal<const int&>>>
             >::value, "CombineSignal is not a signal");
 
     static_assert(IsSignal<
-            signal::Combine<std::tuple<SharedSignal<int>>>
+            signal::Combine<std::tuple<AnySharedSignal<int>>>
             >::value, "CombineSignal is not a signal");
 }
 
 TEST(signal, clone)
 {
     auto s1 = signal::wrap(signal::constant<std::string>("test"));
-    Signal<std::string> s2 = s1.clone();
+    AnySignal<std::string> s2 = s1.clone();
     auto s3 = s2.clone();
 
     auto s4 = signal::wrap(s3.clone());
@@ -129,7 +129,7 @@ TEST(signal, sharedCopy)
     auto s1 = signal::wrap(signal::constant<std::string>("test"));
     auto s2 = signal::share(std::move(s1));
     auto s3 = s2;
-    Signal<std::string> s4 = s3;
+    AnySignal<std::string> s4 = s3;
 
     auto s5 = signal::share(s3);
 
@@ -172,8 +172,8 @@ TEST(signal, split)
     EXPECT_EQ(10, s1.evaluate());
     EXPECT_EQ(std::string("20"), s2.evaluate());
 
-    Signal<int> s3 = std::move(s1);
-    Signal<std::string> s4 = std::move(s2);
+    AnySignal<int> s3 = std::move(s1);
+    AnySignal<std::string> s4 = std::move(s2);
 
     EXPECT_EQ(10, s3.evaluate());
     EXPECT_EQ(std::string("20"), s4.evaluate());
@@ -228,7 +228,7 @@ auto asdf(Signal<T, U> s)
 }
 
 template <typename T>
-auto asdf2(Signal<T> s)
+auto asdf2(AnySignal<T> s)
 {
     return std::move(s);
 }
@@ -249,7 +249,7 @@ TEST(signal, typedSharedSignalIsASignal)
 TEST(signal, sharedSignalTypeReduction)
 {
     auto s1 = signal::share(signal::constant(10));
-    SharedSignal<int> s2 = s1;
+    AnySharedSignal<int> s2 = s1;
 
     s2.evaluate();
 }
@@ -257,7 +257,7 @@ TEST(signal, sharedSignalTypeReduction)
 TEST(signal, sharedSignalTypeReductionToSignal)
 {
     auto s1 = share(signal::constant(10));
-    Signal<int> s2 = s1;
+    AnySignal<int> s2 = s1;
 
     s2.evaluate();
 }
@@ -265,14 +265,14 @@ TEST(signal, sharedSignalTypeReductionToSignal)
 TEST(signal, sharedSignalIsASignal)
 {
     auto s1 = share(signal::constant(10));
-    Signal<int> s2 = s1;
+    AnySignal<int> s2 = s1;
 
     s2.evaluate();
 }
 
 TEST(signal, weakConstruct)
 {
-    SharedSignal<int> s1 = signal::share(signal::constant(10));
+    AnySharedSignal<int> s1 = signal::share(signal::constant(10));
     auto s2 = signal::weak(s1);
 
     s2.evaluate();

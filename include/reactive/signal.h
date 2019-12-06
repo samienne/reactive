@@ -24,10 +24,10 @@ namespace reactive::signal
 
 namespace reactive
 {
-    template <typename T, typename TSignal = void>
+    template <typename TSignal, typename T>
     class SharedSignal;
 
-    template <typename T, typename TSignal /*= void */> // defined in typed.h
+    template <typename TSignal, typename T> // defined in typed.h
     class Signal
     {
     public:
@@ -40,41 +40,41 @@ namespace reactive
         {
         }
 
-        Signal(SharedSignal<T, TSignal>&& other) noexcept:
+        Signal(SharedSignal<TSignal, T>&& other) noexcept:
             sig_(std::move(other).signal())
         {
         }
 
-        Signal(SharedSignal<T, TSignal>& other) :
+        Signal(SharedSignal<TSignal, T>& other) :
             sig_(btl::clone(other.signal()))
         {
         }
 
-        Signal(SharedSignal<T, TSignal> const& other) :
-            sig_(btl::clone(other.signal()))
-        {
-        }
-
-        template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
-            >>
-        Signal(SharedSignal<T, USignal> const& other) :
+        Signal(SharedSignal<TSignal, T> const& other) :
             sig_(btl::clone(other.signal()))
         {
         }
 
         template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
             >>
-        Signal(SharedSignal<T, USignal>&& other) :
+        Signal(SharedSignal<USignal, T> const& other) :
+            sig_(btl::clone(other.signal()))
+        {
+        }
+
+        template <typename USignal, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
+            >>
+        Signal(SharedSignal<USignal, T>&& other) :
             sig_(std::move(other).signal())
         {
         }
 
         template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<T, USignal>>::value
+            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
             >>
-        Signal(SharedSignal<T, USignal>& other) :
+        Signal(SharedSignal<USignal, T>& other) :
             sig_(other.signal())
         {
         }
@@ -150,7 +150,7 @@ namespace reactive
             IsSignal<TSignal>
         >::value
         >>
-    Signal<std::decay_t<SignalType<TSignal>>, std::decay_t<TSignal>>
+    Signal<std::decay_t<TSignal>, std::decay_t<SignalType<TSignal>>>
     wrap(TSignal&& sig)
     {
         return { std::forward<TSignal>(sig) };
@@ -159,7 +159,7 @@ namespace reactive
     template <typename T, typename TSignal, typename = std::enable_if_t<
         IsSignal<TSignal>::value
         >>
-    auto wrap(Signal<T, TSignal>&& sig)
+    auto wrap(Signal<TSignal, T>&& sig)
     {
         return std::move(sig);
     }
@@ -167,7 +167,7 @@ namespace reactive
     } // namespace signal
 
     template <typename T>
-    class Signal<T, void>
+    class Signal<void, T>
     {
     public:
         template <typename U, typename V> friend class Signal;
@@ -184,13 +184,13 @@ namespace reactive
                     >
                 >::value
             >>
-        Signal(Signal<U, TSignal>&& other) :
+        Signal(Signal<TSignal, U>&& other) :
             deferred_(signal::typed<T>(std::move(other)))
         {
         }
 
         template <typename USignal>
-        Signal(SharedSignal<T, USignal> other) :
+        Signal(SharedSignal<USignal, T> other) :
             deferred_(std::move(other).signal().ptr())
         {
         }
@@ -205,18 +205,18 @@ namespace reactive
                     >
                 >::value
             >>
-        Signal(SharedSignal<U, USignal> other) :
+        Signal(SharedSignal<USignal, U> other) :
             deferred_(signal::typed<T>(std::move(other)))
         {
         }
 
     protected:
         Signal(Signal const&) = default;
-        Signal<T>& operator=(Signal const&) = default;
+        Signal<void, T>& operator=(Signal const&) = default;
 
     public:
         Signal(Signal&&) noexcept = default;
-        Signal<T>& operator=(Signal&&) noexcept = default;
+        Signal<void, T>& operator=(Signal&&) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {
@@ -258,17 +258,17 @@ namespace reactive
             return *this;
         }
 
-        signal::Share<T, signal::SignalBase<T>> const& signal() const &
+        signal::Share<signal::SignalBase<T>, T> const& signal() const &
         {
             return deferred_;
         }
 
-        signal::Share<T, signal::SignalBase<T>>&& signal() &&
+        signal::Share<signal::SignalBase<T>, T>&& signal() &&
         {
             return std::move(deferred_);
         }
 
-        signal::Share<T, signal::SignalBase<T>> getDeferredSignalBase() &&
+        signal::Share<signal::SignalBase<T>, T> getDeferredSignalBase() &&
         {
             return std::move(deferred_);
         }
@@ -280,7 +280,13 @@ namespace reactive
 
     private:
         template <typename T2> friend class reactive::signal::Weak;
-        signal::Share<T, signal::SignalBase<T>> deferred_;
+        signal::Share<signal::SignalBase<T>, T> deferred_;
     };
+
+    template <typename T>
+    using AnySignal = Signal<void, T>;
+
+    template <typename T>
+    using AnySharedSignal = SharedSignal<void, T>;
 } // reactive
 

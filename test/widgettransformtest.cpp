@@ -47,7 +47,7 @@ TEST(WidgetTransformer, simpleCompose)
     static_assert(IsWidget<decltype(w.first)>::value);
     static_assert(std::is_convertible_v<
             std::decay_t<decltype(*w.second)>,
-            std::tuple<Signal<avg::Obb>>
+            std::tuple<AnySignal<avg::Obb>>
             >);
 }
 

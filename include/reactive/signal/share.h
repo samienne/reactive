@@ -13,11 +13,11 @@ namespace reactive::signal
     namespace detail
     {
         template <typename T, typename U>
-        auto makeShared(Signal<T, U> sig)
+        auto makeShared(Signal<U, T> sig)
         {
-            return SharedSignal<T, U>::create(
-                    Share<T, signal::Typed<T, U>>(
-                        std::make_shared<signal::Typed<T, U>>(
+            return SharedSignal<U, T>::create(
+                    Share<signal::Typed<U, T>, T>(
+                        std::make_shared<signal::Typed<U, T>>(
                             std::move(sig).signal()
                             )
                         )
@@ -32,15 +32,15 @@ namespace reactive::signal
     }
 
     template <typename T, typename U>
-    SharedSignal<T, Share<T, U>> share(Signal<T, Share<T, U>> sig)
+    SharedSignal<Share<T, U>, U> share(Signal<Share<T, U>, U> sig)
     {
         return detail::makeShared(std::move(sig));
     }
 
     template <typename T>
-    auto share(Signal<T, void> sig)
+    auto share(AnySignal<T> sig)
     {
-        return SharedSignal<T, void>::create(
+        return AnySharedSignal<T>::create(
                 std::move(sig)
                 );
     }

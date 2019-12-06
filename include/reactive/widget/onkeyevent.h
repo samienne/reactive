@@ -168,7 +168,7 @@ namespace reactive::widget
         }
 
         inline OnKeyEvent action(
-                Signal<std::function<void(ase::KeyEvent const&)>> action) &&
+                AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
         {
             *action_ = signal::mapFunction([](
                         std::function<void(ase::KeyEvent const&)> action1,

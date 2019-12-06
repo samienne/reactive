@@ -33,7 +33,7 @@ namespace reactive::signal
         }
 
         template <typename U>
-        Weak(SharedSignal<T, U> const& sig) :
+        Weak(SharedSignal<U, T> const& sig) :
             deferred_(sig.signal().weak())
         {
         }
@@ -120,7 +120,7 @@ namespace reactive::signal
     };
 
     template <typename T, typename U>
-    auto weak(SharedSignal<T, U> const& sig) // -> Weak<T>
+    auto weak(SharedSignal<U, T> const& sig) // -> Weak<T>
     {
         return signal::wrap(Weak<T>(sig));
     }

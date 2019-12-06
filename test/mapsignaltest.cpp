@@ -82,7 +82,7 @@ TEST(Map, Partial)
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
-    Signal<std::function<int(int)>> s1 =
+    AnySignal<std::function<int(int)>> s1 =
         signal::cast<std::function<int(int)>>(mapFunction(f, signal::constant(10)));
 
     //auto v1 = s1.evaluate();

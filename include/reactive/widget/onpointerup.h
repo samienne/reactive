@@ -20,7 +20,7 @@ namespace reactive::widget
             std::function<EventResult(ase::PointerButtonEvent const&)>
         >::value
         >>
-    inline auto onPointerUp(Signal<T, U> cb)
+    inline auto onPointerUp(Signal<U, T> cb)
             //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
         auto id = btl::makeUniqueId();

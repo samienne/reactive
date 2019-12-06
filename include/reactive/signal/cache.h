@@ -100,7 +100,7 @@ namespace reactive::signal
     template <typename T, typename U, std::enable_if_t<
         std::is_reference<SignalType<U>>::value
         , int> = 0>
-    auto cache(Signal<T, U>&& sig)
+    auto cache(Signal<U, T>&& sig)
     {
         return std::move(sig);
     }
@@ -108,19 +108,19 @@ namespace reactive::signal
     template <typename T, typename U, std::enable_if_t<
         !std::is_reference<SignalType<U>>::value
         , int> = 0>
-    auto cache(Signal<T, U>&& sig)
+    auto cache(Signal<U, T>&& sig)
     {
         return signal::wrap(Cache<U>(std::move(sig).signal()));
     }
 
     template <typename T>
-    auto cache(Signal<T, void>&& sig) -> Signal<T, void>
+    auto cache(AnySignal<T>&& sig) -> AnySignal<T>
     {
         if (sig.isCached())
             return std::move(sig);
         else
         {
-            return signal::wrap(Cache<Signal<T, void>>(
+            return signal::wrap(Cache<AnySignal<T>>(
                         std::move(sig))
                     );
         }

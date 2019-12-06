@@ -144,7 +144,7 @@ namespace reactive::signal
         Input& operator=(Input&&) noexcept = default;
 
         InputHandle<T, TLock> handle;
-        SharedSignal<T, InputSignal<T, TLock>> signal;
+        SharedSignal<InputSignal<T, TLock>, T> signal;
     };
 
     template <typename T, typename TLock = btl::DummyLock>

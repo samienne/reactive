@@ -12,7 +12,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setInputAreas(Signal<std::vector<InputArea>, T> areas)
+    auto setInputAreas(Signal<T, std::vector<InputArea>> areas)
     {
         return makeWidgetTransformer(
             [areas=btl::cloneOnCopy(std::move(areas))](auto w) mutable

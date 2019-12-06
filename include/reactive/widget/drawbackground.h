@@ -32,7 +32,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename T>
-    auto background(Signal<avg::Brush, T> brush)
+    auto background(Signal<T, avg::Brush> brush)
     {
         return makeWidgetTransformer()
             .compose(bindDrawContext(), bindSize())

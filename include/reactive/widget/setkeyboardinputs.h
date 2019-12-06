@@ -12,7 +12,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setKeyboardInputs(Signal<std::vector<KeyboardInput>, T> inputs)
+    auto setKeyboardInputs(Signal<T, std::vector<KeyboardInput>> inputs)
     {
         return makeWidgetTransformer(
             [inputs=btl::cloneOnCopy(std::move(inputs))](auto w) mutable

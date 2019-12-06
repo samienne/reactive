@@ -11,7 +11,7 @@ WidgetFactory hbox(std::vector<WidgetFactory> widgets)
     return box<Axis::x>(std::move(widgets));
 }
 
-WidgetFactory hbox(Signal<std::vector<widget::WidgetObject>> widgets)
+WidgetFactory hbox(AnySignal<std::vector<widget::WidgetObject>> widgets)
 {
     return dynamicBox<Axis::x>(std::move(widgets));
 }

@@ -9,7 +9,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setFocusable(Signal<bool, T> focusable)
+    auto setFocusable(Signal<T, bool> focusable)
     {
         return widget::makeWidgetTransformer()
             .compose(widget::grabKeyboardInputs())

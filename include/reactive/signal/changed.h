@@ -87,10 +87,10 @@ namespace reactive::signal
     };
 
     template <typename T, typename TSignal>
-    auto changed(Signal<T, TSignal> sig)
-        -> Changed<Signal<T, std::decay_t<TSignal>>>
+    auto changed(Signal<TSignal, T> sig)
+        -> Changed<Signal<std::decay_t<TSignal>, T>>
     {
-        return Changed<Signal<T, std::decay_t<TSignal>>>(std::move(sig));
+        return Changed<Signal<std::decay_t<TSignal>, T>>(std::move(sig));
     }
 } // namespace reactive::signal
 

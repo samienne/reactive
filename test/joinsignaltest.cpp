@@ -12,9 +12,9 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<SharedSignal<int>> h2;
-    Signal<SharedSignal<int>> s1;
-    Signal<int> s2;
+    signal::InputHandle<AnySharedSignal<int>> h2;
+    AnySignal<SharedSignal<void, int>> s1;
+    AnySignal<int> s2;
 };
 
 Test makeTest()
