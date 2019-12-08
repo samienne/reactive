@@ -24,19 +24,19 @@ namespace reactive::signal
 
 namespace reactive
 {
-    template <typename TSignal, typename T>
+    template <typename TStorage, typename T>
     class SharedSignal;
 
-    template <typename TSignal, typename T> // defined in typed.h
+    template <typename TStorage, typename T> // defined in typed.h
     class Signal
     {
     public:
         template <typename U, typename V> friend class Signal;
 
-        using NestedSignalType = TSignal;
-        using StorageType = std::conditional_t<std::is_same_v<void, TSignal>,
+        using NestedSignalType = TStorage;
+        using StorageType = std::conditional_t<std::is_same_v<void, TStorage>,
               signal::Share<signal::SignalBase<T>, T>,
-              TSignal
+              TStorage
             >;
 
         Signal(StorageType sig) :
@@ -44,41 +44,41 @@ namespace reactive
         {
         }
 
-        Signal(SharedSignal<TSignal, T>&& other) noexcept:
+        Signal(SharedSignal<TStorage, T>&& other) noexcept:
             sig_(std::move(other).storage())
         {
         }
 
-        Signal(SharedSignal<TSignal, T>& other) :
+        Signal(SharedSignal<TStorage, T>& other) :
             sig_(btl::clone(other.storage()))
         {
         }
 
-        Signal(SharedSignal<TSignal, T> const& other) :
+        Signal(SharedSignal<TStorage, T> const& other) :
             sig_(btl::clone(other.storage()))
         {
         }
 
-        template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
+        template <typename UStorage, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<UStorage, T>>::value
             >>
-        Signal(SharedSignal<USignal, T> const& other) :
+        Signal(SharedSignal<UStorage, T> const& other) :
             sig_(btl::clone(other.storage()))
         {
         }
 
-        template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
+        template <typename UStorage, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<UStorage, T>>::value
             >>
-        Signal(SharedSignal<USignal, T>&& other) :
+        Signal(SharedSignal<UStorage, T>&& other) :
             sig_(std::move(other).storage())
         {
         }
 
-        template <typename USignal, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<USignal, T>>::value
+        template <typename UStorage, typename = std::enable_if_t<
+            std::is_base_of<Signal, SharedSignal<UStorage, T>>::value
             >>
-        Signal(SharedSignal<USignal, T>& other) :
+        Signal(SharedSignal<UStorage, T>& other) :
             sig_(other.storage())
         {
         }
@@ -143,7 +143,7 @@ namespace reactive
 
         bool isCached() const
         {
-            if constexpr(std::is_same_v<void, TSignal>)
+            if constexpr(std::is_same_v<void, TStorage>)
             {
                 return Signal<void, T>::storage().ptr()->isCached();
             }
@@ -160,22 +160,22 @@ namespace reactive
 
     namespace signal
     {
-        template <typename TSignal, typename = std::enable_if_t<
+        template <typename TStorage, typename = std::enable_if_t<
             btl::All<
-                std::is_convertible<TSignal, std::decay_t<TSignal>>,
-                IsSignal<TSignal>
+                std::is_convertible<TStorage, std::decay_t<TStorage>>,
+                IsSignal<TStorage>
             >::value
             >>
-        Signal<std::decay_t<TSignal>, std::decay_t<SignalType<TSignal>>>
-        wrap(TSignal&& sig)
+        Signal<std::decay_t<TStorage>, std::decay_t<SignalType<TStorage>>>
+        wrap(TStorage&& sig)
         {
-            return { std::forward<TSignal>(sig) };
+            return { std::forward<TStorage>(sig) };
         }
 
-        template <typename T, typename TSignal, typename = std::enable_if_t<
-            IsSignal<TSignal>::value
+        template <typename T, typename TStorage, typename = std::enable_if_t<
+            IsSignal<TStorage>::value
             >>
-        auto wrap(Signal<TSignal, T>&& sig)
+        auto wrap(Signal<TStorage, T>&& sig)
         {
             return std::move(sig);
         }
@@ -189,7 +189,7 @@ namespace reactive
 
         using NestedSignalType = void;
 
-        template <typename U, typename TSignal, typename =
+        template <typename U, typename TStorage, typename =
             std::enable_if_t<
                 btl::All<
                     std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
@@ -199,18 +199,18 @@ namespace reactive
                     >
                 >::value
             >>
-        AnySignal(Signal<TSignal, U>&& other) :
+        AnySignal(Signal<TStorage, U>&& other) :
             Signal<void, T>(signal::typed<T>(std::move(other)))
         {
         }
 
-        template <typename USignal>
-        AnySignal(SharedSignal<USignal, T> other) :
+        template <typename UStorage>
+        AnySignal(SharedSignal<UStorage, T> other) :
             Signal<void, T>(std::move(other).storage().ptr())
         {
         }
 
-        template <typename U, typename USignal, typename =
+        template <typename U, typename UStorage, typename =
             std::enable_if_t<
                 btl::All<
                     std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
@@ -220,7 +220,7 @@ namespace reactive
                     >
                 >::value
             >>
-        AnySignal(SharedSignal<USignal, U> other) :
+        AnySignal(SharedSignal<UStorage, U> other) :
             Signal<void, T>(signal::typed<T>(std::move(other)))
         {
         }

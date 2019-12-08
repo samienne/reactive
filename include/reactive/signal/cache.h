@@ -12,24 +12,24 @@ namespace reactive
 {
     namespace signal
     {
-        template <typename TSignal>
+        template <typename TStorage>
         class Cache;
     }
 
-    template <typename TSignal>
-    struct IsSignal<signal::Cache<TSignal>> : std::true_type {};
+    template <typename TStorage>
+    struct IsSignal<signal::Cache<TStorage>> : std::true_type {};
 }
 
 namespace reactive::signal
 {
-    template <typename TSignal>
+    template <typename TStorage>
     class Cache
     {
     public:
-        using ValueType = std::decay_t<SignalType<TSignal>>;
+        using ValueType = std::decay_t<SignalType<TStorage>>;
         using Lock = std::lock_guard<btl::SpinLock>;
 
-        Cache(TSignal sig) :
+        Cache(TStorage sig) :
             sig_(std::move(sig))
         {
         }
@@ -92,7 +92,7 @@ namespace reactive::signal
         }
 
     private:
-        btl::CloneOnCopy<std::decay_t<TSignal>> sig_;
+        btl::CloneOnCopy<std::decay_t<TStorage>> sig_;
         mutable btl::option<ValueType> value_;
         bool changed_ = false;
     };
