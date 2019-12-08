@@ -29,7 +29,7 @@ TEST(IterateSignal, iterate)
 
     //auto s1 = iterate(add, signal::constant(10), std::move(p.stream));
     auto s1 = f();
-    static_assert(CheckSignal<decltype(s1)>::value, "Iterate is not a signal");
+    static_assert(signal::CheckSignal<decltype(s1)>::value, "Iterate is not a signal");
 
     EXPECT_EQ(10, s1.evaluate());
 

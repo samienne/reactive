@@ -14,7 +14,7 @@
 namespace reactive::widget
 {
     template <typename T, typename = std::enable_if_t<
-        IsSignalType<
+        signal::IsSignalType<
             std::decay_t<T>,
             std::function<EventResult(ase::PointerButtonEvent const&)>>::value
         >>

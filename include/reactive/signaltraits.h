@@ -15,7 +15,7 @@
 #include <type_traits>
 #include <chrono>
 
-namespace reactive
+namespace reactive::signal
 {
     template <typename T>
     using decay_t = typename std::decay<T>::type;

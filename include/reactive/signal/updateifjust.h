@@ -6,20 +6,14 @@
 
 #include <btl/forcenoexcept.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class UpdateIfJust;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::UpdateIfJust<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class UpdateIfJust;
+
+    template <typename TSignal>
+    struct IsSignal<UpdateIfJust<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class UpdateIfJust
     {
@@ -51,12 +45,12 @@ namespace reactive::signal
             return changed_;
         }
 
-        UpdateResult updateBegin(signal::FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return signal_->updateBegin(frame);
         }
 
-        UpdateResult updateEnd(signal::FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
 
@@ -110,7 +104,7 @@ namespace reactive::signal
             typename UpdateIfJust<TSignal>::ValueTypeDecayed initial)
         //-> UpdateIfJust<TSignal>
     {
-        return signal::wrap(
+        return wrap(
                 UpdateIfJust<TSignal>(std::forward<TSignal>(signal),
                     std::move(initial))
                 );

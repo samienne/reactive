@@ -15,20 +15,14 @@
 #include <chrono>
 #include <utility>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignalValue>
-        class Tween;
-    }
-
-    template <typename TSignalValue>
-    struct IsSignal<signal::Tween<TSignalValue>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignalValue>
+        class Tween;
+
+    template <typename TSignalValue>
+    struct IsSignal<Tween<TSignalValue>> : std::true_type {};
+
     enum class TweenType
     {
         linear,
@@ -73,12 +67,12 @@ namespace reactive::signal
             return changed_;
         }
 
-        UpdateResult updateBegin(signal::FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return signal_->updateBegin(frame);
         }
 
-        UpdateResult updateEnd(signal::FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
             bool changed = signal_->hasChanged();

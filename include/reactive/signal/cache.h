@@ -8,20 +8,14 @@
 #include <btl/spinlock.h>
 #include <btl/hidden.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TStorage>
-        class Cache;
-    }
-
-    template <typename TStorage>
-    struct IsSignal<signal::Cache<TStorage>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TStorage>
+    class Cache;
+
+    template <typename TStorage>
+    struct IsSignal<Cache<TStorage>> : std::true_type {};
+
     template <typename TStorage>
     class Cache
     {
@@ -110,7 +104,7 @@ namespace reactive::signal
         , int> = 0>
     auto cache(Signal<U, T>&& sig)
     {
-        return signal::wrap(Cache<U>(std::move(sig).storage()));
+        return wrap(Cache<U>(std::move(sig).storage()));
     }
 
     template <typename T>
@@ -120,7 +114,7 @@ namespace reactive::signal
             return std::move(sig);
         else
         {
-            return signal::wrap(Cache<AnySignal<T>>(
+            return wrap(Cache<AnySignal<T>>(
                         std::move(sig))
                     );
         }

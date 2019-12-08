@@ -20,22 +20,16 @@
 
 #include <tuple>
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
-    {
-        template <template <typename> class TBase,
-                typename TFunc, typename... TSigs>
-        class Map;
-    }
+    template <template <typename> class TBase,
+            typename TFunc, typename... TSigs>
+    class Map;
 
     template <template <typename> class TBase,
             typename TFunc, typename... TSigs>
-    struct IsSignal<signal::Map<TBase, TFunc, TSigs...>> : std::true_type {};
-}
+    struct IsSignal<Map<TBase, TFunc, TSigs...>> : std::true_type {};
 
-namespace reactive::signal
-{
     namespace detail
     {
         enum class ChangedStatus
@@ -332,7 +326,7 @@ namespace reactive::signal
         >>
     constexpr auto map(TFunc&& func, Signal<Us, Ts>... sigs)
     {
-        return signal::wrap(
+        return wrap(
                 Map<detail::MapBase, std::decay_t<TFunc>, Signal<Us, Ts>...>(
                 std::forward<TFunc>(func),
                 std::move(sigs)...
@@ -350,7 +344,7 @@ namespace reactive::signal
         >::type>
     constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
     {
-        return signal::wrap(
+        return wrap(
                 Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
                     std::forward<TFunc>(func),
                     std::move(sigs)...

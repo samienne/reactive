@@ -19,20 +19,14 @@
 #include <list>
 #include <memory>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T, typename TLock = btl::DummyLock>
-        class InputSignal;
-    }
-
-    template <typename T, typename TLock>
-    struct IsSignal<signal::InputSignal<T, TLock>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T, typename TLock = btl::DummyLock>
+    class InputSignal;
+
+    template <typename T, typename TLock>
+    struct IsSignal<InputSignal<T, TLock>> : std::true_type {};
+
     template <typename T, typename TLock = btl::DummyLock>
     struct Input;
 

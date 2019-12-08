@@ -4,20 +4,14 @@
 #include "reactive/signaltraits.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Changed;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Changed<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class Changed;
+
+    template <typename TSignal>
+    struct IsSignal<Changed<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class Changed
     {

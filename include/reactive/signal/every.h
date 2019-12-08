@@ -3,19 +3,13 @@
 #include "reactive/signaltraits.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        class Every;
-    }
-
-    template <>
-    struct IsSignal<signal::Every> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    class Every;
+
+    template <>
+    struct IsSignal<Every> : std::true_type {};
+
     class Every
     {
     public:

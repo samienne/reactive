@@ -5,7 +5,6 @@
 
 namespace reactive::signal
 {
-
     namespace detail
     {
         template <typename T>

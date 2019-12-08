@@ -32,7 +32,7 @@ namespace reactive::widget
     }
 
     template <typename TSignalDrawings, typename = std::enable_if_t<
-        btl::IsSequence<SignalType<TSignalDrawings>>::value
+        btl::IsSequence<signal::SignalType<TSignalDrawings>>::value
         >
     >
     auto addDrawings(TSignalDrawings drawings)

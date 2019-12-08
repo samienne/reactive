@@ -15,8 +15,11 @@ namespace reactive
         class Hold;
     }
 
-    template <typename T>
-    struct IsSignal<stream::Hold<T>> : std::true_type {};
+    namespace signal
+    {
+        template <typename T>
+        struct IsSignal<stream::Hold<T>> : std::true_type {};
+    }
 }
 
 namespace reactive::stream

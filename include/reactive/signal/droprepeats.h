@@ -5,20 +5,14 @@
 #include "reactive/signaltraits.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class DropRepeats;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::DropRepeats<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class DropRepeats;
+
+    template <typename TSignal>
+    struct IsSignal<DropRepeats<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class DropRepeats
     {

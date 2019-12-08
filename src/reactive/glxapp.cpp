@@ -82,7 +82,7 @@ public:
             {
                 if (pointerEventsOnThisFrame_++ > 0)
                 {
-                    widget_.update({getNextFrameId(), signal_time_t(0)});
+                    widget_.update({getNextFrameId(), signal::signal_time_t(0)});
                 }
 
                 if (e.state == ase::ButtonState::down)
@@ -217,7 +217,7 @@ public:
             memoryStatistics_.maximum_concurrent_bytes_allocated() << std::endl;
     }
 
-    btl::option<signal_time_t> frame(std::vector<XEvent> const& events,
+    btl::option<signal::signal_time_t> frame(std::vector<XEvent> const& events,
             std::chrono::microseconds dt)
     {
         pointerEventsOnThisFrame_ = 0;

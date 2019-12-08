@@ -87,13 +87,13 @@ private:
     mutable btl::shared<Data> data_;
 };
 
-namespace reactive
+namespace reactive::signal
 {
     template <>
-    struct IsSignal<SignalStub> : reactive::CheckSignal<SignalStub> {};
+    struct IsSignal<SignalStub> : CheckSignal<SignalStub> {};
 }
 
-static_assert(reactive::IsSignal<SignalStub>::value, "");
+static_assert(reactive::signal::IsSignal<SignalStub>::value, "");
 
 template <typename TSignalMap>
 void testSignal(TSignalMap&& sigMap)

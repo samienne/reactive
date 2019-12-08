@@ -20,7 +20,7 @@ namespace reactive
     }
 
     template <typename T>
-    struct IsSignal<stream::Collect<T>> : std::true_type {};
+    struct signal::IsSignal<stream::Collect<T>> : std::true_type {};
 }
 
 namespace reactive::stream

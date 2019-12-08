@@ -4,20 +4,14 @@
 #include "reactive/signal.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T>
-        class Convert;
-    }
-
-    template <typename T>
-    struct IsSignal<signal::Convert<T>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T>
+    class Convert;
+
+    template <typename T>
+    struct IsSignal<Convert<T>> : std::true_type {};
+
     template <typename T>
     class Convert : public AnySignal<T>
     {

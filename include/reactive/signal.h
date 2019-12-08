@@ -20,10 +20,7 @@
 namespace reactive::signal
 {
     template <typename T2> class Weak;
-} // reactive::signal
 
-namespace reactive
-{
     template <typename TStorage, typename T>
     class SharedSignal;
 
@@ -35,7 +32,7 @@ namespace reactive
 
         using NestedSignalType = TStorage;
         using StorageType = std::conditional_t<std::is_same_v<void, TStorage>,
-              signal::Share<signal::SignalBase<T>, T>,
+              Share<SignalBase<T>, T>,
               TStorage
             >;
 
@@ -101,12 +98,12 @@ namespace reactive
             return sig_->hasChanged();
         }
 
-        signal::UpdateResult updateBegin(signal::FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             return sig_->updateBegin(frame);
         }
 
-        signal::UpdateResult updateEnd(signal::FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             return sig_->updateEnd(frame);
         }
@@ -154,32 +151,29 @@ namespace reactive
         }
 
     private:
-        template <typename T2> friend class reactive::signal::Weak;
+        template <typename T2> friend class Weak;
         btl::CloneOnCopy<StorageType> sig_;
     };
 
-    namespace signal
+    template <typename TStorage, typename = std::enable_if_t<
+        btl::All<
+            std::is_convertible<TStorage, std::decay_t<TStorage>>,
+            IsSignal<TStorage>
+        >::value
+        >>
+    Signal<std::decay_t<TStorage>, std::decay_t<SignalType<TStorage>>>
+    wrap(TStorage&& sig)
     {
-        template <typename TStorage, typename = std::enable_if_t<
-            btl::All<
-                std::is_convertible<TStorage, std::decay_t<TStorage>>,
-                IsSignal<TStorage>
-            >::value
-            >>
-        Signal<std::decay_t<TStorage>, std::decay_t<SignalType<TStorage>>>
-        wrap(TStorage&& sig)
-        {
-            return { std::forward<TStorage>(sig) };
-        }
+        return { std::forward<TStorage>(sig) };
+    }
 
-        template <typename T, typename TStorage, typename = std::enable_if_t<
-            IsSignal<TStorage>::value
-            >>
-        auto wrap(Signal<TStorage, T>&& sig)
-        {
-            return std::move(sig);
-        }
-    } // namespace signal
+    template <typename T, typename TStorage, typename = std::enable_if_t<
+        IsSignal<TStorage>::value
+        >>
+    auto wrap(Signal<TStorage, T>&& sig)
+    {
+        return std::move(sig);
+    }
 
     template <typename T>
     class AnySignal : public Signal<void, T>
@@ -200,7 +194,7 @@ namespace reactive
                 >::value
             >>
         AnySignal(Signal<TStorage, U>&& other) :
-            Signal<void, T>(signal::typed<T>(std::move(other)))
+            Signal<void, T>(typed<T>(std::move(other)))
         {
         }
 
@@ -221,7 +215,7 @@ namespace reactive
                 >::value
             >>
         AnySignal(SharedSignal<UStorage, U> other) :
-            Signal<void, T>(signal::typed<T>(std::move(other)))
+            Signal<void, T>(typed<T>(std::move(other)))
         {
         }
 
@@ -239,8 +233,20 @@ namespace reactive
         }
 
     private:
-        template <typename T2> friend class reactive::signal::Weak;
+        template <typename T2> friend class Weak;
     };
 
-} // reactive
+} // namespace reactive::signal
+
+namespace reactive
+{
+    template <typename T, typename U>
+    using Signal = signal::Signal<T, U>;
+
+    template <typename T, typename U>
+    using SharedSignal = signal::SharedSignal<T, U>;
+
+    template <typename T>
+    using AnySignal = signal::AnySignal<T>;
+} // namespace reactive
 

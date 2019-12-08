@@ -7,20 +7,14 @@
 
 #include <type_traits>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TCondition, typename TTrue, typename TFalse>
-        class Conditional;
-    }
-
-    template <typename TCondition, typename TTrue, typename TFalse>
-    struct IsSignal<signal::Conditional<TCondition, TTrue, TFalse>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TCondition, typename TTrue, typename TFalse>
+    class Conditional;
+
+    template <typename TCondition, typename TTrue, typename TFalse>
+    struct IsSignal<Conditional<TCondition, TTrue, TFalse>> : std::true_type {};
+
     template <typename TCondition, typename TTrue, typename TFalse>
     class Conditional
     {

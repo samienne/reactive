@@ -23,7 +23,7 @@
 using namespace reactive;
 using us = std::chrono::microseconds;
 
-static_assert(IsSignal<
+static_assert(signal::IsSignal<
         signal::Map<
             signal::detail::MapBase, btl::Plus, signal::Constant<int>,
             signal::Constant<int>
@@ -33,7 +33,7 @@ static_assert(IsSignal<
 static_assert(std::is_same
         <
             int,
-            SignalValueType<signal::Map<signal::detail::MapBase, btl::Plus,
+            signal::SignalValueType<signal::Map<signal::detail::MapBase, btl::Plus,
                 signal::Constant<int>, signal::Constant<int>>>::type
         >::value, "");
 
@@ -82,7 +82,7 @@ TEST(Map, Partial)
     auto gss = gs.evaluate();
     auto v2 = gss(10, 20);
 
-    AnySignal<std::function<int(int)>> s1 =
+    signal::AnySignal<std::function<int(int)>> s1 =
         signal::cast<std::function<int(int)>>(mapFunction(f, signal::constant(10)));
 
     //auto v1 = s1.evaluate();
@@ -106,8 +106,8 @@ TEST(MapSignal, map)
     auto s3 = signal::map(add, std::move(s1), std::move(s2.signal));
     s3.evaluate();
 
-    static_assert(IsSignal<decltype(s3)>::value, "");
-    static_assert(std::is_same<SignalValueType<decltype(s3)>::type,
+    static_assert(signal::IsSignal<decltype(s3)>::value, "");
+    static_assert(std::is_same<signal::SignalValueType<decltype(s3)>::type,
             float>::value, "");
 
     EXPECT_FALSE(s3.hasChanged());

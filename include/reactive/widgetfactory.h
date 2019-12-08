@@ -117,7 +117,7 @@ namespace reactive
                  <
                     btl::All<
                         //IsTupleMaps<TTupleMaps>,
-                        IsSizeHint<SignalType<TSizeHint>>
+                        IsSizeHint<signal::SignalType<TSizeHint>>
                     >::value
                  >>
     auto makeWidFac(TTupleMaps maps, TSizeHint sizeHint)
@@ -372,7 +372,7 @@ namespace reactive
     }
 
     template <typename TSignalSizeHint, typename = std::enable_if_t<
-        IsSizeHint<SignalType<TSignalSizeHint>>::value
+        IsSizeHint<signal::SignalType<TSignalSizeHint>>::value
         >
     >
     auto setSizeHint(TSignalSizeHint sizeHint)

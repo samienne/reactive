@@ -48,11 +48,11 @@ namespace reactive::signal
             return false;
         }
 
-        UpdateResult updateBegin(signal::FrameInfo const&)
+        UpdateResult updateBegin(FrameInfo const&)
         {
             return btl::none; }
 
-        UpdateResult updateEnd(signal::FrameInfo const&)
+        UpdateResult updateEnd(FrameInfo const&)
         {
             return btl::none;
         }
@@ -87,27 +87,18 @@ namespace reactive::signal
     template <typename T>
     auto constant(T&& value)
     {
-        return signal::wrap(Constant<std::decay_t<T>>(
+        return wrap(Constant<std::decay_t<T>>(
                     std::forward<T>(value)
                     ));
     }
 
     template <typename T>
-    /*Constant<std::vector<typename std::decay<T>::type>>*/ auto constant(
-            std::initializer_list<T> v)
+    auto constant(std::initializer_list<T> v)
     {
         return constant(std::vector<std::decay_t<T>>(v));
     }
-} // reactive::signal
 
-namespace reactive
-{
     template <typename T>
-    struct IsSignal<signal::Constant<T>> : std::true_type {};
-
-    /*
-    static_assert(IsSignal<Constant<int>>::value,
-            "Constant is not a signal");
-            */
-}
+    struct IsSignal<Constant<T>> : std::true_type {};
+} // reactive::signal
 

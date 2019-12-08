@@ -3,19 +3,13 @@
 #include "reactive/signaltraits.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        class DtSignal;
-    }
-
-    template <>
-    struct IsSignal<signal::DtSignal> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    class DtSignal;
+
+    template <>
+    struct IsSignal<DtSignal> : std::true_type {};
+
     class DtSignal
     {
     public:

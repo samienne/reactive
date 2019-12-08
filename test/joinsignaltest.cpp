@@ -34,7 +34,7 @@ Test makeTest()
 
 TEST(JoinSignal, isSignal)
 {
-    static_assert(IsSignal<signal::Join<
+    static_assert(signal::IsSignal<signal::Join<
             signal::Constant<signal::Constant<int>>>>::value,
             "Join is not a signal");
 }

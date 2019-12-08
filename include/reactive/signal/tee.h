@@ -12,20 +12,14 @@
 #include "reactive/signaltraits.h"
 #include "reactive/reactivevisibility.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T1, typename T2>
-        class Tee;
-    }
-
-    template <typename T1, typename T2>
-    struct IsSignal<signal::Tee<T1, T2>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T1, typename T2>
+    class Tee;
+
+    template <typename T1, typename T2>
+    struct IsSignal<Tee<T1, T2>> : std::true_type {};
+
     template <typename T1, typename T2>
     class Tee
     {
@@ -111,7 +105,7 @@ namespace reactive::signal
         >*/
     //-> Signal<T>
     {
-        AnySharedSignal<T> s1 = signal::share(std::move(sig));
+        AnySharedSignal<T> s1 = share(std::move(sig));
 
         auto s2 = signal::map(std::forward<TMapFunc>(mapFunc), s1);
         auto teeSig = share(removeReference(signal::tryDropRepeats(
@@ -119,7 +113,7 @@ namespace reactive::signal
 
         handle.set(weak(teeSig));
 
-        return signal::wrap(Tee<
+        return wrap(Tee<
             T,
             std::decay_t<SignalType<decltype(teeSig)>>
             >(std::move(s1), std::move(teeSig))

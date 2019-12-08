@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-namespace reactive
+namespace reactive::signal
 {
     template <typename TSignal, typename T>
     class Signal;
@@ -12,24 +12,18 @@ namespace reactive
     template <typename TSignal, typename T>
     struct IsSignal<Signal<TSignal, T>> : std::true_type {};
 
-    namespace signal
-    {
-        template <typename TDeferred, typename T>
-        class Share;
-
-        template <typename TSignal, typename T>
-        class Typed;
-    }
-
     template <typename TDeferred, typename T>
-    struct IsSignal<signal::Share<TDeferred, T>> : std::true_type {};
+    class Share;
 
     template <typename TSignal, typename T>
-    struct IsSignal<signal::Typed<TSignal, T>> : std::true_type {};
-} // reactive
+    class Typed;
 
-namespace reactive::signal
-{
+    template <typename TDeferred, typename T>
+    struct IsSignal<Share<TDeferred, T>> : std::true_type {};
+
+    template <typename TSignal, typename T>
+    struct IsSignal<Typed<TSignal, T>> : std::true_type {};
+
     template <typename TDeferred, typename T>
     class Share
     {
@@ -103,7 +97,7 @@ namespace reactive::signal
     };
 
     template <typename TSignal, typename T>
-    class Typed final : public signal::SignalBase<T>
+    class Typed final : public SignalBase<T>
     {
     public:
         using Lock = std::lock_guard<btl::SpinLock>;
@@ -135,7 +129,7 @@ namespace reactive::signal
             return sig_.hasChanged();
         }
 
-        btl::option<signal_time_t> updateBegin(signal::FrameInfo const& frame)
+        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
             override final
         {
             if (frameId_ == frame.getFrameId())
@@ -145,7 +139,7 @@ namespace reactive::signal
             return sig_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
+        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
             override final
         {
             btl::option<signal_time_t> r = btl::none;
@@ -191,8 +185,8 @@ namespace reactive::signal
     template <typename T, typename U, typename V>
     auto typed(Signal<U, V> sig)
     {
-        return signal::Share<signal::SignalBase<T>, T>(
-                    std::make_shared<signal::Typed<Signal<U, V>, T>>(std::move(sig))
+        return Share<SignalBase<T>, T>(
+                    std::make_shared<Typed<Signal<U, V>, T>>(std::move(sig))
                     );
     }
 

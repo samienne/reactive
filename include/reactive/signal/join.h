@@ -3,20 +3,14 @@
 #include "reactive/signal.h"
 #include "reactive/signaltraits.h"
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Join;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Join<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class Join;
+
+    template <typename TSignal>
+    struct IsSignal<Join<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class Join
     {
@@ -137,7 +131,7 @@ namespace reactive::signal
         >>
     auto join(Signal<U, T> sig)
     {
-        return signal::wrap(Join<U>(std::move(sig).storage()));
+        return wrap(Join<U>(std::move(sig).storage()));
     }
 } // namespace reactive::signal
 

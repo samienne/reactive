@@ -3,7 +3,7 @@
 #include "signal/share.h"
 #include "reactivevisibility.h"
 
-namespace reactive
+namespace reactive::signal
 {
     template <typename TDeferred, typename T>
     class Share;
@@ -16,17 +16,17 @@ namespace reactive
 
     template <typename TStorage, typename T>
     class SharedSignal : public Signal<
-                         signal::Share<signal::Typed<TStorage, T>, T>, T
+                         Share<Typed<TStorage, T>, T>, T
                          >
     {
     private:
-        SharedSignal(signal::Share<signal::Typed<TStorage, T>, T> sig) :
-            Signal<signal::Share<signal::Typed<TStorage, T>, T>, T>(std::move(sig))
+        SharedSignal(Share<Typed<TStorage, T>, T> sig) :
+            Signal<Share<Typed<TStorage, T>, T>, T>(std::move(sig))
         {
         }
 
     public:
-        static SharedSignal create(signal::Share<signal::Typed<TStorage, T>, T>&& sig)
+        static SharedSignal create(Share<Typed<TStorage, T>, T>&& sig)
         {
             return { std::move(sig) };
         }
@@ -60,7 +60,7 @@ namespace reactive
         }
 
         template <typename U>
-        SharedSignal(Signal<signal::Share<U, T>, T> sig) :
+        SharedSignal(Signal<Share<U, T>, T> sig) :
             AnySignal<T>(std::move(sig))
         {
         }
@@ -84,5 +84,12 @@ namespace reactive
 
     template <typename T>
     using AnySharedSignal = SharedSignal<void, T>;
+} // namespace reactive::signal
+
+
+namespace reactive
+{
+    template <typename T>
+    using AnySharedSignal = signal::AnySharedSignal<T>;
 } // namespace reactive
 

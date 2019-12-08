@@ -6,20 +6,14 @@
 
 #include <btl/option.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Blip;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Blip<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class Blip;
+
+    template <typename TSignal>
+    struct IsSignal<Blip<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class Blip
     {

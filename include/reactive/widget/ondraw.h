@@ -19,7 +19,7 @@ namespace reactive::widget
         template <typename TFunc, typename... Us,
                 typename = std::enable_if_t
             <
-            std::is_invocable_r_v<avg::Drawing, TFunc, SignalType<Us>...>
+            std::is_invocable_r_v<avg::Drawing, TFunc, signal::SignalType<Us>...>
             >
         >
         auto onDraw(TFunc&& func, Us... us)
@@ -50,7 +50,7 @@ namespace reactive::widget
         template <typename TFunc, typename... Us,
                 typename = std::enable_if_t
             <
-            std::is_invocable_r_v<avg::Drawing, TFunc, SignalType<Us>...>
+            std::is_invocable_r_v<avg::Drawing, TFunc, signal::SignalType<Us>...>
             >
         >
         auto onDrawBehind(TFunc&& func, Us... us)
