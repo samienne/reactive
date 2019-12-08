@@ -200,7 +200,7 @@ TEST(signal, cacheOptimizations2)
     auto s1 = signal::cache(signal::constant<std::string>("test"));
 
     static_assert(std::is_same<
-            std::decay_t<decltype(s1.signal())>,
+            std::decay_t<decltype(s1.storage())>,
             signal::Constant<std::string>>::value,
             "");
 }

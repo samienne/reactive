@@ -188,24 +188,18 @@ namespace reactive::signal
         uint64_t frameId2_ = 0;
     };
 
-    template <typename V, typename T, typename U>
-    auto typed(Signal<U, T> sig)
+    template <typename T, typename U, typename V>
+    auto typed(Signal<U, V> sig)
     {
-        return std::make_shared<signal::Typed<U, V>>(std::move(sig).signal());
-    }
-
-    template <typename U, typename T>
-    auto typed(Signal<void, T> sig)
-    {
-        return typed<U>(wrap(signal::Share<signal::Typed<Signal<void, T>, T>, T>(
-                    std::make_shared<signal::Typed<Signal<void, T>, T>>(std::move(sig)))
-                ));
+        return signal::Share<signal::SignalBase<T>, T>(
+                    std::make_shared<signal::Typed<Signal<U, V>, T>>(std::move(sig))
+                    );
     }
 
     template <typename T>
     auto typed(Signal<void, T> sig)
     {
-        return sig.getDeferredSignalBase();
+        return sig.storage();
     }
 } // reactive::signal
 

@@ -44,24 +44,24 @@ namespace reactive
     };
 
     template <typename T>
-    class SharedSignal<void, T> : public Signal<void, T>
+    class SharedSignal<void, T> : public AnySignal<T>
     {
     private:
         SharedSignal(Signal<void, T> sig) :
-            Signal<void, T>(std::move(sig))
+            AnySignal<T>(std::move(sig))
         {
         }
 
     public:
         template <typename U>
         SharedSignal(SharedSignal<U, T> sig) :
-            Signal<void, T>(std::move(sig))
+            AnySignal<T>(std::move(sig))
         {
         }
 
         template <typename U>
         SharedSignal(Signal<signal::Share<U, T>, T> sig) :
-            Signal<void, T>(std::move(sig))
+            AnySignal<T>(std::move(sig))
         {
         }
 
@@ -81,5 +81,8 @@ namespace reactive
             return *this;
         }
     };
-} // reactive
+
+    template <typename T>
+    using AnySharedSignal = SharedSignal<void, T>;
+} // namespace reactive
 

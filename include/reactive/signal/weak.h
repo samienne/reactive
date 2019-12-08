@@ -34,7 +34,7 @@ namespace reactive::signal
 
         template <typename U>
         Weak(SharedSignal<U, T> const& sig) :
-            deferred_(sig.signal().weak())
+            deferred_(sig.storage().weak())
         {
         }
 

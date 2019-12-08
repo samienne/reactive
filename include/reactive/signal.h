@@ -34,24 +34,28 @@ namespace reactive
         template <typename U, typename V> friend class Signal;
 
         using NestedSignalType = TSignal;
+        using StorageType = std::conditional_t<std::is_same_v<void, TSignal>,
+              signal::Share<signal::SignalBase<T>, T>,
+              TSignal
+            >;
 
-        Signal(TSignal sig) :
+        Signal(StorageType sig) :
             sig_(std::move(sig))
         {
         }
 
         Signal(SharedSignal<TSignal, T>&& other) noexcept:
-            sig_(std::move(other).signal())
+            sig_(std::move(other).storage())
         {
         }
 
         Signal(SharedSignal<TSignal, T>& other) :
-            sig_(btl::clone(other.signal()))
+            sig_(btl::clone(other.storage()))
         {
         }
 
         Signal(SharedSignal<TSignal, T> const& other) :
-            sig_(btl::clone(other.signal()))
+            sig_(btl::clone(other.storage()))
         {
         }
 
@@ -59,7 +63,7 @@ namespace reactive
             std::is_base_of<Signal, SharedSignal<USignal, T>>::value
             >>
         Signal(SharedSignal<USignal, T> const& other) :
-            sig_(btl::clone(other.signal()))
+            sig_(btl::clone(other.storage()))
         {
         }
 
@@ -67,7 +71,7 @@ namespace reactive
             std::is_base_of<Signal, SharedSignal<USignal, T>>::value
             >>
         Signal(SharedSignal<USignal, T>&& other) :
-            sig_(std::move(other).signal())
+            sig_(std::move(other).storage())
         {
         }
 
@@ -75,7 +79,7 @@ namespace reactive
             std::is_base_of<Signal, SharedSignal<USignal, T>>::value
             >>
         Signal(SharedSignal<USignal, T>& other) :
-            sig_(other.signal())
+            sig_(other.storage())
         {
         }
 
@@ -127,47 +131,58 @@ namespace reactive
             return *this;
         }
 
-        TSignal const& signal() const &
+        StorageType const& storage() const &
         {
             return *sig_;
         }
 
-        TSignal&& signal() &&
+        StorageType&& storage() &&
         {
             return std::move(*sig_);
         }
 
+        bool isCached() const
+        {
+            if constexpr(std::is_same_v<void, TSignal>)
+            {
+                return Signal<void, T>::storage().ptr()->isCached();
+            }
+            else
+            {
+                return std::is_reference_v<typename SignalType<StorageType>::type>;
+            }
+        }
+
     private:
         template <typename T2> friend class reactive::signal::Weak;
-        btl::CloneOnCopy<TSignal> sig_;
+        btl::CloneOnCopy<StorageType> sig_;
     };
 
     namespace signal
     {
-    template <typename TSignal, typename = std::enable_if_t<
-        btl::All<
-            std::is_convertible<TSignal, std::decay_t<TSignal>>,
-            IsSignal<TSignal>
-        >::value
-        >>
-    Signal<std::decay_t<TSignal>, std::decay_t<SignalType<TSignal>>>
-    wrap(TSignal&& sig)
-    {
-        return { std::forward<TSignal>(sig) };
-    }
+        template <typename TSignal, typename = std::enable_if_t<
+            btl::All<
+                std::is_convertible<TSignal, std::decay_t<TSignal>>,
+                IsSignal<TSignal>
+            >::value
+            >>
+        Signal<std::decay_t<TSignal>, std::decay_t<SignalType<TSignal>>>
+        wrap(TSignal&& sig)
+        {
+            return { std::forward<TSignal>(sig) };
+        }
 
-    template <typename T, typename TSignal, typename = std::enable_if_t<
-        IsSignal<TSignal>::value
-        >>
-    auto wrap(Signal<TSignal, T>&& sig)
-    {
-        return std::move(sig);
-    }
-
+        template <typename T, typename TSignal, typename = std::enable_if_t<
+            IsSignal<TSignal>::value
+            >>
+        auto wrap(Signal<TSignal, T>&& sig)
+        {
+            return std::move(sig);
+        }
     } // namespace signal
 
     template <typename T>
-    class Signal<void, T>
+    class AnySignal : public Signal<void, T>
     {
     public:
         template <typename U, typename V> friend class Signal;
@@ -184,14 +199,14 @@ namespace reactive
                     >
                 >::value
             >>
-        Signal(Signal<TSignal, U>&& other) :
-            deferred_(signal::typed<T>(std::move(other)))
+        AnySignal(Signal<TSignal, U>&& other) :
+            Signal<void, T>(signal::typed<T>(std::move(other)))
         {
         }
 
         template <typename USignal>
-        Signal(SharedSignal<USignal, T> other) :
-            deferred_(std::move(other).signal().ptr())
+        AnySignal(SharedSignal<USignal, T> other) :
+            Signal<void, T>(std::move(other).storage().ptr())
         {
         }
 
@@ -205,88 +220,27 @@ namespace reactive
                     >
                 >::value
             >>
-        Signal(SharedSignal<USignal, U> other) :
-            deferred_(signal::typed<T>(std::move(other)))
+        AnySignal(SharedSignal<USignal, U> other) :
+            Signal<void, T>(signal::typed<T>(std::move(other)))
         {
         }
 
     protected:
-        Signal(Signal const&) = default;
-        Signal<void, T>& operator=(Signal const&) = default;
+        AnySignal(AnySignal const&) = default;
+        AnySignal<T>& operator=(AnySignal const&) = default;
 
     public:
-        Signal(Signal&&) noexcept = default;
-        Signal<void, T>& operator=(Signal&&) noexcept = default;
+        AnySignal(AnySignal&&) noexcept = default;
+        AnySignal<T>& operator=(AnySignal&&) noexcept = default;
 
-        auto evaluate() const -> decltype(auto)
-        {
-            return deferred_.evaluate();
-        }
-
-        bool hasChanged() const
-        {
-            return deferred_.hasChanged();
-        }
-
-        signal::UpdateResult updateBegin(signal::FrameInfo const& frame)
-        {
-            return deferred_.updateBegin(frame);
-        }
-
-        signal::UpdateResult updateEnd(signal::FrameInfo const& frame)
-        {
-            return deferred_.updateEnd(frame);
-        }
-
-        template <typename TCallback>
-        btl::connection observe(TCallback&& callback)
-        {
-            return deferred_.observe(std::forward<TCallback>(callback));
-        }
-
-        Annotation annotate() const
-        {
-            Annotation a;
-            /*auto&& n = a.addNode("Signal<" + btl::demangle<T>()
-                    + "> changed: " + std::to_string(hasChanged()));*/
-            //a.addShared(deferred_.raw_ptr(), n, deferred_->annotate());
-            return a;
-        }
-
-        Signal clone() const
+        AnySignal clone() const
         {
             return *this;
         }
 
-        signal::Share<signal::SignalBase<T>, T> const& signal() const &
-        {
-            return deferred_;
-        }
-
-        signal::Share<signal::SignalBase<T>, T>&& signal() &&
-        {
-            return std::move(deferred_);
-        }
-
-        signal::Share<signal::SignalBase<T>, T> getDeferredSignalBase() &&
-        {
-            return std::move(deferred_);
-        }
-
-        bool isCached() const
-        {
-            return deferred_.ptr()->isCached();
-        }
-
     private:
         template <typename T2> friend class reactive::signal::Weak;
-        signal::Share<signal::SignalBase<T>, T> deferred_;
     };
 
-    template <typename T>
-    using AnySignal = Signal<void, T>;
-
-    template <typename T>
-    using AnySharedSignal = SharedSignal<void, T>;
 } // reactive
 

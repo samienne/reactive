@@ -180,7 +180,7 @@ TEST(InputSignal, inputChained)
     auto input2 = signal::input(10);
 
     auto sig1 = signal::share(AnySignal<int>(std::move(input1.signal)));
-    input2.handle.set(signal::weak(sig1).signal());
+    input2.handle.set(signal::weak(sig1).storage());
 
     input1.handle.set(20);
 

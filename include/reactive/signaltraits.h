@@ -77,10 +77,11 @@ namespace reactive
         > {};
 
     template <typename T>
-    struct IsSignal : std::conditional_t<
+    /*struct IsSignal : std::conditional_t<
         std::is_reference<T>::value,
         IsSignal<std::decay_t<T>>,
-        std::false_type> {};
+        std::false_type> {};*/
+    struct IsSignal : CheckSignal<T> {};
 
     template <typename T>
     struct IsSharedSignal :

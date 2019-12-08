@@ -27,7 +27,7 @@ WidgetFactory Window::getWidget() const
         ;
 }
 
-AnySignal<std::string> const& Window::getTitle() const
+AnySharedSignal<std::string> const& Window::getTitle() const
 {
     return title_;
 }

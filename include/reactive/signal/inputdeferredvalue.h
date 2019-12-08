@@ -79,12 +79,12 @@ public:
 
     void set(Lock const&, Signal<Weak<T>, T> sig)
     {
-        if (signal_ == sig.signal())
+        if (signal_ == sig.storage())
             return;
 
         //value_ = sig.evaluate();
         signalChanged_ = true;
-        signal_ = std::move(sig).signal();
+        signal_ = std::move(sig).storage();
         ++tag_;
 
         connection_ = Connection();

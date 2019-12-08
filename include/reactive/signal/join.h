@@ -137,7 +137,7 @@ namespace reactive::signal
         >>
     auto join(Signal<U, T> sig)
     {
-        return signal::wrap(Join<U>(std::move(sig).signal()));
+        return signal::wrap(Join<U>(std::move(sig).storage()));
     }
 } // namespace reactive::signal
 

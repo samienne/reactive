@@ -26,7 +26,7 @@ namespace reactive
 
         WidgetFactory getWidget() const;
 
-        AnySignal<std::string> const& getTitle() const;
+        AnySharedSignal<std::string> const& getTitle() const;
 
         void invokeOnClose() const;
 

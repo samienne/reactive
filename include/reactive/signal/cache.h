@@ -110,11 +110,11 @@ namespace reactive::signal
         , int> = 0>
     auto cache(Signal<U, T>&& sig)
     {
-        return signal::wrap(Cache<U>(std::move(sig).signal()));
+        return signal::wrap(Cache<U>(std::move(sig).storage()));
     }
 
     template <typename T>
-    auto cache(AnySignal<T>&& sig) -> AnySignal<T>
+    auto cache(Signal<void, T>&& sig) -> AnySignal<T>
     {
         if (sig.isCached())
             return std::move(sig);

@@ -18,7 +18,7 @@ namespace reactive::signal
             return SharedSignal<U, T>::create(
                     Share<signal::Typed<U, T>, T>(
                         std::make_shared<signal::Typed<U, T>>(
-                            std::move(sig).signal()
+                            std::move(sig).storage()
                             )
                         )
                     );
@@ -38,9 +38,9 @@ namespace reactive::signal
     }
 
     template <typename T>
-    auto share(AnySignal<T> sig)
+    auto share(Signal<void, T> sig)
     {
-        return AnySharedSignal<T>::create(
+        return SharedSignal<void, T>::create(
                 std::move(sig)
                 );
     }
