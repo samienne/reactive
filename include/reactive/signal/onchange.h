@@ -1,9 +1,7 @@
 #pragma once
 
-#include "map.h"
-#include "constant.h"
-
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/function.h>
 

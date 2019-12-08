@@ -1,19 +1,15 @@
 #pragma once
 
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signaltraits.h"
 
 #include <utility>
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
+    template <typename TSignal>
+    auto evaluate(TSignal&& signal) -> decltype(signal.evaluate())
     {
-        template <typename TSignal>
-        auto evaluate(TSignal&& signal) -> decltype(signal.evaluate())
-        {
-            return std::forward<TSignal>(signal).evaluate();
-        }
-    } // signal
-} // reactive
+        return std::forward<TSignal>(signal).evaluate();
+    }
+} // reactive::signal
 

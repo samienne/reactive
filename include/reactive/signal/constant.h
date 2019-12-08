@@ -1,12 +1,10 @@
 #pragma once
 
-#include "reactive/signal.h"
+#include "signal.h"
 
-#include "reactive/signaltraits.h"
+#include "signaltraits.h"
 #include "reactive/connection.h"
-#include "reactive/reactivevisibility.h"
 
-#include <btl/cloneoncopy.h>
 #include <btl/demangle.h>
 
 #include <memory>

@@ -3,7 +3,7 @@
 #include "reactive/signal/input.h"
 #include "reactive/signal/map.h"
 #include "reactive/signal/update.h"
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <gtest/gtest.h>
 

@@ -7,8 +7,7 @@
 #include "reactive/signal/input.h"
 #include "reactive/signal/droprepeats.h"
 #include "reactive/signal/blip.h"
-
-#include "reactive/signaltraits.h"
+#include "reactive/signal/signaltraits.h"
 
 #include <btl/tuplemap.h>
 #include <btl/tupleforeach.h>

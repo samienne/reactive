@@ -3,7 +3,8 @@
 #include "widgettransformer.h"
 
 #include "reactive/inputarea.h"
-#include "reactive/signal.h"
+
+#include "reactive/signal/signal.h"
 
 #include <btl/cloneoncopy.h>
 

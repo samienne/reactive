@@ -1,10 +1,9 @@
 #pragma once
 
-#include "signal/frameinfo.h"
-#include "signal/typed.h"
-#include "signal/signalbase.h"
+#include "frameinfo.h"
+#include "typed.h"
+#include "signalbase.h"
 #include "signaltraits.h"
-#include "reactivevisibility.h"
 
 #include <btl/cloneoncopy.h>
 #include <btl/shared.h>

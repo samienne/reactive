@@ -1,8 +1,8 @@
 #pragma once
 
-#include "reactive/signaltraits.h"
+#include "signaltraits.h"
+
 #include "reactive/connection.h"
-#include "reactive/reactivevisibility.h"
 
 #include <memory>
 

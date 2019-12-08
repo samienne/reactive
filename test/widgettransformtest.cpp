@@ -1,5 +1,6 @@
 #include <reactive/widget/widgettransformer.h>
-#include <reactive/signal.h>
+
+#include <reactive/signal/signal.h>
 
 #include <pmr/new_delete_resource.h>
 

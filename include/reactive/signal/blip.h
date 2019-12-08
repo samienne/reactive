@@ -2,7 +2,7 @@
 
 #include "constant.h"
 
-#include "reactive/signaltraits.h"
+#include "signaltraits.h"
 
 #include <btl/option.h>
 

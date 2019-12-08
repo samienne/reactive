@@ -2,10 +2,8 @@
 
 #include "inputdeferredvalue.h"
 #include "signalbase.h"
-
-#include <reactive/signaltraits.h>
+#include "signaltraits.h"
 #include "signal.h"
-#include "reactive/reactivevisibility.h"
 
 #include <btl/dummylock.h>
 #include <btl/hidden.h>

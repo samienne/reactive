@@ -2,7 +2,7 @@
 
 #include "widgettransformer.h"
 
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/obb.h>
 

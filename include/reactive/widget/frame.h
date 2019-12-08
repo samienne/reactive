@@ -15,7 +15,7 @@
 #include "reactive/rendering.h"
 
 #include "reactive/signal/constant.h"
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/transform.h>
 

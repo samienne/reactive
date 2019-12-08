@@ -3,7 +3,7 @@
 #include "widget.h"
 
 #include <reactive/signal/mbind.h>
-#include <reactive/signaltraits.h>
+#include <reactive/signal/signaltraits.h>
 
 #include <type_traits>
 

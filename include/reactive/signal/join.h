@@ -1,7 +1,7 @@
 #pragma once
 
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {

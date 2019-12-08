@@ -1,8 +1,7 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {

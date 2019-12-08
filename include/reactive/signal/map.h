@@ -1,11 +1,9 @@
 #pragma once
 
-#include "constant.h"
+#include "signal.h"
+#include "signaltraits.h"
 
-#include <reactive/signal.h>
-#include <reactive/signaltraits.h>
 #include <reactive/connection.h>
-#include <reactive/reactivevisibility.h>
 
 #include <btl/option.h>
 #include <btl/demangle.h>

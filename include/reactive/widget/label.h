@@ -2,9 +2,10 @@
 
 #include "theme.h"
 
-#include "reactive/signal.h"
 #include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
+
+#include "reactive/signal/signal.h"
 
 #include <avg/font.h>
 

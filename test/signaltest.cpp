@@ -1,6 +1,10 @@
 #include <reactive/signal/blip.h>
+#include <reactive/signal/conditional.h>
+#include <reactive/signal/count.h>
 #include <reactive/signal/delay.h>
 #include <reactive/signal/changed.h>
+#include <reactive/signal/droprepeats.h>
+#include <reactive/signal/dt.h>
 #include <reactive/signal/updateifjust.h>
 #include <reactive/signal/onchange.h>
 #include <reactive/signal/every.h>
@@ -15,8 +19,8 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>
 #include <reactive/signal/removereference.h>
-#include <reactive/sharedsignal.h>
-#include <reactive/signal.h>
+#include <reactive/signal/sharedsignal.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/delayed.h>
 #include <btl/always.h>
@@ -76,6 +80,13 @@ static_assert(RequireSignal<Changed<Constant<int>>>::value,
 static_assert(RequireSignal<Blip<Constant<int>>>::value, "");
 static_assert(RequireSignal<AnySharedSignal<int>>::value, "");
 static_assert(IsSignal<Delay<int const&, Constant<int>>>::value, "");
+static_assert(IsSignal<Conditional<Constant<bool>, Constant<int>,
+        Constant<int>>>::value, "");
+static_assert(IsSignal<CountSignal<Constant<int>>>::value,
+        "Count is not a signal");
+static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
+        "DropRepeatsSignal is not a signal");
+static_assert(IsSignal<DtSignal>::value, "DtSignal is not a signal");
 
 TEST(signal, cacheTest)
 {

@@ -5,8 +5,9 @@
 #include "setinputareas.h"
 #include "widgettransformer.h"
 
+#include "reactive/signal/signal.h"
+
 #include "reactive/pointerbuttonevent.h"
-#include "reactive/signal.h"
 #include "reactive/eventresult.h"
 
 #include <functional>

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
@@ -91,9 +90,6 @@ namespace reactive::signal
         mutable btl::option<signal_value_t<TSignal>> value_;
         bool changed_ = false;
     };
-
-    static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
-            "DropRepeatsSignal is not a signal");
 
     template <typename T, typename U>
     auto dropRepeats(Signal<T, U> signal)

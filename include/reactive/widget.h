@@ -8,7 +8,7 @@
 
 #include "signal/map.h"
 #include "signal/share.h"
-#include "signal.h"
+#include "signal/signal.h"
 
 #include <avg/drawing.h>
 #include <avg/obb.h>

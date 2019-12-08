@@ -1,9 +1,9 @@
 #pragma once
 
 #include "reactive/widgetfactory.h"
-#include "reactive/signal.h"
 #include "reactive/reactivevisibility.h"
-#include "reactive/signal/cast.h"
+
+#include "reactive/signal/signal.h"
 
 namespace reactive::widget
 {

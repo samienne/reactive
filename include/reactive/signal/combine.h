@@ -1,9 +1,7 @@
 #pragma once
 
-#include "reactive/sharedsignal.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/tuplemap.h>
 #include <btl/reduce.h>

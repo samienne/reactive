@@ -1,8 +1,7 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
@@ -77,9 +76,6 @@ namespace reactive::signal
         int32_t value_;
     };
 
-    static_assert(IsSignal<CountSignal<Constant<int>>>::value,
-            "Count is not a signal");
-
     template <typename TSignal, typename = typename
         std::enable_if
         <
@@ -87,7 +83,7 @@ namespace reactive::signal
         >::type>
     auto count(TSignal signal)
     {
-        return CountSignal<std::decay_t<TSignal>>(std::move(signal));
+        return wrap(CountSignal<std::decay_t<TSignal>>(std::move(signal)));
     }
 
 } // reactive::signal

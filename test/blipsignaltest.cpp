@@ -2,8 +2,7 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
-
-#include <reactive/signaltraits.h>
+#include <reactive/signal/signaltraits.h>
 
 #include "signaltester.h"
 

@@ -2,12 +2,12 @@
 
 #include "reactive/widgetfactory.h"
 #include "reactive/sizehint.h"
+#include "reactive/reactivevisibility.h"
 
 #include "reactive/signal/erasetype.h"
 #include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/font.h>
 

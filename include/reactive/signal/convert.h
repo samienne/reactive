@@ -1,8 +1,7 @@
 #pragma once
 
 #include "cast.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
 
 namespace reactive::signal
 {

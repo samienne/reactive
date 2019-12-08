@@ -1,7 +1,6 @@
 #pragma once
 
-#include "signal/share.h"
-#include "reactivevisibility.h"
+#include "share.h"
 
 namespace reactive::signal
 {
@@ -9,7 +8,7 @@ namespace reactive::signal
     class Share;
 
     template <typename TStorage, typename T>
-    class REACTIVE_EXPORT SharedSignal;
+    class SharedSignal;
 
     template <typename TStorage, typename T>
     struct IsSignal<SharedSignal<TStorage, T>> : std::true_type {};

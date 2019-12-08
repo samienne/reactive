@@ -1,9 +1,7 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signaltraits.h"
+#include "signal.h"
 
 #include <btl/demangle.h>
 

@@ -1,9 +1,7 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <type_traits>
 
@@ -118,10 +116,6 @@ namespace reactive::signal
         bool changed_ = false;
         bool first_ = true;
     };
-
-    static_assert(IsSignal<Conditional<Constant<bool>, Constant<int>,
-            Constant<int>>>::value, "");
-
 
     template <typename TCondition, typename TTrue, typename TFalse,
                 typename = std::enable_if_t

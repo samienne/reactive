@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactivevisibility.h"
+#include "reactive/reactivevisibility.h"
 
 #include <string>
 #include <vector>

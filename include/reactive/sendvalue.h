@@ -2,7 +2,7 @@
 
 #include "signal/inputhandle.h"
 #include "signal/map.h"
-#include "signal.h"
+#include "signal/signal.h"
 
 namespace reactive
 {

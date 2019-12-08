@@ -6,7 +6,8 @@
 #include "bindtheme.h"
 
 #include "reactive/shapes.h"
-#include "reactive/signal.h"
+
+#include "reactive/signal/signal.h"
 
 #include <avg/drawing.h>
 #include <avg/vector.h>

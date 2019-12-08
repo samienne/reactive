@@ -3,10 +3,7 @@
 #include "tee.h"
 #include "map.h"
 #include "input.h"
-
-#include "reactive/reactivevisibility.h"
-
-#include <btl/hidden.h>
+#include "signal.h"
 
 #include <utility>
 

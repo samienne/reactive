@@ -1,9 +1,10 @@
 #pragma once
 
 #include <reactive/signal/updateresult.h>
+#include <reactive/signal/signaltraits.h>
+#include <reactive/signal/signal.h>
+
 #include <reactive/annotation.h>
-#include <reactive/signaltraits.h>
-#include <reactive/signal.h>
 
 #include <gtest/gtest.h>
 

@@ -10,8 +10,7 @@
 
 #include "reactive/signal/convert.h"
 #include "reactive/signal/map.h"
-
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/keyevent.h>
 

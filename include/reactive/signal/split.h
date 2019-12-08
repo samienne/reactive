@@ -2,8 +2,7 @@
 
 #include "share.h"
 #include "map.h"
-
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
 
 #include <btl/tuplemap.h>
 

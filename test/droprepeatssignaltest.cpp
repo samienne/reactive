@@ -1,7 +1,8 @@
 #include <reactive/signal/droprepeats.h>
 #include <reactive/signal/input.h>
-#include <reactive/signal.h>
 #include <reactive/signal/update.h>
+#include <reactive/signal/signal.h>
+
 #include <reactive/connection.h>
 
 #include "signaltester.h"

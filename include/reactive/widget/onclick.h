@@ -7,8 +7,9 @@
 #include "reactive/signal/map.h"
 
 #include "reactive/pointerbuttonevent.h"
-#include "reactive/signal.h"
 #include "reactive/clickevent.h"
+
+#include "reactive/signal/signal.h"
 
 #include <functional>
 #include <type_traits>

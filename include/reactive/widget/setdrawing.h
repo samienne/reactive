@@ -1,8 +1,8 @@
 #pragma once
 
-#include "reactive/signal.h"
-
 #include "widgettransformer.h"
+
+#include "reactive/signal/signal.h"
 
 #include <avg/drawing.h>
 

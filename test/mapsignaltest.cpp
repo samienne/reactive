@@ -5,7 +5,7 @@
 #include <reactive/signal/input.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/update.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/tuplemap.h>
 #include <btl/tuplereduce.h>

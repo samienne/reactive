@@ -1,7 +1,7 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/mbind.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/future/fmap.h>
 #include <btl/future/mbind.h>

@@ -3,9 +3,8 @@
 #include "inputhandle.h"
 #include "signalbase.h"
 #include "inputdeferredvalue.h"
-
-#include <reactive/sharedsignal.h>
-#include <reactive/signal.h>
+#include "sharedsignal.h"
+#include "signal.h"
 
 #include <reactive/connection.h>
 #include <reactive/observable.h>

@@ -5,7 +5,7 @@
 #include "setdrawing.h"
 #include "widgettransformer.h"
 
-#include "reactive/signaltraits.h"
+#include "reactive/signal/signaltraits.h"
 
 #include <avg/drawing.h>
 

@@ -1,16 +1,14 @@
 #pragma once
 
-#include "constant.h"
 #include "map.h"
 #include "inputhandle.h"
 #include "cache.h"
 #include "droprepeats.h"
 #include "removereference.h"
+#include "sharedsignal.h"
+#include "signaltraits.h"
 
-#include "reactive/sharedsignal.h"
 #include "reactive/connection.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
 
 namespace reactive::signal
 {

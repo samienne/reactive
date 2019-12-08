@@ -1,14 +1,15 @@
 #pragma once
 
+#include "inputhandle.h"
+
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
 
-#include <reactive/signal/inputhandle.h>
-
 #include <reactive/widget/widgetobject.h>
 #include <reactive/widgetfactory.h>
-#include <reactive/signal.h>
 #include <reactive/datasource.h>
+
+#include <reactive/signal/signal.h>
 
 #include <vector>
 

@@ -2,9 +2,9 @@
 
 #include "frameinfo.h"
 #include "updateresult.h"
+#include "signal.h"
+#include "signaltraits.h"
 
-#include <reactive/signal.h>
-#include <reactive/signaltraits.h>
 #include <reactive/annotation.h>
 #include <reactive/connection.h>
 

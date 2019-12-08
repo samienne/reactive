@@ -3,9 +3,9 @@
 #include "stream.h"
 
 #include <reactive/signal/input.h>
+#include <reactive/signal/signaltraits.h>
 
 #include "reactive/connection.h"
-#include "reactive/signaltraits.h"
 
 namespace reactive
 {

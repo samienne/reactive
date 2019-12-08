@@ -1,10 +1,10 @@
 #pragma once
 
-#include "signal/frameinfo.h"
-#include "signal/updateresult.h"
+#include "frameinfo.h"
+#include "updateresult.h"
 
-#include "connection.h"
-#include "annotation.h"
+#include "reactive/annotation.h"
+#include "reactive/connection.h"
 
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>

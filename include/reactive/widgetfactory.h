@@ -12,7 +12,7 @@
 #include "signal/changed.h"
 #include "signal/tee.h"
 #include "signal/constant.h"
-#include "signal.h"
+#include "signal/signal.h"
 
 #include <avg/transform.h>
 

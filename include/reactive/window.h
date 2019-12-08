@@ -2,8 +2,9 @@
 
 #include "widgetfactory.h"
 
-#include "signal.h"
 #include "reactivevisibility.h"
+
+#include "signal/signal.h"
 
 #include <btl/cloneoncopy.h>
 

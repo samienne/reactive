@@ -1,8 +1,7 @@
 #pragma once
 
 #include "map.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
 
 #include <btl/all.h>
 
