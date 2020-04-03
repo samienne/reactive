@@ -6,6 +6,8 @@
 
 #include <GL/gl.h>
 
+#include <cstring>
+
 namespace ase
 {
     class GlPlatform;
