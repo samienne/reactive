@@ -1,3 +1,4 @@
+#include <type_traits>
 #pragma once
 
 #include <functional>
@@ -6,13 +7,26 @@ namespace btl
 {
     namespace detail
     {
+        template <typename T>
+        using A = std::conditional_t<
+            std::is_rvalue_reference_v<T>,
+            std::decay_t<T>,
+            T
+            >;
+
+        template <typename... Ts>
+        auto nn(Ts&&... ts) -> std::tuple<A<Ts>...>
+        {
+            return std::tuple<A<Ts>...>(std::forward<Ts>(ts)...);
+        }
+
         template <typename TFunc, typename TTuple, size_t... S>
         auto tuple_map_seq(TFunc&& func, TTuple&& data,
                 std::index_sequence<S...>)
-            -> decltype(std::make_tuple(std::invoke(func, std::get<S>(
+            -> decltype(nn(std::invoke(func, std::get<S>(
                                 std::forward<TTuple>(data)))...))
         {
-            return std::make_tuple(std::invoke(
+            return nn(std::invoke(
                         func, std::get<S>(std::forward<TTuple>(data)))...);
         }
     }

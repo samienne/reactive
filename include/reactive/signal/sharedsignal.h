@@ -4,28 +4,28 @@
 
 namespace reactive::signal
 {
-    template <typename TDeferred, typename T>
+    template <typename TDeferred, typename... Ts>
     class Share;
 
-    template <typename TStorage, typename T>
+    template <typename TStorage, typename... Ts>
     class SharedSignal;
 
-    template <typename TStorage, typename T>
-    struct IsSignal<SharedSignal<TStorage, T>> : std::true_type {};
+    template <typename TStorage, typename... Ts>
+    struct IsSignal<SharedSignal<TStorage, Ts...>> : std::true_type {};
 
-    template <typename TStorage, typename T>
+    template <typename TStorage, typename... Ts>
     class SharedSignal : public Signal<
-                         Share<Typed<TStorage, T>, T>, T
+                         Share<Typed<TStorage, Ts...>, Ts...>, Ts...
                          >
     {
     private:
-        SharedSignal(Share<Typed<TStorage, T>, T> sig) :
-            Signal<Share<Typed<TStorage, T>, T>, T>(std::move(sig))
+        SharedSignal(Share<Typed<TStorage, Ts...>, Ts...> sig) :
+            Signal<Share<Typed<TStorage, Ts...>, Ts...>, Ts...>(std::move(sig))
         {
         }
 
     public:
-        static SharedSignal create(Share<Typed<TStorage, T>, T>&& sig)
+        static SharedSignal create(Share<Typed<TStorage, Ts...>, Ts...>&& sig)
         {
             return { std::move(sig) };
         }
@@ -42,29 +42,29 @@ namespace reactive::signal
         }
     };
 
-    template <typename T>
-    class SharedSignal<void, T> : public AnySignal<T>
+    template <typename... Ts>
+    class SharedSignal<void, Ts...> : public AnySignal<Ts...>
     {
     private:
-        SharedSignal(Signal<void, T> sig) :
-            AnySignal<T>(std::move(sig))
+        SharedSignal(Signal<void, Ts...> sig) :
+            AnySignal<Ts...>(std::move(sig))
         {
         }
 
     public:
         template <typename U>
-        SharedSignal(SharedSignal<U, T> sig) :
-            AnySignal<T>(std::move(sig))
+        SharedSignal(SharedSignal<U, Ts...> sig) :
+            AnySignal<Ts...>(std::move(sig))
         {
         }
 
         template <typename U>
-        SharedSignal(Signal<Share<U, T>, T> sig) :
-            AnySignal<T>(std::move(sig))
+        SharedSignal(Signal<Share<U, Ts...>, Ts...> sig) :
+            AnySignal<Ts...>(std::move(sig))
         {
         }
 
-        static SharedSignal create(Signal<void, T>&& sig)
+        static SharedSignal create(Signal<void, Ts...>&& sig)
         {
             return { std::move(sig) };
         }

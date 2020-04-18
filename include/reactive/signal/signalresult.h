@@ -20,7 +20,14 @@ namespace reactive::signal
         {
         }
 
-        template <typename... Us>
+        explicit SignalResult(std::tuple<Ts...> t) : values_(std::move(t))
+        {
+        }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::All<
+                std::is_convertible<Us, Ts>...
+            >::value>>
         SignalResult(SignalResult<Us...> other) :
             values_(std::move(other.values_))
         {
@@ -42,6 +49,21 @@ namespace reactive::signal
         auto get() && -> decltype(auto)
         {
             return std::get<Index>(std::move(values_));
+        }
+
+        std::tuple<Ts...>& getTuple() &
+        {
+            return values_;
+        }
+
+        std::tuple<Ts...> const& getTuple() const&
+        {
+            return values_;
+        }
+
+        std::tuple<Ts...>&& getTuple() &&
+        {
+            return std::move(values_);
         }
 
         SignalResult clone() const
@@ -75,6 +97,12 @@ namespace reactive::signal
     }
 
     template <typename... Ts>
+    SignalResult<Ts...> makeSignalResultFromTuple(std::tuple<Ts...> t)
+    {
+        return SignalResult<Ts...>(std::move(t));
+    }
+
+    template <typename... Ts>
     struct IsSignalResultType2 : std::false_type {};
 
     template <typename... Ts, typename... Us>
@@ -92,5 +120,11 @@ namespace reactive::signal
             std::integral_constant<bool, sizeof...(Ts) == sizeof...(Us)>,
             IsSignalResultType2<SignalResult<Us...>, Ts...>
         >{};
+
+    template <typename T>
+    struct IsSignalResult : std::false_type {};
+
+    template <typename... Ts>
+    struct IsSignalResult<SignalResult<Ts...>> : std::true_type {};
 } // reactive::signal
 
