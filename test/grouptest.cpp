@@ -12,25 +12,19 @@ static_assert(IsSignal<Group<AnySignal<int>, AnySignal<std::string>>>::value, ""
 
 TEST(SignalGroup, test)
 {
-    auto ff = []() { return std::string("test"); };
+    auto s1 = constant(10).map([](auto) { return 10; });
+    auto s2 = group(std::move(s1), constant(std::string("test")));
 
-    auto s = group(constant(10).map([](auto) { return 10; }), constant(std::string("test")));
-
-    auto as = s.evaluate();
-    //as = 1;
-
-    /*
     static_assert(std::is_same_v<
-            decltype(s.evaluate()),
-            SignalResult<int const&, std::string const&>
+            decltype(s2.evaluate()),
+            SignalResult<int, std::string const&>
             >, "");
 
-    static_assert(IsSignalType<decltype(s), int, std::string>::value, "");
-    */
+    static_assert(IsSignalType<decltype(s2), int, std::string>::value, "");
 
-    auto r = s.evaluate();
+    auto r = s2.evaluate();
 
-    //AnySignal<int, std::string> s = std::move(s);
+    //AnySignal<int, std::string> s3 = std::move(s2);
 
 
     //static_assert(std::is_same<Group<Constant<int>, Constant<std::string>>, decltype(s)>::value, "");

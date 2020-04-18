@@ -28,10 +28,10 @@ namespace reactive::signal
 
         bool hasChanged() const
         {
-            btl::tuple_reduce(false, sigs_,
+            return btl::tuple_reduce(false, sigs_,
                     [](bool r, auto&& s)
                     {
-                        return r && s.hasChanged();
+                        return r || s.hasChanged();
                     });
         }
 

@@ -2,7 +2,7 @@ incdir = include_directories('../include')
 gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
-sigtest = executable('sigtest',
+devtest = executable('devtest',
         'grouptest.cpp',
         'signalwraptest.cpp',
         'signalresulttest.cpp',

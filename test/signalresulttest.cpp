@@ -1,7 +1,10 @@
-#include <cmath>
+#include "signaltester.h"
+
 #include <reactive/signal/signalresult.h>
 
 #include <gtest/gtest.h>
+
+#include <cmath>
 
 using namespace reactive::signal;
 
