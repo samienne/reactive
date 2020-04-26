@@ -1,3 +1,4 @@
+#include "btl/forcenoexcept.h"
 #pragma once
 
 #include "frameinfo.h"
@@ -45,7 +46,18 @@ namespace reactive::signal
             }
             else
             {
-                return (*func_)(storage_->evaluate());
+                using ReturnType = decltype(std::invoke(*func_, storage_->evaluate()));
+
+                if constexpr(!std::is_reference_v<SignalType<TStorage>> &&
+                        std::is_reference_v<ReturnType>
+                        )
+                {
+                    return btl::clone(std::invoke(*func_, storage_->evaluate()));
+                }
+                else
+                {
+                    return std::invoke(*func_, storage_->evaluate());
+                }
             }
         }
 
@@ -85,7 +97,9 @@ namespace reactive::signal
         }
 
     private:
-        btl::CloneOnCopy<TFunc> func_;
+        Map3(Map3 const&) = default;
+
+        btl::ForceNoexcept<TFunc> func_;
         btl::CloneOnCopy<TStorage> storage_;
     };
 
@@ -262,57 +276,57 @@ namespace reactive::signal
         return std::move(sig);
     }
 
-    template <typename T>
-    class AnySignal : public Signal<void, T>
+    template <typename... Ts>
+    class AnySignal : public Signal<void, Ts...>
     {
     public:
         template <typename U, typename... Vs> friend class Signal;
 
         using NestedSignalType = void;
 
-        template <typename U, typename TStorage, typename =
+        template <typename... Us, typename TStorage, typename =
             std::enable_if_t<
                 btl::All<
-                    std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
+                    std::is_convertible<std::decay_t<Us>, std::decay_t<Ts>>...,
                     btl::Any<
-                        btl::Not<std::is_reference<T>>,
-                        btl::All<std::is_reference<T>, std::is_reference<U>>
-                    >
+                        btl::Not<std::is_reference<Ts>>,
+                        btl::All<std::is_reference<Ts>, std::is_reference<Us>>
+                    >...
                 >::value
             >>
-        AnySignal(Signal<TStorage, U>&& other) :
-            Signal<void, T>(typed<T>(std::move(other)))
+        AnySignal(Signal<TStorage, Us...>&& other) :
+            Signal<void, Ts...>(typed<Ts...>(std::move(other)))
         {
         }
 
         template <typename UStorage>
-        AnySignal(SharedSignal<UStorage, T> other) :
-            Signal<void, T>(std::move(other).storage().ptr())
+        AnySignal(SharedSignal<UStorage, Ts...> other) :
+            Signal<void, Ts...>(std::move(other).storage().ptr())
         {
         }
 
-        template <typename U, typename UStorage, typename =
+        template <typename... Us, typename UStorage, typename =
             std::enable_if_t<
                 btl::All<
-                    std::is_convertible<std::decay_t<U>, std::decay_t<T>>,
+                    std::is_convertible<std::decay_t<Us>, std::decay_t<Ts>>...,
                     btl::Any<
-                        btl::Not<std::is_reference<T>>,
-                        btl::All<std::is_reference<T>, std::is_reference<U>>
-                    >
+                        btl::Not<std::is_reference<Ts>>,
+                        btl::All<std::is_reference<Ts>, std::is_reference<Us>>
+                    >...
                 >::value
             >>
-        AnySignal(SharedSignal<UStorage, U> other) :
-            Signal<void, T>(typed<T>(std::move(other)))
+        AnySignal(SharedSignal<UStorage, Us...> other) :
+            Signal<void, Ts...>(typed<Ts...>(std::move(other)))
         {
         }
 
     protected:
         AnySignal(AnySignal const&) = default;
-        AnySignal<T>& operator=(AnySignal const&) = default;
+        AnySignal<Ts...>& operator=(AnySignal const&) = default;
 
     public:
         AnySignal(AnySignal&&) noexcept = default;
-        AnySignal<T>& operator=(AnySignal&&) noexcept = default;
+        AnySignal<Ts...>& operator=(AnySignal&&) noexcept = default;
 
         AnySignal clone() const
         {

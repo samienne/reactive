@@ -76,3 +76,104 @@ TEST(Signal, mapInput)
     EXPECT_EQ(20, s3.evaluate());
     EXPECT_TRUE(s3.hasChanged());
 }
+
+class SafeType
+{
+public:
+    struct Data
+    {
+        bool initialized = true;
+    };
+
+    SafeType() : data_(std::make_unique<Data>())
+    {
+    };
+
+    ~SafeType()
+    {
+        data_->initialized = false;
+        data_.reset();
+    }
+
+    SafeType(SafeType const& rhs) :
+        data_(std::make_unique<Data>())
+    {
+        assert(rhs.data_ && rhs.data_->initialized);
+        if (!rhs.data_ || !rhs.data_->initialized)
+            throw std::runtime_error("unitialized");
+    }
+
+    SafeType(SafeType&& rhs) :
+        data_(std::make_unique<Data>())
+    {
+        assert(rhs.data_ && rhs.data_->initialized);
+
+        if (!rhs.data_ || !rhs.data_->initialized)
+            throw std::runtime_error("unitialized");
+
+        rhs.data_->initialized = false;
+    }
+
+
+    SafeType& operator=(SafeType const& rhs)
+    {
+        assert(data_ && data_->initialized);
+        assert(rhs.data_ && rhs.data_->initialized);
+
+        if (!data_ || !data_->initialized)
+            throw std::runtime_error("unitialized");
+
+        if (!rhs.data_ || !rhs.data_->initialized)
+            throw std::runtime_error("unitialized");
+
+        return *this;
+    }
+
+    SafeType& operator=(SafeType&& rhs)
+    {
+        assert(data_ && data_->initialized);
+        assert(rhs.data_ && rhs.data_->initialized);
+
+        if (!data_ || !data_->initialized)
+            throw std::runtime_error("unitialized");
+
+        if (!rhs.data_ || !rhs.data_->initialized)
+            throw std::runtime_error("unitialized");
+
+        data_->initialized = true;
+        rhs.data_->initialized = false;
+
+        return *this;
+    }
+
+
+private:
+    std::unique_ptr<Data> data_;
+};
+
+TEST(Signal, mapReferenceToTemporary)
+{
+    auto s1 = constant(SafeType())
+        .map([](auto const& n) { return n; });
+
+    static_assert(std::is_same_v<SafeType, SignalType<decltype(s1)>>, "");
+
+    auto s2 = std::move(s1).map([]
+            (SafeType const& n) -> decltype(auto)
+            {
+                return n;
+            });
+
+    static_assert(std::is_same_v<SafeType, SignalType<decltype(s2)>>, "");
+
+    auto s4 = std::move(s2).map([](SafeType const& n)
+            {
+                return n;
+            });
+
+    auto r = s4.evaluate();
+
+    //std::cout << s4.evaluate() << std::endl;
+
+    static_assert(std::is_same_v<SignalType<decltype(s1)>, SafeType>, "");
+}

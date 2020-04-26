@@ -1,3 +1,4 @@
+#include "btl/cloneoncopy.h"
 #pragma once
 
 #include "reactive/signal/signal.h"
@@ -19,7 +20,7 @@ namespace reactive::signal
 
         auto evaluate() const
         {
-            return makeSignalResultFromTuple(btl::tuple_map(sigs_,
+            return makeSignalResultFromTuple(btl::tuple_map(*sigs_,
                     [](auto const& sig) -> decltype(auto)
                     {
                         return sig.evaluate();
@@ -28,7 +29,7 @@ namespace reactive::signal
 
         bool hasChanged() const
         {
-            return btl::tuple_reduce(false, sigs_,
+            return btl::tuple_reduce(false, *sigs_,
                     [](bool r, auto&& s)
                     {
                         return r || s.hasChanged();
@@ -37,7 +38,7 @@ namespace reactive::signal
 
         UpdateResult updateBegin(FrameInfo const& frame)
         {
-            return btl::tuple_reduce(UpdateResult(btl::none), sigs_,
+            return btl::tuple_reduce(UpdateResult(btl::none), *sigs_,
                     [&frame](UpdateResult r, auto&& s)
                     {
                         return min(r, s.updateBegin(frame));
@@ -46,7 +47,7 @@ namespace reactive::signal
 
         UpdateResult updateEnd(FrameInfo const& frame)
         {
-            return btl::tuple_reduce(UpdateResult(btl::none), sigs_,
+            return btl::tuple_reduce(UpdateResult(btl::none), *sigs_,
                     [&frame](UpdateResult r, auto&& s)
                     {
                         return min(r, s.updateEnd(frame));
@@ -56,10 +57,10 @@ namespace reactive::signal
         template <typename TCallback>
         btl::connection observe(TCallback&& callback)
         {
-            return btl::tuple_reduce(UpdateResult(btl::none), sigs_,
-                    [callback=std::move(callback)](UpdateResult r, auto&& s)
+            return btl::tuple_reduce(Connection(), *sigs_,
+                    [callback=std::move(callback)](Connection r, auto&& s)
                     {
-                        return r + s.observe(callback);
+                        return std::move(r) + s.observe(callback);
                     });
         }
 
@@ -78,13 +79,19 @@ namespace reactive::signal
         }
 
     private:
-        std::tuple<Ts...> sigs_;
+        btl::CloneOnCopy<std::tuple<Ts...>> sigs_;
     };
 
     template <typename... Ts, typename... Us>
     auto group(Signal<Ts, Us>... sigs)
     {
         return signal::wrap(Group<Signal<Ts, Us>...>(std::move(sigs)...));
+    }
+
+    template <typename T, typename U>
+    auto group(Signal<T, U> sig)
+    {
+        return std::move(sig);
     }
 } // reactive::signal
 

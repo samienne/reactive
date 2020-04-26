@@ -2,6 +2,7 @@
 
 #include "signal.h"
 #include "signaltraits.h"
+#include "group.h"
 
 #include <reactive/connection.h>
 
@@ -312,6 +313,7 @@ namespace reactive::signal
         mutable bool ready_ = true;
     };
 
+    /*
     template <typename TFunc, typename... Ts, typename... Us, typename = std::enable_if_t
         <
             btl::All<
@@ -329,6 +331,13 @@ namespace reactive::signal
                 std::forward<TFunc>(func),
                 std::move(sigs)...
                 ));
+    }
+    */
+
+    template <typename TFunc, typename... Ts, typename... Us>
+    auto map(TFunc&& func, Signal<Us, Ts>... s) -> decltype(auto)
+    {
+        return group(std::move(s)...).map(std::forward<TFunc>(func));
     }
 
     template <typename TFunc, typename... TSigs,

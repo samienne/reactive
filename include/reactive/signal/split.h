@@ -16,7 +16,7 @@ namespace reactive::signal
         struct Splitter
         {
             template <typename... T>
-            auto operator()(std::tuple<T...> const& t)
+            auto operator()(std::tuple<T...> const& t) const
             -> std::decay_t<decltype(std::get<i>(t))>
             {
                 return std::get<i>(t);
