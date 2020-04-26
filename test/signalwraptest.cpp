@@ -154,26 +154,25 @@ private:
 TEST(Signal, mapReferenceToTemporary)
 {
     auto s1 = constant(SafeType())
+        .map([](auto const& n) -> SafeType const& { return n; });
+
+    static_assert(std::is_same_v<SafeType const&, SignalType<decltype(s1)>>, "");
+
+    auto s2 = std::move(s1)
         .map([](auto const& n) { return n; });
 
-    static_assert(std::is_same_v<SafeType, SignalType<decltype(s1)>>, "");
+    static_assert(std::is_same_v<SafeType, SignalType<decltype(s2)>>, "");
 
-    auto s2 = std::move(s1).map([]
+    auto s3 = std::move(s2).map([]
             (SafeType const& n) -> decltype(auto)
             {
                 return n;
             });
 
-    static_assert(std::is_same_v<SafeType, SignalType<decltype(s2)>>, "");
+    static_assert(std::is_same_v<SafeType, SignalType<decltype(s3)>>, "");
 
-    auto s4 = std::move(s2).map([](SafeType const& n)
-            {
-                return n;
-            });
+    auto r = s3.evaluate();
 
-    auto r = s4.evaluate();
+    static_assert(std::is_same_v<SafeType, decltype(r)>, "");
 
-    //std::cout << s4.evaluate() << std::endl;
-
-    static_assert(std::is_same_v<SignalType<decltype(s1)>, SafeType>, "");
 }
