@@ -176,3 +176,44 @@ TEST(Signal, mapReferenceToTemporary)
     static_assert(std::is_same_v<SafeType, decltype(r)>, "");
 
 }
+
+TEST(Signal, mapMultipleParams)
+{
+    auto s1 = constant(SafeType());
+    auto s2 = constant(SafeType())
+        .map([](SafeType const& n) -> SafeType const& { return n; });
+
+    auto s3 = constant(SafeType())
+        .map([](SafeType const& n) { return n; });
+
+    auto s4 = group(s1.clone(), s2.clone());
+
+    static_assert(IsSignalType<decltype(s4),
+            SafeType const&, SafeType const&>::value, "");
+
+    auto s5 = std::move(s4).map(
+            [](SafeType const& n1, SafeType const&) -> SafeType const&
+            {
+                return n1;
+            });
+
+    static_assert(std::is_same_v<
+            SignalType<decltype(s5)>,
+            SafeType
+            >, "");
+
+    // Map returns a reference to temporary
+    auto s6 = group(s1.clone(), s3.clone())
+        .map([](SafeType const&, SafeType const& n2) -> SafeType const&
+                {
+                    return n2;
+                });
+
+    static_assert(std::is_same_v<
+            SignalType<decltype(s6)>,
+            SafeType
+            >, "");
+
+    auto r = s6.evaluate();
+
+}

@@ -1,4 +1,3 @@
-#include "btl/forcenoexcept.h"
 #pragma once
 
 #include "frameinfo.h"
@@ -14,6 +13,8 @@
 #include <btl/not.h>
 #include <btl/all.h>
 #include <btl/any.h>
+#include "btl/forcenoexcept.h"
+#include "btl/typelist.h"
 
 #include <mutex>
 #include <utility>
@@ -25,6 +26,49 @@ namespace reactive::signal
 
     template <typename TStorage, typename... Ts>
     class SharedSignal;
+
+    namespace detail
+    {
+        template <typename T>
+        struct GetSignalResultTypesHelper
+        {
+            using type = btl::TypeList<T>;
+        };
+
+        template <typename... Ts>
+        struct GetSignalResultTypesHelper<SignalResult<Ts...>>
+        {
+            using type = btl::TypeList<Ts...>;
+        };
+
+        template <template <typename> class TPredicate, typename T>
+        struct AreAll : btl::All<TPredicate<T>>
+        {
+        };
+
+        template <template <typename> class TPredicate, typename... Ts>
+        struct AreAll<TPredicate, btl::TypeList<Ts...>> :
+            btl::All<TPredicate<Ts>...>
+        {
+        };
+
+        template <template <typename> class TPredicate, typename T>
+        struct IsAny : btl::All<TPredicate<T>>
+        {
+        };
+
+        template <template <typename> class TPredicate, typename... Ts>
+        struct IsAny<TPredicate, btl::TypeList<Ts...>> :
+            btl::Any<TPredicate<Ts>...>
+        {
+        };
+    }
+
+    template <typename T>
+    struct GetSignalResultTypes
+    {
+        using type = detail::GetSignalResultTypesHelper<SignalType<T>>;
+    };
 
     template <typename TFunc, typename TStorage>
     class Map3
@@ -42,7 +86,22 @@ namespace reactive::signal
         {
             if constexpr(IsSignalResult<decltype(storage_->evaluate())>::value)
             {
-                return std::apply(*func_, storage_->evaluate().getTuple());
+                using ReturnType = decltype(
+                        std::apply(*func_, storage_->evaluate().getTuple())
+                        );
+                using ReturnTypes = typename detail::GetSignalResultTypesHelper<
+                    ReturnType>::type;
+
+                if constexpr(!detail::AreAll<
+                        std::is_reference, typename GetSignalResultTypes<TStorage>::type
+                        >::value && detail::IsAny<std::is_reference, ReturnTypes>::value)
+                {
+                    return btl::clone(std::apply(*func_, storage_->evaluate().getTuple()));
+                }
+                else
+                {
+                    return std::apply(*func_, storage_->evaluate().getTuple());
+                }
             }
             else
             {
