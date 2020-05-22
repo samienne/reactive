@@ -214,6 +214,36 @@ TEST(Signal, mapMultipleParams)
             SafeType
             >, "");
 
-    auto r = s6.evaluate();
-
+    s6.evaluate();
 }
+
+TEST(Signal, mapToFunctionNoExtraParams)
+{
+    auto s1 = group(constant(10), constant(std::string("test")));
+
+    auto s2 = std::move(s1).mapToFunction([](int i, std::string const& str)
+            {
+                return std::to_string(i) + str;
+            });
+
+    std::function<std::string()> r = s2.evaluate();
+    std::string r2 = r();
+
+    EXPECT_EQ("10test", r2);
+}
+
+TEST(Signal, mapToFunctionWithExtraParams)
+{
+    auto s1 = constant(std::string("test"));
+
+    auto s2 = std::move(s1).mapToFunction([](std::string const& str, int i)
+            {
+                return std::to_string(i) + str;
+            });
+
+    std::function<std::string(int)> r = s2.evaluate();
+    std::string r2 = r(10);
+
+    EXPECT_EQ("10test", r2);
+}
+

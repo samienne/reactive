@@ -351,11 +351,14 @@ namespace reactive::signal
         >::type>
     constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
     {
+        /*
         return wrap(
                 Map<detail::MapFunction, std::decay_t<TFunc>, std::decay_t<TSigs>...>(
                     std::forward<TFunc>(func),
                     std::move(sigs)...
                 ));
+                */
+        return group(std::move(sigs)...).mapToFunction(std::forward<TFunc>(func));
     }
 
     namespace detail

@@ -1,3 +1,4 @@
+#include <tuple>
 #pragma once
 
 #include "frameinfo.h"
@@ -158,7 +159,7 @@ namespace reactive::signal
     private:
         Map3(Map3 const&) = default;
 
-        btl::ForceNoexcept<TFunc> func_;
+        mutable btl::ForceNoexcept<TFunc> func_;
         btl::CloneOnCopy<TStorage> storage_;
     };
 
@@ -295,6 +296,35 @@ namespace reactive::signal
                     std::forward<TFunc>(f),
                     std::move(*sig_)
                     ));
+        }
+
+        template <typename TFunc>
+        auto mapToFunction(TFunc&& f) &&
+        {
+            return std::move(*this).map([f=std::forward<TFunc>(f)](auto&&... ts) mutable
+                    {
+                        return [f,
+                        args=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
+                        (auto&&... us) mutable
+                        -> std::invoke_result_t<
+                            decltype(f),
+                            decltype(ts)...,
+                            decltype(us)...
+                            >
+                        {
+                            return std::apply(
+                                    [&f, &us...](auto&&... vs) mutable -> decltype(auto)
+                                    {
+                                        return std::invoke(
+                                                f,
+                                                std::forward<decltype(vs)>(vs)...,
+                                                std::forward<decltype(us)>(us)...
+                                                );
+                                    },
+                                    args
+                                    );
+                        };
+                    });
         }
 
     private:
