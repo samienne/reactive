@@ -23,21 +23,6 @@
 using namespace reactive;
 using us = std::chrono::microseconds;
 
-static_assert(signal::IsSignal<
-        signal::Map<
-            signal::detail::MapBase, btl::Plus, signal::Constant<int>,
-            signal::Constant<int>
-            >
-        >::value, "");
-
-static_assert(std::is_same
-        <
-            int,
-            signal::SignalValueType<signal::Map<signal::detail::MapBase, btl::Plus,
-                signal::Constant<int>, signal::Constant<int>>>::type
-        >::value, "");
-
-
 TEST(Map, sharedSignalAsParam)
 {
     auto s1 = signal::share(signal::constant(10));
@@ -56,41 +41,6 @@ TEST(Map, tupleReduce)
 
     bool b2 = btl::tuple_reduce(true, std::make_tuple(), and_);
     EXPECT_TRUE(b2);
-}
-
-TEST(Map, Partial)
-{
-    using namespace reactive::signal;
-    auto f = [](int n, int m)
-    {
-        return n + m;
-    };
-
-    static_assert(btl::CanApply<decltype(f)(int, int)>::value, "");
-    static_assert(!btl::CanApply<decltype(f)(int)>::value, "");
-
-    std::apply([](){}, std::tuple<>());
-
-    auto v = btl::applyPartial(f, 10, 20);
-    static_assert(std::is_same<int, decltype(v)>::value, "");
-    EXPECT_EQ(30, v);
-    auto g = btl::applyPartial(f);
-    auto h = btl::applyPartial(f, 10);
-    auto n = h(20);
-
-    auto gs = eraseType(mapFunction(f));
-    auto gss = gs.evaluate();
-    auto v2 = gss(10, 20);
-
-    signal::AnySignal<std::function<int(int)>> s1 =
-        signal::cast<std::function<int(int)>>(mapFunction(f, signal::constant(10)));
-
-    //auto v1 = s1.evaluate();
-
-    EXPECT_EQ(30, v2);
-    EXPECT_EQ(30, n);
-    EXPECT_EQ(30, g(10, 20));
-    EXPECT_EQ(30, s1.evaluate()(20));
 }
 
 TEST(MapSignal, map)
