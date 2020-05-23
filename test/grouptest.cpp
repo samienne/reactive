@@ -22,7 +22,7 @@ TEST(SignalGroup, test)
 
     static_assert(IsSignalType<decltype(s2), int, std::string>::value, "");
 
-    auto r = s2.evaluate();
+    s2.evaluate();
 
     //AnySignal<int, std::string> s3 = std::move(s2);
 

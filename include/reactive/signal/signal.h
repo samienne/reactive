@@ -72,16 +72,16 @@ namespace reactive::signal
     };
 
     template <typename TFunc, typename TStorage>
-    class Map3
+    class Map
     {
     public:
-        Map3(TFunc func, TStorage storage) :
+        Map(TFunc func, TStorage storage) :
             func_(std::move(func)),
             storage_(std::move(storage))
         {
         }
 
-        Map3(Map3&& other) noexcept = default;
+        Map(Map&& other) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {
@@ -151,13 +151,13 @@ namespace reactive::signal
             return a;
         }
 
-        Map3 clone() const
+        Map clone() const
         {
             return *this;
         }
 
     private:
-        Map3(Map3 const&) = default;
+        Map(Map const&) = default;
 
         mutable btl::ForceNoexcept<TFunc> func_;
         btl::CloneOnCopy<TStorage> storage_;
@@ -292,7 +292,7 @@ namespace reactive::signal
         template <typename TFunc>
         auto map(TFunc&& f) &&
         {
-            return wrap(Map3<std::decay_t<TFunc>, StorageType>(
+            return wrap(Map<std::decay_t<TFunc>, StorageType>(
                     std::forward<TFunc>(f),
                     std::move(*sig_)
                     ));

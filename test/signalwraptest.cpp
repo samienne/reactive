@@ -22,7 +22,7 @@ struct Identity
     }
 };
 
-static_assert(IsSignal<Map3<Identity, AnySignal<int>>>::value, "");
+static_assert(IsSignal<Map<Identity, AnySignal<int>>>::value, "");
 
 TEST(Signal, map3)
 {
