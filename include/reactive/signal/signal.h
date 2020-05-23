@@ -1,3 +1,4 @@
+#include "btl/partial.h"
 #include <tuple>
 #pragma once
 
@@ -303,27 +304,10 @@ namespace reactive::signal
         {
             return std::move(*this).map([f=std::forward<TFunc>(f)](auto&&... ts) mutable
                     {
-                        return [f,
-                        args=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
-                        (auto&&... us) mutable
-                        -> std::invoke_result_t<
-                            decltype(f),
-                            decltype(ts)...,
-                            decltype(us)...
-                            >
-                        {
-                            return std::apply(
-                                    [&f, &us...](auto&&... vs) mutable -> decltype(auto)
-                                    {
-                                        return std::invoke(
-                                                f,
-                                                std::forward<decltype(vs)>(vs)...,
-                                                std::forward<decltype(us)>(us)...
-                                                );
-                                    },
-                                    args
-                                    );
-                        };
+                        return btl::applyPartialFunction(
+                                f,
+                                std::forward<decltype(ts)>(ts)...
+                                );
                     });
         }
 
