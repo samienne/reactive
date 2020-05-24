@@ -122,13 +122,28 @@ namespace reactive::signal
             }
         }
 
+        enum class ChangedState
+        {
+            unknown,
+            changed,
+            unchanged
+        };
+
         bool hasChanged() const
         {
+            if (changed_ == ChangedState::unknown)
+            {
+                changed_ = storage_->hasChanged()
+                    ? ChangedState::changed
+                    : ChangedState::unchanged;
+            }
+
             return storage_->hasChanged();
         }
 
         UpdateResult updateBegin(FrameInfo const& frame)
         {
+            changed_ = ChangedState::unknown;
             return storage_->updateBegin(frame);
         }
 
@@ -162,6 +177,7 @@ namespace reactive::signal
 
         mutable btl::ForceNoexcept<TFunc> func_;
         btl::CloneOnCopy<TStorage> storage_;
+        mutable ChangedState changed_ = ChangedState::unknown;
     };
 
     template <typename TStorage, typename... Ts> // defined in typed.h
