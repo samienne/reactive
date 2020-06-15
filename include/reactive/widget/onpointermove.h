@@ -5,14 +5,15 @@
 #include "setinputareas.h"
 #include "widgettransformer.h"
 
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
+
 #include "reactive/pointermoveevent.h"
 #include "reactive/eventresult.h"
 
 namespace reactive::widget
 {
     template <typename T, typename = std::enable_if_t<
-        IsSignalType<
+        signal::IsSignalType<
             std::decay_t<T>,
             std::function<EventResult(ase::PointerMoveEvent const&)>>::value
         >>

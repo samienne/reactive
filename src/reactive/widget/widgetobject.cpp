@@ -16,7 +16,7 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
     transformInput_(signal::input(avg::Transform())),
     widget_(
             (std::move(factory)
-            | transform(Signal<avg::Transform>(std::move(transformInput_.signal))))
+            | transform(AnySignal<avg::Transform>(std::move(transformInput_.signal))))
             (
              std::move(drawContext_.signal),
              std::move(sizeInput_.signal)
@@ -55,7 +55,7 @@ Widget const& WidgetObject::getWidget() const
     return impl_->widget_;
 }
 
-Signal<SizeHint> const& WidgetObject::getSizeHint() const
+AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
 {
     return *impl_->sizeHint_;
 }

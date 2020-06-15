@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto addDrawing(Signal<avg::Drawing, T> drawing)
+    auto addDrawing(Signal<T, avg::Drawing> drawing)
     {
         return makeWidgetTransformer()
             .compose(bindObb(), grabDrawing())
@@ -32,7 +32,7 @@ namespace reactive::widget
     }
 
     template <typename TSignalDrawings, typename = std::enable_if_t<
-        btl::IsSequence<SignalType<TSignalDrawings>>::value
+        btl::IsSequence<signal::SignalType<TSignalDrawings>>::value
         >
     >
     auto addDrawings(TSignalDrawings drawings)

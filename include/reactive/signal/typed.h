@@ -4,33 +4,27 @@
 
 #include <iostream>
 
-namespace reactive
-{
-    template <typename T, typename TSignal = void>
-    class Signal;
-
-    template <typename T, typename TSignal>
-    struct IsSignal<Signal<T, TSignal>> : std::true_type {};
-
-    namespace signal
-    {
-        template <typename T, typename TDeferred>
-        class Share;
-
-        template <typename T, typename TSignal>
-        class Typed;
-    }
-
-    template <typename T, typename TDeferred>
-    struct IsSignal<signal::Share<T, TDeferred>> : std::true_type {};
-
-    template <typename T, typename TSignal>
-    struct IsSignal<signal::Typed<T, TSignal>> : std::true_type {};
-} // reactive
-
 namespace reactive::signal
 {
-    template <typename T, typename TDeferred>
+    template <typename TSignal, typename... Ts>
+    class Signal;
+
+    template <typename TSignal, typename... Ts>
+    struct IsSignal<Signal<TSignal, Ts...>> : std::true_type {};
+
+    template <typename TDeferred, typename... Ts>
+    class Share;
+
+    template <typename TSignal, typename... Ts>
+    class Typed;
+
+    template <typename TDeferred, typename T>
+    struct IsSignal<Share<TDeferred, T>> : std::true_type {};
+
+    template <typename TSignal, typename T>
+    struct IsSignal<Typed<TSignal, T>> : std::true_type {};
+
+    template <typename TDeferred, typename... Ts>
     class Share
     {
     public:
@@ -102,8 +96,8 @@ namespace reactive::signal
         btl::shared<TDeferred> control_;
     };
 
-    template <typename T, typename TSignal>
-    class Typed final : public signal::SignalBase<T>
+    template <typename TSignal, typename... Ts>
+    class Typed final : public SignalBase<Ts...>
     {
     public:
         using Lock = std::lock_guard<btl::SpinLock>;
@@ -125,7 +119,7 @@ namespace reactive::signal
         {
         }
 
-        T evaluate() const override final
+        typename detail::SignalBaseResult<Ts...>::type evaluate() const override final
         {
             return sig_.evaluate();
         }
@@ -135,7 +129,7 @@ namespace reactive::signal
             return sig_.hasChanged();
         }
 
-        btl::option<signal_time_t> updateBegin(signal::FrameInfo const& frame)
+        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
             override final
         {
             if (frameId_ == frame.getFrameId())
@@ -145,7 +139,7 @@ namespace reactive::signal
             return sig_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(signal::FrameInfo const& frame)
+        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
             override final
         {
             btl::option<signal_time_t> r = btl::none;
@@ -188,24 +182,18 @@ namespace reactive::signal
         uint64_t frameId2_ = 0;
     };
 
-    template <typename V, typename T, typename U>
-    auto typed(Signal<T, U> sig)
+    template <typename... Ts, typename U, typename... Vs>
+    auto typed(Signal<U, Vs...> sig)
     {
-        return std::make_shared<signal::Typed<V, U>>(std::move(sig).signal());
+        return Share<SignalBase<Ts...>, Ts...>(
+                    std::make_shared<Typed<Signal<U, Vs...>, Ts...>>(std::move(sig))
+                    );
     }
 
-    template <typename U, typename T>
-    auto typed(Signal<T, void> sig)
+    template <typename... Ts>
+    auto typed(Signal<void, Ts...> sig)
     {
-        return typed<U>(wrap(signal::Share<T, signal::Typed<T, Signal<T>>>(
-                    std::make_shared<signal::Typed<T, Signal<T>>>(std::move(sig)))
-                ));
-    }
-
-    template <typename T>
-    auto typed(Signal<T, void> sig)
-    {
-        return sig.getDeferredSignalBase();
+        return sig.storage();
     }
 } // reactive::signal
 

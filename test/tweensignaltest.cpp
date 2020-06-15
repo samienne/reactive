@@ -6,6 +6,7 @@
 #include <chrono>
 
 using namespace reactive;
+using namespace reactive::signal;
 using std::chrono::microseconds;
 using std::chrono::seconds;
 

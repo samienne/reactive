@@ -6,7 +6,8 @@
 #include "bindtheme.h"
 
 #include "reactive/shapes.h"
-#include "reactive/signal.h"
+
+#include "reactive/signal/signal.h"
 
 #include <avg/drawing.h>
 #include <avg/vector.h>
@@ -32,7 +33,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename T>
-    auto background(Signal<avg::Brush, T> brush)
+    auto background(Signal<T, avg::Brush> brush)
     {
         return makeWidgetTransformer()
             .compose(bindDrawContext(), bindSize())

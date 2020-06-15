@@ -2,8 +2,8 @@
 
 #include "stream.h"
 
-#include <reactive/signaltraits.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
+#include <reactive/signal/signaltraits.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
@@ -20,7 +20,7 @@ namespace reactive
     }
 
     template <typename T>
-    struct IsSignal<stream::Collect<T>> : std::true_type {};
+    struct signal::IsSignal<stream::Collect<T>> : std::true_type {};
 }
 
 namespace reactive::stream

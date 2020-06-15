@@ -1,12 +1,11 @@
 #pragma once
 
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
 
 namespace reactive::signal
 {
     template <typename T, typename U>
-    auto eraseType(Signal<T, U> sig) -> Signal<T, void>
+    auto eraseType(Signal<U, T> sig) -> AnySignal<T>
     {
         return std::move(sig);
     }

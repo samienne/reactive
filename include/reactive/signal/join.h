@@ -1,22 +1,16 @@
 #pragma once
 
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Join;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Join<TSignal>> : std::true_type {};
-}
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class Join;
+
+    template <typename TSignal>
+    struct IsSignal<Join<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class Join
     {
@@ -135,9 +129,9 @@ namespace reactive::signal
     template <typename T, typename U, typename = std::enable_if_t<
         IsSignal<T>::value
         >>
-    auto join(Signal<T, U> sig)
+    auto join(Signal<U, T> sig)
     {
-        return signal::wrap(Join<U>(std::move(sig).signal()));
+        return wrap(Join<U>(std::move(sig).storage()));
     }
 } // namespace reactive::signal
 

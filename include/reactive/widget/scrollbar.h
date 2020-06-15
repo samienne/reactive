@@ -9,12 +9,12 @@ namespace reactive::widget
 {
     REACTIVE_EXPORT WidgetFactory hScrollBar(
             signal::InputHandle<float> handle,
-            Signal<float> amount,
-            Signal<float> handleSize);
+            AnySignal<float> amount,
+            AnySignal<float> handleSize);
 
     REACTIVE_EXPORT WidgetFactory vScrollBar(
             signal::InputHandle<float> handle,
-            Signal<float> amount,
-            Signal<float> handleSize);
+            AnySignal<float> amount,
+            AnySignal<float> handleSize);
 } // namespace reactive::widget
 

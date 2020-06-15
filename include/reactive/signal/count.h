@@ -1,23 +1,16 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class CountSignal;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::CountSignal<TSignal>> : std::true_type {};
-}
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class CountSignal;
+
+    template <typename TSignal>
+    struct IsSignal<CountSignal<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class CountSignal
     {
@@ -83,9 +76,6 @@ namespace reactive::signal
         int32_t value_;
     };
 
-    static_assert(IsSignal<CountSignal<Constant<int>>>::value,
-            "Count is not a signal");
-
     template <typename TSignal, typename = typename
         std::enable_if
         <
@@ -93,7 +83,7 @@ namespace reactive::signal
         >::type>
     auto count(TSignal signal)
     {
-        return CountSignal<std::decay_t<TSignal>>(std::move(signal));
+        return wrap(CountSignal<std::decay_t<TSignal>>(std::move(signal)));
     }
 
 } // reactive::signal

@@ -1,28 +1,20 @@
 #pragma once
 
-#include "map.h"
-#include "constant.h"
-
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/function.h>
 
 #include <type_traits>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal, typename TFunc>
-        class OnChange;
-    }
-
-    template <typename TSignal, typename TFunc>
-    struct IsSignal<signal::OnChange<TSignal, TFunc>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignal, typename TFunc>
+    class OnChange;
+
+    template <typename TSignal, typename TFunc>
+    struct IsSignal<OnChange<TSignal, TFunc>> : std::true_type {};
+
     template <typename TSignal, typename TFunc>
     class OnChange
     {

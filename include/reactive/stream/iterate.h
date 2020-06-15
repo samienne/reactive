@@ -7,8 +7,7 @@
 #include "reactive/signal/input.h"
 #include "reactive/signal/droprepeats.h"
 #include "reactive/signal/blip.h"
-
-#include "reactive/signaltraits.h"
+#include "reactive/signal/signaltraits.h"
 
 #include <btl/tuplemap.h>
 #include <btl/tupleforeach.h>
@@ -28,13 +27,16 @@ namespace reactive
         class IterateStatic;
     }
 
-    template <typename TFunc, typename TInitial, typename T, typename... TSignals>
-    struct IsSignal<stream::Iterate<TFunc, TInitial, T, TSignals...>>
-    : std::true_type {};
+    namespace signal
+    {
+        template <typename TFunc, typename TInitial, typename T, typename... TSignals>
+        struct IsSignal<stream::Iterate<TFunc, TInitial, T, TSignals...>>
+        : std::true_type {};
 
-    template <typename TFunc, typename TInitial, typename T, typename... TSignals>
-    struct IsSignal<stream::IterateStatic<TFunc, TInitial, T, TSignals...>>
-    : std::true_type {};
+        template <typename TFunc, typename TInitial, typename T, typename... TSignals>
+        struct IsSignal<stream::IterateStatic<TFunc, TInitial, T, TSignals...>>
+        : std::true_type {};
+    }
 }
 
 namespace reactive::stream
@@ -96,7 +98,7 @@ namespace reactive::stream
         Iterate(Iterate&&) = default;
         Iterate& operator=(Iterate&&) = default;
 
-        signal_value_t<TInitial> evaluate() const
+        signal::signal_value_t<TInitial> evaluate() const
         {
             if (!value_.valid())
                 value_ = btl::just(btl::clone(initial_->evaluate()));
@@ -170,7 +172,7 @@ namespace reactive::stream
         btl::CloneOnCopy<std::tuple<std::decay_t<TSignals>...>> sigs_;
         btl::CloneOnCopy<std::decay_t<TInitial>> initial_;
         btl::CloneOnCopy<decltype(collect(std::declval<Stream<T>>()))> streamValues_;
-        mutable btl::option<signal_value_t<TInitial>> value_;
+        mutable btl::option<signal::signal_value_t<TInitial>> value_;
     };
 
     template <typename TFunc, typename TInitial, typename T,
@@ -264,14 +266,14 @@ namespace reactive::stream
                 typename... TSignals, typename =
                     std::enable_if_t<
                     btl::All<
-                        AreSignals<TInitial, TSignals...>,
+                        signal::AreSignals<TInitial, TSignals...>,
                         std::is_convertible<
                             std::result_of_t<TFunc(
-                                signal_value_t<TInitial>,
+                                signal::signal_value_t<TInitial>,
                                 T,
-                                signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...)
                             >,
-                            signal_value_t<TInitial>
+                            signal::signal_value_t<TInitial>
                         >
                     >::value
                     >>
@@ -295,13 +297,13 @@ namespace reactive::stream
                 typename... TSignals, typename =
                     std::enable_if_t<
                     btl::All<
-                        AreSignals<TSignals...>,
-                        btl::Not<IsSignal<TInitial>>,
+                        signal::AreSignals<TSignals...>,
+                        btl::Not<signal::IsSignal<TInitial>>,
                         std::is_convertible<
                             std::result_of_t<TFunc(
                                 TInitial,
                                 T,
-                                signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...)
                             >,
                             TInitial
                         >
@@ -323,33 +325,5 @@ namespace reactive::stream
                 std::move(signals)...
             ));
     }
-
-    /*
-    template <typename TFunc, typename T, typename TInitial,
-                typename... TSignals, typename =
-                    std::enable_if_t<
-                    !IsSignal<TInitial>::value
-                >,
-                int = 0
-            >
-    auto iterate(TFunc&& func, TInitial&& initial, Stream<T> stream,
-            TSignals... signals)
-    -> decltype(
-            signal::wrap(iterate(
-                std::forward<TFunc>(func),
-                signal::constant(std::forward<TInitial>(initial)),
-                std::move(stream),
-                std::move(signals)...
-                )))
-    {
-        return signal::wrap(
-                iterate(
-                    std::forward<TFunc>(func),
-                    signal::constant(std::forward<TInitial>(initial)),
-                    std::move(stream),
-                    std::move(signals)...
-                ));
-    }
-    */
 } // namespace reactive::stream
 

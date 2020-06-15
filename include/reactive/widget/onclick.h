@@ -7,8 +7,9 @@
 #include "reactive/signal/map.h"
 
 #include "reactive/pointerbuttonevent.h"
-#include "reactive/signal.h"
 #include "reactive/clickevent.h"
+
+#include "reactive/signal/signal.h"
 
 #include <functional>
 #include <type_traits>
@@ -18,7 +19,7 @@ namespace reactive::widget
     template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
         , int> = 0>
-    inline auto onClick(unsigned int button, Signal<T, U> cb)
+    inline auto onClick(unsigned int button, Signal<U, T> cb)
             //Signal<std::function<void(ClickEvent const&)>> cb)
     {
         auto f = [button](
@@ -56,7 +57,7 @@ namespace reactive::widget
     template <typename T, typename U, std::enable_if_t<
         std::is_convertible<T, std::function<void()>>::value
         , int> = 0>
-    inline auto onClick(unsigned int button, Signal<T, U> cb)
+    inline auto onClick(unsigned int button, Signal<U, T> cb)
     {
         auto f = [](std::function<void()> cb, ClickEvent const&)
         {

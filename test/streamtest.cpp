@@ -22,10 +22,10 @@ using namespace reactive::stream;
 using us = std::chrono::microseconds;
 using ms = std::chrono::milliseconds;
 
-static_assert(CheckSignal<Hold<int>>::value, "");
+static_assert(signal::CheckSignal<Hold<int>>::value, "");
 
 static_assert(std::is_same<std::vector<int>,
-        signal_value_t<
+        signal::signal_value_t<
             Collect<int>
             >
         >::value, "");

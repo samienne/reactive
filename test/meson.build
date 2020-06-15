@@ -2,6 +2,14 @@ incdir = include_directories('../include')
 gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
+devtest = executable('devtest',
+        'grouptest.cpp',
+        'signalwraptest.cpp',
+        'signalresulttest.cpp',
+        include_directories : incdir,
+        link_with : [],
+        dependencies : [gtestdep])
+
 unittest = executable('unittest',
         'widgettransformtest.cpp',
         'pmrtest.cpp',

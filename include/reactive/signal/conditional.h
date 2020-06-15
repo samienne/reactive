@@ -1,26 +1,18 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <type_traits>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TCondition, typename TTrue, typename TFalse>
-        class Conditional;
-    }
-
-    template <typename TCondition, typename TTrue, typename TFalse>
-    struct IsSignal<signal::Conditional<TCondition, TTrue, TFalse>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TCondition, typename TTrue, typename TFalse>
+    class Conditional;
+
+    template <typename TCondition, typename TTrue, typename TFalse>
+    struct IsSignal<Conditional<TCondition, TTrue, TFalse>> : std::true_type {};
+
     template <typename TCondition, typename TTrue, typename TFalse>
     class Conditional
     {
@@ -124,10 +116,6 @@ namespace reactive::signal
         bool changed_ = false;
         bool first_ = true;
     };
-
-    static_assert(IsSignal<Conditional<Constant<bool>, Constant<int>,
-            Constant<int>>>::value, "");
-
 
     template <typename TCondition, typename TTrue, typename TFalse,
                 typename = std::enable_if_t

@@ -3,7 +3,7 @@
 #include "widget.h"
 
 #include <reactive/signal/mbind.h>
-#include <reactive/signaltraits.h>
+#include <reactive/signal/signaltraits.h>
 
 #include <type_traits>
 
@@ -12,7 +12,7 @@ namespace reactive::widget
     template <typename TSignalWidget, typename = typename
         std::enable_if
         <
-            IsSignalType<TSignalWidget, Widget>::value
+            signal::IsSignalType<TSignalWidget, Widget>::value
         >::type>
     auto reduce(TSignalWidget w2)
     {

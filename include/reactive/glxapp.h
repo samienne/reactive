@@ -2,8 +2,9 @@
 
 #include "app.h"
 
-#include "signal.h"
 #include "reactivevisibility.h"
+
+#include "signal/signal.h"
 
 #include <btl/visibility.h>
 
@@ -16,7 +17,7 @@ namespace reactive
     public:
         GlxApp();
         void addWindows(std::vector<Window> windows) override;
-        int run(Signal<bool> running) && override;
+        int run(AnySignal<bool> running) && override;
         int run() && override;
 
     private:

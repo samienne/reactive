@@ -3,9 +3,9 @@
 #include "stream.h"
 
 #include <reactive/signal/input.h>
+#include <reactive/signal/signaltraits.h>
 
 #include "reactive/connection.h"
-#include "reactive/signaltraits.h"
 
 namespace reactive
 {
@@ -15,8 +15,11 @@ namespace reactive
         class Hold;
     }
 
-    template <typename T>
-    struct IsSignal<stream::Hold<T>> : std::true_type {};
+    namespace signal
+    {
+        template <typename T>
+        struct IsSignal<stream::Hold<T>> : std::true_type {};
+    }
 }
 
 namespace reactive::stream

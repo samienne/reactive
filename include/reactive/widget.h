@@ -8,7 +8,7 @@
 
 #include "signal/map.h"
 #include "signal/share.h"
-#include "signal.h"
+#include "signal/signal.h"
 
 #include <avg/drawing.h>
 #include <avg/obb.h>
@@ -62,7 +62,7 @@ namespace reactive
             return r;
         }
 
-        inline auto makeKeyboardInputs(Signal<avg::Obb> obb)
+        inline auto makeKeyboardInputs(AnySignal<avg::Obb> obb)
         {
             auto focus = signal::input(false);
             auto focusHandle = focus.handle;
@@ -88,12 +88,12 @@ namespace reactive
              typename TObb, typename TKeyboardInputs, typename TTheme,
              typename = std::enable_if_t<
                 btl::All<
-                    IsSignalType<TDrawContext, DrawContext>,
-                    IsSignalType<TDrawing, avg::Drawing>,
-                    IsSignalType<TAreas, std::vector<InputArea>>,
-                    IsSignalType<TObb, avg::Obb>,
-                    IsSignalType<TKeyboardInputs, std::vector<KeyboardInput>>,
-                    IsSignalType<TTheme, widget::Theme>
+                    signal::IsSignalType<TDrawContext, DrawContext>,
+                    signal::IsSignalType<TDrawing, avg::Drawing>,
+                    signal::IsSignalType<TAreas, std::vector<InputArea>>,
+                    signal::IsSignalType<TObb, avg::Obb>,
+                    signal::IsSignalType<TKeyboardInputs, std::vector<KeyboardInput>>,
+                    signal::IsSignalType<TTheme, widget::Theme>
                 >::value
             >>
     auto makeWidget(TDrawContext drawContext, TDrawing drawing, TAreas areas,
@@ -117,18 +117,18 @@ namespace reactive
     }
 
     using WidgetBase = Wid<
-        Signal<DrawContext>,
-        Signal<avg::Drawing>,
-        Signal<std::vector<InputArea>>,
-        Signal<avg::Obb>,
-        Signal<std::vector<KeyboardInput>>,
-        Signal<widget::Theme>
+        AnySignal<DrawContext>,
+        AnySignal<avg::Drawing>,
+        AnySignal<std::vector<InputArea>>,
+        AnySignal<avg::Obb>,
+        AnySignal<std::vector<KeyboardInput>>,
+        AnySignal<widget::Theme>
         >;
 
     template <typename T, typename U>
     auto makeWidget(
-            Signal<DrawContext, T> drawContext,
-            Signal<avg::Vector2f, U> size
+            Signal<T, DrawContext> drawContext,
+            Signal<U, avg::Vector2f> size
             )
     -> decltype(auto)
     {
@@ -230,7 +230,7 @@ namespace reactive
         }
 
         template <typename T, typename = std::enable_if_t<
-            IsSignalType<T, widget::Theme>::value
+            signal::IsSignalType<T, widget::Theme>::value
             >
         >
         auto setTheme(T theme) &&
@@ -246,7 +246,7 @@ namespace reactive
         }
 
         template <typename TSignalDrawing, typename = std::enable_if_t<
-            IsSignalType<TSignalDrawing, avg::Drawing>::value
+            signal::IsSignalType<TSignalDrawing, avg::Drawing>::value
             >
         >
         auto setDrawing(TSignalDrawing drawing) &&
@@ -262,7 +262,7 @@ namespace reactive
         }
 
         template <typename TSignalAreas, typename = std::enable_if_t<
-            IsSignalType<TSignalAreas, std::vector<InputArea>>::value
+            signal::IsSignalType<TSignalAreas, std::vector<InputArea>>::value
             >
         >
         auto setAreas(TSignalAreas areas) &&
@@ -278,7 +278,7 @@ namespace reactive
         }
 
         template <typename T>
-        auto transform(Signal<avg::Transform, T> t) &&
+        auto transform(Signal<T, avg::Transform> t) &&
         {
             auto tr = signal::share(std::move(t));
 
@@ -324,7 +324,7 @@ namespace reactive
         }
 
         template <typename TSignalTransform, typename = std::enable_if_t<
-            IsSignalType<TSignalTransform, avg::Transform>::value
+            signal::IsSignalType<TSignalTransform, avg::Transform>::value
             >
         >
         auto transformR(TSignalTransform t) &&
@@ -340,7 +340,7 @@ namespace reactive
 
         template <typename TSignalObb, typename =
             std::enable_if_t<
-                IsSignalType<TSignalObb, avg::Obb>::value
+                signal::IsSignalType<TSignalObb, avg::Obb>::value
             >>
         auto setObb(TSignalObb obb) &&
         {
@@ -356,7 +356,7 @@ namespace reactive
 
         template <typename TSignalKeyboardInputs, typename =
             std::enable_if_t<
-                IsSignalType<
+                signal::IsSignalType<
                     TSignalKeyboardInputs,
                     std::vector<KeyboardInput>
                 >::value
@@ -373,7 +373,7 @@ namespace reactive
                     );
         }
 
-        btl::option<signal_time_t> update(signal::FrameInfo const& frame)
+        btl::option<signal::signal_time_t> update(signal::FrameInfo const& frame)
         {
             auto t = drawing_->updateBegin(frame);
             auto t2 = areas_->updateBegin(frame);

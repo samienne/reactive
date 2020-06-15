@@ -3,9 +3,8 @@
 #include "inputhandle.h"
 #include "signalbase.h"
 #include "inputdeferredvalue.h"
-
-#include <reactive/sharedsignal.h>
-#include <reactive/signal.h>
+#include "sharedsignal.h"
+#include "signal.h"
 
 #include <reactive/connection.h>
 #include <reactive/observable.h>
@@ -19,20 +18,14 @@
 #include <list>
 #include <memory>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T, typename TLock = btl::DummyLock>
-        class InputSignal;
-    }
-
-    template <typename T, typename TLock>
-    struct IsSignal<signal::InputSignal<T, TLock>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T, typename TLock = btl::DummyLock>
+    class InputSignal;
+
+    template <typename T, typename TLock>
+    struct IsSignal<InputSignal<T, TLock>> : std::true_type {};
+
     template <typename T, typename TLock = btl::DummyLock>
     struct Input;
 
@@ -144,7 +137,7 @@ namespace reactive::signal
         Input& operator=(Input&&) noexcept = default;
 
         InputHandle<T, TLock> handle;
-        SharedSignal<T, InputSignal<T, TLock>> signal;
+        SharedSignal<InputSignal<T, TLock>, T> signal;
     };
 
     template <typename T, typename TLock = btl::DummyLock>

@@ -3,7 +3,8 @@
 #include "widgettransformer.h"
 
 #include "reactive/keyboardinput.h"
-#include "reactive/signal.h"
+
+#include "reactive/signal/signal.h"
 
 #include <btl/cloneoncopy.h>
 
@@ -12,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setKeyboardInputs(Signal<std::vector<KeyboardInput>, T> inputs)
+    auto setKeyboardInputs(Signal<T, std::vector<KeyboardInput>> inputs)
     {
         return makeWidgetTransformer(
             [inputs=btl::cloneOnCopy(std::move(inputs))](auto w) mutable

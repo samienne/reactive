@@ -10,8 +10,7 @@
 
 #include "reactive/signal/convert.h"
 #include "reactive/signal/map.h"
-
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/keyevent.h>
 
@@ -168,7 +167,7 @@ namespace reactive::widget
         }
 
         inline OnKeyEvent action(
-                Signal<std::function<void(ase::KeyEvent const&)>> action) &&
+                AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
         {
             *action_ = signal::mapFunction([](
                         std::function<void(ase::KeyEvent const&)> action1,

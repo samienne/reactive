@@ -2,32 +2,28 @@
 
 #include "map.h"
 #include "join.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
 
 #include <btl/mbind.h>
 
-namespace reactive
+namespace reactive::signal
 {
-    namespace signal
+    template <typename TFunc, typename... Ts, typename... Us>
+    auto mbind(TFunc&& func, Signal<Us, Ts>... ts)
+    -> decltype(
+            signal::join(signal::map(std::forward<TFunc>(func),
+                    std::move(ts)...))
+            )
     {
-        template <typename TFunc, typename... Ts, typename... Us>
-        auto mbind(TFunc&& func, Signal<Ts, Us>... ts)
-        -> decltype(
-                signal::join(signal::map(std::forward<TFunc>(func),
-                        std::move(ts)...))
-                )
-        {
-            return signal::join(signal::map(std::forward<TFunc>(func),
-                    std::move(ts)...));
-        }
-    } // signal
-} // reactive
+        return signal::join(signal::map(std::forward<TFunc>(func),
+                std::move(ts)...));
+    }
+} // namespace reactive::signal
 
 namespace btl
 {
     template <typename TFunc, typename... Ts, typename... Us>
-    auto mbind(TFunc&& func, reactive::Signal<Ts, Us>... ts)
+    auto mbind(TFunc&& func, reactive::Signal<Us, Ts>... ts)
     -> decltype(reactive::signal::mbind(
                 std::forward<TFunc>(func),
                 std::move(ts)...
@@ -39,5 +35,5 @@ namespace btl
                 std::move(ts)...
                 );
     }
-} // btl
+} // namespace btl
 

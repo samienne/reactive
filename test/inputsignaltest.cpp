@@ -2,7 +2,8 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
+
 #include <reactive/connection.h>
 
 #include <gtest/gtest.h>
@@ -179,8 +180,8 @@ TEST(InputSignal, inputChained)
     auto input1 = signal::input(10);
     auto input2 = signal::input(10);
 
-    auto sig1 = signal::share(Signal<int>(std::move(input1.signal)));
-    input2.handle.set(signal::weak(sig1).signal());
+    auto sig1 = signal::share(AnySignal<int>(std::move(input1.signal)));
+    input2.handle.set(signal::weak(sig1).storage());
 
     input1.handle.set(20);
 

@@ -1,10 +1,11 @@
 #pragma once
 
-#include "signal/frameinfo.h"
-#include "signal/updateresult.h"
+#include "frameinfo.h"
+#include "updateresult.h"
+#include "signalresult.h"
 
-#include "connection.h"
-#include "annotation.h"
+#include "reactive/annotation.h"
+#include "reactive/connection.h"
 
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>
@@ -15,7 +16,7 @@
 #include <type_traits>
 #include <chrono>
 
-namespace reactive
+namespace reactive::signal
 {
     template <typename T>
     using decay_t = typename std::decay<T>::type;
@@ -77,10 +78,11 @@ namespace reactive
         > {};
 
     template <typename T>
-    struct IsSignal : std::conditional_t<
+    /*struct IsSignal : std::conditional_t<
         std::is_reference<T>::value,
         IsSignal<std::decay_t<T>>,
-        std::false_type> {};
+        std::false_type> {};*/
+    struct IsSignal : CheckSignal<T> {};
 
     template <typename T>
     struct IsSharedSignal :
@@ -107,29 +109,27 @@ namespace reactive
     template <typename TSignal>
     using SignalType = decltype(std::declval<std::decay_t<TSignal>>().evaluate());
 
-    template <typename TSignal, typename T>
-    using IsSignalType = std::is_convertible
-        <
-            btl::decay_t<SignalType<TSignal>>,
-            T
-        >;
+    namespace detail
+    {
+        template <typename TSignal, typename TRet, typename... Ts>
+        struct CheckSignalType : std::false_type {};
+
+        template <typename TSignal, typename TRet, typename T>
+        struct CheckSignalType<TSignal, TRet, T> : std::is_convertible<TRet, T> {};
+
+        template <typename TSignal, typename... Ts, typename... Us>
+        struct CheckSignalType<TSignal, SignalResult<Us...>, Ts...> :
+            btl::All<std::is_convertible<Us, Ts>...> {};
+    } // namespace detail
+
+
+    template <typename TSignal, typename... Ts>
+    using IsSignalType = detail::CheckSignalType<TSignal, SignalType<TSignal>, Ts...>;
 
     template <typename T, typename TSignature>
     using IsFunction = std::is_convertible<
             std::decay_t<T>,
             std::function<TSignature>
             >;
-
-    /*template <typename T, typename TRet, typename = void>
-    struct IsSignalType : std::false_type {};
-
-    template <typename T, typename TRet>
-    struct IsSignalType<T,
-        std::enable_if<
-            std::is_same<TRet,
-                decay_t<decltype(std::declval<T>().evaluate())>::value &&
-            IsSignal<T>::value>::type> : std::true_type
-    {
-    };*/
 }
 

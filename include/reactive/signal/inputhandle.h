@@ -2,10 +2,8 @@
 
 #include "inputdeferredvalue.h"
 #include "signalbase.h"
-
-#include <reactive/signaltraits.h>
+#include "signaltraits.h"
 #include "signal.h"
-#include "reactive/reactivevisibility.h"
 
 #include <btl/dummylock.h>
 #include <btl/hidden.h>
@@ -39,7 +37,7 @@ namespace reactive::signal
                 p->set(p->lock(), std::move(value));
         }
 
-        void set(Signal<T, Weak<T>> sig)
+        void set(Signal<Weak<T>, T> sig)
         {
             if (auto p = deferred_.lock())
                 p->set(p->lock(), std::move(sig));

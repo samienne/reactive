@@ -1,7 +1,7 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/mbind.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/future/fmap.h>
 #include <btl/future/mbind.h>
@@ -27,7 +27,7 @@ TEST(Bundle, signalFMap)
             return i + j;
         });
 
-    Signal<int> d = std::move(c);
+    AnySignal<int> d = std::move(c);
 
     EXPECT_EQ(30, d.evaluate());
 }
@@ -43,7 +43,7 @@ TEST(Bundle, signalMBind)
             return signal::constant(i + j);
         });
 
-    Signal<int> d = std::move(c);
+    AnySignal<int> d = std::move(c);
 
     EXPECT_EQ(30, d.evaluate());
 }

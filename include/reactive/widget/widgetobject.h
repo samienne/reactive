@@ -27,14 +27,14 @@ namespace reactive::widget
 
         Widget const& getWidget() const;
 
-        Signal<SizeHint> const& getSizeHint() const;
+        AnySignal<SizeHint> const& getSizeHint() const;
 
     private:
         struct Impl
         {
             Impl(WidgetFactory factory);
 
-            btl::CloneOnCopy<Signal<SizeHint>> sizeHint_;
+            btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
             signal::Input<DrawContext> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;

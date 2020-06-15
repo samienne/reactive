@@ -1,13 +1,12 @@
 #pragma once
 
 #include "widgetfactory.h"
+#include "reactivevisibility.h"
 
 #include "signal/map.h"
 #include "signal/mbind.h"
 #include "signal/combine.h"
-
-#include "signal.h"
-#include "reactivevisibility.h"
+#include "signal/signal.h"
 
 #include <btl/fmap.h>
 #include <btl/function.h>

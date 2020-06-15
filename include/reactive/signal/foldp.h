@@ -3,27 +3,18 @@
 #include "tee.h"
 #include "map.h"
 #include "input.h"
-
-#include "reactive/reactivevisibility.h"
-
-#include <btl/hidden.h>
+#include "signal.h"
 
 #include <utility>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TFunc, typename TValue, typename TSignal>
-        class FoldP;
-    }
-
-    template <typename TFunc, typename TValue, typename TSignal>
-    struct IsSignal<signal::FoldP<TFunc, TValue, TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TFunc, typename TValue, typename TSignal>
+    class FoldP;
+
+    template <typename TFunc, typename TValue, typename TSignal>
+    struct IsSignal<FoldP<TFunc, TValue, TSignal>> : std::true_type {};
+
     template <typename TFunc, typename TValue, typename TSignal>
     class FoldP
     {

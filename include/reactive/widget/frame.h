@@ -15,7 +15,7 @@
 #include "reactive/rendering.h"
 
 #include "reactive/signal/constant.h"
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/transform.h>
 
@@ -47,8 +47,8 @@ namespace reactive::widget
 
     template <typename T, typename U>
     auto frameFull(
-            Signal<float, T> cornerRadius,
-            Signal<avg::Color, U> color
+            Signal<T, float> cornerRadius,
+            Signal<U, avg::Color> color
             )
     {
 
@@ -65,13 +65,13 @@ namespace reactive::widget
 
 
     template <typename T>
-    inline auto frame(Signal<avg::Color, T> color)
+    inline auto frame(Signal<T, avg::Color> color)
     {
         return frameFull(signal::constant(10.0f), std::move(color));
     }
 
     template <typename T>
-    inline auto frame(Signal<float, T> cornerRadius)
+    inline auto frame(Signal<T, float> cornerRadius)
     {
         return frameFull(
                 std::move(cornerRadius),

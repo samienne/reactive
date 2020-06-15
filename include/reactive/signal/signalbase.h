@@ -1,8 +1,9 @@
 #pragma once
 
-#include "reactive/signaltraits.h"
+#include "signaltraits.h"
+#include "signalresult.h"
+
 #include "reactive/connection.h"
-#include "reactive/reactivevisibility.h"
 
 #include <memory>
 
@@ -10,12 +11,27 @@ namespace reactive::signal
 {
     class FrameInfo;
 
-    template <typename T>
+    namespace detail
+    {
+        template <typename... Ts>
+        struct SignalBaseResult
+        {
+            using type = SignalResult<Ts...>;
+        };
+
+        template <typename T>
+        struct SignalBaseResult<T>
+        {
+            using type = T;
+        };
+    } // namespace detail
+
+    template <typename... Ts>
     class SignalBase
     {
     public:
         virtual ~SignalBase() = default;
-        virtual T evaluate() const = 0;
+        virtual typename detail::SignalBaseResult<Ts...>::type evaluate() const = 0;
         virtual bool hasChanged() const = 0;
         virtual Connection observe(std::function<void()> const& callback) = 0;
         virtual UpdateResult updateBegin(FrameInfo const&) = 0;

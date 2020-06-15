@@ -4,12 +4,12 @@
 #include "setkeyboardinputs.h"
 #include "widgettransformer.h"
 
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 namespace reactive::widget
 {
     template <typename T>
-    auto requestFocus(Signal<bool, T> requestFocus)
+    auto requestFocus(Signal<T, bool> requestFocus)
     {
         return widget::makeWidgetTransformer()
             .compose(widget::grabKeyboardInputs())

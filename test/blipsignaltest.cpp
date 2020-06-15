@@ -2,8 +2,7 @@
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
-
-#include <reactive/signaltraits.h>
+#include <reactive/signal/signaltraits.h>
 
 #include "signaltester.h"
 
@@ -16,7 +15,7 @@ using us = std::chrono::microseconds;
 using namespace reactive;
 using namespace reactive::signal;
 
-static_assert(reactive::IsSignal<Blip<Constant<int>>>::value, "");
+static_assert(IsSignal<Blip<Constant<int>>>::value, "");
 
 TEST(Blip, evaluate)
 {

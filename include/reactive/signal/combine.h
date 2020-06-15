@@ -1,9 +1,7 @@
 #pragma once
 
-#include "reactive/sharedsignal.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/tuplemap.h>
 #include <btl/reduce.h>
@@ -12,20 +10,14 @@
 
 #include <vector>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignals>
-        class Combine;
-    }
-
-    template <typename TSignals>
-    struct IsSignal<signal::Combine<TSignals>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename TSignals>
+    class Combine;
+
+    template <typename TSignals>
+    struct IsSignal<Combine<TSignals>> : std::true_type {};
+
     template <typename TSignals>
     class Combine
     {
@@ -122,14 +114,14 @@ namespace reactive::signal
     auto combine(std::vector<T> signals)
         ///-> Combine<std::vector<T>>
     {
-        return signal::wrap(Combine<std::vector<T>>(std::move(signals)));
+        return wrap(Combine<std::vector<T>>(std::move(signals)));
     }
 
     template <typename... Ts>
     auto combine(std::tuple<Ts...> signals)
         //-> Combine<std::tuple<Ts...>>
     {
-        return signal::wrap(Combine<std::tuple<Ts...>>(std::move(signals)));
+        return wrap(Combine<std::tuple<Ts...>>(std::move(signals)));
     }
 } // namespace reactive::signal:
 

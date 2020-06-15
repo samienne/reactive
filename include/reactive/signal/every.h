@@ -1,22 +1,18 @@
 #pragma once
 
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
+
 #include "reactive/reactivevisibility.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        class Every;
-    }
-
-    template <>
-    struct IsSignal<signal::Every> : std::true_type {};
-}
 
 namespace reactive::signal
 {
-    class Every
+    class Every;
+
+    template <>
+    struct IsSignal<Every> : std::true_type {};
+
+    class REACTIVE_EXPORT Every
     {
     public:
         inline Every(signal_time_t phase) :
@@ -76,7 +72,7 @@ namespace reactive::signal
             return a;
         }
 
-        inline auto clone() const
+        inline Every clone() const
         {
             return *this;
         }
@@ -91,9 +87,9 @@ namespace reactive::signal
         bool changed_ = false;
     };
 
-    inline auto every(signal_time_t phase) -> Every
+    inline auto every(signal_time_t phase)
     {
-        return Every(phase);
+        return wrap(Every(phase));
     }
 } // namespace reactive::signal
 

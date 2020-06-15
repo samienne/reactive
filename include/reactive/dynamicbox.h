@@ -14,10 +14,10 @@ namespace reactive
     {
         template <Axis dir, typename T, typename U, typename V, typename W>
         auto doDynamicBox(
-                Signal<DrawContext, T> drawContext,
-                Signal<avg::Vector2f, U> size,
-                Signal<std::vector<widget::WidgetObject>, V> widgets,
-                SharedSignal<std::vector<SizeHint>, W> hints
+                Signal<T, DrawContext> drawContext,
+                Signal<U, avg::Vector2f> size,
+                Signal<V, std::vector<widget::WidgetObject>> widgets,
+                SharedSignal<W, std::vector<SizeHint>> hints
                 )
         {
             auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
@@ -54,13 +54,13 @@ namespace reactive
     } // namespace detail
 
     template <Axis dir, typename T>
-    auto dynamicBox(Signal<std::vector<widget::WidgetObject>, T> widgets)
+    auto dynamicBox(Signal<T, std::vector<widget::WidgetObject>> widgets)
     {
         // Signal<std::vector<SizeHint>>
         auto hints = signal::share(signal::join(signal::map(
                 [](std::vector<widget::WidgetObject> const& widgets)
                 {
-                    std::vector<Signal<SizeHint>> hints;
+                    std::vector<AnySignal<SizeHint>> hints;
 
                     for (auto const& w : widgets)
                     {

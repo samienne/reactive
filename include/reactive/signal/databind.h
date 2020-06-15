@@ -1,23 +1,24 @@
 #pragma once
 
+#include "inputhandle.h"
+
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
 
-#include <reactive/signal/inputhandle.h>
-
 #include <reactive/widget/widgetobject.h>
 #include <reactive/widgetfactory.h>
-#include <reactive/signal.h>
 #include <reactive/datasource.h>
+
+#include <reactive/signal/signal.h>
 
 #include <vector>
 
 namespace reactive::signal
 {
     template <typename T>
-    Signal<std::vector<widget::WidgetObject>> dataBind(
+    AnySignal<std::vector<widget::WidgetObject>> dataBind(
             DataSource<T> source,
-            std::function<WidgetFactory(Signal<T> value, size_t id)> delegate
+            std::function<WidgetFactory(AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;

@@ -1,35 +1,28 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signaltraits.h"
+#include "signal.h"
 
 #include <btl/spinlock.h>
 #include <btl/hidden.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Cache;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Cache<TSignal>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
-    template <typename TSignal>
+    template <typename TStorage>
+    class Cache;
+
+    template <typename TStorage>
+    struct IsSignal<Cache<TStorage>> : std::true_type {};
+
+    template <typename TStorage>
     class Cache
     {
     public:
-        using ValueType = std::decay_t<SignalType<TSignal>>;
+        using ValueType = std::decay_t<SignalType<TStorage>>;
         using Lock = std::lock_guard<btl::SpinLock>;
 
-        Cache(TSignal sig) :
+        Cache(TStorage sig) :
             sig_(std::move(sig))
         {
         }
@@ -92,7 +85,7 @@ namespace reactive::signal
         }
 
     private:
-        btl::CloneOnCopy<std::decay_t<TSignal>> sig_;
+        btl::CloneOnCopy<std::decay_t<TStorage>> sig_;
         mutable btl::option<ValueType> value_;
         bool changed_ = false;
     };
@@ -100,7 +93,7 @@ namespace reactive::signal
     template <typename T, typename U, std::enable_if_t<
         std::is_reference<SignalType<U>>::value
         , int> = 0>
-    auto cache(Signal<T, U>&& sig)
+    auto cache(Signal<U, T>&& sig)
     {
         return std::move(sig);
     }
@@ -108,19 +101,19 @@ namespace reactive::signal
     template <typename T, typename U, std::enable_if_t<
         !std::is_reference<SignalType<U>>::value
         , int> = 0>
-    auto cache(Signal<T, U>&& sig)
+    auto cache(Signal<U, T>&& sig)
     {
-        return signal::wrap(Cache<U>(std::move(sig).signal()));
+        return wrap(Cache<U>(std::move(sig).storage()));
     }
 
     template <typename T>
-    auto cache(Signal<T, void>&& sig) -> Signal<T, void>
+    auto cache(Signal<void, T>&& sig) -> AnySignal<T>
     {
         if (sig.isCached())
             return std::move(sig);
         else
         {
-            return signal::wrap(Cache<Signal<T, void>>(
+            return wrap(Cache<AnySignal<T>>(
                         std::move(sig))
                     );
         }

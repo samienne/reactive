@@ -82,7 +82,7 @@ public:
             {
                 if (pointerEventsOnThisFrame_++ > 0)
                 {
-                    widget_.update({getNextFrameId(), signal_time_t(0)});
+                    widget_.update({getNextFrameId(), signal::signal_time_t(0)});
                 }
 
                 if (e.state == ase::ButtonState::down)
@@ -217,7 +217,7 @@ public:
             memoryStatistics_.maximum_concurrent_bytes_allocated() << std::endl;
     }
 
-    btl::option<signal_time_t> frame(std::vector<XEvent> const& events,
+    btl::option<signal::signal_time_t> frame(std::vector<XEvent> const& events,
             std::chrono::microseconds dt)
     {
         pointerEventsOnThisFrame_ = 0;
@@ -338,7 +338,7 @@ private:
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
     Widget widget_;
-    Signal<std::string> titleSignal_;
+    AnySignal<std::string> titleSignal_;
     //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
@@ -361,7 +361,7 @@ int GlxApp::run() &&
     return std::move(*this).run(std::move(running.signal));
 }
 
-int GlxApp::run(Signal<bool> running) &&
+int GlxApp::run(AnySignal<bool> running) &&
 {
     ase::GlxPlatform platform;
 

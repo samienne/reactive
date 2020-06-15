@@ -1,24 +1,17 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class DropRepeats;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::DropRepeats<TSignal>> : std::true_type {};
-}
+#include "signal.h"
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class DropRepeats;
+
+    template <typename TSignal>
+    struct IsSignal<DropRepeats<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class DropRepeats
     {
@@ -97,9 +90,6 @@ namespace reactive::signal
         mutable btl::option<signal_value_t<TSignal>> value_;
         bool changed_ = false;
     };
-
-    static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
-            "DropRepeatsSignal is not a signal");
 
     template <typename T, typename U>
     auto dropRepeats(Signal<T, U> signal)

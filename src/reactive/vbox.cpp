@@ -18,7 +18,7 @@ WidgetFactory vbox(std::vector<WidgetFactory> widgets)
 }
 
 
-WidgetFactory vbox(Signal<std::vector<widget::WidgetObject>> widgets)
+WidgetFactory vbox(AnySignal<std::vector<widget::WidgetObject>> widgets)
 {
     return dynamicBox<Axis::y>(std::move(widgets));
 }

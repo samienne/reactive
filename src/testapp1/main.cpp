@@ -28,7 +28,7 @@
 #include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
-#include <reactive/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <reactive/signal/map.h>
 

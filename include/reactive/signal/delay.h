@@ -1,26 +1,18 @@
 #pragma once
 
-#include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "signaltraits.h"
+#include "signal.h"
 
 #include <btl/demangle.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T, typename U>
-        class Delay;
-    }
-
-    template <typename T, typename U>
-    struct IsSignal<signal::Delay<T, U>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T, typename U>
+    class Delay;
+
+    template <typename T, typename U>
+    struct IsSignal<Delay<T, U>> : std::true_type {};
+
     template <typename T, typename U>
     class Delay
     {
@@ -47,7 +39,7 @@ namespace reactive::signal
             return changed_;
         }
 
-        UpdateResult updateBegin(signal::FrameInfo const& frame)
+        UpdateResult updateBegin(FrameInfo const& frame)
         {
             auto r = signal_->updateBegin(frame);
 
@@ -64,7 +56,7 @@ namespace reactive::signal
             return r;
         }
 
-        UpdateResult updateEnd(signal::FrameInfo const& frame)
+        UpdateResult updateEnd(FrameInfo const& frame)
         {
             auto r = signal_->updateEnd(frame);
             if (signal_->hasChanged())
@@ -104,9 +96,6 @@ namespace reactive::signal
         uint8_t index_ = 0;
         bool changed_ = false;
     };
-
-    static_assert(IsSignal<Delay<int const&, signal::Constant<int>>>::value,
-            "");
 
     template <typename T, typename U>
     auto delay(Signal<T, U> sig)

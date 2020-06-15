@@ -1,23 +1,16 @@
 #pragma once
 
 #include "constant.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename TSignal>
-        class Changed;
-    }
-
-    template <typename TSignal>
-    struct IsSignal<signal::Changed<TSignal>> : std::true_type {};
-}
+#include "signaltraits.h"
 
 namespace reactive::signal
 {
+    template <typename TSignal>
+    class Changed;
+
+    template <typename TSignal>
+    struct IsSignal<Changed<TSignal>> : std::true_type {};
+
     template <typename TSignal>
     class Changed
     {
@@ -87,10 +80,10 @@ namespace reactive::signal
     };
 
     template <typename T, typename TSignal>
-    auto changed(Signal<T, TSignal> sig)
-        -> Changed<Signal<T, std::decay_t<TSignal>>>
+    auto changed(Signal<TSignal, T> sig)
+        -> Changed<Signal<std::decay_t<TSignal>, T>>
     {
-        return Changed<Signal<T, std::decay_t<TSignal>>>(std::move(sig));
+        return Changed<Signal<std::decay_t<TSignal>, T>>(std::move(sig));
     }
 } // namespace reactive::signal
 

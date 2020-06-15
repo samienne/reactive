@@ -1,11 +1,9 @@
 #pragma once
 
 #include "map.h"
-#include "reactive/reactivevisibility.h"
 
 namespace reactive::signal
 {
-
     namespace detail
     {
         template <typename T>

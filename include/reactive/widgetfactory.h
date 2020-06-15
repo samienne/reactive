@@ -12,7 +12,7 @@
 #include "signal/changed.h"
 #include "signal/tee.h"
 #include "signal/constant.h"
-#include "signal.h"
+#include "signal/signal.h"
 
 #include <avg/transform.h>
 
@@ -31,7 +31,7 @@ namespace reactive
 
     using FactoryMapWidget = std::function<Widget(Widget)>;
     using WidgetFactoryBase = WidFac<
-        std::tuple<widget::WidgetTransformer<void>>, Signal<SizeHint>
+        std::tuple<widget::WidgetTransformer<void>>, AnySignal<SizeHint>
         >;
     struct WidgetFactory;
     using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
@@ -92,8 +92,8 @@ namespace reactive
 
         template <typename T, typename U, typename TMaps>
         auto evaluateWidgetFactory(
-                Signal<DrawContext, T> drawContext,
-                Signal<avg::Vector2f, U> size,
+                Signal<T, DrawContext> drawContext,
+                Signal<U, avg::Vector2f> size,
                 TMaps&& maps)
         -> decltype(
             btl::tuple_reduce(
@@ -117,7 +117,7 @@ namespace reactive
                  <
                     btl::All<
                         //IsTupleMaps<TTupleMaps>,
-                        IsSizeHint<SignalType<TSizeHint>>
+                        IsSizeHint<signal::SignalType<TSizeHint>>
                     >::value
                  >>
     auto makeWidFac(TTupleMaps maps, TSizeHint sizeHint)
@@ -153,8 +153,8 @@ namespace reactive
 
         template <typename T, typename U>
         auto operator()(
-                Signal<DrawContext, T> drawContext,
-                Signal<avg::Vector2f, U> size
+                Signal<T, DrawContext> drawContext,
+                Signal<U, avg::Vector2f> size
                 ) &&
         {
             return detail::evaluateWidgetFactory(
@@ -372,7 +372,7 @@ namespace reactive
     }
 
     template <typename TSignalSizeHint, typename = std::enable_if_t<
-        IsSizeHint<SignalType<TSignalSizeHint>>::value
+        IsSizeHint<signal::SignalType<TSignalSizeHint>>::value
         >
     >
     auto setSizeHint(TSignalSizeHint sizeHint)

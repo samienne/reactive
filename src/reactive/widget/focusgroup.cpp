@@ -266,7 +266,7 @@ WidgetTransformer<void> focusGroup()
                 );
 
         auto obb = signal::share(w.getObb());
-        static_assert(IsSignal<decltype(state)>::value, "");
+        static_assert(signal::IsSignal<decltype(state)>::value, "");
 
         auto inputs = signal::map(mapStateToInputs, std::move(state),
                 signal::constant(keyStream.handle), obb);

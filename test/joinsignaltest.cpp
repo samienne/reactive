@@ -3,7 +3,7 @@
 #include "reactive/signal/input.h"
 #include "reactive/signal/map.h"
 #include "reactive/signal/update.h"
-#include "reactive/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <gtest/gtest.h>
 
@@ -12,9 +12,9 @@ using namespace reactive;
 struct Test
 {
     signal::InputHandle<int> h1;
-    signal::InputHandle<SharedSignal<int>> h2;
-    Signal<SharedSignal<int>> s1;
-    Signal<int> s2;
+    signal::InputHandle<AnySharedSignal<int>> h2;
+    AnySignal<SharedSignal<void, int>> s1;
+    AnySignal<int> s2;
 };
 
 Test makeTest()
@@ -34,7 +34,7 @@ Test makeTest()
 
 TEST(JoinSignal, isSignal)
 {
-    static_assert(IsSignal<signal::Join<
+    static_assert(signal::IsSignal<signal::Join<
             signal::Constant<signal::Constant<int>>>>::value,
             "Join is not a signal");
 }

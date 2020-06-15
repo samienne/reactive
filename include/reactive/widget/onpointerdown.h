@@ -6,15 +6,16 @@
 #include "widgettransformer.h"
 
 #include "reactive/eventresult.h"
-#include "reactive/signal.h"
 #include "reactive/pointerbuttonevent.h"
+
+#include "reactive/signal/signal.h"
 
 #include <functional>
 
 namespace reactive::widget
 {
     template <typename T, typename = std::enable_if_t<
-        IsSignalType<
+        signal::IsSignalType<
             std::decay_t<T>,
             std::function<EventResult(ase::PointerButtonEvent const&)>>::value
         >>

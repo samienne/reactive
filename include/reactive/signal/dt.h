@@ -1,22 +1,17 @@
 #pragma once
 
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
 #include "reactive/reactivevisibility.h"
-
-namespace reactive
-{
-    namespace signal
-    {
-        class DtSignal;
-    }
-
-    template <>
-    struct IsSignal<signal::DtSignal> : std::true_type {};
-}
 
 namespace reactive::signal
 {
-    class DtSignal
+    class DtSignal;
+
+    template <>
+    struct IsSignal<DtSignal> : std::true_type {};
+
+    class REACTIVE_EXPORT DtSignal
     {
     public:
         inline DtSignal()
@@ -73,11 +68,9 @@ namespace reactive::signal
         signal_time_t dt_ = std::chrono::microseconds(0);
     };
 
-    static_assert(IsSignal<DtSignal>::value, "DtSignal is not a signal");
-
-    inline DtSignal dt()
+    inline auto dt()
     {
-        return DtSignal();
+        return wrap(DtSignal());
     }
 } // namespace reactive::signal
 

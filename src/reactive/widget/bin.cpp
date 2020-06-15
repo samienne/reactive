@@ -9,7 +9,7 @@
 namespace reactive::widget
 {
 
-WidgetTransformer<void> bin(WidgetFactory f, Signal<avg::Vector2f> contentSize)
+WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
 {
     auto sizeHint = signal::share(f.getSizeHint());
 

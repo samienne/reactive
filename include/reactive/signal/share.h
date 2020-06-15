@@ -2,9 +2,8 @@
 
 #include "typed.h"
 #include "cache.h"
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
-#include "reactive/reactivevisibility.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/shared.h>
 
@@ -13,40 +12,40 @@ namespace reactive::signal
     namespace detail
     {
         template <typename T, typename U>
-        auto makeShared(Signal<T, U> sig)
+        auto makeShared(Signal<U, T> sig)
         {
-            return SharedSignal<T, U>::create(
-                    Share<T, signal::Typed<T, U>>(
-                        std::make_shared<signal::Typed<T, U>>(
-                            std::move(sig).signal()
+            return SharedSignal<U, T>::create(
+                    Share<Typed<U, T>, T>(
+                        std::make_shared<Typed<U, T>>(
+                            std::move(sig).storage()
                             )
                         )
                     );
         }
     } // detail
 
-    template <typename T, typename U>
-    auto share(Signal<T, U> sig)
+    template <typename T, typename... Us>
+    auto share(Signal<T, Us...> sig)
     {
         return detail::makeShared(cache(std::move(sig)));
     }
 
-    template <typename T, typename U>
-    SharedSignal<T, Share<T, U>> share(Signal<T, Share<T, U>> sig)
+    template <typename T, typename... Us>
+    SharedSignal<Share<T, Us...>, Us...> share(Signal<Share<T, Us...>, Us...> sig)
     {
         return detail::makeShared(std::move(sig));
     }
 
-    template <typename T>
-    auto share(Signal<T, void> sig)
+    template <typename... Ts>
+    auto share(Signal<void, Ts...> sig)
     {
-        return SharedSignal<T, void>::create(
+        return SharedSignal<void, Ts...>::create(
                 std::move(sig)
                 );
     }
 
-    template <typename T, typename U>
-    auto share(SharedSignal<T, U> sig)
+    template <typename T, typename... Us>
+    auto share(SharedSignal<T, Us...> sig)
     {
         return sig;
     }

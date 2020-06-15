@@ -1,24 +1,18 @@
 #pragma once
 
-#include "reactive/signal.h"
-#include "reactive/signaltraits.h"
+#include "signal.h"
+#include "signaltraits.h"
 
 #include <btl/hidden.h>
 
-namespace reactive
-{
-    namespace signal
-    {
-        template <typename T>
-        class Weak;
-    }
-
-    template <typename T>
-    struct IsSignal<signal::Weak<T>> : std::true_type {};
-}
-
 namespace reactive::signal
 {
+    template <typename T>
+    class Weak;
+
+    template <typename T>
+    struct IsSignal<Weak<T>> : std::true_type {};
+
     template <typename T>
     class Weak
     {
@@ -33,8 +27,8 @@ namespace reactive::signal
         }
 
         template <typename U>
-        Weak(SharedSignal<T, U> const& sig) :
-            deferred_(sig.signal().weak())
+        Weak(SharedSignal<U, T> const& sig) :
+            deferred_(sig.storage().weak())
         {
         }
 
@@ -120,9 +114,9 @@ namespace reactive::signal
     };
 
     template <typename T, typename U>
-    auto weak(SharedSignal<T, U> const& sig) // -> Weak<T>
+    auto weak(SharedSignal<U, T> const& sig) // -> Weak<T>
     {
-        return signal::wrap(Weak<T>(sig));
+        return wrap(Weak<T>(sig));
     }
 } // namespace reactive::signal
 

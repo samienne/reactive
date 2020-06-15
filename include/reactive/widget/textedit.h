@@ -2,12 +2,12 @@
 
 #include "reactive/widgetfactory.h"
 #include "reactive/sizehint.h"
+#include "reactive/reactivevisibility.h"
 
 #include "reactive/signal/erasetype.h"
 #include "reactive/signal/cast.h"
 #include "reactive/signal/inputhandle.h"
-#include "reactive/signal.h"
-#include "reactive/reactivevisibility.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/font.h>
 
@@ -47,7 +47,7 @@ namespace reactive::widget
     struct REACTIVE_EXPORT TextEdit
     {
         operator WidgetFactory() const;
-        TextEdit onEnter(Signal<std::function<void()>> cb) &&;
+        TextEdit onEnter(AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
         template <typename T, typename U>
@@ -61,11 +61,11 @@ namespace reactive::widget
         }
 
         signal::InputHandle<TextEditState> handle_;
-        Signal<TextEditState> state_;
-        std::vector<SharedSignal<std::function<void()>>> onEnter_;
+        AnySignal<TextEditState> state_;
+        std::vector<AnySharedSignal<std::function<void()>>> onEnter_;
     };
 
     REACTIVE_EXPORT TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-            Signal<TextEditState> state);
+            AnySignal<TextEditState> state);
 } // namespace reactive::widget
 

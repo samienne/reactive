@@ -5,8 +5,9 @@
 #include "setinputareas.h"
 #include "widgettransformer.h"
 
+#include "reactive/signal/signal.h"
+
 #include "reactive/pointerbuttonevent.h"
-#include "reactive/signal.h"
 #include "reactive/eventresult.h"
 
 #include <functional>
@@ -20,7 +21,7 @@ namespace reactive::widget
             std::function<EventResult(ase::PointerButtonEvent const&)>
         >::value
         >>
-    inline auto onPointerUp(Signal<T, U> cb)
+    inline auto onPointerUp(Signal<U, T> cb)
             //std::function<void(ase::PointerButtonEvent const&)>> cb)
     {
         auto id = btl::makeUniqueId();
