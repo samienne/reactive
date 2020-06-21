@@ -1,14 +1,15 @@
 #include "app.h"
 
 #include "window.h"
-#include "rendering.h"
 #include "send.h"
 #include "debug.h"
 
 #include "reactive/signal/input.h"
 
-#include "avg/painter.h"
+#include <avg/painter.h>
+#include <avg/rendering.h>
 
+#include <ase/commandbuffer.h>
 #include <ase/window.h>
 #include <ase/renderqueue.h>
 #include <ase/keyevent.h>

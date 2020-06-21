@@ -28,7 +28,7 @@
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/new_delete_resource.h>
 
-namespace reactive
+namespace avg
 {
 
 namespace
@@ -39,9 +39,9 @@ using Vertex = std::array<float, 7>;
 using Vertices = pmr::vector<Vertex>;
 using Element = std::pair<ase::Pipeline, Vertices>;
 
-avg::Color premultiply(avg::Color c)
+Color premultiply(Color c)
 {
-    return avg::Color(
+    return Color(
             c.getAlpha() * c.getRed(),
             c.getAlpha() * c.getGreen(),
             c.getAlpha() * c.getBlue(),
@@ -50,18 +50,18 @@ avg::Color premultiply(avg::Color c)
 }
 
 Vertices generateVertices(pmr::memory_resource* memory,
-        avg::SoftMesh const& mesh, float z)
+        SoftMesh const& mesh, float z)
 {
     auto const& vertices = mesh.getVertices();
-    avg::Transform const& t = mesh.getTransform();
+    Transform const& t = mesh.getTransform();
     std::array<float, 4> c = premultiply(mesh.getBrush().getColor())
         .getArray();
 
-    avg::Matrix2f rs = t.getRsMatrix();
+    Matrix2f rs = t.getRsMatrix();
 
     auto toVertex = [z, &t, &c, &rs](std::array<float, 2> const& v)
     {
-        avg::Vector2f p = t.getTranslation() + rs * avg::Vector2f(v[0], v[1]);
+        Vector2f p = t.getTranslation() + rs * Vector2f(v[0], v[1]);
 
         return Vertex{{c[0], c[1], c[2], c[3], p[0], p[1], z}};
     };
@@ -74,9 +74,9 @@ Vertices generateVertices(pmr::memory_resource* memory,
     return result;
 }
 
-avg::SoftMesh generateMesh(pmr::memory_resource* memory,
-        avg::Region const& region, avg::Brush const& brush,
-        avg::Rect const& r, bool clip)
+SoftMesh generateMesh(pmr::memory_resource* memory,
+        Region const& region, Brush const& brush,
+        Rect const& r, bool clip)
 {
     auto bufs = std::make_pair(
             pmr::vector<ase::Vector2f>(memory),
@@ -88,7 +88,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
     else
         bufs = region.triangulate(memory);
 
-    avg::Color color = premultiply(brush.getColor());
+    Color color = premultiply(brush.getColor());
     auto toVertex = [](ase::Vector2f v)
     {
         auto vertex = std::array<float, 2>( { { v[0], v[1]} } );
@@ -101,46 +101,46 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
     for (auto&& v : bufs.first)
         vertices.push_back(toVertex(v));
 
-    return avg::SoftMesh(std::move(vertices), brush);
+    return SoftMesh(std::move(vertices), brush);
 }
 
-avg::SoftMesh generateMesh(pmr::memory_resource* memory,
-        avg::Path const& path, avg::Brush const& brush,
+SoftMesh generateMesh(pmr::memory_resource* memory,
+        Path const& path, Brush const& brush,
         ase::Vector2f pixelSize, float resPerPixel,
-        avg::Rect const& r, bool clip)
+        Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
 
-    avg::Region region = path.fillRegion(&mono, avg::FILL_EVENODD,
+    Region region = path.fillRegion(&mono, FILL_EVENODD,
             pixelSize, resPerPixel);
 
     return generateMesh(memory, region, brush, r, clip);
 }
 
-avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
-        avg::Pen const& pen, ase::Vector2f pixelSize, float resPerPixel,
-        avg::Rect const& r, bool clip)
+SoftMesh generateMesh(pmr::memory_resource* memory, Path const& path,
+        Pen const& pen, ase::Vector2f pixelSize, float resPerPixel,
+        Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
 
-    avg::Region region = path.offsetRegion(&mono, pen.getJoinType(),
+    Region region = path.offsetRegion(&mono, pen.getJoinType(),
             pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);
 
     return generateMesh(memory, region, pen.getBrush(), r, clip);
 }
 
-pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
-        avg::Shape const& shape, ase::Vector2f pixelSize, float resPerPixel,
-        avg::Rect const& r, bool clip)
+pmr::vector<SoftMesh> generateMeshes(pmr::memory_resource* memory,
+        Shape const& shape, ase::Vector2f pixelSize, float resPerPixel,
+        Rect const& r, bool clip)
 {
     auto const& path = shape.getPath();
     auto const& brush = shape.getBrush();
     auto const& pen = shape.getPen();
 
     if (path.isEmpty())
-        return pmr::vector<avg::SoftMesh>(memory);
+        return pmr::vector<SoftMesh>(memory);
 
-    pmr::vector<avg::SoftMesh> result(memory);
+    pmr::vector<SoftMesh> result(memory);
 
     if (brush.valid())
     {
@@ -151,7 +151,7 @@ pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
 
     if (pen.valid())
     {
-        avg::Rect penRect = path.getControlBb().enlarged(pen->getWidth());
+        Rect penRect = path.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
 
         result.push_back(generateMesh(memory, path, *pen, pixelSize,
@@ -161,15 +161,15 @@ pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
     return result;
 }
 
-avg::Rect getElementRect(avg::Drawing::Element const& e)
+Rect getElementRect(Drawing::Element const& e)
 {
-    if (e.is<avg::Shape>())
-        return e.get<avg::Shape>().getControlBb();
-    else if(e.is<avg::TextEntry>())
-        return e.get<avg::TextEntry>().getControlBb();
-    else if(e.is<avg::Drawing::ClipElement>())
+    if (e.is<Shape>())
+        return e.get<Shape>().getControlBb();
+    else if(e.is<TextEntry>())
+        return e.get<TextEntry>().getControlBb();
+    else if(e.is<Drawing::ClipElement>())
     {
-        auto const& clip = e.get<avg::Drawing::ClipElement>();
+        auto const& clip = e.get<Drawing::ClipElement>();
 
         assert(std::abs(clip.transform.getRotation()) < 0.0001f);
 
@@ -185,43 +185,43 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
-pmr::vector<avg::SoftMesh> generateMeshes(
+pmr::vector<SoftMesh> generateMeshes(
         pmr::memory_resource* memory,
-        avg::Painter const& painter,
-        avg::Transform const& transform,
-        pmr::vector<avg::Drawing::Element> const& elements,
-        avg::Vector2f pixelSize,
+        Painter const& painter,
+        Transform const& transform,
+        pmr::vector<Drawing::Element> const& elements,
+        Vector2f pixelSize,
         float resPerPixel,
-        avg::Rect const& rect,
+        Rect const& rect,
         bool clip
         )
 {
     if (elements.empty())
-        return pmr::vector<avg::SoftMesh>(memory);
+        return pmr::vector<SoftMesh>(memory);
 
     ase::Vector2f newPixelSize = pixelSize / transform.getScale();
 
-    pmr::vector<avg::SoftMesh> meshes(memory);
+    pmr::vector<SoftMesh> meshes(memory);
     meshes.reserve(elements.size());
 
     for (auto const& element : elements)
     {
-        avg::Rect elementRect = getElementRect(element);
+        Rect elementRect = getElementRect(element);
         if (!elementRect.overlaps(rect))
             continue;
 
-        pmr::vector<avg::SoftMesh> elementMeshes(memory);
+        pmr::vector<SoftMesh> elementMeshes(memory);
 
-        if (element.is<avg::Shape>())
+        if (element.is<Shape>())
         {
-            auto const& shape = element.get<avg::Shape>();
+            auto const& shape = element.get<Shape>();
             elementMeshes = generateMeshes(memory, shape, newPixelSize,
                     resPerPixel, rect, clip);
         }
-        else if (element.is<avg::TextEntry>())
+        else if (element.is<TextEntry>())
         {
-            auto const& text = element.get<avg::TextEntry>();
-            auto shape = avg::Shape(memory)
+            auto const& text = element.get<TextEntry>();
+            auto shape = Shape(memory)
                 .setPath(text.getFont().textToPath(
                             memory,
                             utf8::asUtf8(text.getText()),
@@ -237,9 +237,9 @@ pmr::vector<avg::SoftMesh> generateMeshes(
                     newPixelSize, resPerPixel, rect, clip
                     );
         }
-        else if (element.is<avg::Drawing::ClipElement>())
+        else if (element.is<Drawing::ClipElement>())
         {
-            auto const& clipElement = element.get<avg::Drawing::ClipElement>();
+            auto const& clipElement = element.get<Drawing::ClipElement>();
 
             auto clipTransformInverse = clipElement.transform.inverse();
 
@@ -273,7 +273,7 @@ pmr::vector<avg::SoftMesh> generateMeshes(
 
 void renderElements(ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
-        avg::Painter const& painter, pmr::vector<Element>&& elements)
+        Painter const& painter, pmr::vector<Element>&& elements)
 {
     auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
             std::pair<ase::Pipeline, Vertices> const& b)
@@ -324,7 +324,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
 }
 
 pmr::vector<Element> generateElements(pmr::memory_resource* memory,
-        avg::Painter const& painter, pmr::vector<avg::SoftMesh> const& meshes)
+        Painter const& painter, pmr::vector<SoftMesh> const& meshes)
 {
     float step = 0.5f / (float)(meshes.size() + 1u);
 
@@ -356,10 +356,10 @@ void render(pmr::memory_resource* memory,
     float const resPerPixel = std::max(2.0f, 4.0f / scalingFactor);
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
-    avg::Rect rect(avg::Vector2f(0.0f, 0.0f), sizef);
+    Rect rect(Vector2f(0.0f, 0.0f), sizef);
 
-    pmr::vector<avg::SoftMesh> meshes = generateMeshes(memory, painter,
-            avg::Transform(), drawing.getElements(), pixelSize,
+    pmr::vector<SoftMesh> meshes = generateMeshes(memory, painter,
+            Transform(), drawing.getElements(), pixelSize,
             resPerPixel, rect, false);
 
     pmr::vector<Element> elements = generateElements(memory, painter, meshes);

@@ -9,7 +9,6 @@
 
 #include <reactive/signal/loop.h>
 #include <reactive/signal/time.h>
-#include <reactive/rendering.h>
 
 #include <avg/drawing.h>
 
