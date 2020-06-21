@@ -1,7 +1,10 @@
 #include "painter.h"
+
+#include "rendering.h"
 #include "brush.h"
 #include "pen.h"
 
+#include <ase/window.h>
 #include <ase/uniformbufferrange.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
@@ -65,7 +68,9 @@ namespace
     }
 } // anonymous namespace
 
-Painter::Painter(ase::RenderContext& context) :
+Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
+    memory_(memory),
+    renderContext_(context),
     solidPipeline_(makePipeline(context, true)),
     transparentPipeline_(makePipeline(context, false)),
     buffer_(),
@@ -117,6 +122,25 @@ ase::Pipeline const& Painter::getPipeline(Pen const& pen) const
         return solidPipeline_;
     else
         return transparentPipeline_;
+}
+
+void Painter::renderToImage(TargetImage& target, float scalingFactor,
+        Drawing const& drawing)
+{
+    render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
+            target.getSize(), scalingFactor, *this, drawing);
+}
+
+void Painter::renderToFramebuffer(ase::Window& target, Drawing const& drawing)
+{
+    render(memory_, commandBuffer_, renderContext_,
+            target.getDefaultFramebuffer(), target.getSize(),
+            target.getScalingFactor(), *this, drawing);
+}
+
+void Painter::flushContext() const
+{
+    renderContext_.flush();
 }
 
 } // namespace

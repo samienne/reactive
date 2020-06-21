@@ -8,6 +8,7 @@
 #include "glindexbuffer.h"
 #include "gluniformbuffer.h"
 #include "gltexture.h"
+#include "glrenderbuffer.h"
 #include "glerror.h"
 #include "gltype.h"
 #include "glblendmode.h"
@@ -163,6 +164,12 @@ std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
         Vector2i const& size, Format format, Buffer const& buffer)
 {
     return objectManager_.makeTexture(size, format, std::move(buffer));
+}
+
+std::shared_ptr<RenderbufferImpl> GlRenderContext::makeRenderbufferImpl(
+        Vector2i const& size, Format format)
+{
+    return objectManager_.makeRenderbuffer(size, format);
 }
 
 std::shared_ptr<FramebufferImpl> GlRenderContext::makeFramebufferImpl()

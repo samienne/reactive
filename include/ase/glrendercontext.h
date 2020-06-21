@@ -46,6 +46,7 @@ namespace ase
         friend class GlFramebuffer;
         friend class GlObjectManager;
         friend class GlUniformBuffer;
+        friend class GlRenderbuffer;
 
         void dispatch(std::function<void(GlFunctions const&)>&& func);
         void dispatchBg(std::function<void(GlFunctions const&)>&& func);
@@ -82,6 +83,10 @@ namespace ase
                 Vector2i const& size,
                 Format format,
                 Buffer const& buffer) override;
+
+        std::shared_ptr<RenderbufferImpl> makeRenderbufferImpl(
+                Vector2i const& size,
+                Format format) override;
 
         std::shared_ptr<FramebufferImpl>
             makeFramebufferImpl() override;

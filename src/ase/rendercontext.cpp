@@ -1,5 +1,7 @@
 #include "rendercontext.h"
 
+#include "renderbufferimpl.h"
+#include "renderbuffer.h"
 #include "rendercontextimpl.h"
 #include "uniformset.h"
 #include "buffer.h"
@@ -85,6 +87,11 @@ Texture RenderContext::makeTexture(Vector2i size, Format format, Buffer buffer)
 {
     return Texture(d()->makeTextureImpl(size, format,
                 std::move(buffer)));
+}
+
+Renderbuffer RenderContext::makeRenderbuffer(Vector2i size, Format format)
+{
+    return Renderbuffer(d()->makeRenderbufferImpl(size, format));
 }
 
 Framebuffer RenderContext::makeFramebuffer()

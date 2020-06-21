@@ -487,16 +487,6 @@ Framebuffer& GlxWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
-void GlxWindow::clear()
-{
-    defaultFramebuffer_.clear();
-}
-
-Vector2i GlxWindow::getResolution() const
-{
-    return genericWindow_.getSize();
-}
-
 void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const
 {
     context.makeCurrent(lock, glxWin_);

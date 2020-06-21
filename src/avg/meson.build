@@ -18,6 +18,7 @@ libavgsrc = [
     'textentry.cpp',
     'obb.cpp',
     'rendering.cpp',
+    'targetimage.cpp',
     'clipper/clipper.cpp',
     'poly2tri/common/shapes.cc',
     'poly2tri/sweep/advancing_front.cc',

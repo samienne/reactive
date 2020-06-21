@@ -73,8 +73,7 @@ Framebuffer& Window::getDefaultFramebuffer()
 
 void Window::clear()
 {
-    if (d())
-        d()->clear();
+    getDefaultFramebuffer().clear();
 }
 
 void Window::setCloseCallback(std::function<void()> func)

@@ -54,12 +54,12 @@ class WindowGlue
 {
 public:
     WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
-            Window window, avg::Painter painter)
+            Window window)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(std::move(context)), window_(std::move(window)),
-        painter_(std::move(painter)),
+        painter_(&memoryPool_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(signal::constant(DrawContext(memory_)),
                     std::move(size_.signal))),
@@ -376,10 +376,9 @@ int App::run(AnySignal<bool> running) &&
     for (auto&& w : d()->windows_)
     {
         ase::RenderContext context = platform.makeRenderContext();
-        avg::Painter painter(context);
 
         glues.push_back(std::make_shared<WindowGlue>(
-            platform, std::move(context), std::move(w), painter));
+            platform, std::move(context), std::move(w)));
     }
 
     std::chrono::steady_clock clock;

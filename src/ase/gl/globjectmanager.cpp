@@ -14,6 +14,7 @@
 #include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "gluniformset.h"
+#include "glrenderbuffer.h"
 
 #include "usage.h"
 #include "vertexshader.h"
@@ -132,6 +133,12 @@ std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
     context_.waitBg();
 
     return texture;
+}
+
+std::shared_ptr<GlRenderbuffer> GlObjectManager::makeRenderbuffer(
+        Vector2i const& size, Format format)
+{
+    return std::make_shared<GlRenderbuffer>(context_, size, format);
 }
 
 std::shared_ptr<GlFramebuffer> GlObjectManager::makeFramebuffer()

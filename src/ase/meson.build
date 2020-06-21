@@ -19,7 +19,8 @@ glsrcs = [
   'gl/globjectmanager.cpp',
   'gl/glrenderstate.cpp',
   'gl/gldispatchedcontext.cpp',
-  'gl/gluniformset.cpp'
+  'gl/gluniformset.cpp',
+  'gl/glrenderbuffer.cpp'
   ]
 
 if target_machine.system() == 'linux'
@@ -108,7 +109,8 @@ libasesrc = [
         'keyevent.cpp',
         'textevent.cpp',
         'keycode.cpp',
-        'uniformset.cpp'
+        'uniformset.cpp',
+        'renderbuffer.cpp'
         ]
 
 libase = library('ase',

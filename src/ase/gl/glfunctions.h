@@ -46,6 +46,7 @@ namespace ase
         PFNGLGETSHADERINFOLOGPROC glGetShaderInfoLog = nullptr;
         PFNGLDELETESHADERPROC glDeleteShader = nullptr;
         PFNGLGENFRAMEBUFFERSPROC glGenFramebuffers = nullptr;
+        PFNGLGENRENDERBUFFERSPROC glGenRenderbuffers = nullptr;
         PFNGLDELETEFRAMEBUFFERSPROC glDeleteFramebuffers = nullptr;
         PFNGLFRAMEBUFFERTEXTURE2DPROC glFramebufferTexture2D = nullptr;
         PFNGLBINDFRAMEBUFFERPROC glBindFramebuffer = nullptr;
@@ -55,6 +56,9 @@ namespace ase
         PFNGLBINDBUFFERRANGEPROC glBindBufferRange = nullptr;
         PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
         PFNGLACTIVETEXTUREPROC glActiveTexture = nullptr;
+        PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = nullptr;
+        PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = nullptr;
+        PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = nullptr;
     };
 } // namespace ase
 
