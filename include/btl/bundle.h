@@ -2,6 +2,7 @@
 
 #include "fmap.h"
 #include "mbind.h"
+#include "future.h"
 
 #include <tuple>
 
