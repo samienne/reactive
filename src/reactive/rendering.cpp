@@ -358,10 +358,11 @@ void render(pmr::memory_resource* memory,
 
     avg::Rect rect(avg::Vector2f(0.0f, 0.0f), sizef);
 
-    auto meshes = generateMeshes(memory, painter, avg::Transform(),
-            drawing.getElements(), pixelSize, resPerPixel, rect, false);
+    pmr::vector<avg::SoftMesh> meshes = generateMeshes(memory, painter,
+            avg::Transform(), drawing.getElements(), pixelSize,
+            resPerPixel, rect, false);
 
-    auto elements = generateElements(memory, painter, meshes);
+    pmr::vector<Element> elements = generateElements(memory, painter, meshes);
 
     renderElements(commandBuffer, context, framebuffer, painter,
             std::move(elements));
