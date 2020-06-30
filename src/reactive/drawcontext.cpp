@@ -3,8 +3,8 @@
 namespace reactive
 {
 
-DrawContext::DrawContext(std::shared_ptr<avg::Painter> painter) :
-    painter_(std::move(painter))
+DrawContext::DrawContext(avg::Painter* painter) :
+    painter_(painter)
 
 {
 }

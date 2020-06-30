@@ -13,7 +13,7 @@ namespace reactive
     class REACTIVE_EXPORT DrawContext
     {
     public:
-        explicit DrawContext(std::shared_ptr<avg::Painter> painter);
+        explicit DrawContext(avg::Painter* painter);
         DrawContext(DrawContext const& rhs) = default;
         DrawContext(DrawContext&& rhs) noexcept = default;
 
@@ -33,7 +33,7 @@ namespace reactive
         }
 
     private:
-        std::shared_ptr<avg::Painter> painter_;
+        avg::Painter* painter_;
     };
 } // namespace reactive
 

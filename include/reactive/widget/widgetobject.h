@@ -25,25 +25,25 @@ namespace reactive::widget
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        Widget const& getWidget() const;
+        Widget const& getWidget(DrawContext drawContext);
 
-        AnySignal<SizeHint> getSizeHint() const;
+        AnySignal<SizeHint> const& getSizeHint() const;
 
     private:
         struct Impl
         {
-            Impl(WidgetFactory factory, DrawContext drawContext);
+            Impl(WidgetFactory factory);
 
+            WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
-            signal::Input<DrawContext> drawContext_;
+            std::optional<signal::Input<DrawContext>> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
 
-            Widget widget_;
+            std::optional<Widget> widget_;
         };
 
-        WidgetFactory factory_;
-        std::shared_ptr<Impl> impl_;
+        btl::shared<Impl> impl_;
     };
 } // namespace reactive::widget
 

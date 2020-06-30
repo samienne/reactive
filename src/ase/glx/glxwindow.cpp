@@ -172,7 +172,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
 
 GlxWindow::~GlxWindow()
 {
-    DBG("GlxWindow: Rendered %1 fames", frames_);
+    DBG("GlxWindow: Rendered %1 frames", frames_);
     destroy();
 }
 
