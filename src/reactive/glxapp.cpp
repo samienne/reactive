@@ -60,10 +60,10 @@ public:
         glxWindow(platform, ase::Vector2i(800, 600)),
         context_(platform),
         window_(std::move(window)),
-        painter_(memory_, context_),
+        painter_(std::make_shared<avg::Painter>(memory_, context_)),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(
-                    signal::constant(DrawContext(memory_)),
+                    signal::constant(DrawContext(painter_)),
                     std::move(size_.signal)
                     )),
         titleSignal_(window_.getTitle().clone())
@@ -226,7 +226,7 @@ public:
         if (resized_)
         {
             size_.handle.set(glxWindow.getSize().cast<float>());
-            painter_.setSize(glxWindow.getSize());
+            painter_->setSize(glxWindow.getSize());
         }
         resized_ = false;
 
@@ -266,16 +266,10 @@ public:
 
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
-            glxWindow.clear();
+            painter_->clearWindow(glxWindow);
+            painter_->paintToWindow(glxWindow, widget_.getDrawing().evaluate());
 
-            ase::CommandBuffer commands;
-
-            render(memory_, commands, context_,
-                    glxWindow.getDefaultFramebuffer(),
-                    glxWindow.getSize(), painter_,
-                    widget_.getDrawing().evaluate());
-
-            context_.submit(std::move(commands));
+            painter_->flush();
             context_.present(glxWindow);
             redraw_ = false;
 
@@ -335,7 +329,7 @@ private:
     ase::GlxWindow glxWindow;
     ase::RenderContext context_;
     Window window_;
-    avg::Painter painter_;
+    std::shared_ptr<avg::Painter> painter_;
     signal::Input<ase::Vector2f> size_;
     Widget widget_;
     AnySignal<std::string> titleSignal_;

@@ -85,6 +85,11 @@ Painter::~Painter()
 {
 }
 
+pmr::memory_resource* Painter::getResource() const
+{
+    return memory_;
+}
+
 void Painter::setSize(ase::Vector2i size)
 {
     buffer_.resize(16*sizeof(float));
@@ -124,22 +129,35 @@ ase::Pipeline const& Painter::getPipeline(Pen const& pen) const
         return transparentPipeline_;
 }
 
-void Painter::renderToImage(TargetImage& target, float scalingFactor,
+void Painter::clearImage(TargetImage& target)
+{
+    target.getFramebuffer().clear();
+}
+
+void Painter::clearWindow(ase::Window& target)
+{
+    target.clear();
+}
+
+void Painter::paintToImage(TargetImage& target, float scalingFactor,
         Drawing const& drawing)
 {
     render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
             target.getSize(), scalingFactor, *this, drawing);
 }
 
-void Painter::renderToFramebuffer(ase::Window& target, Drawing const& drawing)
+void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
 {
     render(memory_, commandBuffer_, renderContext_,
             target.getDefaultFramebuffer(), target.getSize(),
             target.getScalingFactor(), *this, drawing);
 }
 
-void Painter::flushContext() const
+void Painter::flush()
 {
+    renderContext_.submit(std::move(commandBuffer_));
+    commandBuffer_ = ase::CommandBuffer();
+
     renderContext_.flush();
 }
 

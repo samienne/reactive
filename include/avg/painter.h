@@ -29,6 +29,8 @@ namespace avg
         Painter(Painter const&) = default;
         Painter(Painter&&) = default;
 
+        pmr::memory_resource* getResource() const;
+
         //Painter& operator=(Painter const&) = default;
         //Painter& operator=(Painter&&) = default;
 
@@ -39,10 +41,11 @@ namespace avg
         ase::Pipeline const& getPipeline(Brush const& brush) const;
         ase::Pipeline const& getPipeline(Pen const& pen) const;
 
-        void renderToImage(TargetImage& target, float scalingFactor,
-                Drawing const& drawing);
-        void renderToFramebuffer(ase::Window& target, Drawing const& drawing);
-        void flushContext() const;
+        void clearImage(TargetImage& target);
+        void clearWindow(ase::Window& target);
+        void paintToImage(TargetImage& target, float scalingFactor, Drawing const& drawing);
+        void paintToWindow(ase::Window& target, Drawing const& drawing);
+        void flush();
 
     private:
         pmr::memory_resource* memory_;
