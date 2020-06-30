@@ -20,12 +20,11 @@ namespace reactive::widget
         WidgetObject& operator=(WidgetObject const&) = default;
         WidgetObject& operator=(WidgetObject&&) noexcept = default;
 
-        void setDrawContext(DrawContext drawContext);
         void setObb(avg::Obb obb);
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        Widget const& getWidget() const;
+        Widget makeWidget(DrawContext drawContext) const;
 
         AnySignal<SizeHint> const& getSizeHint() const;
 
@@ -34,12 +33,10 @@ namespace reactive::widget
         {
             Impl(WidgetFactory factory);
 
+            WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
-            signal::Input<DrawContext> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
-
-            Widget widget_;
         };
 
         btl::shared<Impl> impl_;
