@@ -9,6 +9,11 @@ DrawContext::DrawContext(std::shared_ptr<avg::Painter> painter) :
 {
 }
 
+bool DrawContext::operator==(DrawContext const& other) const
+{
+    return painter_ == other.painter_;
+}
+
 pmr::memory_resource* DrawContext::getResource() const
 {
     return painter_->getResource();

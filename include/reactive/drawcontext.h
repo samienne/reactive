@@ -20,6 +20,8 @@ namespace reactive
         DrawContext& operator=(DrawContext const& rhs) = default;
         DrawContext& operator=(DrawContext&& rhs) noexcept = default;
 
+        bool operator==(DrawContext const& other) const;
+
         pmr::memory_resource* getResource() const;
 
         avg::PathBuilder pathBuilder() const;

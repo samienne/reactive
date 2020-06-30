@@ -36,8 +36,9 @@ namespace reactive
                             widget::WidgetObject& widgetObject =
                                 const_cast<widget::WidgetObject&>(w);
 
+                            widgetObject.setDrawContext(drawContext);
                             widgetObject.setObb(*i);
-                            result.push_back(w.makeWidget(drawContext));
+                            result.push_back(w.getWidget());
                             ++i;
                         }
 

@@ -9,17 +9,32 @@ namespace reactive::widget
 static_assert(std::is_copy_constructible_v<WidgetObject>, "");
 static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
-WidgetObject::Impl::Impl(WidgetFactory factory) :
-    factory_(std::move(factory)),
-    sizeHint_(factory_.getSizeHint()),
+WidgetObject::Impl::Impl(WidgetFactory factory, DrawContext drawContext) :
+    sizeHint_(factory.getSizeHint()),
+    drawContext_(signal::input(std::move(drawContext))),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
-    transformInput_(signal::input(avg::Transform()))
+    transformInput_(signal::input(avg::Transform())),
+    widget_((factory
+            | transform(transformInput_.signal.clone()))
+            (
+             dropRepeats(drawContext_.signal),
+             sizeInput_.signal
+             )
+           )
 {
 }
 
 WidgetObject::WidgetObject(WidgetFactory factory) :
-    impl_(std::make_shared<Impl>(std::move(factory)))
+    factory_(factory)
 {
+}
+
+void WidgetObject::setDrawContext(DrawContext drawContext)
+{
+    if (!impl_)
+        impl_ = std::make_shared<Impl>(std::move(factory_), std::move(drawContext));
+    else
+        impl_->drawContext_.handle.set(std::move(drawContext));
 }
 
 void WidgetObject::setObb(avg::Obb obb)
@@ -30,27 +45,28 @@ void WidgetObject::setObb(avg::Obb obb)
 
 void WidgetObject::resize(avg::Vector2f size)
 {
+    assert(impl_);
     impl_->sizeInput_.handle.set(size);
 }
 
 void WidgetObject::setTransform(avg::Transform t)
 {
+    assert(impl_);
     impl_->transformInput_.handle.set(t);
 }
 
-Widget WidgetObject::makeWidget(DrawContext drawContext) const
+Widget const& WidgetObject::getWidget() const
 {
-    return (impl_->factory_
-            | transform(impl_->transformInput_.signal.clone()))
-            (
-             signal::constant(std::move(drawContext)),
-             impl_->sizeInput_.signal.clone()
-             );
+    assert(impl_);
+    return impl_->widget_;
 }
 
-AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
+AnySignal<SizeHint> WidgetObject::getSizeHint() const
 {
-    return *impl_->sizeHint_;
+    if (impl_)
+        return impl_->sizeHint_->clone();
+    else
+        return factory_.getSizeHint();
 }
 
 } // namespace reactive::widget

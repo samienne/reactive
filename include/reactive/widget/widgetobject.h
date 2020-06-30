@@ -20,26 +20,30 @@ namespace reactive::widget
         WidgetObject& operator=(WidgetObject const&) = default;
         WidgetObject& operator=(WidgetObject&&) noexcept = default;
 
+        void setDrawContext(DrawContext drawContext);
         void setObb(avg::Obb obb);
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        Widget makeWidget(DrawContext drawContext) const;
+        Widget const& getWidget() const;
 
-        AnySignal<SizeHint> const& getSizeHint() const;
+        AnySignal<SizeHint> getSizeHint() const;
 
     private:
         struct Impl
         {
-            Impl(WidgetFactory factory);
+            Impl(WidgetFactory factory, DrawContext drawContext);
 
-            WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
+            signal::Input<DrawContext> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
+
+            Widget widget_;
         };
 
-        btl::shared<Impl> impl_;
+        WidgetFactory factory_;
+        std::shared_ptr<Impl> impl_;
     };
 } // namespace reactive::widget
 
