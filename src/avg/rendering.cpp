@@ -129,7 +129,7 @@ SoftMesh generateMeshForPen(pmr::memory_resource* memory, Path const& path,
     return generateMeshForRegion(memory, region, pen.getBrush(), r, clip);
 }
 
-pmr::vector<SoftMesh> generateMeshes(pmr::memory_resource* memory,
+pmr::vector<SoftMesh> generateMeshesForShape(pmr::memory_resource* memory,
         Shape const& shape, ase::Vector2f pixelSize, float resPerPixel,
         Rect const& r, bool clip)
 {
@@ -185,7 +185,7 @@ Rect getElementRect(Drawing::Element const& e)
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
-pmr::vector<SoftMesh> generateMeshes(
+pmr::vector<SoftMesh> generateMeshesForElements(
         pmr::memory_resource* memory,
         Painter const& painter,
         Transform const& transform,
@@ -215,7 +215,7 @@ pmr::vector<SoftMesh> generateMeshes(
         if (element.is<Shape>())
         {
             auto const& shape = element.get<Shape>();
-            elementMeshes = generateMeshes(memory, shape, newPixelSize,
+            elementMeshes = generateMeshesForShape(memory, shape, newPixelSize,
                     resPerPixel, rect, clip);
         }
         else if (element.is<TextEntry>())
@@ -231,7 +231,7 @@ pmr::vector<SoftMesh> generateMeshes(
                 .setBrush(text.getBrush())
                 .setPen(text.getPen());
 
-            elementMeshes = generateMeshes(
+            elementMeshes = generateMeshesForShape(
                     memory,
                     text.getTransform() * shape,
                     newPixelSize, resPerPixel, rect, clip
@@ -250,7 +250,7 @@ pmr::vector<SoftMesh> generateMeshes(
                 .translated(clipTransformInverse.getTranslation())
                 ;
 
-            elementMeshes = generateMeshes(
+            elementMeshes = generateMeshesForElements(
                     memory,
                     painter,
                     clipElement.transform,
@@ -358,7 +358,7 @@ void render(pmr::memory_resource* memory,
 
     Rect rect(Vector2f(0.0f, 0.0f), sizef);
 
-    pmr::vector<SoftMesh> meshes = generateMeshes(memory, painter,
+    pmr::vector<SoftMesh> meshes = generateMeshesForElements(memory, painter,
             Transform(), drawing.getElements(), pixelSize,
             resPerPixel, rect, false);
 
