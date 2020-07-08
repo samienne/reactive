@@ -7,7 +7,7 @@ libavgsrc = [
     'font.cpp',
     'region.cpp',
     'rect.cpp',
-    'simplepolygon.cpp',
+    'polyline.cpp',
     'path.cpp',
     'pathbuilder.cpp',
     'painter.cpp',

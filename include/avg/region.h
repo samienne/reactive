@@ -15,7 +15,7 @@
 
 namespace avg
 {
-    class SimplePolygon;
+    class PolyLine;
     class Rect;
 
     class RegionDeferred;
@@ -26,10 +26,10 @@ namespace avg
         explicit Region(pmr::memory_resource* memory);
 
         Region(pmr::memory_resource* memory,
-                pmr::vector<SimplePolygon> const& polygons, FillRule rule,
+                pmr::vector<PolyLine> const& polygons, FillRule rule,
                 Vector2f pixelSize, float resPerPixel);
         Region(pmr::memory_resource* memory,
-                pmr::vector<SimplePolygon> const& polygons, JoinType join,
+                pmr::vector<PolyLine> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
                 float resPerPixel);
         Region(Region const&) = default;

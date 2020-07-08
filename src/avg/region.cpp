@@ -1,6 +1,6 @@
 #include "region.h"
 
-#include "simplepolygon.h"
+#include "polyline.h"
 #include "rect.h"
 
 #include "poly2tri/poly2tri.h"
@@ -73,7 +73,7 @@ namespace
     }
 
     ClipperLib::Path toPath(pmr::memory_resource* memory,
-            SimplePolygon const& polygon)
+            PolyLine const& polygon)
     {
         pmr::vector<Vector2i> const& vertices = polygon.getVertices();
         ClipperLib::Path path(memory);
@@ -85,7 +85,7 @@ namespace
 
     pmr::vector<ClipperLib::Path> fillPaths(
             pmr::memory_resource* memory,
-            pmr::vector<SimplePolygon> const& polygons)
+            pmr::vector<PolyLine> const& polygons)
 
     {
         pmr::vector<ClipperLib::Path> result(memory);
@@ -116,7 +116,7 @@ Region::Region(pmr::memory_resource* memory) :
 }
 
 Region::Region(pmr::memory_resource* memory,
-        pmr::vector<SimplePolygon> const& polygons, FillRule rule,
+        pmr::vector<PolyLine> const& polygons, FillRule rule,
         Vector2f pixelSize, float resPerPixel) :
     memory_(memory)
 {
@@ -167,7 +167,7 @@ Region::Region(pmr::memory_resource* memory,
 }
 
 Region::Region(pmr::memory_resource* memory,
-        pmr::vector<SimplePolygon> const& polygons, JoinType join,
+        pmr::vector<PolyLine> const& polygons, JoinType join,
         EndType end, float width, Vector2f pixelSize,
         float resPerPixel) :
     memory_(memory)
@@ -483,7 +483,7 @@ Region Region::getClipped(Rect const& r) const
     float xRes = (float)d()->resPerPixel_ / d()->pixelSize_[0];
     float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
-    SimplePolygon rectPoly(pmr::vector<Vector2i>({
+    PolyLine rectPoly(pmr::vector<Vector2i>({
             { (long)(r.getLeft() * xRes), (long)(r.getBottom() * yRes ) },
             { (long)(r.getRight() * xRes), (long)(r.getBottom() * yRes) },
             { (long)(r.getRight() * xRes), (long)(r.getTop() * yRes) },
@@ -492,7 +492,7 @@ Region Region::getClipped(Rect const& r) const
 
     Region rectRegion(
             memory_,
-            pmr::vector<SimplePolygon>({rectPoly}, memory_),
+            pmr::vector<PolyLine>({rectPoly}, memory_),
             FILL_EVENODD, d()->pixelSize_,
             d()->resPerPixel_
             );
