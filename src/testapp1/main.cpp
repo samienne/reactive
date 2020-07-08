@@ -97,7 +97,7 @@ int main()
 
     auto running = signal::input(true);
 
-    return App()
+    return app()
         .windows({
                 window(
                     signal::constant<std::string>("Test program"),

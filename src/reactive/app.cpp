@@ -454,5 +454,12 @@ int App::run() &&
     return std::move(*this).run(running.signal);
 }
 
+App app()
+{
+    static App application;
+
+    return application;
+}
+
 } // namespace reactive
 

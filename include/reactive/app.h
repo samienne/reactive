@@ -15,7 +15,7 @@ namespace reactive
     class REACTIVE_EXPORT App
     {
     public:
-        App();
+        explicit App();
 
         App windows(std::initializer_list<Window> windows) &&;
 
@@ -36,5 +36,7 @@ namespace reactive
     private:
         btl::shared<AppDeferred> deferred_;
     };
-}
+
+    REACTIVE_EXPORT App app();
+} // namespace reactive
 
