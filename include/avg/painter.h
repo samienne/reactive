@@ -31,8 +31,8 @@ namespace avg
 
         pmr::memory_resource* getResource() const;
 
-        //Painter& operator=(Painter const&) = default;
-        //Painter& operator=(Painter&&) = default;
+        Painter& operator=(Painter const&) = delete;
+        Painter& operator=(Painter&&) = delete;
 
         void setSize(ase::Vector2i size);
 
