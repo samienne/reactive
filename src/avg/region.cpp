@@ -406,7 +406,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
         for (auto const& pt : node->Contour)
         {
             points.push_back(p2t::Point(
-                        memory_,
+                        &mono,
                         (float)pt.X / xRes,
                         (float)pt.Y / yRes));
             polyline.push_back(&points.back());

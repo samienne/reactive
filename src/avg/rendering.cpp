@@ -74,7 +74,7 @@ Vertices generateVertices(pmr::memory_resource* memory,
     return result;
 }
 
-SoftMesh generateMesh(pmr::memory_resource* memory,
+SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
         Region const& region, Brush const& brush,
         Rect const& r, bool clip)
 {
@@ -98,13 +98,13 @@ SoftMesh generateMesh(pmr::memory_resource* memory,
 
     pmr::vector<std::array<float, 2>> vertices(memory);
     vertices.reserve(bufs.first.size());
-    for (auto&& v : bufs.first)
+    for (auto const& v : bufs.first)
         vertices.push_back(toVertex(v));
 
     return SoftMesh(std::move(vertices), brush);
 }
 
-SoftMesh generateMesh(pmr::memory_resource* memory,
+SoftMesh generateMeshForBrush(pmr::memory_resource* memory,
         Path const& path, Brush const& brush,
         ase::Vector2f pixelSize, float resPerPixel,
         Rect const& r, bool clip)
@@ -114,10 +114,10 @@ SoftMesh generateMesh(pmr::memory_resource* memory,
     Region region = path.fillRegion(&mono, FILL_EVENODD,
             pixelSize, resPerPixel);
 
-    return generateMesh(memory, region, brush, r, clip);
+    return generateMeshForRegion(memory, region, brush, r, clip);
 }
 
-SoftMesh generateMesh(pmr::memory_resource* memory, Path const& path,
+SoftMesh generateMeshForPen(pmr::memory_resource* memory, Path const& path,
         Pen const& pen, ase::Vector2f pixelSize, float resPerPixel,
         Rect const& r, bool clip)
 {
@@ -126,7 +126,7 @@ SoftMesh generateMesh(pmr::memory_resource* memory, Path const& path,
     Region region = path.offsetRegion(&mono, pen.getJoinType(),
             pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);
 
-    return generateMesh(memory, region, pen.getBrush(), r, clip);
+    return generateMeshForRegion(memory, region, pen.getBrush(), r, clip);
 }
 
 pmr::vector<SoftMesh> generateMeshes(pmr::memory_resource* memory,
@@ -145,7 +145,7 @@ pmr::vector<SoftMesh> generateMeshes(pmr::memory_resource* memory,
     if (brush.valid())
     {
         bool needClip = !path.getControlBb().isFullyContainedIn(r);
-        result.push_back(generateMesh(memory, path, *brush, pixelSize,
+        result.push_back(generateMeshForBrush(memory, path, *brush, pixelSize,
                     resPerPixel, r, clip && needClip));
     }
 
@@ -154,7 +154,7 @@ pmr::vector<SoftMesh> generateMeshes(pmr::memory_resource* memory,
         Rect penRect = path.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
 
-        result.push_back(generateMesh(memory, path, *pen, pixelSize,
+        result.push_back(generateMeshForPen(memory, path, *pen, pixelSize,
                     resPerPixel, r, clip && needClip));
     }
 

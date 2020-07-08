@@ -6,6 +6,9 @@
 #include <iostream>
 #include <cassert>
 
+namespace avg
+{
+
 class TraceResource : public pmr::memory_resource
 {
 public:
@@ -133,4 +136,6 @@ private:
     std::size_t consecutiveAllocDeallocBytes_ = 0;
     void* previous_ = nullptr;
 };
+
+} // namespace avg
 
