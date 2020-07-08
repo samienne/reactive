@@ -503,8 +503,8 @@ GLXFBConfig GlxPlatform::getGlxFbConfig() const
         bestHasSrgb = hasSrgb;
     }
 
-    DBG("GlxPlatform: selected config:");
-    printConfig(d()->dpy_, d()->configs_[best]);
+    //DBG("GlxPlatform: selected config:");
+    //printConfig(d()->dpy_, d()->configs_[best]);
 
     return d()->configs_[best];
 }
