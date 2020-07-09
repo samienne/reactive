@@ -270,8 +270,16 @@ pmr::vector<SoftMesh> generateMeshesForElements(
                 },
                 [&](Drawing::RegionFill const& regionFill) -> pmr::vector<SoftMesh>
                 {
-                    assert(false && "not implemented");
-                    return pmr::vector<SoftMesh>(memory);
+                    pmr::vector<SoftMesh> result(memory);
+
+                    result.push_back(generateMeshForRegion(
+                            memory,
+                            regionFill.region,
+                            regionFill.brush,
+                            rect,
+                            clip));
+
+                    return result;
                 }
                 }, element);
 
