@@ -1,14 +1,15 @@
 #pragma once
 
+#include "region.h"
 #include "shape.h"
 #include "textentry.h"
 #include "transform.h"
 #include "avgvisibility.h"
 
-#include <btl/variant.h>
-
 #include <pmr/heap.h>
 #include <pmr/memory_resource.h>
+
+#include <variant>
 
 namespace avg
 {
@@ -21,17 +22,15 @@ namespace avg
             pmr::heap<SubDrawing> subDrawing;
             Rect clipRect;
             Transform transform;
-
-            bool operator==(ClipElement const& rhs) const
-            {
-                return subDrawing == rhs.subDrawing
-                    && clipRect == rhs.clipRect
-                    && transform == rhs.transform
-                    ;
-            }
         };
 
-        using Element = btl::variant<Shape, TextEntry, ClipElement>;
+        struct RegionFill
+        {
+            Region region;
+            Brush brush;
+        };
+
+        using Element = std::variant<Shape, TextEntry, ClipElement, RegionFill>;
 
         struct SubDrawing
         {
@@ -54,17 +53,16 @@ namespace avg
 
         pmr::memory_resource* getResource() const;
 
+        [[nodiscard]]
         Drawing operator+(Element&& element) &&;
         Drawing& operator+=(Element&& element);
 
+        [[nodiscard]]
         Drawing operator+(Drawing const& drawing) &&;
         Drawing& operator+=(Drawing const& drawing);
 
+        [[nodiscard]]
         Drawing operator*(float scale) &&;
-        Drawing operator+(ase::Vector2f offset) &&;
-
-        bool operator==(Drawing const& rhs) const;
-        bool operator!=(Drawing const& rhs) const;
 
         [[nodiscard]]
         Drawing clip(Rect const& r) &&;
@@ -80,6 +78,9 @@ namespace avg
 
         [[nodiscard]]
         Drawing transform(Transform const& t) &&;
+
+        [[nodiscard]]
+        Drawing translate(ase::Vector2f offset) &&;
 
         AVG_EXPORT friend Drawing operator*(Transform const& t, Drawing&& drawing);
 

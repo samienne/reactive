@@ -33,7 +33,8 @@ public:
 
 public:
     pmr::memory_resource* memory_ = nullptr;
-    std::shared_ptr<ClipperLib::PolyTree> paths_;
+    std::shared_ptr<ClipperLib::PolyTree> polyTree_;
+    Rect boundingBox_;
     Vector2f pixelSize_;
     float resPerPixel_;
 };
@@ -65,14 +66,14 @@ namespace
             {
                 if (j != i->begin())
                     stream << ", ";
-                stream << (float)j->X/xRes << ", " << (float)j->Y/yRes;
+                stream << (float)j->x()/xRes << ", " << (float)j->y()/yRes;
             }
             stream << "]";
         }
         stream << "]" << std::endl;
     }
 
-    ClipperLib::Path toPath(pmr::memory_resource* memory,
+    ClipperLib::Path polyLineToClipperPath(pmr::memory_resource* memory,
             PolyLine const& polygon)
     {
         pmr::vector<Vector2i> const& vertices = polygon.getVertices();
@@ -92,11 +93,32 @@ namespace
         result.reserve(polygons.size());
         for (auto const& polygon : polygons)
         {
-            ClipperLib::Path path = toPath(memory, polygon);
-            result.push_back(path);
+            result.push_back(polyLineToClipperPath(memory, polygon));
         }
 
         return result;
+    }
+
+    Rect calculateBoundingBoxForPolyTree(ClipperLib::PolyTree const& tree,
+            Vector2f pixelSize, size_t resPerPixel)
+    {
+        Rect r;
+
+        float xRes = (float)resPerPixel / pixelSize[0];
+        float yRes = (float)resPerPixel / pixelSize[1];
+
+        for (ClipperLib::PolyNode const* child : tree.Childs)
+        {
+            for (ClipperLib::IntPoint p : child->Contour)
+            {
+                r = r.include(Vector2f(
+                        static_cast<float>(p.x()) / xRes,
+                        static_cast<float>(p.y()) / yRes
+                        ));
+            }
+        }
+
+        return r;
     }
 } // anonymous namespace
 
@@ -148,17 +170,23 @@ Region::Region(pmr::memory_resource* memory,
 
     pmr::vector<ClipperLib::Path> paths = fillPaths(memory, polygons);
 
-    //ClipperLib::SimplifyPolygons(paths, d()->paths_, type);
+    //ClipperLib::SimplifyPolygons(paths, d()->polyTree_, type);
     ClipperLib::Clipper c(memory);
     c.StrictlySimple(true);
     c.PreserveCollinear(false);
     c.AddPaths(paths, ClipperLib::ptSubject, true);
-    d()->paths_ = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
-    c.Execute(ClipperLib::ctUnion, *d()->paths_, type, type);
+    d()->polyTree_ = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
+    c.Execute(ClipperLib::ctUnion, *d()->polyTree_, type, type);
 
-    //printClipperPolyTree(d()->paths_);
+    d()->boundingBox_ = calculateBoundingBoxForPolyTree(
+            *d()->polyTree_,
+            d()->pixelSize_,
+            d()->resPerPixel_
+            );
 
-    /*auto n = d()->paths_->GetFirst();
+    //printClipperPolyTree(d()->polyTree_);
+
+    /*auto n = d()->polyTree_->GetFirst();
     while (n)
     {
         assert(ClipperLib::Orientation(n->Contour) != n->IsHole());
@@ -230,7 +258,13 @@ Region::Region(pmr::memory_resource* memory,
     clipperOffset.AddPaths(paths, joinType, endType);
     clipperOffset.Execute(*resultPaths, width * xRes);
 
-    d()->paths_ = std::move(resultPaths);
+    d()->polyTree_ = std::move(resultPaths);
+
+    d()->boundingBox_ = calculateBoundingBoxForPolyTree(
+            *d()->polyTree_,
+            d()->pixelSize_,
+            d()->resPerPixel_
+            );
 }
 
 Region::~Region()
@@ -245,10 +279,10 @@ Region Region::operator|(Region const& /*region*/) const
 Region Region::operator&(Region const& region) const
 {
     pmr::vector<ClipperLib::Path> subjPaths(memory_);
-    ClipperLib::PolyTreeToPaths(*d()->paths_, subjPaths);
+    ClipperLib::PolyTreeToPaths(*d()->polyTree_, subjPaths);
 
     pmr::vector<ClipperLib::Path> clipPaths(memory_);
-    ClipperLib::PolyTreeToPaths(*region.d()->paths_, clipPaths);
+    ClipperLib::PolyTreeToPaths(*region.d()->polyTree_, clipPaths);
 
     ClipperLib::Clipper c(d()->getResource());
     c.StrictlySimple(true);
@@ -265,9 +299,14 @@ Region Region::operator&(Region const& region) const
 
     result.deferred_ = pmr::make_shared<RegionDeferred>(d()->getResource(),
             d()->getResource());
-    result.d()->paths_ = std::move(tree);
+    result.d()->polyTree_ = std::move(tree);
     result.d()->resPerPixel_ = d()->resPerPixel_;
     result.d()->pixelSize_ = d()->pixelSize_;
+    result.d()->boundingBox_ = calculateBoundingBoxForPolyTree(
+            *d()->polyTree_,
+            d()->pixelSize_,
+            d()->resPerPixel_
+            );
 
     return result;
 }
@@ -341,15 +380,20 @@ Region Region::offset(JoinType join, EndType end, float offset) const
             d()->getResource(), d()->getResource());
     ClipperLib::ClipperOffset clipperOffset(d()->getResource());
     pmr::vector<ClipperLib::Path> inPaths(d()->getResource());
-    ClipperLib::PolyTreeToPaths(*d()->paths_, inPaths);
+    ClipperLib::PolyTreeToPaths(*d()->polyTree_, inPaths);
 
     clipperOffset.AddPaths(inPaths, joinType, endType);
     clipperOffset.Execute(*resultPaths, offset * std::max(xRes, yRes));
 
     Region result(d()->getResource());
-    result.d()->paths_ = std::move(resultPaths);
+    result.d()->polyTree_ = std::move(resultPaths);
     result.d()->pixelSize_ = d()->pixelSize_;
     result.d()->resPerPixel_ = d()->resPerPixel_;
+    result.d()->boundingBox_ = calculateBoundingBoxForPolyTree(
+            *d()->polyTree_,
+            d()->pixelSize_,
+            d()->resPerPixel_
+            );
 
     return result;
 }
@@ -361,7 +405,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
         return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
 
     size_t pointCount = 0;
-    ClipperLib::PolyNode* node = d()->paths_->GetFirst();
+    ClipperLib::PolyNode* node = d()->polyTree_->GetFirst();
     while (node)
     {
         pointCount += node->Contour.size();
@@ -377,7 +421,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
     const float yRes = (float)d()->resPerPixel_ / d()->pixelSize_[1];
 
     pmr::queue<ClipperLib::PolyNode*> stack(&mono);
-    for (auto const& child : d()->paths_->Childs)
+    for (auto const& child : d()->polyTree_->Childs)
         stack.push(child);
 
     node = stack.front();
@@ -385,7 +429,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
 
     pmr::vector<uint16_t> indices(memory);
     pmr::vector<Vector2f> vertices(memory);
-    //DBG("Top level paths: %1", d()->paths_.Childs.size());
+    //DBG("Top level paths: %1", d()->polyTree_.Childs.size());
     while (node)
     {
         assert(!node->IsHole());
@@ -407,8 +451,8 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
         {
             points.push_back(p2t::Point(
                         &mono,
-                        (float)pt.X / xRes,
-                        (float)pt.Y / yRes));
+                        (float)pt.x() / xRes,
+                        (float)pt.y() / yRes));
             polyline.push_back(&points.back());
         }
 
@@ -427,8 +471,8 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
                 assert(child->Contour.front() != child->Contour.back());
                 points.push_back(p2t::Point(
                             &mono,
-                            (float)pt.X / xRes,
-                            (float)pt.Y / yRes));
+                            (float)pt.x() / xRes,
+                            (float)pt.y() / yRes));
                 polyline.push_back(&points.back());
             }
 
@@ -500,6 +544,28 @@ Region Region::getClipped(Rect const& r) const
     return *this & rectRegion;
 }
 
+Rect Region::getBoundingBox() const
+{
+    return d()->boundingBox_;
+}
+
+pmr::memory_resource* Region::getResource() const
+{
+    return memory_;
+}
+
+Region Region::withResource(pmr::memory_resource* memory) const
+{
+    Region result(memory);
+
+    result.d()->polyTree_ = pmr::make_shared<ClipperLib::PolyTree>(memory, memory);
+    result.d()->pixelSize_ = d()->pixelSize_;
+    result.d()->resPerPixel_ = d()->resPerPixel_;
+    result.d()->boundingBox_ = d()->boundingBox_;
+
+    return result;
+}
+
 void Region::ensureUniqueness()
 {
     if (deferred_.unique())
@@ -508,14 +574,48 @@ void Region::ensureUniqueness()
     deferred_ = pmr::make_shared<RegionDeferred>(memory_, *d());
 }
 
+Region operator*(avg::Transform const& t, Region&& r)
+{
+    ClipperLib::PolyNode* node = r.d()->polyTree_.get();
+
+    float xRes = (float)r.d()->resPerPixel_ / r.d()->pixelSize_[0];
+    float yRes = (float)r.d()->resPerPixel_ / r.d()->pixelSize_[1];
+
+    while (node)
+    {
+        for (ClipperLib::IntPoint& point : node->Contour)
+        {
+            Vector2f v(
+                    static_cast<float>(point.x()) / xRes,
+                    static_cast<float>(point.y()) / yRes
+                    );
+
+            v = t * v;
+
+            point.x() = v.x() * xRes;
+            point.y() = v.y() * yRes;
+        }
+
+        node = node->GetNext();
+    }
+
+    r.d()->boundingBox_ = calculateBoundingBoxForPolyTree(
+            *r.d()->polyTree_,
+            r.d()->pixelSize_,
+            r.d()->resPerPixel_
+            );
+
+    return std::move(r);
+}
+
 std::ostream& operator<<(std::ostream& stream, avg::Region const& region)
 {
-    printClipperPolyTree(stream, *region.d()->paths_, region.d()->resPerPixel_,
+    printClipperPolyTree(stream, *region.d()->polyTree_, region.d()->resPerPixel_,
             region.d()->pixelSize_);
 
     return stream;
 }
 
-} // namespace
+} // namespace avg
 
 

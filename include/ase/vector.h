@@ -8,9 +8,9 @@
 
 namespace ase
 {
-    using Vector2i = Eigen::Vector2i;
-    using Vector3i = Eigen::Vector3i;
-    using Vector4i = Eigen::Vector4i;
+    using Vector2i = Eigen::Matrix<int64_t, 2, 1>;//Eigen::Vector2i;
+    using Vector3i = Eigen::Matrix<int64_t, 3, 1>;//Eigen::Vector3i;
+    using Vector4i = Eigen::Matrix<int64_t, 4, 1>;//Eigen::Vector4i;
 
     using Vector2f = Eigen::Vector2f;
     using Vector3f = Eigen::Vector3f;

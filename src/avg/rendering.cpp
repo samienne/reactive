@@ -34,6 +34,14 @@ namespace avg
 namespace
 {
 
+template <class... Ts>
+struct Overloaded : Ts...
+{
+    using Ts::operator()...;
+};
+
+template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
+
 // Vertex: rgbaxyz
 using Vertex = std::array<float, 7>;
 using Vertices = pmr::vector<Vertex>;
@@ -163,25 +171,29 @@ pmr::vector<SoftMesh> generateMeshesForShape(pmr::memory_resource* memory,
 
 Rect getElementRect(Drawing::Element const& e)
 {
-    if (e.is<Shape>())
-        return e.get<Shape>().getControlBb();
-    else if(e.is<TextEntry>())
-        return e.get<TextEntry>().getControlBb();
-    else if(e.is<Drawing::ClipElement>())
-    {
-        auto const& clip = e.get<Drawing::ClipElement>();
+    return std::visit(Overloaded{
+            [](Shape const& shape) -> Rect
+            {
+                return shape.getControlBb();
+            },
+            [](TextEntry const& textEntry) -> Rect
+            {
+                return textEntry.getControlBb();
+            },
+            [](Drawing::ClipElement const& clipElement) -> Rect
+            {
+                assert(std::abs(clipElement.transform.getRotation()) < 0.0001f);
 
-        assert(std::abs(clip.transform.getRotation()) < 0.0001f);
-
-        return clip.clipRect
-            .scaled(clip.transform.getScale())
-            .translated(clip.transform.getTranslation())
-            ;
-    }
-    else
-        assert(false);
-
-    return avg::Rect();
+                return clipElement.clipRect
+                    .scaled(clipElement.transform.getScale())
+                    .translated(clipElement.transform.getTranslation())
+                    ;
+            },
+            [](Drawing::RegionFill const& regionFill) -> Rect
+            {
+                return regionFill.region.getBoundingBox();
+            }
+            }, e);
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
@@ -210,59 +222,58 @@ pmr::vector<SoftMesh> generateMeshesForElements(
         if (!elementRect.overlaps(rect))
             continue;
 
-        pmr::vector<SoftMesh> elementMeshes(memory);
+        pmr::vector<SoftMesh> elementMeshes = std::visit(Overloaded{
+                [&](Shape const& shape) -> pmr::vector<SoftMesh>
+                {
+                    return generateMeshesForShape(memory, shape, newPixelSize,
+                            resPerPixel, rect, clip);
+                },
+                [&](TextEntry const& textEntry) -> pmr::vector<SoftMesh>
+                {
+                    auto shape = Shape(memory)
+                        .setPath(textEntry.getFont().textToPath(
+                                    memory,
+                                    utf8::asUtf8(textEntry.getText()),
+                                    1.0f,
+                                    ase::Vector2f(0.0f, 0.0f)
+                                    ))
+                        .setBrush(textEntry.getBrush())
+                        .setPen(textEntry.getPen());
 
-        if (element.is<Shape>())
-        {
-            auto const& shape = element.get<Shape>();
-            elementMeshes = generateMeshesForShape(memory, shape, newPixelSize,
-                    resPerPixel, rect, clip);
-        }
-        else if (element.is<TextEntry>())
-        {
-            auto const& text = element.get<TextEntry>();
-            auto shape = Shape(memory)
-                .setPath(text.getFont().textToPath(
+                    return generateMeshesForShape(
                             memory,
-                            utf8::asUtf8(text.getText()),
-                            1.0f,
-                            ase::Vector2f(0.0f, 0.0f)
-                            ))
-                .setBrush(text.getBrush())
-                .setPen(text.getPen());
+                            textEntry.getTransform() * shape,
+                            newPixelSize, resPerPixel, rect, clip
+                            );
+                },
+                [&](Drawing::ClipElement const& clipElement) -> pmr::vector<SoftMesh>
+                {
+                    auto clipTransformInverse = clipElement.transform.inverse();
 
-            elementMeshes = generateMeshesForShape(
-                    memory,
-                    text.getTransform() * shape,
-                    newPixelSize, resPerPixel, rect, clip
-                    );
-        }
-        else if (element.is<Drawing::ClipElement>())
-        {
-            auto const& clipElement = element.get<Drawing::ClipElement>();
+                    assert(std::abs(clipTransformInverse.getRotation()) < 0.0001f);
 
-            auto clipTransformInverse = clipElement.transform.inverse();
+                    auto rectInClipElementSpace = rect
+                        .scaled(clipTransformInverse.getScale())
+                        .translated(clipTransformInverse.getTranslation())
+                        ;
 
-            assert(std::abs(clipTransformInverse.getRotation()) < 0.0001f);
-
-            auto rectInClipElementSpace = rect
-                .scaled(clipTransformInverse.getScale())
-                .translated(clipTransformInverse.getTranslation())
-                ;
-
-            elementMeshes = generateMeshesForElements(
-                    memory,
-                    painter,
-                    clipElement.transform,
-                    clipElement.subDrawing->elements,
-                    newPixelSize,
-                    resPerPixel,
-                    clipElement.clipRect.intersected(rectInClipElementSpace),
-                    true
-                    );
-        }
-        else
-            assert(false); // Unknown element type
+                    return generateMeshesForElements(
+                            memory,
+                            painter,
+                            clipElement.transform,
+                            clipElement.subDrawing->elements,
+                            newPixelSize,
+                            resPerPixel,
+                            clipElement.clipRect.intersected(rectInClipElementSpace),
+                            true
+                            );
+                },
+                [&](Drawing::RegionFill const& regionFill) -> pmr::vector<SoftMesh>
+                {
+                    assert(false && "not implemented");
+                    return pmr::vector<SoftMesh>(memory);
+                }
+                }, element);
 
         for (auto&& mesh : elementMeshes)
             meshes.push_back(transform * std::move(mesh));

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transform.h"
 #include "endtype.h"
 #include "jointype.h"
 #include "fillrule.h"
@@ -53,6 +54,12 @@ namespace avg
             triangulate(pmr::memory_resource* memory) const;
 
         Region getClipped(Rect const& r) const;
+
+        Rect getBoundingBox() const;
+        pmr::memory_resource* getResource() const;
+        Region withResource(pmr::memory_resource* memory) const;
+
+        friend Region operator*(avg::Transform const& t, Region&& r);
 
     private:
         friend std::ostream& operator<<(std::ostream& stream,
