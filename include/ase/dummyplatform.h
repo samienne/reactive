@@ -2,9 +2,11 @@
 
 #include "platform.h"
 
+#include "asevisibility.h"
+
 namespace ase
 {
-    class BTL_VISIBLE DummyPlatform : public Platform
+    class ASE_EXPORT DummyPlatform : public Platform
     {
     public:
     private:

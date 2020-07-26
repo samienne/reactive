@@ -83,6 +83,8 @@ libasesrc = [
 libase = library('ase',
         [system_src, libasesrc],
         dependencies: [system_deps, asedep],
+        cpp_args: ['-DASE_EXPORT_SYMBOLS'],
+        gnu_symbol_visibility: 'hidden',
         include_directories: incdir
         )
 

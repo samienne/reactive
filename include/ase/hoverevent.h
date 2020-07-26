@@ -2,11 +2,11 @@
 
 #include "vector.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    struct BTL_VISIBLE HoverEvent
+    struct ASE_EXPORT HoverEvent
     {
         bool hover;
         bool topmost;

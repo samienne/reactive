@@ -3,7 +3,7 @@
 #include "rendercommand.h"
 
 #include <btl/option.h>
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <vector>
 
@@ -11,7 +11,7 @@ namespace ase
 {
     class RenderCommand;
 
-    class BTL_VISIBLE CommandBuffer
+    class ASE_EXPORT CommandBuffer
     {
     public:
         using Iterator = std::vector<RenderCommand>::iterator;

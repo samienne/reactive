@@ -5,11 +5,11 @@
 #include "aabb.h"
 
 #include <btl/option.h>
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    class BTL_VISIBLE Mesh
+    class ASE_EXPORT Mesh
     {
     public:
         Mesh(Aabb const& aabb, VertexBuffer vertexBuffer);

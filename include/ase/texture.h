@@ -3,7 +3,7 @@
 #include "vector.h"
 #include "format.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -15,7 +15,7 @@ namespace ase
     class Buffer;
     struct Async;
 
-    class BTL_VISIBLE Texture
+    class ASE_EXPORT Texture
     {
     public:
         explicit Texture(std::shared_ptr<TextureImpl> impl);

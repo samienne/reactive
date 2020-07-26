@@ -2,7 +2,7 @@
 
 #include "dispatcher.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 
@@ -13,7 +13,7 @@ namespace ase
     class GlPlatform;
     class GlRenderContext;
 
-    class BTL_VISIBLE GlShader
+    class ASE_EXPORT GlShader
     {
     public:
         GlShader(GlRenderContext& context, std::string const& source,

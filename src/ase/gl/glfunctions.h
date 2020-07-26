@@ -1,13 +1,13 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 #include <GL/glext.h>
 
 namespace ase
 {
-    struct BTL_VISIBLE GlFunctions
+    struct ASE_EXPORT GlFunctions
     {
         PFNGLVERTEXATTRIBPOINTERPROC glVertexAttribPointer = nullptr;
         PFNGLDISABLEVERTEXATTRIBARRAYPROC glDisableVertexAttribArray = nullptr;

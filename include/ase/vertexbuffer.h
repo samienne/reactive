@@ -3,7 +3,7 @@
 #include "usage.h"
 #include "namedvertexspec.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -19,7 +19,7 @@ namespace ase
     /**
      * @brief Hardware buffer for vertex data.
      */
-    class BTL_VISIBLE VertexBuffer
+    class ASE_EXPORT VertexBuffer
     {
     public:
         explicit VertexBuffer(std::shared_ptr<VertexBufferImpl> impl);

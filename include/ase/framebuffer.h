@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -10,7 +10,7 @@ namespace ase
     class Renderbuffer;
     class FramebufferImpl;
 
-    class BTL_VISIBLE Framebuffer
+    class ASE_EXPORT Framebuffer
     {
     public:
         Framebuffer(std::shared_ptr<FramebufferImpl> impl);

@@ -5,7 +5,7 @@
 #include "program.h"
 #include "vertexspec.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -15,7 +15,7 @@ namespace ase
     class Program;
     class RenderContext;
 
-    class BTL_VISIBLE Pipeline
+    class ASE_EXPORT Pipeline
     {
     public:
         Pipeline(std::shared_ptr<PipelineImpl> impl);

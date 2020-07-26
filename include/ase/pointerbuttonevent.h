@@ -4,7 +4,7 @@
 
 #include <avg/transform.h>
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <ostream>
 
@@ -16,7 +16,7 @@ namespace ase
         up
     };
 
-    struct BTL_VISIBLE PointerButtonEvent
+    struct ASE_EXPORT PointerButtonEvent
     {
         unsigned int pointer;
         unsigned int button;
@@ -24,7 +24,7 @@ namespace ase
         Vector2f pos;
     };
 
-    BTL_VISIBLE std::ostream& operator<<(std::ostream& stream,
+    ASE_EXPORT std::ostream& operator<<(std::ostream& stream,
             PointerButtonEvent const& e);
 }
 

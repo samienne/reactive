@@ -4,7 +4,7 @@
 #include "vector.h"
 #include "format.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 
@@ -16,7 +16,7 @@ namespace ase
     struct Dispatched;
     struct GlFunctions;
 
-    class BTL_VISIBLE GlTexture : public TextureImpl
+    class ASE_EXPORT GlTexture : public TextureImpl
     {
     public:
         GlTexture(GlRenderContext& context);

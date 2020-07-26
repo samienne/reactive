@@ -1,10 +1,10 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    class BTL_VISIBLE IndexBufferImpl
+    class ASE_EXPORT IndexBufferImpl
     {
     public:
         virtual ~IndexBufferImpl() = default;

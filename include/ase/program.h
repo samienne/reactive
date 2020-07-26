@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <string>
 #include <memory>
@@ -13,7 +13,7 @@ namespace ase
     class RenderContext;
     class Platform;
 
-    class BTL_VISIBLE Program
+    class ASE_EXPORT Program
     {
     public:
         Program(std::shared_ptr<ProgramImpl> impl);

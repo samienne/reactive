@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <thread>
 #include <condition_variable>
@@ -9,9 +9,9 @@
 
 namespace ase
 {
-    struct BTL_VISIBLE Dispatched {};
+    struct ASE_EXPORT Dispatched {};
 
-    class BTL_VISIBLE Dispatcher
+    class ASE_EXPORT Dispatcher
     {
     public:
         Dispatcher();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <vector>
 #include <memory>
@@ -8,7 +8,7 @@
 
 namespace ase
 {
-    class BTL_VISIBLE BufferDeferred
+    class ASE_EXPORT BufferDeferred
     {
     public:
         inline BufferDeferred(size_t size) :
@@ -29,7 +29,7 @@ namespace ase
     /**
      * @brief Copy on write buffer
      */
-    class BTL_VISIBLE Buffer
+    class ASE_EXPORT Buffer
     {
     public:
         inline Buffer() :

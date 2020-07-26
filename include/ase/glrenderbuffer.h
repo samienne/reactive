@@ -3,7 +3,7 @@
 #include "renderbufferimpl.h"
 #include "format.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 
@@ -11,7 +11,7 @@ namespace ase
 {
     class GlRenderContext;
 
-    class BTL_VISIBLE GlRenderbuffer : public RenderbufferImpl
+    class ASE_EXPORT GlRenderbuffer : public RenderbufferImpl
     {
     public:
         GlRenderbuffer(GlRenderContext& context, int width, int height,

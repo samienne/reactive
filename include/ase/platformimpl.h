@@ -1,10 +1,10 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    class BTL_VISIBLE PlatformImpl
+    class ASE_EXPORT PlatformImpl
     {
     };
 }

@@ -2,9 +2,9 @@
 
 #include "vector.h"
 #include "transform.h"
+#include "avgvisibility.h"
 
 #include <btl/forcenoexcept.h>
-#include <btl/visibility.h>
 
 #include <ostream>
 
@@ -12,7 +12,7 @@ namespace avg
 {
     class Obb;
 
-    class BTL_VISIBLE Rect
+    class AVG_EXPORT Rect
     {
     public:
         Rect();

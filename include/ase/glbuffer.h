@@ -2,7 +2,7 @@
 
 #include "usage.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 
@@ -15,7 +15,7 @@ namespace ase
     struct Dispatched;
     struct GlFunctions;
 
-    class BTL_VISIBLE GlBuffer
+    class ASE_EXPORT GlBuffer
     {
     public:
         GlBuffer(GlRenderContext& context, GLenum bufferType);

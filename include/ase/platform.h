@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -12,7 +12,7 @@ namespace ase
     /**
      * @brief Abstract base class for all platforms
      */
-    class BTL_VISIBLE Platform
+    class ASE_EXPORT Platform
     {
     public:
         virtual ~Platform() = default;

@@ -2,7 +2,7 @@
 
 #include "format.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -10,7 +10,7 @@ namespace ase
 {
     class RenderbufferImpl;
 
-    class BTL_VISIBLE Renderbuffer
+    class ASE_EXPORT Renderbuffer
     {
     public:
         explicit Renderbuffer(std::shared_ptr<RenderbufferImpl> impl);

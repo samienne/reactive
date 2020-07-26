@@ -4,14 +4,14 @@
 #include "glxcontext.h"
 #include "vector.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
     class GlxPlatform;
     class GlxDispatchedContext;
 
-    class BTL_VISIBLE GlxRenderContext : public GlRenderContext
+    class ASE_EXPORT GlxRenderContext : public GlRenderContext
     {
     public:
         typedef std::mutex Mutex;

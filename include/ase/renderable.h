@@ -4,7 +4,7 @@
 #include "material.h"
 #include "matrix.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -12,7 +12,7 @@ namespace ase
 {
     class Aabb;
 
-    class BTL_VISIBLE Renderable
+    class ASE_EXPORT Renderable
     {
     public:
         Renderable(Mesh mesh, Material material);

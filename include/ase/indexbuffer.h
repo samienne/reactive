@@ -2,7 +2,7 @@
 
 #include "usage.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 #include <stdint.h>
@@ -15,7 +15,7 @@ namespace ase
     class Buffer;
     struct Async;
 
-    class BTL_VISIBLE IndexBuffer
+    class ASE_EXPORT IndexBuffer
     {
     public:
         IndexBuffer(std::shared_ptr<IndexBufferImpl> impl);

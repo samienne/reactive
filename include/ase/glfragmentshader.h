@@ -4,7 +4,7 @@
 
 #include "glshader.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <string>
 
@@ -12,7 +12,7 @@ namespace ase
 {
     class GlRenderContext;
 
-    class BTL_VISIBLE GlFragmentShader : public FragmentShaderImpl
+    class ASE_EXPORT GlFragmentShader : public FragmentShaderImpl
     {
     public:
         GlFragmentShader(GlRenderContext& context, std::string const& source);

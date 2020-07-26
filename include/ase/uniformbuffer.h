@@ -3,7 +3,7 @@
 #include "buffer.h"
 #include "usage.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -11,7 +11,7 @@ namespace ase
 {
     class UniformBufferImpl;
 
-    class BTL_VISIBLE UniformBuffer
+    class ASE_EXPORT UniformBuffer
     {
     public:
         explicit UniformBuffer(std::shared_ptr<UniformBufferImpl> impl);

@@ -8,7 +8,7 @@
 #include "hoverevent.h"
 #include "keyevent.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <mutex>
 #include <vector>
@@ -25,7 +25,7 @@ namespace ase
     class Framebuffer;
     struct Dispatched;
 
-    class BTL_VISIBLE GlxWindow : public Window
+    class ASE_EXPORT GlxWindow : public Window
     {
     public:
         typedef std::mutex Mutex;

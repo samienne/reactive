@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -9,7 +9,7 @@ namespace ase
     class UniformSetImpl;
     struct UniformBufferRange;
 
-    class BTL_VISIBLE UniformSet
+    class ASE_EXPORT UniformSet
     {
     public:
         explicit UniformSet(std::shared_ptr<UniformSetImpl> impl);
