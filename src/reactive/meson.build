@@ -51,7 +51,7 @@ libreactive = library(
         [systemsrc, libreactivesrc],
         include_directories: incdir,
         dependencies: reactivedep,
-        cpp_args: ['-Wno-unused-function', '-DREACTIVE_EXPORT_SYMBOLS'],
+        cpp_args: ['-DREACTIVE_EXPORT_SYMBOLS'],
         gnu_symbol_visibility: 'hidden'
         )
 
