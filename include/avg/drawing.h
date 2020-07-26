@@ -38,16 +38,6 @@ namespace avg
             pmr::vector<Element> elements;
         };
 
-        friend pmr::heap<SubDrawing> operator*(pmr::heap<SubDrawing> const& s, float)
-        {
-            return s;
-        }
-
-        friend pmr::heap<SubDrawing> operator+(pmr::heap<SubDrawing> const& s, Vector2f)
-        {
-            return s;
-        }
-
         Drawing(pmr::memory_resource* memory);
         Drawing(pmr::memory_resource* memory, Element element);
 
