@@ -14,10 +14,10 @@ namespace reactive
     public:
         explicit DrawContext(pmr::memory_resource* memory);
         DrawContext(DrawContext const& rhs) = default;
-        DrawContext(DrawContext& rhs) noexcept = default;
+        DrawContext(DrawContext&& rhs) noexcept = default;
 
         DrawContext& operator=(DrawContext const& rhs) = default;
-        DrawContext& operator=(DrawContext& rhs) noexcept = default;
+        DrawContext& operator=(DrawContext&& rhs) noexcept = default;
 
         pmr::memory_resource* getResource() const;
 

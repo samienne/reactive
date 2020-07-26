@@ -33,7 +33,7 @@ namespace btl
 
         inline connection observe(callback_t cb)
         {
-            lock_t lock(d_->mutex);
+            /*lock_t lock(d_->mutex);
             auto i = d_->nextIndex++;
             d_->callbacks.push_back(std::make_pair(i , std::move(cb)));
             std::weak_ptr<detail::observable_control_base> weak = d_.ptr();
@@ -47,6 +47,8 @@ namespace btl
                             observable.reset();
                         }
                     });
+                    */
+            return connection();
         }
 
         inline void operator()(TArgs... args) const

@@ -48,7 +48,7 @@ avg::Path makeRoundedRect(pmr::memory_resource* memory, float width,
 avg::Path makePathFromRect(pmr::memory_resource* memory, avg::Rect const& rect,
         float radius)
 {
-    float const angle = 3.141 / 2.0f;
+    float const angle = 3.141f / 2.0f;
 
     float l = rect.getLeft();
     float r = rect.getRight();

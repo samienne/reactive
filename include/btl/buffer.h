@@ -2,6 +2,7 @@
 
 #include <pmr/memory_resource.h>
 
+#include <stdexcept>
 #include <algorithm>
 #include <cstring>
 
@@ -85,7 +86,7 @@ namespace btl
             if (size <= reserved_)
                 return;
 
-            std::size_t newSize = std::max(64ul, reserved_ * 2);
+            std::size_t newSize = std::max((size_t)64, reserved_ * 2);
             while (newSize < size)
                 newSize *= 2;
 

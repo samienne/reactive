@@ -4,7 +4,7 @@ if target_machine.system() == 'linux'
     add_global_arguments('-std=c++17', '-pedantic', '-Wextra', '-Wall',
             language : 'cpp')
 else
-    add_global_arguments('/std:c++17', language : 'cpp')
+    add_global_arguments('/std:c++17', '/wd4251', language : 'cpp')
 endif
 
 #'-flto','-fvisibility=hidden',

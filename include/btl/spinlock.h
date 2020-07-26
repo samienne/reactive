@@ -67,8 +67,7 @@ namespace btl
         class spin_lock_flagged
         {
         public:
-            spin_lock_flagged() :
-                lock_(false)
+            spin_lock_flagged()
             {
                 TSAN_ANNOTATE_RWLOCK_CREATE(&lock_);
             }

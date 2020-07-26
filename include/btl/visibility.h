@@ -19,5 +19,7 @@
 #ifdef _WIN32
 #define BTL_EXPORT __declspec(dllexport)
 #define BTL_IMPORT __declspec(dllimport)
+
+#define BTL_FORCE_INLINE inline
 #endif
 

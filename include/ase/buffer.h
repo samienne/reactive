@@ -2,9 +2,11 @@
 
 #include "asevisibility.h"
 
+#include <algorithm>
 #include <vector>
 #include <memory>
 #include <cstring>
+#include <stdexcept>
 
 namespace ase
 {

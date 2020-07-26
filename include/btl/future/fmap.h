@@ -129,7 +129,7 @@ namespace btl
                     IsViableFMapParam<FutureType<TFutures>>...,
                     btl::Not<std::is_same<
                         void,
-                        std::result_of_t<TFunc(FutureType<TFutures>...)>
+                        std::invoke_result_t<TFunc, FutureType<TFutures>...>
                     >>
                 >::value
             >>

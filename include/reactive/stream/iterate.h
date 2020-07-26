@@ -268,10 +268,11 @@ namespace reactive::stream
                     btl::All<
                         signal::AreSignals<TInitial, TSignals...>,
                         std::is_convertible<
-                            std::result_of_t<TFunc(
+                            std::invoke_result_t<
+                                TFunc,
                                 signal::signal_value_t<TInitial>,
                                 T,
-                                signal::signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...
                             >,
                             signal::signal_value_t<TInitial>
                         >

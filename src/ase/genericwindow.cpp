@@ -17,12 +17,12 @@ Vector2i GenericWindow::getSize() const
 
 float GenericWindow::getWidth() const
 {
-    return size_[0];
+    return static_cast<float>(size_[0]);
 }
 
 float GenericWindow::getHeight() const
 {
-    return size_[1];
+    return static_cast<float>(size_[1]);
 }
 
 std::string const& GenericWindow::getTitle() const
