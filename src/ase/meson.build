@@ -11,12 +11,35 @@ if target_machine.system() == 'linux'
         'glx/glxwindow.cpp',
         'glx/glxcontext.cpp',
         'glx/glxdispatchedcontext.cpp',
-        'glx/glxframebuffer.cpp'
+        'glx/glxframebuffer.cpp',
+        'gl/glplatform.cpp',
+        'gl/glprogram.cpp',
+        'gl/glshader.cpp',
+        'gl/glvertexshader.cpp',
+        'gl/glfragmentshader.cpp',
+        'gl/glbuffer.cpp',
+        'gl/glvertexbuffer.cpp',
+        'gl/glindexbuffer.cpp',
+        'gl/gluniformbuffer.cpp',
+        'gl/gltexture.cpp',
+        'gl/glerror.cpp',
+        'gl/gltype.cpp',
+        'gl/glblendmode.cpp',
+        'gl/glrendercontext.cpp',
+        'gl/glframebuffer.cpp',
+        'gl/glpipeline.cpp',
+        'gl/globjectmanager.cpp',
+        'gl/glrenderstate.cpp',
+        'gl/gldispatchedcontext.cpp',
+        'gl/gluniformset.cpp'
         ]
 else
     system_deps = []
     system_incs = []
-    system_src = []
+    system_src = [
+        'dummy/dummyplatform.cpp',
+        'dummy/dummyrendercontext.cpp'
+    ]
 endif
 
 threadsdep = dependency('threads')
@@ -54,27 +77,7 @@ libasesrc = [
         'pointerbuttonevent.cpp',
         'keyevent.cpp',
         'keycode.cpp',
-        'uniformset.cpp',
-        'gl/glplatform.cpp',
-        'gl/glprogram.cpp',
-        'gl/glshader.cpp',
-        'gl/glvertexshader.cpp',
-        'gl/glfragmentshader.cpp',
-        'gl/glbuffer.cpp',
-        'gl/glvertexbuffer.cpp',
-        'gl/glindexbuffer.cpp',
-        'gl/gluniformbuffer.cpp',
-        'gl/gltexture.cpp',
-        'gl/glerror.cpp',
-        'gl/gltype.cpp',
-        'gl/glblendmode.cpp',
-        'gl/glrendercontext.cpp',
-        'gl/glframebuffer.cpp',
-        'gl/glpipeline.cpp',
-        'gl/globjectmanager.cpp',
-        'gl/glrenderstate.cpp',
-        'gl/gldispatchedcontext.cpp',
-        'gl/gluniformset.cpp'
+        'uniformset.cpp'
         ]
 
 libase = library('ase',

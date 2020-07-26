@@ -64,7 +64,7 @@ namespace ase
         ~RenderContext();
 
         RenderContext& operator=(RenderContext const&) = delete;
-        RenderContext& operator=(RenderContext&&) = default;
+        RenderContext& operator=(RenderContext&&) = delete;
 
         void flush();
         void finish();
