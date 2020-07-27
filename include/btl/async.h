@@ -7,7 +7,7 @@
 namespace btl
 {
     template <typename TFunc, typename... Ts,
-             typename = std::result_of_t<TFunc(Ts...)>>
+             typename = std::invoke_result_t<TFunc, Ts...>>
     void asyncJob(TFunc&& func, Ts&&... ts)
     {
         ThreadPool::getInstance().async(
@@ -17,9 +17,9 @@ namespace btl
 
     template <typename TFunc, typename... Ts>
     auto async(TFunc&& f, Ts&&... ts)
-        -> future::Future<std::decay_t<std::result_of_t<TFunc(Ts...)>>>
+        -> future::Future<std::decay_t<std::invoke_result_t<TFunc, Ts...>>>
     {
-        using ValueType = std::decay_t<std::result_of_t<TFunc(Ts...)>>;
+        using ValueType = std::decay_t<std::invoke_result_t<TFunc, Ts...>>;
 
         auto control = std::make_shared<future::FutureControl<ValueType>>();
         future::Promise<ValueType> promise(control);

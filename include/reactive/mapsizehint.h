@@ -36,13 +36,13 @@ namespace reactive
         std::enable_if_t<
             IsSizeHint<THint>::value
             && std::is_same<SizeHintResult,
-                std::result_of_t<TFunc1(SizeHintResult)>
+                std::invoke_result_t<TFunc1, SizeHintResult>
                 >::value
             && std::is_same<SizeHintResult,
-                std::result_of_t<TFunc2(SizeHintResult, float)>
+                std::invoke_result_t<TFunc2, SizeHintResult, float>
                 >::value
             && std::is_same<SizeHintResult,
-                std::result_of_t<TFunc3(SizeHintResult, float)>
+                std::invoke_result_t<TFunc3, SizeHintResult, float>
                 >::value
             >
         >

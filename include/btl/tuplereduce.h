@@ -15,7 +15,7 @@ namespace btl
             BTL_FORCE_INLINE auto operator<<(U&& u) &&
             -> Reducer<
                 TFunc,
-                std::result_of_t<TFunc&(std::decay_t<T>&&, U&&)>
+                std::invoke_result_t<TFunc&, std::decay_t<T>&&, U&&>
                 >
             {
                 auto v = func(std::move(value), std::forward<U>(u));

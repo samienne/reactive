@@ -121,7 +121,7 @@ namespace reactive::signal
 
         typename detail::SignalBaseResult<Ts...>::type evaluate() const override final
         {
-            return std::move(sig_.evaluate());
+            return sig_.evaluate();
         }
 
         bool hasChanged() const override final

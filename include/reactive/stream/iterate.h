@@ -301,10 +301,11 @@ namespace reactive::stream
                         signal::AreSignals<TSignals...>,
                         btl::Not<signal::IsSignal<TInitial>>,
                         std::is_convertible<
-                            std::result_of_t<TFunc(
+                            std::invoke_result_t<
+                                TFunc,
                                 TInitial,
                                 T,
-                                signal::signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...
                             >,
                             TInitial
                         >

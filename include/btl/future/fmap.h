@@ -36,7 +36,7 @@ namespace btl
 
         template <typename TFunc, typename... Ts>
         class MappedFuture final :
-            public FutureControl<std::decay_t<std::result_of_t<TFunc(Ts...)>>>
+            public FutureControl<std::decay_t<std::invoke_result_t<TFunc, Ts...>>>
         {
         public:
             MappedFuture(TFunc&& func, std::tuple<Future<Ts>...> futures) :
@@ -48,7 +48,7 @@ namespace btl
 
             void init()
             {
-                using ValueType = std::result_of_t<TFunc(Ts...)>;
+                using ValueType = std::invoke_result_t<TFunc, Ts...>;
                 std::weak_ptr<FutureControl<ValueType>> control =
                     std::static_pointer_cast<FutureControl<ValueType>>(
                             this->shared_from_this());
@@ -134,9 +134,9 @@ namespace btl
                 >::value
             >>
         auto fmap(TFunc&& func, TFutures&&... futures)
-        -> Future<std::result_of_t<TFunc(FutureType<TFutures>...)>>
+        -> Future<std::invoke_result_t<TFunc, FutureType<TFutures>...>>
         {
-            using ReturnValueType = std::result_of_t<TFunc(FutureType<TFutures>...)>;
+            using ReturnValueType = std::invoke_result_t<TFunc, FutureType<TFutures>...>;
             using ControlType = MappedFuture<TFunc, FutureType<TFutures>...>;
 
             auto tuple = std::make_tuple(std::move(futures)...);
