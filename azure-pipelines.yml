@@ -137,8 +137,11 @@ jobs:
       Get-Content "$env:temp\vcvars.txt" | Foreach-Object {
         if ($_ -match "^(.*?)=(.*)$") {
           Set-Content "env:\$($matches[1])" $matches[2]
+          echo setting $matches[1] to $matches[2]
         }
       }
+
+      $env:PKG_CONFIG_PATH = "."
 
       md build\win-$(BUILDTYPE)
       #cd build\win-$(BUILDTYPE)
@@ -146,18 +149,19 @@ jobs:
       python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true . build/win-$(BUILDTYPE)
       #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
       echo 'Building...'
-      ninja -C build/win-$(BUILDTYPE)
-
-  - script: |
-      md build\win-$(BUILDTYPE)
-      #cd build\win-$(BUILDTYPE)
-      echo 'Configuring...'
-      python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true -C build/win-$(BUILDTYPE)
-      #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
-      echo 'Building...'
-      ninja -C build/win-$(BUILDTYPE)
+      ninja -k 10000 -C build/win-$(BUILDTYPE)
     displayName: 'Build'
-    timeoutInMinutes: 20
+
+    #- script: |
+    #md build\win-$(BUILDTYPE)
+    ##cd build\win-$(BUILDTYPE)
+    #echo 'Configuring...'
+    #python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true -C build/win-$(BUILDTYPE)
+    ##python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
+    #echo 'Building...'
+    #ninja -C build/win-$(BUILDTYPE)
+    #displayName: 'Build'
+    #timeoutInMinutes: 20
 
   - script: |
       cd build/win-$(BUILDTYPE)

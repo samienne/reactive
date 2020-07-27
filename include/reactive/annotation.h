@@ -29,6 +29,8 @@ namespace reactive
             void const* to;
         };
 
+        Annotation() = default;
+
         Node const& addNode(std::string name);
         Edge const& addEdge(Node const& from, Node const& to);
         void addEdge(Node const& from, void const* to);
