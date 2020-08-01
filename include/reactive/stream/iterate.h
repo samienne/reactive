@@ -131,7 +131,7 @@ namespace reactive::stream
                 value_ = btl::just(std::apply(
                         func_,
                         std::tuple_cat(
-                            std::make_tuple(std::move(*value_),
+                            std::forward_as_tuple(std::move(*value_),
                                 std::forward<decltype(v)>(v)
                                 ),
                             btl::tuple_map(*sigs_, stream::detail::Evaluate())
@@ -220,7 +220,7 @@ namespace reactive::stream
                 value_ = std::apply(
                         func_,
                         std::tuple_cat(
-                            std::make_tuple(std::move(value_),
+                            std::forward_as_tuple(std::move(value_),
                                 std::forward<decltype(v)>(v)
                                 ),
                             btl::tuple_map(*sigs_, stream::detail::Evaluate())

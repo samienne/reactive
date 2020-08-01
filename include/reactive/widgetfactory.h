@@ -24,46 +24,6 @@
 #include <functional>
 #include <deque>
 
-namespace waffa
-{
-
-struct A
-{
-};
-
-struct B
-{
-};
-
-template <typename T, typename U>
-struct W;
-
-using Base = W<A, B>;
-
-template <typename T, typename U>
-struct W
-{
-};
-
-//struct Base : W<A, B>
-//jkj{
-//jkj};
-
-struct WW : Base
-{
-};
-
-inline WW foo()
-{
-    return WW();
-}
-
-inline void fef()
-{
-    foo();
-}
-}
-
 namespace reactive
 {
     template <typename TTupleMaps, typename TSizeHint>
