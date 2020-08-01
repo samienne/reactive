@@ -24,6 +24,46 @@
 #include <functional>
 #include <deque>
 
+namespace waffa
+{
+
+struct A
+{
+};
+
+struct B
+{
+};
+
+template <typename T, typename U>
+struct W;
+
+using Base = W<A, B>;
+
+template <typename T, typename U>
+struct W
+{
+};
+
+//struct Base : W<A, B>
+//jkj{
+//jkj};
+
+struct WW : Base
+{
+};
+
+inline WW foo()
+{
+    return WW();
+}
+
+inline void fef()
+{
+    foo();
+}
+}
+
 namespace reactive
 {
     template <typename TTupleMaps, typename TSizeHint>
@@ -134,22 +174,22 @@ namespace reactive
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
 
-        WidFac(TTupleMaps maps, TSizeHint sizeHint) :
+        WidFac<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
             maps_(std::move(maps)),
             sizeHint_(std::move(sizeHint))
         {
         }
 
-        WidFac clone() const
+        WidFac<TTupleMaps, TSizeHint> clone() const
         {
             return *this;
         }
 
-        WidFac(WidFac const&) = default;
-        WidFac& operator=(WidFac const&) = default;
+        WidFac<TTupleMaps, TSizeHint>(WidFac<TTupleMaps, TSizeHint> const&) = default;
+        WidFac<TTupleMaps, TSizeHint>& operator=(WidFac<TTupleMaps, TSizeHint> const&) = default;
 
-        WidFac(WidFac&&) noexcept = default;
-        WidFac& operator=(WidFac&&) noexcept = default;
+        WidFac<TTupleMaps, TSizeHint>(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
+        WidFac<TTupleMaps, TSizeHint>& operator=(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
 
         template <typename T, typename U>
         auto operator()(
