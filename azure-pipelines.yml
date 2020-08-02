@@ -137,9 +137,10 @@ jobs:
       Get-Content "$env:temp\vcvars.txt" | Foreach-Object {
         if ($_ -match "^(.*?)=(.*)$") {
           Set-Content "env:\$($matches[1])" $matches[2]
-          echo setting $matches[1] to $matches[2]
         }
       }
+
+      echo $env:\$PATH
 
       $env:PKG_CONFIG_PATH = "."
 
