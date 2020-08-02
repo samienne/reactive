@@ -112,10 +112,6 @@ jobs:
       }
 
       DownloadFile -Source 'https://github.com/mesonbuild/cidata/raw/master/ninja.exe' -Destination $(System.WorkFolder)\ninja.exe
-      #DownloadFile -Source 'https://download.microsoft.com/download/D/B/B/DBB64BA1-7B51-43DB-8BF1-D1FB45EACF7A/msmpisdk.msi' -Destination msmpisdk.msi
-      #DownloadFile -Source 'https://download.microsoft.com/download/D/B/B/DBB64BA1-7B51-43DB-8BF1-D1FB45EACF7A/MSMpiSetup.exe' -Destination MSMpiSetup.exe
-      #Start-Process msiexec.exe -ArgumentList '/i msmpisdk.msi /quiet' -Wait
-      #Start-Process .\MSMpiSetup.exe -ArgumentList '-unattend -full' -Wait
 
       # add downloads to PATH
       $env:Path = "$env:SYSTEM_WORKFOLDER;$env:Path"
@@ -141,14 +137,8 @@ jobs:
       #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
       echo 'Building...'
       ninja -C build/win-$(BUILDTYPE)
-    displayName: 'Build'
-
-  - script: |
-      cd build/win-$(BUILDTYPE)
-      #test\unittest --gtest_output=xml
-      ninja test
-    displayName: 'Run unit tests'
-    timeoutInMinutes: 20
+      ninja -C build/win-$(BUILDTYPE) test
+    displayName: 'BuildAndTest'
 
   - task: PublishTestResults@2
     inputs:
