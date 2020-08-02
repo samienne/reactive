@@ -56,5 +56,6 @@ unittest = executable('unittest',
         link_with : [],
         dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])
 
-test('unittest', unittest, timeout : 1200)
+test('unittest', unittest, timeout : 1200, args: ['--gtest_output=xml'])
+test('devtest', devtest, timeout : 1200, args: ['--gtest_output=xml'])
 

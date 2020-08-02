@@ -10,6 +10,10 @@ endif
 #'-flto','-fvisibility=hidden',
 # '-Wextra', 
 
+#bzip2_dep = dependency('bzip2', required: false, method: 'system')
+#notfound_dep = dependency('notfound1234', required : false)
+#meson.override_dependency('bzip2', notfound_dep)
+
 eigen = subproject('eigen')
 libeigendep = eigen.get_variable('eigen_dep')
 

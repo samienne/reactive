@@ -120,13 +120,6 @@ jobs:
       # add downloads to PATH
       $env:Path = "$env:SYSTEM_WORKFOLDER;$env:Path"
 
-      # import visual studio variables
-      #Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
-      #Install-Module Pscx -Scope CurrentUser -AllowClobber
-      #Install-Module VSSetup -Scope CurrentUser
-      #$vsver = '2019' #$env:compiler.Replace('msvc', '')
-      #Import-VisualStudioVars -VisualStudioVersion $vsver -Architecture $(arch)
-
       $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
 
       $vcvarspath = &$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
@@ -143,28 +136,17 @@ jobs:
       $env:PKG_CONFIG_LIBDIR = "."
 
       md build\win-$(BUILDTYPE)
-      #cd build\win-$(BUILDTYPE)
       echo 'Configuring...'
       python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback  . build/win-$(BUILDTYPE)
       #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
       echo 'Building...'
-      ninja -k 10000 -C build/win-$(BUILDTYPE)
+      ninja -C build/win-$(BUILDTYPE)
     displayName: 'Build'
-
-    #- script: |
-    #md build\win-$(BUILDTYPE)
-    ##cd build\win-$(BUILDTYPE)
-    #echo 'Configuring...'
-    #python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true -C build/win-$(BUILDTYPE)
-    ##python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
-    #echo 'Building...'
-    #ninja -C build/win-$(BUILDTYPE)
-    #displayName: 'Build'
-    #timeoutInMinutes: 20
 
   - script: |
       cd build/win-$(BUILDTYPE)
-      test\unittest --gtest_output=xml
+      #test\unittest --gtest_output=xml
+      ninja test
     displayName: 'Run unit tests'
     timeoutInMinutes: 20
 
