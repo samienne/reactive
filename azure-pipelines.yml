@@ -146,7 +146,7 @@ jobs:
       md build\win-$(BUILDTYPE)
       #cd build\win-$(BUILDTYPE)
       echo 'Configuring...'
-      python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback -Db_coverage=true . build/win-$(BUILDTYPE)
+      python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback  . build/win-$(BUILDTYPE)
       #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
       echo 'Building...'
       ninja -k 10000 -C build/win-$(BUILDTYPE)
