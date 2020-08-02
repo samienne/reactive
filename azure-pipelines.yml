@@ -140,9 +140,7 @@ jobs:
         }
       }
 
-      echo $env:\$PATH
-
-      $env:PKG_CONFIG_PATH = "."
+      $env:PKG_CONFIG_LIBDIR = "."
 
       md build\win-$(BUILDTYPE)
       #cd build\win-$(BUILDTYPE)
