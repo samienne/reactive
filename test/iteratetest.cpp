@@ -151,33 +151,64 @@ TEST(IterateSignal, iterateCircular)
 
 TEST(IterateSignal, moveOnlyState)
 {
-        /*
     struct MoveOnly
     {
-        std::unique_ptr<std::string> data;
+        MoveOnly(bool& flag, std::string state) :
+            copied_(flag),
+            data(std::move(state))
+        {
+        }
+
+        MoveOnly(MoveOnly const& rhs) :
+            copied_(rhs.copied_)
+        {
+            copied_ = true;
+            rhs.copied_ = true;
+            data = rhs.data;
+        }
+
+        MoveOnly(MoveOnly&&) = default;
+
+        MoveOnly& operator=(MoveOnly const& rhs)
+        {
+            copied_ = true;
+            rhs.copied_ = true;
+            data = rhs.data;
+
+            return *this;
+        }
+
+        MoveOnly& operator=(MoveOnly&&) = default;
+
+        std::string data;
+
+        bool& copied_;
     };
 
-    auto state = MoveOnly{std::make_unique<std::string>("test")};
+    bool copied = false;
+
+    auto state = MoveOnly(copied, "test");
 
     auto events = stream::pipe<std::string>();
 
     auto s1 = stream::iterate(
             [](MoveOnly state, std::string event)
             {
-                *state.data = event;
+                state.data = event;
                 return state;
             },
             std::move(state),
             std::move(events.stream)
             );
 
-    EXPECT_EQ("test", *s1.evaluate().data);
+    EXPECT_FALSE(copied);
+
+    EXPECT_EQ("test", s1.evaluate().data);
 
     events.handle.push("test2");
 
     signal::update(s1, signal::FrameInfo(1, us(0)));
 
-    EXPECT_EQ("test2", *s1.evaluate().data);
-    */
+    EXPECT_EQ("test2", s1.evaluate().data);
 }
 
