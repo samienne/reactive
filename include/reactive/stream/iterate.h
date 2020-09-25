@@ -275,7 +275,8 @@ namespace reactive::stream
                                 signal::signal_value_t<TSignals>...
                             >,
                             signal::signal_value_t<TInitial>
-                        >
+                        >,
+                        btl::IsClonable<TInitial>
                     >::value
                     >>
     auto iterate(TFunc func, TInitial initial, Stream<T> stream,
@@ -308,7 +309,8 @@ namespace reactive::stream
                                 signal::signal_value_t<TSignals>...
                             >,
                             TInitial
-                        >
+                        >,
+                        btl::IsClonable<TInitial>
                     >::value
                     >,
                     int = 0>
