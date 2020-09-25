@@ -29,7 +29,6 @@ jobs:
         CXX: 'clang++-8'
         BUILDTYPE: 'release'
 
-  condition: false
   steps:
   - checkout: self
     submodules: true
