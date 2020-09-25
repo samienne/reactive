@@ -154,16 +154,16 @@ TEST(IterateSignal, moveOnlyState)
     struct MoveOnly
     {
         MoveOnly(bool& flag, std::string state) :
-            copied_(flag),
-            data(std::move(state))
+            data(std::move(state)),
+            copied_(&flag)
         {
         }
 
         MoveOnly(MoveOnly const& rhs) :
             copied_(rhs.copied_)
         {
-            copied_ = true;
-            rhs.copied_ = true;
+            *copied_ = true;
+            *rhs.copied_ = true;
             data = rhs.data;
         }
 
@@ -171,8 +171,11 @@ TEST(IterateSignal, moveOnlyState)
 
         MoveOnly& operator=(MoveOnly const& rhs)
         {
-            copied_ = true;
-            rhs.copied_ = true;
+            if (this == &rhs)
+                return *this;
+
+            *copied_ = true;
+            *rhs.copied_ = true;
             data = rhs.data;
 
             return *this;
@@ -182,7 +185,7 @@ TEST(IterateSignal, moveOnlyState)
 
         std::string data;
 
-        bool& copied_;
+        bool* copied_;
     };
 
     bool copied = false;
@@ -201,8 +204,6 @@ TEST(IterateSignal, moveOnlyState)
             std::move(events.stream)
             );
 
-    EXPECT_FALSE(copied);
-
     EXPECT_EQ("test", s1.evaluate().data);
 
     events.handle.push("test2");
@@ -210,5 +211,7 @@ TEST(IterateSignal, moveOnlyState)
     signal::update(s1, signal::FrameInfo(1, us(0)));
 
     EXPECT_EQ("test2", s1.evaluate().data);
+
+    EXPECT_FALSE(copied);
 }
 
