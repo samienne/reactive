@@ -1,9 +1,9 @@
 [wrap-file]
-source_url=http://bitbucket.org/eigen/eigen/get/3.3.5.zip
-source_filename=eigen-eigen-b3f3d4950030.zip
-directory=eigen-eigen-b3f3d4950030
-source_hash=35fa84bc23114b9d37c4597745f8b4e03354a5077579fdba597019f595a602b6
+directory = eigen-3.3.7
+source_url = https://gitlab.com/libeigen/eigen/-/archive/3.3.7/eigen-3.3.7.tar.bz2
+source_filename = eigen-3.3.7.tar.bz2
+source_hash = 685adf14bd8e9c015b78097c1dc22f2f01343756f196acdc76a678e1ae352e11
+patch_url = https://wrapdb.mesonbuild.com/v1/projects/eigen/3.3.7/3/get_zip
+patch_filename = eigen-3.3.7-3-wrap.zip
+patch_hash = 233bc7daeaf93c0284a6ec32009aabe2f5e001fd377a8c090a644697d51f2d25
 
-patch_url = https://wrapdb.mesonbuild.com/v1/projects/eigen/3.3.5/1/get_zip
-patch_filename = eigen-3.3.5-1-wrap.zip
-patch_hash = ef83f81b932ad2d9491648881feeaf422a58edc072f54db32cd08d48660c8e97
