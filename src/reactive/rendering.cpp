@@ -179,6 +179,8 @@ avg::Rect getElementRect(avg::Drawing::Element const& e)
     }
     else
         assert(false);
+
+    return avg::Rect();
 }
 
 // Transform is applied after clipping with rect. Rect is not transformed.
