@@ -49,7 +49,7 @@ TEST(Signal, mapTester)
 
 TEST(Signal, mapInput)
 {
-    auto add = [](float l, float r)
+    auto add = [](int l, int r)
     {
         return l + r;
     };
@@ -62,7 +62,7 @@ TEST(Signal, mapInput)
 
     static_assert(IsSignal<decltype(s3)>::value, "");
     static_assert(std::is_same<SignalValueType<decltype(s3)>::type,
-            float>::value, "");
+            int>::value, "");
 
     EXPECT_FALSE(s3.hasChanged());
     EXPECT_EQ(30, s3.evaluate());
