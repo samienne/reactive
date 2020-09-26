@@ -21,7 +21,7 @@ namespace btl
     >
     auto fmap(TFunc&& func, Ts&&... ts)
     -> Result<
-        std::result_of_t<TFunc&&(typename Ts::ValueType...)>,
+        std::invoke_result_t<TFunc&&, typename Ts::ValueType...>,
         std::common_type_t<typename Ts::ErrorType...>
     >
     {
@@ -95,7 +95,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<std::decay_t<std::result_of_t<TFunc(TValue&&)>>, TErr> fmap(
+        Result<std::decay_t<std::invoke_result_t<TFunc, TValue&&>>, TErr> fmap(
                 TFunc&& func) &&
         {
             if (!valid())
@@ -105,7 +105,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<std::decay_t<std::result_of_t<TFunc(TValue const&)>>, TErr> fmap(
+        Result<std::decay_t<std::invoke_result_t<TFunc, TValue const&>>, TErr> fmap(
                 TFunc&& func) const&
         {
             if (!valid())
@@ -115,7 +115,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<std::decay_t<std::result_of_t<TFunc(TValue)>>, TErr> fmap(
+        Result<std::decay_t<std::invoke_result_t<TFunc, TValue>>, TErr> fmap(
                 TFunc&& func) &
         {
             if (!valid())
@@ -125,7 +125,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<TValue, std::decay_t<std::result_of_t<TFunc(TErr&&)>>> errMap(
+        Result<TValue, std::decay_t<std::invoke_result_t<TFunc, TErr&&>>> errMap(
                 TFunc&& func) &&
         {
             if (valid())
@@ -135,7 +135,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<TValue, std::decay_t<std::result_of_t<TFunc(TErr const&)>>> errMap(
+        Result<TValue, std::decay_t<std::invoke_result_t<TFunc, TErr const&>>> errMap(
                 TFunc&& func) const&
         {
             if (valid())
@@ -145,7 +145,7 @@ namespace btl
         }
 
         template <typename TFunc>
-        Result<TValue, std::decay_t<std::result_of_t<TFunc(TErr&)>>> errMap(
+        Result<TValue, std::decay_t<std::invoke_result_t<TFunc, TErr&>>> errMap(
                 TFunc&& func) &
         {
             if (valid())

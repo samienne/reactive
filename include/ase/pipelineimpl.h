@@ -4,13 +4,13 @@
 #include "program.h"
 #include "vertexspec.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
     class RenderContext;
 
-    class BTL_VISIBLE PipelineImpl
+    class ASE_EXPORT PipelineImpl
     {
     public:
         virtual ~PipelineImpl() = default;

@@ -31,7 +31,7 @@ namespace btl
         }
 
         template<typename... Us>
-        auto operator()(Us&&... us) const
+        auto operator()(Us&&... us) const&
         -> std::decay_t<std::invoke_result_t<std::decay_t<TFunc> const&,
             std::decay_t<Ts> const..., Us...>>
         {

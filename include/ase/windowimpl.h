@@ -1,12 +1,12 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <string>
 
 namespace ase
 {
-    class BTL_VISIBLE WindowImpl
+    class ASE_EXPORT WindowImpl
     {
     public:
         virtual ~WindowImpl() = default;

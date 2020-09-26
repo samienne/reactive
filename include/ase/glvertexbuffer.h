@@ -6,14 +6,14 @@
 #include "aabb.h"
 #include "glbuffer.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
     class GlRenderContext;
     struct Dispatched;
 
-    class BTL_VISIBLE GlVertexBuffer : public VertexBufferImpl
+    class ASE_EXPORT GlVertexBuffer : public VertexBufferImpl
     {
     public:
         explicit GlVertexBuffer(GlRenderContext& context);

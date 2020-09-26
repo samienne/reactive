@@ -6,6 +6,7 @@ devtest = executable('devtest',
         'grouptest.cpp',
         'signalwraptest.cpp',
         'signalresulttest.cpp',
+        'iteratetest.cpp',
         include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep])
@@ -13,7 +14,6 @@ devtest = executable('devtest',
 unittest = executable('unittest',
         'widgettransformtest.cpp',
         'pmrtest.cpp',
-        'iteratetest.cpp',
         'databindtest.cpp',
         'btlreducetest.cpp',
         'btlcollectiontest.cpp',
@@ -56,5 +56,6 @@ unittest = executable('unittest',
         link_with : [],
         dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])
 
-test('unittest', unittest, timeout : 1200)
+test('unittest', unittest, timeout : 1200, args: ['--gtest_output=xml'])
+test('devtest', devtest, timeout : 1200, args: ['--gtest_output=xml'])
 

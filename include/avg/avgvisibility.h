@@ -3,8 +3,8 @@
 #include <btl/visibility.h>
 
 #ifdef AVG_EXPORT_SYMBOLS
-#define AVG_EXPORT BTL_VISIBLE
+#define AVG_EXPORT BTL_EXPORT
 #else
-#define AVG_EXPORT
+#define AVG_EXPORT BTL_IMPORT
 #endif
 

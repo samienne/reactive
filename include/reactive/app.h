@@ -35,5 +35,7 @@ namespace reactive
     private:
         btl::unique<AppImpl> impl_;
     };
+
+    std::unique_ptr<AppImpl> REACTIVE_EXPORT makeAppImpl();
 }
 

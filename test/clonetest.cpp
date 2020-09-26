@@ -57,7 +57,7 @@ static_assert(!std::is_copy_constructible<NotClonable>::value, "");
 TEST(CloneOnCopy, copy)
 {
     btl::option<Clonable> c = btl::just(btl::clone(Clonable(10)));
-    btl::option<std::string> ss = btl::just<char const*>("test");
+    btl::option<std::string> ss = btl::just("test");
 
     auto v = btl::cloneOnCopy(Clonable(10));
 

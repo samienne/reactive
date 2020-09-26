@@ -3,7 +3,7 @@
 #include "vertexshaderimpl.h"
 #include "glshader.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/gl.h>
 
@@ -14,7 +14,7 @@ namespace ase
     class GlPlatform;
     class GlRenderContext;
 
-    class BTL_VISIBLE GlVertexShader : public VertexShaderImpl
+    class ASE_EXPORT GlVertexShader : public VertexShaderImpl
     {
     public:
         GlVertexShader(GlRenderContext& context, std::string const& source);

@@ -5,7 +5,7 @@
 #include "vector.h"
 #include "blendmode.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <functional>
 #include <vector>
@@ -53,7 +53,7 @@ namespace ase
      *              same Platform.
      *
      */
-    class BTL_VISIBLE RenderContext
+    class ASE_EXPORT RenderContext
     {
     public:
         RenderContext(Platform& platform,
@@ -64,7 +64,7 @@ namespace ase
         ~RenderContext();
 
         RenderContext& operator=(RenderContext const&) = delete;
-        RenderContext& operator=(RenderContext&&) = default;
+        RenderContext& operator=(RenderContext&&) = delete;
 
         void flush();
         void finish();

@@ -1,5 +1,4 @@
 #include "app.h"
-#include "glxapp.h"
 
 #include "debug.h"
 
@@ -13,7 +12,7 @@ namespace reactive
 {
 
 App::App() :
-    impl_(std::make_unique<GlxApp>())
+    impl_(makeAppImpl())
 {
 }
 

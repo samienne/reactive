@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <string>
 #include <memory>
@@ -11,7 +11,7 @@ namespace ase
     class RenderContext;
     class Platform;
 
-    class BTL_VISIBLE FragmentShader
+    class ASE_EXPORT FragmentShader
     {
     public:
         FragmentShader(std::shared_ptr<FragmentShaderImpl> impl);

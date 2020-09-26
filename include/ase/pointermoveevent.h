@@ -1,14 +1,13 @@
 #pragma once
 
 #include "vector.h"
-
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <array>
 
 namespace ase
 {
-    struct BTL_VISIBLE PointerMoveEvent
+    struct ASE_EXPORT PointerMoveEvent
     {
         Vector2f pos;
         Vector2f rel;
@@ -16,6 +15,6 @@ namespace ase
         bool hover;
     };
 
-    BTL_VISIBLE bool isButtonDown(PointerMoveEvent const& e);
+    ASE_EXPORT bool isButtonDown(PointerMoveEvent const& e);
 } // ase
 

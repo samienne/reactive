@@ -13,7 +13,7 @@ pr:
       - "*"
 
 jobs:
-- job: build
+- job: build_linux
   pool:
     vmImage: 'ubuntu-latest'
   strategy:
@@ -66,5 +66,87 @@ jobs:
   - task: PublishCodeCoverageResults@1
     inputs:
       summaryFileLocation: $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)/meson-logs/coverage.xml
+    enabled: false
+
+- job: build_win
+  pool:
+    vmImage: 'windows-2019'
+  strategy:
+    matrix:
+      vs:
+        DEPS: ''
+        CC: ''
+        CXX: ''
+        BUILDTYPE: 'release'
+
+  steps:
+  - checkout: self
+    submodules: true
+
+  - powershell: |
+      # download and install prerequisites
+      function DownloadFile([String] $Source, [String] $Destination)
+      {
+          $retries = 10
+          for ($i = 1; $i -le $retries; $i++)
+          {
+              try
+              {
+                  (New-Object net.webclient).DownloadFile($Source, $Destination)
+                  break # succeeded
+              }
+              catch [net.WebException]
+              {
+                if ($i -eq $retries)
+                {
+                  throw # fail on last retry
+                }
+
+                $backoff = (10 * $i) # backoff 10s, 20s, 30s...
+                echo ('{0}: {1}' -f $Source, $_.Exception.Message)
+                echo ('Retrying in {0}s...' -f $backoff)
+                Start-Sleep -m ($backoff * 1000)
+              }
+          }
+      }
+
+      DownloadFile -Source 'https://github.com/mesonbuild/cidata/raw/master/ninja.exe' -Destination $(System.WorkFolder)\ninja.exe
+
+      # add downloads to PATH
+      $env:Path = "$env:SYSTEM_WORKFOLDER;$env:Path"
+
+      $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+      $vcvarspath = &$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+      Write-Output "vc tools located at: $vcvarspath"
+
+      cmd.exe /c "call `"$vcvarspath\VC\Auxiliary\Build\vcvars64.bat`" && set > %temp%\vcvars.txt"
+
+      Get-Content "$env:temp\vcvars.txt" | Foreach-Object {
+        if ($_ -match "^(.*?)=(.*)$") {
+          Set-Content "env:\$($matches[1])" $matches[2]
+        }
+      }
+
+      $env:PKG_CONFIG_LIBDIR = "."
+
+      md build\win-$(BUILDTYPE)
+      echo 'Configuring...'
+      python build\meson\meson.py --buildtype=$(BUILDTYPE) --wrap-mode=forcefallback  . build/win-$(BUILDTYPE)
+      #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
+      echo 'Building...'
+      ninja -C build/win-$(BUILDTYPE)
+      ninja -C build/win-$(BUILDTYPE) test
+    displayName: 'BuildAndTest'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: build/**/test_detail.xml
+      failTaskOnFailedTests: true
+
+  - task: PublishCodeCoverageResults@1
+    inputs:
+      summaryFileLocation: $(Build.SourcesDirectory)/build/win-$(BUILDTYPE)/meson-logs/coverage.xml
     enabled: false
 

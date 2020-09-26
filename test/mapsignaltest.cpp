@@ -45,7 +45,7 @@ TEST(Map, tupleReduce)
 
 TEST(MapSignal, map)
 {
-    auto add = [](float l, float r)
+    auto add = [](int l, int r)
     {
         return l + r;
     };
@@ -58,7 +58,7 @@ TEST(MapSignal, map)
 
     static_assert(signal::IsSignal<decltype(s3)>::value, "");
     static_assert(std::is_same<signal::SignalValueType<decltype(s3)>::type,
-            float>::value, "");
+            int>::value, "");
 
     EXPECT_FALSE(s3.hasChanged());
     EXPECT_EQ(30, s3.evaluate());
@@ -76,7 +76,7 @@ TEST(MapSignal, map)
 TEST(MapSignal, mapMultiple)
 {
     int count = 0;
-    auto add = [&count](float l, float r)
+    auto add = [&count](int l, int r)
     {
         ++count;
         return l + r;

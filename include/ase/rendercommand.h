@@ -11,14 +11,14 @@
 #include "uniformset.h"
 
 #include <btl/option.h>
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <vector>
 #include <memory>
 
 namespace ase
 {
-    struct BTL_VISIBLE RenderCommandDeferred
+    struct ASE_EXPORT RenderCommandDeferred
     {
         RenderCommandDeferred(
                 Framebuffer framebuffer,
@@ -52,7 +52,7 @@ namespace ase
         float z_;
     };
 
-    class BTL_VISIBLE RenderCommand
+    class ASE_EXPORT RenderCommand
     {
     public:
         RenderCommand(

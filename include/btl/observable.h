@@ -39,12 +39,12 @@ namespace btl
             std::weak_ptr<detail::observable_control_base> weak = d_.ptr();
 
             return connection::on_disconnect(
-                    [i, observable=std::move(weak)]() mutable
+                    [i, weak=std::move(weak)]() mutable
                     {
-                        if (auto p = observable.lock())
+                        if (auto p = weak.lock())
                         {
                             p->disconnect(i);
-                            observable.reset();
+                            weak.reset();
                         }
                     });
         }

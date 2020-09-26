@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <string>
 #include <memory>
@@ -9,7 +9,7 @@ namespace ase
 {
     class WindowImpl;
 
-    class BTL_VISIBLE Window
+    class ASE_EXPORT Window
     {
     public:
         Window();

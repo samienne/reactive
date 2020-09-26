@@ -2,7 +2,7 @@
 
 #include "glplatform.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <GL/glx.h>
 #include <X11/Xlib.h>
@@ -15,7 +15,7 @@ namespace ase
     class GlxContext;
     class GlxPlatformDeferred;
 
-    class BTL_VISIBLE GlxPlatform : public GlPlatform
+    class ASE_EXPORT GlxPlatform : public GlPlatform
     {
     public:
         typedef std::mutex Mutex;

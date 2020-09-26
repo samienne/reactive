@@ -4,7 +4,7 @@
 #include "indexbufferimpl.h"
 #include "glbuffer.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <cstring>
 
@@ -14,7 +14,7 @@ namespace ase
     class Buffer;
     struct Dispatched;
 
-    class BTL_VISIBLE GlIndexBuffer : public IndexBufferImpl
+    class ASE_EXPORT GlIndexBuffer : public IndexBufferImpl
     {
     public:
         GlIndexBuffer(GlRenderContext& context);

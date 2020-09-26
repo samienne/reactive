@@ -30,9 +30,9 @@ namespace reactive
             */
 
             template <typename TFunc>
-            auto fmap(TFunc&& f) && -> Stream<std::result_of_t<TFunc(T)>>
+            auto fmap(TFunc&& f) && -> Stream<std::invoke_result_t<TFunc, T>>
             {
-                using NewType = std::result_of_t<TFunc(T)>;
+                using NewType = std::invoke_result_t<TFunc, T>;
                 using NewControlType = ControlWithData<NewType, decltype(control_)>;
                 auto newControl = std::make_shared<NewControlType>(std::move(control_));
                 Handle<NewType> newHandle(newControl);

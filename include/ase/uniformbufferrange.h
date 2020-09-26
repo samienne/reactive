@@ -2,11 +2,11 @@
 
 #include "uniformbuffer.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    struct BTL_VISIBLE UniformBufferRange
+    struct ASE_EXPORT UniformBufferRange
     {
         size_t offset;
         size_t size;

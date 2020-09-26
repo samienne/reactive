@@ -1,6 +1,12 @@
 
 incdir = include_directories('../../include', '../../include/reactive', '.')
 
+if target_machine.system() == 'linux'
+    systemsrc = ['glxapp.cpp']
+else
+    systemsrc = ['dummyapp.cpp']
+endif
+
 libreactivesrc = [
     'widget/button.cpp',
     'widget/widgetobject.cpp',
@@ -26,7 +32,6 @@ libreactivesrc = [
     'rendering.cpp',
     'window.cpp',
     'app.cpp',
-    'glxapp.cpp',
     'connection.cpp',
     'annotation.cpp',
     'clickevent.cpp',
@@ -43,10 +48,10 @@ reactivedep = [libbtldep, libasedep, libavgdep]
 
 libreactive = library(
         'reactive',
-        libreactivesrc,
+        [systemsrc, libreactivesrc],
         include_directories: incdir,
         dependencies: reactivedep,
-        cpp_args: ['-Wno-unused-function', '-DREACTIVE_EXPORT_SYMBOLS'],
+        cpp_args: ['-DREACTIVE_EXPORT_SYMBOLS'],
         gnu_symbol_visibility: 'hidden'
         )
 

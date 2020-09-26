@@ -8,6 +8,7 @@
 #include <vector>
 #include <list>
 #include <iostream>
+#include <array>
 
 using namespace pmr;
 

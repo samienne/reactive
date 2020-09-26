@@ -5,7 +5,7 @@
 #include "usage.h"
 #include "vector.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <vector>
 #include <memory>
@@ -33,7 +33,7 @@ namespace ase
     class VertexSpec;
     class UniformSet;
 
-    class BTL_VISIBLE RenderContextImpl
+    class ASE_EXPORT RenderContextImpl
     {
     public:
         virtual ~RenderContextImpl() = default;

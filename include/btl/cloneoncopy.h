@@ -144,7 +144,7 @@ namespace btl
             if (&rhs == this)
                 return *this;
 
-            value_ = btl::clone(rhs);
+            value_ = btl::clone(*rhs);
 
             return *this;
         }

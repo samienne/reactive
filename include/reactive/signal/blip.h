@@ -93,7 +93,7 @@ namespace reactive::signal
             IsSignal<TSignal>::value
             >
         >
-    REACTIVE_EXPORT auto blip(TSignal signal)
+    auto blip(TSignal signal)
     {
         return Blip<std::decay_t<TSignal>>(std::move(signal));
     }

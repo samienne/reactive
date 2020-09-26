@@ -19,7 +19,7 @@ namespace btl
     template <typename T> class option;
 
     template <typename T>
-    auto just(T&& value) -> btl::option<typename std::decay<T>::type>;
+    auto just(T&& value) -> btl::option<std::decay_t<T>>;
 
     template <typename T>
     class alignas(alignof(T)) option
@@ -398,15 +398,20 @@ namespace btl
     }
 
     template <typename T>
-    auto just(T&& value) -> btl::option<typename std::decay<T>::type>
+    auto just(T&& value) -> btl::option<std::decay_t<T>>
     {
-        return btl::option<typename std::decay<T>::type>(
-                std::forward<T>(value));
+        return btl::option<std::decay_t<T>>(std::forward<T>(value));
     }
 
-    inline auto just(const char* str) -> btl::option<std::string>
+    inline auto just(char const* str) -> btl::option<std::string>
     {
         return just<std::string>(str);
+    }
+
+    template <int n>
+    inline auto just(char const str[n]) -> btl::option<std::string>
+    {
+        return just<std::string>(std::string(str));
     }
 }
 

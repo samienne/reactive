@@ -1,12 +1,12 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
     struct UniformBufferRange;
 
-    class BTL_VISIBLE UniformSetImpl
+    class ASE_EXPORT UniformSetImpl
     {
     public:
         virtual ~UniformSetImpl() = default;

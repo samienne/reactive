@@ -2,6 +2,8 @@
 
 #include "type.h"
 
+#include <algorithm>
+
 namespace ase
 {
 

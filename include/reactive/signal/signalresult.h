@@ -74,6 +74,9 @@ namespace reactive::signal
                     }, values_);
         }
 
+        template <typename... Us>
+        friend class SignalResult;
+
     private:
         std::tuple<Ts...> values_;
     };

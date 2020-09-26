@@ -2,7 +2,7 @@
 
 #include "usage.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
@@ -11,7 +11,7 @@ namespace ase
     class Buffer;
     class Aabb;
 
-    class BTL_VISIBLE VertexBufferImpl
+    class ASE_EXPORT VertexBufferImpl
     {
     public:
         virtual ~VertexBufferImpl() = default;

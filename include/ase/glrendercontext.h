@@ -7,7 +7,7 @@
 #include "rendercontextimpl.h"
 #include "vector.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 #include <btl/option.h>
 
 namespace ase
@@ -16,7 +16,7 @@ namespace ase
     class GlPlatform;
     class GlDispatchedContext;
 
-    class BTL_VISIBLE GlRenderContext : public RenderContextImpl
+    class ASE_EXPORT GlRenderContext : public RenderContextImpl
     {
     public:
         GlRenderContext(

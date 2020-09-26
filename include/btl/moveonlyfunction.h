@@ -84,14 +84,14 @@ namespace btl
 
         template <typename... Ts>
         auto operator()(Ts&&... ts) const
-        -> std::result_of_t<std::function<TSignature>(Ts...)>
+        -> std::invoke_result_t<std::function<TSignature>, Ts...>
         {
             return func_(std::forward<Ts>(ts)...);
         }
 
         template <typename... Ts>
         auto operator()(Ts&&... ts)
-        -> std::result_of_t<std::function<TSignature>(Ts...)>
+        -> std::invoke_result_t<std::function<TSignature>, Ts...>
         {
             return func_(std::forward<Ts>(ts)...);
         }

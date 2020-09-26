@@ -3,7 +3,7 @@
 #include "rendercontext.h"
 #include "platform.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -14,7 +14,7 @@ namespace ase
     /**
      * @brief Abstract base class for all OpenGl platforms
      */
-    class BTL_VISIBLE GlPlatform : public Platform
+    class ASE_EXPORT GlPlatform : public Platform
     {
     public:
         GlPlatform();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <memory>
 
@@ -9,7 +9,7 @@ namespace ase
     class Texture;
     class Renderbuffer;
 
-    class BTL_VISIBLE FramebufferImpl
+    class ASE_EXPORT FramebufferImpl
     {
     public:
         virtual ~FramebufferImpl() = default;

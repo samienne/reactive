@@ -2,10 +2,14 @@
 
 #include <string>
 #include <typeinfo>
+
+#ifdef __unix__
 #include <cxxabi.h>
+#endif
 
 namespace btl
 {
+#ifdef __unix__
     template <typename T>
     std::string demangle()
     {
@@ -14,5 +18,12 @@ namespace btl
         free(name);
         return r;
     }
+#else
+    template <typename T>
+    std::string demangle()
+    {
+        return "";
+    }
+#endif
 }
 

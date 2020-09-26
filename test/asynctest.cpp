@@ -37,7 +37,7 @@ auto makeFuture(T&& value)
     return async([value=std::forward<T>(value)]() mutable
         -> std::decay_t<T>
     {
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         return std::forward<T>(value);
     });
 }
@@ -224,7 +224,7 @@ TEST(async, autoCancel)
     }
 
     // Make sure that the future has time to finish if it is running
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     EXPECT_FALSE(didRun);
 }
@@ -240,7 +240,7 @@ TEST(async, futureListen)
             didCall = true;
         });
 
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     EXPECT_TRUE(didCall);
 }
@@ -258,7 +258,7 @@ TEST(async, futureListenCancel)
             });
     }
 
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     EXPECT_FALSE(didCall);
 }
@@ -274,7 +274,7 @@ TEST(async, sharedFutureListen)
             didCall = true;
         });
 
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     EXPECT_TRUE(didCall);
 }
@@ -292,7 +292,7 @@ TEST(async, sharedFutureListenCancel)
             });
     }
 
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::seconds(2));
 
     EXPECT_FALSE(didCall);
 }
@@ -399,7 +399,7 @@ TEST(async, perf)
     size_t const steps = 20;
 
     {
-        sleep(1);
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << "start threaded" << std::endl;
         auto start = std::chrono::steady_clock::now();
 

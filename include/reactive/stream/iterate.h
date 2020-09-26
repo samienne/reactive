@@ -131,7 +131,7 @@ namespace reactive::stream
                 value_ = btl::just(std::apply(
                         func_,
                         std::tuple_cat(
-                            std::make_tuple(std::move(*value_),
+                            std::forward_as_tuple(std::move(*value_),
                                 std::forward<decltype(v)>(v)
                                 ),
                             btl::tuple_map(*sigs_, stream::detail::Evaluate())
@@ -220,7 +220,7 @@ namespace reactive::stream
                 value_ = std::apply(
                         func_,
                         std::tuple_cat(
-                            std::make_tuple(std::move(value_),
+                            std::forward_as_tuple(std::move(value_),
                                 std::forward<decltype(v)>(v)
                                 ),
                             btl::tuple_map(*sigs_, stream::detail::Evaluate())
@@ -268,13 +268,15 @@ namespace reactive::stream
                     btl::All<
                         signal::AreSignals<TInitial, TSignals...>,
                         std::is_convertible<
-                            std::result_of_t<TFunc(
+                            std::invoke_result_t<
+                                TFunc,
                                 signal::signal_value_t<TInitial>,
                                 T,
-                                signal::signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...
                             >,
                             signal::signal_value_t<TInitial>
-                        >
+                        >,
+                        btl::IsClonable<TInitial>
                     >::value
                     >>
     auto iterate(TFunc func, TInitial initial, Stream<T> stream,
@@ -300,13 +302,15 @@ namespace reactive::stream
                         signal::AreSignals<TSignals...>,
                         btl::Not<signal::IsSignal<TInitial>>,
                         std::is_convertible<
-                            std::result_of_t<TFunc(
+                            std::invoke_result_t<
+                                TFunc,
                                 TInitial,
                                 T,
-                                signal::signal_value_t<TSignals>...)
+                                signal::signal_value_t<TSignals>...
                             >,
                             TInitial
-                        >
+                        >,
+                        btl::IsClonable<TInitial>
                     >::value
                     >,
                     int = 0>

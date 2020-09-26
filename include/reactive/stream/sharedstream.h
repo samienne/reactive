@@ -28,9 +28,9 @@ namespace reactive
             }
 
             template <typename TFunc>
-            auto fmap(TFunc&& f) const -> Stream<std::result_of_t<TFunc(T)>>
+            auto fmap(TFunc&& f) const -> Stream<std::invoke_result_t<TFunc, T>>
             {
-                using NewType = std::result_of_t<TFunc(T)>;
+                using NewType = std::invoke_result_t<TFunc, T>;
                 size_t index = nextIndex_++;
 
                 auto destructor = [index, control = control_]()

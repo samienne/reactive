@@ -1,13 +1,13 @@
 #ifndef BG_ATOMICREFCOUNTABLE_H
 #define BG_ATOMICREFCOUNTABLE_H
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 #include <atomic>
 
 namespace Bg
 {
-    class BTL_VISIBLE AtomicRefCountable
+    class ASE_EXPORT AtomicRefCountable
     {
     public:
         AtomicRefCountable() :

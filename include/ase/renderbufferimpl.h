@@ -2,11 +2,11 @@
 
 #include "format.h"
 
-#include <btl/visibility.h>
+#include "asevisibility.h"
 
 namespace ase
 {
-    class BTL_VISIBLE RenderbufferImpl
+    class ASE_EXPORT RenderbufferImpl
     {
     public:
         virtual ~RenderbufferImpl() = default;

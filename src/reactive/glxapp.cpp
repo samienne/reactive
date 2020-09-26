@@ -439,5 +439,10 @@ int GlxApp::run(AnySignal<bool> running) &&
     return 0;
 }
 
+std::unique_ptr<AppImpl> makeAppImpl()
+{
+    return std::make_unique<GlxApp>();
+}
+
 } // namespace
 
