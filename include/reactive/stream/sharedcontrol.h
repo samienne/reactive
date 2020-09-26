@@ -10,7 +10,7 @@ namespace reactive
         template <typename T>
         struct SharedControl
         {
-            std::vector<std::pair<std::function<void(T)>, uint32_t>> callbacks;
+            std::vector<std::pair<std::function<void(T)>, size_t>> callbacks;
         };
 
     } // stream
