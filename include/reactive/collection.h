@@ -4,6 +4,7 @@
 
 #include <btl/spinlock.h>
 
+#include <algorithm>
 #include <vector>
 #include <utility>
 #include <memory>
