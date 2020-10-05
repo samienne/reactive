@@ -1,5 +1,11 @@
 #pragma once
 
+#include "glxframebuffer.h"
+#include "glxdispatchedcontext.h"
+#include "glxrendercontext.h"
+#include "glxcontext.h"
+#include "glxplatform.h"
+
 #include "vector.h"
 #include "window.h"
 #include "pointerbuttonevent.h"
@@ -7,8 +13,22 @@
 #include "pointerdragevent.h"
 #include "hoverevent.h"
 #include "keyevent.h"
+#include "windowimpl.h"
+#include "framebuffer.h"
+#include "genericwindow.h"
+#include "windowimpl.h"
 
 #include "asevisibility.h"
+
+#include <GL/gl.h>
+#include <GL/glxext.h>
+#include <GL/glx.h>
+
+#include <X11/extensions/sync.h>
+#include <X11/Xatom.h>
+#include <X11/XKBlib.h>
+#include <X11/Xutil.h>
+#include <X11/X.h>
 
 #include <mutex>
 #include <vector>
@@ -25,7 +45,7 @@ namespace ase
     class Framebuffer;
     struct Dispatched;
 
-    class ASE_EXPORT GlxWindow : public Window
+    class ASE_EXPORT GlxWindow : public WindowImpl
     {
     public:
         typedef std::mutex Mutex;
@@ -41,22 +61,35 @@ namespace ase
 
         void handleEvents(std::vector<_XEvent> const& events);
 
-        void setCloseCallback(std::function<void()> func);
-        void setResizeCallback(std::function<void()> func);
-        void setRedrawCallback(std::function<void()> func);
-        void setButtonCallback(
-                std::function<void(PointerButtonEvent const&)> cb);
-        void setPointerCallback(
-                std::function<void(PointerMoveEvent const&)> cb);
-        void setDragCallback(
-                std::function<void(PointerDragEvent const&)> cb);
-        void setKeyCallback(std::function<void(KeyEvent const&)> cb);
-        void setHoverCallback(std::function<void(HoverEvent const&)> cb);
+        // From WindowImpl
+        void setVisible(bool value) override;
+        bool isVisible() const override;
 
-        Vector2i getSize() const;
-        Framebuffer& getDefaultFramebuffer();
+        void setTitle(std::string&& title) override;
+        std::string const& getTitle() const override;
+
+        Vector2i getSize() const override;
+        Framebuffer& getDefaultFramebuffer() override;
+
+        void clear() override;
+
+        void setCloseCallback(std::function<void()> func) override;
+        void setResizeCallback(std::function<void()> func) override;
+        void setRedrawCallback(std::function<void()> func) override;
+        void setButtonCallback(
+                std::function<void(PointerButtonEvent const&)> cb) override;
+        void setPointerCallback(
+                std::function<void(PointerMoveEvent const&)> cb) override;
+        void setDragCallback(
+                std::function<void(PointerDragEvent const&)> cb) override;
+        void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
+        void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
+
+        Vector2i getResolution() const;
 
     private:
+        void destroy();
+
         friend class GlxRenderContext;
         void handleEvent(_XEvent const& e);
         void present(Dispatched);
@@ -66,17 +99,29 @@ namespace ase
         friend class GlxFramebuffer;
         void makeCurrent(Lock const& lock, GlxContext const& context) const;
 
-    private:
-        friend class GlxWindowDeferred;
-        inline GlxWindowDeferred* d()
-        {
-            return reinterpret_cast<GlxWindowDeferred*>(Window::d());
-        }
+        GlxPlatform& platform_;
+        ::Window xWin_ = 0;
+        ::GLXWindow glxWin_ = 0;
+        XIM xim_ = nullptr;
+        XIC xic_ = nullptr;
+        XID syncCounter_ = 0;
+        int64_t counterValue_ = 0;
 
-        inline GlxWindowDeferred const* d() const
-        {
-            return reinterpret_cast<GlxWindowDeferred const*>(Window::d());
-        }
+        GenericWindow genericWindow_;
+        Framebuffer defaultFramebuffer_;
+
+        bool visible_ = false;
+
+        // Text input handling
+        //XComposeStatus composeStatus_;
+
+        // Atoms
+        Atom wmDelete_;
+        Atom wmProtocols_;
+        Atom wmSyncRequest_;
+
+        // counters
+        unsigned int frames_ = 0;
     };
 }
 

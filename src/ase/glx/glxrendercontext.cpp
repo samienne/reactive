@@ -36,9 +36,9 @@ GlxRenderContext::~GlxRenderContext()
 
 void GlxRenderContext::present(Window& window)
 {
-    dispatch([&window](GlFunctions const&)
+    dispatch([&window](GlFunctions const&) mutable
             {
-                GlxWindow& glxWindow = static_cast<GlxWindow&>(window);
+                GlxWindow& glxWindow = window.getImpl<GlxWindow>();
                 glxWindow.present(Dispatched());
             });
     wait();

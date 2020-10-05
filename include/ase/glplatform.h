@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rendercontext.h"
-#include "platform.h"
+#include "platformimpl.h"
 
 #include "asevisibility.h"
 
@@ -14,7 +14,7 @@ namespace ase
     /**
      * @brief Abstract base class for all OpenGl platforms
      */
-    class ASE_EXPORT GlPlatform : public Platform
+    class ASE_EXPORT GlPlatform : public PlatformImpl
     {
     public:
         GlPlatform();

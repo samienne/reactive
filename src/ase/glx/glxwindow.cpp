@@ -2,33 +2,11 @@
 
 #include "glxwindow.h"
 
-#include "glxframebuffer.h"
-#include "glxdispatchedcontext.h"
-#include "glxrendercontext.h"
-#include "glxcontext.h"
-#include "glxplatform.h"
 #include "glerror.h"
-
-#include "framebuffer.h"
-#include "genericwindow.h"
-#include "windowimpl.h"
-#include "window.h"
-#include "rendercontext.h"
-#include "dispatcher.h"
 
 #include "debug.h"
 
 #include <btl/option.h>
-
-#include <GL/gl.h>
-#include <GL/glxext.h>
-#include <GL/glx.h>
-
-#include <X11/extensions/sync.h>
-#include <X11/Xatom.h>
-#include <X11/XKBlib.h>
-#include <X11/Xutil.h>
-#include <X11/X.h>
 
 #include <stdexcept>
 #include <algorithm>
@@ -70,59 +48,6 @@ void printAll(std::ostream& stream)
 
 } // anonymous namespace
 
-class GlxWindowDeferred : public WindowImpl
-{
-public:
-    typedef GlxWindow::Lock Lock;
-
-    GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
-            Vector2i const& size);
-    ~GlxWindowDeferred();
-
-    void destroy();
-
-    // From WindowImpl
-    void setVisible(bool value) override;
-    bool isVisible() const override;
-
-    void setTitle(std::string&& title) override;
-    std::string const& getTitle() const override;
-    void clear() override;
-
-    Vector2i getResolution() const;
-
-    GlxWindow* window_;
-    inline GlxWindow* q() { return window_; }
-    inline GlxWindow const* q() const { return window_; }
-
-private:
-    friend class GlxWindow;
-
-    GlxPlatform& platform_;
-    ::Window xWin_ = 0;
-    GLXWindow glxWin_ = 0;
-    XIM xim_ = nullptr;
-    XIC xic_ = nullptr;
-    XID syncCounter_ = 0;
-    int64_t counterValue_ = 0;
-
-    GenericWindow genericWindow_;
-    Framebuffer defaultFramebuffer_;
-
-    bool visible_ = false;
-
-    // Text input handling
-    //XComposeStatus composeStatus_;
-
-    // Atoms
-    Atom wmDelete_;
-    Atom wmProtocols_;
-    Atom wmSyncRequest_;
-
-    // counters
-    unsigned int frames_ = 0;
-};
-
 namespace
 {
     uint32_t mapXKeyStateToModifiers(int state)
@@ -140,12 +65,10 @@ namespace
     }
 }
 
-GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
-        Vector2i const& size) :
-    window_(&window),
+GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     platform_(platform),
     genericWindow_(size),
-    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, window))
+    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, *this))
 {
     unsigned int width = size[0];
     unsigned int height = size[1];
@@ -163,6 +86,12 @@ GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
     try
     {
         GlxPlatform::Lock lock = platform_.lockX();
+
+        platform_.registerWindow(lock, *this);
+
+        wmDelete_ = XInternAtom(dpy, "WM_DELETE_WINDOW", true);
+        wmProtocols_ = XInternAtom(dpy, "WM_PROTOCOLS", true);
+        wmSyncRequest_ = XInternAtom(dpy, "_NET_WM_SYNC_REQUEST", true);
 
         vInfo = glXGetVisualFromFBConfig(dpy, platform_.getGlxFbConfig());
 
@@ -242,17 +171,20 @@ GlxWindowDeferred::GlxWindowDeferred(GlxPlatform& platform, GlxWindow& window,
     }
 }
 
-GlxWindowDeferred::~GlxWindowDeferred()
+GlxWindow::~GlxWindow()
 {
     DBG("GlxWindow: Rendered %1 fames", frames_);
     destroy();
 }
 
-void GlxWindowDeferred::destroy()
+void GlxWindow::destroy()
 {
     //platform_.wait();
 
     GlxWindow::Lock lock(platform_.lockX());
+
+    platform_.unregisterWindow(lock, *this);
+
     Display* dpy = platform_.getDisplay();
 
     if (syncCounter_)
@@ -274,24 +206,6 @@ void GlxWindowDeferred::destroy()
     }
 }
 
-GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
-    Window(std::make_shared<GlxWindowDeferred>(platform, *this, size))
-{
-    Display* dpy = d()->platform_.getDisplay();
-
-    {
-        Lock lock(lockX());
-        d()->wmDelete_ = XInternAtom(dpy, "WM_DELETE_WINDOW", true);
-        d()->wmProtocols_ = XInternAtom(dpy, "WM_PROTOCOLS", true);
-        d()->wmSyncRequest_ = XInternAtom(dpy, "_NET_WM_SYNC_REQUEST", true);
-    }
-
-}
-
-GlxWindow::~GlxWindow()
-{
-}
-
 void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 {
     for (auto const& e : events)
@@ -300,97 +214,87 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 
 void GlxWindow::setCloseCallback(std::function<void()> func)
 {
-    d()->genericWindow_.setCloseCallback(std::move(func));
+    genericWindow_.setCloseCallback(std::move(func));
 }
 
 void GlxWindow::setResizeCallback(std::function<void()> func)
 {
-    d()->genericWindow_.setResizeCallback(std::move(func));
+    genericWindow_.setResizeCallback(std::move(func));
 }
 
 void GlxWindow::setRedrawCallback(std::function<void()> func)
 {
-    d()->genericWindow_.setRedrawCallback(std::move(func));
+    genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void GlxWindow::setButtonCallback(
         std::function<void(PointerButtonEvent const& e)> cb)
 {
-    d()->genericWindow_.setButtonCallback(std::move(cb));
+    genericWindow_.setButtonCallback(std::move(cb));
 }
 
 void GlxWindow::setPointerCallback(
         std::function<void(PointerMoveEvent const&)> cb)
 {
-    d()->genericWindow_.setPointerCallback(std::move(cb));
+    genericWindow_.setPointerCallback(std::move(cb));
 }
 
 void GlxWindow::setDragCallback(
         std::function<void(PointerDragEvent const&)> cb)
 {
-    d()->genericWindow_.setDragCallback(std::move(cb));
+    genericWindow_.setDragCallback(std::move(cb));
 }
 
 void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
-    d()->genericWindow_.setKeyCallback(std::move(cb));
+    genericWindow_.setKeyCallback(std::move(cb));
 }
 
 void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 {
-    d()->genericWindow_.setHoverCallback(std::move(cb));
-}
-
-Vector2i GlxWindow::getSize() const
-{
-    return d()->genericWindow_.getSize();
-}
-
-Framebuffer& GlxWindow::getDefaultFramebuffer()
-{
-    return d()->defaultFramebuffer_;
+    genericWindow_.setHoverCallback(std::move(cb));
 }
 
 void GlxWindow::handleEvent(_XEvent const& e)
 {
     // Skip events that are not for us.
-    if (e.xany.window != d()->xWin_)
+    if (e.xany.window != xWin_)
         return;
 
     auto event = e;
 
-    if (XFilterEvent(&event, d()->xWin_))
+    if (XFilterEvent(&event, xWin_))
         return;
 
     switch (event.type)
     {
     case Expose:
         if (event.xexpose.count == 0)
-            d()->genericWindow_.notifyRedraw();
+            genericWindow_.notifyRedraw();
         break;
     case ConfigureNotify:
-        d()->genericWindow_.resize(
+        genericWindow_.resize(
                 Vector2i(event.xconfigure.width, event.xconfigure.height)
                 );
         break;
 
     case ClientMessage:
-        if (event.xclient.message_type == d()->wmProtocols_
+        if (event.xclient.message_type == wmProtocols_
                 && static_cast<Atom>(event.xclient.data.l[0])
-                == d()->wmDelete_)
+                == wmDelete_)
         {
-            d()->genericWindow_.notifyClose();
+            genericWindow_.notifyClose();
         }
-        else if (event.xclient.message_type == d()->wmProtocols_
+        else if (event.xclient.message_type == wmProtocols_
                 && static_cast<Atom>(event.xclient.data.l[0])
-                == d()->wmSyncRequest_)
+                == wmSyncRequest_)
         {
             /*DBG("SyncRequest: %1 %2 %3 %4",
                     event.xclient.data.l[1],
                     event.xclient.data.l[2],
                     event.xclient.data.l[3],
                     event.xclient.data.l[4]);*/
-            d()->counterValue_ = (int64_t)event.xclient.data.l[2]
+            counterValue_ = (int64_t)event.xclient.data.l[2]
                 | ((int64_t)(event.xclient.data.l[3]) << 32);
 
         }
@@ -399,10 +303,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
     {
         Vector2f pos(
                 event.xbutton.x,
-                d()->genericWindow_.getHeight() - event.xbutton.y
+                genericWindow_.getHeight() - event.xbutton.y
                 );
 
-        d()->genericWindow_.injectPointerButtonEvent(
+        genericWindow_.injectPointerButtonEvent(
                 0, event.xbutton.button, pos, ButtonState::down);
 
         break;
@@ -411,18 +315,18 @@ void GlxWindow::handleEvent(_XEvent const& e)
     {
         Vector2f pos(
                 event.xbutton.x,
-                d()->genericWindow_.getHeight() - event.xbutton.y
+                genericWindow_.getHeight() - event.xbutton.y
                 );
 
-        d()->genericWindow_.injectPointerButtonEvent(
+        genericWindow_.injectPointerButtonEvent(
                 0, event.xbutton.button, pos, ButtonState::up);
 
         break;
     }
     case MotionNotify:
-        d()->genericWindow_.injectPointerMoveEvent(
+        genericWindow_.injectPointerMoveEvent(
                 0,
-                Vector2f(e.xmotion.x, d()->genericWindow_.getHeight() - e.xmotion.y)
+                Vector2f(e.xmotion.x, genericWindow_.getHeight() - e.xmotion.y)
                 );
         break;
     case KeyPress:
@@ -431,13 +335,13 @@ void GlxWindow::handleEvent(_XEvent const& e)
         char buf[10] = "";
         XKeyEvent e = event.xkey;
         Status status;
-        //int n  = XLookupString(&e, buf, sizeof(buf), &keysym, &d()->composeStatus_);
+        //int n  = XLookupString(&e, buf, sizeof(buf), &keysym, &composeStatus_);
         //DBG("n: %1 %2", n, buf);
-        int count = Xutf8LookupString(d()->xic_, &event.xkey, buf,
+        int count = Xutf8LookupString(xic_, &event.xkey, buf,
                 sizeof(buf), &keysym, &status);
         buf[count] = 0;
 
-        d()->genericWindow_.injectKeyEvent(
+        genericWindow_.injectKeyEvent(
                 KeyState::down,
                 static_cast<KeyCode>(XLookupKeysym(&e, 0)),
                 mapXKeyStateToModifiers(event.xkey.state),
@@ -448,7 +352,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
     case KeyRelease:
         {
             XKeyEvent e = event.xkey;
-            d()->genericWindow_.injectKeyEvent(
+            genericWindow_.injectKeyEvent(
                     KeyState::up,
                     static_cast<KeyCode>(XLookupKeysym(&e, 0)),
                     mapXKeyStateToModifiers(event.xkey.state),
@@ -461,16 +365,16 @@ void GlxWindow::handleEvent(_XEvent const& e)
     case MapNotify:
         break;
     case EnterNotify:
-        d()->genericWindow_.injectHoverEvent(
+        genericWindow_.injectHoverEvent(
                 0,
-                Vector2f(e.xcrossing.x, d()->genericWindow_.getHeight() - e.xcrossing.y),
+                Vector2f(e.xcrossing.x, genericWindow_.getHeight() - e.xcrossing.y),
                 true
                 );
         break;
     case LeaveNotify:
-        d()->genericWindow_.injectHoverEvent(
+        genericWindow_.injectHoverEvent(
                 0,
-                Vector2f(e.xcrossing.x, d()->genericWindow_.getHeight() - e.xcrossing.y),
+                Vector2f(e.xcrossing.x, genericWindow_.getHeight() - e.xcrossing.y),
                 false
                 );
         break;
@@ -482,26 +386,26 @@ void GlxWindow::handleEvent(_XEvent const& e)
 
 void GlxWindow::present(Dispatched)
 {
-    ++d()->frames_;
-    auto lock = d()->platform_.lockX();
-    auto dpy = d()->platform_.getDisplay();
+    ++frames_;
+    auto lock = platform_.lockX();
+    auto dpy = platform_.getDisplay();
 
-    d()->platform_.swapGlxBuffers(lock, d()->glxWin_);
+    platform_.swapGlxBuffers(lock, glxWin_);
 
     /*GLenum err = glGetError();
     if (err != GL_NO_ERROR)
         DBG("glError: %1", glErrorToString(err));*/
 
-    setSyncCounter(dpy, d()->syncCounter_, d()->counterValue_);
+    setSyncCounter(dpy, syncCounter_, counterValue_);
     XSync(dpy, false);
 }
 
 GlxWindow::Lock GlxWindow::lockX() const
 {
-    return d()->platform_.lockX();
+    return platform_.lockX();
 }
 
-void GlxWindowDeferred::setVisible(bool value)
+void GlxWindow::setVisible(bool value)
 {
     if (value == visible_)
         return;
@@ -514,8 +418,8 @@ void GlxWindowDeferred::setVisible(bool value)
     if (value)
     {
         XMapWindow(platform_.getDisplay(), xWin_);
-        /*XIfEvent(d()->platform_.getDisplay(),
-                &event, waitForNotify, (XPointer) d()->xWin_);*/
+        /*XIfEvent(platform_.getDisplay(),
+                &event, waitForNotify, (XPointer) xWin_);*/
     }
     else
     {
@@ -523,12 +427,12 @@ void GlxWindowDeferred::setVisible(bool value)
     }
 }
 
-bool GlxWindowDeferred::isVisible() const
+bool GlxWindow::isVisible() const
 {
     return visible_;
 }
 
-void GlxWindowDeferred::setTitle(std::string&& title)
+void GlxWindow::setTitle(std::string&& title)
 {
     if (genericWindow_.getTitle() == title)
         return;
@@ -539,31 +443,34 @@ void GlxWindowDeferred::setTitle(std::string&& title)
     XStoreName(platform_.getDisplay(), xWin_, genericWindow_.getTitle().c_str());
 }
 
-std::string const& GlxWindowDeferred::getTitle() const
+std::string const& GlxWindow::getTitle() const
 {
     return genericWindow_.getTitle();
 }
 
-void GlxWindowDeferred::clear()
+Vector2i GlxWindow::getSize() const
+{
+    return genericWindow_.getSize();
+}
+
+Framebuffer& GlxWindow::getDefaultFramebuffer()
+{
+    return defaultFramebuffer_;
+}
+
+void GlxWindow::clear()
 {
     defaultFramebuffer_.clear();
 }
 
-/*
-bool GlxWindowDeferred::isComplete() const
-{
-    return true;
-}
-*/
-
-Vector2i GlxWindowDeferred::getResolution() const
+Vector2i GlxWindow::getResolution() const
 {
     return genericWindow_.getSize();
 }
 
 void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const
 {
-    context.makeCurrent(lock, d()->glxWin_);
+    context.makeCurrent(lock, glxWin_);
 }
 
 } // namespace

@@ -38,7 +38,9 @@ else
     system_incs = []
     system_src = [
         'dummy/dummyplatform.cpp',
-        'dummy/dummyrendercontext.cpp'
+        'dummy/dummyrendercontext.cpp',
+        'dummy/dummywindow.cpp',
+        'dummy/dummyframebuffer.cpp'
     ]
 endif
 
@@ -55,6 +57,7 @@ incdir = include_directories(
 
 libasesrc = [
         'genericwindow.cpp',
+        'platform.cpp',
         'window.cpp',
         'rendercontext.cpp',
         'renderable.cpp',

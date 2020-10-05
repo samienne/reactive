@@ -12,6 +12,7 @@
 
 namespace ase
 {
+    class GlxWindow;
     class GlxContext;
     class GlxPlatformDeferred;
 
@@ -31,11 +32,12 @@ namespace ase
 
         Lock lockX();
 
-        std::vector<XEvent> getEvents();
+        std::vector<XEvent> getEvents(Lock const&);
 
-    private:
         // From Platform
-        std::shared_ptr<RenderContextImpl> makeRenderContextImpl() override;
+        Window makeWindow(Vector2i size) override;
+        void handleEvents() override;
+        RenderContext makeRenderContext() override;
 
     private:
         friend class GlxRenderContext;
@@ -50,6 +52,8 @@ namespace ase
 
         friend class GlxWindow;
         friend class GlxWindowDeferred;
+        void registerWindow(Lock const&, GlxWindow& window);
+        void unregisterWindow(Lock const&, GlxWindow& window);
         GLXFBConfig getGlxFbConfig() const;
 
     private:

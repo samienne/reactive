@@ -4,7 +4,7 @@
 
 namespace ase
 {
-    class DummyRenderContext : public RenderContextImpl
+    class ASE_EXPORT DummyRenderContext : public RenderContextImpl
     {
     public:
         void submit(CommandBuffer&& commands) override;

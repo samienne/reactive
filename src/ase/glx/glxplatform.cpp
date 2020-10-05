@@ -4,6 +4,7 @@
 #include "glxcontext.h"
 #include "glxwindow.h"
 
+#include "platform.h"
 #include "rendercontext.h"
 
 #include "debug.h"
@@ -25,6 +26,11 @@
 
 namespace ase
 {
+
+Platform makeDefaultPlatform()
+{
+    return Platform(std::make_shared<GlxPlatform>());
+}
 
 typedef GLXContext (*glXCreateContextAttribsArbProc)(Display*, GLXFBConfig,
         GLXContext, Bool, const int*);
@@ -83,12 +89,17 @@ private:
 
     GlxPlatform::Mutex mutex_;
 
+    Atom wmDelete_ = 0;
+    Atom wmProtocols_ = 0;
+    Atom wmSyncRequest_ = 0;
+
     Display* dpy_ = nullptr;
     GLXFBConfig* configs_ = nullptr;
     size_t configCount_ = 0;
     GLXDrawable dummyBuffer_ = 0;
     std::unordered_set<GLXContext> glxContexts_;
-    std::vector<std::pair<::Window, GlxWindow*>> windows_;
+    //std::vector<std::pair<::Window, GlxWindow*>> windows_;
+    std::vector<GlxWindow*> windows_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
@@ -228,10 +239,8 @@ GlxPlatform::Lock GlxPlatform::lockX()
     return GlxPlatform::Lock(d()->mutex_);
 }
 
-std::vector<XEvent> GlxPlatform::getEvents()
+std::vector<XEvent> GlxPlatform::getEvents(Lock const&)
 {
-    Lock lock(lockX());
-
     size_t count = XPending(d()->dpy_);
     std::vector<XEvent> events;
 
@@ -245,9 +254,23 @@ std::vector<XEvent> GlxPlatform::getEvents()
     return events;
 }
 
-std::shared_ptr<RenderContextImpl> GlxPlatform::makeRenderContextImpl()
+Window GlxPlatform::makeWindow(Vector2i size)
 {
-    return std::make_shared<GlxRenderContext>(*this);
+    return Window(std::make_shared<GlxWindow>(*this, size));
+}
+
+void GlxPlatform::handleEvents()
+{
+    Lock lock(lockX());
+    std::vector<XEvent> events = getEvents(lock);
+
+    for (GlxWindow* w : d()->windows_)
+        w->handleEvents(events);
+}
+
+RenderContext GlxPlatform::makeRenderContext()
+{
+    return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
@@ -402,6 +425,23 @@ void printConfig(Display* dpy, GLXFBConfig& config)
     glXGetFBConfigAttrib(dpy, config, GLX_FRAMEBUFFER_SRGB_CAPABLE_EXT, &result);
     DBG("\tSrgb: %1", result ? "true" : "false");
 #endif
+}
+
+void GlxPlatform::registerWindow(Lock const&, GlxWindow& window)
+{
+    d()->windows_.push_back(&window);
+}
+
+void GlxPlatform::unregisterWindow(Lock const&, GlxWindow& window)
+{
+    for (auto i = d()->windows_.begin(); i != d()->windows_.end(); ++i)
+    {
+        if (*i == &window)
+        {
+            d()->windows_.erase(i);
+            return;
+        }
+    }
 }
 
 GLXFBConfig GlxPlatform::getGlxFbConfig() const

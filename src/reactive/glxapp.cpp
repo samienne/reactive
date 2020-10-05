@@ -7,13 +7,14 @@
 #include "signal/input.h"
 #include "send.h"
 
+#include <ase/window.h>
 #include <ase/renderqueue.h>
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
-#include <ase/glxwindow.h>
-#include <ase/glxplatform.h>
+#include <ase/platform.h>
 
+#include <memory>
 #include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
@@ -49,184 +50,144 @@ void GlxApp::addWindows(std::vector<Window> windows)
         windows_.push_back(std::move(w));
 }
 
-class GlxWindowGlue
-{
+class WindowGlue {
 public:
-    GlxWindowGlue(ase::GlxPlatform& platform, ase::RenderContext&& context,
-            Window window, avg::Painter painter) :
-        memoryPool_(pmr::new_delete_resource()),
-        memoryStatistics_(&memoryPool_),
-        memory_(&memoryStatistics_),
-        glxWindow(platform, ase::Vector2i(800, 600)),
-        context_(std::move(context)),
-        window_(std::move(window)),
+  WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
+             Window window, avg::Painter painter)
+      : memoryPool_(pmr::new_delete_resource()),
+        memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
+        aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
+        context_(std::move(context)), window_(std::move(window)),
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),
-        widget_(window_.getWidget()(
-                    signal::constant(DrawContext(memory_)),
-                    std::move(size_.signal)
-                    )),
-        titleSignal_(window_.getTitle().clone())
-    {
-        glxWindow.setVisible(true);
-        glxWindow.setTitle(titleSignal_.evaluate());
+        widget_(window_.getWidget()(signal::constant(DrawContext(memory_)),
+                                    std::move(size_.signal))),
+        titleSignal_(window_.getTitle().clone()) {
+    aseWindow.setVisible(true);
+    aseWindow.setTitle(titleSignal_.evaluate());
 
-        glxWindow.setCloseCallback([this]()
-            { window_.invokeOnClose(); });
-        glxWindow.setResizeCallback([this]()
-            { resized_ = true; });
-        glxWindow.setRedrawCallback([this]()
-            { redraw_ = true; });
+    aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
+    aseWindow.setResizeCallback([this]() { resized_ = true; });
+    aseWindow.setRedrawCallback([this]() { redraw_ = true; });
 
-        glxWindow.setButtonCallback([this](ase::PointerButtonEvent const& e)
-            {
-                if (pointerEventsOnThisFrame_++ > 0)
-                {
-                    widget_.update({getNextFrameId(), signal::signal_time_t(0)});
-                }
+    aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e) {
+      if (pointerEventsOnThisFrame_++ > 0) {
+        widget_.update({getNextFrameId(), signal::signal_time_t(0)});
+      }
 
-                if (e.state == ase::ButtonState::down)
-                {
-                    for (auto const& a : widget_.getInputAreas().evaluate())
-                    {
-                        if (a.acceptsButtonEvent(e))
-                        {
-                            a.emitButtonEvent(e);
-                            areas_[e.button].push_back(a);
-                        }
-                    }
-                }
-                else if (e.state == ase::ButtonState::up)
-                {
-                    for (auto const& a : areas_[e.button])
-                    {
-                        a.emitButtonEvent(e);
-                    }
+      if (e.state == ase::ButtonState::down) {
+        for (auto const &a : widget_.getInputAreas().evaluate()) {
+          if (a.acceptsButtonEvent(e)) {
+            a.emitButtonEvent(e);
+            areas_[e.button].push_back(a);
+          }
+        }
+      } else if (e.state == ase::ButtonState::up) {
+        for (auto const &a : areas_[e.button]) {
+          a.emitButtonEvent(e);
+        }
 
-                    areas_[e.button].clear();
-                }
-            });
+        areas_[e.button].clear();
+      }
+    });
 
-        glxWindow.setPointerCallback([this](ase::PointerMoveEvent const& e)
-            {
-                std::vector<InputArea> const& areas = widget_.getInputAreas().evaluate();
+    aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e) {
+      std::vector<InputArea> const &areas = widget_.getInputAreas().evaluate();
 
-                if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
-                {
-                    currentHoverArea_->emitHoverEvent(HoverEvent{ false , false });
-                    currentHoverArea_ = btl::none;
-                }
+      if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos)) {
+        currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
+        currentHoverArea_ = btl::none;
+      }
 
-                for (auto const& a : areas)
-                {
-                    if (a.contains(e.pos))
-                    {
+      for (auto const &a : areas) {
+        if (a.contains(e.pos)) {
 
-                        if (!currentHoverArea_.valid()
-                                || currentHoverArea_->getId() != a.getId())
-                        {
-                            if (currentHoverArea_.valid())
-                            {
-                                currentHoverArea_->emitHoverEvent(
-                                        HoverEvent{ false, false });
-                            }
+          if (!currentHoverArea_.valid() ||
+              currentHoverArea_->getId() != a.getId()) {
+            if (currentHoverArea_.valid()) {
+              currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
+            }
 
-                            currentHoverArea_ = btl::just(a);
+            currentHoverArea_ = btl::just(a);
 
-                            a.emitHoverEvent(HoverEvent { true, true });
-                        }
+            a.emitHoverEvent(HoverEvent{true, true});
+          }
 
-                        break;
-                    }
-                }
+          break;
+        }
+      }
 
-                bool accepted = false;
-                for (auto& item : areas_)
-                {
-                    if (!e.buttons.at(item.first - 1))
-                        continue;
+      bool accepted = false;
+      for (auto &item : areas_) {
+        if (!e.buttons.at(item.first - 1))
+          continue;
 
-                    std::vector<InputArea> newAreas;
-                    for (auto&& area : item.second)
-                    {
-                        EventResult r = area.emitMoveEvent(e);
-                        if (r == EventResult::accept)
-                        {
-                            newAreas.clear();
-                            newAreas.emplace_back(std::move(area));
-                            accepted = true;
-                            break;
-                        }
-                        else if (r == EventResult::possible)
-                        {
-                            newAreas.push_back(std::move(area));
-                        }
-                        else if (r == EventResult::reject)
-                        {
-                        }
-                    }
+        std::vector<InputArea> newAreas;
+        for (auto &&area : item.second) {
+          EventResult r = area.emitMoveEvent(e);
+          if (r == EventResult::accept) {
+            newAreas.clear();
+            newAreas.emplace_back(std::move(area));
+            accepted = true;
+            break;
+          } else if (r == EventResult::possible) {
+            newAreas.push_back(std::move(area));
+          } else if (r == EventResult::reject) {
+          }
+        }
 
-                    item.second = std::move(newAreas);
+        item.second = std::move(newAreas);
 
-                    if (accepted)
-                        break;
-                }
-            });
+        if (accepted)
+          break;
+      }
+    });
 
-        glxWindow.setDragCallback([](ase::PointerDragEvent const& /*e*/)
-                {
-                });
+    aseWindow.setDragCallback([](ase::PointerDragEvent const & /*e*/) {});
 
-        glxWindow.setKeyCallback([this](ase::KeyEvent const& e)
-            {
-                if (currentHandler_.valid() && e.isDown())
-                {
-                    (*currentHandler_)(e);
-                    keys_[e.getKey()] = *currentHandler_;
-                }
-                else
-                {
-                    auto i = keys_.find(e.getKey());
-                    if (i == keys_.end())
-                        return;
-                    auto f = i->second;
-                    keys_.erase(i);
-                    f(e);
-                }
-            });
+    aseWindow.setKeyCallback([this](ase::KeyEvent const &e) {
+      if (currentHandler_.valid() && e.isDown()) {
+        (*currentHandler_)(e);
+        keys_[e.getKey()] = *currentHandler_;
+      } else {
+        auto i = keys_.find(e.getKey());
+        if (i == keys_.end())
+          return;
+        auto f = i->second;
+        keys_.erase(i);
+        f(e);
+      }
+    });
 
-        glxWindow.setHoverCallback([this](ase::HoverEvent const& e)
-            {
-                if (!e.hover)
-                {
-                    if (currentHoverArea_.valid())
-                    {
-                        currentHoverArea_->emitHoverEvent(e);
-                        currentHoverArea_ = btl::none;
-                    }
-                }
-            });
-    }
+    aseWindow.setHoverCallback([this](ase::HoverEvent const &e) {
+      if (!e.hover) {
+        if (currentHoverArea_.valid()) {
+          currentHoverArea_->emitHoverEvent(e);
+          currentHoverArea_ = btl::none;
+        }
+      }
+    });
+  }
 
-    GlxWindowGlue(GlxWindowGlue const&) = delete;
-    GlxWindowGlue& operator=(GlxWindowGlue const&) = delete;
+  WindowGlue(WindowGlue const &) = delete;
+  WindowGlue &operator=(WindowGlue const &) = delete;
 
-    virtual ~GlxWindowGlue()
-    {
-        std::cout << "Maximum concurrent allocations: " <<
-            memoryStatistics_.maximum_concurrent_bytes_allocated() << std::endl;
-    }
+  virtual ~WindowGlue() {
+    std::cout << "Maximum concurrent allocations: "
+              << memoryStatistics_.maximum_concurrent_bytes_allocated()
+              << std::endl;
+  }
 
-    btl::option<signal::signal_time_t> frame(std::vector<XEvent> const& events,
+    btl::option<signal::signal_time_t> frame(/*std::vector<XEvent> const& events,*/
             std::chrono::microseconds dt)
     {
         pointerEventsOnThisFrame_ = 0;
-        glxWindow.handleEvents(events);
+        //aseWindow.handleEvents(events);
 
         if (resized_)
         {
-            size_.handle.set(glxWindow.getSize().cast<float>());
-            painter_.setSize(glxWindow.getSize());
+            size_.handle.set(aseWindow.getSize().cast<float>());
+            painter_.setSize(aseWindow.getSize());
         }
         resized_ = false;
 
@@ -262,21 +223,21 @@ public:
         }
 
         if (titleSignal_.hasChanged())
-            glxWindow.setTitle(titleSignal_.evaluate());
+            aseWindow.setTitle(titleSignal_.evaluate());
 
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
-            glxWindow.clear();
+            aseWindow.clear();
 
             ase::CommandBuffer commands;
 
             render(memory_, commands, context_,
-                    glxWindow.getDefaultFramebuffer(),
-                    glxWindow.getSize(), painter_,
+                    aseWindow.getDefaultFramebuffer(),
+                    aseWindow.getSize(), painter_,
                     widget_.getDrawing().evaluate());
 
             context_.submit(std::move(commands));
-            context_.present(glxWindow);
+            context_.present(aseWindow);
             redraw_ = false;
 
             ++frames_;
@@ -332,7 +293,7 @@ private:
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
-    ase::GlxWindow glxWindow;
+    ase::Window aseWindow;
     ase::RenderContext context_;
     Window window_;
     avg::Painter painter_;
@@ -363,18 +324,18 @@ int GlxApp::run() &&
 
 int GlxApp::run(AnySignal<bool> running) &&
 {
-    ase::GlxPlatform platform;
+    ase::Platform platform = ase::makeDefaultPlatform();
 
-    std::vector<btl::shared<GlxWindowGlue>> glues;
+    std::vector<btl::shared<WindowGlue>> glues;
     glues.reserve(windows_.size());
 
     for (auto&& w : windows_)
     {
-        ase::RenderContext context(platform);
+        ase::RenderContext context = platform.makeRenderContext();
         avg::Painter painter(context);
 
-        glues.push_back(std::make_shared<GlxWindowGlue>(platform,
-                    std::move(context), std::move(w), painter));
+        glues.push_back(std::make_shared<WindowGlue>(
+            platform, std::move(context), std::move(w), painter));
     }
 
     std::chrono::steady_clock clock;
@@ -389,7 +350,7 @@ int GlxApp::run(AnySignal<bool> running) &&
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
 
-        auto events = platform.getEvents();
+        platform.handleEvents();
 
         reactive::signal::FrameInfo frame{getNextFrameId(), dt};
         auto timeToNext = running.updateBegin(frame);
@@ -398,7 +359,7 @@ int GlxApp::run(AnySignal<bool> running) &&
 
         for (auto& glue : glues)
         {
-            auto t = glue->frame(events, dt);
+            auto t = glue->frame(/*events,*/ dt);
 
             timeToNext = reactive::signal::min(timeToNext, t);
 
