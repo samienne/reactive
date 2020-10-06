@@ -4,6 +4,7 @@ testapp1 = executable('testapp1',
         'spinner.cpp',
         'testwidget.cpp',
         'main.cpp',
-        dependencies : [libbtldep, libasedep, libavgdep, libreactivedep]
+        dependencies : [libbtldep, libasedep, libavgdep, libreactivedep],
+        gui_app: false
         )
 

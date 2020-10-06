@@ -36,6 +36,8 @@
 
 #include <btl/future.h>
 
+#include <windows.h>
+
 #include <iostream>
 #include <chrono>
 

@@ -33,6 +33,14 @@ if target_machine.system() == 'linux'
         'gl/gldispatchedcontext.cpp',
         'gl/gluniformset.cpp'
         ]
+elif target_machine.system() == 'windows'
+    system_deps = []
+    system_incs = []
+    system_src = [
+        'wgl/wglplatform.cpp',
+        'wgl/wglwindow.cpp',
+        'wgl/wglrendercontext.cpp'
+    ]
 else
     system_deps = []
     system_incs = []

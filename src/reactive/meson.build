@@ -3,6 +3,8 @@ incdir = include_directories('../../include', '../../include/reactive', '.')
 
 if target_machine.system() == 'linux'
     systemsrc = ['glxapp.cpp']
+elif target_machine.system() == 'windows'
+    systemsrc = ['windowsapp.cpp']
 else
     systemsrc = ['dummyapp.cpp']
 endif

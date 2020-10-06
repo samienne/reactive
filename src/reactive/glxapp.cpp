@@ -444,5 +444,5 @@ std::unique_ptr<AppImpl> makeAppImpl()
     return std::make_unique<GlxApp>();
 }
 
-} // namespace
+} // namespace reactive
 

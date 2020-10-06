@@ -20,8 +20,8 @@ namespace reactive
         Window& operator=(Window const&) = default;
 
     public:
-        Window(Window&&) = default;
-        Window& operator=(Window&&) = default;
+        Window(Window&&) noexcept = default;
+        Window& operator=(Window&&) noexcept = default;
 
         Window onClose(std::function<void()> const& cb) &&;
 
@@ -41,6 +41,10 @@ namespace reactive
         AnySharedSignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };
+
+    static_assert(std::is_nothrow_move_constructible_v<Window>, "");
+    static_assert(std::is_nothrow_move_assignable_v<Window>, "");
+
 
     REACTIVE_EXPORT auto window(AnySignal<std::string> const& title,
             WidgetFactory widget) -> Window;
