@@ -87,8 +87,6 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
     {
         GlxPlatform::Lock lock = platform_.lockX();
 
-        platform_.registerWindow(lock, *this);
-
         wmDelete_ = XInternAtom(dpy, "WM_DELETE_WINDOW", true);
         wmProtocols_ = XInternAtom(dpy, "WM_PROTOCOLS", true);
         wmSyncRequest_ = XInternAtom(dpy, "_NET_WM_SYNC_REQUEST", true);
@@ -182,8 +180,6 @@ void GlxWindow::destroy()
     //platform_.wait();
 
     GlxWindow::Lock lock(platform_.lockX());
-
-    platform_.unregisterWindow(lock, *this);
 
     Display* dpy = platform_.getDisplay();
 
