@@ -22,8 +22,8 @@ namespace ase
         Window(std::shared_ptr<WindowImpl>&& impl);
         ~Window();
 
-        Window(Window&&) = default;
-        Window& operator=(Window&&) = default;
+        Window(Window const&) = default;
+        Window(Window&&) noexcept = default;
 
         void setVisible(bool value);
         bool isVisible() const;
