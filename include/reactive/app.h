@@ -1,26 +1,16 @@
 #pragma once
 
-#include "window.h"
-
-#include "reactivevisibility.h"
-
 #include "signal/signal.h"
 
-#include <ase/platform.h>
+#include "window.h"
+#include "reactivevisibility.h"
 
-#include <btl/unique.h>
+#include <btl/shared.h>
 #include <btl/visibility.h>
 
 namespace reactive
 {
-    class REACTIVE_EXPORT AppImpl
-    {
-    public:
-        virtual ~AppImpl() = default;
-        virtual void addWindows(std::vector<Window> windows) = 0;
-        virtual int run(AnySignal<bool> running) && = 0;
-        virtual int run() && = 0;
-    };
+    class AppDeferred;
 
     class REACTIVE_EXPORT App
     {
@@ -33,9 +23,18 @@ namespace reactive
         int run() &&;
 
     private:
-        btl::unique<AppImpl> impl_;
-    };
+        inline AppDeferred* d()
+        {
+            return deferred_.get();
+        }
 
-    std::unique_ptr<AppImpl> REACTIVE_EXPORT makeAppImpl();
+        inline AppDeferred const* d() const
+        {
+            return deferred_.get();
+        }
+
+    private:
+        btl::shared<AppDeferred> deferred_;
+    };
 }
 
