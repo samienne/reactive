@@ -16,16 +16,8 @@
 namespace ase
 {
 
-RenderContext::RenderContext(Platform& platform,
-        std::shared_ptr<RenderContextImpl> impl) :
-    deferred_(impl),
-    platform_(platform)
-{
-}
-
-RenderContext::RenderContext(Platform& platform) :
-    deferred_(platform.makeRenderContextImpl()),
-    platform_(platform)
+RenderContext::RenderContext(std::shared_ptr<RenderContextImpl> impl) :
+    deferred_(std::move(impl))
 {
 }
 
@@ -117,11 +109,6 @@ Pipeline RenderContext::makePipelineWithBlend(Program program,
 UniformSet RenderContext::makeUniformSet()
 {
     return UniformSet(d()->makeUniformSetImpl());
-}
-
-Platform& RenderContext::getPlatform() const
-{
-    return platform_;
 }
 
 } // namespace ase

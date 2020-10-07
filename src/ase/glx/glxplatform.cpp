@@ -4,6 +4,7 @@
 #include "glxcontext.h"
 #include "glxwindow.h"
 
+#include "platform.h"
 #include "rendercontext.h"
 
 #include "debug.h"
@@ -14,6 +15,8 @@
 
 #include <X11/extensions/sync.h>
 
+#include <vector>
+#include <algorithm>
 #include <thread>
 #include <sstream>
 #include <stdexcept>
@@ -25,6 +28,11 @@
 
 namespace ase
 {
+
+Platform makeDefaultPlatform()
+{
+    return Platform(std::make_shared<GlxPlatform>());
+}
 
 typedef GLXContext (*glXCreateContextAttribsArbProc)(Display*, GLXFBConfig,
         GLXContext, Bool, const int*);
@@ -83,12 +91,16 @@ private:
 
     GlxPlatform::Mutex mutex_;
 
+    Atom wmDelete_ = 0;
+    Atom wmProtocols_ = 0;
+    Atom wmSyncRequest_ = 0;
+
     Display* dpy_ = nullptr;
     GLXFBConfig* configs_ = nullptr;
     size_t configCount_ = 0;
     GLXDrawable dummyBuffer_ = 0;
     std::unordered_set<GLXContext> glxContexts_;
-    std::vector<std::pair<::Window, GlxWindow*>> windows_;
+    std::vector<std::weak_ptr<GlxWindow>> windows_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
@@ -228,10 +240,8 @@ GlxPlatform::Lock GlxPlatform::lockX()
     return GlxPlatform::Lock(d()->mutex_);
 }
 
-std::vector<XEvent> GlxPlatform::getEvents()
+std::vector<XEvent> GlxPlatform::getEvents(Lock const&)
 {
-    Lock lock(lockX());
-
     size_t count = XPending(d()->dpy_);
     std::vector<XEvent> events;
 
@@ -245,9 +255,57 @@ std::vector<XEvent> GlxPlatform::getEvents()
     return events;
 }
 
-std::shared_ptr<RenderContextImpl> GlxPlatform::makeRenderContextImpl()
+Window GlxPlatform::makeWindow(Vector2i size)
 {
-    return std::make_shared<GlxRenderContext>(*this);
+    auto window = std::make_shared<GlxWindow>(*this, size);
+
+    {
+        auto lock = lockX();
+        d()->windows_.push_back(window);
+    }
+
+    return Window(std::move(window));
+}
+
+void GlxPlatform::handleEvents()
+{
+    std::vector<XEvent> events;
+    std::vector<std::shared_ptr<GlxWindow>> windows;
+
+    {
+        Lock lock(lockX());
+        events = getEvents(lock);
+        windows.reserve(d()->windows_.size());
+
+        bool needClean = false;
+        for (std::weak_ptr<GlxWindow>& window : d()->windows_)
+        {
+            auto w = window.lock();
+            if (w)
+                windows.push_back(window.lock());
+            else needClean = true;
+        }
+
+        if (needClean)
+        {
+            d()->windows_.erase(
+                    std::remove_if(
+                        d()->windows_.begin(),
+                        d()->windows_.end(),
+                        [](auto& w) { return w.expired(); }
+                        ),
+                    d()->windows_.end()
+                    );
+        }
+    }
+
+    for (std::shared_ptr<GlxWindow>& window : windows)
+        window->handleEvents(events);
+}
+
+RenderContext GlxPlatform::makeRenderContext()
+{
+    return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

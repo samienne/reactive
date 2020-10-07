@@ -52,11 +52,6 @@ GlRenderContext::~GlRenderContext()
     bgContext_->wait();
 }
 
-GlPlatform& GlRenderContext::getPlatform() const
-{
-    return platform_;
-}
-
 void GlRenderContext::submit(CommandBuffer&& commands)
 {
     renderState_.submit(std::move(commands));

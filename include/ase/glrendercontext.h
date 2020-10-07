@@ -27,8 +27,6 @@ namespace ase
 
         ~GlRenderContext() override;
 
-        GlPlatform& getPlatform() const;
-
         // From RenderContextImpl
         void submit(CommandBuffer&& commands) override;
         void flush() override;

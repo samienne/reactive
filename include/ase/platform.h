@@ -1,26 +1,53 @@
 #pragma once
 
+#include "vector.h"
 #include "asevisibility.h"
 
 #include <memory>
 
 namespace ase
 {
+    class Window;
     class RenderContext;
-    class RenderContextImpl;
+    class PlatformImpl;
 
-    /**
-     * @brief Abstract base class for all platforms
-     */
     class ASE_EXPORT Platform
     {
     public:
-        virtual ~Platform() = default;
+        Platform(std::shared_ptr<PlatformImpl> impl);
+        virtual ~Platform();
+
+        Window makeWindow(Vector2i size);
+        void handleEvents();
+        RenderContext makeRenderContext();
+
+        template <typename T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
+
+        template <typename T>
+        T const& getImpl() const
+        {
+            return reinterpret_cast<T const&>(*d());
+        }
 
     private:
-        friend class RenderContext;
+        PlatformImpl* d()
+        {
+            return deferred_.get();
+        }
 
-        virtual std::shared_ptr<RenderContextImpl> makeRenderContextImpl() = 0;
+        PlatformImpl const* d() const
+        {
+            return deferred_.get();
+        }
+
+    private:
+        std::shared_ptr<PlatformImpl> deferred_;
     };
+
+    ASE_EXPORT Platform makeDefaultPlatform();
 } // ase
 

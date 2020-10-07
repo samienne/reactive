@@ -1,16 +1,18 @@
 #pragma once
 
-#include "platform.h"
+#include "platformimpl.h"
 
 #include "asevisibility.h"
 
 namespace ase
 {
-    class ASE_EXPORT DummyPlatform : public Platform
+    class ASE_EXPORT DummyPlatform : public PlatformImpl
     {
     public:
     private:
-        std::shared_ptr<RenderContextImpl> makeRenderContextImpl() override;
+        Window makeWindow(Vector2i size) override;
+        void handleEvents() override;
+        RenderContext makeRenderContext() override;
     };
 
 } // namespace ase

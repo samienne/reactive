@@ -1,23 +1,29 @@
 #pragma once
 
+#include "keyevent.h"
+#include "hoverevent.h"
+#include "pointerdragevent.h"
+#include "pointermoveevent.h"
+#include "pointerbuttonevent.h"
 #include "asevisibility.h"
 
 #include <string>
 #include <memory>
+#include <functional>
 
 namespace ase
 {
+    class Framebuffer;
     class WindowImpl;
 
     class ASE_EXPORT Window
     {
     public:
-        Window();
         Window(std::shared_ptr<WindowImpl>&& impl);
         ~Window();
 
-        Window(Window&&) = default;
-        Window& operator=(Window&&) = default;
+        Window(Window const&) = default;
+        Window(Window&&) noexcept = default;
 
         void setVisible(bool value);
         bool isVisible() const;
@@ -25,12 +31,33 @@ namespace ase
         void setTitle(std::string title);
         std::string const& getTitle() const;
 
+        Vector2i getSize() const;
+        Framebuffer& getDefaultFramebuffer();
+
         void clear();
+
+        void setCloseCallback(std::function<void()> func);
+        void setResizeCallback(std::function<void()> func);
+        void setRedrawCallback(std::function<void()> func);
+        void setButtonCallback(
+                std::function<void(PointerButtonEvent const&)> cb);
+        void setPointerCallback(
+                std::function<void(PointerMoveEvent const&)> cb);
+        void setDragCallback(
+                std::function<void(PointerDragEvent const&)> cb);
+        void setKeyCallback(std::function<void(KeyEvent const&)> cb);
+        void setHoverCallback(std::function<void(HoverEvent const&)> cb);
 
         template <class T>
         T const& getImpl() const
         {
             return reinterpret_cast<T const&>(*d());
+        }
+
+        template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
         }
 
     protected:

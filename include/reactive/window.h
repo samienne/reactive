@@ -15,11 +15,9 @@ namespace reactive
     public:
         Window(WidgetFactory widget, AnySignal<std::string> const& title);
 
-    private:
         Window(Window const&) = default;
         Window& operator=(Window const&) = default;
 
-    public:
         Window(Window&&) = default;
         Window& operator=(Window&&) = default;
 

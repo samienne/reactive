@@ -56,9 +56,7 @@ namespace ase
     class ASE_EXPORT RenderContext
     {
     public:
-        RenderContext(Platform& platform,
-                std::shared_ptr<RenderContextImpl> impl);
-        RenderContext(Platform& platform);
+        RenderContext(std::shared_ptr<RenderContextImpl> impl);
         RenderContext(RenderContext const&) = delete;
         RenderContext(RenderContext&&) = default;
         ~RenderContext();
@@ -86,8 +84,6 @@ namespace ase
 
         UniformSet makeUniformSet();
 
-        Platform& getPlatform() const;
-
         template <class T>
         T const& getImpl() const
         {
@@ -104,8 +100,6 @@ namespace ase
         std::shared_ptr<RenderContextImpl> deferred_;
         inline RenderContextImpl* d() { return deferred_.get(); }
         inline RenderContextImpl const* d() const { return deferred_.get(); }
-
-        Platform& platform_;
     };
 }
 
