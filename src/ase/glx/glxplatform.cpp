@@ -109,11 +109,11 @@ private:
 GlxPlatformDeferred::GlxPlatformDeferred(GlxPlatform& platform) :
     platform_(platform)
 {
-    DBG("GlxPlatform size: %1 bytes.", sizeof(GlxPlatform));
-    DBG("GlxPlatformDeferred size: %1 bytes.", sizeof(GlxPlatformDeferred));
-    DBG("GlxContext size: %1 bytes.", sizeof(GlxContext));
-    DBG("GlxRenderContext size: %1 bytes.", sizeof(GlxRenderContext));
-    DBG("GlxWindow size: %1 bytes.", sizeof(GlxWindow));
+    //DBG("GlxPlatform size: %1 bytes.", sizeof(GlxPlatform));
+    //DBG("GlxPlatformDeferred size: %1 bytes.", sizeof(GlxPlatformDeferred));
+    //DBG("GlxContext size: %1 bytes.", sizeof(GlxContext));
+    //DBG("GlxRenderContext size: %1 bytes.", sizeof(GlxRenderContext));
+    //DBG("GlxWindow size: %1 bytes.", sizeof(GlxWindow));
 }
 
 GlxPlatformDeferred::~GlxPlatformDeferred()
