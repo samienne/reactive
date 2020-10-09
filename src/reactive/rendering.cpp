@@ -105,7 +105,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
 
 avg::SoftMesh generateMesh(pmr::memory_resource* memory,
         avg::Path const& path, avg::Brush const& brush,
-        ase::Vector2f pixelSize, int resPerPixel,
+        ase::Vector2f pixelSize, float resPerPixel,
         avg::Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
@@ -129,7 +129,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
 }
 
 pmr::vector<avg::SoftMesh> generateMeshes(pmr::memory_resource* memory,
-        avg::Shape const& shape, ase::Vector2f pixelSize, int resPerPixel,
+        avg::Shape const& shape, ase::Vector2f pixelSize, float resPerPixel,
         avg::Rect const& r, bool clip)
 {
     auto const& path = shape.getPath();
@@ -190,7 +190,7 @@ pmr::vector<avg::SoftMesh> generateMeshes(
         avg::Transform const& transform,
         pmr::vector<avg::Drawing::Element> const& elements,
         avg::Vector2f pixelSize,
-        int resPerPixel,
+        float resPerPixel,
         avg::Rect const& rect,
         bool clip
         )
@@ -475,10 +475,12 @@ private:
 void render(pmr::memory_resource* memory,
         ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::Framebuffer& framebuffer, ase::Vector2i size,
-        avg::Painter const& painter, avg::Drawing const& drawing)
+        float scalingFactor,
+        avg::Painter const& painter,
+        avg::Drawing const& drawing)
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
-    int const resPerPixel = 4;
+    float const resPerPixel = 4.0f / scalingFactor;
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
     avg::Rect rect(avg::Vector2f(0.0f, 0.0f), sizef);

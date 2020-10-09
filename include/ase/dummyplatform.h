@@ -10,7 +10,7 @@ namespace ase
     {
     public:
     private:
-        Window makeWindow(Vector2i size) override;
+        Window makeWindow(Vector2i size, float scalingFactor) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
     };

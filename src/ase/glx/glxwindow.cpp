@@ -65,13 +65,14 @@ namespace
     }
 }
 
-GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size) :
+GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
+        float scalingFactor) :
     platform_(platform),
-    genericWindow_(size),
+    genericWindow_(size, scalingFactor),
     defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, *this))
 {
-    unsigned int width = size[0];
-    unsigned int height = size[1];
+    unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
+    unsigned int height = static_cast<unsigned int>((float)size[1] * scalingFactor);
 
     Display* dpy = platform_.getDisplay();
 
@@ -270,7 +271,9 @@ void GlxWindow::handleEvent(_XEvent const& e)
         break;
     case ConfigureNotify:
         genericWindow_.resize(
-                Vector2i(event.xconfigure.width, event.xconfigure.height)
+                Vector2i(
+                    (float)event.xconfigure.width / genericWindow_.getScalingFactor(),
+                    (float)event.xconfigure.height / genericWindow_.getScalingFactor())
                 );
         break;
 
@@ -297,10 +300,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
         break;
     case ButtonPress:
     {
-        Vector2f pos(
-                event.xbutton.x,
-                genericWindow_.getHeight() - event.xbutton.y
-                );
+        float x = (float)event.xbutton.x / genericWindow_.getScalingFactor();
+        float y = (float)event.xbutton.y / genericWindow_.getScalingFactor();
+
+        Vector2f pos(x, genericWindow_.getHeight() - y);
 
         genericWindow_.injectPointerButtonEvent(
                 0, event.xbutton.button, pos, ButtonState::down);
@@ -309,10 +312,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
     }
     case ButtonRelease:
     {
-        Vector2f pos(
-                event.xbutton.x,
-                genericWindow_.getHeight() - event.xbutton.y
-                );
+        float x = (float)event.xbutton.x / genericWindow_.getScalingFactor();
+        float y = (float)event.xbutton.y / genericWindow_.getScalingFactor();
+
+        Vector2f pos(x, genericWindow_.getHeight() - y);
 
         genericWindow_.injectPointerButtonEvent(
                 0, event.xbutton.button, pos, ButtonState::up);
@@ -320,11 +323,16 @@ void GlxWindow::handleEvent(_XEvent const& e)
         break;
     }
     case MotionNotify:
+    {
+        float x = (float)event.xmotion.x / genericWindow_.getScalingFactor();
+        float y = (float)event.xmotion.y / genericWindow_.getScalingFactor();
+
         genericWindow_.injectPointerMoveEvent(
                 0,
-                Vector2f(e.xmotion.x, genericWindow_.getHeight() - e.xmotion.y)
+                Vector2f(x, genericWindow_.getHeight() - y)
                 );
         break;
+    }
     case KeyPress:
         {
         KeySym keysym;
@@ -361,19 +369,29 @@ void GlxWindow::handleEvent(_XEvent const& e)
     case MapNotify:
         break;
     case EnterNotify:
+    {
+        float x = (float)e.xcrossing.x / genericWindow_.getScalingFactor();
+        float y = (float)e.xcrossing.y / genericWindow_.getScalingFactor();
+
         genericWindow_.injectHoverEvent(
                 0,
-                Vector2f(e.xcrossing.x, genericWindow_.getHeight() - e.xcrossing.y),
+                Vector2f(x, genericWindow_.getHeight() - y),
                 true
                 );
         break;
+    }
     case LeaveNotify:
+    {
+        float x = (float)e.xcrossing.x / genericWindow_.getScalingFactor();
+        float y = (float)e.xcrossing.y / genericWindow_.getScalingFactor();
+
         genericWindow_.injectHoverEvent(
                 0,
-                Vector2f(e.xcrossing.x, genericWindow_.getHeight() - e.xcrossing.y),
+                Vector2f(x, genericWindow_.getHeight() - y),
                 false
                 );
         break;
+    }
     default:
         DBG("Default %1", event.type);
         break;
@@ -447,6 +465,11 @@ std::string const& GlxWindow::getTitle() const
 Vector2i GlxWindow::getSize() const
 {
     return genericWindow_.getSize();
+}
+
+float GlxWindow::getScalingFactor() const
+{
+    return genericWindow_.getScalingFactor();
 }
 
 Framebuffer& GlxWindow::getDefaultFramebuffer()

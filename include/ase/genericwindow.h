@@ -16,9 +16,11 @@ namespace ase
     class GenericWindow
     {
     public:
-        GenericWindow(Vector2i size);
+        GenericWindow(Vector2i size, float scalingFactor);
 
         Vector2i getSize() const;
+        Vector2i getScaledSize() const;
+        float getScalingFactor() const;
         float getWidth() const;
         float getHeight() const;
 
@@ -64,6 +66,7 @@ namespace ase
         std::function<void(HoverEvent const& e)> hoverCallback_;
 
         Vector2i size_;
+        float scalingFactor_;
 
         btl::option<Vector2f> pointerPos_;
         bool hover_ = false;

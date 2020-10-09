@@ -17,6 +17,7 @@ namespace ase
         std::string const& getTitle() const override;
 
         Vector2i getSize() const override;
+        float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
         void clear() override;

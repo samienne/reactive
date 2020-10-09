@@ -16,9 +16,9 @@ Platform::~Platform()
 {
 }
 
-Window Platform::makeWindow(Vector2i size)
+Window Platform::makeWindow(Vector2i size, float scalingFactor)
 {
-    return d()->makeWindow(size);
+    return d()->makeWindow(size, scalingFactor);
 }
 
 void Platform::handleEvents()

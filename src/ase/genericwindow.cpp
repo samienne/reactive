@@ -5,14 +5,28 @@
 namespace ase
 {
 
-GenericWindow::GenericWindow(Vector2i size) :
-    size_(size)
+GenericWindow::GenericWindow(Vector2i size, float scalingFactor) :
+    size_(size),
+    scalingFactor_(scalingFactor)
 {
 }
 
 Vector2i GenericWindow::getSize() const
 {
     return size_;
+}
+
+Vector2i GenericWindow::getScaledSize() const
+{
+    return Vector2i(
+            getWidth() * getScalingFactor(),
+            getWidth() * getScalingFactor()
+            );
+}
+
+float GenericWindow::getScalingFactor() const
+{
+    return scalingFactor_;
 }
 
 float GenericWindow::getWidth() const

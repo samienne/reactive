@@ -26,6 +26,7 @@ namespace ase
         virtual std::string const& getTitle() const = 0;
 
         virtual Vector2i getSize() const = 0;
+        virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
         virtual void clear() = 0;

@@ -255,9 +255,9 @@ std::vector<XEvent> GlxPlatform::getEvents(Lock const&)
     return events;
 }
 
-Window GlxPlatform::makeWindow(Vector2i size)
+Window GlxPlatform::makeWindow(Vector2i size, float scalingFactor)
 {
-    auto window = std::make_shared<GlxWindow>(*this, size);
+    auto window = std::make_shared<GlxWindow>(*this, size, scalingFactor);
 
     {
         auto lock = lockX();

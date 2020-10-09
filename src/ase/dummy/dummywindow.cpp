@@ -38,6 +38,11 @@ Vector2i DummyWindow::getSize() const
     return Vector2i(0, 0);
 }
 
+float DummyWindow::getScalingFactor() const
+{
+    return 1.0f;
+}
+
 Framebuffer& DummyWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;

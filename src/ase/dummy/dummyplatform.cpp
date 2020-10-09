@@ -15,7 +15,7 @@ Platform makeDefaultPlatform()
     return Platform(std::make_shared<DummyPlatform>());
 }
 
-Window DummyPlatform::makeWindow(Vector2i /*size*/)
+Window DummyPlatform::makeWindow(Vector2i /*size*/, float /*scalingFactor*/)
 {
     return Window(std::make_shared<DummyWindow>());
 }

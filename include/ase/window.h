@@ -32,6 +32,8 @@ namespace ase
         std::string const& getTitle() const;
 
         Vector2i getSize() const;
+        Vector2i getScaledSize() const;
+        float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
         void clear();
