@@ -27,7 +27,7 @@ namespace btl
             std::decay_t<T> value;
         };
 
-        template <typename TFunc, typename U, typename TTuple, size_t... S>
+        template <typename TFunc, typename U, typename TTuple, std::size_t... S>
         auto tuple_reduce_seq(TFunc&& f, U&& initial, TTuple&& data,
                 std::index_sequence<S...>)
         -> std::decay_t<decltype(
