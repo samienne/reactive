@@ -68,6 +68,25 @@ jobs:
       summaryFileLocation: $(Build.SourcesDirectory)/build/$(CC)-$(BUILDTYPE)/meson-logs/coverage.xml
     enabled: false
 
+- job: build_macos
+  pool:
+    vmImage: 'macOS-10.15'
+  steps:
+  - checkout: self
+    submodules: true
+
+  - script: |
+      brew install python3 ninja
+    displayName: 'install dependencies'
+
+  - script: |
+      mkdir -p build/release
+      cd build/release
+      python3 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
+      ninja
+    displayName: 'Build'
+    timeoutInMinutes: 20
+
 - job: build_win
   pool:
     vmImage: 'windows-2019'
