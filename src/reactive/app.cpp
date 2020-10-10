@@ -23,6 +23,7 @@
 #include <pmr/new_delete_resource.h>
 
 #include <chrono>
+#include <unordered_map>
 
 namespace reactive
 {

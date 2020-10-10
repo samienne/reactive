@@ -37,6 +37,10 @@ namespace btl
     template <> struct is_contiguously_hashable<uint32_t> : std::true_type {};
     template <> struct is_contiguously_hashable<uint64_t> : std::true_type {};
 
+#ifdef __APPLE__
+    template <> struct is_contiguously_hashable<size_t> : std::true_type {};
+#endif
+
     template <typename T> struct is_contiguously_hashable<T*> :
         std::true_type {};
 
