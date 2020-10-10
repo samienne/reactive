@@ -55,7 +55,7 @@ public:
              Window window, avg::Painter painter)
       : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
-        aseWindow(platform.makeWindow(ase::Vector2i(800, 600), 2.0f)),
+        aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(std::move(context)), window_(std::move(window)),
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),

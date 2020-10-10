@@ -17,7 +17,7 @@ namespace ase
         Platform(std::shared_ptr<PlatformImpl> impl);
         virtual ~Platform();
 
-        Window makeWindow(Vector2i size, float scalingFactor = 1.0f);
+        Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();
 

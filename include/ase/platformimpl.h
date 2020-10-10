@@ -15,7 +15,7 @@ namespace ase
     public:
         virtual ~PlatformImpl() = default;
 
-        virtual Window makeWindow(Vector2i size, float scalingFactor) = 0;
+        virtual Window makeWindow(Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
     };

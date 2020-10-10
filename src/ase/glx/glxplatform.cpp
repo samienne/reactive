@@ -23,6 +23,8 @@
 #include <utility>
 #include <unordered_set>
 
+#include <cstdlib>
+
 #define GLX_CONTEXT_MAJOR_VERSION_ARB       0x2091
 #define GLX_CONTEXT_MINOR_VERSION_ARB       0x2092
 
@@ -255,9 +257,19 @@ std::vector<XEvent> GlxPlatform::getEvents(Lock const&)
     return events;
 }
 
-Window GlxPlatform::makeWindow(Vector2i size, float scalingFactor)
+float GlxPlatform::getScalingFactor() const
 {
-    auto window = std::make_shared<GlxWindow>(*this, size, scalingFactor);
+    char* factor = getenv("ASE_SCALING_FACTOR");
+
+    if (!factor)
+        return 2.0f;
+
+    return static_cast<float>(std::max(0.25, atof(factor)));
+}
+
+Window GlxPlatform::makeWindow(Vector2i size)
+{
+    auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());
 
     {
         auto lock = lockX();

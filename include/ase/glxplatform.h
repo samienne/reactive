@@ -34,8 +34,10 @@ namespace ase
 
         std::vector<XEvent> getEvents(Lock const&);
 
+        float getScalingFactor() const;
+
         // From Platform
-        Window makeWindow(Vector2i size, float scalingFactor) override;
+        Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
 
