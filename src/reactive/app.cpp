@@ -177,11 +177,9 @@ public:
               << std::endl;
   }
 
-    btl::option<signal::signal_time_t> frame(/*std::vector<XEvent> const& events,*/
-            std::chrono::microseconds dt)
+    btl::option<signal::signal_time_t> frame(std::chrono::microseconds dt)
     {
         pointerEventsOnThisFrame_ = 0;
-        //aseWindow.handleEvents(events);
 
         if (resized_)
         {
@@ -232,8 +230,8 @@ public:
 
             render(memory_, commands, context_,
                     aseWindow.getDefaultFramebuffer(),
-                    aseWindow.getSize(), painter_,
-                    widget_.getDrawing().evaluate());
+                    aseWindow.getSize(), aseWindow.getScalingFactor(),
+                    painter_, widget_.getDrawing().evaluate());
 
             context_.submit(std::move(commands));
             context_.present(aseWindow);

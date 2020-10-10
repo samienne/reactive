@@ -26,7 +26,12 @@ void GlxFramebuffer::makeCurrent(Dispatched dispatched,
 
     window_.makeCurrent(platform_.lockX(), glxContext.getGlxContext());
 
-    glxRenderContext.setViewport(Dispatched(), window_.getSize());
+    Vector2i size(
+            window_.getSize()[0] * window_.getScalingFactor(),
+            window_.getSize()[1] * window_.getScalingFactor()
+            );
+
+    glxRenderContext.setViewport(Dispatched(), size);
 
     if (dirty_)
     {

@@ -50,6 +50,22 @@ Vector2i Window::getSize() const
     return d()->getSize();
 }
 
+Vector2i Window::getScaledSize() const
+{
+    auto size = getSize();
+    float scalingFactor = getScalingFactor();
+
+    return Vector2i(
+            size[0] * scalingFactor,
+            size[1] * scalingFactor
+            );
+}
+
+float Window::getScalingFactor() const
+{
+    return d()->getScalingFactor();
+}
+
 Framebuffer& Window::getDefaultFramebuffer()
 {
     return d()->getDefaultFramebuffer();

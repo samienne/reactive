@@ -51,7 +51,7 @@ namespace ase
         typedef std::mutex Mutex;
         typedef std::unique_lock<Mutex> Lock;
 
-        GlxWindow(GlxPlatform& platform, Vector2i const& size);
+        GlxWindow(GlxPlatform& platform, Vector2i const& size, float scalingFactor);
         GlxWindow(GlxWindow&&) = delete;
         GlxWindow(GlxWindow const&) = delete;
         ~GlxWindow();
@@ -69,6 +69,7 @@ namespace ase
         std::string const& getTitle() const override;
 
         Vector2i getSize() const override;
+        float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
         void clear() override;
