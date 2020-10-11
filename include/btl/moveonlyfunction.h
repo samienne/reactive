@@ -16,7 +16,10 @@ namespace btl
         AssertOnCopy(AssertOnCopy const& rhs) noexcept :
             value(std::move(const_cast<AssertOnCopy&>(rhs).value))
         {
+#if !defined(__APPLE__)
+            // On Apple std::function actually does a copy instead of a move
             assert(false && "Copy disabled at runtime");
+#endif
         }
 
         AssertOnCopy(AssertOnCopy&& rhs) noexcept :
@@ -26,7 +29,9 @@ namespace btl
 
         AssertOnCopy& operator=(AssertOnCopy const& rhs) noexcept
         {
+#if !defined(__APPLE__)
             assert(false && "Copy disabled at runtime");
+#endif
             value = std::move(const_cast<AssertOnCopy>(rhs).value);
             return *this;
         }
