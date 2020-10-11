@@ -49,6 +49,7 @@ jobs:
   - script: |
       cd build/$(CC)-$(BUILDTYPE)
       ./test/unittest --gtest_output=xml
+      ./test/devtest --gtest_output=xml
     displayName: 'Run unit tests'
     timeoutInMinutes: 20
 
@@ -86,6 +87,19 @@ jobs:
       ninja
     displayName: 'Build'
     timeoutInMinutes: 20
+
+  - script: |
+      cd build/release
+      ./test/unittest --gtest_output=xml
+      ./test/devtest --gtest_output=xml
+    displayName: 'Run unit tests'
+    timeoutInMinutes: 20
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFormat: JUnit
+      testResultsFiles: build/**/test_detail.xml
+      failTaskOnFailedTests: true
 
 - job: build_win
   pool:
