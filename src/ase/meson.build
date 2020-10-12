@@ -44,7 +44,8 @@ elif target_machine.system() == 'windows'
         'windows/windowsplatform.cpp',
         'windows/windowsrendercontext.cpp',
         'windows/windowswindow.cpp',
-        'dummy/dummyframebuffer.cpp'
+        'dummy/dummyframebuffer.cpp',
+        'dummy/dummyprogram.cpp',
         ]
 else
     system_deps = []
@@ -53,7 +54,12 @@ else
         'dummy/dummyplatform.cpp',
         'dummy/dummyrendercontext.cpp',
         'dummy/dummywindow.cpp',
-        'dummy/dummyframebuffer.cpp'
+        'dummy/dummyframebuffer.cpp',
+        'dummy/dummyprogram.cpp',
+        'dummy/dummyuniformbuffer.cpp',
+        'dummy/dummytexture.cpp',
+        'dummy/dummypipeline.cpp',
+        'dummy/dummyuniformset.cpp',
     ]
 endif
 
