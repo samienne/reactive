@@ -3,12 +3,14 @@
 #include "framebuffer.h"
 #include "windowimpl.h"
 
+#include <windows.h>
+
 namespace ase
 {
     class ASE_EXPORT WindowsWindow : public WindowImpl
     {
     public:
-        WindowsWindow();
+        WindowsWindow(Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -35,6 +37,7 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
 
     private:
+        HWND hwnd_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
         std::string title_;

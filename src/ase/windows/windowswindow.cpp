@@ -4,17 +4,44 @@
 
 #include <memory>
 
+#include <windows.h>
+
 namespace ase
 {
 
-WindowsWindow::WindowsWindow() :
+WindowsWindow::WindowsWindow(Vector2i size) :
     defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
 {
+    HINSTANCE hInst = GetModuleHandle(NULL);
+
+    hwnd_ = CreateWindowEx(
+            0,
+            "MainWindowClass",
+            "Basic window",
+            WS_OVERLAPPEDWINDOW,
+            CW_USEDEFAULT, CW_USEDEFAULT,
+            size[0], size[1],
+            NULL, // parent
+            NULL, // Menu
+            hInst,
+            NULL // Additional application data
+            );
+
+    if (hwnd_ == 0)
+        throw std::runtime_error("Unable to create window");
 }
 
 void WindowsWindow::setVisible(bool value)
 {
+    if (visible_ == value)
+        return;
+
     visible_ = value;
+
+    if (visible_)
+        ShowWindow(hwnd_, SW_SHOWNORMAL);
+    else
+        ShowWindow(hwnd_, SW_HIDE);
 }
 
 bool WindowsWindow::isVisible() const
@@ -25,6 +52,8 @@ bool WindowsWindow::isVisible() const
 void WindowsWindow::setTitle(std::string&& title)
 {
     title_ = title;
+
+    SetWindowText(hwnd_, title_.c_str());
 }
 
 std::string const& WindowsWindow::getTitle() const
