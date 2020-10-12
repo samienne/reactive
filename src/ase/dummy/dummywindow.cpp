@@ -1,7 +1,6 @@
 #include "dummywindow.h"
 
 #include "dummyframebuffer.h"
-#include "dummyplatform.h"
 
 #include <memory>
 
