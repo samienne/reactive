@@ -46,6 +46,10 @@ elif target_machine.system() == 'windows'
         'windows/windowswindow.cpp',
         'dummy/dummyframebuffer.cpp',
         'dummy/dummyprogram.cpp',
+        'dummy/dummyuniformbuffer.cpp',
+        'dummy/dummytexture.cpp',
+        'dummy/dummypipeline.cpp',
+        'dummy/dummyuniformset.cpp',
         ]
 else
     system_deps = []

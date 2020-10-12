@@ -7,6 +7,8 @@
 #include "window.h"
 #include "platform.h"
 
+#include <windows.h>
+
 namespace ase
 {
 
