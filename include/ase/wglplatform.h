@@ -8,13 +8,13 @@
 
 namespace ase
 {
-    class ASE_EXPORT WindowsPlatform : public PlatformImpl
+    class ASE_EXPORT WglPlatform : public PlatformImpl
     {
     public:
-        WindowsPlatform();
+        WglPlatform();
 
-        WindowsPlatform(WindowsPlatform const&) = delete;
-        WindowsPlatform& operator=(WindowsPlatform const&) = delete;
+        WglPlatform(WglPlatform const&) = delete;
+        WglPlatform& operator=(WglPlatform const&) = delete;
 
     private:
         // From PlatformImpl

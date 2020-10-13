@@ -1,4 +1,4 @@
-#include "windowsrendercontext.h"
+#include "wglrendercontext.h"
 
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
@@ -18,79 +18,79 @@
 namespace ase
 {
 
-void WindowsRenderContext::submit(CommandBuffer&& /*commands*/)
+void WglRenderContext::submit(CommandBuffer&& /*commands*/)
 {
 }
 
-void WindowsRenderContext::flush()
+void WglRenderContext::flush()
 {
 }
 
-void WindowsRenderContext::finish()
+void WglRenderContext::finish()
 {
 }
 
-void WindowsRenderContext::present(Window& /*window*/)
+void WglRenderContext::present(Window& /*window*/)
 {
 }
 
-std::shared_ptr<ProgramImpl> WindowsRenderContext::makeProgramImpl(
+std::shared_ptr<ProgramImpl> WglRenderContext::makeProgramImpl(
         VertexShader const& /*vertexShader*/,
         FragmentShader const& /*fragmentShader*/)
 {
     return std::make_shared<DummyProgram>();
 }
 
-std::shared_ptr<VertexShaderImpl> WindowsRenderContext::makeVertexShaderImpl(
+std::shared_ptr<VertexShaderImpl> WglRenderContext::makeVertexShaderImpl(
         std::string const& /*source*/)
 {
     return std::make_shared<DummyVertexShader>();
 }
 
-std::shared_ptr<FragmentShaderImpl> WindowsRenderContext::makeFragmentShaderImpl(
+std::shared_ptr<FragmentShaderImpl> WglRenderContext::makeFragmentShaderImpl(
         std::string const& /*source*/)
 {
     return std::make_shared<DummyFragmentShader>();
 }
 
-std::shared_ptr<VertexBufferImpl> WindowsRenderContext::makeVertexBufferImpl(
+std::shared_ptr<VertexBufferImpl> WglRenderContext::makeVertexBufferImpl(
         Buffer const& /*buffer*/, Usage /*usage*/)
 {
     return std::make_shared<DummyVertexBuffer>();
 }
 
-std::shared_ptr<IndexBufferImpl> WindowsRenderContext::makeIndexBufferImpl(
+std::shared_ptr<IndexBufferImpl> WglRenderContext::makeIndexBufferImpl(
         Buffer const& /*buffer*/, Usage /*usage*/)
 {
     return std::make_shared<DummyIndexBuffer>();
 }
 
-std::shared_ptr<UniformBufferImpl> WindowsRenderContext::makeUniformBufferImpl(
+std::shared_ptr<UniformBufferImpl> WglRenderContext::makeUniformBufferImpl(
         Buffer /*buffer*/, Usage /*usage*/)
 {
     return std::make_shared<DummyUniformBuffer>();
 }
 
-std::shared_ptr<TextureImpl> WindowsRenderContext::makeTextureImpl(
+std::shared_ptr<TextureImpl> WglRenderContext::makeTextureImpl(
         Vector2i const& /*size*/, Format /*format*/,
         Buffer const& /*buffer*/)
 {
     return std::make_shared<DummyTexture>();
 }
 
-std::shared_ptr<FramebufferImpl> WindowsRenderContext::makeFramebufferImpl()
+std::shared_ptr<FramebufferImpl> WglRenderContext::makeFramebufferImpl()
 {
     return std::make_shared<DummyFramebuffer>();
 }
 
-std::shared_ptr<PipelineImpl> WindowsRenderContext::makePipeline(
+std::shared_ptr<PipelineImpl> WglRenderContext::makePipeline(
         Program program,
         VertexSpec /*spec*/)
 {
     return std::make_shared<DummyPipeline>(std::move(program));
 }
 
-std::shared_ptr<PipelineImpl> WindowsRenderContext::makePipelineWithBlend(
+std::shared_ptr<PipelineImpl> WglRenderContext::makePipelineWithBlend(
         Program program,
         VertexSpec /*spec*/,
         BlendMode /*srcFactor*/,
@@ -99,7 +99,7 @@ std::shared_ptr<PipelineImpl> WindowsRenderContext::makePipelineWithBlend(
     return std::make_shared<DummyPipeline>(std::move(program));
 }
 
-std::shared_ptr<UniformSetImpl> WindowsRenderContext::makeUniformSetImpl()
+std::shared_ptr<UniformSetImpl> WglRenderContext::makeUniformSetImpl()
 {
     return std::make_shared<DummyUniformSet>();
 }

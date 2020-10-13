@@ -1,4 +1,4 @@
-#include "windowswindow.h"
+#include "wglwindow.h"
 
 #include "dummyframebuffer.h"
 
@@ -9,7 +9,7 @@
 namespace ase
 {
 
-WindowsWindow::WindowsWindow(Vector2i size) :
+WglWindow::WglWindow(Vector2i size) :
     defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
 {
     HINSTANCE hInst = GetModuleHandle(NULL);
@@ -31,7 +31,7 @@ WindowsWindow::WindowsWindow(Vector2i size) :
         throw std::runtime_error("Unable to create window");
 }
 
-void WindowsWindow::setVisible(bool value)
+void WglWindow::setVisible(bool value)
 {
     if (visible_ == value)
         return;
@@ -44,74 +44,74 @@ void WindowsWindow::setVisible(bool value)
         ShowWindow(hwnd_, SW_HIDE);
 }
 
-bool WindowsWindow::isVisible() const
+bool WglWindow::isVisible() const
 {
     return visible_;
 }
 
-void WindowsWindow::setTitle(std::string&& title)
+void WglWindow::setTitle(std::string&& title)
 {
     title_ = title;
 
     SetWindowText(hwnd_, title_.c_str());
 }
 
-std::string const& WindowsWindow::getTitle() const
+std::string const& WglWindow::getTitle() const
 {
     return title_;
 }
 
-Vector2i WindowsWindow::getSize() const
+Vector2i WglWindow::getSize() const
 {
     return Vector2i(0, 0);
 }
 
-float WindowsWindow::getScalingFactor() const
+float WglWindow::getScalingFactor() const
 {
     return 1.0f;
 }
 
-Framebuffer& WindowsWindow::getDefaultFramebuffer()
+Framebuffer& WglWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;
 }
 
-void WindowsWindow::clear()
+void WglWindow::clear()
 {
 }
 
-void WindowsWindow::setCloseCallback(std::function<void()> /*func*/)
+void WglWindow::setCloseCallback(std::function<void()> /*func*/)
 {
 }
 
-void WindowsWindow::setResizeCallback(std::function<void()> /*func*/)
+void WglWindow::setResizeCallback(std::function<void()> /*func*/)
 {
 }
 
-void WindowsWindow::setRedrawCallback(std::function<void()> /*func*/)
+void WglWindow::setRedrawCallback(std::function<void()> /*func*/)
 {
 }
 
-void WindowsWindow::setButtonCallback(
+void WglWindow::setButtonCallback(
         std::function<void(PointerButtonEvent const&)> /*cb*/)
 {
 }
 
-void WindowsWindow::setPointerCallback(
+void WglWindow::setPointerCallback(
         std::function<void(PointerMoveEvent const&)> /*cb*/)
 {
 }
 
-void WindowsWindow::setDragCallback(
+void WglWindow::setDragCallback(
         std::function<void(PointerDragEvent const&)> /*cb*/)
 {
 }
 
-void WindowsWindow::setKeyCallback(std::function<void(KeyEvent const&)> /*cb*/)
+void WglWindow::setKeyCallback(std::function<void(KeyEvent const&)> /*cb*/)
 {
 }
 
-void WindowsWindow::setHoverCallback(std::function<void(HoverEvent const&)> /*cb*/)
+void WglWindow::setHoverCallback(std::function<void(HoverEvent const&)> /*cb*/)
 {
 }
 

@@ -41,9 +41,9 @@ elif target_machine.system() == 'windows'
     system_deps = []
     system_incs = []
     system_src = [
-        'windows/windowsplatform.cpp',
-        'windows/windowsrendercontext.cpp',
-        'windows/windowswindow.cpp',
+        'windows/wglplatform.cpp',
+        'windows/wglrendercontext.cpp',
+        'windows/wglwindow.cpp',
         'dummy/dummyframebuffer.cpp',
         'dummy/dummyprogram.cpp',
         'dummy/dummyuniformbuffer.cpp',

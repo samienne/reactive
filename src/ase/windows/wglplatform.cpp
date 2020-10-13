@@ -1,7 +1,7 @@
-#include "windowsplatform.h"
+#include "wglplatform.h"
 
-#include "windowswindow.h"
-#include "windowsrendercontext.h"
+#include "wglwindow.h"
+#include "wglrendercontext.h"
 
 #include "rendercontext.h"
 #include "window.h"
@@ -28,7 +28,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-WindowsPlatform::WindowsPlatform()
+WglPlatform::WglPlatform()
 {
     WNDCLASS wc = {};
 
@@ -43,15 +43,15 @@ WindowsPlatform::WindowsPlatform()
 
 Platform makeDefaultPlatform()
 {
-    return Platform(std::make_shared<WindowsPlatform>());
+    return Platform(std::make_shared<WglPlatform>());
 }
 
-Window WindowsPlatform::makeWindow(Vector2i size)
+Window WglPlatform::makeWindow(Vector2i size)
 {
-    return Window(std::make_shared<WindowsWindow>(size));
+    return Window(std::make_shared<WglWindow>(size));
 }
 
-void WindowsPlatform::handleEvents()
+void WglPlatform::handleEvents()
 {
     MSG msg;
     BOOL bRet = false;
@@ -66,9 +66,9 @@ void WindowsPlatform::handleEvents()
     }
 }
 
-RenderContext WindowsPlatform::makeRenderContext()
+RenderContext WglPlatform::makeRenderContext()
 {
-    return RenderContext(std::make_shared<WindowsRenderContext>());
+    return RenderContext(std::make_shared<WglRenderContext>());
 }
 
 } // namespace ase

@@ -7,10 +7,10 @@
 
 namespace ase
 {
-    class ASE_EXPORT WindowsWindow : public WindowImpl
+    class ASE_EXPORT WglWindow : public WindowImpl
     {
     public:
-        WindowsWindow(Vector2i size);
+        WglWindow(Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;

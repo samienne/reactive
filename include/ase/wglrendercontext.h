@@ -4,7 +4,7 @@
 
 namespace ase
 {
-    class ASE_EXPORT WindowsRenderContext : public RenderContextImpl
+    class ASE_EXPORT WglRenderContext : public RenderContextImpl
     {
     public:
         void submit(CommandBuffer&& commands) override;
