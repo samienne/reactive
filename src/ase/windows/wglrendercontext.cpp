@@ -1,5 +1,8 @@
 #include "wglrendercontext.h"
 
+#include "wglwindow.h"
+#undef min
+
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
 #include "dummyframebuffer.h"
@@ -11,9 +14,12 @@
 #include "dummyfragmentshader.h"
 #include "dummyprogram.h"
 
+#include "window.h"
 #include "buffer.h"
 #include "program.h"
 #include "vertexspec.h"
+
+#include <iostream>
 
 namespace ase
 {
@@ -30,8 +36,9 @@ void WglRenderContext::finish()
 {
 }
 
-void WglRenderContext::present(Window& /*window*/)
+void WglRenderContext::present(Window& window)
 {
+    window.getImpl<WglWindow>().present();
 }
 
 std::shared_ptr<ProgramImpl> WglRenderContext::makeProgramImpl(

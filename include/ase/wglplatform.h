@@ -6,6 +6,10 @@
 
 #include <windows.h>
 
+#include <GL/gl.h>
+
+#include "wglext.h"
+
 namespace ase
 {
     class ASE_EXPORT WglPlatform : public PlatformImpl
@@ -16,6 +20,8 @@ namespace ase
         WglPlatform(WglPlatform const&) = delete;
         WglPlatform& operator=(WglPlatform const&) = delete;
 
+        HGLRC createRawContext(HDC dc);
+
     private:
         // From PlatformImpl
         Window makeWindow(Vector2i size) override;
@@ -23,6 +29,7 @@ namespace ase
         RenderContext makeRenderContext() override;
 
     private:
+        PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB_ = nullptr;
     };
 
 } // namespace ase

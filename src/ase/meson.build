@@ -38,7 +38,8 @@ if target_machine.system() == 'linux'
         glsrcs
         ]
 elif target_machine.system() == 'windows'
-    system_deps = []
+    gldep = dependency('gl')
+    system_deps = [gldep]
     system_incs = []
     system_src = [
         'windows/wglplatform.cpp',

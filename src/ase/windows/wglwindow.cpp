@@ -1,15 +1,21 @@
 #include "wglwindow.h"
 
+#include "wglplatform.h"
 #include "dummyframebuffer.h"
 
-#include <memory>
-
 #include <windows.h>
+
+#include <GL/gl.h>
+
+#include "wglext.h"
+
+#include <memory>
 
 namespace ase
 {
 
-WglWindow::WglWindow(Vector2i size) :
+WglWindow::WglWindow(WglPlatform& platform, Vector2i size) :
+    platform_(platform),
     defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
 {
     HINSTANCE hInst = GetModuleHandle(NULL);
@@ -29,6 +35,31 @@ WglWindow::WglWindow(Vector2i size) :
 
     if (hwnd_ == 0)
         throw std::runtime_error("Unable to create window");
+
+    HDC dc = GetDC(hwnd_);
+
+    PIXELFORMATDESCRIPTOR pfd = {0};
+
+    pfd.nSize = sizeof(pfd);
+    pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+    pfd.cDepthBits = 32;
+
+    int n = ChoosePixelFormat(dc, &pfd);
+    SetPixelFormat(dc, n, &pfd);
+
+    auto context = platform.createRawContext(dc);
+    wglMakeCurrent(dc, context);
+}
+
+void WglWindow::present()
+{
+    //auto wglSwapBuffers = (PFNWGLSWAPBUFFESPROC) wglGetProcAddress("wglSwapBuffers");
+
+    glClearColor(0.0, 0.0, 1.0, 1.0);
+    glClear(GL_COLOR_BUFFER_BIT);
+    SwapBuffers(GetDC(hwnd_));
 }
 
 void WglWindow::setVisible(bool value)

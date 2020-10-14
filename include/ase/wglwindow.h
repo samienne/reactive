@@ -7,10 +7,14 @@
 
 namespace ase
 {
+    class WglPlatform;
+
     class ASE_EXPORT WglWindow : public WindowImpl
     {
     public:
-        WglWindow(Vector2i size);
+        WglWindow(WglPlatform& platform, Vector2i size);
+
+        void present();
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -37,6 +41,7 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
 
     private:
+        WglPlatform& platform_;
         HWND hwnd_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
