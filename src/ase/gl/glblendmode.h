@@ -2,7 +2,7 @@
 
 #include "blendmode.h"
 
-#include <GL/gl.h>
+#include "systemgl.h"
 
 namespace ase
 {

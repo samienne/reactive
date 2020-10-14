@@ -6,8 +6,7 @@
 #include <windows.h>
 
 #include <GL/gl.h>
-
-#include "wglext.h"
+#include <GL/wglext.h>
 
 #include <memory>
 
@@ -49,16 +48,14 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size) :
     int n = ChoosePixelFormat(dc, &pfd);
     SetPixelFormat(dc, n, &pfd);
 
-    auto context = platform.createRawContext(dc);
+    auto context = platform.createRawContext(2, 0);
     wglMakeCurrent(dc, context);
 }
 
 void WglWindow::present()
 {
-    //auto wglSwapBuffers = (PFNWGLSWAPBUFFESPROC) wglGetProcAddress("wglSwapBuffers");
-
     glClearColor(0.0, 0.0, 1.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     SwapBuffers(GetDC(hwnd_));
 }
 

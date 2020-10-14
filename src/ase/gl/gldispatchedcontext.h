@@ -24,6 +24,7 @@ namespace ase
 
         void wait();
 
+        void setGlFunctions(GlFunctions functions);
         GlFunctions const& getGlFunctions() const;
 
     protected:

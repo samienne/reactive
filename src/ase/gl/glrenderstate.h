@@ -2,8 +2,9 @@
 
 #include "vector.h"
 
-#include <GL/gl.h>
-#include <GL/glext.h>
+#include "asevisibility.h"
+
+#include "systemgl.h"
 
 namespace ase
 {
@@ -18,7 +19,7 @@ namespace ase
     struct GlFunctions;
     struct Dispatched;
 
-    class GlRenderState
+    class ASE_EXPORT GlRenderState
     {
     public:
         GlRenderState(GlRenderContext& context, GlDispatchedContext& dispatcher);

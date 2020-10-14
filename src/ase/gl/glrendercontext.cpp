@@ -23,7 +23,7 @@
 #include "buffer.h"
 #include "debug.h"
 
-#include <GL/gl.h>
+#include "systemgl.h"
 
 #include <algorithm>
 #include <functional>

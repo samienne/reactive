@@ -1,6 +1,6 @@
 #include "glerror.h"
 
-#include <GL/gl.h>
+#include "systemgl.h"
 
 #include <sstream>
 

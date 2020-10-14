@@ -7,8 +7,7 @@
 #include <windows.h>
 
 #include <GL/gl.h>
-
-#include "wglext.h"
+#include <GL/wglext.h>
 
 namespace ase
 {
@@ -16,11 +15,15 @@ namespace ase
     {
     public:
         WglPlatform();
+        virtual ~WglPlatform();
 
         WglPlatform(WglPlatform const&) = delete;
         WglPlatform& operator=(WglPlatform const&) = delete;
 
-        HGLRC createRawContext(HDC dc);
+        HGLRC createRawContext(int minor, int major);
+        HDC getDummyDc() const;
+
+        static std::string getLastErrorString();
 
     private:
         // From PlatformImpl
@@ -29,6 +32,9 @@ namespace ase
         RenderContext makeRenderContext() override;
 
     private:
+        HWND dummyWindow_ = nullptr;
+        HGLRC dummyContext_ = nullptr;
+        HDC dummyDc_ = nullptr;
         PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB_ = nullptr;
     };
 

@@ -9,9 +9,7 @@
 
 #include <windows.h>
 #include <GL/gl.h>
-#include "wglext.h"
-//#include "glext.h"
-
+#include <GL/wglext.h>
 
 #include <iostream>
 
@@ -98,24 +96,18 @@ HGLRC createDummyContext(HWND dummyWindow)
     return dummyContext;
 }
 
-PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB()
+PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB(
+        HWND window, HGLRC context)
 {
-    HWND dummyWindow = createDummyWindow();
-    HGLRC dummyContext = createDummyContext(dummyWindow);
-    HDC dummyDc = GetDC(dummyWindow);
+    HDC dc = GetDC(window);
 
-    wglMakeCurrent(dummyDc, dummyContext);
-
-    if (wglGetCurrentContext() != dummyContext)
-        throw std::runtime_error("Wrong context");
+    wglMakeCurrent(dc, context);
 
     PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB =
         (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress(
                 "wglCreateContextAttribsARB");
 
-    //wglMakeCurrent(NULL, NULL);
-    //wglDeleteContext(dummyContext);
-    //DestroyWindow(dummyWindow);
+    wglMakeCurrent(NULL, NULL);
 
     if (!wglCreateContextAttribsARB)
         throw std::runtime_error("Unable to get wglCreateContextAttribsARB.");
@@ -128,7 +120,11 @@ WglPlatform::WglPlatform()
 {
     try
     {
-        wglCreateContextAttribsARB_ = getWglCreateContextAttribsARB();
+        dummyWindow_ = createDummyWindow();
+        dummyDc_ = GetDC(dummyWindow_);
+        dummyContext_ = createDummyContext(dummyWindow_);
+        wglCreateContextAttribsARB_ = getWglCreateContextAttribsARB(
+                dummyWindow_, dummyContext_);
     }
     catch(std::exception& e)
     {
@@ -147,12 +143,48 @@ WglPlatform::WglPlatform()
     RegisterClass(&wc);
 }
 
+WglPlatform::~WglPlatform()
+{
+    wglMakeCurrent(nullptr, nullptr);
+    if (dummyContext_)
+        wglDeleteContext(dummyContext_);
+
+    if (dummyWindow_)
+        DestroyWindow(dummyWindow_);
+}
+
 Platform makeDefaultPlatform()
 {
     return Platform(std::make_shared<WglPlatform>());
 }
 
-std::string getLastErrorString()
+HGLRC WglPlatform::createRawContext(int minor, int major)
+{
+    static const int attribs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, minor,
+        WGL_CONTEXT_MINOR_VERSION_ARB, major,
+        NULL
+    };
+
+    wglMakeCurrent(dummyDc_, dummyContext_);
+    HGLRC context = wglCreateContextAttribsARB_(dummyDc_, NULL, attribs);
+    wglMakeCurrent(nullptr, nullptr);
+
+    if (!context)
+    {
+        std::cout << getLastErrorString() << std::endl;
+        throw std::runtime_error("Unable to create context");
+    }
+
+    return context;
+}
+
+HDC WglPlatform::getDummyDc() const
+{
+    return dummyDc_;
+}
+
+std::string WglPlatform::getLastErrorString()
 {
     DWORD errorMessageId = ::GetLastError();
     if (!errorMessageId)
@@ -173,25 +205,6 @@ std::string getLastErrorString()
     LocalFree(msgBuffer);
 
     return msg;
-}
-
-HGLRC WglPlatform::createRawContext(HDC dc)
-{
-    static const int attribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, 2,
-        WGL_CONTEXT_MINOR_VERSION_ARB, 0,
-        NULL
-    };
-
-    HGLRC context = wglCreateContextAttribsARB_(dc, NULL, attribs);
-
-    if (!context)
-    {
-        std::cout << getLastErrorString() << std::endl;
-        throw std::runtime_error("Unable to create context");
-    }
-
-    return context;
 }
 
 Window WglPlatform::makeWindow(Vector2i size)

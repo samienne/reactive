@@ -38,19 +38,23 @@ if target_machine.system() == 'linux'
         glsrcs
         ]
 elif target_machine.system() == 'windows'
+    glheaders = subproject('glheaders')
     gldep = dependency('gl')
-    system_deps = [gldep]
+    glheadersdep = glheaders.get_variable('glheaders_dep')
+    system_deps = [glheadersdep, gldep]
     system_incs = []
     system_src = [
         'windows/wglplatform.cpp',
         'windows/wglrendercontext.cpp',
         'windows/wglwindow.cpp',
+        'windows/wgldispatchedcontext.cpp',
         'dummy/dummyframebuffer.cpp',
         'dummy/dummyprogram.cpp',
         'dummy/dummyuniformbuffer.cpp',
         'dummy/dummytexture.cpp',
         'dummy/dummypipeline.cpp',
         'dummy/dummyuniformset.cpp',
+        glsrcs
         ]
 else
     system_deps = []

@@ -2,8 +2,7 @@
 
 #include "asevisibility.h"
 
-#include <GL/gl.h>
-#include <GL/glext.h>
+#include "systemgl.h"
 
 namespace ase
 {
@@ -55,6 +54,7 @@ namespace ase
         PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
         PFNGLBINDBUFFERRANGEPROC glBindBufferRange = nullptr;
         PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
+        PFNGLACTIVETEXTUREPROC glActiveTexture = nullptr;
     };
 } // namespace ase
 
