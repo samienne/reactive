@@ -8,6 +8,7 @@
 #include "vector.h"
 
 #include "asevisibility.h"
+
 #include <btl/option.h>
 
 namespace ase

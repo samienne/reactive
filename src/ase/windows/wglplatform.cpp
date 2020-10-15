@@ -73,23 +73,11 @@ HWND createDummyWindow()
     return hwnd;
 }
 
-HGLRC createDummyContext(HWND dummyWindow)
+HGLRC createDummyContext(PIXELFORMATDESCRIPTOR pfd, HWND dummyWindow)
 {
-    PIXELFORMATDESCRIPTOR dummyDescriptor =
-    {
-        sizeof(PIXELFORMATDESCRIPTOR),
-        PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER,
-        PFD_TYPE_RGBA,
-        32,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        24,
-        8,
-        0, 0, 0, 0, 0, 0
-    };
-
     HDC dummyDc = GetDC(dummyWindow);
-    int dummyPixelFormat = ChoosePixelFormat(dummyDc, &dummyDescriptor);
-    SetPixelFormat(dummyDc, dummyPixelFormat, &dummyDescriptor);
+    int dummyPixelFormat = ChoosePixelFormat(dummyDc, &pfd);
+    SetPixelFormat(dummyDc, dummyPixelFormat, &pfd);
 
     HGLRC dummyContext = wglCreateContext(dummyDc);
 
@@ -122,7 +110,8 @@ WglPlatform::WglPlatform()
     {
         dummyWindow_ = createDummyWindow();
         dummyDc_ = GetDC(dummyWindow_);
-        dummyContext_ = createDummyContext(dummyWindow_);
+        dummyContext_ = createDummyContext(getPixelFormatDescriptor(),
+                dummyWindow_);
         wglCreateContextAttribsARB_ = getWglCreateContextAttribsARB(
                 dummyWindow_, dummyContext_);
     }
@@ -184,6 +173,20 @@ HDC WglPlatform::getDummyDc() const
     return dummyDc_;
 }
 
+PIXELFORMATDESCRIPTOR WglPlatform::getPixelFormatDescriptor() const
+{
+    PIXELFORMATDESCRIPTOR pfd = {0};
+
+    pfd.nSize = sizeof(pfd);
+    pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;
+    pfd.iPixelType = PFD_TYPE_RGBA;
+    pfd.cColorBits = 32;
+    pfd.cDepthBits = 24;
+    pfd.cStencilBits = 8;
+
+    return pfd;
+}
+
 std::string WglPlatform::getLastErrorString()
 {
     DWORD errorMessageId = ::GetLastError();
@@ -237,7 +240,7 @@ void WglPlatform::handleEvents()
 
 RenderContext WglPlatform::makeRenderContext()
 {
-    return RenderContext(std::make_shared<WglRenderContext>());
+    return RenderContext(std::make_shared<WglRenderContext>(*this));
 }
 
 } // namespace ase

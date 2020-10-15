@@ -37,13 +37,7 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size) :
 
     HDC dc = GetDC(hwnd_);
 
-    PIXELFORMATDESCRIPTOR pfd = {0};
-
-    pfd.nSize = sizeof(pfd);
-    pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cColorBits = 32;
-    pfd.cDepthBits = 32;
+    auto pfd = platform_.getPixelFormatDescriptor();
 
     int n = ChoosePixelFormat(dc, &pfd);
     SetPixelFormat(dc, n, &pfd);

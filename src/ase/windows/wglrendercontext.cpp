@@ -1,8 +1,14 @@
 #include "wglrendercontext.h"
 
 #include "wglwindow.h"
+#include "wgldispatchedcontext.h"
+#include "wglplatform.h"
+
+#include "window.h"
+
 #undef min
 
+/*
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
 #include "dummyframebuffer.h"
@@ -13,17 +19,30 @@
 #include "dummyvertexshader.h"
 #include "dummyfragmentshader.h"
 #include "dummyprogram.h"
+*/
 
+/*
 #include "window.h"
 #include "buffer.h"
 #include "program.h"
 #include "vertexspec.h"
+*/
 
 #include <iostream>
 
 namespace ase
 {
 
+WglRenderContext::WglRenderContext(WglPlatform& platform) :
+    GlRenderContext(platform,
+            std::make_shared<WglDispatchedContext>(platform),
+            std::make_shared<WglDispatchedContext>(platform)
+            ),
+    platform_(platform)
+{
+}
+
+#if 0
 void WglRenderContext::submit(CommandBuffer&& /*commands*/)
 {
 }
@@ -35,12 +54,14 @@ void WglRenderContext::flush()
 void WglRenderContext::finish()
 {
 }
+#endif
 
 void WglRenderContext::present(Window& window)
 {
     window.getImpl<WglWindow>().present();
 }
 
+#if 0
 std::shared_ptr<ProgramImpl> WglRenderContext::makeProgramImpl(
         VertexShader const& /*vertexShader*/,
         FragmentShader const& /*fragmentShader*/)
@@ -111,6 +132,7 @@ std::shared_ptr<UniformSetImpl> WglRenderContext::makeUniformSetImpl()
     return std::make_shared<DummyUniformSet>();
 }
 
+#endif
 
 } // namespace ase
 

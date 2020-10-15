@@ -2,6 +2,7 @@
 
 #include "wglplatform.h"
 
+#include <iostream>
 #include <cassert>
 
 namespace ase
@@ -9,104 +10,119 @@ namespace ase
 
 namespace
 {
-    GlFunctions getGlFunctions()
+    void* getProcAddress(char const* name)
+    {
+        void* p = (void*)wglGetProcAddress(name);
+
+        if (p == nullptr || p == (void*)0x1 || p == (void*)0x2
+                || p == (void*)0x3 || p == (void*)-1)
+        {
+            HMODULE module = LoadLibraryA("opengl32.dll");
+            p = (void*)GetProcAddress(module, name);
+            std::cout << name << ": " << p << std::endl;
+        }
+
+        return p;
+    }
+
+    GlFunctions getGlFunctionPointers()
     {
         GlFunctions gl;
 
         gl.glVertexAttribPointer = (PFNGLVERTEXATTRIBPOINTERPROC)
-            wglGetProcAddress("glVertexAttribPointer");
+            getProcAddress("glVertexAttribPointer");
         gl.glDisableVertexAttribArray = (PFNGLDISABLEVERTEXATTRIBARRAYPROC)
-            wglGetProcAddress("glDisableVertexAttribArray");
+            getProcAddress("glDisableVertexAttribArray");
         gl.glEnableVertexAttribArray = (PFNGLENABLEVERTEXATTRIBARRAYPROC)
-            wglGetProcAddress("glEnableVertexAttribArray");
+            getProcAddress("glEnableVertexAttribArray");
         gl.glUniform1fv = (PFNGLUNIFORM1FVPROC)
-            wglGetProcAddress("glUniform1fv");
+            getProcAddress("glUniform1fv");
         gl.glUniform2fv = (PFNGLUNIFORM2FVPROC)
-            wglGetProcAddress("glUniform2fv");
+            getProcAddress("glUniform2fv");
         gl.glUniform3fv = (PFNGLUNIFORM3FVPROC)
-            wglGetProcAddress("glUniform3fv");
+            getProcAddress("glUniform3fv");
         gl.glUniform4fv = (PFNGLUNIFORM4FVPROC)
-            wglGetProcAddress("glUniform4fv");
+            getProcAddress("glUniform4fv");
         gl.glUniform1iv = (PFNGLUNIFORM1IVPROC)
-            wglGetProcAddress("glUniform1iv");
+            getProcAddress("glUniform1iv");
         gl.glUniform2iv = (PFNGLUNIFORM2IVPROC)
-            wglGetProcAddress("glUniform2iv");
+            getProcAddress("glUniform2iv");
         gl.glUniform3iv = (PFNGLUNIFORM3IVPROC)
-            wglGetProcAddress("glUniform3iv");
+            getProcAddress("glUniform3iv");
         gl.glUniform4iv = (PFNGLUNIFORM4IVPROC)
-            wglGetProcAddress("glUniform4iv");
+            getProcAddress("glUniform4iv");
         gl.glUniform1uiv = (PFNGLUNIFORM1UIVPROC)
-            wglGetProcAddress("glUniform1uiv");
+            getProcAddress("glUniform1uiv");
         gl.glUniform2uiv = (PFNGLUNIFORM2UIVPROC)
-            wglGetProcAddress("glUniform2uiv");
+            getProcAddress("glUniform2uiv");
         gl.glUniform3uiv = (PFNGLUNIFORM3UIVPROC)
-            wglGetProcAddress("glUniform3uiv");
+            getProcAddress("glUniform3uiv");
         gl.glUniform4uiv = (PFNGLUNIFORM4UIVPROC)
-            wglGetProcAddress("glUniform4uiv");
+            getProcAddress("glUniform4uiv");
         gl.glUniformMatrix4fv = (PFNGLUNIFORMMATRIX4FVPROC)
-            wglGetProcAddress("glUniformMatrix4fv");
+            getProcAddress("glUniformMatrix4fv");
         gl.glUseProgram = (PFNGLUSEPROGRAMPROC)
-            wglGetProcAddress("glUseProgram");
+            getProcAddress("glUseProgram");
         gl.glBindBuffer = (PFNGLBINDBUFFERPROC)
-            wglGetProcAddress("glBindBuffer");
+            getProcAddress("glBindBuffer");
         gl.glGenBuffers = (PFNGLGENBUFFERSPROC)
-            wglGetProcAddress("glGenBuffers");
+            getProcAddress("glGenBuffers");
         gl.glBufferData = (PFNGLBUFFERDATAPROC)
-            wglGetProcAddress("glBufferData");
+            getProcAddress("glBufferData");
         gl.glDeleteBuffers = (PFNGLDELETEBUFFERSPROC)
-            wglGetProcAddress("glDeleteBuffers");
+            getProcAddress("glDeleteBuffers");
         gl.glCreateProgram = (PFNGLCREATEPROGRAMPROC)
-            wglGetProcAddress("glCreateProgram");
+            getProcAddress("glCreateProgram");
         gl.glAttachShader = (PFNGLATTACHSHADERPROC)
-            wglGetProcAddress("glAttachShader");
+            getProcAddress("glAttachShader");
         gl.glLinkProgram = (PFNGLLINKPROGRAMPROC)
-            wglGetProcAddress("glLinkProgram");
+            getProcAddress("glLinkProgram");
         gl.glGetProgramiv = (PFNGLGETPROGRAMIVPROC)
-            wglGetProcAddress("glGetProgramiv");
+            getProcAddress("glGetProgramiv");
         gl.glGetProgramInfoLog = (PFNGLGETPROGRAMINFOLOGPROC)
-            wglGetProcAddress("glGetProgramInfoLog");
+            getProcAddress("glGetProgramInfoLog");
         gl.glGetActiveAttrib = (PFNGLGETACTIVEATTRIBPROC)
-            wglGetProcAddress("glGetActiveAttrib");
+            getProcAddress("glGetActiveAttrib");
         gl.glGetAttribLocation = (PFNGLGETATTRIBLOCATIONPROC)
-            wglGetProcAddress("glGetAttribLocation");
+            getProcAddress("glGetAttribLocation");
         gl.glGetActiveUniform = (PFNGLGETACTIVEUNIFORMPROC)
-            wglGetProcAddress("glGetActiveUniform");
+            getProcAddress("glGetActiveUniform");
         gl.glGetUniformLocation = (PFNGLGETUNIFORMLOCATIONPROC)
-            wglGetProcAddress("glGetUniformLocation");
+            getProcAddress("glGetUniformLocation");
         gl.glDeleteProgram = (PFNGLDELETEPROGRAMPROC)
-            wglGetProcAddress("glDeleteProgram");
+            getProcAddress("glDeleteProgram");
         gl.glCreateShader = (PFNGLCREATESHADERPROC)
-            wglGetProcAddress("glCreateShader");
+            getProcAddress("glCreateShader");
         gl.glShaderSource = (PFNGLSHADERSOURCEPROC)
-            wglGetProcAddress("glShaderSource");
+            getProcAddress("glShaderSource");
         gl.glCompileShader = (PFNGLCOMPILESHADERPROC)
-            wglGetProcAddress("glCompileShader");
+            getProcAddress("glCompileShader");
         gl.glGetShaderiv = (PFNGLGETSHADERIVPROC)
-            wglGetProcAddress("glGetShaderiv");
+            getProcAddress("glGetShaderiv");
         gl.glGetShaderInfoLog = (PFNGLGETSHADERINFOLOGPROC)
-            wglGetProcAddress("glGetShaderInfoLog");
+            getProcAddress("glGetShaderInfoLog");
         gl.glDeleteShader = (PFNGLDELETESHADERPROC)
-            wglGetProcAddress("glDeleteShader");
+            getProcAddress("glDeleteShader");
         gl.glGenFramebuffers = (PFNGLGENFRAMEBUFFERSPROC)
-            wglGetProcAddress("glGenFramebuffers");
+            getProcAddress("glGenFramebuffers");
         gl.glDeleteFramebuffers = (PFNGLDELETEFRAMEBUFFERSPROC)
-            wglGetProcAddress("glDeleteFramebuffers");
+            getProcAddress("glDeleteFramebuffers");
         gl.glFramebufferTexture2D = (PFNGLFRAMEBUFFERTEXTURE2DPROC)
-            wglGetProcAddress("glFramebufferTexture2D");
+            getProcAddress("glFramebufferTexture2D");
         gl.glBindFramebuffer = (PFNGLBINDFRAMEBUFFERPROC)
-            wglGetProcAddress("glBindFramebuffer");
+            getProcAddress("glBindFramebuffer");
         gl.glGenVertexArrays = (PFNGLGENVERTEXARRAYSPROC)
-            wglGetProcAddress("glGenVertexArrays");
+            getProcAddress("glGenVertexArrays");
         gl.glBindVertexArray = (PFNGLBINDVERTEXARRAYPROC)
-            wglGetProcAddress("glBindVertexArray");
+            getProcAddress("glBindVertexArray");
         gl.glDeleteVertexArrays = (PFNGLDELETEVERTEXARRAYSPROC)
-            wglGetProcAddress("glDeleteVertexArrays");
+            getProcAddress("glDeleteVertexArrays");
         gl.glBindBufferRange = (PFNGLBINDBUFFERRANGEPROC)
-            wglGetProcAddress("glBindBufferRange");
+            getProcAddress("glBindBufferRange");
         gl.glGetUniformBlockIndex = (PFNGLGETUNIFORMBLOCKINDEXPROC)
-            wglGetProcAddress("glGetUniformBlockIndex");
+            getProcAddress("glGetUniformBlockIndex");
         gl.glActiveTexture = (PFNGLACTIVETEXTUREPROC)
-            wglGetProcAddress("glActiveTexture");
+            getProcAddress("glActiveTexture");
 
         return gl;
     }
@@ -120,7 +136,7 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform) :
     dispatcher_.run([this]()
     {
         wglMakeCurrent(platform_.getDummyDc(), context_);
-        setGlFunctions(getGlFunctions());
+        setGlFunctions(getGlFunctionPointers());
     });
 
     dispatcher_.wait();

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "platformimpl.h"
+#include "glplatform.h"
 
 #include "asevisibility.h"
 
@@ -11,7 +11,7 @@
 
 namespace ase
 {
-    class ASE_EXPORT WglPlatform : public PlatformImpl
+    class ASE_EXPORT WglPlatform : public GlPlatform
     {
     public:
         WglPlatform();
@@ -22,6 +22,7 @@ namespace ase
 
         HGLRC createRawContext(int minor, int major);
         HDC getDummyDc() const;
+        PIXELFORMATDESCRIPTOR getPixelFormatDescriptor() const;
 
         static std::string getLastErrorString();
 

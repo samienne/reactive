@@ -1,17 +1,22 @@
 #pragma once
 
-#include "rendercontextimpl.h"
+#include "glrendercontext.h"
 
 namespace ase
 {
-    class ASE_EXPORT WglRenderContext : public RenderContextImpl
+    class WglPlatform;
+
+    class ASE_EXPORT WglRenderContext : public GlRenderContext
     {
     public:
-        void submit(CommandBuffer&& commands) override;
-        void flush() override;
-        void finish() override;
+        WglRenderContext(WglPlatform& platform);
+
+        //void submit(CommandBuffer&& commands) override;
+        //void flush() override;
+        //void finish() override;
         void present(Window& window) override;
 
+        /*
         std::shared_ptr<ProgramImpl> makeProgramImpl(
                 VertexShader const& vertexShader,
                 FragmentShader const& fragmentShader) override;
@@ -48,6 +53,10 @@ namespace ase
                 BlendMode dstFactor) override;
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
+        */
+
+    private:
+        WglPlatform& platform_;
     };
 } // namespace ase
 
