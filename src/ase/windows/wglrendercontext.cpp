@@ -40,6 +40,10 @@ WglRenderContext::WglRenderContext(WglPlatform& platform) :
             ),
     platform_(platform)
 {
+    wglShareLists(
+            static_cast<WglDispatchedContext const&>(getFgContext()).getWglContext(),
+            static_cast<WglDispatchedContext const&>(getBgContext()).getWglContext()
+            );
 }
 
 #if 0

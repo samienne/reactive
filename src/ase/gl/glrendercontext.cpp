@@ -191,5 +191,10 @@ GlDispatchedContext const& GlRenderContext::getFgContext() const
     return *fgContext_;
 }
 
+GlDispatchedContext const& GlRenderContext::getBgContext() const
+{
+    return *bgContext_;
+}
+
 } // namespace
 

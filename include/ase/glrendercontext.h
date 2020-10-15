@@ -100,6 +100,7 @@ namespace ase
 
     protected:
         GlDispatchedContext const& getFgContext() const;
+        GlDispatchedContext const& getBgContext() const;
 
     private:
         GlPlatform& platform_;
