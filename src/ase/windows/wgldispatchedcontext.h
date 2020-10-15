@@ -1,13 +1,15 @@
 #pragma once
 
-#include <windows.h>
 
 #include "gldispatchedcontext.h"
 
 #include "dispatcher.h"
 
-#include <GL/gl.h>
-#include <GL/wglext.h>
+#include "asevisibility.h"
+
+#include "systemgl.h"
+
+#include <windows.h>
 
 namespace ase
 {

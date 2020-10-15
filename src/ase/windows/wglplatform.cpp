@@ -214,7 +214,7 @@ Window WglPlatform::makeWindow(Vector2i size)
 {
     try
     {
-    return Window(std::make_shared<WglWindow>(*this, size));
+        return Window(std::make_shared<WglWindow>(*this, size, 1.0f));
     }
     catch(std::exception& e)
     {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "genericwindow.h"
 #include "framebuffer.h"
 #include "windowimpl.h"
 
@@ -12,7 +13,9 @@ namespace ase
     class ASE_EXPORT WglWindow : public WindowImpl
     {
     public:
-        WglWindow(WglPlatform& platform, Vector2i size);
+        WglWindow(WglPlatform& platform, Vector2i size, float scalingFactor);
+
+        HDC getDc() const;
 
         void present();
 
@@ -43,6 +46,7 @@ namespace ase
     private:
         WglPlatform& platform_;
         HWND hwnd_;
+        GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
         std::string title_;

@@ -1,7 +1,7 @@
 #include "wglwindow.h"
 
 #include "wglplatform.h"
-#include "dummyframebuffer.h"
+#include "wglframebuffer.h"
 
 #include <windows.h>
 
@@ -13,9 +13,11 @@
 namespace ase
 {
 
-WglWindow::WglWindow(WglPlatform& platform, Vector2i size) :
+WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
+        float scalingFactor) :
     platform_(platform),
-    defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
+    genericWindow_(size, scalingFactor),
+    defaultFramebuffer_(std::make_shared<WglFramebuffer>(platform, *this))
 {
     HINSTANCE hInst = GetModuleHandle(NULL);
 
@@ -44,6 +46,11 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size) :
 
     auto context = platform.createRawContext(2, 0);
     wglMakeCurrent(dc, context);
+}
+
+HDC WglWindow::getDc() const
+{
+    return GetDC(hwnd_);
 }
 
 void WglWindow::present()
@@ -102,39 +109,47 @@ void WglWindow::clear()
 {
 }
 
-void WglWindow::setCloseCallback(std::function<void()> /*func*/)
+void WglWindow::setCloseCallback(std::function<void()> func)
 {
+    genericWindow_.setCloseCallback(std::move(func));
 }
 
-void WglWindow::setResizeCallback(std::function<void()> /*func*/)
+void WglWindow::setResizeCallback(std::function<void()> func)
 {
+    genericWindow_.setResizeCallback(std::move(func));
 }
 
-void WglWindow::setRedrawCallback(std::function<void()> /*func*/)
+void WglWindow::setRedrawCallback(std::function<void()> func)
 {
+    genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void WglWindow::setButtonCallback(
-        std::function<void(PointerButtonEvent const&)> /*cb*/)
+        std::function<void(PointerButtonEvent const& e)> cb)
 {
+    genericWindow_.setButtonCallback(std::move(cb));
 }
 
 void WglWindow::setPointerCallback(
-        std::function<void(PointerMoveEvent const&)> /*cb*/)
+        std::function<void(PointerMoveEvent const&)> cb)
 {
+    genericWindow_.setPointerCallback(std::move(cb));
 }
 
 void WglWindow::setDragCallback(
-        std::function<void(PointerDragEvent const&)> /*cb*/)
+        std::function<void(PointerDragEvent const&)> cb)
 {
+    genericWindow_.setDragCallback(std::move(cb));
 }
 
-void WglWindow::setKeyCallback(std::function<void(KeyEvent const&)> /*cb*/)
+void WglWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 {
+    genericWindow_.setKeyCallback(std::move(cb));
 }
 
-void WglWindow::setHoverCallback(std::function<void(HoverEvent const&)> /*cb*/)
+void WglWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 {
+    genericWindow_.setHoverCallback(std::move(cb));
 }
 
 } // namespace ase

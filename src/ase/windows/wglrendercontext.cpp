@@ -26,6 +26,13 @@ WglRenderContext::WglRenderContext(WglPlatform& platform) :
             );
 }
 
+WglDispatchedContext const& WglRenderContext::getWglContext() const
+{
+    return reinterpret_cast<WglDispatchedContext const&>(
+            getFgContext()
+            );
+}
+
 void WglRenderContext::present(Window& window)
 {
     window.getImpl<WglWindow>().present();
