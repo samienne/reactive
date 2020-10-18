@@ -9,6 +9,8 @@
 #include "texture.h"
 #include "dispatcher.h"
 
+#include <iostream>
+
 namespace ase
 {
 

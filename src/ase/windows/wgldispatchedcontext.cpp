@@ -128,10 +128,11 @@ namespace
     }
 } // Anonymous namespace
 
-WglDispatchedContext::WglDispatchedContext(WglPlatform& platform) :
+WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
+        HGLRC context) :
     GlDispatchedContext(),
     platform_(platform),
-    context_(platform_.createRawContext(2, 0))
+    context_(context)
 {
     dispatcher_.run([this]()
     {

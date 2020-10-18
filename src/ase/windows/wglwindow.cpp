@@ -44,8 +44,8 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
     int n = ChoosePixelFormat(dc, &pfd);
     SetPixelFormat(dc, n, &pfd);
 
-    auto context = platform.createRawContext(2, 0);
-    wglMakeCurrent(dc, context);
+    //auto context = platform.createRawContext(3, 3);
+    //wglMakeCurrent(dc, context);
 }
 
 HDC WglWindow::getDc() const
@@ -55,9 +55,6 @@ HDC WglWindow::getDc() const
 
 void WglWindow::present()
 {
-    glClearColor(0.0, 0.0, 1.0, 1.0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    SwapBuffers(GetDC(hwnd_));
 }
 
 void WglWindow::setVisible(bool value)
@@ -92,7 +89,7 @@ std::string const& WglWindow::getTitle() const
 
 Vector2i WglWindow::getSize() const
 {
-    return Vector2i(0, 0);
+    return genericWindow_.getSize();
 }
 
 float WglWindow::getScalingFactor() const
@@ -107,6 +104,7 @@ Framebuffer& WglWindow::getDefaultFramebuffer()
 
 void WglWindow::clear()
 {
+    defaultFramebuffer_.clear();
 }
 
 void WglWindow::setCloseCallback(std::function<void()> func)

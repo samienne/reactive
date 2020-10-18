@@ -2,6 +2,8 @@
 
 #include "glrendercontext.h"
 
+#include "systemgl.h"
+
 namespace ase
 {
     class WglPlatform;
@@ -10,7 +12,8 @@ namespace ase
     class ASE_EXPORT WglRenderContext : public GlRenderContext
     {
     public:
-        WglRenderContext(WglPlatform& platform);
+        WglRenderContext(WglPlatform& platform, HGLRC fgContext,
+                HGLRC bgContext);
 
         WglDispatchedContext const& getWglContext() const;
 

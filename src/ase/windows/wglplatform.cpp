@@ -85,10 +85,8 @@ HGLRC createDummyContext(PIXELFORMATDESCRIPTOR pfd, HWND dummyWindow)
 }
 
 PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB(
-        HWND window, HGLRC context)
+        HDC dc, HGLRC context)
 {
-    HDC dc = GetDC(window);
-
     wglMakeCurrent(dc, context);
 
     PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB =
@@ -109,11 +107,20 @@ WglPlatform::WglPlatform()
     try
     {
         dummyWindow_ = createDummyWindow();
+        if (!dummyWindow_)
+            throw std::runtime_error("Unable to create a dummy window.");
+
         dummyDc_ = GetDC(dummyWindow_);
+        if (!dummyDc_)
+            throw std::runtime_error("No dummy DC available.");
+
         dummyContext_ = createDummyContext(getPixelFormatDescriptor(),
                 dummyWindow_);
+        if (!dummyContext_)
+            throw std::runtime_error("Unable to create a dummy context");
+
         wglCreateContextAttribsARB_ = getWglCreateContextAttribsARB(
-                dummyWindow_, dummyContext_);
+                dummyDc_, dummyContext_);
     }
     catch(std::exception& e)
     {
@@ -128,6 +135,7 @@ WglPlatform::WglPlatform()
     wc.lpfnWndProc = (WNDPROC)wndProc;
     wc.hInstance = hInst;
     wc.lpszClassName = "MainWindowClass";
+    wc.style = CS_OWNDC;
 
     RegisterClass(&wc);
 }
@@ -157,13 +165,16 @@ HGLRC WglPlatform::createRawContext(int minor, int major)
 
     wglMakeCurrent(dummyDc_, dummyContext_);
     HGLRC context = wglCreateContextAttribsARB_(dummyDc_, NULL, attribs);
-    wglMakeCurrent(nullptr, nullptr);
 
     if (!context)
     {
-        std::cout << getLastErrorString() << std::endl;
-        throw std::runtime_error("Unable to create context");
+        auto error = getLastErrorString();
+        wglMakeCurrent(nullptr, nullptr);
+        std::cout << error << std::endl;
+        throw std::runtime_error("Unable to create context: " + error);
     }
+
+    wglMakeCurrent(nullptr, nullptr);
 
     return context;
 }
@@ -240,7 +251,13 @@ void WglPlatform::handleEvents()
 
 RenderContext WglPlatform::makeRenderContext()
 {
-    return RenderContext(std::make_shared<WglRenderContext>(*this));
+    HGLRC bgContext = createRawContext(3, 0);
+    HGLRC fgContext = createRawContext(3, 0);
+
+    wglShareLists(bgContext, fgContext);
+
+    return RenderContext(std::make_shared<WglRenderContext>(*this,
+                bgContext, fgContext));
 }
 
 } // namespace ase

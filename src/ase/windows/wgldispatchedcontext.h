@@ -18,7 +18,7 @@ namespace ase
     class WglDispatchedContext : public GlDispatchedContext
     {
     public:
-        WglDispatchedContext(WglPlatform& platform);
+        WglDispatchedContext(WglPlatform& platform, HGLRC context);
 
         HGLRC getWglContext() const;
 
