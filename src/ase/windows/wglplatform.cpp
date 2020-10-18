@@ -251,13 +251,13 @@ void WglPlatform::handleEvents()
 
 RenderContext WglPlatform::makeRenderContext()
 {
-    HGLRC bgContext = createRawContext(3, 0);
     HGLRC fgContext = createRawContext(3, 0);
+    HGLRC bgContext = createRawContext(3, 0);
 
     wglShareLists(bgContext, fgContext);
 
     return RenderContext(std::make_shared<WglRenderContext>(*this,
-                bgContext, fgContext));
+                fgContext, bgContext));
 }
 
 } // namespace ase

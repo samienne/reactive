@@ -44,6 +44,12 @@ GlRenderContext::GlRenderContext(
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
+    dispatch([](GlFunctions const&)
+    {
+        std::cout << "GlVendor: " << glGetString(GL_VENDOR) << std::endl;
+        std::cout << "GlRenderer: " << glGetString(GL_RENDERER) << std::endl;
+        std::cout << "GlVersion: " << glGetString(GL_VERSION) << std::endl;
+    });
 }
 
 GlRenderContext::~GlRenderContext()

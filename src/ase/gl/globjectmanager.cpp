@@ -58,6 +58,7 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
             (GlFunctions const& gl) mutable
             {
                 vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+                glFlush();
             });
 
     context_.waitBg();
@@ -74,6 +75,7 @@ std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
             (GlFunctions const& gl) mutable
             {
                 ib->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+                glFlush();
             });
 
     context_.waitBg();
@@ -91,6 +93,7 @@ std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer(
         (GlFunctions const& gl) mutable
         {
             ub->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+            glFlush();
         });
 
     context_.waitBg();
@@ -109,6 +112,7 @@ std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
             (GlFunctions const& gl)
             {
                 texture->setData(Dispatched(), gl, ownSize, format, ownBuffer);
+                glFlush();
             });
 
     context_.waitBg();

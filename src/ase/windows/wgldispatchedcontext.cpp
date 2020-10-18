@@ -134,6 +134,9 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
     platform_(platform),
     context_(context)
 {
+    if (!context_)
+        return;
+
     dispatcher_.run([this]()
     {
         wglMakeCurrent(platform_.getDummyDc(), context_);
