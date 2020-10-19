@@ -20,6 +20,7 @@ namespace ase
 
         Vector2i getSize() const;
         Vector2i getScaledSize() const;
+        void setScalingFactor(float factor);
         float getScalingFactor() const;
         float getWidth() const;
         float getHeight() const;

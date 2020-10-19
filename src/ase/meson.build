@@ -27,6 +27,7 @@ if target_machine.system() == 'linux'
     x11dep = dependency('x11')
     xextdep = dependency('xext')
     system_deps = [gldep, x11dep, xextdep]
+    system_link_args = []
     system_incs = ['glx']
     system_src = [
         'glx/glxplatform.cpp',
@@ -41,7 +42,9 @@ elif target_machine.system() == 'windows'
     glheaders = subproject('glheaders')
     gldep = dependency('gl')
     glheadersdep = glheaders.get_variable('glheaders_dep')
+
     system_deps = [glheadersdep, gldep]
+    system_link_args = ['shcore.lib']
     system_incs = []
     system_src = [
         'windows/wglplatform.cpp',
@@ -53,6 +56,7 @@ elif target_machine.system() == 'windows'
         ]
 else
     system_deps = []
+    system_link_args = []
     system_incs = []
     system_src = [
         'dummy/dummyplatform.cpp',
@@ -110,6 +114,7 @@ libase = library('ase',
         [system_src, libasesrc],
         dependencies: [system_deps, asedep],
         cpp_args: ['-DASE_EXPORT_SYMBOLS'],
+        link_args: system_link_args,
         gnu_symbol_visibility: 'hidden',
         include_directories: incdir
         )

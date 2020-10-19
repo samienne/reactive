@@ -24,6 +24,16 @@ Vector2i GenericWindow::getScaledSize() const
             );
 }
 
+void GenericWindow::setScalingFactor(float factor)
+{
+    if (scalingFactor_ == factor)
+        return;
+
+    scalingFactor_ = factor;
+    if (resizeCallback_)
+        resizeCallback_();
+}
+
 float GenericWindow::getScalingFactor() const
 {
     return scalingFactor_;

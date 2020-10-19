@@ -11,6 +11,8 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
+#include <shellscalingapi.h>
+
 #include <unordered_map>
 #include <iostream>
 
@@ -96,6 +98,8 @@ WglPlatform::WglPlatform()
 {
     try
     {
+        SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
+
         dummyWindow_ = createDummyWindow();
         if (!dummyWindow_)
             throw std::runtime_error("Unable to create a dummy window.");
