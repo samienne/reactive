@@ -8,6 +8,8 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
+#include <windowsx.h>
+
 #include <memory>
 #include <iostream>
 
@@ -179,9 +181,65 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             std::cout << "quit" << std::endl;
             return 0;
             break;
+
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+        {
+            if (uMsg == WM_LBUTTONDOWN)
+                capturePointer();
+            else
+                releasePointer();
+
+            float x = (float)GET_X_LPARAM(lParam);
+            float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam);
+
+            genericWindow_.injectPointerButtonEvent(0, 1, Vector2f(x, y),
+                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
+
+            break;
+        }
+        case WM_RBUTTONDOWN:
+        case WM_RBUTTONUP:
+        {
+            if (uMsg == WM_RBUTTONDOWN)
+                capturePointer();
+            else
+                releasePointer();
+
+            float x = (float)GET_X_LPARAM(lParam);
+            float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam);
+
+            genericWindow_.injectPointerButtonEvent(0, 2, Vector2f(x, y),
+                    uMsg == WM_LBUTTONDOWN ? ButtonState::down : ButtonState::up);
+
+            break;
+        }
+
+        case WM_MOUSEMOVE:
+        {
+            float x = (float)GET_X_LPARAM(lParam);
+            float y = genericWindow_.getHeight() - (float)GET_Y_LPARAM(lParam);
+
+            genericWindow_.injectPointerMoveEvent(0, Vector2f(x, y));
+            break;
+        }
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+void WglWindow::capturePointer()
+{
+    ++captureCount_;
+    if (captureCount_ == 1)
+        SetCapture(hwnd_);
+}
+
+void WglWindow::releasePointer()
+{
+    --captureCount_;
+    if (captureCount_ == 0)
+        ReleaseCapture();
 }
 
 } // namespace ase

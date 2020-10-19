@@ -48,12 +48,17 @@ namespace ase
                 LPARAM lParam);
 
     private:
+        void capturePointer();
+        void releasePointer();
+
+    private:
         WglPlatform& platform_;
         HWND hwnd_;
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
         std::string title_;
+        int captureCount_ = 0;
     };
 } // namespace ase
 
