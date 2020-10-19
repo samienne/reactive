@@ -15,6 +15,7 @@ namespace ase
     public:
         WglWindow(WglPlatform& platform, Vector2i size, float scalingFactor);
 
+        HWND getHwnd() const;
         HDC getDc() const;
 
         void present();
@@ -42,6 +43,9 @@ namespace ase
                 std::function<void(PointerDragEvent const&)> cb) override;
         void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
+
+        LRESULT handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
+                LPARAM lParam);
 
     private:
         WglPlatform& platform_;

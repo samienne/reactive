@@ -9,6 +9,7 @@
 #include <GL/wglext.h>
 
 #include <memory>
+#include <iostream>
 
 namespace ase
 {
@@ -46,6 +47,11 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
 
     //auto context = platform.createRawContext(3, 3);
     //wglMakeCurrent(dc, context);
+}
+
+HWND WglWindow::getHwnd() const
+{
+    return hwnd_;
 }
 
 HDC WglWindow::getDc() const
@@ -148,6 +154,34 @@ void WglWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
 void WglWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 {
     genericWindow_.setHoverCallback(std::move(cb));
+}
+
+LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
+        LPARAM lParam)
+{
+    switch(uMsg)
+    {
+        case WM_PAINT:
+            break;
+
+        case WM_DESTROY:
+            std::cout << "destroy: " << hwnd << std::endl;
+            //PostQuitMessage(0);
+            break;
+
+        case WM_CLOSE:
+            std::cout << "close" << std::endl;
+            genericWindow_.notifyClose();
+            return 0;
+            break;
+
+        case WM_QUIT:
+            std::cout << "quit" << std::endl;
+            return 0;
+            break;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
 } // namespace ase

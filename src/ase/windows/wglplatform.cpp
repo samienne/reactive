@@ -11,31 +11,21 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
+#include <unordered_map>
 #include <iostream>
 
 namespace ase
 {
 
+std::unordered_map<HWND, std::weak_ptr<WglWindow>> windows;
+
 LRESULT CALLBACK wndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch(uMsg)
+    auto i = windows.find(hwnd);
+    if (i != windows.end())
     {
-        case WM_PAINT:
-            break;
-
-        case WM_DESTROY:
-            std::cout << "destroy: " << hwnd << std::endl;
-            PostQuitMessage(0);
-            break;
-
-        case WM_CLOSE:
-            std::cout << "close" << std::endl;
-            break;
-
-        case WM_QUIT:
-            std::cout << "quit" << std::endl;
-            return 0;
-            break;
+        if (auto p = i->second.lock())
+            return p->handleWindowsEvent(hwnd, uMsg, wParam, lParam);
     }
 
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
@@ -225,7 +215,9 @@ Window WglPlatform::makeWindow(Vector2i size)
 {
     try
     {
-        return Window(std::make_shared<WglWindow>(*this, size, 1.0f));
+        auto wglWindow = std::make_shared<WglWindow>(*this, size, 1.0f);
+        windows.insert(std::make_pair(wglWindow->getHwnd(), wglWindow));
+        return Window(std::move(wglWindow));
     }
     catch(std::exception& e)
     {
@@ -246,6 +238,16 @@ void WglPlatform::handleEvents()
 
         if (msg.message == WM_QUIT)
             break;
+    }
+
+    // Drop expired weak pointers to windows
+    auto i = windows.begin();
+    while (i != windows.end())
+    {
+        if (i->second.expired())
+            i = windows.erase(i);
+        else
+            ++i;
     }
 }
 
