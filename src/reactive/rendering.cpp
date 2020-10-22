@@ -117,7 +117,7 @@ avg::SoftMesh generateMesh(pmr::memory_resource* memory,
 }
 
 avg::SoftMesh generateMesh(pmr::memory_resource* memory, avg::Path const& path,
-        avg::Pen const& pen, ase::Vector2f pixelSize, int resPerPixel,
+        avg::Pen const& pen, ase::Vector2f pixelSize, float resPerPixel,
         avg::Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
@@ -480,7 +480,7 @@ void render(pmr::memory_resource* memory,
         avg::Drawing const& drawing)
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
-    float const resPerPixel = 4.0f / scalingFactor;
+    float const resPerPixel = std::max(2.0f, 4.0f / scalingFactor);
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
     avg::Rect rect(avg::Vector2f(0.0f, 0.0f), sizef);

@@ -21,62 +21,11 @@ namespace ase
 
 namespace
 {
-    float convertScaleFactorToFloat(DEVICE_SCALE_FACTOR factor)
-    {
-        switch (factor)
-        {
-        case DEVICE_SCALE_FACTOR_INVALID:
-            return 1.0f;
-        case SCALE_100_PERCENT:
-            return 1.0f;
-        case SCALE_120_PERCENT:
-            return 1.2f;
-        case SCALE_125_PERCENT:
-            return 1.25f;
-        case SCALE_140_PERCENT:
-            return 1.4f;
-        case SCALE_150_PERCENT:
-            return 1.5f;
-        case SCALE_160_PERCENT:
-            return 1.6f;
-        case SCALE_175_PERCENT:
-            return 1.175f;
-        case SCALE_180_PERCENT:
-            return 1.8f;
-        case SCALE_200_PERCENT:
-            return 2.0f;
-        case SCALE_225_PERCENT:
-            return 2.25f;
-        case SCALE_250_PERCENT:
-            return 2.5f;
-        case SCALE_300_PERCENT:
-            return 3.0f;
-        case SCALE_350_PERCENT:
-            return 3.5f;
-        case SCALE_400_PERCENT:
-            return 4.0f;
-        case SCALE_450_PERCENT:
-            return 4.5f;
-        case SCALE_500_PERCENT:
-            return 5.0f;
-        }
-
-        return 1.0f;
-    }
-
     float getWindowScalingFactor(HWND hwnd)
     {
-        HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        DEVICE_SCALE_FACTOR scale;
-        HRESULT r = GetScaleFactorForMonitor(monitor, &scale);
-
-        if (r != S_OK)
-            return 1.0f;
-
-        std::cout << "scaling factor: " << convertScaleFactorToFloat(scale)
-            << std::endl;
-
-        return convertScaleFactorToFloat(scale);
+        int dpi = GetDpiForWindow(hwnd);
+        float scale = static_cast<float>(dpi) / 96.0f;
+        return scale;
     }
 } // anonymous namespace
 
@@ -112,6 +61,7 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
     SetPixelFormat(dc, n, &pfd);
 
     scalingFactor = getWindowScalingFactor(hwnd_);
+    int dpi = GetDpiForWindow(hwnd_);
 
     RECT rect;
     GetWindowRect(hwnd_, &rect);
@@ -119,7 +69,8 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
     rect.right = rect.left + (int)((float)size[0] * scalingFactor);
     rect.bottom = rect.top + (int)((float)size[1] * scalingFactor);
 
-    AdjustWindowRect(&rect, GetWindowLong(hwnd_, GWL_STYLE), false);
+    AdjustWindowRectExForDpi(&rect, GetWindowLong(hwnd_, GWL_STYLE),
+            false, WS_EX_APPWINDOW, dpi);
 
     MoveWindow(hwnd_, rect.left, rect.top,
             (int)((float)size[0] * scalingFactor),
@@ -320,8 +271,21 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             break;
 
         case WM_DPICHANGED:
-            genericWindow_.setScalingFactor(getWindowScalingFactor(hwnd_));
+        {
+            RECT* r = reinterpret_cast<RECT*>(lParam);
+            float scale = getWindowScalingFactor(hwnd_);
+
+            genericWindow_.setScalingFactor(scale);
+            genericWindow_.resize(Vector2i(
+                        r->right - r->left / scale,
+                        r->bottom - r->top / scale
+                    ));
+
+            SetWindowPos(hwnd_, NULL, r->left, r->top, r->right - r->left,
+                    r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
+
             break;
+        }
 
         case WM_SIZE:
             genericWindow_.resize(Vector2i(

@@ -27,11 +27,11 @@ namespace avg
 
         Region(pmr::memory_resource* memory,
                 pmr::vector<SimplePolygon> const& polygons, FillRule rule,
-                Vector2f pixelSize, size_t resPerPixel);
+                Vector2f pixelSize, float resPerPixel);
         Region(pmr::memory_resource* memory,
                 pmr::vector<SimplePolygon> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
-                size_t resPerPixel);
+                float resPerPixel);
         Region(Region const&) = default;
         Region(Region&&) noexcept = default;
 

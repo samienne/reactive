@@ -35,7 +35,7 @@ public:
     pmr::memory_resource* memory_ = nullptr;
     std::shared_ptr<ClipperLib::PolyTree> paths_;
     Vector2f pixelSize_;
-    size_t resPerPixel_;
+    float resPerPixel_;
 };
 
 namespace
@@ -45,15 +45,15 @@ namespace
      */
     void printClipperPolyTree(std::ostream& stream,
             ClipperLib::PolyTree const& polyTree,
-            int resPerPixel, Vector2f pixelSize)
+            float resPerPixel, Vector2f pixelSize)
     {
 
         pmr::monotonic_buffer_resource memory(pmr::new_delete_resource());
         pmr::vector<ClipperLib::Path> paths(&memory);
         ClipperLib::PolyTreeToPaths(polyTree, paths);
 
-        float xRes = (float)resPerPixel / pixelSize[0];
-        float yRes = (float)resPerPixel / pixelSize[1];
+        float xRes = resPerPixel / pixelSize[0];
+        float yRes = resPerPixel / pixelSize[1];
 
         stream << "[";
         for (auto i = paths.begin(); i != paths.end(); ++i)
@@ -117,7 +117,7 @@ Region::Region(pmr::memory_resource* memory) :
 
 Region::Region(pmr::memory_resource* memory,
         pmr::vector<SimplePolygon> const& polygons, FillRule rule,
-        Vector2f pixelSize, size_t resPerPixel) :
+        Vector2f pixelSize, float resPerPixel) :
     memory_(memory)
 {
     if (polygons.empty())
@@ -169,7 +169,7 @@ Region::Region(pmr::memory_resource* memory,
 Region::Region(pmr::memory_resource* memory,
         pmr::vector<SimplePolygon> const& polygons, JoinType join,
         EndType end, float width, Vector2f pixelSize,
-        size_t resPerPixel) :
+        float resPerPixel) :
     memory_(memory)
 {
     if (polygons.empty())
