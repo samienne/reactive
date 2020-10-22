@@ -15,6 +15,7 @@
 #include "glrendercontext.h"
 #include "gluniformset.h"
 
+#include "usage.h"
 #include "vertexshader.h"
 #include "fragmentshader.h"
 #include "buffer.h"
@@ -54,14 +55,27 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
 {
     auto vb = std::make_shared<GlVertexBuffer>(context_);
 
-    context_.dispatchBg([&vb, ownBuffer=std::move(buffer), usage]
-            (GlFunctions const& gl) mutable
-            {
-                vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
-                glFlush();
-            });
+    if (usage == Usage::StreamDraw || usage == Usage::StreamRead
+            || usage == Usage::StreamCopy)
+    {
+        context_.dispatch([&vb, ownBuffer=std::move(buffer), usage]
+                (GlFunctions const& gl) mutable
+                {
+                    vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+                });
+        context_.wait();
+    }
+    else
+    {
+        context_.dispatchBg([&vb, ownBuffer=std::move(buffer), usage]
+                (GlFunctions const& gl) mutable
+                {
+                    vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
+                    glFlush();
+                });
+        context_.waitBg();
+    }
 
-    context_.waitBg();
 
     return vb;
 }
