@@ -18,7 +18,7 @@ namespace ase
         template <typename TFunc>
         void dispatch(TFunc&& fn)
         {
-            dispatcher_.run([this, fn=std::move(fn)]() mutable
+            dispatcher_.run([this, fn=std::forward<TFunc>(fn)]() mutable
             {
                 fn(gl_);
             });

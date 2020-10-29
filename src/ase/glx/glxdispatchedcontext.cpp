@@ -9,7 +9,7 @@ namespace ase
 
 namespace
 {
-    GlFunctions getGlFunctions()
+    GlFunctions getGlFunctionPointers()
     {
         GlFunctions gl;
 
@@ -120,7 +120,7 @@ GlxDispatchedContext::GlxDispatchedContext(GlxPlatform& platform) :
     dispatcher_.run([this]()
     {
         context_.makeCurrent(platform_.lockX(), 0);
-        setGlFunctions(getGlFunctions());
+        setGlFunctions(getGlFunctionPointers());
     });
 
     dispatcher_.wait();
