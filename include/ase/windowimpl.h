@@ -1,5 +1,6 @@
 #pragma once
 
+#include "textevent.h"
 #include "keyevent.h"
 #include "hoverevent.h"
 #include "pointerdragevent.h"
@@ -42,6 +43,7 @@ namespace ase
                 std::function<void(PointerDragEvent const&)> cb) = 0;
         virtual void setKeyCallback(std::function<void(KeyEvent const&)> cb) = 0;
         virtual void setHoverCallback(std::function<void(HoverEvent const&)> cb) = 0;
+        virtual void setTextCallback(std::function<void(TextEvent const&)> cb) = 0;
     };
 }
 

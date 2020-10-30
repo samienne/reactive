@@ -106,6 +106,7 @@ libasesrc = [
         'pipeline.cpp',
         'pointerbuttonevent.cpp',
         'keyevent.cpp',
+        'textevent.cpp',
         'keycode.cpp',
         'uniformset.cpp'
         ]

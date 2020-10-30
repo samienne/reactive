@@ -1,5 +1,6 @@
 #pragma once
 
+#include "textevent.h"
 #include "pointerdragevent.h"
 #include "pointerbuttonevent.h"
 #include "pointermoveevent.h"
@@ -43,6 +44,7 @@ namespace ase
                 bool state);
         void injectKeyEvent(KeyState keyState, KeyCode keyCode,
                 uint32_t modifiers, std::string text);
+        void injectTextEvent(std::string text);
 
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
@@ -55,6 +57,7 @@ namespace ase
                 std::function<void(PointerDragEvent const&)> cb);
         void setKeyCallback(std::function<void(KeyEvent const&)> cb);
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
+        void setTextCallback(std::function<void(TextEvent const&)> cb);
 
     private:
         std::function<void()> closeCallback_;
@@ -65,6 +68,7 @@ namespace ase
         std::function<void(PointerDragEvent const& e)> dragCallback_;
         std::function<void(KeyEvent const& e)> keyCallback_;
         std::function<void(HoverEvent const& e)> hoverCallback_;
+        std::function<void(TextEvent const& e)> textCallback_;
 
         Vector2i size_;
         float scalingFactor_;

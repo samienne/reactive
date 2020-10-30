@@ -151,9 +151,9 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
 
  auto makeKeyHandler(
          stream::Handle<KeyEvent> keyHandle,
-         btl::option<KeyboardInput::Handler> handler,
+         btl::option<KeyboardInput::KeyHandler> handler,
          FocusGroupState state)
-    -> KeyboardInput::Handler
+    -> KeyboardInput::KeyHandler
 {
     return [handler, keyHandle, state](KeyEvent const& e) mutable
         -> InputResult
@@ -176,8 +176,24 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
     };
 }
 
-std::vector<KeyboardInput> mapStateToInputs(FocusGroupState const& state,
-        stream::Handle<KeyEvent> keyHandle, avg::Obb obb)
+auto makeTextHandler(btl::option<KeyboardInput::TextHandler> handler)
+{
+    return [handler=std::move(handler)]
+        (TextEvent const& e) mutable -> InputResult
+    {
+        if (!handler.valid())
+            return InputResult::unhandled;
+
+        return (*handler)(e);
+    };
+}
+
+
+std::vector<KeyboardInput> mapStateToInputs(
+    FocusGroupState const& state,
+    stream::Handle<KeyEvent> keyHandle,
+    avg::Obb obb
+    )
 {
     if (state.inputs.empty())
         return { KeyboardInput(std::move(obb)) };
@@ -195,7 +211,9 @@ std::vector<KeyboardInput> mapStateToInputs(FocusGroupState const& state,
         result = std::move(result)
             .requestFocus(true)
             .setFocusHandle(input.getFocusHandle())
-            .onKeyEvent(makeKeyHandler(keyHandle, input.getHandler(), state));
+            .onKeyEvent(makeKeyHandler(keyHandle, input.getKeyHandler(), state))
+            .onTextEvent(makeTextHandler(input.getTextHandler()))
+            ;
 
         break;
     }
@@ -205,7 +223,9 @@ std::vector<KeyboardInput> mapStateToInputs(FocusGroupState const& state,
         auto&& input = state.inputs.at(state.focusIndex);
         result = std::move(result)
             .setFocusHandle(input.getFocusHandle())
-            .onKeyEvent(makeKeyHandler(keyHandle, input.getHandler(), state));
+            .onKeyEvent(makeKeyHandler(keyHandle, input.getKeyHandler(), state))
+            .onTextEvent(makeTextHandler(input.getTextHandler()))
+            ;
     }
 
     for (auto&& input : state.inputs)
@@ -268,8 +288,12 @@ WidgetTransformer<void> focusGroup()
         auto obb = signal::share(w.getObb());
         static_assert(signal::IsSignal<decltype(state)>::value, "");
 
-        auto inputs = signal::map(mapStateToInputs, std::move(state),
-                signal::constant(keyStream.handle), obb);
+        auto inputs = signal::map(
+                mapStateToInputs,
+                std::move(state),
+                signal::constant(keyStream.handle),
+                obb
+                );
 
         return makeWidgetTransformerResult(std::move(w)
             .setObb(std::move(obb))

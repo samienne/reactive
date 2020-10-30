@@ -9,6 +9,7 @@
 #include <avg/obb.h>
 
 #include <ase/keyevent.h>
+#include <ase/textevent.h>
 
 #include <btl/option.h>
 #include <btl/function.h>
@@ -16,6 +17,8 @@
 namespace reactive
 {
     using KeyEvent = ase::KeyEvent;
+    using TextEvent = ase::TextEvent;
+
     /** keyboard input
      *
      * Request focus (onClick + on some random event)
@@ -29,17 +32,20 @@ namespace reactive
     {
     public:
         using FocusHandle = signal::InputHandle<bool>;
-        using Handler = btl::Function<InputResult(KeyEvent const& e)>;
+        using KeyHandler = btl::Function<InputResult(KeyEvent const& e)>;
+        using TextHandler = btl::Function<InputResult(TextEvent const& e)>;
 
         KeyboardInput(avg::Obb obb);
         KeyboardInput(avg::Obb obb,
                 btl::option<FocusHandle> focusHandle,
-                btl::option<Handler> handlers,
+                btl::option<KeyHandler> keyHandler,
+                btl::option<TextHandler> textHandler,
                 bool requestFocus,
                 bool hasFocus);
         KeyboardInput requestFocus(bool focus) &&;
         KeyboardInput setFocus(bool focus) &&;
-        KeyboardInput onKeyEvent(Handler handler) &&;
+        KeyboardInput onKeyEvent(KeyHandler handler) &&;
+        KeyboardInput onTextEvent(TextHandler handler) &&;
         KeyboardInput setFocusHandle(FocusHandle handle) &&;
         KeyboardInput setFocusHandle(btl::option<FocusHandle> handle) &&;
         KeyboardInput setFocusable(bool focusable) &&;
@@ -52,7 +58,8 @@ namespace reactive
         avg::Obb const& getObb() const;
 
         btl::option<FocusHandle> const& getFocusHandle() const;
-        btl::option<Handler> const& getHandler() const;
+        btl::option<KeyHandler> const& getKeyHandler() const;
+        btl::option<TextHandler> const& getTextHandler() const;
 
     private:
         avg::Obb obb_;
@@ -60,7 +67,8 @@ namespace reactive
         // Handle to send the focus status to
         btl::option<FocusHandle> focusHandle_;
 
-        btl::option<Handler> handler_;
+        btl::option<KeyHandler> keyHandler_;
+        btl::option<TextHandler> textHandler_;
 
         bool requestFocus_ = false;
         bool hasFocus_ = false;

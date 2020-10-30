@@ -171,10 +171,10 @@ public:
 
         aseWindow.setKeyCallback([this](ase::KeyEvent const &e)
         {
-            if (currentHandler_.valid() && e.isDown())
+            if (currentKeyHandler_.valid() && e.isDown())
             {
-                (*currentHandler_)(e);
-                keys_[e.getKey()] = *currentHandler_;
+                (*currentKeyHandler_)(e);
+                keys_[e.getKey()] = *currentKeyHandler_;
             }
             else
             {
@@ -185,6 +185,12 @@ public:
                 keys_.erase(i);
                 f(e);
             }
+        });
+
+        aseWindow.setTextCallback([this](ase::TextEvent const& e)
+        {
+            if (currentTextHandler_.valid())
+                (*currentTextHandler_)(e);
         });
 
         aseWindow.setHoverCallback([this](ase::HoverEvent const &e)
@@ -285,7 +291,8 @@ public:
                         currentHandle_->set(false);
                     handle->set(true);
                     currentHandle_ = handle;
-                    currentHandler_ = input.getHandler();
+                    currentKeyHandler_ = input.getKeyHandler();
+                    currentTextHandler_ = input.getTextHandler();
                     break;
                 }
             }
@@ -296,7 +303,8 @@ public:
                 currentHandle_ = handle.getFocusHandle();
                 if (currentHandle_.valid())
                     currentHandle_->set(true);
-                currentHandler_ = handle.getHandler();
+                currentKeyHandler_ = handle.getKeyHandler();
+                currentTextHandler_ = handle.getTextHandler();
             }
         }
 
@@ -336,7 +344,8 @@ private:
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
     btl::option<signal::InputHandle<bool>> currentHandle_;
-    btl::option<KeyboardInput::Handler> currentHandler_;
+    btl::option<KeyboardInput::KeyHandler> currentKeyHandler_;
+    btl::option<KeyboardInput::TextHandler> currentTextHandler_;
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
     btl::option<InputArea> currentHoverArea_;
