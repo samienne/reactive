@@ -1,5 +1,6 @@
 #include "dummyrendercontext.h"
 
+#include "dummyrenderbuffer.h"
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
 #include "dummyframebuffer.h"
@@ -77,6 +78,13 @@ std::shared_ptr<TextureImpl> DummyRenderContext::makeTextureImpl(
         Buffer const& /*buffer*/)
 {
     return std::make_shared<DummyTexture>();
+}
+
+std::shared_ptr<RenderbufferImpl> DummyRenderContext::makeRenderbufferImpl(
+        Vector2i const& size,
+        Format format)
+{
+    return std::make_shared<DummyRenderBuffer>(format, size);
 }
 
 std::shared_ptr<FramebufferImpl> DummyRenderContext::makeFramebufferImpl()

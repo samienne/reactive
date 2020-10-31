@@ -69,6 +69,7 @@ else
         'dummy/dummytexture.cpp',
         'dummy/dummypipeline.cpp',
         'dummy/dummyuniformset.cpp',
+        'dummy/dummyrenderbuffer.cpp',
     ]
 endif
 

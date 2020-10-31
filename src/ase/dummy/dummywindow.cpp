@@ -47,10 +47,6 @@ Framebuffer& DummyWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
-void DummyWindow::clear()
-{
-}
-
 void DummyWindow::setCloseCallback(std::function<void()> /*func*/)
 {
 }
