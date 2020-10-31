@@ -100,12 +100,12 @@ namespace
     }
 
     Rect calculateBoundingBoxForPolyTree(ClipperLib::PolyTree const& tree,
-            Vector2f pixelSize, size_t resPerPixel)
+            Vector2f pixelSize, float resPerPixel)
     {
         Rect r;
 
-        float xRes = (float)resPerPixel / pixelSize[0];
-        float yRes = (float)resPerPixel / pixelSize[1];
+        float xRes = resPerPixel / pixelSize[0];
+        float yRes = resPerPixel / pixelSize[1];
 
         for (ClipperLib::PolyNode const* child : tree.Childs)
         {

@@ -123,6 +123,14 @@ namespace
             getProcAddress("glGetUniformBlockIndex");
         gl.glActiveTexture = (PFNGLACTIVETEXTUREPROC)
             getProcAddress("glActiveTexture");
+        gl.glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC)
+            getProcAddress("glGenRenderbuffers");
+        gl.glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC)
+            getProcAddress("glRenderbufferStorage");
+        gl.glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC)
+            getProcAddress("glDeleteRenderbuffers");
+        gl.glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC)
+            getProcAddress("glBindRenderbuffer");
 
         return gl;
     }

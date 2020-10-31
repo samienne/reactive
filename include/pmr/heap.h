@@ -36,7 +36,7 @@ namespace pmr
 
         heap& operator=(heap const& rhs)
         {
-            p_ = make_unique<T>(rhs.resource(), rhs.p_);
+            p_ = make_unique<T>(rhs.resource(), *rhs.p_);
             assert(p_.get());
             return *this;
         }

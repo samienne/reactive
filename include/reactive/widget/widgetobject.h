@@ -8,6 +8,8 @@
 
 #include <btl/shared.h>
 
+#include <optional>
+
 namespace reactive::widget
 {
     class REACTIVE_EXPORT WidgetObject
