@@ -86,5 +86,9 @@ void DummyWindow::setHoverCallback(std::function<void(HoverEvent const&)> /*cb*/
 {
 }
 
+void DummyWindow::setTextCallback(std::function<void(TextEvent const&)> /*cb*/)
+{
+}
+
 } // namespace ase
 
