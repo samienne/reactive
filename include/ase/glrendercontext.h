@@ -8,6 +8,7 @@
 #include "vector.h"
 
 #include "asevisibility.h"
+
 #include <btl/option.h>
 
 namespace ase
@@ -99,6 +100,7 @@ namespace ase
 
     protected:
         GlDispatchedContext const& getFgContext() const;
+        GlDispatchedContext const& getBgContext() const;
 
     private:
         GlPlatform& platform_;

@@ -41,6 +41,7 @@ void GlUniformBuffer::setData(Buffer buffer, Usage usage)
         (GlFunctions const& gl) mutable
         {
             setData(Dispatched(), gl, std::move(buffer), usage);
+            glFlush();
         });
 
     context_.waitBg();

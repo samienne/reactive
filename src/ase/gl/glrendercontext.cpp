@@ -23,7 +23,7 @@
 #include "buffer.h"
 #include "debug.h"
 
-#include <GL/gl.h>
+#include "systemgl.h"
 
 #include <algorithm>
 #include <functional>
@@ -44,6 +44,12 @@ GlRenderContext::GlRenderContext(
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
+    dispatch([](GlFunctions const&)
+    {
+        std::cout << "GlVendor: " << glGetString(GL_VENDOR) << std::endl;
+        std::cout << "GlRenderer: " << glGetString(GL_RENDERER) << std::endl;
+        std::cout << "GlVersion: " << glGetString(GL_VERSION) << std::endl;
+    });
 }
 
 GlRenderContext::~GlRenderContext()
@@ -189,6 +195,11 @@ std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
 GlDispatchedContext const& GlRenderContext::getFgContext() const
 {
     return *fgContext_;
+}
+
+GlDispatchedContext const& GlRenderContext::getBgContext() const
+{
+    return *bgContext_;
 }
 
 } // namespace

@@ -111,7 +111,8 @@ namespace reactive
         SizeHint() = delete;
 
         template <typename THint, typename = std::enable_if_t<
-            IsSizeHint<THint>::value
+            IsSizeHint<THint>::value &&
+            !std::is_same_v<SizeHint, std::decay_t<THint>>
             >>
         SizeHint(THint&& hint) :
             hint_(std::make_shared<

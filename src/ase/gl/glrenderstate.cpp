@@ -20,6 +20,8 @@
 
 #include "debug.h"
 
+#include "systemgl.h"
+
 #include <algorithm>
 
 namespace ase
@@ -273,7 +275,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
             {
                 if (j != activeTextures_.end() || tex)
                 {
-                    glActiveTexture(GL_TEXTURE0 + index);
+                    gl.glActiveTexture(GL_TEXTURE0 + index);
 
                     glBindTexture(GL_TEXTURE_2D, tex);
                 }

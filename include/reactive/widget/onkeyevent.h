@@ -43,7 +43,7 @@ namespace reactive::widget
                 });
         }
 
-        inline auto onKeyEvent(KeyboardInput::Handler handler)
+        inline auto onKeyEvent(KeyboardInput::KeyHandler handler)
         {
             return onKeyEvent(signal::constant(std::move(handler)));
         }
@@ -59,41 +59,6 @@ namespace reactive::widget
             action_(std::move(action))
         {
         }
-
-        /*
-        template <typename TWidgetFactory, typename = typename
-            std::enable_if
-            <
-                !IsWidget<TWidgetFactory>::value &&
-                IsWidgetFactory<TWidgetFactory>::value
-            >::type>
-        inline auto operator()(TWidgetFactory&& factory) const
-        {
-            auto f = [action=btl::cloneOnCopy(btl::clone(action_)),
-                    predicate=btl::cloneOnCopy(btl::clone(predicate_))]
-                (auto widget) // -> Widget
-            {
-                auto g = [](
-                    std::function<bool(ase::KeyEvent const&)> const& pred,
-                    std::function<void(ase::KeyEvent const&)> const& action,
-                    ase::KeyEvent const& event)
-                    -> InputResult
-                {
-                    if (!pred(event))
-                        return InputResult::unhandled;
-
-                    action(event);
-                    return InputResult::handled;
-                };
-
-                return std::move(widget)
-                    | detail::onKeyEvent(signal::mapFunction(std::move(g),
-                                btl::clone(*predicate), btl::clone(*action)));
-            };
-
-            return std::forward<TWidgetFactory>(factory)
-                .map(std::move(f));
-        }*/
 
         template <typename TWidget, typename = typename
             std::enable_if

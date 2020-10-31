@@ -6,6 +6,7 @@
 #include "widget/trackfocus.h"
 #include "widget/focuson.h"
 #include "widget/onkeyevent.h"
+#include "widget/ontextevent.h"
 #include "widget/onclick.h"
 #include "widget/widgettransformer.h"
 
@@ -93,7 +94,7 @@ TextEdit::operator WidgetFactory() const
         return texts;
     };
 
-    using Events = btl::variant<KeyEvent, ClickEvent>;
+    using Events = btl::variant<KeyEvent, TextEvent, ClickEvent>;
 
     auto update = [](TextEditState state, Events const& e,
             widget::Theme const& theme,
@@ -132,6 +133,12 @@ TextEdit::operator WidgetFactory() const
                 utf8::erase(state.text, i);
                 state.pos = i.index();
             }
+        }
+        if (e.is<TextEvent>())
+        {
+            auto& textEvent = e.get<TextEvent>();
+            state.text.insert(state.pos, textEvent.getText());
+            state.pos += textEvent.getText().size();
         }
         else if (e.is<ClickEvent>())
         {
@@ -185,6 +192,7 @@ TextEdit::operator WidgetFactory() const
                     keyHandle.push(e);
                 })
         | widget::onKeyEvent(sendKeysTo(keyStream.handle))
+        | widget::onTextEvent(sendKeysTo(keyStream.handle))
         | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
         ;
 }
@@ -198,6 +206,11 @@ TextEdit TextEdit::onEnter(AnySignal<std::function<void()>> cb) &&
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
     return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
+}
+
+WidgetFactory TextEdit::build() &&
+{
+    return *this;
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,

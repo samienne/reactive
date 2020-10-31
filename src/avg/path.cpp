@@ -32,10 +32,10 @@ namespace
 {
 
 Vector2i toIVec(Vector2f v, Vector2f pixelSize,
-        size_t resPerPixel)
+        float resPerPixel)
 {
-    float xRes = (float)resPerPixel / pixelSize[0];
-    float yRes = (float)resPerPixel / pixelSize[1];
+    float xRes = resPerPixel / pixelSize[0];
+    float yRes = resPerPixel / pixelSize[1];
 
     return Vector2i((int)(xRes * v[0]), (int)(yRes * v[1]));
 }
@@ -137,7 +137,7 @@ pmr::vector<SimplePolygon> toSimplePolygons(
         pmr::memory_resource* memory,
         Path const& path,
         Transform const& transform, Vector2f pixelSize,
-        size_t resPerPixel)
+        float resPerPixel)
 
 {
     Vector2f cur(0.0f, 0.0f);
@@ -495,7 +495,7 @@ Path::ConstIterator Path::end() const
 }
 
 Region Path::fillRegion(pmr::memory_resource* memory,
-        FillRule rule, Vector2f pixelSize, size_t resPerPixel) const
+        FillRule rule, Vector2f pixelSize, float resPerPixel) const
 {
     pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
             transform_, pixelSize, resPerPixel);
@@ -505,7 +505,7 @@ Region Path::fillRegion(pmr::memory_resource* memory,
 }
 
 Region Path::offsetRegion(pmr::memory_resource* memory, JoinType join,
-        EndType end, float width, Vector2f pixelSize, size_t resPerPixel) const
+        EndType end, float width, Vector2f pixelSize, float resPerPixel) const
 {
     pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
             transform_, pixelSize, resPerPixel);

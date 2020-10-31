@@ -203,10 +203,10 @@ namespace avg
         ConstIterator end() const;
 
         Region fillRegion(pmr::memory_resource* memory, FillRule rule,
-                Vector2f pixelSize, size_t resPerPixel = 100) const;
+                Vector2f pixelSize, float resPerPixel = 4.0f) const;
         Region offsetRegion(pmr::memory_resource* memory, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
-                size_t resPerPixel = 100) const;
+                float resPerPixel = 4.0f) const;
 
         Rect getControlBb() const;
         Obb getControlObb() const;

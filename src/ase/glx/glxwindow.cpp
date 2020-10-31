@@ -50,7 +50,7 @@ void printAll(std::ostream& stream)
 
 namespace
 {
-    uint32_t mapXKeyStateToModifiers(int state)
+    uint32_t mapXKeyStateToModifiers(unsigned int state)
     {
         bool shift = state & ShiftMask;
         bool alt = state & Mod1Mask;
@@ -252,6 +252,11 @@ void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
     genericWindow_.setHoverCallback(std::move(cb));
 }
 
+void GlxWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
+{
+    genericWindow_.setTextCallback(std::move(cb));
+}
+
 void GlxWindow::handleEvent(_XEvent const& e)
 {
     // Skip events that are not for us.
@@ -334,7 +339,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
         break;
     }
     case KeyPress:
-        {
+    {
         KeySym keysym;
         char buf[10] = "";
         XKeyEvent e = event.xkey;
@@ -349,21 +354,26 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 KeyState::down,
                 static_cast<KeyCode>(XLookupKeysym(&e, 0)),
                 mapXKeyStateToModifiers(event.xkey.state),
-                buf
+                ""
                 );
-        }
+
+        if (count > 0)
+            genericWindow_.injectTextEvent(buf);
+
         break;
+    }
     case KeyRelease:
-        {
-            XKeyEvent e = event.xkey;
-            genericWindow_.injectKeyEvent(
-                    KeyState::up,
-                    static_cast<KeyCode>(XLookupKeysym(&e, 0)),
-                    mapXKeyStateToModifiers(event.xkey.state),
-                    ""
-                    );
-        }
+    {
+        XKeyEvent e = event.xkey;
+        genericWindow_.injectKeyEvent(
+                KeyState::up,
+                static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                mapXKeyStateToModifiers(event.xkey.state),
+                ""
+                );
+
         break;
+    }
     case PropertyNotify:
     case ReparentNotify:
     case MapNotify:

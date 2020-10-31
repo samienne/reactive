@@ -9,6 +9,7 @@ namespace ase
 {
     enum class KeyCode : unsigned int
     {
+        unknown = 0,
         space = 32,
         exclam = 33,
         quotedbl = 34,

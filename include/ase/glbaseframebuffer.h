@@ -2,13 +2,15 @@
 
 #include "framebufferimpl.h"
 
+#include "asevisibility.h"
+
 namespace ase
 {
     struct Dispatched;
     struct GlFunctions;
     class GlRenderContext;
 
-    class GlBaseFramebuffer : public FramebufferImpl
+    class ASE_EXPORT GlBaseFramebuffer : public FramebufferImpl
     {
     public:
         virtual void makeCurrent(Dispatched, GlRenderContext& context,

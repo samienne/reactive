@@ -20,7 +20,8 @@ namespace reactive::widget
                     [](std::vector<KeyboardInput> inputs, bool focusable)
                     -> std::vector<KeyboardInput>
                     {
-                        inputs[0] = std::move(inputs[0]).setFocusable(focusable);
+                        if (inputs.size() > 0)
+                            inputs[0] = std::move(inputs[0]).setFocusable(focusable);
                         return inputs;
                     },
                     std::move(keyboardInputs),

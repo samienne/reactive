@@ -52,131 +52,169 @@ public:
 class WindowGlue
 {
 public:
-  WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
-             Window window, avg::Painter painter)
-      : memoryPool_(pmr::new_delete_resource()),
+    WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
+            Window window, avg::Painter painter)
+        : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(std::move(context)), window_(std::move(window)),
         painter_(std::move(painter)),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(signal::constant(DrawContext(memory_)),
-                                    std::move(size_.signal))),
-        titleSignal_(window_.getTitle().clone()) {
-    aseWindow.setVisible(true);
-    aseWindow.setTitle(titleSignal_.evaluate());
+                    std::move(size_.signal))),
+        titleSignal_(window_.getTitle().clone())
+    {
+        aseWindow.setVisible(true);
+        aseWindow.setTitle(titleSignal_.evaluate());
 
-    aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
-    aseWindow.setResizeCallback([this]() { resized_ = true; });
-    aseWindow.setRedrawCallback([this]() { redraw_ = true; });
+        aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
+        aseWindow.setResizeCallback([this]() { resized_ = true; });
+        aseWindow.setRedrawCallback([this]() { redraw_ = true; });
 
-    aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e) {
-      if (pointerEventsOnThisFrame_++ > 0) {
-        widget_.update({getNextFrameId(), signal::signal_time_t(0)});
-      }
-
-      if (e.state == ase::ButtonState::down) {
-        for (auto const &a : widget_.getInputAreas().evaluate()) {
-          if (a.acceptsButtonEvent(e)) {
-            a.emitButtonEvent(e);
-            areas_[e.button].push_back(a);
-          }
-        }
-      } else if (e.state == ase::ButtonState::up) {
-        for (auto const &a : areas_[e.button]) {
-          a.emitButtonEvent(e);
-        }
-
-        areas_[e.button].clear();
-      }
-    });
-
-    aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e) {
-      std::vector<InputArea> const &areas = widget_.getInputAreas().evaluate();
-
-      if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos)) {
-        currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
-        currentHoverArea_ = btl::none;
-      }
-
-      for (auto const &a : areas) {
-        if (a.contains(e.pos)) {
-
-          if (!currentHoverArea_.valid() ||
-              currentHoverArea_->getId() != a.getId()) {
-            if (currentHoverArea_.valid()) {
-              currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
+        aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e)
+        {
+            if (pointerEventsOnThisFrame_++ > 0)
+            {
+                widget_.update({getNextFrameId(), signal::signal_time_t(0)});
             }
 
-            currentHoverArea_ = btl::just(a);
+            if (e.state == ase::ButtonState::down)
+            {
+                for (auto const &a : widget_.getInputAreas().evaluate())
+                {
+                    if (a.acceptsButtonEvent(e))
+                    {
+                        a.emitButtonEvent(e);
+                        areas_[e.button].push_back(a);
+                    }
+                }
+            }
+            else if (e.state == ase::ButtonState::up)
+            {
+                for (auto const &a : areas_[e.button])
+                {
+                    a.emitButtonEvent(e);
+                }
 
-            a.emitHoverEvent(HoverEvent{true, true});
-          }
+            areas_[e.button].clear();
+            }
+        });
 
-          break;
-        }
-      }
+        aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e)
+        {
+            std::vector<InputArea> const &areas = widget_.getInputAreas().evaluate();
 
-      bool accepted = false;
-      for (auto &item : areas_) {
-        if (!e.buttons.at(item.first - 1))
-          continue;
+            if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
+            {
+                currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
+                currentHoverArea_ = btl::none;
+            }
 
-        std::vector<InputArea> newAreas;
-        for (auto &&area : item.second) {
-          EventResult r = area.emitMoveEvent(e);
-          if (r == EventResult::accept) {
-            newAreas.clear();
-            newAreas.emplace_back(std::move(area));
-            accepted = true;
-            break;
-          } else if (r == EventResult::possible) {
-            newAreas.push_back(std::move(area));
-          } else if (r == EventResult::reject) {
-          }
-        }
+            for (auto const &a : areas)
+            {
+                if (a.contains(e.pos))
+                {
 
-        item.second = std::move(newAreas);
+                    if (!currentHoverArea_.valid() ||
+                        currentHoverArea_->getId() != a.getId())
+                    {
+                        if (currentHoverArea_.valid())
+                        {
+                            currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
+                        }
 
-        if (accepted)
-          break;
-      }
-    });
+                        currentHoverArea_ = btl::just(a);
 
-    aseWindow.setDragCallback([](ase::PointerDragEvent const & /*e*/) {});
+                        a.emitHoverEvent(HoverEvent{true, true});
+                    }
 
-    aseWindow.setKeyCallback([this](ase::KeyEvent const &e) {
-      if (currentHandler_.valid() && e.isDown()) {
-        (*currentHandler_)(e);
-        keys_[e.getKey()] = *currentHandler_;
-      } else {
-        auto i = keys_.find(e.getKey());
-        if (i == keys_.end())
-          return;
-        auto f = i->second;
-        keys_.erase(i);
-        f(e);
-      }
-    });
+                    break;
+                }
+            }
 
-    aseWindow.setHoverCallback([this](ase::HoverEvent const &e) {
-      if (!e.hover) {
-        if (currentHoverArea_.valid()) {
-          currentHoverArea_->emitHoverEvent(e);
-          currentHoverArea_ = btl::none;
-        }
-      }
-    });
-  }
+            bool accepted = false;
+            for (auto &item : areas_)
+            {
+                if (!e.buttons.at(item.first - 1))
+                    continue;
 
-  WindowGlue(WindowGlue const &) = delete;
-  WindowGlue &operator=(WindowGlue const &) = delete;
+                std::vector<InputArea> newAreas;
+                for (auto &&area : item.second)
+                {
+                    EventResult r = area.emitMoveEvent(e);
+                    if (r == EventResult::accept)
+                    {
+                        newAreas.clear();
+                        newAreas.emplace_back(std::move(area));
+                        accepted = true;
+                        break;
+                    }
+                    else if (r == EventResult::possible)
+                    {
+                        newAreas.push_back(std::move(area));
+                    }
+                    else if (r == EventResult::reject)
+                    {
+                    }
+                }
 
-  virtual ~WindowGlue() {
-    std::cout << "Maximum concurrent allocations: "
-              << memoryStatistics_.maximum_concurrent_bytes_allocated()
-              << std::endl;
-  }
+                item.second = std::move(newAreas);
+
+                if (accepted)
+                    break;
+            }
+        });
+
+        aseWindow.setDragCallback([](ase::PointerDragEvent const & /*e*/)
+                {
+                });
+
+        aseWindow.setKeyCallback([this](ase::KeyEvent const &e)
+        {
+            if (currentKeyHandler_.valid() && e.isDown())
+            {
+                (*currentKeyHandler_)(e);
+                keys_[e.getKey()] = *currentKeyHandler_;
+            }
+            else
+            {
+                auto i = keys_.find(e.getKey());
+                if (i == keys_.end())
+                    return;
+                auto f = i->second;
+                keys_.erase(i);
+                f(e);
+            }
+        });
+
+        aseWindow.setTextCallback([this](ase::TextEvent const& e)
+        {
+            if (currentTextHandler_.valid())
+                (*currentTextHandler_)(e);
+        });
+
+        aseWindow.setHoverCallback([this](ase::HoverEvent const &e)
+        {
+            if (!e.hover)
+            {
+                if (currentHoverArea_.valid())
+                {
+                    currentHoverArea_->emitHoverEvent(e);
+                    currentHoverArea_ = btl::none;
+                }
+            }
+        });
+    }
+
+    WindowGlue(WindowGlue const &) = delete;
+    WindowGlue &operator=(WindowGlue const &) = delete;
+
+    virtual ~WindowGlue()
+    {
+        std::cout << "Maximum concurrent allocations: "
+            << memoryStatistics_.maximum_concurrent_bytes_allocated()
+            << std::endl;
+    }
 
     btl::option<signal::signal_time_t> frame(std::chrono::microseconds dt)
     {
@@ -190,7 +228,6 @@ public:
         resized_ = false;
 
         auto frameId = getCurrentFrameId();
-
 
         auto timeToNext = titleSignal_.updateBegin({frameId, dt});
 
@@ -254,7 +291,8 @@ public:
                         currentHandle_->set(false);
                     handle->set(true);
                     currentHandle_ = handle;
-                    currentHandler_ = input.getHandler();
+                    currentKeyHandler_ = input.getKeyHandler();
+                    currentTextHandler_ = input.getTextHandler();
                     break;
                 }
             }
@@ -265,7 +303,8 @@ public:
                 currentHandle_ = handle.getFocusHandle();
                 if (currentHandle_.valid())
                     currentHandle_->set(true);
-                currentHandler_ = handle.getHandler();
+                currentKeyHandler_ = handle.getKeyHandler();
+                currentTextHandler_ = handle.getTextHandler();
             }
         }
 
@@ -305,7 +344,8 @@ private:
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
     btl::option<signal::InputHandle<bool>> currentHandle_;
-    btl::option<KeyboardInput::Handler> currentHandler_;
+    btl::option<KeyboardInput::KeyHandler> currentKeyHandler_;
+    btl::option<KeyboardInput::TextHandler> currentTextHandler_;
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
     btl::option<InputArea> currentHoverArea_;

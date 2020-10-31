@@ -53,6 +53,7 @@ namespace pmr
                     assert(i->alignment == alignment);
 
                     allocations_.erase(i);
+                    break;
                 }
             }
         }

@@ -3,7 +3,7 @@
 #include "type.h"
 #include "primitivetype.h"
 
-#include <GL/gl.h>
+#include "systemgl.h"
 
 #include <string>
 

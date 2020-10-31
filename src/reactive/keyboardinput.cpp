@@ -13,12 +13,14 @@ KeyboardInput::KeyboardInput(avg::Obb obb) :
 KeyboardInput::KeyboardInput(
         avg::Obb obb,
         btl::option<FocusHandle> focusHandle,
-        btl::option<Handler> handler,
+        btl::option<KeyHandler> keyHandler,
+        btl::option<TextHandler> textHandler,
         bool requestFocus,
         bool hasFocus) :
     obb_(std::move(obb)),
     focusHandle_(std::move(focusHandle)),
-    handler_(std::move(handler)),
+    keyHandler_(std::move(keyHandler)),
+    textHandler_(std::move(textHandler)),
     requestFocus_(requestFocus),
     hasFocus_(hasFocus)
 {
@@ -36,9 +38,15 @@ KeyboardInput KeyboardInput::setFocus(bool focus) &&
     return std::move(*this);
 }
 
-KeyboardInput KeyboardInput::onKeyEvent(Handler handler) &&
+KeyboardInput KeyboardInput::onKeyEvent(KeyHandler handler) &&
 {
-    handler_ = btl::just(std::move(handler));
+    keyHandler_ = btl::just(std::move(handler));
+    return std::move(*this);
+}
+
+KeyboardInput KeyboardInput::onTextEvent(TextHandler handler) &&
+{
+    textHandler_ = btl::just(std::move(handler));
     return std::move(*this);
 }
 
@@ -97,9 +105,14 @@ btl::option<KeyboardInput::FocusHandle> const& KeyboardInput::getFocusHandle() c
     return focusHandle_;
 }
 
-btl::option<KeyboardInput::Handler> const& KeyboardInput::getHandler() const
+btl::option<KeyboardInput::KeyHandler> const& KeyboardInput::getKeyHandler() const
 {
-    return handler_;
+    return keyHandler_;
+}
+
+btl::option<KeyboardInput::TextHandler> const& KeyboardInput::getTextHandler() const
+{
+    return textHandler_;
 }
 
 } // namespace

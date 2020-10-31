@@ -2587,6 +2587,8 @@ char const* toString(KeyCode code)
         return "braille_dot_9";
     case KeyCode::braille_dot_10:
         return "braille_dot_10";
+    case KeyCode::unknown:
+        return "<unknown>";
     };
 
     return "<unknown>";

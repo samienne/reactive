@@ -120,5 +120,10 @@ void Window::setHoverCallback(std::function<void(HoverEvent const&)> cb)
     d()->setHoverCallback(std::move(cb));
 }
 
+void Window::setTextCallback(std::function<void(TextEvent const&)> cb)
+{
+    d()->setTextCallback(std::move(cb));
+}
+
 } // namespace
 

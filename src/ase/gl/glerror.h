@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
+#include "systemgl.h"
 
-#include <GL/gl.h>
+#include <string>
 
 namespace ase
 {

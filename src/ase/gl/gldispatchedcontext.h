@@ -3,6 +3,8 @@
 #include "glfunctions.h"
 #include "dispatcher.h"
 
+#include "asevisibility.h"
+
 #include <functional>
 
 namespace ase
@@ -16,7 +18,7 @@ namespace ase
         template <typename TFunc>
         void dispatch(TFunc&& fn)
         {
-            dispatcher_.run([this, fn=std::move(fn)]() mutable
+            dispatcher_.run([this, fn=std::forward<TFunc>(fn)]() mutable
             {
                 fn(gl_);
             });
@@ -24,6 +26,7 @@ namespace ase
 
         void wait();
 
+        void setGlFunctions(GlFunctions functions);
         GlFunctions const& getGlFunctions() const;
 
     protected:

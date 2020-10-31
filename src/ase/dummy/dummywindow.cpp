@@ -1,7 +1,6 @@
 #include "dummywindow.h"
 
 #include "dummyframebuffer.h"
-#include "dummyplatform.h"
 
 #include <memory>
 
@@ -84,6 +83,10 @@ void DummyWindow::setKeyCallback(std::function<void(KeyEvent const&)> /*cb*/)
 }
 
 void DummyWindow::setHoverCallback(std::function<void(HoverEvent const&)> /*cb*/)
+{
+}
+
+void DummyWindow::setTextCallback(std::function<void(TextEvent const&)> /*cb*/)
 {
 }
 

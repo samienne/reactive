@@ -24,6 +24,16 @@ Vector2i GenericWindow::getScaledSize() const
             );
 }
 
+void GenericWindow::setScalingFactor(float factor)
+{
+    if (scalingFactor_ == factor)
+        return;
+
+    scalingFactor_ = factor;
+    if (resizeCallback_)
+        resizeCallback_();
+}
+
 float GenericWindow::getScalingFactor() const
 {
     return scalingFactor_;
@@ -142,6 +152,14 @@ void GenericWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
     keyCallback_(KeyEvent(keyState, keyCode, modifiers, std::move(text)));
 }
 
+void GenericWindow::injectTextEvent(std::string text)
+{
+    if (!textCallback_)
+        return;
+
+    textCallback_(TextEvent(std::move(text)));
+}
+
 void GenericWindow::setCloseCallback(std::function<void()> func)
 {
     closeCallback_ = std::move(func);
@@ -184,5 +202,11 @@ void GenericWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
 {
     hoverCallback_ = std::move(cb);
 }
+
+void GenericWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
+{
+    textCallback_ = std::move(cb);
+}
+
 } // namespace ase
 

@@ -60,6 +60,8 @@ namespace reactive::widget
                 ;
         }
 
+        WidgetFactory build() &&;
+
         signal::InputHandle<TextEditState> handle_;
         AnySignal<TextEditState> state_;
         std::vector<AnySharedSignal<std::function<void()>>> onEnter_;

@@ -6,6 +6,7 @@
 #include "stream/handle.h"
 
 #include <ase/pointerbuttonevent.h>
+#include <ase/textevent.h>
 #include <ase/keyevent.h>
 
 #include <functional>
@@ -108,6 +109,12 @@ namespace reactive
         struct KeySender
         {
             auto operator()(ase::KeyEvent const& e) -> InputResult
+            {
+                handle.push(e);
+                return InputResult::handled;
+            }
+
+            auto operator()(ase::TextEvent const& e) -> InputResult
             {
                 handle.push(e);
                 return InputResult::handled;
