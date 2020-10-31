@@ -43,6 +43,7 @@ namespace ase
                 std::function<void(PointerDragEvent const&)> cb) override;
         void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
+        void setTextCallback(std::function<void(TextEvent const&)> cb) override;
 
         LRESULT handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
                 LPARAM lParam);

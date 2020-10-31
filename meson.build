@@ -3,7 +3,7 @@ project('ase', 'cpp', default_options: ['cpp_std=c++17'])
 if target_machine.system() == 'linux'
     add_global_arguments('-pedantic', '-Wextra', '-Wall', language : 'cpp')
 elif target_machine.system() == 'windows'
-    add_global_arguments('/wd4251', '/bigobj', language : 'cpp')
+    add_global_arguments('/wd4251', '/bigobj', '/UNICODE', language : 'cpp')
 endif
 
 eigen = subproject('eigen')
