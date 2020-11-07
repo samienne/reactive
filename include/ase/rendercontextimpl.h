@@ -14,7 +14,6 @@ namespace ase
 {
     class Platform;
     class Window;
-    class RenderCommand;
     class CommandBuffer;
 
     class ProgramImpl;

@@ -23,6 +23,7 @@
 #include "systemgl.h"
 
 #include <algorithm>
+#include <variant>
 
 namespace ase
 {
@@ -31,13 +32,20 @@ namespace
 {
     bool compareCommand(RenderCommand const& c1, RenderCommand const& c2)
     {
-        if (c1.getFramebuffer() != c2.getFramebuffer())
+        assert(std::holds_alternative<DrawCommand>(c1) &&
+                std::holds_alternative<DrawCommand>(c2));
+
+
+        DrawCommand const& d1 = std::get<DrawCommand>(c1);
+        DrawCommand const& d2 = std::get<DrawCommand>(c2);
+
+        if (d1.getFramebuffer() != d2.getFramebuffer())
         {
-            return c1.getFramebuffer() < c2.getFramebuffer();
+            return d1.getFramebuffer() < d2.getFramebuffer();
         }
 
-        GlPipeline const& pipeline1 = c1.getPipeline().getImpl<GlPipeline>();
-        GlPipeline const& pipeline2 = c2.getPipeline().getImpl<GlPipeline>();
+        GlPipeline const& pipeline1 = d1.getPipeline().getImpl<GlPipeline>();
+        GlPipeline const& pipeline2 = d2.getPipeline().getImpl<GlPipeline>();
 
         if (pipeline1.isBlendEnabled() != pipeline2.isBlendEnabled())
             return pipeline2.isBlendEnabled();
@@ -45,30 +53,30 @@ namespace
         if (pipeline1.isBlendEnabled())
         {
             // Sort by Z
-            if (c1.getZ() != c2.getZ())
-                return c1.getZ() < c2.getZ();
+            if (d1.getZ() != d2.getZ())
+                return d1.getZ() < d2.getZ();
         }
 
         // Sort by textures
-        if (c1.getTextures() != c2.getTextures())
-            return c1.getTextures() < c2.getTextures();
+        if (d1.getTextures() != d2.getTextures())
+            return d1.getTextures() < d2.getTextures();
 
         // Sort by program
         if (pipeline1.getProgram() != pipeline2.getProgram())
             return pipeline1.getProgram() < pipeline2.getProgram();
 
         // Sort by VertexBuffer
-        if (c1.getVertexBuffer() != c2.getVertexBuffer())
-            return c1.getVertexBuffer() < c2.getVertexBuffer();
+        if (d1.getVertexBuffer() != d2.getVertexBuffer())
+            return d1.getVertexBuffer() < d2.getVertexBuffer();
 
-        if (c1.getIndexBuffer() != c2.getIndexBuffer())
-            return c1.getIndexBuffer() < c2.getIndexBuffer();
+        if (d1.getIndexBuffer() != d2.getIndexBuffer())
+            return d1.getIndexBuffer() < d2.getIndexBuffer();
 
         // Sort by uniforms
-        if (c1.getUniforms() != c2.getUniforms())
-            return c1.getUniforms() < c2.getUniforms();
+        if (d1.getUniforms() != d2.getUniforms())
+            return d1.getUniforms() < d2.getUniforms();
 
-        return c1.getZ() > c2.getZ();
+        return d1.getZ() > d2.getZ();
     }
 } // anonymous namespace
 
@@ -141,9 +149,13 @@ void GlRenderState::submit(CommandBuffer&& commands)
 
         while (e != commands.end())
         {
-            auto const& framebuffer = b->getFramebuffer();
-            while (e != commands.end() && framebuffer == e->getFramebuffer())
+            auto const& framebuffer = std::get<DrawCommand>(*b).getFramebuffer();
+            while (std::holds_alternative<DrawCommand>(*e)
+                    && e != commands.end()
+                    && framebuffer == std::get<DrawCommand>(*e).getFramebuffer())
+            {
                 ++e;
+            }
 
             std::sort(commands.begin(), commands.end(), compareCommand);
             b = e;
@@ -192,7 +204,10 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
     boundFramebuffer_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
-        RenderCommand const& command = *i;
+        RenderCommand const& renderCommand = *i;
+
+        DrawCommand const& command = std::get<DrawCommand>(renderCommand);
+
         GlPipeline const& pipeline = command.getPipeline().getImpl<GlPipeline>();
         Program const& program = pipeline.getProgram();
         GlProgram const& glProgram = program.getImpl<GlProgram>();

@@ -13,7 +13,6 @@
 
 namespace ase
 {
-    class RenderCommand;
     class Window;
     class RenderContextImpl;
     class Platform;

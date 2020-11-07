@@ -101,7 +101,7 @@ libasesrc = [
         'vertexshader.cpp',
         'program.cpp',
         'commandbuffer.cpp',
-        'rendercommand.cpp',
+        'drawcommand.cpp',
         'renderqueue.cpp',
         'texture.cpp',
         'framebuffer.cpp',
