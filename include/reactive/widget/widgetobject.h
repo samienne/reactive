@@ -8,6 +8,8 @@
 
 #include <btl/shared.h>
 
+#include <optional>
+
 namespace reactive::widget
 {
     class REACTIVE_EXPORT WidgetObject
@@ -25,7 +27,7 @@ namespace reactive::widget
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        Widget const& getWidget() const;
+        Widget const& getWidget(DrawContext drawContext);
 
         AnySignal<SizeHint> const& getSizeHint() const;
 
@@ -34,12 +36,13 @@ namespace reactive::widget
         {
             Impl(WidgetFactory factory);
 
+            WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
-            signal::Input<DrawContext> drawContext_;
+            std::optional<signal::Input<DrawContext>> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
 
-            Widget widget_;
+            std::optional<Widget> widget_;
         };
 
         btl::shared<Impl> impl_;

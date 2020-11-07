@@ -46,9 +46,7 @@ namespace ase
         switch (format)
         {
             case FORMAT_UNKNOWN:
-                return false;
             case FORMAT_SRGBA:
-                return false;
             case FORMAT_SRGB:
                 return false;
             case FORMAT_DEPTH16:

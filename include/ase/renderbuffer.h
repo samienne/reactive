@@ -1,6 +1,7 @@
 #pragma once
 
 #include "format.h"
+#include "vector.h"
 
 #include "asevisibility.h"
 
@@ -18,13 +19,12 @@ namespace ase
         Renderbuffer(Renderbuffer const& rhs) = default;
         Renderbuffer(Renderbuffer&& rhs) noexcept = default;
 
-        bool operator==(Renderbuffer const& other) const;
+        /*bool operator==(Renderbuffer const& other) const;
         bool operator!=(Renderbuffer const& other) const;
-        bool operator<(Renderbuffer const& other) const;
+        bool operator<(Renderbuffer const& other) const;*/
 
-        Format getFormat();
-        int getWidth();
-        int getHeight();
+        Format getFormat() const;
+        Vector2i getSize() const;
 
         /**
          * @brief Casts the internal implementation to requested type.

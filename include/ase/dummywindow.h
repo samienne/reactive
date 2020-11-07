@@ -20,8 +20,6 @@ namespace ase
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
-        void clear() override;
-
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
         void setRedrawCallback(std::function<void()> func) override;

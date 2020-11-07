@@ -27,6 +27,8 @@
 #include <avg/textextents.h>
 #include <avg/pathbuilder.h>
 
+#include <btl/variant.h>
+
 #include <algorithm>
 
 namespace reactive::widget

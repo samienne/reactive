@@ -2,6 +2,7 @@
 
 #include "renderbufferimpl.h"
 #include "format.h"
+#include "vector.h"
 
 #include "asevisibility.h"
 
@@ -14,23 +15,19 @@ namespace ase
     class ASE_EXPORT GlRenderbuffer : public RenderbufferImpl
     {
     public:
-        GlRenderbuffer(GlRenderContext& context, int width, int height,
-                Format format);
+        GlRenderbuffer(GlRenderContext& context, Vector2i size, Format format);
 
         GLuint getGlObject() const;
-        bool isDefaultTarget() const;
 
         // From RenderbufferImpl
-        Format getFormat() override;
-        int getWidth() override;
-        int getHeight() override;
+        Format getFormat() const override;
+        Vector2i getSize() const override;
 
     private:
         GlRenderContext& context_;
         Format format_ = FORMAT_UNKNOWN;
         GLuint glObject_ = 0;
-        int width_ = 0;
-        int height_ = 0;
+        Vector2i size_;
     };
 } // ase
 

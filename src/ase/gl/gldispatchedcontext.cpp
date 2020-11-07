@@ -63,6 +63,10 @@ void GlDispatchedContext::setGlFunctions(GlFunctions gl)
     assert(gl.glBindBufferRange);
     assert(gl.glGetUniformBlockIndex);
     assert(gl.glActiveTexture);
+    assert(gl.glGenRenderbuffers);
+    assert(gl.glRenderbufferStorage);
+    assert(gl.glDeleteRenderbuffers);
+    assert(gl.glBindRenderbuffer);
 
     gl_ = std::move(gl);
 }

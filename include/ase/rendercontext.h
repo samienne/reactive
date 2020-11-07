@@ -30,6 +30,7 @@ namespace ase
     class Pipeline;
     class VertexSpec;
     class UniformSet;
+    class Renderbuffer;
 
     /**
      * @brief RenderContext
@@ -77,6 +78,7 @@ namespace ase
         IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
         UniformBuffer makeUniformBuffer(Buffer buffer, Usage usage);
         Texture makeTexture(Vector2i size, Format format, Buffer buffer);
+        Renderbuffer makeRenderbuffer(Vector2i size, Format format);
         Framebuffer makeFramebuffer();
         Pipeline makePipeline(Program program, VertexSpec vertexSpec);
         Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,

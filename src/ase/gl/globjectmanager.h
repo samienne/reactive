@@ -20,6 +20,7 @@ namespace ase
     class GlFramebuffer;
     class GlPipeline;
     class GlUniformSet;
+    class GlRenderbuffer;
 
     class VertexShader;
     class FragmentShader;
@@ -59,6 +60,9 @@ namespace ase
                 Vector2i const& size,
                 Format format,
                 Buffer const& buffer);
+
+        std::shared_ptr<GlRenderbuffer> makeRenderbuffer(
+                Vector2i const& size, Format format);
 
         std::shared_ptr<GlFramebuffer> makeFramebuffer();
 

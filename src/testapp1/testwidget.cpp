@@ -12,7 +12,6 @@
 #include <reactive/send.h>
 
 #include <reactive/widgetfactory.h>
-#include <reactive/rendering.h>
 #include <reactive/simplesizehint.h>
 
 #include <reactive/signal/droprepeats.h>

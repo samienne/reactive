@@ -1,14 +1,15 @@
 #include "app.h"
 
 #include "window.h"
-#include "rendering.h"
 #include "send.h"
 #include "debug.h"
 
 #include "reactive/signal/input.h"
 
-#include "avg/painter.h"
+#include <avg/painter.h>
+#include <avg/rendering.h>
 
+#include <ase/commandbuffer.h>
 #include <ase/window.h>
 #include <ase/renderqueue.h>
 #include <ase/keyevent.h>
@@ -53,15 +54,17 @@ class WindowGlue
 {
 public:
     WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
-            Window window, avg::Painter painter)
+            Window window)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(std::move(context)), window_(std::move(window)),
-        painter_(std::move(painter)),
+        painter_(&memoryPool_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
-        widget_(window_.getWidget()(signal::constant(DrawContext(memory_)),
-                    std::move(size_.signal))),
+        widget_(window_.getWidget()(
+                    signal::constant(DrawContext(&painter_)),
+                    std::move(size_.signal)
+                    )),
         titleSignal_(window_.getTitle().clone())
     {
         aseWindow.setVisible(true);
@@ -375,10 +378,9 @@ int App::run(AnySignal<bool> running) &&
     for (auto&& w : d()->windows_)
     {
         ase::RenderContext context = platform.makeRenderContext();
-        avg::Painter painter(context);
 
         glues.push_back(std::make_shared<WindowGlue>(
-            platform, std::move(context), std::move(w), painter));
+            platform, std::move(context), std::move(w)));
     }
 
     std::chrono::steady_clock clock;
@@ -450,6 +452,13 @@ int App::run() &&
         w = std::move(w).onClose(send(false, running.handle));
 
     return std::move(*this).run(running.signal);
+}
+
+App app()
+{
+    static App application;
+
+    return application;
 }
 
 } // namespace reactive

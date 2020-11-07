@@ -13,6 +13,14 @@ static_assert(std::is_nothrow_move_assignable<Drawing>::value, "");
 
 namespace
 {
+    template <class... Ts>
+    struct Overloaded : Ts...
+    {
+        using Ts::operator()...;
+    };
+
+    template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
+
     // Returns a rect that covers both r1 and r2.
     Rect combineRects(Rect const& r1, Rect const& r2)
     {
@@ -32,19 +40,27 @@ namespace
 
     Rect getElementRect(Drawing::Element const& e)
     {
-        if (e.is<Shape>())
-            return e.get<Shape>().getControlBb();
-        else if (e.is<TextEntry>())
-            return e.get<TextEntry>().getControlBb();
-        else if (e.is<Drawing::ClipElement>())
-        {
-            auto&& clip = e.get<Drawing::ClipElement>();
-            return (clip.transform * avg::Obb(clip.clipRect)).getBoundingRect();
-        }
-        else
-            assert(false);
-
-        return Rect();
+        return std::visit(Overloaded{
+                    [](Shape const& shape) -> Rect
+                    {
+                        return shape.getControlBb();
+                    },
+                    [](TextEntry const& textEntry) -> Rect
+                    {
+                        return textEntry.getControlBb();
+                    },
+                    [](Drawing::ClipElement const& clipElement) -> Rect
+                    {
+                        return (clipElement.transform *
+                                avg::Obb(clipElement.clipRect)).getBoundingRect();
+                    },
+                    [](Drawing::RegionFill const& regionFill) -> Rect
+                    {
+                        return regionFill.region.getBoundingBox();
+                    }
+                    },
+                e
+                );
     }
 
     Rect combineDrawingRects(pmr::vector<Drawing::Element> const& elements)
@@ -73,19 +89,24 @@ namespace
 
     pmr::memory_resource* getElementResource(Drawing::Element const& e)
     {
-        if (e.is<Shape>())
-            return e.get<Shape>().getResource();
-        else if (e.is<TextEntry>())
-            //return e.get<TextEntry>().getResource();
-            return pmr::new_delete_resource();
-        else if (e.is<Drawing::ClipElement>())
-        {
-            return e.get<Drawing::ClipElement>().subDrawing.resource();
-        }
-        else
-            assert(false);
-
-        return nullptr;
+        return std::visit(Overloaded{
+                    [](Shape const& shape) -> pmr::memory_resource*
+                    {
+                        return shape.getResource();
+                    },
+                    [](TextEntry const& /*textEntry*/) -> pmr::memory_resource*
+                    {
+                        return pmr::new_delete_resource();
+                    },
+                    [](Drawing::ClipElement const& clipElement) -> pmr::memory_resource*
+                    {
+                        return clipElement.subDrawing.resource();
+                    },
+                    [](Drawing::RegionFill const& regionFill) -> pmr::memory_resource*
+                    {
+                        return regionFill.region.getResource();
+                    }},
+                e);
     }
 
     Drawing::Element withResource(
@@ -115,27 +136,35 @@ namespace
             Drawing::Element const& e
             )
     {
-        if (e.is<Shape>())
-            return e.get<Shape>().with_resource(memory);
-        else if (e.is<TextEntry>())
-            //return e.get<TextEntry>().getResource();
-            return e;
-        else if (e.is<Drawing::ClipElement>())
-        {
-            auto const& clip = e.get<Drawing::ClipElement>();
-            return Drawing::ClipElement {
-                pmr::heap<Drawing::SubDrawing>(
-                        withResource(memory, *clip.subDrawing),
-                        memory
-                        ),
-                clip.clipRect,
-                clip.transform
-            };
-        }
-        else
-            assert(false);
+        return std::visit(Overloaded{
+                    [&](Shape const& shape) -> Drawing::Element
+                    {
+                        return shape.with_resource(memory);
+                    },
+                    [&](TextEntry const& textEntry) -> Drawing::Element
+                    {
+                        return textEntry;
+                    },
+                    [&](Drawing::ClipElement const& clipElement) -> Drawing::Element
+                    {
+                        return Drawing::ClipElement {
+                            pmr::heap<Drawing::SubDrawing>(
+                                    withResource(memory, *clipElement.subDrawing),
+                                    memory
+                                    ),
+                            clipElement.clipRect,
+                            clipElement.transform
+                        };
+                    },
+                    [&](Drawing::RegionFill const& regionFill) -> Drawing::Element
+                    {
+                        return Drawing::RegionFill{
+                            regionFill.region.withResource(memory),
+                            regionFill.brush
+                        };
 
-        return Shape(memory);
+                    }},
+                e);
     }
 } // anonymous namespace
 
@@ -242,46 +271,27 @@ Drawing Drawing::operator*(float scale) &&
 
     for (auto& e : elements_)
     {
-        if (e.is<TextEntry>())
-            e = std::move(e.get<TextEntry>()) * scale;
-        else if (e.is<Shape>())
-            e = std::move(e.get<Shape>()) * scale;
-        else if (e.is<ClipElement>())
-        {
-            assert(false);
-        }
-        else
-            assert(false);
+        std::visit(Overloaded{
+                [&](Shape& shape)
+                {
+                    shape = std::move(shape) * scale;
+                },
+                [&](TextEntry& textEntry)
+                {
+                    textEntry = std::move(textEntry) * scale;
+                },
+                [&](Drawing::ClipElement& /*clipElement*/)
+                {
+                    assert(false);
+                },
+                [&](Drawing::RegionFill& /*regionFill*/)
+                {
+                    assert(false);
+                }},
+                e);
     }
 
     return std::move(*this);
-}
-
-Drawing Drawing::operator+(ase::Vector2f offset) &&
-{
-    controlBb_ = Rect(controlBb_.getBottomLeft() + offset,
-            controlBb_.getSize());
-
-    for (auto& e : elements_)
-    {
-        if (e.is<TextEntry>())
-            e = std::move(e.get<TextEntry>()) + offset;
-        else if (e.is<Shape>())
-            e = std::move(e.get<Shape>()) + offset;
-        else if (e.is<ClipElement>())
-        {
-            assert(false);
-        }
-        else
-            assert(false);
-    }
-
-    return std::move(*this);
-}
-
-bool Drawing::operator==(Drawing const& rhs) const
-{
-    return elements_ == rhs.elements_;
 }
 
 Drawing Drawing::clip(Rect const& r) &&
@@ -345,15 +355,25 @@ Drawing Drawing::transform(Transform const& t) &&
 {
     for (auto&& e : elements_)
     {
-        if (e.is<TextEntry>())
-            e = t * std::move(e.get<TextEntry>());
-        else if (e.is<Shape>())
-            e = t * std::move(e.get<Shape>());
-        else if (e.is<Drawing::ClipElement>())
-            e.get<Drawing::ClipElement>().transform =
-                t * e.get<Drawing::ClipElement>().transform;
-        else
-            assert(false);
+        std::visit(Overloaded{
+                [&](Shape& shape)
+                {
+                    shape = t * std::move(shape);
+                },
+                [&](TextEntry& textEntry)
+                {
+                    textEntry = t * std::move(textEntry);
+                },
+                [&](Drawing::ClipElement& clipElement)
+                {
+                    clipElement.transform = t * clipElement.transform;
+                },
+                [&](Drawing::RegionFill& regionFill)
+                {
+                    regionFill.region = t * std::move(regionFill.region);
+                    regionFill.brush = t * std::move(regionFill.brush);
+                }},
+                e);
     }
 
     controlBb_ = combineDrawingRects(elements_);
@@ -361,19 +381,34 @@ Drawing Drawing::transform(Transform const& t) &&
     return std::move(*this);
 }
 
+Drawing Drawing::translate(ase::Vector2f offset) &&
+{
+    return std::move(*this).transform(avg::translate(offset));
+}
+
 Drawing operator*(Transform const& t, Drawing&& drawing)
 {
     for (auto&& e : drawing.elements_)
     {
-        if (e.is<TextEntry>())
-            e = t * std::move(e.get<TextEntry>());
-        else if (e.is<Shape>())
-            e = t * std::move(e.get<Shape>());
-        else if (e.is<Drawing::ClipElement>())
-            e.get<Drawing::ClipElement>().transform =
-                t * e.get<Drawing::ClipElement>().transform;
-        else
-            assert(false);
+        std::visit(Overloaded{
+                    [&](TextEntry& entry)
+                    {
+                        entry = t * std::move(entry);
+                    },
+                    [&](Shape& shape)
+                    {
+                        shape = t * std::move(shape);
+                    },
+                    [&](Drawing::ClipElement& clipElement)
+                    {
+                        clipElement.transform = t * clipElement.transform;
+                    },
+                    [&](Drawing::RegionFill& regionFill)
+                    {
+                        regionFill.region = t * std::move(regionFill.region);
+                        regionFill.brush = t * std::move(regionFill.brush);
+                    }
+                    }, e);
     }
 
     drawing.controlBb_ = combineDrawingRects(drawing.elements_);

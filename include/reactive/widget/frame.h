@@ -12,7 +12,6 @@
 #include "reactive/widgetfactory.h"
 
 #include "reactive/shapes.h"
-#include "reactive/rendering.h"
 
 #include "reactive/signal/constant.h"
 #include "reactive/signal/signal.h"

@@ -172,7 +172,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
 
 GlxWindow::~GlxWindow()
 {
-    DBG("GlxWindow: Rendered %1 fames", frames_);
+    DBG("GlxWindow: Rendered %1 frames", frames_);
     destroy();
 }
 
@@ -485,16 +485,6 @@ float GlxWindow::getScalingFactor() const
 Framebuffer& GlxWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;
-}
-
-void GlxWindow::clear()
-{
-    defaultFramebuffer_.clear();
-}
-
-Vector2i GlxWindow::getResolution() const
-{
-    return genericWindow_.getSize();
 }
 
 void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const

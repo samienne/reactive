@@ -7,6 +7,10 @@
 #include "pointermoveevent.h"
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
+#include "framebuffer.h"
+#include "vector.h"
+
+#include <btl/visibility.h>
 
 #include <string>
 #include <memory>

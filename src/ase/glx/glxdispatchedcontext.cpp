@@ -107,6 +107,14 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glGetUniformBlockIndex");
         gl.glActiveTexture = (PFNGLACTIVETEXTUREPROC)
             glXGetProcAddressARB((GLubyte const*)"glActiveTexture");
+        gl.glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC)
+            glXGetProcAddressARB((GLubyte const*)"glGenRenderbuffers");
+        gl.glRenderbufferStorage = (PFNGLRENDERBUFFERSTORAGEPROC)
+            glXGetProcAddressARB((GLubyte const*)"glRenderbufferStorage");
+        gl.glDeleteRenderbuffers = (PFNGLDELETERENDERBUFFERSPROC)
+            glXGetProcAddressARB((GLubyte const*)"glDeleteRenderbuffers");
+        gl.glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC)
+            glXGetProcAddressARB((GLubyte const*)"glBindRenderbuffer");
 
         return gl;
     }

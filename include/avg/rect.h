@@ -58,6 +58,7 @@ namespace avg
                 << r.size_[0] << "x" << r.size_[1] << "}";
         }
 
+        [[nodiscard]]
         Rect include(Vector2f point) const;
 
     private:

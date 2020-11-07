@@ -7,6 +7,10 @@
 #include "pointermoveevent.h"
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
+#include "framebuffer.h"
+#include "vector.h"
+
+#include <btl/visibility.h>
 
 #include <string>
 #include <functional>
@@ -29,8 +33,6 @@ namespace ase
         virtual Vector2i getSize() const = 0;
         virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
-
-        virtual void clear() = 0;
 
         virtual void setCloseCallback(std::function<void()> func) = 0;
         virtual void setResizeCallback(std::function<void()> func) = 0;

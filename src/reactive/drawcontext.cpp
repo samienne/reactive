@@ -3,20 +3,25 @@
 namespace reactive
 {
 
-DrawContext::DrawContext(pmr::memory_resource* memory) :
-    memory_(memory)
+DrawContext::DrawContext(avg::Painter* painter) :
+    painter_(painter)
 
 {
+}
+
+bool DrawContext::operator==(DrawContext const& other) const
+{
+    return painter_ == other.painter_;
 }
 
 pmr::memory_resource* DrawContext::getResource() const
 {
-    return memory_;
+    return painter_->getResource();
 }
 
 avg::PathBuilder DrawContext::pathBuilder() const
 {
-    return avg::PathBuilder(memory_);
+    return avg::PathBuilder(getResource());
 }
 
 } // namespace reactive

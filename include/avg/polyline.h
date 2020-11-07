@@ -10,11 +10,11 @@
 
 namespace avg
 {
-    class AVG_EXPORT SimplePolygon
+    class AVG_EXPORT PolyLine
     {
     public:
-        SimplePolygon(pmr::vector<Vector2i>&& vertices);
-        ~SimplePolygon();
+        PolyLine(pmr::vector<Vector2i>&& vertices);
+        ~PolyLine();
 
         pmr::vector<Vector2i> const& getVertices() const;
 

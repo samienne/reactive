@@ -484,11 +484,6 @@ Framebuffer& WglWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
-void WglWindow::clear()
-{
-    defaultFramebuffer_.clear();
-}
-
 void WglWindow::setCloseCallback(std::function<void()> func)
 {
     genericWindow_.setCloseCallback(std::move(func));

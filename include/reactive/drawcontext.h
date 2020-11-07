@@ -4,6 +4,7 @@
 
 #include <avg/drawing.h>
 #include <avg/pathbuilder.h>
+#include <avg/painter.h>
 
 #include <pmr/memory_resource.h>
 
@@ -12,12 +13,14 @@ namespace reactive
     class REACTIVE_EXPORT DrawContext
     {
     public:
-        explicit DrawContext(pmr::memory_resource* memory);
+        explicit DrawContext(avg::Painter* painter);
         DrawContext(DrawContext const& rhs) = default;
         DrawContext(DrawContext&& rhs) noexcept = default;
 
         DrawContext& operator=(DrawContext const& rhs) = default;
         DrawContext& operator=(DrawContext&& rhs) noexcept = default;
+
+        bool operator==(DrawContext const& other) const;
 
         pmr::memory_resource* getResource() const;
 
@@ -30,7 +33,7 @@ namespace reactive
         }
 
     private:
-        pmr::memory_resource* memory_;
+        avg::Painter* painter_;
     };
 } // namespace reactive
 

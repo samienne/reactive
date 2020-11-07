@@ -1,5 +1,6 @@
 #pragma once
 
+#include "transform.h"
 #include "endtype.h"
 #include "jointype.h"
 #include "fillrule.h"
@@ -15,7 +16,7 @@
 
 namespace avg
 {
-    class SimplePolygon;
+    class PolyLine;
     class Rect;
 
     class RegionDeferred;
@@ -26,10 +27,10 @@ namespace avg
         explicit Region(pmr::memory_resource* memory);
 
         Region(pmr::memory_resource* memory,
-                pmr::vector<SimplePolygon> const& polygons, FillRule rule,
+                pmr::vector<PolyLine> const& polygons, FillRule rule,
                 Vector2f pixelSize, float resPerPixel);
         Region(pmr::memory_resource* memory,
-                pmr::vector<SimplePolygon> const& polygons, JoinType join,
+                pmr::vector<PolyLine> const& polygons, JoinType join,
                 EndType end, float width, Vector2f pixelSize,
                 float resPerPixel);
         Region(Region const&) = default;
@@ -53,6 +54,12 @@ namespace avg
             triangulate(pmr::memory_resource* memory) const;
 
         Region getClipped(Rect const& r) const;
+
+        Rect getBoundingBox() const;
+        pmr::memory_resource* getResource() const;
+        Region withResource(pmr::memory_resource* memory) const;
+
+        friend Region operator*(avg::Transform const& t, Region&& r);
 
     private:
         friend std::ostream& operator<<(std::ostream& stream,

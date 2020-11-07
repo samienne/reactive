@@ -33,6 +33,7 @@ namespace ase
     class VertexShader;
     class VertexSpec;
     class UniformSet;
+    class RenderbufferImpl;
 
     class ASE_EXPORT RenderContextImpl
     {
@@ -66,6 +67,9 @@ namespace ase
         virtual std::shared_ptr<TextureImpl> makeTextureImpl(
                 Vector2i const& size, Format format,
                 Buffer const& buffer) = 0;
+
+        virtual std::shared_ptr<RenderbufferImpl> makeRenderbufferImpl(
+                Vector2i const& size, Format format) = 0;
 
         virtual std::shared_ptr<FramebufferImpl> makeFramebufferImpl() = 0;
 

@@ -49,6 +49,8 @@
 //use_deprecated: Enables temporary support for the obsolete functions
 //#define use_deprecated  
 
+#include <Eigen/Geometry>
+
 #include <pmr/vector.h>
 #include <pmr/list.h>
 
@@ -77,14 +79,15 @@ enum PolyFillType { pftEvenOdd, pftNonZero, pftPositive, pftNegative };
   static cInt const loRange = 0x7FFF;
   static cInt const hiRange = 0x7FFF;
 #else
-  typedef signed long long cInt;
+  typedef int64_t cInt;
   static cInt const loRange = 0x3FFFFFFF;
   static cInt const hiRange = 0x3FFFFFFFFFFFFFFFLL;
-  typedef signed long long long64;     //used by Int128 class
-  typedef unsigned long long ulong64;
+  typedef int64_t long64;     //used by Int128 class
+  typedef uint64_t ulong64;
 
 #endif
 
+/*
 struct IntPoint {
   cInt X;
   cInt Y;
@@ -97,13 +100,17 @@ struct IntPoint {
 
   friend inline bool operator== (const IntPoint& a, const IntPoint& b)
   {
-    return a.X == b.X && a.Y == b.Y;
+    return a.x() == b.x() && a.y() == b.y();
   }
   friend inline bool operator!= (const IntPoint& a, const IntPoint& b)
   {
-    return a.X != b.X  || a.Y != b.Y; 
+    return a.x() != b.x()  || a.y() != b.y(); 
   }
 };
+*/
+
+using IntPoint = Eigen::Matrix<int64_t, 2, 1>;
+
 //------------------------------------------------------------------------------
 
 typedef pmr::vector< IntPoint > Path;
@@ -121,7 +128,7 @@ struct DoublePoint
   double X;
   double Y;
   DoublePoint(double x = 0, double y = 0) : X(x), Y(y) {}
-  DoublePoint(IntPoint ip) : X((double)ip.X), Y((double)ip.Y) {}
+  DoublePoint(IntPoint ip) : X((double)ip.x()), Y((double)ip.y()) {}
 };
 //------------------------------------------------------------------------------
 

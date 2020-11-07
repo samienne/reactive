@@ -23,7 +23,6 @@ libreactivesrc = [
     'keyboardinput.cpp',
     'inputarea.cpp',
     'widget.cpp',
-    'rendering.cpp',
     'window.cpp',
     'app.cpp',
     'connection.cpp',

@@ -2,7 +2,7 @@
 
 #include "obb.h"
 #include "region.h"
-#include "simplepolygon.h"
+#include "polyline.h"
 #include "transform.h"
 #include "rect.h"
 #include "calculatebounds.h"
@@ -130,10 +130,10 @@ float getNextCubicT(Vector2f p1, Vector2f p2,
     else
         dt = pixelSize[0] / std::abs(d[0]);
 
-    return t + 2.0 * dt;
+    return t + 2.0f * dt;
 }
 
-pmr::vector<SimplePolygon> toSimplePolygons(
+pmr::vector<PolyLine> toPolyLines(
         pmr::memory_resource* memory,
         Path const& path,
         Transform const& transform, Vector2f pixelSize,
@@ -141,7 +141,7 @@ pmr::vector<SimplePolygon> toSimplePolygons(
 
 {
     Vector2f cur(0.0f, 0.0f);
-    pmr::vector<SimplePolygon> polygons(memory);
+    pmr::vector<PolyLine> polygons(memory);
     pmr::vector<Vector2i> vertices(memory);
 
     auto rs = transform.getRsMatrix();
@@ -497,7 +497,7 @@ Path::ConstIterator Path::end() const
 Region Path::fillRegion(pmr::memory_resource* memory,
         FillRule rule, Vector2f pixelSize, float resPerPixel) const
 {
-    pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
+    pmr::vector<PolyLine> polygons = toPolyLines(memory, *this,
             transform_, pixelSize, resPerPixel);
 
     return avg::Region(memory, std::move(polygons), rule, pixelSize,
@@ -507,7 +507,7 @@ Region Path::fillRegion(pmr::memory_resource* memory,
 Region Path::offsetRegion(pmr::memory_resource* memory, JoinType join,
         EndType end, float width, Vector2f pixelSize, float resPerPixel) const
 {
-    pmr::vector<SimplePolygon> polygons = toSimplePolygons(memory, *this,
+    pmr::vector<PolyLine> polygons = toPolyLines(memory, *this,
             transform_, pixelSize, resPerPixel);
 
     return avg::Region(memory, std::move(polygons), join, end, width,

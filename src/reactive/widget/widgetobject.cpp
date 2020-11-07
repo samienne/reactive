@@ -10,17 +10,10 @@ static_assert(std::is_copy_constructible_v<WidgetObject>, "");
 static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
 WidgetObject::Impl::Impl(WidgetFactory factory) :
-    sizeHint_(factory.getSizeHint()),
-    drawContext_(signal::input(DrawContext(pmr::new_delete_resource()))),
+    factory_(std::move(factory)),
+    sizeHint_(factory_.getSizeHint()),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
-    transformInput_(signal::input(avg::Transform())),
-    widget_(
-            (std::move(factory)
-            | transform(AnySignal<avg::Transform>(std::move(transformInput_.signal))))
-            (
-             std::move(drawContext_.signal),
-             std::move(sizeInput_.signal)
-             ))
+    transformInput_(signal::input(avg::Transform()))
 {
 }
 
@@ -31,7 +24,23 @@ WidgetObject::WidgetObject(WidgetFactory factory) :
 
 void WidgetObject::setDrawContext(DrawContext drawContext)
 {
-    impl_->drawContext_.handle.set(std::move(drawContext));
+    if (impl_->drawContext_)
+        impl_->drawContext_->handle.set((drawContext));
+    else
+        impl_->drawContext_ = signal::input((drawContext));
+
+
+    if (!impl_->widget_)
+    {
+        assert(impl_->drawContext_);
+        impl_->widget_ = (impl_->factory_
+                    | transform(impl_->transformInput_.signal.clone()))
+                (
+                 dropRepeats(impl_->drawContext_->signal),
+                 impl_->sizeInput_.signal
+                )
+                ;
+    }
 }
 
 void WidgetObject::setObb(avg::Obb obb)
@@ -50,9 +59,12 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-Widget const& WidgetObject::getWidget() const
+Widget const& WidgetObject::getWidget(DrawContext drawContext)
 {
-    return impl_->widget_;
+    setDrawContext(std::move(drawContext));
+
+    assert(impl_->widget_);
+    return *impl_->widget_;
 }
 
 AnySignal<SizeHint> const& WidgetObject::getSizeHint() const

@@ -12,8 +12,6 @@
 
 #include <reactive/signal/constant.h>
 
-#include <reactive/rendering.h>
-
 #include <avg/textextents.h>
 
 #include <utf8/utf8.h>

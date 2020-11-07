@@ -95,9 +95,7 @@ int main()
                 signal::constant(0.5f))
     });
 
-    auto running = signal::input(true);
-
-    return App()
+    return app()
         .windows({
                 window(
                     signal::constant<std::string>("Test program"),
@@ -105,9 +103,7 @@ int main()
                     //| debug::drawKeyboardInputs()
                     | widget::focusGroup()
                     )
-                .onClose(send(false, running.handle))
                 })
-        //.run(running.signal);
         .run();
 }
 

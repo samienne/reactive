@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactivevisibility.h"
+#include "avgvisibility.h"
 
 #include <avg/drawing.h>
 #include <avg/painter.h>
@@ -13,11 +13,11 @@
 
 #include <pmr/memory_resource.h>
 
-namespace reactive
+namespace avg
 {
     using RenderElement = avg::Drawing::Element;
 
-    REACTIVE_EXPORT void render(
+    AVG_EXPORT void render(
             pmr::memory_resource* memory,
             ase::CommandBuffer& queue,
             ase::RenderContext& context,
