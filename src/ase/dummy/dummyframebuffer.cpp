@@ -34,8 +34,4 @@ void DummyFramebuffer::unsetStencilTarget()
 {
 }
 
-void DummyFramebuffer::clear()
-{
-}
-
 } // namespace ase
