@@ -34,16 +34,6 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
             );
 
     wglRenderContext.setViewport(dispatched, size);
-
-    if (dirty_)
-    {
-        glClearColor(0.0, 0.0, 0.0, 1.0);
-
-        wglRenderContext.clear(dispatched,
-                GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        dirty_ = false;
-    }
 }
 
 void WglFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)
@@ -79,11 +69,6 @@ void WglFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)
 void WglFramebuffer::unsetStencilTarget()
 {
     assert(false);
-}
-
-void WglFramebuffer::clear()
-{
-    dirty_ = true;
 }
 
 } // namespace ase

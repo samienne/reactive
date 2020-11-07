@@ -131,12 +131,12 @@ ase::Pipeline const& Painter::getPipeline(Pen const& pen) const
 
 void Painter::clearImage(TargetImage& target)
 {
-    target.getFramebuffer().clear();
+    commandBuffer_.pushClear(target.getFramebuffer());
 }
 
 void Painter::clearWindow(ase::Window& target)
 {
-    target.clear();
+    commandBuffer_.pushClear(target.getDefaultFramebuffer());
 }
 
 void Painter::paintToImage(TargetImage& target, float scalingFactor,

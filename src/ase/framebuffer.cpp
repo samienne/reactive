@@ -62,10 +62,5 @@ void Framebuffer::unsetStencilTarget()
     d()->unsetStencilTarget();
 }
 
-void Framebuffer::clear()
-{
-    d()->clear();
-}
-
 } // namespace ase
 

@@ -35,7 +35,6 @@ namespace
         assert(std::holds_alternative<DrawCommand>(c1) &&
                 std::holds_alternative<DrawCommand>(c2));
 
-
         DrawCommand const& d1 = std::get<DrawCommand>(c1);
         DrawCommand const& d2 = std::get<DrawCommand>(c2);
 
@@ -149,15 +148,23 @@ void GlRenderState::submit(CommandBuffer&& commands)
 
         while (e != commands.end())
         {
-            auto const& framebuffer = std::get<DrawCommand>(*b).getFramebuffer();
-            while (std::holds_alternative<DrawCommand>(*e)
-                    && e != commands.end()
+            while (b != commands.end() && !std::holds_alternative<DrawCommand>(*b))
+                ++b;
+
+            e = b;
+
+            while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
+                ++e;
+
+            /*auto const& framebuffer = std::get<DrawCommand>(*b).getFramebuffer();
+            while (e != commands.end()
+                    && std::holds_alternative<DrawCommand>(*e)
                     && framebuffer == std::get<DrawCommand>(*e).getFramebuffer())
             {
                 ++e;
-            }
+            }*/
 
-            std::sort(commands.begin(), commands.end(), compareCommand);
+            std::sort(b, e, compareCommand);
             b = e;
         }
 
@@ -192,7 +199,7 @@ void GlRenderState::endFrame()
     boundIbo_ = 0;
 }
 
-void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
+void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
     if (vertexArrayObject_ == 0)
@@ -205,6 +212,35 @@ void GlRenderState::dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand const& renderCommand = *i;
+
+        if (std::holds_alternative<ClearCommand>(renderCommand))
+        {
+            ClearCommand const& clearCommand = std::get<ClearCommand>(renderCommand);
+
+            GlBaseFramebuffer const& framebuffer = clearCommand.target.getImpl<
+                GlBaseFramebuffer>();
+
+            GLbitfield mask =
+                (clearCommand.color ? GL_COLOR_BUFFER_BIT : 0)
+                | (clearCommand.depth ? GL_DEPTH_BUFFER_BIT : 0)
+                | (clearCommand.stencil ? GL_STENCIL_BUFFER_BIT : 0)
+                ;
+
+            if (boundFramebuffer_ != &framebuffer)
+            {
+                boundFramebuffer_ = &framebuffer;
+                framebuffer.makeCurrent(d, context_, gl);
+            }
+
+            glClearColor(clearCommand.r, clearCommand.g, clearCommand.b,
+                    clearCommand.a);
+
+            clear(d, mask);
+
+            continue;
+        }
+
+        assert(std::holds_alternative<DrawCommand>(renderCommand));
 
         DrawCommand const& command = std::get<DrawCommand>(renderCommand);
 

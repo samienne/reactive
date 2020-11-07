@@ -165,10 +165,6 @@ void GlFramebuffer::unsetStencilTarget()
     assert(false);
 }
 
-void GlFramebuffer::clear()
-{
-}
-
 GlFramebuffer::GlFramebuffer(GlRenderContext& context, std::nullptr_t) :
     context_(context),
     framebuffer_(0)

@@ -102,7 +102,6 @@ libasesrc = [
         'program.cpp',
         'commandbuffer.cpp',
         'drawcommand.cpp',
-        'renderqueue.cpp',
         'texture.cpp',
         'framebuffer.cpp',
         'pipeline.cpp',
