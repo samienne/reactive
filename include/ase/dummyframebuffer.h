@@ -16,8 +16,6 @@ namespace ase
 
         void setStencilTarget(Renderbuffer buffer) override;
         void unsetStencilTarget() override;
-
-        void clear() override;
     };
 } // namespace ase
 

@@ -29,7 +29,7 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
         Vector2i const& size, Format format, Buffer const& buffer)
 {
     if (buffer.data()
-            && size[0] * size[1] * getBytes(format) > buffer.getSize())
+            && size[0] * size[1] * getBytes(format) > (long)buffer.getSize())
         throw std::runtime_error("GlTexture buffer size is too small.");
 
     size_ = size;

@@ -34,8 +34,6 @@ namespace ase
         void setStencilTarget(Renderbuffer buffer);
         void unsetStencilTarget();
 
-        void clear();
-
         /**
          * @brief Casts the internal implementation to requested type.
          *

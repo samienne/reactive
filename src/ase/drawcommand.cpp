@@ -1,9 +1,9 @@
-#include "rendercommand.h"
+#include "drawcommand.h"
 
 namespace ase
 {
 
-RenderCommandDeferred::RenderCommandDeferred(
+DrawCommandDeferred::DrawCommandDeferred(
         Framebuffer framebuffer,
         std::vector<Texture> textures,
         Pipeline pipeline,
@@ -21,7 +21,7 @@ RenderCommandDeferred::RenderCommandDeferred(
 {
 }
 
-RenderCommand::RenderCommand(
+DrawCommand::DrawCommand(
         Framebuffer framebuffer,
         Pipeline pipeline,
         UniformSet uniforms,
@@ -40,7 +40,7 @@ RenderCommand::RenderCommand(
 {
 }
 
-RenderCommand::~RenderCommand()
+DrawCommand::~DrawCommand()
 {
 }
 

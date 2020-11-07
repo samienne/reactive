@@ -9,8 +9,6 @@
 
 namespace ase
 {
-    class RenderCommand;
-
     class ASE_EXPORT CommandBuffer
     {
     public:
@@ -25,6 +23,16 @@ namespace ase
                 btl::option<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
+
+        void pushClear(Framebuffer target,
+                float r = 0.0f,
+                float g = 0.0f,
+                float b = 0.0f,
+                float a = 1.0f,
+                bool color = true,
+                bool depth = true,
+                bool stencil = false
+                );
 
         size_t size() const;
         Iterator begin();

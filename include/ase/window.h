@@ -41,8 +41,6 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
-        void clear();
-
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
         void setRedrawCallback(std::function<void()> func);

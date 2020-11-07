@@ -23,8 +23,6 @@ namespace ase
 
         virtual void setStencilTarget(Renderbuffer buffer) = 0;
         virtual void unsetStencilTarget() = 0;
-
-        virtual void clear() = 0;
     };
 } // namespace ase
 

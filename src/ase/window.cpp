@@ -71,11 +71,6 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
-void Window::clear()
-{
-    getDefaultFramebuffer().clear();
-}
-
 void Window::setCloseCallback(std::function<void()> func)
 {
     d()->setCloseCallback(std::move(func));

@@ -33,12 +33,9 @@ namespace ase
         void setStencilTarget(Renderbuffer buffer) override;
         void unsetStencilTarget() override;
 
-        void clear() override;
-
     private:
         WglPlatform& platform_;
         WglWindow& window_;
-        mutable bool dirty_ = true;
     };
 } // namespace ase
 

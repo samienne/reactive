@@ -63,8 +63,6 @@ namespace ase
         void setStencilTarget(Renderbuffer buffer) override;
         void unsetStencilTarget() override;
 
-        void clear() override;
-
     private:
         friend class GlRenderContext;
         GlFramebuffer(GlRenderContext& context, std::nullptr_t);

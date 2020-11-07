@@ -16,14 +16,31 @@ void CommandBuffer::push(
         std::vector<Texture> textures,
         float z)
 {
-    commands_.emplace_back(
-            std::move(framebuffer),
-            std::move(pipeline),
-            std::move(uniforms),
-            std::move(vertexBuffer),
-            std::move(indexBuffer),
-            std::move(textures),
-            z);
+    commands_.push_back(DrawCommand(
+                std::move(framebuffer),
+                std::move(pipeline),
+                std::move(uniforms),
+                std::move(vertexBuffer),
+                std::move(indexBuffer),
+                std::move(textures),
+                z
+                ));
+}
+
+void CommandBuffer::pushClear(Framebuffer target,
+        float r,
+        float g,
+        float b,
+        float a,
+        bool color,
+        bool depth,
+        bool stencil
+        )
+{
+    commands_.push_back(ClearCommand{
+            std::move(target),
+            r, g, b, a, color, depth, stencil
+            });
 }
 
 size_t CommandBuffer::size() const

@@ -11,7 +11,6 @@
 
 #include <ase/commandbuffer.h>
 #include <ase/window.h>
-#include <ase/renderqueue.h>
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
@@ -265,9 +264,9 @@ public:
 
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
-            aseWindow.clear();
-
             ase::CommandBuffer commands;
+
+            commands.pushClear(aseWindow.getDefaultFramebuffer());
 
             render(memory_, commands, context_,
                     aseWindow.getDefaultFramebuffer(),

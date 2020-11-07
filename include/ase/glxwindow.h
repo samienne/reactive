@@ -41,7 +41,6 @@ namespace ase
     class GlxPlatform;
     class GlxWindowDeferred;
     class RenderContext;
-    class RenderCommand;
     class Framebuffer;
     struct Dispatched;
 

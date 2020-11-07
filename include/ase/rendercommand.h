@@ -1,118 +1,23 @@
 #pragma once
 
-#include "blendmode.h"
-#include "texture.h"
-#include "pipeline.h"
-#include "uniformbuffer.h"
-#include "vertexbuffer.h"
-#include "indexbuffer.h"
-#include "vertexspec.h"
-#include "framebuffer.h"
-#include "uniformset.h"
+#include "drawcommand.h"
 
-#include <btl/option.h>
-#include "asevisibility.h"
-
-#include <vector>
-#include <memory>
+#include <variant>
 
 namespace ase
 {
-    struct ASE_EXPORT RenderCommandDeferred
+    struct ClearCommand
     {
-        RenderCommandDeferred(
-                Framebuffer framebuffer,
-                std::vector<Texture> textures,
-                Pipeline pipeline,
-                VertexBuffer vertexBuffer,
-                btl::option<IndexBuffer> indexBuffer,
-                UniformSet uniforms,
-                float z);
-
-        RenderCommandDeferred(RenderCommandDeferred const&) = default;
-        RenderCommandDeferred(RenderCommandDeferred&&) noexcept = default;
-        RenderCommandDeferred& operator=(
-                RenderCommandDeferred const&) = default;
-        RenderCommandDeferred& operator=(RenderCommandDeferred&&) noexcept = default;
-
-        Framebuffer framebuffer_;
-
-        // Textures
-        std::vector<Texture> textures_;
-
-        Pipeline pipeline_;
-
-        // Vertex data
-        VertexBuffer vertexBuffer_;
-        btl::option<IndexBuffer> indexBuffer_;
-
-        // Uniforms
-        UniformSet uniforms_;
-
-        float z_;
+        Framebuffer target;
+        float r = 0.0f;
+        float g = 0.0f;
+        float b = 0.0f;
+        float a = 1.0f;
+        bool color = true;
+        bool depth = true;
+        bool stencil = true;
     };
 
-    class ASE_EXPORT RenderCommand
-    {
-    public:
-        RenderCommand(
-                Framebuffer framebuffer,
-                Pipeline pipeline,
-                UniformSet uniforms,
-                VertexBuffer vertexBuffer,
-                btl::option<IndexBuffer> indexBuffer,
-                std::vector<Texture> textures,
-                float z);
+    using RenderCommand = std::variant<DrawCommand, ClearCommand>;
 
-        RenderCommand(RenderCommand const&) = default;
-        RenderCommand(RenderCommand&&) = default;
-        ~RenderCommand();
-
-        RenderCommand& operator=(RenderCommand const&) = default;
-        RenderCommand& operator=(RenderCommand&&) = default;
-
-        inline Framebuffer const& getFramebuffer() const
-        {
-            return d()->framebuffer_;
-        }
-
-        inline std::vector<Texture> const& getTextures() const
-        {
-            return d()->textures_;
-        }
-
-        inline Pipeline const& getPipeline() const
-        {
-            return d()->pipeline_;
-        }
-
-        inline VertexBuffer const& getVertexBuffer() const
-        {
-            return d()->vertexBuffer_;
-        }
-
-        inline btl::option<IndexBuffer> const& getIndexBuffer() const
-        {
-            return d()->indexBuffer_;
-        }
-
-        inline UniformSet const& getUniforms() const
-        {
-            return d()->uniforms_;
-        }
-
-        inline float getZ() const
-        {
-            return d()->z_;
-        }
-
-    private:
-        RenderCommandDeferred deferred_;
-        inline RenderCommandDeferred* d() { return &deferred_; }
-        inline RenderCommandDeferred const* d() const
-        {
-            return &deferred_;
-        }
-    };
-}
-
+} // namespace ase
