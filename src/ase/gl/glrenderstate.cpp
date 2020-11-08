@@ -80,10 +80,14 @@ namespace
 } // anonymous namespace
 
 
-GlRenderState::GlRenderState(GlRenderContext& context,
-        GlDispatchedContext& dispatcher) :
+GlRenderState::GlRenderState(
+        GlRenderContext& context,
+        GlDispatchedContext& dispatcher,
+        std::function<void(Dispatched, Window&)> presentCallback
+        ) :
     context_(context),
-    dispatcher_(dispatcher)
+    dispatcher_(dispatcher),
+    presentCallback_(std::move(presentCallback))
 {
     dispatcher_.dispatch([](GlFunctions const&)
     {
@@ -237,6 +241,15 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             clear(d, mask);
 
+            continue;
+        }
+        else if (std::holds_alternative<PresentCommand>(renderCommand))
+        {
+            presentCallback_(d, const_cast<Window&>(
+                        std::get<PresentCommand>(renderCommand).window)
+                    );
+
+            endFrame();
             continue;
         }
 
@@ -393,6 +406,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         else
             glDrawArrays(mode, 0, count);
     }
+
+    glFlush();
 }
 
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,

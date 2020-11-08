@@ -66,7 +66,6 @@ namespace ase
 
         void flush();
         void finish();
-        void present(Window& window);
         void submit(CommandBuffer&& renderQueue);
 
         VertexShader makeVertexShader(std::string const& source);

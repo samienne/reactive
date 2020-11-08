@@ -34,6 +34,8 @@ namespace ase
                 bool stencil = false
                 );
 
+        void pushPresent(Window window);
+
         size_t size() const;
         Iterator begin();
         Iterator end();

@@ -32,10 +32,6 @@ void DummyRenderContext::finish()
 {
 }
 
-void DummyRenderContext::present(Window& /*window*/)
-{
-}
-
 std::shared_ptr<ProgramImpl> DummyRenderContext::makeProgramImpl(
         VertexShader const& /*vertexShader*/,
         FragmentShader const& /*fragmentShader*/)

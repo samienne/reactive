@@ -10,7 +10,6 @@ namespace ase
         void submit(CommandBuffer&& commands) override;
         void flush() override;
         void finish() override;
-        void present(Window& window) override;
 
         std::shared_ptr<ProgramImpl> makeProgramImpl(
                 VertexShader const& vertexShader,

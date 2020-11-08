@@ -39,12 +39,6 @@ void RenderContext::finish()
         d()->finish();
 }
 
-void RenderContext::present(Window& window)
-{
-    if (d())
-        d()->present(window);
-}
-
 void RenderContext::submit(CommandBuffer&& commands)
 {
     if (d())

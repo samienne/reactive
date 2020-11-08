@@ -8,6 +8,7 @@
 
 namespace ase
 {
+    class Window;
     class GlRenderContext;
     class CommandBuffer;
     class VertexSpec;
@@ -22,7 +23,8 @@ namespace ase
     class ASE_EXPORT GlRenderState
     {
     public:
-        GlRenderState(GlRenderContext& context, GlDispatchedContext& dispatcher);
+        GlRenderState(GlRenderContext& context, GlDispatchedContext& dispatcher,
+                std::function<void(Dispatched, Window&)> presentCallback);
         ~GlRenderState();
 
         void submit(CommandBuffer&& commands);
@@ -40,6 +42,7 @@ namespace ase
     private:
         GlRenderContext& context_;
         GlDispatchedContext& dispatcher_;
+        std::function<void(Dispatched, Window&)> presentCallback_;
 
         // Current state
         Vector2i viewportSize_;

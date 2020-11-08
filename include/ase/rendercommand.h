@@ -1,5 +1,6 @@
 #pragma once
 
+#include "window.h"
 #include "drawcommand.h"
 
 #include <variant>
@@ -18,6 +19,11 @@ namespace ase
         bool stencil = true;
     };
 
-    using RenderCommand = std::variant<DrawCommand, ClearCommand>;
+    struct PresentCommand
+    {
+        Window window;
+    };
+
+    using RenderCommand = std::variant<DrawCommand, ClearCommand, PresentCommand>;
 
 } // namespace ase

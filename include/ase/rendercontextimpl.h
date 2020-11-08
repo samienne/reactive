@@ -42,7 +42,6 @@ namespace ase
         virtual void submit(CommandBuffer&& commands) = 0;
         virtual void flush() = 0;
         virtual void finish() = 0;
-        virtual void present(Window& window) = 0;
 
         virtual std::shared_ptr<ProgramImpl> makeProgramImpl(
                 VertexShader const& vertexShader,

@@ -33,25 +33,18 @@ WglDispatchedContext const& WglRenderContext::getWglContext() const
             );
 }
 
-void WglRenderContext::present(Window& window)
+void WglRenderContext::present(Dispatched, Window& window)
 {
-    dispatch([this, &window](GlFunctions const& gl) mutable
-            {
-                WglWindow& wglWindow = window.getImpl<WglWindow>();
-                WglDispatchedContext const& wglContext =
-                    static_cast<WglDispatchedContext const&>(getFgContext());
+    WglWindow& wglWindow = window.getImpl<WglWindow>();
+    WglDispatchedContext const& wglContext =
+        static_cast<WglDispatchedContext const&>(getFgContext());
 
-                wglMakeCurrent(
-                        wglWindow.getDc(),
-                        wglContext.getWglContext()
-                        );
+    wglMakeCurrent(
+            wglWindow.getDc(),
+            wglContext.getWglContext()
+            );
 
-                SwapBuffers(wglWindow.getDc());
-            });
-
-    wait();
-
-    GlRenderContext::present(window);
+    SwapBuffers(wglWindow.getDc());
 }
 
 } // namespace ase
