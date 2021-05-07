@@ -36,6 +36,8 @@ namespace ase
 
         void pushPresent(Window window);
 
+        void pushFence(std::function<void()> completeCb);
+
         size_t size() const;
         Iterator begin();
         Iterator end();

@@ -24,6 +24,21 @@ namespace ase
         Window window;
     };
 
-    using RenderCommand = std::variant<DrawCommand, ClearCommand, PresentCommand>;
+    struct FenceCommand
+    {
+        struct Control
+        {
+            std::function<void()> completeCb;
+        };
+
+        std::shared_ptr<Control> control_;
+    };
+
+    using RenderCommand = std::variant<
+        DrawCommand,
+        ClearCommand,
+        PresentCommand,
+        FenceCommand
+        >;
 
 } // namespace ase

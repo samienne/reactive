@@ -50,6 +50,16 @@ void CommandBuffer::pushPresent(Window window)
             });
 }
 
+void CommandBuffer::pushFence(std::function<void()> completeCb)
+{
+    auto control = std::make_shared<FenceCommand::Control>();
+    control->completeCb = std::move(completeCb);
+
+    commands_.push_back(FenceCommand{
+            std::move(control)
+            });
+}
+
 size_t CommandBuffer::size() const
 {
     return commands_.size();
