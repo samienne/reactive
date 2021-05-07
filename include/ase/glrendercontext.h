@@ -28,11 +28,12 @@ namespace ase
 
         ~GlRenderContext() override;
 
+        virtual void present(Dispatched dispatched, Window& window) = 0;
+
         // From RenderContextImpl
         void submit(CommandBuffer&& commands) override;
         void flush() override;
         void finish() override;
-        void present(Window& window) override;
 
         GlFramebuffer const& getDefaultFramebuffer() const;
 

@@ -273,8 +273,10 @@ public:
                     aseWindow.getSize(), aseWindow.getScalingFactor(),
                     painter_, widget_.getDrawing().evaluate());
 
+            commands.pushPresent(aseWindow);
+
             context_.submit(std::move(commands));
-            context_.present(aseWindow);
+
             redraw_ = false;
 
             ++frames_;

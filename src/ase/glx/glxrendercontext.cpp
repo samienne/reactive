@@ -32,18 +32,15 @@ GlxRenderContext::GlxRenderContext(GlxPlatform& platform) :
 
 GlxRenderContext::~GlxRenderContext()
 {
+    // make sure queues are clear before calling parent destructor
+    wait();
+    waitBg();
 }
 
-void GlxRenderContext::present(Window& window)
+void GlxRenderContext::present(Dispatched d, Window& window)
 {
-    dispatch([&window](GlFunctions const&) mutable
-            {
-                GlxWindow& glxWindow = window.getImpl<GlxWindow>();
-                glxWindow.present(Dispatched());
-            });
-    wait();
-
-    GlRenderContext::present(window);
+    GlxWindow& glxWindow = window.getImpl<GlxWindow>();
+    glxWindow.present(d);
 }
 
 GlxDispatchedContext const& GlxRenderContext::getGlxContext() const

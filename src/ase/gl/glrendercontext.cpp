@@ -41,7 +41,10 @@ GlRenderContext::GlRenderContext(
     fgContext_(std::move(fgContext)),
     bgContext_(std::move(bgContext)),
     objectManager_(*this),
-    renderState_(*this, *fgContext_),
+    renderState_(*this, *fgContext_, [this](Dispatched d, Window& w)
+            {
+                present(d, w);
+            }),
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
@@ -76,11 +79,6 @@ void GlRenderContext::finish()
                 glFinish();
             });
     wait();
-}
-
-void GlRenderContext::present(Window& /*window*/)
-{
-    renderState_.endFrame();
 }
 
 GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const

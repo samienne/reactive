@@ -17,7 +17,7 @@ namespace ase
 
         WglDispatchedContext const& getWglContext() const;
 
-        void present(Window& window) override;
+        void present(Dispatched d, Window& window) override;
 
     private:
         friend class WglFramebuffer;

@@ -20,8 +20,8 @@ namespace ase
         GlxRenderContext(GlxPlatform& platform);
         ~GlxRenderContext();
 
-        // From RenderContextImpl
-        void present(Window& window) override;
+        // From GlRenderContext
+        void present(Dispatched d, Window& window) override;
 
     private:
         friend class GlxPlatform;

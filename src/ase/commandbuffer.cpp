@@ -43,6 +43,13 @@ void CommandBuffer::pushClear(Framebuffer target,
             });
 }
 
+void CommandBuffer::pushPresent(Window window)
+{
+    commands_.push_back(PresentCommand{
+            std::move(window)
+            });
+}
+
 size_t CommandBuffer::size() const
 {
     return commands_.size();

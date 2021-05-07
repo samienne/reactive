@@ -30,6 +30,9 @@ namespace ase
         Window(Window const&) = default;
         Window(Window&&) noexcept = default;
 
+        Window& operator=(Window const&) = default;
+        Window& operator=(Window&&) = default;
+
         void setVisible(bool value);
         bool isVisible() const;
 
