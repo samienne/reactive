@@ -14,6 +14,16 @@ void GlDispatchedContext::wait()
     dispatcher_.wait();
 }
 
+void GlDispatchedContext::unsetIdleFunc(Dispatched d)
+{
+    dispatcher_.unsetIdleFunc(d);
+}
+
+bool GlDispatchedContext::hasIdleFunc(Dispatched d)
+{
+    return dispatcher_.hasIdleFunc(d);
+}
+
 void GlDispatchedContext::setGlFunctions(GlFunctions gl)
 {
     assert(gl.glVertexAttribPointer);

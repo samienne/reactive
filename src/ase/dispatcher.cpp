@@ -39,18 +39,48 @@ void Dispatcher::wait() const
             && this->funcs_.empty(); });
 }
 
+void Dispatcher::setIdleFunc(Dispatched,
+        std::chrono::duration<float> period,
+        std::function<void()> cb)
+{
+    idleCallback_ = std::move(cb);
+    idlePeriod_ = period;
+}
+
+void Dispatcher::unsetIdleFunc(Dispatched)
+{
+    idleCallback_.reset();
+}
+
+bool Dispatcher::hasIdleFunc(Dispatched)
+{
+    return idleCallback_.has_value();
+}
+
 void Dispatcher::runThread()
 {
+    auto predicate = [this]()
+    {
+        return !this->running_ || !this->funcs_.empty();
+    };
+
     while (running_)
     {
         std::vector<std::function<void()> > funcs;
 
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            condition_.wait(lock, [this]
-                    {
-                        return !this->running_ || !this->funcs_.empty();
-                    });
+            if (idleCallback_.has_value())
+            {
+                if (!condition_.wait_for(lock, idlePeriod_, predicate))
+                {
+                    (*idleCallback_)();
+                }
+            }
+            else
+            {
+                condition_.wait(lock, predicate);
+            }
 
             funcs.swap(funcs_);
             idle_ = false;
@@ -67,5 +97,5 @@ void Dispatcher::runThread()
     }
 }
 
-} //namespace
+} //namespace ase
 

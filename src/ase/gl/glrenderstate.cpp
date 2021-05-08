@@ -418,7 +418,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     checkFences(d, gl);
 }
 
-void GlRenderState::checkFences(Dispatched, GlFunctions const& gl)
+void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
 {
     auto i = fences_.begin();
     while (i != fences_.end())
@@ -444,6 +444,19 @@ void GlRenderState::checkFences(Dispatched, GlFunctions const& gl)
         default:
             ++i;
         }
+    }
+
+    if (!fences_.empty() && !dispatcher_.hasIdleFunc(d))
+    {
+        dispatcher_.setIdleFunc(d, std::chrono::duration<float>(0.016f),
+                [this](GlFunctions const& gl)
+                {
+                    checkFences(Dispatched(), gl);
+                });
+    }
+    else if (fences_.empty() && dispatcher_.hasIdleFunc(d))
+    {
+        dispatcher_.unsetIdleFunc(d);
     }
 }
 
