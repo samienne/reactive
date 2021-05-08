@@ -14,6 +14,9 @@ namespace btl
 {
     namespace future
     {
+        template <typename T>
+        using FutureType = decltype(std::declval<T>().get());
+
         class FutureBase : public std::enable_shared_from_this<FutureBase>
         {
         public:

@@ -98,9 +98,6 @@ namespace btl
             std::decay_t<TFunc> func_;
         };
 
-        template <typename T>
-        using FutureType = decltype(std::declval<T>().get());
-
         template <typename T, typename = void>
         struct IsFuture : std::false_type {};
 

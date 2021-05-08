@@ -16,9 +16,6 @@ namespace btl
         template <typename T>
         class SharedFuture;
 
-        template <typename T>
-        using FutureType = decltype(std::declval<T>().get());
-
         template <typename TFuture>
         auto join(TFuture f)
         -> Future<FutureType<std::decay_t<FutureType<TFuture>>>>
