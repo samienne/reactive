@@ -35,7 +35,9 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
     size_ = size;
     format_ = format;
 
-    glGenTextures(1, &texture_);
+    if (!texture_)
+        glGenTextures(1, &texture_);
+
     glBindTexture(GL_TEXTURE_2D, texture_);
     glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format), size[0],
         size[1], 0, formatToGl(format), GL_UNSIGNED_BYTE, buffer.data());
