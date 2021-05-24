@@ -1,6 +1,6 @@
 #include "glrenderstate.h"
 
-#include "btl/async.h"
+#include "glusage.h"
 #include "gluniformbuffer.h"
 #include "gluniformset.h"
 #include "glprogram.h"
@@ -22,6 +22,8 @@
 #include "debug.h"
 
 #include "systemgl.h"
+
+#include <btl/async.h>
 
 #include <algorithm>
 #include <variant>
@@ -208,7 +210,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     boundFramebuffer_ = nullptr;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
-        RenderCommand const& renderCommand = *i;
+        RenderCommand& renderCommand = *i;
 
         if (std::holds_alternative<ClearCommand>(renderCommand))
         {
@@ -255,6 +257,59 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             };
 
             fences_.push_back(std::move(fence));
+
+            continue;
+        }
+        else if (std::holds_alternative<BufferUploadCommand>(renderCommand))
+        {
+            auto&& uploadCommand = std::get<BufferUploadCommand>(renderCommand);
+
+            if (std::holds_alternative<VertexBuffer>(uploadCommand.target))
+            {
+                auto&& buffer = std::get<VertexBuffer>(uploadCommand.target);
+                auto&& glVertexBuffer = buffer.getImpl<GlVertexBuffer>();
+
+                glVertexBuffer
+                    .setData(d, gl, uploadCommand.data, uploadCommand.usage)
+                    ;
+
+                boundVbo_ = 0;
+            }
+            else if (std::holds_alternative<IndexBuffer>(uploadCommand.target))
+            {
+                auto&& buffer = std::get<IndexBuffer>(uploadCommand.target);
+                auto&& glIndexBuffer = buffer.getImpl<GlIndexBuffer>();
+
+                glIndexBuffer
+                    .setData(d, gl, uploadCommand.data, uploadCommand.usage)
+                    ;
+
+                boundIbo_ = 0;
+            }
+            else if (std::holds_alternative<UniformBuffer>(uploadCommand.target))
+            {
+                auto&& buffer = std::get<UniformBuffer>(uploadCommand.target);
+                auto&& glUniformBuffer = buffer.getImpl<GlUniformBuffer>();
+
+                glUniformBuffer
+                    .setData(d, gl, uploadCommand.data, uploadCommand.usage)
+                    ;
+            }
+
+            continue;
+        }
+        else if (std::holds_alternative<TextureUploadCommand>(renderCommand))
+        {
+            auto&& uploadCommand = std::get<TextureUploadCommand>(renderCommand);
+            auto&& glTexture = uploadCommand.target.getImpl<GlTexture>();
+
+            glTexture.setData(
+                    d,
+                    gl,
+                    uploadCommand.size,
+                    uploadCommand.format,
+                    uploadCommand.data
+                    );
 
             continue;
         }
@@ -370,7 +425,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
         if (boundVbo_ != vbo)
         {
-            glGetError();
             gl.glBindBuffer(GL_ARRAY_BUFFER, vbo);
 
             if (vbo)

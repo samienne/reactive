@@ -62,9 +62,9 @@ Program RenderContext::makeProgram(VertexShader vertexShader,
             std::move(fragmentShader));
 }
 
-VertexBuffer RenderContext::makeVertexBuffer(Buffer buffer, Usage usage)
+VertexBuffer RenderContext::makeVertexBuffer()
 {
-    return VertexBuffer(d()->makeVertexBufferImpl(std::move(buffer), usage));
+    return VertexBuffer(d()->makeVertexBufferImpl());
 }
 
 IndexBuffer RenderContext::makeIndexBuffer(Buffer buffer, Usage usage)
@@ -72,9 +72,9 @@ IndexBuffer RenderContext::makeIndexBuffer(Buffer buffer, Usage usage)
     return d()->makeIndexBufferImpl(std::move(buffer), usage);
 }
 
-UniformBuffer RenderContext::makeUniformBuffer(Buffer buffer, Usage usage)
+UniformBuffer RenderContext::makeUniformBuffer()
 {
-    return UniformBuffer(d()->makeUniformBufferImpl(std::move(buffer), usage));
+    return UniformBuffer(d()->makeUniformBufferImpl());
 }
 
 Texture RenderContext::makeTexture(Vector2i size, Format format, Buffer buffer)

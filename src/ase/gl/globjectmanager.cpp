@@ -51,34 +51,9 @@ std::shared_ptr<GlFragmentShader> GlObjectManager::makeFragmentShader(
     return std::make_shared<GlFragmentShader>(context_, source);
 }
 
-std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer(
-        Buffer const& buffer, Usage usage)
+std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer()
 {
-    auto vb = std::make_shared<GlVertexBuffer>(context_);
-
-    if (usage == Usage::StreamDraw || usage == Usage::StreamRead
-            || usage == Usage::StreamCopy)
-    {
-        context_.dispatch([&vb, ownBuffer=std::move(buffer), usage]
-                (GlFunctions const& gl) mutable
-                {
-                    vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
-                });
-        context_.wait();
-    }
-    else
-    {
-        context_.dispatchBg([&vb, ownBuffer=std::move(buffer), usage]
-                (GlFunctions const& gl) mutable
-                {
-                    vb->setData(Dispatched(), gl, std::move(ownBuffer), usage);
-                    glFlush();
-                });
-        context_.waitBg();
-    }
-
-
-    return vb;
+    return std::make_shared<GlVertexBuffer>(context_);
 }
 
 std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
@@ -98,22 +73,9 @@ std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
     return ib;
 }
 
-std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer(
-        Buffer const& buffer,
-        Usage usage)
+std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer()
 {
-    auto ub = std::make_shared<GlUniformBuffer>(context_);
-
-    context_.dispatchBg([&ub, ownBuffer=std::move(buffer), usage]
-        (GlFunctions const& gl) mutable
-        {
-            ub->setData(Dispatched(), gl, std::move(ownBuffer), usage);
-            glFlush();
-        });
-
-    context_.waitBg();
-
-    return ub;
+    return std::make_shared<GlUniformBuffer>(context_);
 }
 
 std::shared_ptr<GlTexture> GlObjectManager::makeTexture(

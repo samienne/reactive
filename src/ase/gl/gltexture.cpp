@@ -46,7 +46,6 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
     glBindTexture(GL_TEXTURE_2D, 0);
-    glFlush();
 
     DBG("Loaded texture data %1", texture_);
 }

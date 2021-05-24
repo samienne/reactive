@@ -45,6 +45,7 @@ namespace avg
         void clearWindow(ase::Window& target);
         void paintToImage(TargetImage& target, float scalingFactor, Drawing const& drawing);
         void paintToWindow(ase::Window& target, Drawing const& drawing);
+        void presentWindow(ase::Window& target);
         void flush();
 
     private:

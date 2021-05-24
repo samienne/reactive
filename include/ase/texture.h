@@ -35,6 +35,12 @@ namespace ase
         Vector2i getSize() const;
 
         template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
+
+        template <class T>
         T const& getImpl() const
         {
             return reinterpret_cast<T const&>(*d());

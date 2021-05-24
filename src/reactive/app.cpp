@@ -52,13 +52,15 @@ public:
 class WindowGlue
 {
 public:
-    WindowGlue(ase::Platform &platform, ase::RenderContext &&context,
+    WindowGlue(ase::Platform &platform, ase::RenderContext& context,
             Window window)
         : memoryPool_(pmr::new_delete_resource()),
-        memoryStatistics_(&memoryPool_), memory_(&memoryStatistics_),
+        memoryStatistics_(&memoryPool_),
+        memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
-        context_(std::move(context)), window_(std::move(window)),
-        painter_(&memoryPool_, context_),
+        context_(context),
+        window_(std::move(window)),
+        painter_(memory_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(
                     signal::constant(DrawContext(&painter_)),
@@ -264,18 +266,11 @@ public:
 
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
-            ase::CommandBuffer commands;
+            painter_.clearWindow(aseWindow);
+            painter_.paintToWindow(aseWindow, widget_.getDrawing().evaluate());
+            painter_.presentWindow(aseWindow);
 
-            commands.pushClear(aseWindow.getDefaultFramebuffer());
-
-            render(memory_, commands, context_,
-                    aseWindow.getDefaultFramebuffer(),
-                    aseWindow.getSize(), aseWindow.getScalingFactor(),
-                    painter_, widget_.getDrawing().evaluate());
-
-            commands.pushPresent(aseWindow);
-
-            context_.submit(std::move(commands));
+            painter_.flush();
 
             redraw_ = false;
 
@@ -335,7 +330,7 @@ private:
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
-    ase::RenderContext context_;
+    ase::RenderContext& context_;
     Window window_;
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
@@ -376,12 +371,12 @@ int App::run(AnySignal<bool> running) &&
     std::vector<btl::shared<WindowGlue>> glues;
     glues.reserve(d()->windows_.size());
 
+    ase::RenderContext context = platform.makeRenderContext();
+
     for (auto&& w : d()->windows_)
     {
-        ase::RenderContext context = platform.makeRenderContext();
-
         glues.push_back(std::make_shared<WindowGlue>(
-            platform, std::move(context), std::move(w)));
+            platform, context, std::move(w)));
     }
 
     std::chrono::steady_clock clock;
@@ -419,6 +414,8 @@ int App::run(AnySignal<bool> running) &&
                 fs.close();
             }*/
         }
+
+        context.flush();
 
         if (timeToNext.valid())
         {

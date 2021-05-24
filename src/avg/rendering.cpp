@@ -328,8 +328,13 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         {
             float const z = resultVertices[0][2];
 
-            auto vb = context.makeVertexBuffer(ase::Buffer(
-                        std::move(resultVertices)), ase::Usage::StreamDraw);
+            auto vb = context.makeVertexBuffer();
+
+            commandBuffer.pushUpload(
+                    vb,
+                    ase::Buffer(std::move(resultVertices)),
+                    ase::Usage::StreamDraw
+                    );
 
             commandBuffer.push(framebuffer, pipeline, painter.getUniformSet(),
                     std::move(vb), btl::none, {}, z);

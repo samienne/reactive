@@ -44,17 +44,13 @@ namespace ase
         std::shared_ptr<GlFragmentShader> makeFragmentShader(
                 std::string const& source);
 
-        std::shared_ptr<GlVertexBuffer> makeVertexBuffer(
-                Buffer const& buffer,
-                Usage usage);
+        std::shared_ptr<GlVertexBuffer> makeVertexBuffer();
 
         std::shared_ptr<GlIndexBuffer> makeIndexBuffer(
                 Buffer const& buffer,
                 Usage usage);
 
-        std::shared_ptr<GlUniformBuffer> makeUniformBuffer(
-                Buffer const& buffer,
-                Usage usage);
+        std::shared_ptr<GlUniformBuffer> makeUniformBuffer();
 
         std::shared_ptr<GlTexture> makeTexture(
                 Vector2i const& size,

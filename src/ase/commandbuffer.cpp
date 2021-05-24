@@ -60,6 +60,31 @@ void CommandBuffer::pushFence(std::function<void()> completeCb)
             });
 }
 
+void CommandBuffer::pushUpload(
+        std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,
+        Buffer data,
+        Usage usage
+        )
+{
+    commands_.push_back(BufferUploadCommand
+            {
+                std::move(target),
+                std::move(data),
+                usage
+            });
+}
+
+void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Format format)
+{
+    commands_.push_back(TextureUploadCommand
+            {
+                std::move(target),
+                std::move(data),
+                size,
+                format
+            });
+}
+
 size_t CommandBuffer::size() const
 {
     return commands_.size();

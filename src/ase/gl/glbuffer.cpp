@@ -36,12 +36,17 @@ void GlBuffer::setData(Dispatched, GlFunctions const& gl, void const* data,
 
     gl.glBindBuffer(bufferType_, buffer_);
     gl.glBufferData(bufferType_, len, data, usageToGl(usage));
-    gl.glBindBuffer(bufferType_, 0);
+    //gl.glBindBuffer(bufferType_, 0);
 }
 
 GLuint GlBuffer::getBuffer() const
 {
     return buffer_;
+}
+
+GLenum GlBuffer::getBufferType() const
+{
+    return bufferType_;
 }
 
 void GlBuffer::destroy()
