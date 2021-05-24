@@ -311,6 +311,9 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                     uploadCommand.data
                     );
 
+            if (!activeTextures_.empty())
+                activeTextures_[0] = glTexture.getGlObject();
+
             continue;
         }
 
