@@ -51,8 +51,7 @@ std::shared_ptr<FragmentShaderImpl> DummyRenderContext::makeFragmentShaderImpl(
     return std::make_shared<DummyFragmentShader>();
 }
 
-std::shared_ptr<VertexBufferImpl> DummyRenderContext::makeVertexBufferImpl(
-        Buffer const& /*buffer*/, Usage /*usage*/)
+std::shared_ptr<VertexBufferImpl> DummyRenderContext::makeVertexBufferImpl()
 {
     return std::make_shared<DummyVertexBuffer>();
 }
@@ -63,8 +62,7 @@ std::shared_ptr<IndexBufferImpl> DummyRenderContext::makeIndexBufferImpl(
     return std::make_shared<DummyIndexBuffer>();
 }
 
-std::shared_ptr<UniformBufferImpl> DummyRenderContext::makeUniformBufferImpl(
-        Buffer /*buffer*/, Usage /*usage*/)
+std::shared_ptr<UniformBufferImpl> DummyRenderContext::makeUniformBufferImpl()
 {
     return std::make_shared<DummyUniformBuffer>();
 }
