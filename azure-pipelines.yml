@@ -81,6 +81,8 @@ jobs:
     displayName: 'install dependencies'
 
   - script: |
+      sudo rm -Rf /Library/Developer/CommandLineTools
+      sudo xcode-select -s /Applications/Xcode.app
       mkdir -p build/release
       cd build/release
       python3 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
