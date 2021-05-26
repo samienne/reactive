@@ -59,6 +59,9 @@ namespace ase
         PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = nullptr;
         PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = nullptr;
         PFNGLBINDRENDERBUFFERPROC glBindRenderbuffer = nullptr;
+        PFNGLFENCESYNCPROC glFenceSync = nullptr;
+        PFNGLCLIENTWAITSYNCPROC glClientWaitSync = nullptr;
+        PFNGLDELETESYNCPROC glDeleteSync = nullptr;
     };
 } // namespace ase
 

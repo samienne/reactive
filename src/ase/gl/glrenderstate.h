@@ -38,11 +38,21 @@ namespace ase
                 std::vector<int>& activeAttribs);
         void dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
                 CommandBuffer&& commands);
+        void checkFences(Dispatched, GlFunctions const& gl);
 
     private:
         GlRenderContext& context_;
         GlDispatchedContext& dispatcher_;
         std::function<void(Dispatched, Window&)> presentCallback_;
+
+        // Active sync objects
+        struct WaitingFence
+        {
+            GLsync sync;
+            std::function<void()> completeCb;
+        };
+
+        std::vector<WaitingFence> fences_;
 
         // Current state
         Vector2i viewportSize_;

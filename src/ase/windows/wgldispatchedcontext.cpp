@@ -131,6 +131,12 @@ namespace
             getProcAddress("glDeleteRenderbuffers");
         gl.glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC)
             getProcAddress("glBindRenderbuffer");
+        gl.glFenceSync = (PFNGLFENCESYNCPROC)
+            getProcAddress("glFenceSync");
+        gl.glClientWaitSync = (PFNGLCLIENTWAITSYNCPROC)
+            getProcAddress("glClientWaitSync");
+        gl.glDeleteSync = (PFNGLDELETESYNCPROC)
+            getProcAddress("glDeleteSync");
 
         return gl;
     }

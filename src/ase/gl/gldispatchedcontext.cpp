@@ -67,6 +67,9 @@ void GlDispatchedContext::setGlFunctions(GlFunctions gl)
     assert(gl.glRenderbufferStorage);
     assert(gl.glDeleteRenderbuffers);
     assert(gl.glBindRenderbuffer);
+    assert(gl.glFenceSync);
+    assert(gl.glClientWaitSync);
+    assert(gl.glDeleteSync);
 
     gl_ = std::move(gl);
 }

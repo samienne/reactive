@@ -1,5 +1,6 @@
 #include "glrenderstate.h"
 
+#include "btl/async.h"
 #include "gluniformbuffer.h"
 #include "gluniformset.h"
 #include "glprogram.h"
@@ -160,14 +161,6 @@ void GlRenderState::submit(CommandBuffer&& commands)
             while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
                 ++e;
 
-            /*auto const& framebuffer = std::get<DrawCommand>(*b).getFramebuffer();
-            while (e != commands.end()
-                    && std::holds_alternative<DrawCommand>(*e)
-                    && framebuffer == std::get<DrawCommand>(*e).getFramebuffer())
-            {
-                ++e;
-            }*/
-
             std::sort(b, e, compareCommand);
             b = e;
         }
@@ -250,6 +243,19 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                     );
 
             endFrame();
+            continue;
+        }
+        else if (std::holds_alternative<FenceCommand>(renderCommand))
+        {
+            auto&& fenceCommand = std::get<FenceCommand>(renderCommand);
+            WaitingFence fence
+            {
+                gl.glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0),
+                std::move(fenceCommand.control_->completeCb)
+            };
+
+            fences_.push_back(std::move(fence));
+
             continue;
         }
 
@@ -408,6 +414,37 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     }
 
     glFlush();
+
+    checkFences(d, gl);
+}
+
+void GlRenderState::checkFences(Dispatched, GlFunctions const& gl)
+{
+    auto i = fences_.begin();
+    while (i != fences_.end())
+    {
+        auto&& fence = *i;
+
+        GLenum err = gl.glClientWaitSync(fence.sync, 0, 0);
+        switch(err)
+        {
+        case GL_ALREADY_SIGNALED:
+        case GL_CONDITION_SATISFIED:
+            btl::asyncJob(std::move(fence.completeCb));
+
+            gl.glDeleteSync(fence.sync);
+            i = fences_.erase(i);
+            break;
+
+        case GL_TIMEOUT_EXPIRED:
+        case GL_WAIT_FAILED:
+            ++i;
+            break;
+
+        default:
+            ++i;
+        }
+    }
 }
 
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,
