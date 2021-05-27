@@ -39,7 +39,7 @@ bool Texture::operator<(Texture const& rhs) const
 
 Format Texture::getFormat()
 {
-    return format_;
+    return d()->getFormat();
 }
 
 Vector2i Texture::getSize() const

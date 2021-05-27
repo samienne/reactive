@@ -55,14 +55,12 @@ namespace ase
 
         virtual std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl() = 0;
 
-        virtual std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl(
-                Buffer const& buffer, Usage usage) = 0;
+        virtual std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl() = 0;
 
         virtual std::shared_ptr<UniformBufferImpl> makeUniformBufferImpl() = 0;
 
         virtual std::shared_ptr<TextureImpl> makeTextureImpl(
-                Vector2i const& size, Format format,
-                Buffer const& buffer) = 0;
+                Vector2i const& size, Format format) = 0;
 
         virtual std::shared_ptr<RenderbufferImpl> makeRenderbufferImpl(
                 Vector2i const& size, Format format) = 0;

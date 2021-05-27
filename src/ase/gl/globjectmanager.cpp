@@ -56,21 +56,9 @@ std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer()
     return std::make_shared<GlVertexBuffer>(context_);
 }
 
-std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer(
-        Buffer const& buffer, Usage usage)
+std::shared_ptr<GlIndexBuffer> GlObjectManager::makeIndexBuffer()
 {
-    auto ib = std::make_shared<GlIndexBuffer>(context_);
-
-    context_.dispatchBg([&ib, ownBuffer=std::move(buffer), usage]
-            (GlFunctions const& gl) mutable
-            {
-                ib->setData(Dispatched(), gl, std::move(ownBuffer), usage);
-                glFlush();
-            });
-
-    context_.waitBg();
-
-    return ib;
+    return std::make_shared<GlIndexBuffer>(context_);
 }
 
 std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer()
@@ -79,22 +67,9 @@ std::shared_ptr<GlUniformBuffer> GlObjectManager::makeUniformBuffer()
 }
 
 std::shared_ptr<GlTexture> GlObjectManager::makeTexture(
-        Vector2i const& size, Format format, Buffer const& buffer)
+        Vector2i const& size, Format format)
 {
-    auto texture = std::make_shared<GlTexture>(context_);
-
-    auto ownBuffer = buffer;
-    auto ownSize = size;
-    context_.dispatchBg([texture, ownBuffer, ownSize, format]
-            (GlFunctions const& gl)
-            {
-                texture->setData(Dispatched(), gl, ownSize, format, ownBuffer);
-                glFlush();
-            });
-
-    context_.waitBg();
-
-    return texture;
+    return std::make_shared<GlTexture>(context_, size, format);
 }
 
 std::shared_ptr<GlRenderbuffer> GlObjectManager::makeRenderbuffer(

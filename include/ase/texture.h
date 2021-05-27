@@ -50,8 +50,6 @@ namespace ase
         std::shared_ptr<TextureImpl> deferred_;
         inline TextureImpl* d() { return deferred_.get(); }
         inline TextureImpl const* d() const { return deferred_.get(); }
-
-        Format format_ = FORMAT_UNKNOWN;
     };
 }
 

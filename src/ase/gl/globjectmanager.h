@@ -46,16 +46,13 @@ namespace ase
 
         std::shared_ptr<GlVertexBuffer> makeVertexBuffer();
 
-        std::shared_ptr<GlIndexBuffer> makeIndexBuffer(
-                Buffer const& buffer,
-                Usage usage);
+        std::shared_ptr<GlIndexBuffer> makeIndexBuffer();
 
         std::shared_ptr<GlUniformBuffer> makeUniformBuffer();
 
         std::shared_ptr<GlTexture> makeTexture(
                 Vector2i const& size,
-                Format format,
-                Buffer const& buffer);
+                Format format);
 
         std::shared_ptr<GlRenderbuffer> makeRenderbuffer(
                 Vector2i const& size, Format format);

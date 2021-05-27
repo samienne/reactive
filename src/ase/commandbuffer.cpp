@@ -1,6 +1,7 @@
 #include "commandbuffer.h"
 
 #include "rendercommand.h"
+#include "textureimpl.h"
 
 #include <iostream>
 
@@ -76,6 +77,9 @@ void CommandBuffer::pushUpload(
 
 void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Format format)
 {
+    target.getImpl<TextureImpl>().setSize(size);
+    target.getImpl<TextureImpl>().setFormat(format);
+
     commands_.push_back(TextureUploadCommand
             {
                 std::move(target),

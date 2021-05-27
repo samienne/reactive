@@ -19,7 +19,7 @@ namespace ase
     class ASE_EXPORT GlTexture : public TextureImpl
     {
     public:
-        GlTexture(GlRenderContext& context);
+        GlTexture(GlRenderContext& context, Vector2i size, Format format);
         GlTexture(GlTexture const& other) = delete;
         GlTexture(GlTexture&& other) = delete;
         ~GlTexture();
@@ -34,7 +34,10 @@ namespace ase
         GLuint getGlObject() const;
 
         // From TextureImpl
-        virtual Vector2i getSize() const;
+        void setSize(Vector2i size) override;
+        void setFormat(Format format) override;
+        Vector2i getSize() const override;
+        Format getFormat() const override;
 
     private:
         void destroy();
