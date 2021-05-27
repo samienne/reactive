@@ -2,6 +2,7 @@
 
 #include "asevisibility.h"
 
+#include <optional>
 #include <thread>
 #include <condition_variable>
 #include <functional>
@@ -23,6 +24,11 @@ namespace ase
         void run(std::function<void()>&& func);
         void wait() const;
 
+        void setIdleFunc(Dispatched, std::chrono::duration<float> period,
+                std::function<void()> cb);
+        void unsetIdleFunc(Dispatched);
+        bool hasIdleFunc(Dispatched);
+
     private:
         void runThread();
 
@@ -32,6 +38,8 @@ namespace ase
         mutable std::condition_variable condition_;
         std::thread thread_;
         std::vector<std::function<void()> > funcs_;
+        std::optional<std::function<void()>> idleCallback_;
+        std::chrono::duration<float> idlePeriod_;
         bool running_;
         bool idle_;
     };

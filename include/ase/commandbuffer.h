@@ -38,6 +38,14 @@ namespace ase
 
         void pushFence(std::function<void()> completeCb);
 
+        void pushUpload(
+                std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,
+                Buffer data,
+                Usage usage
+                );
+
+        void pushUpload(Texture target, Buffer data, Vector2i size, Format format);
+
         size_t size() const;
         Iterator begin();
         Iterator end();

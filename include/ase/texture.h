@@ -35,6 +35,12 @@ namespace ase
         Vector2i getSize() const;
 
         template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
+
+        template <class T>
         T const& getImpl() const
         {
             return reinterpret_cast<T const&>(*d());
@@ -44,8 +50,6 @@ namespace ase
         std::shared_ptr<TextureImpl> deferred_;
         inline TextureImpl* d() { return deferred_.get(); }
         inline TextureImpl const* d() const { return deferred_.get(); }
-
-        Format format_ = FORMAT_UNKNOWN;
     };
 }
 

@@ -51,29 +51,25 @@ std::shared_ptr<FragmentShaderImpl> DummyRenderContext::makeFragmentShaderImpl(
     return std::make_shared<DummyFragmentShader>();
 }
 
-std::shared_ptr<VertexBufferImpl> DummyRenderContext::makeVertexBufferImpl(
-        Buffer const& /*buffer*/, Usage /*usage*/)
+std::shared_ptr<VertexBufferImpl> DummyRenderContext::makeVertexBufferImpl()
 {
     return std::make_shared<DummyVertexBuffer>();
 }
 
-std::shared_ptr<IndexBufferImpl> DummyRenderContext::makeIndexBufferImpl(
-        Buffer const& /*buffer*/, Usage /*usage*/)
+std::shared_ptr<IndexBufferImpl> DummyRenderContext::makeIndexBufferImpl()
 {
     return std::make_shared<DummyIndexBuffer>();
 }
 
-std::shared_ptr<UniformBufferImpl> DummyRenderContext::makeUniformBufferImpl(
-        Buffer /*buffer*/, Usage /*usage*/)
+std::shared_ptr<UniformBufferImpl> DummyRenderContext::makeUniformBufferImpl()
 {
     return std::make_shared<DummyUniformBuffer>();
 }
 
 std::shared_ptr<TextureImpl> DummyRenderContext::makeTextureImpl(
-        Vector2i const& /*size*/, Format /*format*/,
-        Buffer const& /*buffer*/)
+        Vector2i const& size, Format format)
 {
-    return std::make_shared<DummyTexture>();
+    return std::make_shared<DummyTexture>(size, format);
 }
 
 std::shared_ptr<RenderbufferImpl> DummyRenderContext::makeRenderbufferImpl(

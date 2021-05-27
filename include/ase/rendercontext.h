@@ -72,10 +72,10 @@ namespace ase
         FragmentShader makeFragmentShader(std::string const& source);
         Program makeProgram(VertexShader vertexShader,
                 FragmentShader fragmentShader);
-        VertexBuffer makeVertexBuffer(Buffer buffer, Usage usage);
-        IndexBuffer makeIndexBuffer(Buffer buffer, Usage usage);
-        UniformBuffer makeUniformBuffer(Buffer buffer, Usage usage);
-        Texture makeTexture(Vector2i size, Format format, Buffer buffer);
+        VertexBuffer makeVertexBuffer();
+        IndexBuffer makeIndexBuffer();
+        UniformBuffer makeUniformBuffer();
+        Texture makeTexture(Vector2i size, Format format);
         Renderbuffer makeRenderbuffer(Vector2i size, Format format);
         Framebuffer makeFramebuffer();
         Pipeline makePipeline(Program program, VertexSpec vertexSpec);

@@ -35,6 +35,11 @@ namespace ase
             return reinterpret_cast<T const&>(*d());
         }
 
+        template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
 
     private:
         inline IndexBufferImpl* d() { return deferred_.get(); }

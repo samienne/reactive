@@ -69,21 +69,15 @@ namespace ase
         std::shared_ptr<FragmentShaderImpl> makeFragmentShaderImpl(
                 std::string const& source) override;
 
-        std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl(
-                Buffer const& buffer,
-                Usage usage) override;
+        std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl() override;
 
-        std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl(
-                Buffer const& buffer,
-                Usage usage) override;
+        std::shared_ptr<IndexBufferImpl> makeIndexBufferImpl() override;
 
-        std::shared_ptr<UniformBufferImpl> makeUniformBufferImpl(
-                Buffer buffer, Usage usage) override;
+        std::shared_ptr<UniformBufferImpl> makeUniformBufferImpl() override;
 
         std::shared_ptr<TextureImpl> makeTextureImpl(
                 Vector2i const& size,
-                Format format,
-                Buffer const& buffer) override;
+                Format format) override;
 
         std::shared_ptr<RenderbufferImpl> makeRenderbufferImpl(
                 Vector2i const& size,

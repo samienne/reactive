@@ -34,11 +34,28 @@ namespace ase
         std::shared_ptr<Control> control_;
     };
 
+    struct BufferUploadCommand
+    {
+        std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target;
+        Buffer data;
+        Usage usage;
+    };
+
+    struct TextureUploadCommand
+    {
+        Texture target;
+        Buffer data;
+        Vector2i size;
+        Format format;
+    };
+
     using RenderCommand = std::variant<
         DrawCommand,
         ClearCommand,
         PresentCommand,
-        FenceCommand
+        FenceCommand,
+        BufferUploadCommand,
+        TextureUploadCommand
         >;
 
 } // namespace ase

@@ -24,6 +24,7 @@ namespace ase
         void setData(Dispatched, GlFunctions const& gl, void const* data,
                 size_t len, Usage usage);
         GLuint getBuffer() const;
+        GLenum getBufferType() const;
 
     private:
         void destroy();

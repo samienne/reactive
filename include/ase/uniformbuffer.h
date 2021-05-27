@@ -35,6 +35,12 @@ namespace ase
             return reinterpret_cast<T const&>(*d());
         }
 
+        template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
+
     protected:
         inline UniformBufferImpl* d() { return deferred_.get(); }
         inline UniformBufferImpl const* d() const { return deferred_.get(); }

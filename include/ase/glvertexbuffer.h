@@ -32,6 +32,8 @@ namespace ase
         GlBuffer const& getBuffer() const;
 
     private:
+        friend class GlRenderState;
+
         size_t size_;
         GlBuffer buffer_;
     };

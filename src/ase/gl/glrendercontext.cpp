@@ -140,28 +140,25 @@ std::shared_ptr<FragmentShaderImpl> GlRenderContext::makeFragmentShaderImpl(
     return objectManager_.makeFragmentShader(source);
 }
 
-std::shared_ptr<VertexBufferImpl> GlRenderContext::makeVertexBufferImpl(
-        Buffer const& buffer, Usage usage)
+std::shared_ptr<VertexBufferImpl> GlRenderContext::makeVertexBufferImpl()
 {
-    return objectManager_.makeVertexBuffer(std::move(buffer), usage);
+    return objectManager_.makeVertexBuffer();
 }
 
-std::shared_ptr<IndexBufferImpl> GlRenderContext::makeIndexBufferImpl(
-        Buffer const& buffer, Usage usage)
+std::shared_ptr<IndexBufferImpl> GlRenderContext::makeIndexBufferImpl()
 {
-    return objectManager_.makeIndexBuffer(std::move(buffer), usage);
+    return objectManager_.makeIndexBuffer();
 }
 
-std::shared_ptr<UniformBufferImpl> GlRenderContext::makeUniformBufferImpl(
-        Buffer buffer, Usage usage)
+std::shared_ptr<UniformBufferImpl> GlRenderContext::makeUniformBufferImpl()
 {
-    return objectManager_.makeUniformBuffer(std::move(buffer), usage);
+    return objectManager_.makeUniformBuffer();
 }
 
 std::shared_ptr<TextureImpl> GlRenderContext::makeTextureImpl(
-        Vector2i const& size, Format format, Buffer const& buffer)
+        Vector2i const& size, Format format)
 {
-    return objectManager_.makeTexture(size, format, std::move(buffer));
+    return objectManager_.makeTexture(size, format);
 }
 
 std::shared_ptr<RenderbufferImpl> GlRenderContext::makeRenderbufferImpl(

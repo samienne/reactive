@@ -1,6 +1,7 @@
 #include "commandbuffer.h"
 
 #include "rendercommand.h"
+#include "textureimpl.h"
 
 #include <iostream>
 
@@ -57,6 +58,34 @@ void CommandBuffer::pushFence(std::function<void()> completeCb)
 
     commands_.push_back(FenceCommand{
             std::move(control)
+            });
+}
+
+void CommandBuffer::pushUpload(
+        std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,
+        Buffer data,
+        Usage usage
+        )
+{
+    commands_.push_back(BufferUploadCommand
+            {
+                std::move(target),
+                std::move(data),
+                usage
+            });
+}
+
+void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Format format)
+{
+    target.getImpl<TextureImpl>().setSize(size);
+    target.getImpl<TextureImpl>().setFormat(format);
+
+    commands_.push_back(TextureUploadCommand
+            {
+                std::move(target),
+                std::move(data),
+                size,
+                format
             });
 }
 

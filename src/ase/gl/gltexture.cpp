@@ -13,10 +13,10 @@
 namespace ase
 {
 
-GlTexture::GlTexture(GlRenderContext& context) :
+GlTexture::GlTexture(GlRenderContext& context, Vector2i size, Format format) :
     context_(context),
-    size_(0, 0),
-    texture_(0)
+    size_(size),
+    texture_(format)
 {
 }
 
@@ -32,10 +32,12 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
             && size[0] * size[1] * getBytes(format) > (long)buffer.getSize())
         throw std::runtime_error("GlTexture buffer size is too small.");
 
-    size_ = size;
-    format_ = format;
+    assert(size == size_);
+    assert(format_ == format);
 
-    glGenTextures(1, &texture_);
+    if (!texture_)
+        glGenTextures(1, &texture_);
+
     glBindTexture(GL_TEXTURE_2D, texture_);
     glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format), size[0],
         size[1], 0, formatToGl(format), GL_UNSIGNED_BYTE, buffer.data());
@@ -45,8 +47,6 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-    glBindTexture(GL_TEXTURE_2D, 0);
-    glFlush();
 
     DBG("Loaded texture data %1", texture_);
 }
@@ -56,9 +56,24 @@ GLuint GlTexture::getGlObject() const
     return texture_;
 }
 
+void GlTexture::setSize(Vector2i size)
+{
+    size_ = size;
+}
+
+void GlTexture::setFormat(Format format)
+{
+    format_ = format;
+}
+
 Vector2i GlTexture::getSize() const
 {
     return size_;
+}
+
+Format GlTexture::getFormat() const
+{
+    return format_;
 }
 
 void GlTexture::destroy()

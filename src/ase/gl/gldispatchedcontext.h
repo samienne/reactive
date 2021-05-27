@@ -26,6 +26,20 @@ namespace ase
 
         void wait();
 
+        template <typename TFunc>
+        void setIdleFunc(Dispatched d, std::chrono::duration<float> period,
+                TFunc&& callback)
+        {
+            dispatcher_.setIdleFunc(d, period,
+                    [this, fn=std::forward<TFunc>(callback)]()
+                    {
+                        fn(gl_);
+                    });
+        }
+
+        void unsetIdleFunc(Dispatched);
+        bool hasIdleFunc(Dispatched);
+
         void setGlFunctions(GlFunctions functions);
         GlFunctions const& getGlFunctions() const;
 

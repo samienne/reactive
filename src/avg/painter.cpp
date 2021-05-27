@@ -75,7 +75,7 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     transparentPipeline_(makePipeline(context, false)),
     buffer_(),
     uniformSet_(context.makeUniformSet()),
-    uniformBuffer_(context.makeUniformBuffer(buffer_, ase::Usage::StreamDraw))
+    uniformBuffer_(context.makeUniformBuffer())
 {
     uniformSet_.bindUniformBufferRange(0,
             ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
@@ -103,7 +103,8 @@ void Painter::setSize(ase::Vector2i size)
 
     std::memcpy(data, m.data(), 16 * sizeof(float));
 
-    uniformBuffer_.setData(buffer_, ase::Usage::StreamDraw);
+    commandBuffer_.pushUpload(uniformBuffer_, buffer_, ase::Usage::StreamRead);
+
     uniformSet_.bindUniformBufferRange(0,
             ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
 }
@@ -153,12 +154,20 @@ void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
             target.getScalingFactor(), *this, drawing);
 }
 
+void Painter::presentWindow(ase::Window& target)
+{
+    commandBuffer_.pushPresent(target);
+}
+
 void Painter::flush()
 {
-    renderContext_.submit(std::move(commandBuffer_));
-    commandBuffer_ = ase::CommandBuffer();
+    if (commandBuffer_.size() > 0)
+    {
+        renderContext_.submit(std::move(commandBuffer_));
+        commandBuffer_ = ase::CommandBuffer();
 
-    renderContext_.flush();
+        //renderContext_.flush();
+    }
 }
 
 } // namespace
