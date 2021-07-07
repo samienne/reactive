@@ -1,5 +1,6 @@
 #include "dummyrendercontext.h"
 
+#include "dummyrenderqueue.h"
 #include "dummyrenderbuffer.h"
 #include "dummyuniformset.h"
 #include "dummypipeline.h"
@@ -20,16 +21,14 @@
 namespace ase
 {
 
-void DummyRenderContext::submit(CommandBuffer&& /*commands*/)
+std::shared_ptr<RenderQueueImpl> DummyRenderContext::getMainRenderQueue()
 {
+    return std::make_shared<DummyRenderQueue>();
 }
 
-void DummyRenderContext::flush()
+std::shared_ptr<RenderQueueImpl> DummyRenderContext::getTransferQueue()
 {
-}
-
-void DummyRenderContext::finish()
-{
+    return std::make_shared<DummyRenderQueue>();
 }
 
 std::shared_ptr<ProgramImpl> DummyRenderContext::makeProgramImpl(

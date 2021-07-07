@@ -7,9 +7,8 @@ namespace ase
     class ASE_EXPORT DummyRenderContext : public RenderContextImpl
     {
     public:
-        void submit(CommandBuffer&& commands) override;
-        void flush() override;
-        void finish() override;
+        std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
+        std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
 
         std::shared_ptr<ProgramImpl> makeProgramImpl(
                 VertexShader const& vertexShader,

@@ -71,6 +71,7 @@ else
         'dummy/dummypipeline.cpp',
         'dummy/dummyuniformset.cpp',
         'dummy/dummyrenderbuffer.cpp',
+        'dummy/dummyrenderqueue.cpp',
     ]
 endif
 
