@@ -11,6 +11,8 @@
 namespace ase
 {
     class GlRenderContext;
+    struct GlFunctions;
+    struct Dispatched;
 
     class ASE_EXPORT GlRenderbuffer : public RenderbufferImpl
     {
@@ -18,6 +20,8 @@ namespace ase
         GlRenderbuffer(GlRenderContext& context, Vector2i size, Format format);
 
         GLuint getGlObject() const;
+
+        void makeCurrent(Dispatched&, GlFunctions const& gl);
 
         // From RenderbufferImpl
         Format getFormat() const override;

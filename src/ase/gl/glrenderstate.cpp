@@ -84,11 +84,9 @@ namespace
 
 
 GlRenderState::GlRenderState(
-        GlRenderContext& context,
         GlDispatchedContext& dispatcher,
         std::function<void(Dispatched, Window&)> presentCallback
         ) :
-    context_(context),
     dispatcher_(dispatcher),
     presentCallback_(std::move(presentCallback))
 {
@@ -228,7 +226,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             if (boundFramebuffer_ != &framebuffer)
             {
                 boundFramebuffer_ = &framebuffer;
-                framebuffer.makeCurrent(d, context_, gl);
+                framebuffer.makeCurrent(d, dispatcher_, *this, gl);
             }
 
             glClearColor(clearCommand.r, clearCommand.g, clearCommand.b,
@@ -340,7 +338,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         if (boundFramebuffer_ != &framebuffer)
         {
             boundFramebuffer_ = &framebuffer;
-            framebuffer.makeCurrent(Dispatched(), context_, gl);
+            framebuffer.makeCurrent(Dispatched(), dispatcher_, *this, gl);
         }
 
         vbo = vertexBuffer.getBuffer().getBuffer();

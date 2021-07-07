@@ -43,10 +43,5 @@ void GlxRenderContext::present(Dispatched d, Window& window)
     glxWindow.present(d);
 }
 
-GlxDispatchedContext const& GlxRenderContext::getGlxContext() const
-{
-    return reinterpret_cast<GlxDispatchedContext const&>(getFgContext());
-}
-
 } // namespace ase
 

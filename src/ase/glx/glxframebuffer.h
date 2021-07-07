@@ -4,6 +4,7 @@
 
 namespace ase
 {
+    class GlDispatchedContext;
     class GlxWindow;
     class GlxPlatform;
 
@@ -19,8 +20,12 @@ namespace ase
         GlxFramebuffer& operator=(GlxFramebuffer&&) = delete;
 
         // From GlBaseFramebuffer
-        void makeCurrent(Dispatched, GlRenderContext& context,
-                GlFunctions const& gl) const override;
+        void makeCurrent(
+                Dispatched,
+                GlDispatchedContext&,
+                GlRenderState& renderState,
+                GlFunctions const& gl
+                ) const override;
 
         // From FramebufferImpl
         void setColorTarget(size_t index, Texture texture) override;

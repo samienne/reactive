@@ -14,25 +14,23 @@ GlRenderbuffer::GlRenderbuffer(GlRenderContext& context, Vector2i size, Format f
 {
     assert(format == FORMAT_DEPTH16);
 
-    context_.dispatch([size, this](GlFunctions const& gl)
-            {
-
-                gl.glGenRenderbuffers(1, &glObject_);
-                gl.glBindRenderbuffer(GL_RENDERBUFFER, glObject_);
-
-                gl.glRenderbufferStorage(
-                        GL_RENDERBUFFER,
-                        GL_DEPTH_COMPONENT16,
-                        size[0],
-                        size[1]);
-            });
-
-    context_.wait();
 }
 
 GLuint GlRenderbuffer::getGlObject() const
 {
     return glObject_;
+}
+
+void GlRenderbuffer::makeCurrent(Dispatched&, GlFunctions const& gl)
+{
+    gl.glGenRenderbuffers(1, &glObject_);
+    gl.glBindRenderbuffer(GL_RENDERBUFFER, glObject_);
+
+    gl.glRenderbufferStorage(
+            GL_RENDERBUFFER,
+            GL_DEPTH_COMPONENT16,
+            size_[0],
+            size_[1]);
 }
 
 Format GlRenderbuffer::getFormat() const

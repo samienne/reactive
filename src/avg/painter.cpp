@@ -12,6 +12,7 @@
 #include <ase/fragmentshader.h>
 #include <ase/program.h>
 #include <ase/blendmode.h>
+#include <ase/renderqueue.h>
 
 static char const* simpleVsSource =
 "#version 330\n"
@@ -163,7 +164,7 @@ void Painter::flush()
 {
     if (commandBuffer_.size() > 0)
     {
-        renderContext_.submit(std::move(commandBuffer_));
+        renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));
         commandBuffer_ = ase::CommandBuffer();
 
         //renderContext_.flush();

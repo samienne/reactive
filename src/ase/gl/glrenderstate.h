@@ -23,7 +23,7 @@ namespace ase
     class ASE_EXPORT GlRenderState
     {
     public:
-        GlRenderState(GlRenderContext& context, GlDispatchedContext& dispatcher,
+        GlRenderState(GlDispatchedContext& dispatcher,
                 std::function<void(Dispatched, Window&)> presentCallback);
         ~GlRenderState();
 
@@ -41,7 +41,6 @@ namespace ase
         void checkFences(Dispatched, GlFunctions const& gl);
 
     private:
-        GlRenderContext& context_;
         GlDispatchedContext& dispatcher_;
         std::function<void(Dispatched, Window&)> presentCallback_;
 

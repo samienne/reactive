@@ -18,11 +18,13 @@ GlxFramebuffer::GlxFramebuffer(GlxPlatform& platform, GlxWindow& window) :
 {
 }
 
-void GlxFramebuffer::makeCurrent(Dispatched dispatched,
-        GlRenderContext& context, GlFunctions const& /*gl*/) const
+void GlxFramebuffer::makeCurrent(
+        Dispatched dispatched,
+        GlDispatchedContext& context,
+        GlRenderState& renderState,
+        GlFunctions const& /*gl*/) const
 {
-    auto& glxRenderContext = reinterpret_cast<GlxRenderContext&>(context);
-    GlxDispatchedContext const& glxContext = glxRenderContext.getGlxContext();
+    auto& glxContext = reinterpret_cast<GlxDispatchedContext&>(context);
 
     window_.makeCurrent(platform_.lockX(), glxContext.getGlxContext());
 
@@ -31,7 +33,7 @@ void GlxFramebuffer::makeCurrent(Dispatched dispatched,
             window_.getSize()[1] * window_.getScalingFactor()
             );
 
-    glxRenderContext.setViewport(dispatched, size);
+    renderState.setViewport(dispatched, size);
 }
 
 void GlxFramebuffer::setColorTarget(size_t /*index*/, Texture /*texture*/)

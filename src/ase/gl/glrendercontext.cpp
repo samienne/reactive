@@ -38,13 +38,14 @@ GlRenderContext::GlRenderContext(
         std::shared_ptr<GlDispatchedContext> bgContext
         ) :
     platform_(platform),
-    fgContext_(std::move(fgContext)),
-    bgContext_(std::move(bgContext)),
+    mainQueue_(std::make_shared<GlRenderQueue>(std::move(fgContext),
+                [this](Dispatched d, Window& w)
+                {
+                    present(d, w);
+                })),
+    transferQueue_(std::make_shared<GlRenderQueue>(std::move(bgContext),
+                [](Dispatched, Window&) {})),
     objectManager_(*this),
-    renderState_(*this, *fgContext_, [this](Dispatched d, Window& w)
-            {
-                present(d, w);
-            }),
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
@@ -58,27 +59,18 @@ GlRenderContext::GlRenderContext(
 
 GlRenderContext::~GlRenderContext()
 {
-    fgContext_->wait();
-    bgContext_->wait();
+    mainQueue_->flush();
+    transferQueue_->flush();
 }
 
-void GlRenderContext::submit(CommandBuffer&& commands)
+std::shared_ptr<RenderQueueImpl> GlRenderContext::getMainRenderQueue()
 {
-    renderState_.submit(std::move(commands));
+    return mainQueue_;
 }
 
-void GlRenderContext::flush()
+std::shared_ptr<RenderQueueImpl> GlRenderContext::getTransferQueue()
 {
-    wait();
-}
-
-void GlRenderContext::finish()
-{
-    dispatch([](GlFunctions const&)
-            {
-                glFinish();
-            });
-    wait();
+    return transferQueue_;
 }
 
 GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
@@ -86,39 +78,29 @@ GlFramebuffer const& GlRenderContext::getDefaultFramebuffer() const
     return defaultFramebuffer_;
 }
 
-void GlRenderContext::dispatch(std::function<void(GlFunctions const&)>&& func)
+void GlRenderContext::dispatch(std::function<void(GlFunctions const&)> f)
 {
-    fgContext_->dispatch(std::move(func));
+    mainQueue_->dispatch(std::move(f));
 }
 
-void GlRenderContext::dispatchBg(std::function<void(GlFunctions const&)>&& func)
+void GlRenderContext::dispatchBg(std::function<void(GlFunctions const&)> f)
 {
-    bgContext_->dispatch(std::move(func));
+    transferQueue_->dispatch(std::move(f));
 }
 
 void GlRenderContext::wait() const
 {
-    fgContext_->wait();
+    mainQueue_->flush();
 }
 
 void GlRenderContext::waitBg() const
 {
-    bgContext_->wait();
+    transferQueue_->flush();
 }
 
 GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
 {
     return sharedFramebuffer_;
-}
-
-void GlRenderContext::setViewport(Dispatched d, Vector2i size)
-{
-    renderState_.setViewport(d, size);
-}
-
-void GlRenderContext::clear(Dispatched d, GLbitfield mask)
-{
-    renderState_.clear(d, mask);
 }
 
 std::shared_ptr<ProgramImpl> GlRenderContext::makeProgramImpl(
@@ -192,16 +174,6 @@ std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
 std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
 {
     return objectManager_.makeUniformSet();
-}
-
-GlDispatchedContext const& GlRenderContext::getFgContext() const
-{
-    return *fgContext_;
-}
-
-GlDispatchedContext const& GlRenderContext::getBgContext() const
-{
-    return *bgContext_;
 }
 
 } // namespace

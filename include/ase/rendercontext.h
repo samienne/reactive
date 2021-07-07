@@ -30,6 +30,7 @@ namespace ase
     class VertexSpec;
     class UniformSet;
     class Renderbuffer;
+    class RenderQueue;
 
     /**
      * @brief RenderContext
@@ -64,9 +65,8 @@ namespace ase
         RenderContext& operator=(RenderContext const&) = delete;
         RenderContext& operator=(RenderContext&&) = delete;
 
-        void flush();
-        void finish();
-        void submit(CommandBuffer&& renderQueue);
+        RenderQueue getMainRenderQueue();
+        RenderQueue getTransferQueue();
 
         VertexShader makeVertexShader(std::string const& source);
         FragmentShader makeFragmentShader(std::string const& source);
