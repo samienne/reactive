@@ -19,7 +19,8 @@ namespace ase
         WglFramebuffer& operator=(WglFramebuffer&&) = delete;
 
         // From GlBaseFramebuffer
-        void makeCurrent(Dispatched, GlRenderContext& context,
+        void makeCurrent(Dispatched, GlDispatchedContext& context,
+                GlRenderState& renderState,
                 GlFunctions const& gl) const override;
 
         // From FramebufferImpl

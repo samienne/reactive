@@ -28,20 +28,18 @@ WglRenderContext::WglRenderContext(WglPlatform& platform, HGLRC fgContext,
 
 WglDispatchedContext const& WglRenderContext::getWglContext() const
 {
-    return reinterpret_cast<WglDispatchedContext const&>(
-            getFgContext()
+    return static_cast<WglDispatchedContext const&>(
+            getMainGlRenderQueue().getDispatcher()
             );
 }
 
 void WglRenderContext::present(Dispatched, Window& window)
 {
     WglWindow& wglWindow = window.getImpl<WglWindow>();
-    WglDispatchedContext const& wglContext =
-        static_cast<WglDispatchedContext const&>(getFgContext());
 
     wglMakeCurrent(
             wglWindow.getDc(),
-            wglContext.getWglContext()
+            getWglContext().getWglContext()
             );
 
     SwapBuffers(wglWindow.getDc());

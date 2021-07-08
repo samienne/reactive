@@ -63,6 +63,16 @@ GlRenderContext::~GlRenderContext()
     transferQueue_->flush();
 }
 
+GlRenderQueue& GlRenderContext::getMainGlRenderQueue()
+{
+    return *mainQueue_;
+}
+
+GlRenderQueue const& GlRenderContext::getMainGlRenderQueue() const
+{
+    return *mainQueue_;
+}
+
 std::shared_ptr<RenderQueueImpl> GlRenderContext::getMainRenderQueue()
 {
     return mainQueue_;

@@ -19,6 +19,9 @@ namespace ase
 
         void dispatch(std::function<void(GlFunctions const&)> f);
 
+        GlDispatchedContext& getDispatcher();
+        GlDispatchedContext const& getDispatcher() const;
+
         // From RenderQueueImpl
         void flush() override;
         void finish() override;

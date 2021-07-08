@@ -31,6 +31,9 @@ namespace ase
 
         virtual void present(Dispatched dispatched, Window& window) = 0;
 
+        GlRenderQueue& getMainGlRenderQueue();
+        GlRenderQueue const& getMainGlRenderQueue() const;
+
         // From RenderContextImpl
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;

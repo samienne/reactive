@@ -21,6 +21,16 @@ void GlRenderQueue::dispatch(std::function<void(GlFunctions const&)> f)
     dispatcher_->dispatch(std::move(f));
 }
 
+GlDispatchedContext& GlRenderQueue::getDispatcher()
+{
+    return *dispatcher_;
+}
+
+GlDispatchedContext const& GlRenderQueue::getDispatcher() const
+{
+    return *dispatcher_;
+}
+
 void GlRenderQueue::flush()
 {
     dispatcher_->wait();
