@@ -3,6 +3,7 @@
 #include "glframebuffer.h"
 #include "globjectmanager.h"
 #include "glrenderstate.h"
+#include "glrenderqueue.h"
 
 #include "rendercontextimpl.h"
 #include "vector.h"
@@ -30,10 +31,12 @@ namespace ase
 
         virtual void present(Dispatched dispatched, Window& window) = 0;
 
+        GlRenderQueue& getMainGlRenderQueue();
+        GlRenderQueue const& getMainGlRenderQueue() const;
+
         // From RenderContextImpl
-        void submit(CommandBuffer&& commands) override;
-        void flush() override;
-        void finish() override;
+        std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
+        std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
 
         GlFramebuffer const& getDefaultFramebuffer() const;
 
@@ -49,14 +52,12 @@ namespace ase
         friend class GlUniformBuffer;
         friend class GlRenderbuffer;
 
-        void dispatch(std::function<void(GlFunctions const&)>&& func);
-        void dispatchBg(std::function<void(GlFunctions const&)>&& func);
+        void dispatch(std::function<void(GlFunctions const&)> f);
+        void dispatchBg(std::function<void(GlFunctions const&)> f);
         void wait() const;
         void waitBg() const;
 
         GlFramebuffer& getSharedFramebuffer(Dispatched);
-        void setViewport(Dispatched, Vector2i size);
-        void clear(Dispatched, GLbitfield mask);
 
         // From RenderContextImpl
         std::shared_ptr<ProgramImpl> makeProgramImpl(
@@ -98,16 +99,11 @@ namespace ase
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
-    protected:
-        GlDispatchedContext const& getFgContext() const;
-        GlDispatchedContext const& getBgContext() const;
-
     private:
         GlPlatform& platform_;
-        std::shared_ptr<GlDispatchedContext> fgContext_;
-        std::shared_ptr<GlDispatchedContext> bgContext_;
+        std::shared_ptr<GlRenderQueue> mainQueue_;
+        std::shared_ptr<GlRenderQueue >transferQueue_;
         GlObjectManager objectManager_;
-        GlRenderState renderState_;
         GlFramebuffer defaultFramebuffer_;
         GlFramebuffer sharedFramebuffer_;
         Vector2i viewportSize_;

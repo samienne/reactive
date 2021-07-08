@@ -1,5 +1,6 @@
 #include "rendercontext.h"
 
+#include "renderqueue.h"
 #include "renderbufferimpl.h"
 #include "renderbuffer.h"
 #include "rendercontextimpl.h"
@@ -27,22 +28,14 @@ RenderContext::~RenderContext()
 {
 }
 
-void RenderContext::flush()
+RenderQueue RenderContext::getMainRenderQueue()
 {
-    if (d())
-        d()->flush();
+    return RenderQueue(d()->getMainRenderQueue());
 }
 
-void RenderContext::finish()
+RenderQueue RenderContext::getTransferQueue()
 {
-    if (d())
-        d()->finish();
-}
-
-void RenderContext::submit(CommandBuffer&& commands)
-{
-    if (d())
-        d()->submit(std::move(commands));
+    return RenderQueue(d()->getTransferQueue());
 }
 
 VertexShader RenderContext::makeVertexShader(std::string const& source)

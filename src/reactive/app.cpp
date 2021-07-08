@@ -9,6 +9,7 @@
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
+#include <ase/renderqueue.h>
 #include <ase/commandbuffer.h>
 #include <ase/window.h>
 #include <ase/keyevent.h>
@@ -385,6 +386,8 @@ int App::run(AnySignal<bool> running) &&
 
     DBG("Reactive running...");
 
+    auto mainQueue = context.getMainRenderQueue();
+
     while (running.evaluate())
     {
         auto thisFrame = clock.now();
@@ -415,7 +418,7 @@ int App::run(AnySignal<bool> running) &&
             }*/
         }
 
-        context.flush();
+        mainQueue.flush();
 
         if (timeToNext.valid())
         {

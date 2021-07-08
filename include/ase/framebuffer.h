@@ -46,6 +46,12 @@ namespace ase
             return reinterpret_cast<T const&>(*d());
         }
 
+        template <class T>
+        T& getImpl()
+        {
+            return reinterpret_cast<T&>(*d());
+        }
+
     protected:
         inline FramebufferImpl* d() { return deferred_.get(); }
         inline FramebufferImpl const* d() const { return deferred_.get(); }

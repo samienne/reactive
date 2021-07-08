@@ -24,8 +24,6 @@ namespace ase
     public:
         GlFramebuffer();
         GlFramebuffer(GlRenderContext& context);
-        GlFramebuffer(Dispatched, GlFunctions const& gl,
-                GlRenderContext& context);
 
         static GlFramebuffer makeDefault(GlRenderContext& context);
 
@@ -49,7 +47,9 @@ namespace ase
                 GlTexture const& texture);
                 */
 
-        void makeCurrent(Dispatched, GlRenderContext& context,
+        void makeCurrent(Dispatched,
+                GlDispatchedContext& context,
+                GlRenderState& renderState,
                 GlFunctions const& gl) const override;
 
         // FramebufferImpl
@@ -69,7 +69,7 @@ namespace ase
 
     private:
         GlRenderContext& context_;
-        GLuint framebuffer_ = 0;
+        mutable GLuint framebuffer_ = 0;
 
         struct Attachment
         {
@@ -80,6 +80,7 @@ namespace ase
         std::array<Attachment, 8> colorAttachments_;
         GLuint depthAttachment_ = 0;
         GLuint stencilAttachment_ = 0;
+        bool isDefault_ = false;
         mutable bool dirty_ = true;
     };
 }

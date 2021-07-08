@@ -592,8 +592,8 @@ Region operator*(avg::Transform const& t, Region&& r)
 
             v = t * v;
 
-            point.x() = v.x() * xRes;
-            point.y() = v.y() * yRes;
+            point.x() = (long long)(v.x() * xRes);
+            point.y() = (long long)(v.y() * yRes);
         }
 
         node = node->GetNext();

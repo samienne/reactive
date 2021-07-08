@@ -20,7 +20,8 @@ glsrcs = [
   'gl/glrenderstate.cpp',
   'gl/gldispatchedcontext.cpp',
   'gl/gluniformset.cpp',
-  'gl/glrenderbuffer.cpp'
+  'gl/glrenderbuffer.cpp',
+  'gl/glrenderqueue.cpp'
   ]
 
 if target_machine.system() == 'linux'
@@ -70,6 +71,7 @@ else
         'dummy/dummypipeline.cpp',
         'dummy/dummyuniformset.cpp',
         'dummy/dummyrenderbuffer.cpp',
+        'dummy/dummyrenderqueue.cpp',
     ]
 endif
 
@@ -110,7 +112,8 @@ libasesrc = [
         'textevent.cpp',
         'keycode.cpp',
         'uniformset.cpp',
-        'renderbuffer.cpp'
+        'renderbuffer.cpp',
+        'renderqueue.cpp'
         ]
 
 libase = library('ase',

@@ -17,18 +17,6 @@ GlFramebuffer::GlFramebuffer(GlRenderContext& context) :
     context_(context),
     framebuffer_(0)
 {
-    context_.dispatch([this](GlFunctions const& gl)
-    {
-        gl.glGenFramebuffers(1, &framebuffer_);
-    });
-}
-
-GlFramebuffer::GlFramebuffer(Dispatched, GlFunctions const& gl,
-        GlRenderContext& context) :
-    context_(context),
-    framebuffer_(0)
-{
-    gl.glGenFramebuffers(1, &framebuffer_);
 }
 
 GlFramebuffer::GlFramebuffer(GlFramebuffer&& rhs) noexcept :
@@ -97,13 +85,16 @@ void GlFramebuffer::setColorTarget(Dispatched, GlFunctions const& gl,
 }
 */
 
-void GlFramebuffer::makeCurrent(Dispatched, GlRenderContext&,
-        GlFunctions const& gl) const
+void GlFramebuffer::makeCurrent(Dispatched, GlDispatchedContext&,
+        GlRenderState&, GlFunctions const& gl) const
 {
     gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
 
-    if (!dirty_ || !framebuffer_)
+    if (!dirty_ || isDefault_)
         return;
+
+    if (!framebuffer_)
+        gl.glGenFramebuffers(1, &framebuffer_);
 
     dirty_ = false;
 
@@ -167,7 +158,8 @@ void GlFramebuffer::unsetStencilTarget()
 
 GlFramebuffer::GlFramebuffer(GlRenderContext& context, std::nullptr_t) :
     context_(context),
-    framebuffer_(0)
+    framebuffer_(0),
+    isDefault_(true)
 {
 }
 

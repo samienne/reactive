@@ -33,15 +33,15 @@ namespace ase
     class VertexSpec;
     class UniformSet;
     class RenderbufferImpl;
+    class RenderQueueImpl;
 
     class ASE_EXPORT RenderContextImpl
     {
     public:
         virtual ~RenderContextImpl() = default;
 
-        virtual void submit(CommandBuffer&& commands) = 0;
-        virtual void flush() = 0;
-        virtual void finish() = 0;
+        virtual std::shared_ptr<RenderQueueImpl> getMainRenderQueue() = 0;
+        virtual std::shared_ptr<RenderQueueImpl> getTransferQueue() = 0;
 
         virtual std::shared_ptr<ProgramImpl> makeProgramImpl(
                 VertexShader const& vertexShader,
