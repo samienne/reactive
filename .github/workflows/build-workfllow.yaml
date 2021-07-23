@@ -1,0 +1,60 @@
+name: build-workflow
+on: [push]
+jobs:
+    build-linux:
+        strategy:
+            matrix:
+                compiler: [
+                    { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release" },
+                    { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release" }
+                ]
+        runs-on: "ubuntu-20.04"
+        steps:
+        - uses: actions/checkout@v2
+          with:
+              submodules: recursive
+
+        - name: Install dependencies
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y ninja-build gcovr lcov libgl1-mesa-dev ${{ matrix.compiler.deps }}
+
+        - name: Build
+          run: |
+            mkdir -p build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
+            cd build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
+            CC=${{ matrix.compiler.CC }} CXX=${{ matrix.compiler.CXX }} ../meson/meson.py --buildtype=${{ matrix.compiler.type }} --wrap-mode=forcefallback -Db_coverage=true ../..
+            ninja
+
+        - name: Tests
+          run: |
+            cd build/${{ matrix.compiler.CC }}-${{ matrix.compiler.buildtype }}
+            ./test/unittest --gtest_output=xml
+            ./test/devtest --gtest_output=xml
+
+    build-macos:
+        runs-on: "macOS-10.15"
+        steps:
+        - uses: actions/checkout@v2
+          with:
+              submodules: recursive
+
+        - name: Install dependencies
+          run: |
+            brew install python3 ninja
+
+        - name: Build
+          run: |
+            sudo rm -Rf /Library/Developer/CommandLineTools
+            sudo xcode-select -s /Applications/Xcode.app
+            mkdir -p build/release
+            cd build/release
+            python3 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
+            ninja
+
+        - name: Tests
+          run: |
+            cd build/release
+            ./test/unittest --gtest_output=xml
+            ./test/devtest --gtest_output=xml
+
