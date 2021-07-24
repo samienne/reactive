@@ -2,6 +2,7 @@ name: build-workflow
 on: [push]
 jobs:
     build-linux:
+        name: "build-linux ({{ matrix.compiler.CC }})"
         strategy:
             matrix:
                 compiler: [
