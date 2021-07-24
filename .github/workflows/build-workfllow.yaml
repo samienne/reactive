@@ -2,7 +2,7 @@ name: build-workflow
 on: [push]
 jobs:
     build-linux:
-        name: "build-linux ({{ matrix.compiler.CC }})"
+        name: "build-linux (${{ matrix.compiler.CC }})"
         strategy:
             matrix:
                 compiler: [
@@ -63,6 +63,7 @@ jobs:
         runs-on: "windows-2019"
         steps:
         - uses: actions/checkout@v2
+          name: checkout
           with:
               submodules: recursive
 
