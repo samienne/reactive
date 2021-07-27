@@ -18,7 +18,8 @@ Obb::Obb() :
 {
 }
 
-Obb::Obb(Vector2f size) :
+Obb::Obb(Vector2f size, Transform const& transform) :
+    transform_(transform),
     size_(size)
 {
 }

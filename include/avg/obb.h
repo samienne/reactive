@@ -21,7 +21,7 @@ namespace avg
         Obb& operator=(Obb const&) = default;
         Obb& operator=(Obb&&) noexcept = default;
 
-        Obb(Vector2f size);
+        Obb(Vector2f size, Transform const& transform = Transform());
         Obb(Rect const& r);
 
         bool contains(Vector2f p) const;
