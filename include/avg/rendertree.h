@@ -135,9 +135,24 @@ namespace avg
             return lerp(initial_, final_, a);
         }
 
+        T const& getInitialValue() const
+        {
+            return initial_;
+        }
+
         T const& getFinalValue() const
         {
             return final_;
+        }
+
+        std::function<float(float)> const& getCurve() const
+        {
+            return curve_;
+        };
+
+        std::chrono::milliseconds getBeginTime() const
+        {
+            return beginTime_;
         }
 
         std::chrono::milliseconds getDuration() const
@@ -198,6 +213,8 @@ namespace avg
         Animated<Obb> const& getObb() const;
         Obb getFinalObb() const;
         TransitionOptions const& getTransitionOptions() const;
+
+        void transform(Transform const& transform);
 
         virtual std::shared_ptr<RenderTreeNode> update(
                 RenderTree const& oldTree,
@@ -408,6 +425,8 @@ namespace avg
 
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
                 std::chrono::milliseconds time) const;
+
+        RenderTree transform(Transform const& transform) &&;
 
         //RenderTreeNode const* findNode(UniqueId id) const;
 

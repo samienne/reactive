@@ -134,6 +134,17 @@ TransitionOptions const& RenderTreeNode::getTransitionOptions() const
     return transitionOptions_;
 }
 
+void RenderTreeNode::transform(Transform const& transform)
+{
+    obb_ = Animated<Obb>(
+            transform * obb_.getInitialValue(),
+            transform * obb_.getFinalValue(),
+            obb_.getCurve(),
+            obb_.getBeginTime(),
+            obb_.getDuration()
+            );
+}
+
 ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
         TransitionOptions transitionOptions,
         std::vector<std::shared_ptr<RenderTreeNode>> children) :
@@ -318,6 +329,12 @@ std::pair<Drawing, bool> RenderTree::draw(
     }
 
     return root_->draw(context, time);
+}
+
+RenderTree RenderTree::transform(Transform const& transform) &&
+{
+    root_->transform(transform);
+    return *this;
 }
 
 } // namespace avg
