@@ -50,6 +50,31 @@ Obb lerp(Obb const& a, Obb const& b, float t)
             );
 }
 
+Color lerp(Color const& a, Color const& b, float t)
+{
+    return Color(
+            lerp(a.getRed(), b.getRed(), t),
+            lerp(a.getGreen(), b.getGreen(), t),
+            lerp(a.getBlue(), b.getBlue(), t),
+            lerp(a.getAlpha(), b.getAlpha(), t)
+            );
+}
+
+Brush lerp(Brush const& a, Brush const& b, float t)
+{
+    return Brush(lerp(a.getColor(), b.getColor(), t));
+}
+
+Pen lerp(Pen const& a, Pen const& b, float t)
+{
+    return Pen(
+            lerp(a.getBrush(), b.getBrush(), t),
+            lerp(a.getWidth(), b.getWidth(), t),
+            b.getJoinType(),
+            b.getEndType()
+            );
+}
+
 UniqueId::UniqueId() :
     value_(nextValue_.fetch_add(1, std::memory_order_relaxed))
 {
@@ -89,9 +114,14 @@ UniqueId const& RenderTreeNode::getId() const
     return id_;
 }
 
-Obb RenderTreeNode::getObb(std::chrono::milliseconds time) const
+Obb RenderTreeNode::getObbAt(std::chrono::milliseconds time) const
 {
     return obb_.getValue(time);
+}
+
+Animated<Obb> const& RenderTreeNode::getObb() const
+{
+    return obb_;
 }
 
 Obb RenderTreeNode::getFinalObb() const
@@ -167,52 +197,71 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
 
     return std::make_shared<ContainerNode>(
             newNode->getId(),
-            Animated<Obb>(newNode->getObb(time)),
+            oldContainer.getObb().updated(newContainer.getObb(),
+                animationOptions, time),
             newNode->getTransitionOptions(),
             std::move(nodes)
             );
 }
 
-Drawing ContainerNode::draw(pmr::memory_resource* memory,
+std::pair<Drawing, bool> ContainerNode::draw(pmr::memory_resource* memory,
         std::chrono::milliseconds time) const
 {
     Drawing result(memory);
 
+    bool cont = false;
+
     for (auto const& child : children_)
     {
-        result += child->draw(memory, time);
+        auto [drawing, childCont] = child->draw(memory, time);
+        cont = cont || childCont;
+        result += std::move(drawing);
     }
 
-    return result;
+    return std::make_pair(
+            std::move(result).transform(getObbAt(time).getTransform()),
+            cont
+            );
 }
 
 RectNode::RectNode(
         UniqueId id,
         Animated<Obb> obb,
         TransitionOptions transitionOptions,
-        Animated<float> radius
+        Animated<float> radius,
+        Animated<btl::option<Brush>> brush,
+        Animated<btl::option<Pen>> pen
         ) :
-    ShapeNode<float>(id, std::move(obb), std::move(transitionOptions),
-            RectNode::drawRect, std::move(radius))
+    ShapeNode(id, std::move(obb), std::move(transitionOptions),
+            RectNode::drawRect, std::move(radius), std::move(brush),
+            std::move(pen))
 {
 }
 
 Drawing RectNode::drawRect(
         pmr::memory_resource* memory,
         Vector2f size,
-        float radius
+        float radius,
+        btl::option<Brush> const& brush,
+        btl::option<Pen> const& pen
         )
 {
+    radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);
+
     auto path = PathBuilder(memory)
-        .start(Vector2f(0.0f, 0.0f))
-        .lineTo(0.0f, size[1])
-        .lineTo(size[0], size[1])
-        .lineTo(size[0], 0.0f)
-        .close()
+        .start(Vector2f(radius, 0.0f))
+        .lineTo(size[0] - radius, 0.0f)
+        .conicTo(Vector2f(size[0], 0.0f), Vector2f(size[0], radius))
+        .lineTo(size[0], size[1] - radius)
+        .conicTo(Vector2f(size[0], size[1]), Vector2f(size[0] - radius, size[1]))
+        .lineTo(radius, size[1])
+        .conicTo(Vector2f(0.0f, size[1]), Vector2f(0.0f, size[1] - radius))
+        .lineTo(0.0f, radius)
+        .conicTo(Vector2f(0.0f, 0.0f), Vector2f(radius, 0.0f))
         .build();
 
     return Drawing(memory)
-        + Shape(path, btl::none, btl::just(Pen(Brush(Color(0.0f, 1.0f, 0.0f)))))
+        + Shape(path, brush, pen)
         ;
 }
 
@@ -259,12 +308,12 @@ RenderTree RenderTree::update(
     return RenderTree(std::move(newRoot));
 }
 
-Drawing RenderTree::draw(pmr::memory_resource* memory,
+std::pair<Drawing, bool> RenderTree::draw(pmr::memory_resource* memory,
         std::chrono::milliseconds time) const
 {
     if (!root_)
     {
-        return Drawing(memory);
+        return std::make_pair(Drawing(memory), false);
     }
 
     return root_->draw(memory, time);

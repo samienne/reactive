@@ -1,5 +1,7 @@
 #pragma once
 
+#include "btl/option.h"
+#include "btl/tuplereduce.h"
 #include "drawing.h"
 #include "pmr/memory_resource.h"
 #include "transform.h"
@@ -9,6 +11,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <type_traits>
 #include <unordered_map>
 #include <atomic>
 #include <utility>
@@ -50,6 +53,23 @@ namespace avg
     AVG_EXPORT Rect lerp(Rect a, Rect b, float t);
     AVG_EXPORT Transform lerp(Transform const a, Transform const& b, float t);
     AVG_EXPORT Obb lerp(Obb const& a, Obb const& b, float t);
+    AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
+    AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
+    AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
+
+    template <typename T>
+    AVG_EXPORT btl::option<T> lerp(
+            btl::option<T> const& a,
+            btl::option<T> const& b,
+            float t)
+    {
+        if (!a.valid())
+            return b;
+        if (!b.valid())
+            return a;
+
+        return btl::just(lerp(*a, *b, t));
+    }
 
     template <typename... Ts, size_t... S>
     std::tuple<Ts...> tupleLerp(
@@ -74,7 +94,10 @@ namespace avg
     class Animated
     {
     public:
-        Animated(T value) :
+        template <typename U, typename = std::enable_if_t<
+            std::is_convertible_v<U, T>
+            >>
+        Animated(U&& value) :
             initial_(value),
             final_(value),
             curve_(linearCurve),
@@ -120,6 +143,33 @@ namespace avg
             return duration_;
         }
 
+        bool hasAnimationEnded(std::chrono::milliseconds time) const
+        {
+            return (time - beginTime_) > duration_;
+        }
+
+        Animated updated(
+                Animated const& newValue,
+                AnimationOptions const& options,
+                std::chrono::milliseconds time
+                ) const
+        {
+            if (hasAnimationEnded(time)
+                    && getFinalValue() == newValue.getFinalValue())
+            {
+                return *this;
+
+            }
+
+            return Animated(
+                    getValue(time),
+                    newValue.getFinalValue(),
+                    options.curve,
+                    time,
+                    options.duration
+                    );
+        }
+
     private:
         T initial_;
         T final_;
@@ -142,7 +192,8 @@ namespace avg
         virtual ~RenderTreeNode() = default;
 
         UniqueId const& getId() const;
-        Obb getObb(std::chrono::milliseconds time) const;
+        Obb getObbAt(std::chrono::milliseconds time) const;
+        Animated<Obb> const& getObb() const;
         Obb getFinalObb() const;
         TransitionOptions const& getTransitionOptions() const;
 
@@ -155,8 +206,9 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const = 0;
 
-        virtual Drawing draw(pmr::memory_resource* memory,
-                std::chrono::milliseconds time) const = 0;
+        virtual std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
+                std::chrono::milliseconds time
+                ) const = 0;
 
     private:
         UniqueId id_;
@@ -184,7 +236,7 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const override;
 
-        Drawing draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
                 std::chrono::milliseconds time) const override;
 
     private:
@@ -230,18 +282,28 @@ namespace avg
         {
         }
 
-        Drawing draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
                 std::chrono::milliseconds time) const final
         {
-            return std::apply([&, this](auto&&... ts)
+            bool cont = btl::tuple_reduce(false, data_,
+                    [&](bool cont, auto const& data)
+                    {
+                        return cont || !data.hasAnimationEnded(time);
+                    });
+
+            return std::make_pair(
+                    std::apply([&, this](auto&&... ts)
                     {
                         return drawFunction_(
                                 memory,
-                                getObb(time).getSize(),
+                                getObbAt(time).getSize(),
                                 std::forward<decltype(ts)>(ts).getValue(time)...
-                                );
+                                )
+                            .transform(getObbAt(time).getTransform());
                     },
                     data_
+                    ),
+                    cont
                     );
         }
 
@@ -270,13 +332,8 @@ namespace avg
 
             return std::make_shared<ShapeNode>(
                     newNode->getId(),
-                    Animated<Obb>(
-                        oldNode->getObb(time),
-                        newNode->getFinalObb(),
-                        animationOptions.curve,
-                        time,
-                        animationOptions.duration
-                        ),
+                    oldNode->getObb().updated(newNode->getObb(),
+                        animationOptions, time),
                     newNode->getTransitionOptions(),
                     newShape.drawFunction_,
                     updateTuples(
@@ -301,11 +358,8 @@ namespace avg
         {
             return std::make_tuple(
                     std::tuple_element_t<S, std::tuple<Animated<Ts>...>>(
-                        std::get<S>(a).getValue(time),
-                        std::get<S>(b).getFinalValue(),
-                        animationOptions.curve,
-                        time,
-                        animationOptions.duration
+                        std::get<S>(a).updated(
+                            std::get<S>(b), animationOptions, time)
                         )...
                     );
         }
@@ -315,21 +369,26 @@ namespace avg
         std::tuple<Animated<Ts>...> data_;
     };
 
-    class AVG_EXPORT RectNode : public ShapeNode<float>
+    class AVG_EXPORT RectNode : public ShapeNode<float,
+        btl::option<Brush>, btl::option<Pen>>
     {
     public:
         RectNode(
                 UniqueId id,
                 Animated<Obb> obb,
                 TransitionOptions transitionOptions,
-                Animated<float> radius
+                Animated<float> radius,
+                Animated<btl::option<Brush>> brush,
+                Animated<btl::option<Pen>> pen
                 );
 
     private:
         static Drawing drawRect(
                 pmr::memory_resource* memory,
                 Vector2f size,
-                float radius
+                float radius,
+                btl::option<Brush> const& brush,
+                btl::option<Pen> const& pen
                 );
     };
 
@@ -345,7 +404,7 @@ namespace avg
                 std::chrono::milliseconds time
                 ) &&;
 
-        Drawing draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
                 std::chrono::milliseconds time) const;
 
         //RenderTreeNode const* findNode(UniqueId id) const;
