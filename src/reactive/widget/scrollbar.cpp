@@ -51,7 +51,7 @@ namespace
 
     template <bool IsHorizontal>
     avg::Drawing drawSlider(
-            DrawContext const& drawContext, avg::Vector2f size,
+            avg::DrawContext const& drawContext, avg::Vector2f size,
             widget::Theme const& theme, float amount, float handleSize,
             bool hover, bool isDown)
     {
@@ -82,7 +82,7 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Path getScrollLinePath(DrawContext const& drawContext, avg::Vector2f size)
+    avg::Path getScrollLinePath(avg::DrawContext const& drawContext, avg::Vector2f size)
     {
 
         if (IsHorizontal)
@@ -102,7 +102,7 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Drawing drawScrollBar(DrawContext const& drawContext, avg::Vector2f size,
+    avg::Drawing drawScrollBar(avg::DrawContext const& drawContext, avg::Vector2f size,
             widget::Theme const& theme, float amount, float handleSize,
             bool hover, bool isDown)
     {

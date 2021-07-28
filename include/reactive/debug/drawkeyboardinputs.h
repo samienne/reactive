@@ -16,7 +16,7 @@ namespace reactive::debug
 {
     namespace detail
     {
-        inline avg::Drawing makeRect(DrawContext const& drawContext, avg::Obb obb)
+        inline avg::Drawing makeRect(avg::DrawContext const& drawContext, avg::Obb obb)
         {
             float w = obb.getSize().x();
             float h = obb.getSize().y();
@@ -38,7 +38,7 @@ namespace reactive::debug
         return widget::makeWidgetTransformer()
             .compose(widget::bindDrawContext(), widget::bindKeyboardInputs())
             .bind(widget::onDraw(
-            [](DrawContext const& drawContext, auto const& inputs)
+            [](avg::DrawContext const& drawContext, auto const& inputs)
             {
                 {
                     auto result = drawContext.drawing();

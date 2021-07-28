@@ -1,12 +1,14 @@
 #pragma once
 
-#include "btl/option.h"
-#include "btl/tuplereduce.h"
 #include "drawing.h"
-#include "pmr/memory_resource.h"
 #include "transform.h"
+#include "drawcontext.h"
 #include "avgvisibility.h"
 
+#include <pmr/memory_resource.h>
+
+#include <btl/option.h>
+#include <btl/tuplereduce.h>
 #include <btl/tupleforeach.h>
 
 #include <algorithm>
@@ -206,7 +208,7 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const = 0;
 
-        virtual std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
+        virtual std::pair<Drawing, bool> draw(DrawContext const& context,
                 std::chrono::milliseconds time
                 ) const = 0;
 
@@ -236,7 +238,7 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const override;
 
-        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(DrawContext const& context,
                 std::chrono::milliseconds time) const override;
 
     private:
@@ -248,7 +250,7 @@ namespace avg
     {
     public:
         using DrawFunction = std::function<
-            Drawing(pmr::memory_resource*, Vector2f size, Ts const&...)
+            Drawing(DrawContext const&, Vector2f size, Ts const&...)
             >;
 
         ShapeNode(UniqueId id,
@@ -282,7 +284,7 @@ namespace avg
         {
         }
 
-        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(DrawContext const& context,
                 std::chrono::milliseconds time) const final
         {
             bool cont = btl::tuple_reduce(false, data_,
@@ -295,7 +297,7 @@ namespace avg
                     std::apply([&, this](auto&&... ts)
                     {
                         return drawFunction_(
-                                memory,
+                                context,
                                 getObbAt(time).getSize(),
                                 std::forward<decltype(ts)>(ts).getValue(time)...
                                 )
@@ -384,7 +386,7 @@ namespace avg
 
     private:
         static Drawing drawRect(
-                pmr::memory_resource* memory,
+                DrawContext const& drawContext,
                 Vector2f size,
                 float radius,
                 btl::option<Brush> const& brush,
@@ -404,7 +406,7 @@ namespace avg
                 std::chrono::milliseconds time
                 ) &&;
 
-        std::pair<Drawing, bool> draw(pmr::memory_resource* memory,
+        std::pair<Drawing, bool> draw(DrawContext const& drawContext,
                 std::chrono::milliseconds time) const;
 
         //RenderTreeNode const* findNode(UniqueId id) const;

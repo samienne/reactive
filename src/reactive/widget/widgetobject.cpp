@@ -22,7 +22,7 @@ WidgetObject::WidgetObject(WidgetFactory factory) :
 {
 }
 
-void WidgetObject::setDrawContext(DrawContext drawContext)
+void WidgetObject::setDrawContext(avg::DrawContext drawContext)
 {
     if (impl_->drawContext_)
         impl_->drawContext_->handle.set((drawContext));
@@ -59,7 +59,7 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-Widget const& WidgetObject::getWidget(DrawContext drawContext)
+Widget const& WidgetObject::getWidget(avg::DrawContext drawContext)
 {
     setDrawContext(std::move(drawContext));
 

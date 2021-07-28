@@ -204,16 +204,16 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
             );
 }
 
-std::pair<Drawing, bool> ContainerNode::draw(pmr::memory_resource* memory,
+std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
         std::chrono::milliseconds time) const
 {
-    Drawing result(memory);
+    Drawing result = context.drawing();
 
     bool cont = false;
 
     for (auto const& child : children_)
     {
-        auto [drawing, childCont] = child->draw(memory, time);
+        auto [drawing, childCont] = child->draw(context, time);
         cont = cont || childCont;
         result += std::move(drawing);
     }
@@ -239,7 +239,7 @@ RectNode::RectNode(
 }
 
 Drawing RectNode::drawRect(
-        pmr::memory_resource* memory,
+        DrawContext const& context,
         Vector2f size,
         float radius,
         btl::option<Brush> const& brush,
@@ -248,7 +248,7 @@ Drawing RectNode::drawRect(
 {
     radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);
 
-    auto path = PathBuilder(memory)
+    auto path = context.pathBuilder()
         .start(Vector2f(radius, 0.0f))
         .lineTo(size[0] - radius, 0.0f)
         .conicTo(Vector2f(size[0], 0.0f), Vector2f(size[0], radius))
@@ -260,7 +260,7 @@ Drawing RectNode::drawRect(
         .conicTo(Vector2f(0.0f, 0.0f), Vector2f(radius, 0.0f))
         .build();
 
-    return Drawing(memory)
+    return context.drawing()
         + Shape(path, brush, pen)
         ;
 }
@@ -308,15 +308,16 @@ RenderTree RenderTree::update(
     return RenderTree(std::move(newRoot));
 }
 
-std::pair<Drawing, bool> RenderTree::draw(pmr::memory_resource* memory,
+std::pair<Drawing, bool> RenderTree::draw(
+        DrawContext const& context,
         std::chrono::milliseconds time) const
 {
     if (!root_)
     {
-        return std::make_pair(Drawing(memory), false);
+        return std::make_pair(context.drawing(), false);
     }
 
-    return root_->draw(memory, time);
+    return root_->draw(context, time);
 }
 
 } // namespace avg

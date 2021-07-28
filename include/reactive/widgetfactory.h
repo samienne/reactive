@@ -92,7 +92,7 @@ namespace reactive
 
         template <typename T, typename U, typename TMaps>
         auto evaluateWidgetFactory(
-                Signal<T, DrawContext> drawContext,
+                Signal<T, avg::DrawContext> drawContext,
                 Signal<U, avg::Vector2f> size,
                 TMaps&& maps)
         -> decltype(
@@ -153,7 +153,7 @@ namespace reactive
 
         template <typename T, typename U>
         auto operator()(
-                Signal<T, DrawContext> drawContext,
+                Signal<T, avg::DrawContext> drawContext,
                 Signal<U, avg::Vector2f> size
                 ) &&
         {

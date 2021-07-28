@@ -12,7 +12,7 @@ using namespace reactive::widget;
 auto makeEmptyWidget()
 {
     return makeWidget(
-            signal::constant(DrawContext(nullptr)),
+            signal::constant(avg::DrawContext(nullptr)),
             signal::constant(avg::Vector2f(0.0f, 0.0f))
             );
 }

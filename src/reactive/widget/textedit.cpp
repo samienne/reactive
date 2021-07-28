@@ -36,7 +36,7 @@ namespace reactive::widget
 
 TextEdit::operator WidgetFactory() const
 {
-    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+    auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
             widget::Theme const& theme, TextEditState const& state,
             float percentage)
         -> avg::Drawing

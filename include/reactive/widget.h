@@ -4,12 +4,12 @@
 
 #include "keyboardinput.h"
 #include "inputarea.h"
-#include "drawcontext.h"
 
 #include "signal/map.h"
 #include "signal/share.h"
 #include "signal/signal.h"
 
+#include <avg/drawcontext.h>
 #include <avg/drawing.h>
 #include <avg/obb.h>
 #include <avg/transform.h>
@@ -88,7 +88,7 @@ namespace reactive
              typename TObb, typename TKeyboardInputs, typename TTheme,
              typename = std::enable_if_t<
                 btl::All<
-                    signal::IsSignalType<TDrawContext, DrawContext>,
+                    signal::IsSignalType<TDrawContext, avg::DrawContext>,
                     signal::IsSignalType<TDrawing, avg::Drawing>,
                     signal::IsSignalType<TAreas, std::vector<InputArea>>,
                     signal::IsSignalType<TObb, avg::Obb>,
@@ -117,7 +117,7 @@ namespace reactive
     }
 
     using WidgetBase = Wid<
-        AnySignal<DrawContext>,
+        AnySignal<avg::DrawContext>,
         AnySignal<avg::Drawing>,
         AnySignal<std::vector<InputArea>>,
         AnySignal<avg::Obb>,
@@ -127,7 +127,7 @@ namespace reactive
 
     template <typename T, typename U>
     auto makeWidget(
-            Signal<T, DrawContext> drawContext,
+            Signal<T, avg::DrawContext> drawContext,
             Signal<U, avg::Vector2f> size
             )
     -> decltype(auto)
@@ -139,7 +139,7 @@ namespace reactive
 
         auto keyboardInputs = detail::makeKeyboardInputs(obb);
 
-        auto drawing = signal::map([](DrawContext const& drawContext)
+        auto drawing = signal::map([](avg::DrawContext const& drawContext)
                 {
                     return avg::Drawing(drawContext.getResource());
                 }, drawContext.clone());

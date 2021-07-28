@@ -22,7 +22,7 @@ namespace reactive::widget
 {
     namespace detail
     {
-        inline avg::Drawing drawFrame(DrawContext drawContext,
+        inline avg::Drawing drawFrame(avg::DrawContext drawContext,
                 avg::Vector2f size, widget::Theme const& theme,
                 float cornerRadius, avg::Color const& color
                 )

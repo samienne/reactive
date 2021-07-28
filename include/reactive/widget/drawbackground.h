@@ -17,7 +17,7 @@ namespace reactive::widget
 {
     namespace detail
     {
-        inline auto drawBackground(DrawContext const& drawContext,
+        inline auto drawBackground(avg::DrawContext const& drawContext,
                 avg::Vector2f size, avg::Brush const brush)
             -> avg::Drawing
         {

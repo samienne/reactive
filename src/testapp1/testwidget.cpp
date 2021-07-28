@@ -29,7 +29,7 @@ using namespace reactive;
 
 namespace
 {
-    auto drawTestWidget = [](DrawContext const& drawContext,
+    auto drawTestWidget = [](avg::DrawContext const& drawContext,
             ase::Vector2f size, widget::Theme const& theme,
             bool state, std::string const& str)
         -> avg::Drawing

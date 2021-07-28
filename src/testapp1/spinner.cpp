@@ -20,7 +20,7 @@ using namespace reactive;
 
 namespace
 {
-    auto draw(DrawContext const& drawContext, ase::Vector2f size,
+    auto draw(avg::DrawContext const& drawContext, ase::Vector2f size,
             widget::Theme const& theme, std::chrono::duration<float> t)
         -> avg::Drawing
         {

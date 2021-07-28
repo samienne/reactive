@@ -27,7 +27,7 @@ namespace reactive::widget
         {
             auto drawing = widget.getDrawing();
 
-            auto empty = signal::map(&DrawContext::drawing<>,
+            auto empty = signal::map(&avg::DrawContext::drawing<>,
                     widget.getDrawContext()
                     );
 

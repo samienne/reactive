@@ -1,10 +1,9 @@
 #pragma once
 
-#include <reactive/drawcontext.h>
-
 #include <reactive/widgetfactory.h>
-
 #include <reactive/signal/input.h>
+
+#include <avg/drawcontext.h>
 
 #include <btl/shared.h>
 
@@ -22,12 +21,12 @@ namespace reactive::widget
         WidgetObject& operator=(WidgetObject const&) = default;
         WidgetObject& operator=(WidgetObject&&) noexcept = default;
 
-        void setDrawContext(DrawContext drawContext);
+        void setDrawContext(avg::DrawContext drawContext);
         void setObb(avg::Obb obb);
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        Widget const& getWidget(DrawContext drawContext);
+        Widget const& getWidget(avg::DrawContext drawContext);
 
         AnySignal<SizeHint> const& getSizeHint() const;
 
@@ -38,7 +37,7 @@ namespace reactive::widget
 
             WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
-            std::optional<signal::Input<DrawContext>> drawContext_;
+            std::optional<signal::Input<avg::DrawContext>> drawContext_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
 

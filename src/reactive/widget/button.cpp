@@ -12,7 +12,7 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawButton(DrawContext const& drawContext, avg::Vector2f size,
+    avg::Drawing drawButton(avg::DrawContext const& drawContext, avg::Vector2f size,
             widget::Theme const& theme, bool hover, bool down)
     {
         avg::Color bgColor = theme.getBackground();
