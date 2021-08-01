@@ -4,6 +4,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
+#include <iostream>
 
 namespace avg
 {
@@ -100,6 +102,11 @@ bool UniqueId::operator>(UniqueId const& id) const
     return value_ > id.value_;
 }
 
+std::ostream& operator<<(std::ostream& stream, UniqueId const& id)
+{
+    return stream << "id(" << id.value_ << ")";
+}
+
 RenderTreeNode::RenderTreeNode(UniqueId id, Animated<Obb> obb,
         TransitionOptions const& transition) :
     id_(id),
@@ -153,6 +160,18 @@ ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
 {
 }
 
+void ContainerNode::addChild(std::shared_ptr<RenderTreeNode> node)
+{
+    if (node)
+        children_.push_back(node);
+}
+
+void ContainerNode::addChildBehind(std::shared_ptr<RenderTreeNode> node)
+{
+    if (node)
+        children_.insert(children_.begin(), std::move(node));
+}
+
 std::shared_ptr<RenderTreeNode> ContainerNode::update(
         RenderTree const& oldTree,
         RenderTree const& newTree,
@@ -162,10 +181,9 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
         std::chrono::milliseconds time
         ) const
 {
-    assert(oldNode->getId() == newNode->getId());
-
     if (!oldNode && newNode)
     {
+        std::cout << "Appear" << newNode->getId() << std::endl;
         // Appear
         return newNode;
     }
@@ -174,6 +192,8 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
         // Disappear
         return nullptr;
     }
+
+    assert(oldNode->getId() == newNode->getId());
 
     auto const& oldContainer = reinterpret_cast<ContainerNode const&>(*oldNode);
     auto const& newContainer = reinterpret_cast<ContainerNode const&>(*newNode);
@@ -306,7 +326,6 @@ RenderTree RenderTree::update(
 
     }
 
-
     newRoot = tree.root_->update(
             *this,
             tree,
@@ -333,8 +352,15 @@ std::pair<Drawing, bool> RenderTree::draw(
 
 RenderTree RenderTree::transform(Transform const& transform) &&
 {
-    root_->transform(transform);
+    if (root_)
+        root_->transform(transform);
+
     return *this;
+}
+
+std::shared_ptr<RenderTreeNode> const& RenderTree::getRoot() const
+{
+    return root_;
 }
 
 } // namespace avg

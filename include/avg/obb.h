@@ -31,6 +31,7 @@ namespace avg
 
         Obb transformR(avg::Transform const& t) const;
         Obb setSize(Vector2f size) const;
+        Obb shrink(float amount) const;
 
         Rect getBoundingRect() const;
 

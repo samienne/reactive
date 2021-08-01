@@ -29,7 +29,10 @@ namespace reactive::widget
     >
     auto addWidgets(TWidgets widgets)
     {
-        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
+        avg::UniqueId containerId;
+
+        auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),containerId]
+            (auto widget)
         {
             auto addAreas = [](std::vector<InputArea> own,
                     //std::vector<std::vector<InputArea>> areas
@@ -105,7 +108,35 @@ namespace reactive::widget
                 return w.getDrawing();
             });
 
+            auto renderTreeSignals = btl::fmap(*widgets, [](auto&& w)
+            {
+                return w.getRenderTree();
+            });
+
+            auto renderTrees = signal::combine(std::move(renderTreeSignals));
+
+            auto renderTree = signal::map(
+                    [containerId](avg::RenderTree const& root,
+                        std::vector<avg::RenderTree> const& trees,
+                        avg::Obb const& obb)
+                    {
+                        auto container = std::make_shared<avg::ContainerNode>(
+                                containerId, obb, avg::TransitionOptions {});
+
+                        container->addChild(root.getRoot());
+
+                        for (auto const& tree : trees)
+                            container->addChild(tree.getRoot());
+
+                        return avg::RenderTree(std::move(container));
+                    },
+                    widget.getRenderTree(),
+                    std::move(renderTrees),
+                    widget.getObb()
+                    );
+
             return makeWidgetTransformerResult(makeWidget(
+                    std::move(renderTree),
                     std::move(widget.getDrawContext()),
                     std::move(widget.getDrawing()),
                     std::move(areasSignal),

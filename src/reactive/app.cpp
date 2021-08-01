@@ -6,6 +6,7 @@
 
 #include "reactive/signal/input.h"
 
+#include <avg/rendertree.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -64,17 +65,79 @@ public:
         painter_(memory_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
         widget_(window_.getWidget()(
-                    signal::constant(DrawContext(&painter_)),
+                    signal::constant(avg::DrawContext(&painter_)),
                     std::move(size_.signal)
                     )),
-        titleSignal_(window_.getTitle().clone())
+        titleSignal_(window_.getTitle().clone()),
+        testTree_(std::make_shared<avg::ContainerNode>(
+                    containerId_,
+                    avg::Obb(avg::Vector2f(300, 300)),
+                    avg::TransitionOptions(),
+                    std::vector<std::shared_ptr<avg::RenderTreeNode>>({
+                        std::make_shared<avg::RectNode>(
+                                rectId_,
+                                avg::Obb(avg::Vector2f(300, 300),
+                                    avg::Transform().translate(100, 100)
+                                    ),
+                                avg::TransitionOptions(),
+                                25.0f,
+                                btl::none,
+                                btl::just(avg::Pen(
+                                        avg::Brush(avg::Color(1.0f, 0.0f, 0.0f))
+                                        ))
+                                )
+                        })
+                    )),
+        drawing_(memory_)
     {
+        avg::RenderTree newTree(std::make_shared<avg::ContainerNode>(
+                    containerId_,
+                    avg::Obb(avg::Vector2f(300, 300)),
+                    avg::TransitionOptions(),
+                    std::vector<std::shared_ptr<avg::RenderTreeNode>>({
+                        std::make_shared<avg::RectNode>(
+                                rectId_,
+                                avg::Obb(avg::Vector2f(500, 500),
+                                    avg::Transform().translate(250, 250)
+                                    ),
+                                avg::TransitionOptions(),
+                                5.0f,
+                                btl::none,
+                                btl::just(
+                                    avg::Pen(avg::Brush(
+                                            avg::Color(0.0f, 0.0f, 1.0f)
+                                            ),
+                                        3.0f
+                                        ))
+                                )
+                        })
+                    ));
+
+        testTree_ = std::move(testTree_).update(
+                std::move(newTree),
+                avg::AnimationOptions{
+                    std::chrono::milliseconds(1500),
+                    avg::linearCurve
+                    },
+                    timer_
+                );
+
+
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate());
 
         aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
-        aseWindow.setResizeCallback([this]() { resized_ = true; });
-        aseWindow.setRedrawCallback([this]() { redraw_ = true; });
+        aseWindow.setResizeCallback([this]()
+                {
+                    resized_ = true;
+                    animating_ = true;
+                });
+
+        aseWindow.setRedrawCallback([this]()
+                {
+                    redraw_ = true;
+                    animating_ = true;
+                });
 
         aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e)
         {
@@ -265,10 +328,40 @@ public:
         if (titleSignal_.hasChanged())
             aseWindow.setTitle(titleSignal_.evaluate());
 
+        timer_ += std::chrono::duration_cast<std::chrono::milliseconds>(dt);
+
+        if (widget_.getRenderTree().hasChanged())
+        {
+            renderTree_ = std::move(renderTree_).update(
+                    widget_.getRenderTree().evaluate(),
+                    avg::AnimationOptions {
+                        std::chrono::milliseconds(500),
+                        avg::linearCurve
+                    },
+                    timer_
+                    );
+
+            animating_ = true;
+        }
+
+        if (animating_)
+        {
+            auto [drawing, cont] = renderTree_.draw(avg::DrawContext(&painter_), timer_);
+            drawing_ = std::move(drawing);
+            animating_ = cont;
+        }
+
+        painter_.clearWindow(aseWindow);
+
         if (redraw_ || widget_.getDrawing().hasChanged())
         {
-            painter_.clearWindow(aseWindow);
-            painter_.paintToWindow(aseWindow, widget_.getDrawing().evaluate());
+            painter_.paintToWindow(aseWindow,
+                    //widget_.getDrawing().evaluate()
+                    //+
+                    drawing_
+                    );
+
+
             painter_.presentWindow(aseWindow);
 
             painter_.flush();
@@ -349,6 +442,14 @@ private:
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
     btl::option<InputArea> currentHoverArea_;
+
+    std::chrono::milliseconds timer_ = std::chrono::milliseconds(0);
+    avg::UniqueId containerId_;
+    avg::UniqueId rectId_;
+    avg::RenderTree testTree_;
+    avg::RenderTree renderTree_;
+    avg::Drawing drawing_;
+    bool animating_ = true;
 };
 
 

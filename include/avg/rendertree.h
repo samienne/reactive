@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <atomic>
 #include <utility>
+#include <iostream>
 
 namespace avg
 {
@@ -33,10 +34,14 @@ namespace avg
         bool operator<(UniqueId const& id) const;
         bool operator>(UniqueId const& id) const;
 
+        AVG_EXPORT friend std::ostream& operator<<(std::ostream& stream,
+                UniqueId const& id);
+
     private:
         uint64_t value_;
         static std::atomic<uint64_t> nextValue_;
     };
+
 
     struct AVG_EXPORT AnimationOptions
     {
@@ -243,8 +248,11 @@ namespace avg
                 UniqueId id,
                 Animated<Obb> obb,
                 TransitionOptions transitionOptions,
-                std::vector<std::shared_ptr<RenderTreeNode>> children
+                std::vector<std::shared_ptr<RenderTreeNode>> children = {}
                 );
+
+        void addChild(std::shared_ptr<RenderTreeNode> node);
+        void addChildBehind(std::shared_ptr<RenderTreeNode> node);
 
         std::shared_ptr<RenderTreeNode> update(
                 RenderTree const& oldTree,
@@ -337,11 +345,13 @@ namespace avg
         {
             if (oldNode && !newNode)
             {
+                std::cout << "Disappear" << newNode->getId() << std::endl;
                 // Disappear
                 return nullptr;
             }
             else if (!oldNode && newNode)
             {
+                std::cout << "Appear" << newNode->getId() << std::endl;
                 // Appear
                 return newNode;
             }
@@ -388,6 +398,17 @@ namespace avg
         std::tuple<Animated<Ts>...> data_;
     };
 
+    template <typename... Ts>
+    auto makeShapeNode(UniqueId id, avg::Obb const& obb, TransitionOptions options,
+            std::function<
+            Drawing(DrawContext const&, Vector2f size, std::decay_t<Ts> const&...)
+            > function, Ts&&... ts)
+    {
+        return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(
+                id, obb, options, std::move(function), std::forward<Ts>(ts)...
+                );
+    }
+
     class AVG_EXPORT RectNode : public ShapeNode<float,
         btl::option<Brush>, btl::option<Pen>>
     {
@@ -417,6 +438,12 @@ namespace avg
         RenderTree();
         RenderTree(std::shared_ptr<RenderTreeNode> root);
 
+        RenderTree(RenderTree const&) = default;
+        RenderTree(RenderTree&&) noexcept = default;
+
+        RenderTree& operator=(RenderTree const&) = default;
+        RenderTree& operator=(RenderTree&&) noexcept = default;
+
         RenderTree update(
                 RenderTree&& tree,
                 AnimationOptions const& animationOptions,
@@ -429,6 +456,7 @@ namespace avg
         RenderTree transform(Transform const& transform) &&;
 
         //RenderTreeNode const* findNode(UniqueId id) const;
+        std::shared_ptr<RenderTreeNode> const& getRoot() const;
 
     private:
         //std::unordered_map<UniqueId, RenderTreeNode*> nodes_;
