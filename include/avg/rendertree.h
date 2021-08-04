@@ -67,7 +67,7 @@ namespace avg
     AVG_EXPORT bool lerp(bool a, bool b, float t);
 
     template <typename T>
-    AVG_EXPORT btl::option<T> lerp(
+    btl::option<T> lerp(
             btl::option<T> const& a,
             btl::option<T> const& b,
             float t)
