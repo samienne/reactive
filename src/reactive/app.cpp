@@ -90,6 +90,7 @@ public:
                     )),
         drawing_(memory_)
     {
+        /*
         avg::RenderTree newTree(std::make_shared<avg::ContainerNode>(
                     containerId_,
                     avg::Obb(avg::Vector2f(300, 300)),
@@ -121,6 +122,7 @@ public:
                     },
                     timer_
                 );
+                */
 
 
         aseWindow.setVisible(true);
@@ -328,7 +330,9 @@ public:
         if (titleSignal_.hasChanged())
             aseWindow.setTitle(titleSignal_.evaluate());
 
-        timer_ += std::chrono::duration_cast<std::chrono::milliseconds>(dt);
+        timer_ += dt;
+
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
         if (widget_.getRenderTree().hasChanged())
         {
@@ -338,17 +342,19 @@ public:
                         std::chrono::milliseconds(500),
                         avg::linearCurve
                     },
-                    timer_
+                    timer
                     );
+            //renderTree_ = widget_.getRenderTree().evaluate();
 
             animating_ = true;
         }
 
         if (animating_)
         {
-            auto [drawing, cont] = renderTree_.draw(avg::DrawContext(&painter_), timer_);
+            auto [drawing, cont] = renderTree_.draw(avg::DrawContext(&painter_), timer);
             drawing_ = std::move(drawing);
             animating_ = cont;
+            redraw_ = true;
         }
 
         painter_.clearWindow(aseWindow);
@@ -401,6 +407,9 @@ public:
             }
         }
 
+        if (animating_)
+            return btl::just(signal::signal_time_t(0));
+
         return timeToNext;
     }
 
@@ -443,7 +452,7 @@ private:
     uint32_t pointerEventsOnThisFrame_ = 0;
     btl::option<InputArea> currentHoverArea_;
 
-    std::chrono::milliseconds timer_ = std::chrono::milliseconds(0);
+    std::chrono::microseconds timer_ = std::chrono::microseconds(0);
     avg::UniqueId containerId_;
     avg::UniqueId rectId_;
     avg::RenderTree testTree_;

@@ -77,6 +77,16 @@ Pen lerp(Pen const& a, Pen const& b, float t)
             );
 }
 
+std::string lerp(std::string const& a, std::string const& b, float t)
+{
+    return t <= 0.0f ? a : b;
+}
+
+AVG_EXPORT bool lerp(bool a, bool b, float t)
+{
+    return t <= 0.0f ? a : b;
+}
+
 UniqueId::UniqueId() :
     value_(nextValue_.fetch_add(1, std::memory_order_relaxed))
 {

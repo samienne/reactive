@@ -63,6 +63,8 @@ namespace avg
     AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
     AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
     AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
+    AVG_EXPORT std::string lerp(std::string const& a, std::string const& b, float t);
+    AVG_EXPORT bool lerp(bool a, bool b, float t);
 
     template <typename T>
     AVG_EXPORT btl::option<T> lerp(
@@ -167,7 +169,7 @@ namespace avg
 
         bool hasAnimationEnded(std::chrono::milliseconds time) const
         {
-            return (time - beginTime_) > duration_;
+            return time > (beginTime_ + duration_);
         }
 
         Animated updated(
@@ -405,7 +407,8 @@ namespace avg
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(
-                id, obb, options, std::move(function), std::forward<Ts>(ts)...
+                id, obb, options, std::move(function),
+                std::make_tuple(std::forward<Ts>(ts)...)
                 );
     }
 

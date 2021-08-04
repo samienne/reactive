@@ -24,12 +24,12 @@ namespace reactive::widget
         {
         }
 
-        inline bool operator==(TextEditState const& rhs)
+        inline bool operator==(TextEditState const& rhs) const
         {
             return text == rhs.text && pos == rhs.pos;
         }
 
-        inline bool operator!=(TextEditState const& rhs)
+        inline bool operator!=(TextEditState const& rhs) const
         {
             return !(*this == rhs);
         }

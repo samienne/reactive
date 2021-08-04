@@ -4,7 +4,7 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/ondraw.h"
+#include "widget/ondrawcustom.h"
 #include "widget/bindtheme.h"
 #include "widget/binddrawcontext.h"
 #include "widget/bindsize.h"
@@ -197,9 +197,9 @@ namespace
         AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(/*bindDrawContext(), */bindSize(), bindTheme())
             .compose(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .bind([=](auto drawContext, auto size,
+            .bind([=](/*auto drawContext,*/ auto size,
                             auto theme, auto hover) mutable
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
@@ -241,15 +241,15 @@ namespace
                         }, downOffset.signal, size.clone(), handleSize))
                     )
                     .values(
-                            std::move(drawContext),
-                            size.clone(),
+                            //std::move(drawContext),
+                            //size.clone(),
                             std::move(theme),
                             amount,
                             handleSize,
                             std::move(hover),
                             std::move(isDown)
                             )
-                    .bind(onDraw(drawScrollBar<IsHorizontal>))
+                    .bind(onDrawCustom(drawScrollBar<IsHorizontal>))
                     ;
             });
     }

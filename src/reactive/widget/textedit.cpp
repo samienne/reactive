@@ -1,5 +1,6 @@
 #include "widget/textedit.h"
 
+#include "widget/ondrawcustom.h"
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
@@ -33,6 +34,11 @@
 
 namespace reactive::widget
 {
+
+TextEditState lerp(TextEditState const& a, TextEditState const& b, float t)
+{
+    return t <= 0.0f ? a : b;
+}
 
 TextEdit::operator WidgetFactory() const
 {
@@ -179,9 +185,9 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackFocus(focus.handle)
         | makeWidgetTransformer()
-            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindTheme())
             .values(std::move(newState), std::move(focusPercentage))
-            .bind(onDraw(draw))
+            .bind(onDrawCustom(draw))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))
