@@ -166,11 +166,18 @@ TextEdit::operator WidgetFactory() const
     auto requestFocus = stream::pipe<bool>();
 
     auto focus = signal::input(false);
-    auto focusPercentage = signal::tween(
+    /*auto focusPercentage = signal::tween(
             std::chrono::milliseconds(500),
             0.0f,
             std::move(focus.signal),
             signal::TweenType::pingpong
+            );
+            */
+    auto focusPercentage = signal::map([](bool b)
+            {
+                return b ? 1.0f : 0.0f;
+            },
+            std::move(focus.signal)
             );
 
     auto frameColor = signal::constant(Theme().getSecondary());
