@@ -5,14 +5,13 @@
 #include "bindkeyboardinputs.h"
 #include "setinputareas.h"
 #include "setkeyboardinputs.h"
-#include "binddrawing.h"
-#include "setdrawing.h"
 #include "widgettransformer.h"
 
 #include "reactive/widgetfactory.h"
 
 namespace reactive::widget
 {
+    /*
     inline auto clipDrawing()
     {
         return makeWidgetTransformer()
@@ -31,6 +30,7 @@ namespace reactive::widget
                 return setDrawing(std::move(newDrawing));
             });
     }
+    */
 
     inline auto clipInputAreas()
     {
@@ -93,7 +93,7 @@ namespace reactive::widget
     {
         return makeWidgetTransformer()
             .compose(
-                    clipDrawing(),
+                    //clipDrawing(),
                     clipInputAreas(),
                     clipKeyboardInputs()
                     )

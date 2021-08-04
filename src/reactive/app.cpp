@@ -69,62 +69,8 @@ public:
                     std::move(size_.signal)
                     )),
         titleSignal_(window_.getTitle().clone()),
-        testTree_(std::make_shared<avg::ContainerNode>(
-                    containerId_,
-                    avg::Obb(avg::Vector2f(300, 300)),
-                    avg::TransitionOptions(),
-                    std::vector<std::shared_ptr<avg::RenderTreeNode>>({
-                        std::make_shared<avg::RectNode>(
-                                rectId_,
-                                avg::Obb(avg::Vector2f(300, 300),
-                                    avg::Transform().translate(100, 100)
-                                    ),
-                                avg::TransitionOptions(),
-                                25.0f,
-                                btl::none,
-                                btl::just(avg::Pen(
-                                        avg::Brush(avg::Color(1.0f, 0.0f, 0.0f))
-                                        ))
-                                )
-                        })
-                    )),
         drawing_(memory_)
     {
-        /*
-        avg::RenderTree newTree(std::make_shared<avg::ContainerNode>(
-                    containerId_,
-                    avg::Obb(avg::Vector2f(300, 300)),
-                    avg::TransitionOptions(),
-                    std::vector<std::shared_ptr<avg::RenderTreeNode>>({
-                        std::make_shared<avg::RectNode>(
-                                rectId_,
-                                avg::Obb(avg::Vector2f(500, 500),
-                                    avg::Transform().translate(250, 250)
-                                    ),
-                                avg::TransitionOptions(),
-                                5.0f,
-                                btl::none,
-                                btl::just(
-                                    avg::Pen(avg::Brush(
-                                            avg::Color(0.0f, 0.0f, 1.0f)
-                                            ),
-                                        3.0f
-                                        ))
-                                )
-                        })
-                    ));
-
-        testTree_ = std::move(testTree_).update(
-                std::move(newTree),
-                avg::AnimationOptions{
-                    std::chrono::milliseconds(1500),
-                    avg::linearCurve
-                    },
-                    timer_
-                );
-                */
-
-
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate());
 
@@ -359,13 +305,9 @@ public:
 
         painter_.clearWindow(aseWindow);
 
-        if (redraw_ || widget_.getDrawing().hasChanged())
+        if (redraw_)
         {
-            painter_.paintToWindow(aseWindow,
-                    //widget_.getDrawing().evaluate()
-                    //+
-                    drawing_
-                    );
+            painter_.paintToWindow(aseWindow, drawing_);
 
 
             painter_.presentWindow(aseWindow);
@@ -455,7 +397,6 @@ private:
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
     avg::UniqueId containerId_;
     avg::UniqueId rectId_;
-    avg::RenderTree testTree_;
     avg::RenderTree renderTree_;
     avg::Drawing drawing_;
     bool animating_ = true;

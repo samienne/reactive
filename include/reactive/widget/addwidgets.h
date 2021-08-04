@@ -1,7 +1,6 @@
 #pragma once
 
 #include "reduce.h"
-#include "adddrawings.h"
 
 #include "widgettransformer.h"
 
@@ -100,14 +99,6 @@ namespace reactive::widget
                     std::move(widget.getKeyboardInputs()),
                     std::move(inputs));
 
-            //std::vector<Signal<avg::Drawing>> drawings;
-            //for (auto&& w : *widgets)
-                //drawings.push_back(std::move(w.getDrawing()));
-            auto drawings = btl::fmap(*widgets, [](auto&& w)
-            {
-                return w.getDrawing();
-            });
-
             auto renderTreeSignals = btl::fmap(*widgets, [](auto&& w)
             {
                 return w.getRenderTree();
@@ -138,15 +129,12 @@ namespace reactive::widget
             return makeWidgetTransformerResult(makeWidget(
                     std::move(renderTree),
                     std::move(widget.getDrawContext()),
-                    std::move(widget.getDrawing()),
                     std::move(areasSignal),
                     std::move(widget.getObb()),
                     std::move(keyboardInputsSignal),
                     std::move(widget.getTheme())
                     )
-                | addDrawings(signal::combine(std::move(drawings)))
                 );
-
         };
 
         return makeWidgetTransformer(std::move(f));

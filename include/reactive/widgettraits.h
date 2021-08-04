@@ -13,8 +13,8 @@ namespace reactive
         std::decay_t<decltype(std::declval<TWidget>().getDrawContext())>;
 
     template <typename TWidget>
-    using WidgetDrawingType =
-        std::decay_t<decltype(std::declval<TWidget>().getDrawing())>;
+    using WidgetRenderTreeType =
+        std::decay_t<decltype(std::declval<TWidget>().getRenderTree())>;
 
     template <typename TWidget>
     using WidgetAreasType =

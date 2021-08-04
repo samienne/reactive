@@ -3,7 +3,6 @@
 #include "ondrawcustom.h"
 #include "margin.h"
 #include "theme.h"
-#include "ondraw.h"
 #include "binddrawcontext.h"
 #include "bindsize.h"
 #include "bindtheme.h"
@@ -23,50 +22,6 @@
 
 namespace reactive::widget
 {
-    namespace detail
-    {
-        /*
-        inline avg::Drawing drawFrame(avg::DrawContext drawContext,
-                avg::Vector2f size, widget::Theme const& theme,
-                float cornerRadius, avg::Color const& color
-                )
-        {
-            auto pen = avg::Pen(avg::Brush(color),
-                    1.0f);
-            auto brush = avg::Brush(theme.getBackground());
-
-            auto shape =  makeShape(
-                    makeRoundedRect(drawContext.getResource(),
-                        size[0] - 5.0f, size[1] - 5.0f,
-                        cornerRadius),
-                    btl::just(brush),
-                    btl::just(pen)
-                    );
-
-            return avg::translate(0.5f * size[0], 0.5f * size[1])
-                * drawContext.drawing(std::move(shape));
-        }
-
-        inline avg::RenderTree buildTree(avg::UniqueId id,
-                avg::Obb const& obb, float radius,
-                Theme const& theme, avg::Color color)
-        {
-            auto pen = avg::Pen(avg::Brush(color),
-                    1.0f);
-            auto brush = avg::Brush(theme.getBackground());
-
-            return avg::RenderTree(std::make_shared<avg::RectNode>(
-                    id,
-                    obb.shrink(2.5f),
-                    avg::TransitionOptions {},
-                    radius,
-                    btl::just(brush),
-                    btl::just(pen)
-                    ));
-        }
-        */
-    } // namespace detail
-
     template <typename T, typename U>
     auto frameFull(
             Signal<T, float> cornerRadius,
@@ -77,38 +32,7 @@ namespace reactive::widget
         auto c = signal::share(std::move(color));
 
         return
-            /*
-            margin(signal::constant(5.0f))
-            >> mapFactoryWidget(
-                    makeWidgetTransformer()
-                    .compose(bindDrawContext(), bindSize(), bindTheme())
-                    .values(cr, c)
-                    .bind(onDrawBehind(&detail::drawFrame))
-                    )
-            >> mapFactoryWidget(
-                    makeWidgetTransformer()
-                    .compose(bindObb(), bindTheme())
-                    .values(cr, c)
-                    .bind([id](auto obb, auto theme, auto radius, auto color)
-                        {
-                            auto tree = signal::map(detail::buildTree,
-                                    signal::constant(id),
-                                    std::move(obb),
-                                    std::move(radius),
-                                    std::move(theme),
-                                    std::move(color)
-                                    );
-
-                            return makeWidgetTransformer([tree=btl::cloneOnCopy(std::move(tree))]
-                                (auto w) mutable
-                                {
-                                    return makeWidgetTransformerResult(
-                                            std::move(w).setRenderTree(std::move(*tree))
-                                            );
-                                });
-                        })
-                    )
-            >>*/ mapFactoryWidget(
+            mapFactoryWidget(
                     makeWidgetTransformer()
                     .compose(bindTheme())
                     .values(cr, c)

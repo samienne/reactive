@@ -1,7 +1,7 @@
 #include "testwidget.h"
 
 #include <reactive/widget/onclick.h>
-#include <reactive/widget/ondraw.h>
+#include <reactive/widget/ondrawcustom.h>
 #include <reactive/widget/binddrawcontext.h>
 #include <reactive/widget/bindsize.h>
 #include <reactive/widget/bindtheme.h>
@@ -30,10 +30,12 @@ using namespace reactive;
 namespace
 {
     auto drawTestWidget = [](avg::DrawContext const& drawContext,
-            ase::Vector2f size, widget::Theme const& theme,
+            avg::Obb const& obb, widget::Theme const& theme,
             bool state, std::string const& str)
         -> avg::Drawing
     {
+        auto size = obb.getSize();
+
         std::cout << "draw() -> " << size[0] << ", " << size[1] << std::endl;
         avg::Pen pen(theme.getEmphasized(), 8.0f);
         avg::Brush brush(
@@ -51,7 +53,7 @@ namespace
                 str, btl::just(brush2), btl::none);
 
         return (drawContext.drawing(std::move(shape)) + text)
-            .transform(avg::translate(0.5*size[0], 116.0));
+            .transform(avg::translate(0.5f*size[0], 116.0f));
     };
 } // anonymous namespace
 
@@ -81,9 +83,9 @@ WidgetFactory makeTestWidget()
 
     return makeWidgetFactory()
         | makeWidgetTransformer()
-        .compose(bindDrawContext(), bindSize(), bindTheme())
+        .compose(bindTheme())
         .values(std::move(state), std::move(textState))
-        .bind(onDraw(drawTestWidget))
+        .bind(onDrawCustom(drawTestWidget))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))

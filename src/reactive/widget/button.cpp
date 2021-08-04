@@ -12,9 +12,10 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawButton(avg::DrawContext const& drawContext, avg::Vector2f size,
-            widget::Theme const& theme, bool hover, bool down)
+    avg::Drawing drawButton(avg::DrawContext const& drawContext,
+            avg::Obb obb, widget::Theme const& theme, bool hover, bool down)
     {
+        auto size = obb.getSize();
         avg::Color bgColor = theme.getBackground();
         avg::Color fgColor = theme.getSecondary();
 
@@ -53,9 +54,9 @@ WidgetFactory button(AnySignal<std::string> label,
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
         | makeWidgetTransformer()
-        .compose(bindDrawContext(), bindSize(), bindTheme())
+        .compose(bindTheme())
         .values(std::move(hover.signal), std::move(down.signal))
-        .bind(onDrawBehind(&drawButton))
+        .bind(onDrawBehindCustom(&drawButton))
         | onPointerDown([handle=down.handle](auto&) mutable
                 {
                     handle.set(true);
