@@ -3,7 +3,6 @@
 #include "ondrawcustom.h"
 #include "margin.h"
 #include "theme.h"
-#include "binddrawcontext.h"
 #include "bindsize.h"
 #include "bindtheme.h"
 #include "widgettransformer.h"

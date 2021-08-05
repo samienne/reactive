@@ -90,21 +90,20 @@ namespace reactive
             }
         };
 
-        template <typename T, typename U, typename TMaps>
+        template <typename T, typename TMaps>
         auto evaluateWidgetFactory(
-                Signal<T, avg::DrawContext> drawContext,
-                Signal<U, avg::Vector2f> size,
+                Signal<T, avg::Vector2f> size,
                 TMaps&& maps)
         -> decltype(
             btl::tuple_reduce(
-                    makeWidget( std::move(drawContext), std::move(size)),
+                    makeWidget(std::move(size)),
                     std::forward<TMaps>(maps),
                     EvaluateWidgetFactoryMapper()
                     )
             )
         {
             return btl::tuple_reduce(
-                    makeWidget(std::move(drawContext), std::move(size)),
+                    makeWidget(std::move(size)),
                     std::forward<TMaps>(maps),
                     EvaluateWidgetFactoryMapper()
                     );
@@ -151,14 +150,10 @@ namespace reactive
         WidFac<TTupleMaps, TSizeHint>(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
         WidFac<TTupleMaps, TSizeHint>& operator=(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
 
-        template <typename T, typename U>
-        auto operator()(
-                Signal<T, avg::DrawContext> drawContext,
-                Signal<U, avg::Vector2f> size
-                ) &&
+        template <typename T>
+        auto operator()(Signal<T, avg::Vector2f> size) &&
         {
             return detail::evaluateWidgetFactory(
-                    std::move(drawContext),
                     std::move(size),
                     std::move(*maps_)
                     );

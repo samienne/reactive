@@ -2,7 +2,6 @@
 
 #include "widget/addwidgets.h"
 #include "widget/bindsize.h"
-#include "widget/binddrawcontext.h"
 #include "widget/widgetobject.h"
 #include "widget//widgettransformer.h"
 
@@ -12,19 +11,17 @@ namespace reactive
 {
     namespace detail
     {
-        template <Axis dir, typename T, typename U, typename V, typename W>
+        template <Axis dir, typename T, typename U, typename V>
         auto doDynamicBox(
-                Signal<T, avg::DrawContext> drawContext,
-                Signal<U, avg::Vector2f> size,
-                Signal<V, std::vector<widget::WidgetObject>> widgets,
-                SharedSignal<W, std::vector<SizeHint>> hints
+                Signal<T, avg::Vector2f> size,
+                Signal<U, std::vector<widget::WidgetObject>> widgets,
+                SharedSignal<V, std::vector<SizeHint>> hints
                 )
         {
             auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
 
             auto resultWidgets = signal::map(
-                    [](avg::DrawContext const& drawContext,
-                        std::vector<widget::WidgetObject> const& widgets,
+                    [](std::vector<widget::WidgetObject> const& widgets,
                         std::vector<avg::Obb> const& obbs)
                     {
                         assert(widgets.size() == obbs.size());
@@ -37,13 +34,12 @@ namespace reactive
                                 const_cast<widget::WidgetObject&>(w);
 
                             widgetObject.setObb(*i);
-                            result.push_back(widgetObject.getWidget(drawContext));
+                            result.push_back(widgetObject.getWidget());
                             ++i;
                         }
 
                         return result;
                     },
-                    std::move(drawContext),
                     std::move(widgets),
                     std::move(obbs)
                     );
@@ -83,12 +79,11 @@ namespace reactive
 
         return makeWidgetFactory()
             | widget::makeWidgetTransformer()
-            .compose(widget::bindDrawContext(), widget::bindSize())
+            .compose(widget::bindSize())
             .values(hints.clone(), std::move(widgets))
-            .bind([](auto drawContext, auto size, auto hints, auto widgets) mutable
+            .bind([](auto size, auto hints, auto widgets) mutable
                 {
                     return detail::doDynamicBox<dir>(
-                            std::move(drawContext),
                             std::move(size),
                             std::move(widgets),
                             std::move(hints)

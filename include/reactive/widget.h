@@ -10,7 +10,6 @@
 #include "signal/signal.h"
 
 #include <avg/rendertree.h>
-#include <avg/drawcontext.h>
 #include <avg/obb.h>
 #include <avg/transform.h>
 
@@ -80,36 +79,33 @@ namespace reactive
         }
     } // detail
 
-    template <typename TRenderTree, typename TDrawContext, typename TAreas,
-             typename TObb, typename TKeyboardInputs, typename TTheme>
+    template <typename TRenderTree, typename TAreas, typename TObb,
+             typename TKeyboardInputs, typename TTheme>
     class Wid;
 
-    template <typename TRenderTree, typename TDrawContext, typename TAreas,
-             typename TObb, typename TKeyboardInputs, typename TTheme,
+    template <typename TRenderTree, typename TAreas, typename TObb,
+             typename TKeyboardInputs, typename TTheme,
              typename = std::enable_if_t<
                 btl::All<
                     signal::IsSignalType<TRenderTree, avg::RenderTree>,
-                    signal::IsSignalType<TDrawContext, avg::DrawContext>,
                     signal::IsSignalType<TAreas, std::vector<InputArea>>,
                     signal::IsSignalType<TObb, avg::Obb>,
                     signal::IsSignalType<TKeyboardInputs, std::vector<KeyboardInput>>,
                     signal::IsSignalType<TTheme, widget::Theme>
                 >::value
             >>
-    auto makeWidget(TRenderTree renderTree, TDrawContext drawContext,
-            TAreas areas, TObb obb, TKeyboardInputs keyboardInputs,
+    auto makeWidget(TRenderTree renderTree, TAreas areas, TObb obb,
+            TKeyboardInputs keyboardInputs,
             TTheme theme)
     {
         return Wid<
             std::decay_t<TRenderTree>,
-            std::decay_t<TDrawContext>,
             std::decay_t<TAreas>,
             std::decay_t<TObb>,
             std::decay_t<TKeyboardInputs>,
             std::decay_t<TTheme>
                 >(
                 std::move(renderTree),
-                std::move(drawContext),
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),
@@ -119,18 +115,14 @@ namespace reactive
 
     using WidgetBase = Wid<
         AnySignal<avg::RenderTree>,
-        AnySignal<avg::DrawContext>,
         AnySignal<std::vector<InputArea>>,
         AnySignal<avg::Obb>,
         AnySignal<std::vector<KeyboardInput>>,
         AnySignal<widget::Theme>
         >;
 
-    template <typename T, typename U>
-    auto makeWidget(
-            Signal<T, avg::DrawContext> drawContext,
-            Signal<U, avg::Vector2f> size
-            )
+    template <typename T>
+    auto makeWidget(Signal<T, avg::Vector2f> size)
     -> decltype(auto)
     {
         auto obb = share(signal::map([](avg::Vector2f size)
@@ -142,7 +134,6 @@ namespace reactive
 
         return makeWidget(
                 signal::constant(avg::RenderTree()),
-                std::move(drawContext),
                 signal::constant(std::vector<InputArea>()),
                 std::move(obb),
                 std::move(keyboardInputs),
@@ -151,24 +142,23 @@ namespace reactive
 
     }
 
-    template <typename TRenderTree, typename TDrawContext, typename TAreas,
-             typename TObb, typename TKeyboardInputs, typename TTheme>
-    auto copy(Wid<TRenderTree, TDrawContext, TAreas, TObb,
+    template <typename TRenderTree, typename TAreas, typename TObb,
+             typename TKeyboardInputs, typename TTheme>
+    auto copy(Wid<TRenderTree, TAreas, TObb,
             TKeyboardInputs, TTheme> const& w)
     {
-        return Wid<TRenderTree, TDrawContext, TAreas, TObb,
+        return Wid<TRenderTree, TAreas, TObb,
             TKeyboardInputs, TTheme>(w);
     }
 
-    template <typename TRenderTree, typename TDrawContext, typename TAreas,
-             typename TObb, typename TKeyboardInputs, typename TTheme>
+    template <typename TRenderTree, typename TAreas, typename TObb,
+             typename TKeyboardInputs, typename TTheme>
     class Wid
     {
     public:
-        Wid(TRenderTree renderTree, TDrawContext drawContext, TAreas areas,
+        Wid(TRenderTree renderTree, TAreas areas,
                 TObb obb, TKeyboardInputs keyboardInputs, TTheme theme) :
             renderTree_(std::move(renderTree)),
-            drawContext_(std::move(drawContext)),
             areas_(std::move(areas)),
             obb_(std::move(obb)),
             keyboardInputs_(std::move(keyboardInputs)),
@@ -179,11 +169,6 @@ namespace reactive
         std::decay_t<TRenderTree> getRenderTree() const
         {
             return btl::clone(*renderTree_);
-        }
-
-        std::decay_t<TDrawContext> getDrawContext() const
-        {
-            return btl::clone(*drawContext_);
         }
 
         btl::decay_t<TAreas> getInputAreas() const
@@ -234,7 +219,6 @@ namespace reactive
         {
             return makeWidget(
                     std::move(*renderTree_),
-                    std::move(*drawContext_),
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
@@ -250,7 +234,6 @@ namespace reactive
         {
             return makeWidget(
                     std::move(*renderTree_),
-                    std::move(*drawContext_),
                     std::move(areas),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
@@ -329,7 +312,6 @@ namespace reactive
         {
             return makeWidget(
                     std::move(renderTree),
-                    std::move(*drawContext_),
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
@@ -345,7 +327,6 @@ namespace reactive
         {
             return makeWidget(
                     std::move(*renderTree_),
-                    std::move(*drawContext_),
                     std::move(*areas_),
                     std::move(obb),
                     std::move(*keyboardInputs_),
@@ -364,7 +345,6 @@ namespace reactive
         {
             return makeWidget(
                     std::move(*renderTree_),
-                    std::move(*drawContext_),
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(inputs),
@@ -376,9 +356,6 @@ namespace reactive
         {
             auto t = renderTree_->updateBegin(frame);
             auto t2 = areas_->updateBegin(frame);
-            t = min(t, t2);
-
-            t2 = drawContext_->updateBegin(frame);
             t = min(t, t2);
 
             t2 = obb_->updateBegin(frame);
@@ -412,7 +389,6 @@ namespace reactive
         {
             return WidgetBase(
                     std::move(*renderTree_),
-                    std::move(*drawContext_),
                     std::move(*areas_),
                     std::move(*obb_),
                     std::move(*keyboardInputs_),
@@ -436,7 +412,6 @@ namespace reactive
 
     private:
         btl::CloneOnCopy<std::decay_t<TRenderTree>> renderTree_;
-        btl::CloneOnCopy<std::decay_t<TDrawContext>> drawContext_;
         btl::CloneOnCopy<std::decay_t<TAreas>> areas_;
         btl::CloneOnCopy<std::decay_t<TObb>> obb_;
         btl::CloneOnCopy<std::decay_t<TKeyboardInputs>> keyboardInputs_;
@@ -450,11 +425,10 @@ namespace reactive
         {
         }
 
-        template <typename TRenderTree, typename TDrawContext, typename TAreas,
-                 typename TObb, typename TKeyboardInputs, typename TTheme,
+        template <typename TRenderTree, typename TAreas, typename TObb,
+                 typename TKeyboardInputs, typename TTheme,
                  typename... Ts>
-        Widget(Wid<TRenderTree, TDrawContext, TAreas, TObb,
-                TKeyboardInputs, TTheme> base) :
+        Widget(Wid<TRenderTree, TAreas, TObb, TKeyboardInputs, TTheme> base) :
             WidgetBase(std::move(base))
         {
         }

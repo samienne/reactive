@@ -13,34 +13,17 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
     factory_(std::move(factory)),
     sizeHint_(factory_.getSizeHint()),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
-    transformInput_(signal::input(avg::Transform()))
+    transformInput_(signal::input(avg::Transform())),
+    widget_((factory_
+            | transform(transformInput_.signal.clone()))
+            (sizeInput_.signal.clone())
+            )
 {
 }
 
 WidgetObject::WidgetObject(WidgetFactory factory) :
     impl_(std::make_shared<Impl>(std::move(factory)))
 {
-}
-
-void WidgetObject::setDrawContext(avg::DrawContext drawContext)
-{
-    if (impl_->drawContext_)
-        impl_->drawContext_->handle.set((drawContext));
-    else
-        impl_->drawContext_ = signal::input((drawContext));
-
-
-    if (!impl_->widget_)
-    {
-        assert(impl_->drawContext_);
-        impl_->widget_ = (impl_->factory_
-                    | transform(impl_->transformInput_.signal.clone()))
-                (
-                 dropRepeats(impl_->drawContext_->signal),
-                 impl_->sizeInput_.signal
-                )
-                ;
-    }
 }
 
 void WidgetObject::setObb(avg::Obb obb)
@@ -59,12 +42,9 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-Widget const& WidgetObject::getWidget(avg::DrawContext drawContext)
+Widget const& WidgetObject::getWidget()
 {
-    setDrawContext(std::move(drawContext));
-
-    assert(impl_->widget_);
-    return *impl_->widget_;
+    return impl_->widget_;
 }
 
 AnySignal<SizeHint> const& WidgetObject::getSizeHint() const

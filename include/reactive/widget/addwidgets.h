@@ -128,7 +128,6 @@ namespace reactive::widget
 
             return makeWidgetTransformerResult(makeWidget(
                     std::move(renderTree),
-                    std::move(widget.getDrawContext()),
                     std::move(areasSignal),
                     std::move(widget.getObb()),
                     std::move(keyboardInputsSignal),

@@ -64,10 +64,7 @@ public:
         window_(std::move(window)),
         painter_(memory_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
-        widget_(window_.getWidget()(
-                    signal::constant(avg::DrawContext(&painter_)),
-                    std::move(size_.signal)
-                    )),
+        widget_(window_.getWidget()(std::move(size_.signal))),
         titleSignal_(window_.getTitle().clone()),
         drawing_(memory_)
     {

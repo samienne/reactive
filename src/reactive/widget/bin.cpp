@@ -1,7 +1,6 @@
 #include "widget/bin.h"
 
 #include "widget/addwidgets.h"
-#include "widget/binddrawcontext.h"
 #include "widget/bindsize.h"
 #include "widget/clip.h"
 #include "widget/widgettransformer.h"
@@ -14,10 +13,9 @@ WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSiz
     auto sizeHint = signal::share(f.getSizeHint());
 
     return makeWidgetTransformer()
-        .compose(bindDrawContext(), bindSize())
+        .compose(bindSize())
         .values(std::move(contentSize), std::move(f))
-        .bind([](auto drawContext, auto viewSize, auto contentSize,
-                    auto f) mutable
+        .bind([](auto viewSize, auto contentSize, auto f) mutable
         {
             auto cs = signal::share(std::move(contentSize));
 
@@ -32,7 +30,6 @@ WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSiz
                     );
 
             auto w = std::move(f)(
-                    std::move(drawContext),
                     std::move(cs)
                     )
                     .transform(std::move(t))
