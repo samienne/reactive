@@ -35,11 +35,6 @@
 namespace reactive::widget
 {
 
-TextEditState lerp(TextEditState const& a, TextEditState const& b, float t)
-{
-    return t <= 0.0f ? a : b;
-}
-
 TextEdit::operator WidgetFactory() const
 {
     auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
@@ -142,7 +137,7 @@ TextEdit::operator WidgetFactory() const
                 state.pos = i.index();
             }
         }
-        if (e.is<TextEvent>())
+        else if (e.is<TextEvent>())
         {
             auto& textEvent = e.get<TextEvent>();
             state.text.insert(state.pos, textEvent.getText());

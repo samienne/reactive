@@ -63,8 +63,6 @@ namespace avg
     AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
     AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
     AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
-    AVG_EXPORT std::string lerp(std::string const& a, std::string const& b, float t);
-    AVG_EXPORT bool lerp(bool a, bool b, float t);
 
     template <typename T>
     btl::option<T> lerp(
@@ -98,6 +96,23 @@ namespace avg
     {
         return tuple_lerp(a, b, t, std::make_index_sequence<sizeof...(Ts)>());
     }
+
+    template <typename T>
+    using LerpType = decltype(
+            lerp(
+                std::declval<std::decay_t<T>>(),
+                std::declval<std::decay_t<T>>(),
+                0.0f
+                )
+            );
+
+    template <typename T, typename = void>
+    struct HasLerp : std::false_type {};
+
+    template <typename T>
+    struct HasLerp<T, btl::void_t<
+        LerpType<T>
+        >> : std::true_type {};
 
     template <typename T>
     class Animated
@@ -139,7 +154,14 @@ namespace avg
                     1.0f
                     );
 
-            return lerp(initial_, final_, a);
+            if constexpr(HasLerp<T>::value)
+            {
+                return lerp(initial_, final_, a);
+            }
+            else
+            {
+                return a <= 0.0f ? initial_ : final_;
+            }
         }
 
         T const& getInitialValue() const
