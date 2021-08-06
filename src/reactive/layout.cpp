@@ -1,5 +1,6 @@
 #include "layout.h"
 
+#include "avg/rendertree.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
 
@@ -18,7 +19,8 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto transformer = [obbMap=std::move(obbMap),
+    avg::UniqueId id;
+    auto transformer = [id, obbMap=std::move(obbMap),
             hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
                 (auto w)
         // -> Widget
@@ -49,7 +51,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             });
 
         return widget::makeWidgetTransformerResult(
-                std::move(w) | widget::addWidgets(std::move(widgets))
+                std::move(w) | widget::addWidgets(id, std::move(widgets))
                 );
     };
 

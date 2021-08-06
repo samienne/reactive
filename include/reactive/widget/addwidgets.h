@@ -26,10 +26,8 @@ namespace reactive::widget
             >::value
         , int> = 0
     >
-    auto addWidgets(TWidgets widgets)
+    auto addWidgets(avg::UniqueId containerId, TWidgets widgets)
     {
-        avg::UniqueId containerId;
-
         auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),containerId]
             (auto widget)
         {
@@ -142,13 +140,15 @@ namespace reactive::widget
     template <typename T>
     auto addWidgets(Signal<T, std::vector<Widget>> widgets)
     {
-        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
+        avg::UniqueId id;
+
+        auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),id](auto widget)
         {
-            auto w1 = signal::map([widget=std::move(widget)]
+            auto w1 = signal::map([widget=std::move(widget),id]
                     (std::vector<Widget> widgets)
                     {
                         return btl::clone(widget)
-                            | addWidgets(std::move(widgets))
+                            | addWidgets(id, std::move(widgets))
                             ;
                     },
                     btl::clone(*widgets)
@@ -162,10 +162,12 @@ namespace reactive::widget
 
     inline auto addWidget(Widget widget)
     {
+        avg::UniqueId id;
+
         std::vector<Widget> widgets;
         widgets.push_back(std::move(widget));
 
-        return addWidgets(std::move(widgets));
+        return addWidgets(id, std::move(widgets));
     }
 } // namespace reactive::widget
 
