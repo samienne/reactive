@@ -350,15 +350,23 @@ void GlxWindow::handleEvent(_XEvent const& e)
                 sizeof(buf), &keysym, &status);
         buf[count] = 0;
 
+        KeyCode key = static_cast<KeyCode>(XLookupKeysym(&e, 0));
+
         genericWindow_.injectKeyEvent(
                 KeyState::down,
-                static_cast<KeyCode>(XLookupKeysym(&e, 0)),
+                key,
                 mapXKeyStateToModifiers(event.xkey.state),
                 ""
                 );
 
-        if (count > 0)
+        if (count > 0
+                && key != KeyCode::backSpace
+                && key != KeyCode::Enter
+                && key != KeyCode::returnKey
+                )
+        {
             genericWindow_.injectTextEvent(buf);
+        }
 
         break;
     }
