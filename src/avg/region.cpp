@@ -78,6 +78,7 @@ namespace
     {
         pmr::vector<Vector2i> const& vertices = polygon.getVertices();
         ClipperLib::Path path(memory);
+
         for (auto const& vertex : vertices)
             path.push_back(ClipperLib::IntPoint(vertex[0], vertex[1]));
 
@@ -449,10 +450,12 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
 
         for (auto const& pt : node->Contour)
         {
-            points.push_back(p2t::Point(
-                        &mono,
-                        (float)pt.x() / xRes,
-                        (float)pt.y() / yRes));
+            points.emplace_back(
+                    &mono,
+                    (float)pt.x() / xRes,
+                    (float)pt.y() / yRes
+                    );
+
             polyline.push_back(&points.back());
         }
 

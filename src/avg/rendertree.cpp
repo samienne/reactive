@@ -190,6 +190,7 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
     else if (oldNode && !newNode)
     {
         // Disappear
+        std::cout << "Disappear" << oldNode->getId() << std::endl;
         return nullptr;
     }
 
@@ -224,6 +225,31 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
 
         if (newChild)
             nodes.push_back(std::move(newChild));
+    }
+
+    for (auto const& oldChild : oldContainer.children_)
+    {
+        auto i = std::find_if(newContainer.children_.begin(),
+                newContainer.children_.end(),
+                [&](std::shared_ptr<RenderTreeNode> const& node)
+                {
+                    return node->getId() == oldChild->getId();
+                });
+
+        if (i == newContainer.children_.end())
+        {
+            auto newChild = oldChild->update(
+                    oldTree,
+                    newTree,
+                    oldChild,
+                    nullptr,
+                    animationOptions,
+                    time
+                    );
+
+            if (newChild)
+                nodes.push_back(std::move(newChild));;
+        }
     }
 
     return std::make_shared<ContainerNode>(
