@@ -1,6 +1,7 @@
 #include "rendertree.h"
 
 #include "pathbuilder.h"
+#include "transform.h"
 
 #include <atomic>
 #include <chrono>
@@ -183,8 +184,8 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
 {
     if (!oldNode && newNode)
     {
-        std::cout << "Appear" << newNode->getId() << std::endl;
         // Appear
+        std::cout << "Appear" << newNode->getId() << std::endl;
         return newNode;
     }
     else if (oldNode && !newNode)
@@ -266,7 +267,7 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
 {
     Drawing result = context.drawing();
 
-    bool cont = false;
+    bool cont = !getObb().hasAnimationEnded(time);
 
     for (auto const& child : children_)
     {

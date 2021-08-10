@@ -49,11 +49,11 @@ namespace avg
         std::function<float(float)> curve;
     };
 
+    AVG_EXPORT float linearCurve(float f);
+
     struct AVG_EXPORT TransitionOptions
     {
     };
-
-    AVG_EXPORT float linearCurve(float f);
 
     AVG_EXPORT float lerp(float a, float b, float t);
     AVG_EXPORT Vector2f lerp(Vector2f a, Vector2f b, float t);
