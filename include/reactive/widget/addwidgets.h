@@ -138,10 +138,8 @@ namespace reactive::widget
     }
 
     template <typename T>
-    auto addWidgets(Signal<T, std::vector<Widget>> widgets)
+    auto addWidgets(avg::UniqueId id, Signal<T, std::vector<Widget>> widgets)
     {
-        avg::UniqueId id;
-
         auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),id](auto widget)
         {
             auto w1 = signal::map([widget=std::move(widget),id]

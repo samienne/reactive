@@ -1,5 +1,6 @@
 #include "rendertree.h"
 
+#include "obb.h"
 #include "pathbuilder.h"
 #include "transform.h"
 
@@ -108,6 +109,19 @@ std::ostream& operator<<(std::ostream& stream, UniqueId const& id)
     return stream << "id(" << id.value_ << ")";
 }
 
+std::optional<std::chrono::milliseconds> earlier(
+        std::optional<std::chrono::milliseconds> t1,
+        std::optional<std::chrono::milliseconds> t2
+        )
+{
+    if (t1.has_value() && t2.has_value())
+        return std::min(*t1, *t2);
+    else if (t1.has_value())
+        return t1;
+    else
+        return t2;
+}
+
 RenderTreeNode::RenderTreeNode(UniqueId id, Animated<Obb> obb,
         TransitionOptions const& transition) :
     id_(id),
@@ -164,7 +178,7 @@ ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
 void ContainerNode::addChild(std::shared_ptr<RenderTreeNode> node)
 {
     if (node)
-        children_.push_back(node);
+        children_.push_back(std::move(node));
 }
 
 void ContainerNode::addChildBehind(std::shared_ptr<RenderTreeNode> node)
@@ -173,7 +187,7 @@ void ContainerNode::addChildBehind(std::shared_ptr<RenderTreeNode> node)
         children_.insert(children_.begin(), std::move(node));
 }
 
-std::shared_ptr<RenderTreeNode> ContainerNode::update(
+UpdateResult ContainerNode::update(
         RenderTree const& oldTree,
         RenderTree const& newTree,
         std::shared_ptr<RenderTreeNode> const& oldNode,
@@ -186,13 +200,19 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
     {
         // Appear
         std::cout << "Appear" << newNode->getId() << std::endl;
-        return newNode;
+        return {
+            newNode,
+            std::nullopt
+        };
     }
     else if (oldNode && !newNode)
     {
         // Disappear
         std::cout << "Disappear" << oldNode->getId() << std::endl;
-        return nullptr;
+        return {
+            nullptr,
+            std::nullopt
+        };
     }
 
     assert(oldNode->getId() == newNode->getId());
@@ -201,6 +221,8 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
     auto const& newContainer = reinterpret_cast<ContainerNode const&>(*newNode);
 
     std::vector<std::shared_ptr<RenderTreeNode>> nodes;
+
+    std::optional<std::chrono::milliseconds> nextUpdate;
 
     for (auto const& child : newContainer.children_)
     {
@@ -215,7 +237,7 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
         if (i != oldContainer.children_.end())
             oldChild = *i;
 
-        auto newChild = child->update(
+        auto [newChild, nextChildUpdate] = child->update(
                 oldTree,
                 newTree,
                 oldChild,
@@ -223,6 +245,8 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
                 animationOptions,
                 time
                 );
+
+        nextUpdate = earlier(nextUpdate, nextChildUpdate);
 
         if (newChild)
             nodes.push_back(std::move(newChild));
@@ -239,7 +263,7 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
 
         if (i == newContainer.children_.end())
         {
-            auto newChild = oldChild->update(
+            auto [newChild, nextChildUpdate] = oldChild->update(
                     oldTree,
                     newTree,
                     oldChild,
@@ -248,36 +272,44 @@ std::shared_ptr<RenderTreeNode> ContainerNode::update(
                     time
                     );
 
+            nextUpdate = earlier(nextUpdate, nextChildUpdate);
+
             if (newChild)
                 nodes.push_back(std::move(newChild));;
         }
     }
 
-    return std::make_shared<ContainerNode>(
-            newNode->getId(),
-            oldContainer.getObb().updated(newContainer.getObb(),
-                animationOptions, time),
-            newNode->getTransitionOptions(),
-            std::move(nodes)
-            );
+    return {
+        std::make_shared<ContainerNode>(
+                newNode->getId(),
+                oldContainer.getObb().updated(newContainer.getObb(),
+                    animationOptions, time),
+                newNode->getTransitionOptions(),
+                std::move(nodes)
+                ),
+        nextUpdate
+    };
 }
 
 std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
+        avg::Obb const& parentObb,
         std::chrono::milliseconds time) const
 {
     Drawing result = context.drawing();
 
     bool cont = !getObb().hasAnimationEnded(time);
 
+    auto obb = parentObb.getTransform() * getObb().getValue(time);
+
     for (auto const& child : children_)
     {
-        auto [drawing, childCont] = child->draw(context, time);
+        auto [drawing, childCont] = child->draw(context, obb, time);
         cont = cont || childCont;
         result += std::move(drawing);
     }
 
     return std::make_pair(
-            std::move(result).transform(getObbAt(time).getTransform()),
+            std::move(result),
             cont
             );
 }
@@ -323,6 +355,161 @@ Drawing RectNode::drawRect(
         ;
 }
 
+TransitionNode::TransitionNode(
+        UniqueId id,
+        Animated<Obb> obb,
+        TransitionOptions transitionOptions,
+        bool isActive,
+        std::shared_ptr<RenderTreeNode> activeNode,
+        std::shared_ptr<RenderTreeNode> transitionedNode
+        ) :
+    RenderTreeNode(
+            id,
+            std::move(obb),
+            transitionOptions
+            ),
+    activeNode_(std::move(activeNode)),
+    transitionedNode_(std::move(transitionedNode)),
+    isActive_(isActive)
+{
+}
+
+UpdateResult TransitionNode::update(
+        RenderTree const& oldTree,
+        RenderTree const& newTree,
+        std::shared_ptr<RenderTreeNode> const& oldNode,
+        std::shared_ptr<RenderTreeNode> const& newNode,
+        AnimationOptions const& animationOptions,
+        std::chrono::milliseconds time
+        ) const
+{
+    std::shared_ptr<RenderTreeNode> oldActive;
+    std::shared_ptr<RenderTreeNode> newActive;
+    std::shared_ptr<RenderTreeNode> newTransitioned;
+    std::optional<Animated<avg::Obb>> newObb;
+    std::optional<UniqueId> transitionId;
+    std::optional<std::chrono::milliseconds> nextUpdate;
+    std::optional<Transition> transition;
+
+    bool isActive = true;
+
+    if (!oldNode && newNode)
+    {
+        // Appear
+        auto const& newTransition = reinterpret_cast<TransitionNode const&>(*newNode);
+        std::cout << "appear transition: " << newNode->getId() << std::endl;
+
+        oldActive = newTransition.transitionedNode_;
+        newActive = newTransition.activeNode_;
+        newTransitioned = newTransition.transitionedNode_;
+        newObb = newNode->getObb();
+        transitionId = newNode->getId();
+    }
+    else if (oldNode && !newNode)
+    {
+        // Disappear
+        std::cout << "disappear transition: " << oldNode->getId() << std::endl;
+        auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
+
+        if (oldTransition.transition_)
+        {
+            if (oldTransition.transition_
+                    && (oldTransition.transition_->startTime
+                        + oldTransition.transition_->duration) <= time)
+            {
+                return {
+                    nullptr,
+                    std::nullopt
+                };
+            }
+
+            return {
+                oldNode,
+                oldTransition.transition_->startTime + oldTransition.transition_->duration
+            };
+        }
+
+        oldActive = oldTransition.activeNode_;
+        newActive = oldTransition.transitionedNode_;
+        newTransitioned = oldTransition.transitionedNode_;
+        newObb = oldNode->getObb();
+        isActive = false;
+        transitionId = oldNode->getId();
+        nextUpdate = time + animationOptions.duration;
+        transition = Transition { time, animationOptions.duration };
+    }
+    else
+    {
+        assert(oldNode->getId() == newNode->getId());
+        assert(oldNode && newNode);
+
+        auto const& newTransition = reinterpret_cast<TransitionNode const&>(*newNode);
+        auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
+
+        bool isActive = oldTransition.isActive_;
+        oldActive = oldTransition.activeNode_;
+        newActive = isActive
+            ? newTransition.activeNode_
+            : newTransition.transitionedNode_
+            ;
+        newTransitioned = newTransition.transitionedNode_;
+        newObb = oldNode->getObb().updated(newNode->getObb(),
+                animationOptions, time);
+        transitionId = newNode->getId();
+
+        transition = oldTransition.transition_;
+
+    }
+
+    assert(newActive && newTransitioned && oldActive);
+    assert(oldActive->getId() == newActive->getId());
+
+    auto [resultNode, nextChildUpdate] = newActive->update(
+            oldTree,
+            newTree,
+            oldActive,
+            newActive,
+            animationOptions,
+            time
+            );
+
+    auto result = std::make_shared<TransitionNode>(
+            *transitionId,
+            *newObb,
+            newActive->getTransitionOptions(),
+            isActive,
+            std::move(resultNode),
+            std::move(newTransitioned)
+            );
+
+    result->transition_ = transition;
+
+    if (transition.has_value())
+        nextUpdate = transition->startTime + transition->duration;
+
+    return {
+        std::move(result),
+        earlier(nextUpdate, nextChildUpdate)
+    };
+}
+
+std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time
+        ) const
+{
+    bool cont = !getObb().hasAnimationEnded(time);
+
+    auto obb = parentObb.getTransform() * getObb().getValue(time);
+
+    auto [drawing, childCont] = activeNode_->draw(context, obb, time);
+
+    return std::make_pair(
+            std::move(drawing),
+            cont || childCont
+            );
+}
+
 RenderTree::RenderTree()
 {
 }
@@ -332,14 +519,19 @@ RenderTree::RenderTree(std::shared_ptr<RenderTreeNode> root) :
 {
 }
 
-RenderTree RenderTree::update(
+std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::update(
         RenderTree&& tree,
         AnimationOptions const& animationOptions,
         std::chrono::milliseconds time
         ) &&
 {
     if (!root_)
-        return std::move(tree);
+    {
+        return {
+            std::move(tree),
+            std::nullopt
+        };
+    }
 
     auto newRoot = tree.root_;
 
@@ -350,10 +542,9 @@ RenderTree RenderTree::update(
                 root_->getTransitionOptions(),
                 std::vector<std::shared_ptr<RenderTreeNode>>()
                 );
-
     }
 
-    newRoot = tree.root_->update(
+    auto [updatedNode, nextUpdate] = tree.root_->update(
             *this,
             tree,
             root_,
@@ -362,11 +553,15 @@ RenderTree RenderTree::update(
             time
             );
 
-    return RenderTree(std::move(newRoot));
+    return {
+        RenderTree(std::move(updatedNode)),
+        nextUpdate
+    };
 }
 
 std::pair<Drawing, bool> RenderTree::draw(
         DrawContext const& context,
+        avg::Obb const& obb,
         std::chrono::milliseconds time) const
 {
     if (!root_)
@@ -374,7 +569,7 @@ std::pair<Drawing, bool> RenderTree::draw(
         return std::make_pair(context.drawing(), false);
     }
 
-    return root_->draw(context, time);
+    return root_->draw(context, obb, time);
 }
 
 RenderTree RenderTree::transform(Transform const& transform) &&

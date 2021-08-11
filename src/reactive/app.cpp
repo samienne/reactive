@@ -277,9 +277,10 @@ public:
 
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
-        if (widget_.getRenderTree().hasChanged())
+        if (widget_.getRenderTree().hasChanged()
+                || (nextUpdate_ && *nextUpdate_ <= timer))
         {
-            renderTree_ = std::move(renderTree_).update(
+            auto [renderTree, nextUpdate] = std::move(renderTree_).update(
                     widget_.getRenderTree().evaluate(),
                     avg::AnimationOptions {
                         std::chrono::milliseconds(500),
@@ -287,14 +288,24 @@ public:
                     },
                     timer
                     );
-            //renderTree_ = widget_.getRenderTree().evaluate();
+
+            if (nextUpdate_ && *nextUpdate_ < timer)
+                nextUpdate_ = std::nullopt;
+
+            nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
+
+            renderTree_ = std::move(renderTree);
 
             animating_ = true;
         }
 
         if (animating_)
         {
-            auto [drawing, cont] = renderTree_.draw(avg::DrawContext(&painter_), timer);
+            auto [drawing, cont] = renderTree_.draw(
+                    avg::DrawContext(&painter_),
+                    avg::Obb(aseWindow.getSize().cast<float>()),
+                    timer
+                    );
             drawing_ = std::move(drawing);
             animating_ = cont;
             redraw_ = true;
@@ -396,6 +407,7 @@ private:
     avg::UniqueId rectId_;
     avg::RenderTree renderTree_;
     avg::Drawing drawing_;
+    std::optional<std::chrono::milliseconds> nextUpdate_;
     bool animating_ = true;
 };
 

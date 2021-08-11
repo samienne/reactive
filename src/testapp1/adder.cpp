@@ -1,5 +1,6 @@
 #include "adder.h"
 
+#include <reactive/widget/transition.h>
 #include <reactive/widget/onclick.h>
 #include <reactive/widget/frame.h>
 #include <reactive/widget/textedit.h>
@@ -125,7 +126,9 @@ reactive::WidgetFactory adder()
                         {
                             items.rangeLock().eraseWithId(id);
                         }))
-                    });
+                    })
+                    | reactive::widget::transition()
+                ;
             });
 
     return vbox({

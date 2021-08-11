@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include "widget/addwidgets.h"
 #include "widget/bindsize.h"
 #include "widget/widgetobject.h"
@@ -7,12 +8,15 @@
 
 #include "box.h"
 
+#include <avg/rendertree.h>
+
 namespace reactive
 {
     namespace detail
     {
         template <Axis dir, typename T, typename U, typename V>
         auto doDynamicBox(
+                avg::UniqueId id,
                 Signal<T, avg::Vector2f> size,
                 Signal<U, std::vector<widget::WidgetObject>> widgets,
                 SharedSignal<V, std::vector<SizeHint>> hints
@@ -44,13 +48,15 @@ namespace reactive
                     std::move(obbs)
                     );
 
-            return widget::addWidgets(std::move(resultWidgets));
+            return widget::addWidgets(id, std::move(resultWidgets));
         }
     } // namespace detail
 
     template <Axis dir, typename T>
     auto dynamicBox(Signal<T, std::vector<widget::WidgetObject>> widgets)
     {
+        avg::UniqueId boxId;
+
         // Signal<std::vector<SizeHint>>
         auto hints = signal::share(signal::join(signal::map(
                 [](std::vector<widget::WidgetObject> const& widgets)
@@ -81,9 +87,10 @@ namespace reactive
             | widget::makeWidgetTransformer()
             .compose(widget::bindSize())
             .values(hints.clone(), std::move(widgets))
-            .bind([](auto size, auto hints, auto widgets) mutable
+            .bind([boxId](auto size, auto hints, auto widgets) mutable
                 {
                     return detail::doDynamicBox<dir>(
+                            boxId,
                             std::move(size),
                             std::move(widgets),
                             std::move(hints)

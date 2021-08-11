@@ -225,6 +225,18 @@ namespace avg
     };
 
     class AVG_EXPORT RenderTree;
+    class RenderTreeNode;
+
+    struct AVG_EXPORT UpdateResult
+    {
+        std::shared_ptr<RenderTreeNode> node;
+        std::optional<std::chrono::milliseconds> nextUpdate;
+    };
+
+    AVG_EXPORT std::optional<std::chrono::milliseconds> earlier(
+            std::optional<std::chrono::milliseconds> t1,
+            std::optional<std::chrono::milliseconds> t2
+            );
 
     class AVG_EXPORT RenderTreeNode
     {
@@ -245,7 +257,7 @@ namespace avg
 
         void transform(Transform const& transform);
 
-        virtual std::shared_ptr<RenderTreeNode> update(
+        virtual UpdateResult update(
                 RenderTree const& oldTree,
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
@@ -255,6 +267,7 @@ namespace avg
                 ) const = 0;
 
         virtual std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
                 std::chrono::milliseconds time
                 ) const = 0;
 
@@ -278,7 +291,7 @@ namespace avg
         void addChild(std::shared_ptr<RenderTreeNode> node);
         void addChildBehind(std::shared_ptr<RenderTreeNode> node);
 
-        std::shared_ptr<RenderTreeNode> update(
+        UpdateResult update(
                 RenderTree const& oldTree,
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
@@ -288,6 +301,7 @@ namespace avg
                 ) const override;
 
         std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
                 std::chrono::milliseconds time) const override;
 
     private:
@@ -334,6 +348,7 @@ namespace avg
         }
 
         std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
                 std::chrono::milliseconds time) const final
         {
             bool cont = btl::tuple_reduce(false, data_,
@@ -350,7 +365,9 @@ namespace avg
                                 getObbAt(time).getSize(),
                                 std::forward<decltype(ts)>(ts).getValue(time)...
                                 )
-                            .transform(getObbAt(time).getTransform());
+                            .transform(obb.getTransform()
+                                    * getObbAt(time).getTransform()
+                                    );
                     },
                     data_
                     ),
@@ -358,7 +375,7 @@ namespace avg
                     );
         }
 
-        std::shared_ptr<RenderTreeNode> update(
+        UpdateResult update(
                 RenderTree const& /*oldTree*/,
                 RenderTree const& /*newTree*/,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
@@ -369,34 +386,37 @@ namespace avg
         {
             if (oldNode && !newNode)
             {
-                std::cout << "Disappear" << newNode->getId() << std::endl;
                 // Disappear
-                return nullptr;
+                std::cout << "Disappear" << newNode->getId() << std::endl;
+                return { nullptr, std::nullopt };
             }
             else if (!oldNode && newNode)
             {
-                std::cout << "Appear" << newNode->getId() << std::endl;
                 // Appear
-                return newNode;
+                std::cout << "Appear" << newNode->getId() << std::endl;
+                return { std::move(newNode), std::nullopt };
             }
 
             auto const& oldShape = reinterpret_cast<ShapeNode const&>(*oldNode);
             auto const& newShape = reinterpret_cast<ShapeNode const&>(*newNode);
 
-            return std::make_shared<ShapeNode>(
-                    newNode->getId(),
-                    oldNode->getObb().updated(newNode->getObb(),
-                        animationOptions, time),
-                    newNode->getTransitionOptions(),
-                    newShape.drawFunction_,
-                    updateTuples(
-                        oldShape.data_,
-                        newShape.data_,
-                        time,
-                        animationOptions,
-                        std::make_index_sequence<sizeof...(Ts)>()
-                        )
-                    );
+            return {
+                std::make_shared<ShapeNode>(
+                        newNode->getId(),
+                        oldNode->getObb().updated(newNode->getObb(),
+                            animationOptions, time),
+                        newNode->getTransitionOptions(),
+                        newShape.drawFunction_,
+                        updateTuples(
+                            oldShape.data_,
+                            newShape.data_,
+                            time,
+                            animationOptions,
+                            std::make_index_sequence<sizeof...(Ts)>()
+                            )
+                        ),
+                    std::nullopt
+            };
         }
 
     private:
@@ -457,6 +477,53 @@ namespace avg
                 );
     };
 
+    class AVG_EXPORT TransitionNode : public RenderTreeNode
+    {
+    public:
+        enum class State
+        {
+            transitioned,
+            transitioning,
+            active,
+            activating
+        };
+
+        struct Transition
+        {
+            std::chrono::milliseconds startTime;
+            std::chrono::milliseconds duration;
+        };
+
+        TransitionNode(
+                UniqueId id,
+                Animated<Obb> obb,
+                TransitionOptions transitionOptions,
+                bool isActive,
+                std::shared_ptr<RenderTreeNode> activeNode,
+                std::shared_ptr<RenderTreeNode> transitionedNode
+                );
+
+        UpdateResult update(
+                RenderTree const& oldTree,
+                RenderTree const& newTree,
+                std::shared_ptr<RenderTreeNode> const& oldNode,
+                std::shared_ptr<RenderTreeNode> const& newNode,
+                AnimationOptions const& animationOptions,
+                std::chrono::milliseconds time
+                ) const override;
+
+        std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
+                std::chrono::milliseconds time
+                ) const override;
+
+    private:
+        std::shared_ptr<RenderTreeNode> activeNode_;
+        std::shared_ptr<RenderTreeNode> transitionedNode_;
+        std::optional<Transition> transition_;
+        bool isActive_ = true;
+    };
+
     class AVG_EXPORT RenderTree
     {
     public:
@@ -469,13 +536,14 @@ namespace avg
         RenderTree& operator=(RenderTree const&) = default;
         RenderTree& operator=(RenderTree&&) noexcept = default;
 
-        RenderTree update(
+        std::pair<RenderTree, std::optional<std::chrono::milliseconds>> update(
                 RenderTree&& tree,
                 AnimationOptions const& animationOptions,
                 std::chrono::milliseconds time
                 ) &&;
 
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
+                avg::Obb const& obb,
                 std::chrono::milliseconds time) const;
 
         RenderTree transform(Transform const& transform) &&;
