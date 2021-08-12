@@ -110,7 +110,8 @@ namespace reactive::widget
                         avg::Obb const& obb)
                     {
                         auto container = std::make_shared<avg::ContainerNode>(
-                                containerId, obb, avg::TransitionOptions {});
+                                containerId, obb
+                                );
 
                         container->addChild(root.getRoot());
 

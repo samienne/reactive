@@ -51,10 +51,6 @@ namespace avg
 
     AVG_EXPORT float linearCurve(float f);
 
-    struct AVG_EXPORT TransitionOptions
-    {
-    };
-
     AVG_EXPORT float lerp(float a, float b, float t);
     AVG_EXPORT Vector2f lerp(Vector2f a, Vector2f b, float t);
     AVG_EXPORT Rect lerp(Rect a, Rect b, float t);
@@ -243,8 +239,7 @@ namespace avg
     public:
         RenderTreeNode(
                 UniqueId id,
-                Animated<Obb> obb,
-                TransitionOptions const& transition
+                Animated<Obb> obb
                 );
 
         virtual ~RenderTreeNode() = default;
@@ -253,7 +248,6 @@ namespace avg
         Obb getObbAt(std::chrono::milliseconds time) const;
         Animated<Obb> const& getObb() const;
         Obb getFinalObb() const;
-        TransitionOptions const& getTransitionOptions() const;
 
         void transform(Transform const& transform);
 
@@ -274,7 +268,6 @@ namespace avg
     private:
         UniqueId id_;
         UniqueId geometryId_;
-        TransitionOptions transitionOptions_;
         Animated<Obb> obb_;
     };
 
@@ -284,7 +277,6 @@ namespace avg
         ContainerNode(
                 UniqueId id,
                 Animated<Obb> obb,
-                TransitionOptions transitionOptions,
                 std::vector<std::shared_ptr<RenderTreeNode>> children = {}
                 );
 
@@ -318,13 +310,11 @@ namespace avg
 
         ShapeNode(UniqueId id,
                 Animated<Obb> obb,
-                TransitionOptions transitionOptions,
                 DrawFunction drawFunction,
                 std::tuple<Animated<Ts>...> data) :
             RenderTreeNode(
                     id,
-                    std::move(obb),
-                    std::move(transitionOptions)
+                    std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
             data_(std::move(data))
@@ -333,14 +323,12 @@ namespace avg
 
         ShapeNode(UniqueId id,
                 Animated<Obb> obb,
-                TransitionOptions transitionOptions,
                 DrawFunction drawFunction,
                 Animated<Ts>... data
                 ):
             RenderTreeNode(
                     id,
-                    std::move(obb),
-                    std::move(transitionOptions)
+                    std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
             data_(std::make_tuple(std::move(data)...))
@@ -405,7 +393,6 @@ namespace avg
                         newNode->getId(),
                         oldNode->getObb().updated(newNode->getObb(),
                             animationOptions, time),
-                        newNode->getTransitionOptions(),
                         newShape.drawFunction_,
                         updateTuples(
                             oldShape.data_,
@@ -443,13 +430,13 @@ namespace avg
     };
 
     template <typename... Ts>
-    auto makeShapeNode(UniqueId id, avg::Obb const& obb, TransitionOptions options,
+    auto makeShapeNode(UniqueId id, avg::Obb const& obb,
             std::function<
             Drawing(DrawContext const&, Vector2f size, std::decay_t<Ts> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(
-                id, obb, options, std::move(function),
+                id, obb, std::move(function),
                 std::make_tuple(std::forward<Ts>(ts)...)
                 );
     }
@@ -461,7 +448,6 @@ namespace avg
         RectNode(
                 UniqueId id,
                 Animated<Obb> obb,
-                TransitionOptions transitionOptions,
                 Animated<float> radius,
                 Animated<btl::option<Brush>> brush,
                 Animated<btl::option<Pen>> pen
@@ -497,7 +483,6 @@ namespace avg
         TransitionNode(
                 UniqueId id,
                 Animated<Obb> obb,
-                TransitionOptions transitionOptions,
                 bool isActive,
                 std::shared_ptr<RenderTreeNode> activeNode,
                 std::shared_ptr<RenderTreeNode> transitionedNode

@@ -23,16 +23,14 @@ auto transition()
             {
                 auto activeContainer = std::make_shared<avg::ContainerNode>(
                         containerId,
-                        avg::Obb(),
-                        avg::TransitionOptions {}
+                        avg::Obb()
                         );
 
                 activeContainer->addChild(renderTree.getRoot());
 
                 auto transitionedContainer = std::make_shared<avg::ContainerNode>(
                         containerId,
-                        avg::Transform().translate(-200, 0) * avg::Obb(),
-                        avg::TransitionOptions {}
+                        avg::Transform().translate(-200, 0) * avg::Obb()
                         );
 
                 transitionedContainer->addChild(renderTree.getRoot());
@@ -40,7 +38,6 @@ auto transition()
                 auto transition = std::make_shared<avg::TransitionNode>(
                         transitionId,
                         avg::Obb(),
-                        avg::TransitionOptions {},
                         true,
                         std::move(activeContainer),
                         std::move(transitionedContainer)

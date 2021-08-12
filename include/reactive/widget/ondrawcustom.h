@@ -35,12 +35,10 @@ namespace detail
                 auto newTree = signal::map([f, id, containerId]
                     (avg::RenderTree const& renderTree, avg::Obb const& obb, auto&&... ts)
                     {
-                        auto shape = avg::makeShapeNode(
-                                id, obb, avg::TransitionOptions {}, f, ts...
-                                );
+                        auto shape = avg::makeShapeNode(id, obb, f, ts...);
 
                         auto container = std::make_shared<avg::ContainerNode>(
-                                containerId, avg::Obb(), avg::TransitionOptions {});
+                                containerId, avg::Obb());
 
                         if (reverse)
                         {

@@ -122,11 +122,9 @@ std::optional<std::chrono::milliseconds> earlier(
         return t2;
 }
 
-RenderTreeNode::RenderTreeNode(UniqueId id, Animated<Obb> obb,
-        TransitionOptions const& transition) :
+RenderTreeNode::RenderTreeNode(UniqueId id, Animated<Obb> obb) :
     id_(id),
     geometryId_(id),
-    transitionOptions_(transition),
     obb_(std::move(obb))
 {
 }
@@ -151,11 +149,6 @@ Obb RenderTreeNode::getFinalObb() const
     return obb_.getFinalValue();
 }
 
-TransitionOptions const& RenderTreeNode::getTransitionOptions() const
-{
-    return transitionOptions_;
-}
-
 void RenderTreeNode::transform(Transform const& transform)
 {
     obb_ = Animated<Obb>(
@@ -168,9 +161,8 @@ void RenderTreeNode::transform(Transform const& transform)
 }
 
 ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
-        TransitionOptions transitionOptions,
         std::vector<std::shared_ptr<RenderTreeNode>> children) :
-    RenderTreeNode(id, obb, transitionOptions),
+    RenderTreeNode(id, obb),
     children_(std::move(children))
 {
 }
@@ -284,7 +276,6 @@ UpdateResult ContainerNode::update(
                 newNode->getId(),
                 oldContainer.getObb().updated(newContainer.getObb(),
                     animationOptions, time),
-                newNode->getTransitionOptions(),
                 std::move(nodes)
                 ),
         nextUpdate
@@ -317,14 +308,12 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
 RectNode::RectNode(
         UniqueId id,
         Animated<Obb> obb,
-        TransitionOptions transitionOptions,
         Animated<float> radius,
         Animated<btl::option<Brush>> brush,
         Animated<btl::option<Pen>> pen
         ) :
-    ShapeNode(id, std::move(obb), std::move(transitionOptions),
-            RectNode::drawRect, std::move(radius), std::move(brush),
-            std::move(pen))
+    ShapeNode(id, std::move(obb), RectNode::drawRect, std::move(radius),
+            std::move(brush), std::move(pen))
 {
 }
 
@@ -358,15 +347,13 @@ Drawing RectNode::drawRect(
 TransitionNode::TransitionNode(
         UniqueId id,
         Animated<Obb> obb,
-        TransitionOptions transitionOptions,
         bool isActive,
         std::shared_ptr<RenderTreeNode> activeNode,
         std::shared_ptr<RenderTreeNode> transitionedNode
         ) :
     RenderTreeNode(
             id,
-            std::move(obb),
-            transitionOptions
+            std::move(obb)
             ),
     activeNode_(std::move(activeNode)),
     transitionedNode_(std::move(transitionedNode)),
@@ -476,7 +463,6 @@ UpdateResult TransitionNode::update(
     auto result = std::make_shared<TransitionNode>(
             *transitionId,
             *newObb,
-            newActive->getTransitionOptions(),
             isActive,
             std::move(resultNode),
             std::move(newTransitioned)
@@ -539,7 +525,6 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
         newRoot = std::make_shared<ContainerNode>(
                 root_->getId(),
                 root_->getFinalObb(),
-                root_->getTransitionOptions(),
                 std::vector<std::shared_ptr<RenderTreeNode>>()
                 );
     }
