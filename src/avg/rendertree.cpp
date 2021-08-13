@@ -496,6 +496,151 @@ std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
             );
 }
 
+ClipNode::ClipNode(UniqueId id,
+        Animated<Obb> obb,
+        std::shared_ptr<RenderTreeNode> childNode
+        ) :
+    RenderTreeNode(id, obb),
+    childNode_(std::move(childNode))
+{
+}
+
+UpdateResult ClipNode::update(
+        RenderTree const& oldTree,
+        RenderTree const& newTree,
+        std::shared_ptr<RenderTreeNode> const& oldNode,
+        std::shared_ptr<RenderTreeNode> const& newNode,
+        AnimationOptions const& animationOptions,
+        std::chrono::milliseconds time
+        ) const
+{
+    if (!oldNode && newNode)
+    {
+        // Appear
+        std::cout << "Appear" << newNode->getId() << std::endl;
+        return {
+            newNode,
+            std::nullopt
+        };
+    }
+    else if (oldNode && !newNode)
+    {
+        // Disappear
+        std::cout << "Disappear" << oldNode->getId() << std::endl;
+
+        auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
+        auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
+                oldTree,
+                newTree,
+                oldNode,
+                nullptr,
+                animationOptions,
+                time
+                );
+
+        if (newChild)
+        {
+            return {
+                std::make_shared<ClipNode>(
+                        oldNode->getId(),
+                        oldNode->getObb(),
+                        std::move(newChild)
+                        ),
+                nextChildUpdate
+            };
+        };
+
+        return {
+            nullptr,
+            std::nullopt
+        };
+    }
+
+    assert(oldNode->getId() == newNode->getId());
+
+    auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
+    auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
+
+    std::optional<std::chrono::milliseconds> nextUpdate;
+
+    if (oldClip.childNode_->getId() != newClip.childNode_->getId())
+    {
+        /*
+        auto [oldChild, nextOldUpdate] = oldNode->update(
+                oldTree,
+                newTree,
+                oldClip.childNode_,
+                nullptr,
+                animationOptions,
+                time
+                );
+                */
+
+        auto [newChild, nextNewUpdate] = newNode->update(
+                oldTree,
+                newTree,
+                nullptr,
+                newClip.childNode_,
+                animationOptions,
+                time
+                );
+
+        //nextUpdate = earlier(nextOldUpdate, nextNewUpdate);
+        nextUpdate = nextNewUpdate;
+
+        return {
+            std::make_shared<ClipNode>(
+                    newClip.getId(),
+                    oldClip.getObb().updated(
+                        newClip.getObb(),
+                        animationOptions,
+                        time
+                        ),
+                    std::move(newChild)
+                    ),
+            nextUpdate
+        };
+    }
+
+    auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
+            oldTree,
+            newTree,
+            oldClip.childNode_,
+            newClip.childNode_,
+            animationOptions,
+            time
+            );
+
+    return {
+        std::make_shared<ClipNode>(
+                newNode->getId(),
+                oldNode->getObb().updated(newNode->getObb(),
+                    animationOptions, time),
+                std::move(newChild)
+                ),
+        earlier(nextUpdate, nextChildUpdate)
+    };
+}
+
+std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time
+        ) const
+{
+    auto obb = parentObb.getTransform() * getObbAt(time);
+
+    auto [drawing, childCont] = childNode_->draw(
+            context,
+            obb,
+            time
+            );
+
+    return {
+        std::move(drawing).clip(obb),
+        !getObb().hasAnimationEnded(time) || childCont
+    };
+}
+
 RenderTree::RenderTree()
 {
 }

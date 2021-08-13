@@ -509,6 +509,31 @@ namespace avg
         bool isActive_ = true;
     };
 
+    class AVG_EXPORT ClipNode : public RenderTreeNode
+    {
+    public:
+        ClipNode(UniqueId id,
+                Animated<Obb> obb,
+                std::shared_ptr<RenderTreeNode> childNode
+                );
+
+        UpdateResult update(
+                RenderTree const& oldTree,
+                RenderTree const& newTree,
+                std::shared_ptr<RenderTreeNode> const& oldNode,
+                std::shared_ptr<RenderTreeNode> const& newNode,
+                AnimationOptions const& animationOptions,
+                std::chrono::milliseconds time
+                ) const override;
+
+        std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
+                std::chrono::milliseconds time
+                ) const override;
+    private:
+        std::shared_ptr<RenderTreeNode> childNode_;
+    };
+
     class AVG_EXPORT RenderTree
     {
     public:

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "setrendertree.h"
+#include "bindrendertree.h"
 #include "bindobb.h"
 #include "bindinputareas.h"
 #include "bindkeyboardinputs.h"
@@ -31,6 +33,34 @@ namespace reactive::widget
             });
     }
     */
+
+    inline auto clipRenderTree()
+    {
+        avg::UniqueId clipId;
+
+        return makeWidgetTransformer()
+            .compose(bindObb(), grabRenderTree())
+            .bind([clipId](auto obb, auto renderTree)
+            {
+                auto newRenderTree = signal::map(
+                    [clipId]
+                    (avg::Obb const& obb, avg::RenderTree const& renderTree)
+                    {
+                        auto clip = std::make_shared<avg::ClipNode>(
+                                clipId,
+                                obb,
+                                renderTree.getRoot()
+                                );
+
+                        return avg::RenderTree(std::move(clip));
+                    },
+                    std::move(obb),
+                    std::move(renderTree)
+                    );
+
+                return setRenderTree(std::move(newRenderTree));
+            });
+    }
 
     inline auto clipInputAreas()
     {
@@ -93,6 +123,7 @@ namespace reactive::widget
     {
         return makeWidgetTransformer()
             .compose(
+                    clipRenderTree(),
                     //clipDrawing(),
                     clipInputAreas(),
                     clipKeyboardInputs()
