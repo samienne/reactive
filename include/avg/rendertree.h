@@ -11,6 +11,7 @@
 #include <btl/tuplereduce.h>
 #include <btl/tupleforeach.h>
 
+#include <optional>
 #include <algorithm>
 #include <chrono>
 #include <type_traits>
