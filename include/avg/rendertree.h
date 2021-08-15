@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <chrono>
 #include <type_traits>
+#include <typeindex>
+#include <typeinfo>
 #include <unordered_map>
 #include <atomic>
 #include <utility>
@@ -266,6 +268,8 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const = 0;
 
+        virtual std::type_index getType() const = 0;
+
     private:
         UniqueId id_;
         UniqueId geometryId_;
@@ -274,11 +278,17 @@ namespace avg
 
     class AVG_EXPORT ContainerNode : public RenderTreeNode
     {
+        struct Child
+        {
+            std::shared_ptr<RenderTreeNode> node;
+            bool active = false;
+        };
+
     public:
         ContainerNode(
                 UniqueId id,
                 Animated<Obb> obb,
-                std::vector<std::shared_ptr<RenderTreeNode>> children = {}
+                std::vector<Child> children = {}
                 );
 
         void addChild(std::shared_ptr<RenderTreeNode> node);
@@ -297,8 +307,10 @@ namespace avg
                 avg::Obb const& obb,
                 std::chrono::milliseconds time) const override;
 
+        std::type_index getType() const override;
+
     private:
-        std::vector<std::shared_ptr<RenderTreeNode>> children_;
+        std::vector<Child> children_;
     };
 
     template <typename... Ts>
@@ -407,6 +419,11 @@ namespace avg
             };
         }
 
+        std::type_index getType() const override
+        {
+            return typeid(ShapeNode);
+        }
+
     private:
         template <size_t... S>
         static std::tuple<Animated<Ts>...> updateTuples(
@@ -503,6 +520,8 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const override;
 
+        std::type_index getType() const override;
+
     private:
         std::shared_ptr<RenderTreeNode> activeNode_;
         std::shared_ptr<RenderTreeNode> transitionedNode_;
@@ -531,6 +550,9 @@ namespace avg
                 avg::Obb const& obb,
                 std::chrono::milliseconds time
                 ) const override;
+
+        std::type_index getType() const override;
+
     private:
         std::shared_ptr<RenderTreeNode> childNode_;
     };

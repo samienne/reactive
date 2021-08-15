@@ -8,6 +8,7 @@
 #include <chrono>
 #include <memory>
 #include <iostream>
+#include <typeindex>
 
 namespace avg
 {
@@ -161,7 +162,7 @@ void RenderTreeNode::transform(Transform const& transform)
 }
 
 ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
-        std::vector<std::shared_ptr<RenderTreeNode>> children) :
+        std::vector<Child> children) :
     RenderTreeNode(id, obb),
     children_(std::move(children))
 {
@@ -170,13 +171,18 @@ ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
 void ContainerNode::addChild(std::shared_ptr<RenderTreeNode> node)
 {
     if (node)
-        children_.push_back(std::move(node));
+        children_.push_back(Child { std::move(node), true });
 }
 
 void ContainerNode::addChildBehind(std::shared_ptr<RenderTreeNode> node)
 {
     if (node)
-        children_.insert(children_.begin(), std::move(node));
+    {
+        children_.insert(
+                children_.begin(),
+                Child { std::move(node), true }
+                );
+    }
 }
 
 UpdateResult ContainerNode::update(
@@ -212,7 +218,7 @@ UpdateResult ContainerNode::update(
     auto const& oldContainer = reinterpret_cast<ContainerNode const&>(*oldNode);
     auto const& newContainer = reinterpret_cast<ContainerNode const&>(*newNode);
 
-    std::vector<std::shared_ptr<RenderTreeNode>> nodes;
+    std::vector<Child> nodes;
 
     std::optional<std::chrono::milliseconds> nextUpdate;
 
@@ -220,20 +226,20 @@ UpdateResult ContainerNode::update(
     {
         auto i = std::find_if(oldContainer.children_.begin(),
                 oldContainer.children_.end(),
-                [&](std::shared_ptr<RenderTreeNode> const& node)
+                [&](Child const& node)
                 {
-                    return node->getId() == child->getId();
+                    return node.node->getId() == child.node->getId();
                 });
 
         std::shared_ptr<RenderTreeNode> oldChild = nullptr;
         if (i != oldContainer.children_.end())
-            oldChild = *i;
+            oldChild = i->node;
 
-        auto [newChild, nextChildUpdate] = child->update(
+        auto [newChild, nextChildUpdate] = child.node->update(
                 oldTree,
                 newTree,
                 oldChild,
-                child,
+                child.node,
                 animationOptions,
                 time
                 );
@@ -241,24 +247,29 @@ UpdateResult ContainerNode::update(
         nextUpdate = earlier(nextUpdate, nextChildUpdate);
 
         if (newChild)
-            nodes.push_back(std::move(newChild));
+        {
+            nodes.push_back(Child{
+                    std::move(newChild),
+                    true
+                    });
+        }
     }
 
     for (auto const& oldChild : oldContainer.children_)
     {
         auto i = std::find_if(newContainer.children_.begin(),
                 newContainer.children_.end(),
-                [&](std::shared_ptr<RenderTreeNode> const& node)
+                [&](Child const& node)
                 {
-                    return node->getId() == oldChild->getId();
+                    return node.node->getId() == oldChild.node->getId();
                 });
 
         if (i == newContainer.children_.end())
         {
-            auto [newChild, nextChildUpdate] = oldChild->update(
+            auto [newChild, nextChildUpdate] = oldChild.node->update(
                     oldTree,
                     newTree,
-                    oldChild,
+                    oldChild.node,
                     nullptr,
                     animationOptions,
                     time
@@ -267,7 +278,7 @@ UpdateResult ContainerNode::update(
             nextUpdate = earlier(nextUpdate, nextChildUpdate);
 
             if (newChild)
-                nodes.push_back(std::move(newChild));;
+                nodes.push_back(Child { std::move(newChild), true });;
         }
     }
 
@@ -294,7 +305,7 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
 
     for (auto const& child : children_)
     {
-        auto [drawing, childCont] = child->draw(context, obb, time);
+        auto [drawing, childCont] = child.node->draw(context, obb, time);
         cont = cont || childCont;
         result += std::move(drawing);
     }
@@ -303,6 +314,11 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
             std::move(result),
             cont
             );
+}
+
+std::type_index ContainerNode::getType() const
+{
+    return typeid(ContainerNode);
 }
 
 RectNode::RectNode(
@@ -384,7 +400,8 @@ UpdateResult TransitionNode::update(
     {
         // Appear
         auto const& newTransition = reinterpret_cast<TransitionNode const&>(*newNode);
-        std::cout << "appear transition: " << newNode->getId() << std::endl;
+        std::cout << "appear transition: " << newNode->getId()
+            << newNode->getType().name() << std::endl;
 
         oldActive = newTransition.transitionedNode_;
         newActive = newTransition.activeNode_;
@@ -448,6 +465,10 @@ UpdateResult TransitionNode::update(
 
     }
 
+    std::cout << "transition: " << newActive->getId()
+        << newActive->getType().name() << std::endl;
+    std::cout << "transition: " << oldActive->getId()
+        << oldActive->getType().name() << std::endl;
     assert(newActive && newTransitioned && oldActive);
     assert(oldActive->getId() == newActive->getId());
 
@@ -496,6 +517,11 @@ std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
             );
 }
 
+std::type_index TransitionNode::getType() const
+{
+    return typeid(TransitionNode);
+}
+
 ClipNode::ClipNode(UniqueId id,
         Animated<Obb> obb,
         std::shared_ptr<RenderTreeNode> childNode
@@ -518,6 +544,30 @@ UpdateResult ClipNode::update(
     {
         // Appear
         std::cout << "Appear" << newNode->getId() << std::endl;
+
+        auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
+
+        auto [newChild, nextChildUpdate] = newClip.childNode_->update(
+                oldTree,
+                newTree,
+                nullptr,
+                newClip.childNode_,
+                animationOptions,
+                time
+                );
+
+        if (newChild)
+        {
+            return {
+                std::make_shared<ClipNode>(
+                        newNode->getId(),
+                        newNode->getObb(),
+                        std::move(newChild)
+                        ),
+                nextChildUpdate
+            };
+        };
+
         return {
             newNode,
             std::nullopt
@@ -532,7 +582,7 @@ UpdateResult ClipNode::update(
         auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
                 oldTree,
                 newTree,
-                oldNode,
+                oldClip.childNode_,
                 nullptr,
                 animationOptions,
                 time
@@ -641,6 +691,11 @@ std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
     };
 }
 
+std::type_index ClipNode::getType() const
+{
+    return typeid(ClipNode);
+}
+
 RenderTree::RenderTree()
 {
 }
@@ -669,8 +724,7 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
     if (!newRoot) {
         newRoot = std::make_shared<ContainerNode>(
                 root_->getId(),
-                root_->getFinalObb(),
-                std::vector<std::shared_ptr<RenderTreeNode>>()
+                root_->getFinalObb()
                 );
     }
 

@@ -1,5 +1,6 @@
 #include "adder.h"
 
+#include <reactive/widget/clip.h>
 #include <reactive/widget/transition.h>
 #include <reactive/widget/onclick.h>
 #include <reactive/widget/frame.h>
@@ -128,6 +129,7 @@ reactive::WidgetFactory adder()
                         }))
                     })
                     | reactive::widget::transition()
+                    | reactive::widget::clip()
                 ;
             });
 
