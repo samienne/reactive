@@ -128,7 +128,7 @@ reactive::WidgetFactory adder()
                             items.rangeLock().eraseWithId(id);
                         }))
                     })
-                    | reactive::widget::transition()
+                    | reactive::widget::transition(reactive::widget::transitionLeft())
                     | reactive::widget::clip()
                 ;
             });

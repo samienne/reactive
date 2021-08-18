@@ -313,7 +313,7 @@ public:
 
         painter_.clearWindow(aseWindow);
 
-        if (redraw_)
+        //if (redraw_)
         {
             painter_.paintToWindow(aseWindow, drawing_);
 
