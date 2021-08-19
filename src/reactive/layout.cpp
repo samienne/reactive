@@ -19,8 +19,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    avg::UniqueId id;
-    auto transformer = [id, obbMap=std::move(obbMap),
+    auto transformer = [obbMap=std::move(obbMap),
             hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
                 (auto w)
         // -> Widget
@@ -51,7 +50,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             });
 
         return widget::makeWidgetTransformerResult(
-                std::move(w) | widget::addWidgets(id, std::move(widgets))
+                std::move(w) | widget::addWidgets(std::move(widgets))
                 );
     };
 

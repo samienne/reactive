@@ -241,13 +241,13 @@ namespace avg
     {
     public:
         RenderTreeNode(
-                UniqueId id,
+                std::optional<UniqueId> id,
                 Animated<Obb> obb
                 );
 
         virtual ~RenderTreeNode() = default;
 
-        UniqueId const& getId() const;
+        std::optional<UniqueId> const& getId() const;
         Obb getObbAt(std::chrono::milliseconds time) const;
         Animated<Obb> const& getObb() const;
         Obb getFinalObb() const;
@@ -271,8 +271,7 @@ namespace avg
         virtual std::type_index getType() const = 0;
 
     private:
-        UniqueId id_;
-        UniqueId geometryId_;
+        std::optional<UniqueId> id_;
         Animated<Obb> obb_;
     };
 
@@ -280,13 +279,21 @@ namespace avg
     {
         struct Child
         {
+            inline Child(
+                std::shared_ptr<RenderTreeNode> node,
+                bool active
+                ) :
+                node(std::move(node)),
+                active(active)
+            {
+            }
+
             std::shared_ptr<RenderTreeNode> node;
             bool active = false;
         };
 
     public:
         ContainerNode(
-                UniqueId id,
                 Animated<Obb> obb,
                 std::vector<Child> children = {}
                 );
@@ -321,12 +328,12 @@ namespace avg
             Drawing(DrawContext const&, Vector2f size, Ts const&...)
             >;
 
-        ShapeNode(UniqueId id,
+        ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
                 std::tuple<Animated<Ts>...> data) :
             RenderTreeNode(
-                    id,
+                    std::nullopt,
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
@@ -334,13 +341,13 @@ namespace avg
         {
         }
 
-        ShapeNode(UniqueId id,
+        ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
                 Animated<Ts>... data
                 ):
             RenderTreeNode(
-                    id,
+                    std::nullopt,
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
@@ -388,13 +395,11 @@ namespace avg
             if (oldNode && !newNode)
             {
                 // Disappear
-                std::cout << "Disappear" << newNode->getId() << std::endl;
                 return { nullptr, std::nullopt };
             }
             else if (!oldNode && newNode)
             {
                 // Appear
-                std::cout << "Appear" << newNode->getId() << std::endl;
                 return { std::move(newNode), std::nullopt };
             }
 
@@ -403,7 +408,6 @@ namespace avg
 
             return {
                 std::make_shared<ShapeNode>(
-                        newNode->getId(),
                         oldNode->getObb().updated(newNode->getObb(),
                             animationOptions, time),
                         newShape.drawFunction_,
@@ -448,13 +452,13 @@ namespace avg
     };
 
     template <typename... Ts>
-    auto makeShapeNode(UniqueId id, avg::Obb const& obb,
+    auto makeShapeNode(avg::Obb const& obb,
             std::function<
             Drawing(DrawContext const&, Vector2f size, std::decay_t<Ts> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(
-                id, obb, std::move(function),
+                obb, std::move(function),
                 std::make_tuple(std::forward<Ts>(ts)...)
                 );
     }
@@ -464,7 +468,6 @@ namespace avg
     {
     public:
         RectNode(
-                UniqueId id,
                 Animated<Obb> obb,
                 Animated<float> radius,
                 Animated<btl::option<Brush>> brush,
@@ -499,7 +502,6 @@ namespace avg
         };
 
         TransitionNode(
-                UniqueId id,
                 Animated<Obb> obb,
                 bool isActive,
                 std::shared_ptr<RenderTreeNode> activeNode,
@@ -532,7 +534,7 @@ namespace avg
     class AVG_EXPORT ClipNode : public RenderTreeNode
     {
     public:
-        ClipNode(UniqueId id,
+        ClipNode(
                 Animated<Obb> obb,
                 std::shared_ptr<RenderTreeNode> childNode
                 );

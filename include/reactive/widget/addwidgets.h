@@ -26,9 +26,9 @@ namespace reactive::widget
             >::value
         , int> = 0
     >
-    auto addWidgets(avg::UniqueId containerId, TWidgets widgets)
+    auto addWidgets(TWidgets widgets)
     {
-        auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),containerId]
+        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))]
             (auto widget)
         {
             auto addAreas = [](std::vector<InputArea> own,
@@ -105,12 +105,12 @@ namespace reactive::widget
             auto renderTrees = signal::combine(std::move(renderTreeSignals));
 
             auto renderTree = signal::map(
-                    [containerId](avg::RenderTree const& root,
+                    [](avg::RenderTree const& root,
                         std::vector<avg::RenderTree> const& trees,
                         avg::Obb const& obb)
                     {
                         auto container = std::make_shared<avg::ContainerNode>(
-                                containerId, obb
+                                obb
                                 );
 
                         container->addChild(root.getRoot());
@@ -139,15 +139,15 @@ namespace reactive::widget
     }
 
     template <typename T>
-    auto addWidgets(avg::UniqueId id, Signal<T, std::vector<Widget>> widgets)
+    auto addWidgets(Signal<T, std::vector<Widget>> widgets)
     {
-        auto f = [widgets=btl::cloneOnCopy(std::move(widgets)),id](auto widget)
+        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
         {
-            auto w1 = signal::map([widget=std::move(widget),id]
+            auto w1 = signal::map([widget=std::move(widget)]
                     (std::vector<Widget> widgets)
                     {
                         return btl::clone(widget)
-                            | addWidgets(id, std::move(widgets))
+                            | addWidgets(std::move(widgets))
                             ;
                     },
                     btl::clone(*widgets)
@@ -161,12 +161,10 @@ namespace reactive::widget
 
     inline auto addWidget(Widget widget)
     {
-        avg::UniqueId id;
-
         std::vector<Widget> widgets;
         widgets.push_back(std::move(widget));
 
-        return addWidgets(id, std::move(widgets));
+        return addWidgets(std::move(widgets));
     }
 } // namespace reactive::widget
 

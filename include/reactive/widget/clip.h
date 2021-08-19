@@ -36,18 +36,15 @@ namespace reactive::widget
 
     inline auto clipRenderTree()
     {
-        avg::UniqueId clipId;
-
         return makeWidgetTransformer()
             .compose(bindObb(), grabRenderTree())
-            .bind([clipId](auto obb, auto renderTree)
+            .bind([](auto obb, auto renderTree)
             {
                 auto newRenderTree = signal::map(
-                    [clipId]
+                    []
                     (avg::Obb const& obb, avg::RenderTree const& renderTree)
                     {
                         auto clip = std::make_shared<avg::ClipNode>(
-                                clipId,
                                 obb,
                                 renderTree.getRoot()
                                 );

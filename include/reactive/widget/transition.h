@@ -31,9 +31,7 @@ auto makeTransition(WidgetTransformer<T> active, WidgetTransformer<T> transition
 
 inline auto transitionLeft()
 {
-    avg::UniqueId id;
-
-    auto makeTransformer = [id](float offset)
+    auto makeTransformer = [](float offset)
     {
         return makeWidgetTransformer()
             .compose(bindObb(), grabRenderTree())
@@ -43,7 +41,6 @@ inline auto transitionLeft()
                         .map([=](auto renderTree, auto obb)
                         {
                             auto container = std::make_shared<avg::ContainerNode>(
-                                    id,
                                     avg::Transform().translate(offset * obb.getSize()[0], 0)
                                         * avg::Obb(obb.getSize())
                                     );
@@ -64,9 +61,6 @@ inline auto transitionLeft()
 template <typename T>
 auto transition(Transition<T> transition)
 {
-    avg::UniqueId transitionId;
-    avg::UniqueId containerId;
-
     return makeWidgetTransformer([=, transition=std::move(transition)]
         (auto widget) mutable
         {
@@ -82,7 +76,6 @@ auto transition(Transition<T> transition)
                     .map([=](auto const& activeRenderTree, auto transitionedRenderTree)
                     {
                         auto transition = std::make_shared<avg::TransitionNode>(
-                                transitionId,
                                 avg::Obb(),
                                 true,
                                 activeRenderTree.getRoot(),

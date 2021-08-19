@@ -23,22 +23,18 @@ namespace detail
         >
     auto onDrawCustom(TFunc&& f, Ts&&... ts)
     {
-        avg::UniqueId id;
-        avg::UniqueId containerId;
-
         return makeWidgetTransformer()
             .compose(grabRenderTree(), bindObb())
             .values(std::forward<Ts>(ts)...)
-            .bind([f=std::forward<TFunc>(f), id, containerId](auto renderTree, auto obb,
+            .bind([f=std::forward<TFunc>(f)](auto renderTree, auto obb,
                         auto&&... ts)
             {
-                auto newTree = signal::map([f, id, containerId]
+                auto newTree = signal::map([f]
                     (avg::RenderTree const& renderTree, avg::Obb const& obb, auto&&... ts)
                     {
-                        auto shape = avg::makeShapeNode(id, obb, f, ts...);
+                        auto shape = avg::makeShapeNode(obb, f, ts...);
 
-                        auto container = std::make_shared<avg::ContainerNode>(
-                                containerId, avg::Obb());
+                        auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
 
                         if (reverse)
                         {

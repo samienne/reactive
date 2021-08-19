@@ -8,6 +8,7 @@
 #include <chrono>
 #include <memory>
 #include <iostream>
+#include <optional>
 #include <typeindex>
 
 namespace avg
@@ -123,14 +124,13 @@ std::optional<std::chrono::milliseconds> earlier(
         return t2;
 }
 
-RenderTreeNode::RenderTreeNode(UniqueId id, Animated<Obb> obb) :
+RenderTreeNode::RenderTreeNode(std::optional<UniqueId> id, Animated<Obb> obb) :
     id_(id),
-    geometryId_(id),
     obb_(std::move(obb))
 {
 }
 
-UniqueId const& RenderTreeNode::getId() const
+std::optional<UniqueId> const& RenderTreeNode::getId() const
 {
     return id_;
 }
@@ -161,9 +161,11 @@ void RenderTreeNode::transform(Transform const& transform)
             );
 }
 
-ContainerNode::ContainerNode(UniqueId id, Animated<Obb> obb,
-        std::vector<Child> children) :
-    RenderTreeNode(id, obb),
+ContainerNode::ContainerNode(
+        Animated<Obb> obb,
+        std::vector<Child> children
+        ) :
+    RenderTreeNode(std::nullopt, obb),
     children_(std::move(children))
 {
 }
@@ -197,7 +199,6 @@ UpdateResult ContainerNode::update(
     if (!oldNode && newNode)
     {
         // Appear
-        std::cout << "Appear" << newNode->getId() << std::endl;
         return {
             newNode,
             std::nullopt
@@ -206,7 +207,6 @@ UpdateResult ContainerNode::update(
     else if (oldNode && !newNode)
     {
         // Disappear
-        std::cout << "Disappear" << oldNode->getId() << std::endl;
         return {
             nullptr,
             std::nullopt
@@ -222,6 +222,139 @@ UpdateResult ContainerNode::update(
 
     std::optional<std::chrono::milliseconds> nextUpdate;
 
+    auto i = oldContainer.children_.begin();
+    auto j = newContainer.children_.begin();
+
+    while (i != oldContainer.children_.end() || j != newContainer.children_.end())
+    {
+        if (i != oldContainer.children_.end())
+        {
+            auto l = (i->active && i->node->getId().has_value())
+                ? std::find_if(newContainer.children_.begin(), newContainer.children_.end(),
+                    [&](auto const& child)
+                    {
+                        return i->node->getId() == child.node->getId();
+                    })
+                : newContainer.children_.end()
+                ;
+
+            bool oldNodeWasRemoved =
+                (i->node->getId().has_value() && l == newContainer.children_.end())
+                || (!i->node->getId().has_value() && j == newContainer.children_.end())
+                ;
+
+            if (!i->active || oldNodeWasRemoved)
+            {
+                auto [newChild, nextChildUpdate] = i->node->update(
+                        oldTree,
+                        newTree,
+                        i->node,
+                        nullptr,
+                        animationOptions,
+                        time
+                        );
+
+                if (newChild)
+                {
+                    nextUpdate = earlier(nextUpdate, nextChildUpdate);
+                    nodes.emplace_back(std::move(newChild), false);
+                }
+
+                ++i;
+                continue;
+            }
+
+            if (l != newContainer.children_.end())
+            {
+                ++i;
+                continue;
+            }
+        }
+
+        if (j != newContainer.children_.end())
+        {
+            auto k = j->node->getId().has_value()
+                ? std::find_if(oldContainer.children_.begin(), oldContainer.children_.end(),
+                        [&](auto const& child)
+                        {
+                            return j->node->getId() == child.node->getId();
+                        })
+                : oldContainer.children_.end();
+
+            bool newNodeWasInserted =
+                (!j->node->getId().has_value() && i == oldContainer.children_.end())
+                || (j->node->getId().has_value()
+                        && k == oldContainer.children_.end());
+
+            if (newNodeWasInserted)
+            {
+                auto [newChild, nextChildUpdate] = j->node->update(
+                        oldTree,
+                        newTree,
+                        nullptr,
+                        j->node,
+                        animationOptions,
+                        time
+                        );
+
+                if (newChild)
+                {
+                    nextUpdate = earlier(nextUpdate, nextChildUpdate);
+                    nodes.emplace_back(std::move(newChild), true);
+                }
+
+                ++j;
+                continue;
+            }
+
+            if (j->node->getId().has_value() && k != oldContainer.children_.end())
+            {
+                auto [newChild, nextChildUpdate] = j->node->update(
+                        oldTree,
+                        newTree,
+                        k->node,
+                        j->node,
+                        animationOptions,
+                        time
+                        );
+
+                if (newChild)
+                {
+                    nextUpdate = earlier(nextUpdate, nextChildUpdate);
+                    nodes.emplace_back(std::move(newChild), true);
+                }
+
+                ++j;
+                continue;
+            }
+        }
+
+        if (i != oldContainer.children_.end() && j != newContainer.children_.end())
+        {
+            auto [newChild, nextChildUpdate] = j->node->update(
+                    oldTree,
+                    newTree,
+                    i->node,
+                    j->node,
+                    animationOptions,
+                    time
+                    );
+
+            if (newChild)
+            {
+                nextUpdate = earlier(nextUpdate, nextChildUpdate);
+                nodes.emplace_back(std::move(newChild), true);
+            }
+
+            ++i;
+            ++j;
+            continue;
+        }
+
+        assert(false);
+    }
+
+    /*
     for (auto const& child : newContainer.children_)
     {
         auto i = std::find_if(oldContainer.children_.begin(),
@@ -281,10 +414,10 @@ UpdateResult ContainerNode::update(
                 nodes.push_back(Child { std::move(newChild), true });;
         }
     }
+    */
 
     return {
         std::make_shared<ContainerNode>(
-                newNode->getId(),
                 oldContainer.getObb().updated(newContainer.getObb(),
                     animationOptions, time),
                 std::move(nodes)
@@ -322,13 +455,12 @@ std::type_index ContainerNode::getType() const
 }
 
 RectNode::RectNode(
-        UniqueId id,
         Animated<Obb> obb,
         Animated<float> radius,
         Animated<btl::option<Brush>> brush,
         Animated<btl::option<Pen>> pen
         ) :
-    ShapeNode(id, std::move(obb), RectNode::drawRect, std::move(radius),
+    ShapeNode(std::move(obb), RectNode::drawRect, std::move(radius),
             std::move(brush), std::move(pen))
 {
 }
@@ -361,14 +493,13 @@ Drawing RectNode::drawRect(
 }
 
 TransitionNode::TransitionNode(
-        UniqueId id,
         Animated<Obb> obb,
         bool isActive,
         std::shared_ptr<RenderTreeNode> activeNode,
         std::shared_ptr<RenderTreeNode> transitionedNode
         ) :
     RenderTreeNode(
-            id,
+            std::nullopt,
             std::move(obb)
             ),
     activeNode_(std::move(activeNode)),
@@ -390,7 +521,6 @@ UpdateResult TransitionNode::update(
     std::shared_ptr<RenderTreeNode> newActive;
     std::shared_ptr<RenderTreeNode> newTransitioned;
     std::optional<Animated<avg::Obb>> newObb;
-    std::optional<UniqueId> transitionId;
     std::optional<std::chrono::milliseconds> nextUpdate;
     std::optional<Transition> transition;
 
@@ -400,19 +530,15 @@ UpdateResult TransitionNode::update(
     {
         // Appear
         auto const& newTransition = reinterpret_cast<TransitionNode const&>(*newNode);
-        std::cout << "appear transition: " << newNode->getId()
-            << newNode->getType().name() << std::endl;
 
         oldActive = newTransition.transitionedNode_;
         newActive = newTransition.activeNode_;
         newTransitioned = newTransition.transitionedNode_;
         newObb = newNode->getObb();
-        transitionId = newNode->getId();
     }
     else if (oldNode && !newNode)
     {
         // Disappear
-        std::cout << "disappear transition: " << oldNode->getId() << std::endl;
         auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
 
         if (oldTransition.transition_)
@@ -438,7 +564,6 @@ UpdateResult TransitionNode::update(
         newTransitioned = oldTransition.transitionedNode_;
         newObb = oldNode->getObb();
         isActive = false;
-        transitionId = oldNode->getId();
         nextUpdate = time + animationOptions.duration;
         transition = Transition { time, animationOptions.duration };
     }
@@ -459,16 +584,10 @@ UpdateResult TransitionNode::update(
         newTransitioned = newTransition.transitionedNode_;
         newObb = oldNode->getObb().updated(newNode->getObb(),
                 animationOptions, time);
-        transitionId = newNode->getId();
 
         transition = oldTransition.transition_;
-
     }
 
-    std::cout << "transition: " << newActive->getId()
-        << newActive->getType().name() << std::endl;
-    std::cout << "transition: " << oldActive->getId()
-        << oldActive->getType().name() << std::endl;
     assert(newActive && newTransitioned && oldActive);
     assert(oldActive->getId() == newActive->getId());
 
@@ -482,7 +601,6 @@ UpdateResult TransitionNode::update(
             );
 
     auto result = std::make_shared<TransitionNode>(
-            *transitionId,
             *newObb,
             isActive,
             std::move(resultNode),
@@ -522,11 +640,11 @@ std::type_index TransitionNode::getType() const
     return typeid(TransitionNode);
 }
 
-ClipNode::ClipNode(UniqueId id,
+ClipNode::ClipNode(
         Animated<Obb> obb,
         std::shared_ptr<RenderTreeNode> childNode
         ) :
-    RenderTreeNode(id, obb),
+    RenderTreeNode(std::nullopt, obb),
     childNode_(std::move(childNode))
 {
 }
@@ -543,8 +661,6 @@ UpdateResult ClipNode::update(
     if (!oldNode && newNode)
     {
         // Appear
-        std::cout << "Appear" << newNode->getId() << std::endl;
-
         auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
 
         auto [newChild, nextChildUpdate] = newClip.childNode_->update(
@@ -560,7 +676,6 @@ UpdateResult ClipNode::update(
         {
             return {
                 std::make_shared<ClipNode>(
-                        newNode->getId(),
                         newNode->getObb(),
                         std::move(newChild)
                         ),
@@ -576,8 +691,6 @@ UpdateResult ClipNode::update(
     else if (oldNode && !newNode)
     {
         // Disappear
-        std::cout << "Disappear" << oldNode->getId() << std::endl;
-
         auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
         auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
                 oldTree,
@@ -592,7 +705,6 @@ UpdateResult ClipNode::update(
         {
             return {
                 std::make_shared<ClipNode>(
-                        oldNode->getId(),
                         oldNode->getObb(),
                         std::move(newChild)
                         ),
@@ -640,7 +752,6 @@ UpdateResult ClipNode::update(
 
         return {
             std::make_shared<ClipNode>(
-                    newClip.getId(),
                     oldClip.getObb().updated(
                         newClip.getObb(),
                         animationOptions,
@@ -663,7 +774,6 @@ UpdateResult ClipNode::update(
 
     return {
         std::make_shared<ClipNode>(
-                newNode->getId(),
                 oldNode->getObb().updated(newNode->getObb(),
                     animationOptions, time),
                 std::move(newChild)
@@ -723,7 +833,6 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
 
     if (!newRoot) {
         newRoot = std::make_shared<ContainerNode>(
-                root_->getId(),
                 root_->getFinalObb()
                 );
     }
