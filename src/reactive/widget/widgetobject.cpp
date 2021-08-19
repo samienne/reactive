@@ -1,4 +1,6 @@
 #include "widget/widgetobject.h"
+
+#include "widget/setid.h"
 #include "widget/transform.h"
 
 #include <pmr/new_delete_resource.h>
@@ -15,7 +17,9 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
     transformInput_(signal::input(avg::Transform())),
     widget_((factory_
-            | transform(transformInput_.signal.clone()))
+            | widget::setId(signal::constant(id_))
+            | transform(transformInput_.signal.clone())
+            )
             (sizeInput_.signal.clone())
             )
 {
@@ -45,6 +49,11 @@ void WidgetObject::setTransform(avg::Transform t)
 Widget const& WidgetObject::getWidget()
 {
     return impl_->widget_;
+}
+
+avg::UniqueId const& WidgetObject::getId() const
+{
+    return impl_->id_;
 }
 
 AnySignal<SizeHint> const& WidgetObject::getSizeHint() const

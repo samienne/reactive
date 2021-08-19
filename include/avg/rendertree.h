@@ -559,6 +559,35 @@ namespace avg
         std::shared_ptr<RenderTreeNode> childNode_;
     };
 
+    class AVG_EXPORT IdNode : public RenderTreeNode
+    {
+    public:
+        IdNode(
+                UniqueId id,
+                Animated<Obb> obb,
+                std::shared_ptr<RenderTreeNode> childNode
+                );
+
+        UpdateResult update(
+                RenderTree const& oldTree,
+                RenderTree const& newTree,
+                std::shared_ptr<RenderTreeNode> const& oldNode,
+                std::shared_ptr<RenderTreeNode> const& newNode,
+                AnimationOptions const& animationOptions,
+                std::chrono::milliseconds time
+                ) const override;
+
+        std::pair<Drawing, bool> draw(DrawContext const& context,
+                avg::Obb const& obb,
+                std::chrono::milliseconds time
+                ) const override;
+
+        std::type_index getType() const override;
+
+    private:
+        std::shared_ptr<RenderTreeNode> childNode_;
+    };
+
     class AVG_EXPORT RenderTree
     {
     public:

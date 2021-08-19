@@ -24,6 +24,7 @@ namespace reactive::widget
         void setTransform(avg::Transform t);
 
         Widget const& getWidget();
+        avg::UniqueId const& getId() const;
 
         AnySignal<SizeHint> const& getSizeHint() const;
 
@@ -32,6 +33,7 @@ namespace reactive::widget
         {
             Impl(WidgetFactory factory);
 
+            avg::UniqueId id_;
             WidgetFactory factory_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
             signal::Input<avg::Vector2f> sizeInput_;
