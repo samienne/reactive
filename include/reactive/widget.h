@@ -354,6 +354,14 @@ namespace reactive
 
         btl::option<signal::signal_time_t> update(signal::FrameInfo const& frame)
         {
+            auto t1 = updateBegin(frame);
+            auto t2 = updateEnd(frame);
+
+            return min(t1, t2);
+        }
+
+        btl::option<signal::signal_time_t> updateBegin(signal::FrameInfo const& frame)
+        {
             auto t = renderTree_->updateBegin(frame);
             auto t2 = areas_->updateBegin(frame);
             t = min(t, t2);
@@ -367,10 +375,13 @@ namespace reactive
             t2 = theme_->updateBegin(frame);
             t = min(t, t2);
 
-            t2 = areas_->updateEnd(frame);
-            t = min(t, t2);
+            return t;
+        }
 
-            t2 = renderTree_->updateEnd(frame);
+        btl::option<signal::signal_time_t> updateEnd(signal::FrameInfo const& frame)
+        {
+            auto t = areas_->updateEnd(frame);
+            auto t2 = renderTree_->updateEnd(frame);
             t = min(t, t2);
 
             t2 = obb_->updateEnd(frame);

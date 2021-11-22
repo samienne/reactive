@@ -36,7 +36,7 @@ namespace reactive::signal
         {
             changed_ = false;
             auto r = outer_->updateBegin(frame);
-            if (inner_.valid())
+            if (inner_)
             {
                 auto r2 = (*inner_)->updateBegin(frame);
                 r = min(r, r2);
@@ -50,11 +50,11 @@ namespace reactive::signal
             auto r1 = outer_->updateEnd(frame);
 
             btl::option<signal_time_t> r2 = btl::none;
-            if (!inner_.valid() || outer_->hasChanged())
+            if (!inner_ || outer_->hasChanged())
             {
-                inner_ = btl::just(btl::cloneOnCopy(
+                inner_ = btl::cloneOnCopy(
                             btl::clone(outer_->evaluate())
-                            ));
+                            );
 
                 r2 = (*inner_)->updateBegin(frame);
                 auto r3 = (*inner_)->updateEnd(frame);
@@ -73,11 +73,11 @@ namespace reactive::signal
 
         SignalType evaluate() const
         {
-            if (!inner_.valid())
+            if (!inner_)
             {
-                inner_ = btl::just(btl::cloneOnCopy(
+                inner_ = btl::cloneOnCopy(
                             btl::clone(outer_->evaluate())
-                            ));
+                            );
             }
 
             return (*inner_)->evaluate();
@@ -92,11 +92,11 @@ namespace reactive::signal
         template <typename TCallback>
         Connection observe(TCallback const& cb)
         {
-            if (!inner_.valid())
+            if (!inner_)
             {
-                inner_ = btl::just(btl::cloneOnCopy(
+                inner_ = btl::cloneOnCopy(
                             btl::clone(outer_->evaluate())
-                            ));
+                            );
             }
 
             auto c = outer_->observe(cb);
@@ -122,7 +122,7 @@ namespace reactive::signal
 
     private:
         btl::CloneOnCopy<OuterSig> outer_;
-        mutable btl::option<btl::CloneOnCopy<std::decay_t<InnerSig>>> inner_;
+        mutable std::optional<btl::CloneOnCopy<std::decay_t<InnerSig>>> inner_;
         bool changed_ = false;
     };
 

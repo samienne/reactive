@@ -1,4 +1,5 @@
 #include "adder.h"
+#include "avg/rendertree.h"
 
 #include <reactive/widget/clip.h>
 #include <reactive/widget/transition.h>
@@ -13,6 +14,7 @@
 #include <reactive/filler.h>
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
+#include <reactive/app.h>
 
 #include <reactive/signal/databind.h>
 #include <reactive/signal/constant.h>
@@ -125,7 +127,13 @@ reactive::WidgetFactory adder()
                     ,
                     widget::button("x", signal::constant([id, items]() mutable
                         {
-                            items.rangeLock().eraseWithId(id);
+                            app().withAnimation(
+                                    std::chrono::milliseconds(300),
+                                    avg::linearCurve,
+                                    [id, items]() mutable
+                                    {
+                                        items.rangeLock().eraseWithId(id);
+                                    });
                         }))
                     })
                     | reactive::widget::transition(reactive::widget::transitionLeft())
@@ -137,11 +145,23 @@ reactive::WidgetFactory adder()
             vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
-                    items.rangeLock().pushFront(std::move(text));
+                    app().withAnimation(
+                            std::chrono::milliseconds(300),
+                            avg::linearCurve,
+                            [&]()
+                            {
+                                items.rangeLock().pushFront(std::move(text));
+                            });
                 },
                 [items]() mutable
                 {
-                    items.rangeLock().sort();
+                    app().withAnimation(
+                            std::chrono::milliseconds(300),
+                            avg::linearCurve,
+                            [&]()
+                            {
+                                items.rangeLock().sort();
+                            });
                 }
                 )
             });

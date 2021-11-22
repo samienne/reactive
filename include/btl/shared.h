@@ -34,6 +34,7 @@ namespace btl
         shared(std::shared_ptr<T2> const& rhs) :
             data_(rhs)
         {
+            assert(data_ && "empty pointer not allowed");
         }
 
         template <typename T2, typename T3 = T, typename = typename
@@ -44,6 +45,7 @@ namespace btl
         shared(std::shared_ptr<T2>&& rhs) :
             data_(std::move(rhs))
         {
+            assert(data_ && "empty pointer not allowed");
         }
 
         shared(shared<T> const&) = default;

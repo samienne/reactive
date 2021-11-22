@@ -1,5 +1,6 @@
 #include "app.h"
 
+#include "signal/updateresult.h"
 #include "window.h"
 #include "send.h"
 #include "debug.h"
@@ -39,16 +40,21 @@ namespace
         return ++s_frameId_;
     }
 
+    /*
     uint64_t getCurrentFrameId()
     {
         return s_frameId_;
     }
+    */
 } // anonymous namespace
+
+class WindowGlue;
 
 class REACTIVE_EXPORT AppDeferred
 {
 public:
     std::vector<Window> windows_;
+    std::vector<btl::shared<WindowGlue>> windowGlues_;
 };
 
 class WindowGlue
@@ -86,11 +92,6 @@ public:
 
         aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e)
         {
-            if (pointerEventsOnThisFrame_++ > 0)
-            {
-                widget_.update({getNextFrameId(), signal::signal_time_t(0)});
-            }
-
             if (e.state == ase::ButtonState::down)
             {
                 for (auto const &a : widget_.getInputAreas().evaluate())
@@ -99,6 +100,8 @@ public:
                     {
                         a.emitButtonEvent(e);
                         areas_[e.button].push_back(a);
+
+                        makeTransaction(signal::signal_time_t(0), std::nullopt);
                     }
                 }
             }
@@ -109,8 +112,11 @@ public:
                     a.emitButtonEvent(e);
                 }
 
-            areas_[e.button].clear();
+                areas_[e.button].clear();
+
+                makeTransaction(signal::signal_time_t(0), std::nullopt);
             }
+
         });
 
         aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e)
@@ -188,6 +194,8 @@ public:
             {
                 (*currentKeyHandler_)(e);
                 keys_[e.getKey()] = *currentKeyHandler_;
+
+                makeTransaction(signal::signal_time_t(0), std::nullopt);
             }
             else
             {
@@ -196,14 +204,21 @@ public:
                     return;
                 auto f = i->second;
                 keys_.erase(i);
+
                 f(e);
+
+                makeTransaction(signal::signal_time_t(0), std::nullopt);
             }
         });
 
         aseWindow.setTextCallback([this](ase::TextEvent const& e)
         {
             if (currentTextHandler_.valid())
+            {
                 (*currentTextHandler_)(e);
+
+                makeTransaction(signal::signal_time_t(0), std::nullopt);
+            }
         });
 
         aseWindow.setHoverCallback([this](ase::HoverEvent const &e)
@@ -214,6 +229,8 @@ public:
                 {
                     currentHoverArea_->emitHoverEvent(e);
                     currentHoverArea_ = btl::none;
+
+                    makeTransaction(signal::signal_time_t(0), std::nullopt);
                 }
             }
         });
@@ -229,26 +246,23 @@ public:
             << std::endl;
     }
 
-    btl::option<signal::signal_time_t> frame(std::chrono::microseconds dt)
+    btl::option<signal::signal_time_t> makeTransaction(
+            std::chrono::microseconds dt,
+            std::optional<avg::AnimationOptions> const& animationOptions
+            )
     {
-        pointerEventsOnThisFrame_ = 0;
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
-        if (resized_)
-        {
-            size_.handle.set(aseWindow.getSize().cast<float>());
-            painter_.setSize(aseWindow.getSize());
-        }
-        resized_ = false;
+        signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        auto frameId = getCurrentFrameId();
+        auto timeToNext = widget_.updateBegin(frameInfo);
+        timeToNext = signal::min(timeToNext, titleSignal_.updateBegin(frameInfo));
 
-        auto timeToNext = titleSignal_.updateBegin({frameId, dt});
+        timeToNext = signal::min(timeToNext, widget_.updateEnd(frameInfo));
+        timeToNext = signal::min(timeToNext, titleSignal_.updateEnd(frameInfo));
 
-        auto timeToNext2 = widget_.update({frameId, dt});
-        timeToNext = signal::min(timeToNext, timeToNext2);
-
-        timeToNext2 = titleSignal_.updateEnd({frameId, dt});
-        timeToNext = signal::min(timeToNext, timeToNext2);
+        if (titleSignal_.hasChanged())
+            aseWindow.setTitle(titleSignal_.evaluate());
 
         if (widget_.getInputAreas().hasChanged())
         {
@@ -268,63 +282,6 @@ public:
                     }
                 }
             }
-        }
-
-        if (titleSignal_.hasChanged())
-            aseWindow.setTitle(titleSignal_.evaluate());
-
-        timer_ += dt;
-
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
-
-        if (widget_.getRenderTree().hasChanged()
-                || (nextUpdate_ && *nextUpdate_ <= timer))
-        {
-            auto [renderTree, nextUpdate] = std::move(renderTree_).update(
-                    widget_.getRenderTree().evaluate(),
-                    avg::AnimationOptions {
-                        std::chrono::milliseconds(500),
-                        avg::linearCurve
-                    },
-                    timer
-                    );
-
-            if (nextUpdate_ && *nextUpdate_ < timer)
-                nextUpdate_ = std::nullopt;
-
-            nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
-
-            renderTree_ = std::move(renderTree);
-
-            animating_ = true;
-        }
-
-        if (animating_)
-        {
-            auto [drawing, cont] = renderTree_.draw(
-                    avg::DrawContext(&painter_),
-                    avg::Obb(aseWindow.getSize().cast<float>()),
-                    timer
-                    );
-            drawing_ = std::move(drawing);
-            animating_ = cont;
-            redraw_ = true;
-        }
-
-        painter_.clearWindow(aseWindow);
-
-        //if (redraw_)
-        {
-            painter_.paintToWindow(aseWindow, drawing_);
-
-
-            painter_.presentWindow(aseWindow);
-
-            painter_.flush();
-
-            redraw_ = false;
-
-            ++frames_;
         }
 
         if (widget_.getKeyboardInputs().hasChanged())
@@ -355,6 +312,78 @@ public:
                 currentKeyHandler_ = handle.getKeyHandler();
                 currentTextHandler_ = handle.getTextHandler();
             }
+        }
+
+        if (widget_.getRenderTree().hasChanged()
+                || (nextUpdate_ && *nextUpdate_ <= timer)
+                )
+        {
+            auto [renderTree, nextUpdate] = std::move(renderTree_).update(
+                    widget_.getRenderTree().evaluate(),
+                    /*avg::AnimationOptions {
+                        std::chrono::milliseconds(500),
+                        avg::linearCurve
+                    },*/
+                    animationOptions,
+                    timer
+                    );
+
+            if (nextUpdate_ && *nextUpdate_ < timer)
+                nextUpdate_ = std::nullopt;
+
+            nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
+
+            renderTree_ = std::move(renderTree);
+
+            animating_ = true;
+        }
+
+        return timeToNext;
+    }
+
+    btl::option<signal::signal_time_t> frame(std::chrono::microseconds dt)
+    {
+        pointerEventsOnThisFrame_ = 0;
+
+        if (resized_)
+        {
+            size_.handle.set(aseWindow.getSize().cast<float>());
+            painter_.setSize(aseWindow.getSize());
+            resized_ = false;
+        }
+
+        timer_ += dt;
+
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
+
+        auto timeToNext = makeTransaction(dt, std::nullopt);
+
+        if (animating_)
+        {
+            auto [drawing, cont] = renderTree_.draw(
+                    avg::DrawContext(&painter_),
+                    avg::Obb(aseWindow.getSize().cast<float>()),
+                    timer
+                    );
+            drawing_ = std::move(drawing);
+            animating_ = cont;
+            redraw_ = true;
+        }
+
+        painter_.clearWindow(aseWindow);
+
+        //if (redraw_)
+        {
+            painter_.paintToWindow(aseWindow, drawing_);
+
+
+            painter_.presentWindow(aseWindow);
+
+            painter_.flush();
+
+            redraw_ = false;
+
+            ++frames_;
         }
 
         if (animating_)
@@ -406,6 +435,7 @@ private:
     avg::UniqueId containerId_;
     avg::UniqueId rectId_;
     avg::RenderTree renderTree_;
+    std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     bool animating_ = true;
@@ -429,14 +459,14 @@ int App::run(AnySignal<bool> running) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
-    std::vector<btl::shared<WindowGlue>> glues;
-    glues.reserve(d()->windows_.size());
+    //std::vector<btl::shared<WindowGlue>> glues;
+    d()->windowGlues_.reserve(d()->windows_.size());
 
     ase::RenderContext context = platform.makeRenderContext();
 
     for (auto&& w : d()->windows_)
     {
-        glues.push_back(std::make_shared<WindowGlue>(
+        d()->windowGlues_.push_back(std::make_shared<WindowGlue>(
             platform, context, std::move(w)));
     }
 
@@ -461,21 +491,11 @@ int App::run(AnySignal<bool> running) &&
         auto timeToNext2 = running.updateEnd(frame);
         timeToNext = reactive::signal::min(timeToNext, timeToNext2);
 
-        for (auto& glue : glues)
+        for (auto& glue : d()->windowGlues_)
         {
-            auto t = glue->frame(/*events,*/ dt);
+            auto t = glue->frame(dt);
 
             timeToNext = reactive::signal::min(timeToNext, t);
-
-            /*if (glue->getWidget().getInputAreas().hasChanged())
-            {
-                std::cout << "Wrote test1.dot" << std::endl;
-                auto s = glues.front()->getWidget()
-                    .getInputAreas().annotate().getDot();
-                std::ofstream fs("test1.dot");
-                fs << s << std::endl;
-                fs.close();
-            }*/
         }
 
         mainQueue.flush();
@@ -497,11 +517,13 @@ int App::run(AnySignal<bool> running) &&
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& glue : glues)
+    for (auto const& glue : d()->windowGlues_)
     {
         DBG("Window \"%1\" had FPS of %2.", glue->getTitle(),
                 (double)glue->getFrames() / time.count());
     }
+
+    d()->windowGlues_.clear();
 
     return 0;
 }
@@ -513,6 +535,40 @@ int App::run() &&
         w = std::move(w).onClose(send(false, running.handle));
 
     return std::move(*this).run(running.signal);
+}
+
+void App::withAnimation(avg::AnimationOptions animationOptions,
+        std::function<void()> fn)
+{
+    for (auto& glue : d()->windowGlues_)
+    {
+        glue->makeTransaction(
+                std::chrono::milliseconds(0),
+                std::nullopt
+                );
+    }
+
+    fn();
+
+    for (auto& glue : d()->windowGlues_)
+    {
+        glue->makeTransaction(
+                std::chrono::milliseconds(0),
+                animationOptions
+                );
+    }
+}
+
+void App::withAnimation(
+        std::chrono::milliseconds duration,
+        std::function<float(float)> curve,
+        std::function<void()> callback
+        )
+{
+    withAnimation(
+            avg::AnimationOptions{ duration, std::move(curve) },
+            std::move(callback)
+            );
 }
 
 App app()

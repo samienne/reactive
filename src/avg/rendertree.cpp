@@ -192,7 +192,7 @@ UpdateResult ContainerNode::update(
         RenderTree const& newTree,
         std::shared_ptr<RenderTreeNode> const& oldNode,
         std::shared_ptr<RenderTreeNode> const& newNode,
-        AnimationOptions const& animationOptions,
+        std::optional<AnimationOptions> const& animationOptions,
         std::chrono::milliseconds time
         ) const
 {
@@ -513,7 +513,7 @@ UpdateResult TransitionNode::update(
         RenderTree const& newTree,
         std::shared_ptr<RenderTreeNode> const& oldNode,
         std::shared_ptr<RenderTreeNode> const& newNode,
-        AnimationOptions const& animationOptions,
+        std::optional<AnimationOptions> const& animationOptions,
         std::chrono::milliseconds time
         ) const
 {
@@ -564,8 +564,12 @@ UpdateResult TransitionNode::update(
         newTransitioned = oldTransition.transitionedNode_;
         newObb = oldNode->getObb();
         isActive = false;
-        nextUpdate = time + animationOptions.duration;
-        transition = Transition { time, animationOptions.duration };
+
+        if (animationOptions)
+        {
+            nextUpdate = time + animationOptions->duration;
+            transition = Transition { time, animationOptions->duration };
+        }
     }
     else
     {
@@ -654,7 +658,7 @@ UpdateResult ClipNode::update(
         RenderTree const& newTree,
         std::shared_ptr<RenderTreeNode> const& oldNode,
         std::shared_ptr<RenderTreeNode> const& newNode,
-        AnimationOptions const& animationOptions,
+        std::optional<AnimationOptions> const& animationOptions,
         std::chrono::milliseconds time
         ) const
 {
@@ -821,7 +825,7 @@ UpdateResult IdNode::update(
         RenderTree const& newTree,
         std::shared_ptr<RenderTreeNode> const& oldNode,
         std::shared_ptr<RenderTreeNode> const& newNode,
-        AnimationOptions const& animationOptions,
+        std::optional<AnimationOptions> const& animationOptions,
         std::chrono::milliseconds time
         ) const
 {
@@ -988,7 +992,7 @@ RenderTree::RenderTree(std::shared_ptr<RenderTreeNode> root) :
 
 std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::update(
         RenderTree&& tree,
-        AnimationOptions const& animationOptions,
+        std::optional<AnimationOptions> const& animationOptions,
         std::chrono::milliseconds time
         ) &&
 {

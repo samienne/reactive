@@ -1,5 +1,6 @@
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 namespace btl
@@ -46,7 +47,7 @@ namespace btl
 
         ForceNoexcept& operator=(ForceNoexcept&& rhs) noexcept
         {
-            t_ = std::move(rhs.t_);
+            new (&t_) T(std::move(rhs.t_));
             return *this;
         }
 

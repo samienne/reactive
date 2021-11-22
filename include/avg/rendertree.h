@@ -144,23 +144,22 @@ namespace avg
 
         T getValue(std::chrono::milliseconds time) const
         {
-            if (duration_ <= std::chrono::milliseconds(0))
+            if (getDuration() <= std::chrono::milliseconds(0))
+            {
                 return final_;
+                //return (time < getBeginTime()) ? initial_ : final_;
+            }
 
             float a = std::clamp(
-                    (float)(time - beginTime_).count() / (float)duration_.count(),
+                    (float)(time - beginTime_).count() / (float)getDuration().count(),
                     0.0f,
                     1.0f
                     );
 
             if constexpr(HasLerp<T>::value)
-            {
                 return lerp(initial_, final_, a);
-            }
             else
-            {
                 return a <= 0.0f ? initial_ : final_;
-            }
         }
 
         T const& getInitialValue() const
@@ -185,17 +184,20 @@ namespace avg
 
         std::chrono::milliseconds getDuration() const
         {
-            return duration_;
+            if constexpr(HasLerp<T>::value)
+                return duration_;
+            else
+                return std::chrono::milliseconds(0);
         }
 
         bool hasAnimationEnded(std::chrono::milliseconds time) const
         {
-            return time > (beginTime_ + duration_);
+            return time >= (beginTime_ + getDuration());
         }
 
         Animated updated(
                 Animated const& newValue,
-                AnimationOptions const& options,
+                std::optional<AnimationOptions> const& options,
                 std::chrono::milliseconds time
                 ) const
         {
@@ -206,12 +208,26 @@ namespace avg
 
             }
 
+            if (!options)
+            {
+                if (getFinalValue() != newValue.getFinalValue())
+                    return newValue;
+
+                return Animated(
+                        getValue(time),
+                        newValue.getFinalValue(),
+                        linearCurve,
+                        time,
+                        std::chrono::milliseconds(0)
+                        );
+            }
+
             return Animated(
                     getValue(time),
                     newValue.getFinalValue(),
-                    options.curve,
+                    options->curve,
                     time,
-                    options.duration
+                    options->duration
                     );
         }
 
@@ -259,7 +275,7 @@ namespace avg
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const = 0;
 
@@ -306,7 +322,7 @@ namespace avg
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const override;
 
@@ -388,7 +404,7 @@ namespace avg
                 RenderTree const& /*newTree*/,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const override
         {
@@ -434,7 +450,7 @@ namespace avg
                 std::tuple<Animated<Ts>...> const& a,
                 std::tuple<Animated<Ts>...> const& b,
                 std::chrono::milliseconds time,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::index_sequence<S...>
                 )
         {
@@ -513,7 +529,7 @@ namespace avg
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const override;
 
@@ -544,7 +560,7 @@ namespace avg
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const override;
 
@@ -573,7 +589,7 @@ namespace avg
                 RenderTree const& newTree,
                 std::shared_ptr<RenderTreeNode> const& oldNode,
                 std::shared_ptr<RenderTreeNode> const& newNode,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) const override;
 
@@ -602,7 +618,7 @@ namespace avg
 
         std::pair<RenderTree, std::optional<std::chrono::milliseconds>> update(
                 RenderTree&& tree,
-                AnimationOptions const& animationOptions,
+                std::optional<AnimationOptions> const& animationOptions,
                 std::chrono::milliseconds time
                 ) &&;
 

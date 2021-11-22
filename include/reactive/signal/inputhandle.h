@@ -23,6 +23,12 @@ namespace reactive::signal
         {
         }
 
+        InputHandle(InputHandle&&) = default;
+        InputHandle(InputHandle const&) = default;
+
+        InputHandle& operator=(InputHandle&&) noexcept = default;
+        InputHandle& operator=(InputHandle const&) = default;
+
         /*
         void set(T const& value)
         {

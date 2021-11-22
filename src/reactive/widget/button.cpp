@@ -13,21 +13,24 @@ namespace reactive::widget
 namespace
 {
     avg::Drawing drawButton(avg::DrawContext const& drawContext,
-            avg::Obb obb, widget::Theme const& theme, bool hover, bool down)
+            avg::Obb obb, /*widget::Theme const& theme,*/
+            avg::Color fgColor,
+            avg::Color bgColor)//,
+            //bool hover, bool down)
     {
         auto size = obb.getSize();
-        avg::Color bgColor = theme.getBackground();
-        avg::Color fgColor = theme.getSecondary();
+        //avg::Color bgColor = backgroundColor;//theme.getBackground();
+        //avg::Color fgColor = secondaryColor;//theme.getSecondary();
 
-        if (down)
-        {
-            fgColor = theme.getEmphasized();
-            bgColor = theme.getSecondary();
-        }
-        else if (hover)
-        {
-            bgColor = theme.getBackgroundHighlight();
-        }
+        //if (down)
+        //{
+            //fgColor = emphasizedColor;//theme.getEmphasized();
+            //bgColor = secondaryColor;//theme.getSecondary();
+        //}
+        //else if (hover)
+        //{
+            //bgColor = backgroundHighlightColor;//theme.getBackgroundHighlight();
+        //}
 
         auto pen = avg::Pen(fgColor);
 
@@ -55,8 +58,33 @@ WidgetFactory button(AnySignal<std::string> label,
         | margin(signal::constant(5.0f))
         | makeWidgetTransformer()
         .compose(bindTheme())
-        .values(std::move(hover.signal), std::move(down.signal))
-        .bind(onDrawBehindCustom(&drawButton))
+        .values(down.signal, hover.signal)
+        .bind([](auto theme, auto down, auto hover)
+        {
+            auto fgColor = group(theme, down)
+                .map([](widget::Theme const& theme, bool down)
+                {
+                    return down ? theme.getEmphasized() : theme.getSecondary();
+                });
+
+            auto bgColor = group(theme, down, hover)
+                .map([](widget::Theme const& theme, bool down, bool hover)
+                {
+                    avg::Color bgColor = theme.getBackground();
+
+                    if (down)
+                        bgColor = theme.getSecondary();
+                    else if (hover)
+                        bgColor = theme.getBackgroundHighlight();
+
+                    return bgColor;
+                });
+
+            return makeWidgetTransformer()
+                .values(std::move(fgColor), std::move(bgColor))
+                .bind(onDrawBehindCustom(&drawButton))
+                ;
+        })
         | onPointerDown([handle=down.handle](auto&) mutable
                 {
                     handle.set(true);
