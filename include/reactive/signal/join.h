@@ -3,6 +3,8 @@
 #include "signal.h"
 #include "signaltraits.h"
 
+#include <optional>
+
 namespace reactive::signal
 {
     template <typename TSignal>

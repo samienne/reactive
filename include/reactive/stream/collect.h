@@ -105,7 +105,7 @@ namespace reactive::stream
             std::weak_ptr<Control> control = control_.ptr();
 
             {
-                std::unique_lock<btl::SpinLock>(control_->mutex);
+                std::unique_lock<btl::SpinLock> lock(control_->mutex);
                 id = control_->nextId++;
                 control_->callbacks.push_back(std::make_pair(id,
                             std::forward<TCallback>(callback)));
@@ -115,7 +115,7 @@ namespace reactive::stream
             {
                 if (auto p = control.lock())
                 {
-                    std::unique_lock<btl::SpinLock>(p->mutex);
+                    std::unique_lock<btl::SpinLock> lock(p->mutex);
                     for (auto i = p->callbacks.begin();
                         i != p->callbacks.end(); ++i)
                     {
