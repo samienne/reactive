@@ -2,6 +2,8 @@
 incdir = include_directories('../../include', '../../include/avg', '.')
 
 libavgsrc = [
+    'drawcontext.cpp',
+    'rendertree.cpp',
     'fontmanager.cpp',
     'fontimpl.cpp',
     'font.cpp',

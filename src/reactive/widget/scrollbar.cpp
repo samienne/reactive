@@ -4,9 +4,8 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/ondraw.h"
+#include "widget/ondrawcustom.h"
 #include "widget/bindtheme.h"
-#include "widget/binddrawcontext.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
 #include "widget/widgettransformer.h"
@@ -51,7 +50,7 @@ namespace
 
     template <bool IsHorizontal>
     avg::Drawing drawSlider(
-            DrawContext const& drawContext, avg::Vector2f size,
+            avg::DrawContext const& drawContext, avg::Vector2f size,
             widget::Theme const& theme, float amount, float handleSize,
             bool hover, bool isDown)
     {
@@ -82,7 +81,7 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Path getScrollLinePath(DrawContext const& drawContext, avg::Vector2f size)
+    avg::Path getScrollLinePath(avg::DrawContext const& drawContext, avg::Vector2f size)
     {
 
         if (IsHorizontal)
@@ -102,7 +101,7 @@ namespace
     }
 
     template <bool IsHorizontal>
-    avg::Drawing drawScrollBar(DrawContext const& drawContext, avg::Vector2f size,
+    avg::Drawing drawScrollBar(avg::DrawContext const& drawContext, avg::Vector2f size,
             widget::Theme const& theme, float amount, float handleSize,
             bool hover, bool isDown)
     {
@@ -197,10 +196,9 @@ namespace
         AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindSize(), bindTheme())
             .compose(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .bind([=](auto drawContext, auto size,
-                            auto theme, auto hover) mutable
+            .bind([=](auto size, auto theme, auto hover) mutable
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
@@ -241,15 +239,15 @@ namespace
                         }, downOffset.signal, size.clone(), handleSize))
                     )
                     .values(
-                            std::move(drawContext),
-                            size.clone(),
+                            //std::move(drawContext),
+                            //size.clone(),
                             std::move(theme),
                             amount,
                             handleSize,
                             std::move(hover),
                             std::move(isDown)
                             )
-                    .bind(onDraw(drawScrollBar<IsHorizontal>))
+                    .bind(onDrawCustom(drawScrollBar<IsHorizontal>))
                     ;
             });
     }

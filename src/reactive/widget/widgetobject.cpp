@@ -1,4 +1,6 @@
 #include "widget/widgetobject.h"
+
+#include "widget/setid.h"
 #include "widget/transform.h"
 
 #include <pmr/new_delete_resource.h>
@@ -13,34 +15,19 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
     factory_(std::move(factory)),
     sizeHint_(factory_.getSizeHint()),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
-    transformInput_(signal::input(avg::Transform()))
+    transformInput_(signal::input(avg::Transform())),
+    widget_((factory_
+            | widget::setId(signal::constant(id_))
+            | transform(transformInput_.signal.clone())
+            )
+            (sizeInput_.signal.clone())
+            )
 {
 }
 
 WidgetObject::WidgetObject(WidgetFactory factory) :
     impl_(std::make_shared<Impl>(std::move(factory)))
 {
-}
-
-void WidgetObject::setDrawContext(DrawContext drawContext)
-{
-    if (impl_->drawContext_)
-        impl_->drawContext_->handle.set((drawContext));
-    else
-        impl_->drawContext_ = signal::input((drawContext));
-
-
-    if (!impl_->widget_)
-    {
-        assert(impl_->drawContext_);
-        impl_->widget_ = (impl_->factory_
-                    | transform(impl_->transformInput_.signal.clone()))
-                (
-                 dropRepeats(impl_->drawContext_->signal),
-                 impl_->sizeInput_.signal
-                )
-                ;
-    }
 }
 
 void WidgetObject::setObb(avg::Obb obb)
@@ -59,12 +46,14 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-Widget const& WidgetObject::getWidget(DrawContext drawContext)
+Widget const& WidgetObject::getWidget()
 {
-    setDrawContext(std::move(drawContext));
+    return impl_->widget_;
+}
 
-    assert(impl_->widget_);
-    return *impl_->widget_;
+avg::UniqueId const& WidgetObject::getId() const
+{
+    return impl_->id_;
 }
 
 AnySignal<SizeHint> const& WidgetObject::getSizeHint() const

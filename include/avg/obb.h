@@ -21,7 +21,7 @@ namespace avg
         Obb& operator=(Obb const&) = default;
         Obb& operator=(Obb&&) noexcept = default;
 
-        Obb(Vector2f size);
+        Obb(Vector2f size, Transform const& transform = Transform());
         Obb(Rect const& r);
 
         bool contains(Vector2f p) const;
@@ -31,6 +31,7 @@ namespace avg
 
         Obb transformR(avg::Transform const& t) const;
         Obb setSize(Vector2f size) const;
+        Obb shrink(float amount) const;
 
         Rect getBoundingRect() const;
 

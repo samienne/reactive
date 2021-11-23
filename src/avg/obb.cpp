@@ -1,6 +1,7 @@
 #include "obb.h"
 
 #include "rect.h"
+#include "transform.h"
 
 namespace
 {
@@ -18,7 +19,8 @@ Obb::Obb() :
 {
 }
 
-Obb::Obb(Vector2f size) :
+Obb::Obb(Vector2f size, Transform const& transform) :
+    transform_(transform),
     size_(size)
 {
 }
@@ -69,6 +71,14 @@ Obb Obb::setSize(Vector2f size) const
     avg::Obb obb(*this);
     obb.size_ = size;
     return obb;
+}
+
+Obb Obb::shrink(float amount) const
+{
+    return Obb(
+            Vector2f(size_[0] - amount * 2.0f, size_[1] * amount / 2.0f),
+            transform_ * avg::Transform().translate(amount, amount)
+            );
 }
 
 Rect Obb::getBoundingRect() const

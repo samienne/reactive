@@ -474,7 +474,7 @@ TEST(async, delayed)
 
     auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
-    EXPECT_GE(delay.count(), 2.f);
+    EXPECT_GE(delay.count(), 1.99f);
 }
 
 TEST(async, just)

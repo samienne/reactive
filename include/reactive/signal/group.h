@@ -1,4 +1,5 @@
 #include "btl/cloneoncopy.h"
+#include <type_traits>
 #pragma once
 
 #include "reactive/signal/signal.h"
@@ -13,10 +14,18 @@ namespace reactive::signal
     template <typename... Ts>
     class Group
     {
+        static_assert(std::is_nothrow_move_assignable_v<std::tuple<Ts...>>);
+
     public:
         Group(Ts... sigs) : sigs_(std::make_tuple(std::move(sigs)...))
         {
         }
+
+        Group(Group const&) = default;
+        Group(Group&&) noexcept = default;
+
+        Group& operator=(Group const&) = default;
+        Group& operator=(Group&&) noexcept = default;
 
         auto evaluate() const
         {
@@ -58,7 +67,7 @@ namespace reactive::signal
         btl::connection observe(TCallback&& callback)
         {
             return btl::tuple_reduce(Connection(), *sigs_,
-                    [callback=std::move(callback)](Connection r, auto&& s)
+                    [callback=std::forward<TCallback>(callback)](Connection r, auto&& s)
                     {
                         return std::move(r) + s.observe(callback);
                     });
@@ -91,7 +100,7 @@ namespace reactive::signal
     template <typename T, typename U>
     auto group(Signal<T, U> sig)
     {
-        return std::move(sig);
+        return sig;
     }
 } // reactive::signal
 

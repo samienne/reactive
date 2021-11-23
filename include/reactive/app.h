@@ -7,6 +7,7 @@
 
 #include <btl/shared.h>
 #include <btl/visibility.h>
+#include <chrono>
 
 namespace reactive
 {
@@ -21,6 +22,15 @@ namespace reactive
 
         int run(AnySignal<bool> running) &&;
         int run() &&;
+
+        void withAnimation(avg::AnimationOptions animationOptions,
+                std::function<void()> fn);
+
+        void withAnimation(
+                std::chrono::milliseconds duration,
+                std::function<float(float)> curve,
+                std::function<void()> callback
+                );
 
     private:
         inline AppDeferred* d()

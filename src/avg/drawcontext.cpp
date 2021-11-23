@@ -1,9 +1,9 @@
 #include "drawcontext.h"
 
-namespace reactive
+namespace avg
 {
 
-DrawContext::DrawContext(avg::Painter* painter) :
+DrawContext::DrawContext(Painter* painter) :
     painter_(painter)
 
 {
@@ -19,9 +19,9 @@ pmr::memory_resource* DrawContext::getResource() const
     return painter_->getResource();
 }
 
-avg::PathBuilder DrawContext::pathBuilder() const
+PathBuilder DrawContext::pathBuilder() const
 {
-    return avg::PathBuilder(getResource());
+    return PathBuilder(getResource());
 }
 
 } // namespace reactive

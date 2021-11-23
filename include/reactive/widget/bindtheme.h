@@ -21,5 +21,15 @@ namespace reactive::widget
         });
     }
 
+    template <typename TFunc>
+    inline auto bindThemeColor(TFunc&& f)
+    {
+        return makeWidgetTransformer()
+            .compose(bindTheme())
+            .bind([f=std::forward<TFunc>(f)](auto const& theme)
+            {
+                return provideValues(signal::map(f, theme));
+            });
+    }
 } // namespace reactive::widget
 

@@ -11,10 +11,7 @@ using namespace reactive::widget;
 
 auto makeEmptyWidget()
 {
-    return makeWidget(
-            signal::constant(DrawContext(nullptr)),
-            signal::constant(avg::Vector2f(0.0f, 0.0f))
-            );
+    return makeWidget(signal::constant(avg::Vector2f(0.0f, 0.0f)));
 }
 
 TEST(WidgetTransformer, simpleBind)

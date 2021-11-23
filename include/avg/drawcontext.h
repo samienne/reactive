@@ -1,16 +1,15 @@
 #pragma once
 
-#include "reactivevisibility.h"
-
-#include <avg/drawing.h>
-#include <avg/pathbuilder.h>
-#include <avg/painter.h>
+#include "drawing.h"
+#include "pathbuilder.h"
+#include "painter.h"
+#include "avgvisibility.h"
 
 #include <pmr/memory_resource.h>
 
-namespace reactive
+namespace avg
 {
-    class REACTIVE_EXPORT DrawContext
+    class AVG_EXPORT DrawContext
     {
     public:
         explicit DrawContext(avg::Painter* painter);
@@ -36,5 +35,4 @@ namespace reactive
         avg::Painter* painter_;
     };
 } // namespace reactive
-
 

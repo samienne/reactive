@@ -1,8 +1,7 @@
 #pragma once
 
-#include "ondraw.h"
+#include "ondrawcustom.h"
 #include "bindsize.h"
-#include "binddrawcontext.h"
 #include "bindtheme.h"
 
 #include "reactive/shapes.h"
@@ -17,8 +16,8 @@ namespace reactive::widget
 {
     namespace detail
     {
-        inline auto drawBackground(DrawContext const& drawContext,
-                avg::Vector2f size, avg::Brush const brush)
+        inline auto drawBackground(avg::DrawContext const& drawContext,
+                avg::Vector2f size, avg::Brush const& brush)
             -> avg::Drawing
         {
             auto t = avg::Transform()
@@ -36,9 +35,8 @@ namespace reactive::widget
     auto background(Signal<T, avg::Brush> brush)
     {
         return makeWidgetTransformer()
-            .compose(bindDrawContext(), bindSize())
             .values(std::move(brush))
-            .bind(onDrawBehind(detail::drawBackground))
+            .bind(onDrawBehindCustom(detail::drawBackground))
             ;
     }
 

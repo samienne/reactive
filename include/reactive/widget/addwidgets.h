@@ -1,7 +1,6 @@
 #pragma once
 
 #include "reduce.h"
-#include "adddrawings.h"
 
 #include "widgettransformer.h"
 
@@ -29,7 +28,8 @@ namespace reactive::widget
     >
     auto addWidgets(TWidgets widgets)
     {
-        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
+        auto f = [widgets=btl::cloneOnCopy(std::move(widgets))]
+            (auto widget)
         {
             auto addAreas = [](std::vector<InputArea> own,
                     //std::vector<std::vector<InputArea>> areas
@@ -97,25 +97,42 @@ namespace reactive::widget
                     std::move(widget.getKeyboardInputs()),
                     std::move(inputs));
 
-            //std::vector<Signal<avg::Drawing>> drawings;
-            //for (auto&& w : *widgets)
-                //drawings.push_back(std::move(w.getDrawing()));
-            auto drawings = btl::fmap(*widgets, [](auto&& w)
+            auto renderTreeSignals = btl::fmap(*widgets, [](auto&& w)
             {
-                return w.getDrawing();
+                return w.getRenderTree();
             });
 
+            auto renderTrees = signal::combine(std::move(renderTreeSignals));
+
+            auto renderTree = signal::map(
+                    [](avg::RenderTree const& root,
+                        std::vector<avg::RenderTree> const& trees,
+                        avg::Obb const& obb)
+                    {
+                        auto container = std::make_shared<avg::ContainerNode>(
+                                obb
+                                );
+
+                        container->addChild(root.getRoot());
+
+                        for (auto const& tree : trees)
+                            container->addChild(tree.getRoot());
+
+                        return avg::RenderTree(std::move(container));
+                    },
+                    widget.getRenderTree(),
+                    std::move(renderTrees),
+                    widget.getObb()
+                    );
+
             return makeWidgetTransformerResult(makeWidget(
-                    std::move(widget.getDrawContext()),
-                    std::move(widget.getDrawing()),
+                    std::move(renderTree),
                     std::move(areasSignal),
                     std::move(widget.getObb()),
                     std::move(keyboardInputsSignal),
                     std::move(widget.getTheme())
                     )
-                | addDrawings(signal::combine(std::move(drawings)))
                 );
-
         };
 
         return makeWidgetTransformer(std::move(f));

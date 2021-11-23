@@ -144,7 +144,7 @@ namespace btl
             if (&rhs == this)
                 return *this;
 
-            value_ = btl::clone(*rhs);
+            new (&value_) T(btl::clone(*rhs));
 
             return *this;
         }
@@ -154,7 +154,7 @@ namespace btl
             if (&rhs == this)
                 return *this;
 
-            value_ = std::move(*rhs);
+            new (&value_) T(std::move(*rhs));
 
             return *this;
         }
@@ -174,7 +174,7 @@ namespace btl
             return value_;
         }
 
-        T operator*() &&
+        T&& operator*() &&
         {
             return std::move(value_);
         }

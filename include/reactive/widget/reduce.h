@@ -18,13 +18,9 @@ namespace reactive::widget
     {
         auto w = signal::share(std::move(w2));
 
-        auto drawContext = signal::mbind([](auto&& w)
+        auto renderTree = signal::mbind([](auto && w)
                 {
-                    return w.getDrawContext();
-                }, w);
-
-        auto drawing = signal::mbind([](auto&& w) {
-                return w.getDrawing().clone();
+                    return w.getRenderTree();
                 }, w);
 
         auto areas = signal::mbind([](auto&& w) { return w.getInputAreas().clone(); }, w);
@@ -37,8 +33,7 @@ namespace reactive::widget
         auto theme = signal::mbind([](auto&& w) { return w.getTheme().clone(); }, w);
 
         return makeWidget(
-                std::move(drawContext),
-                std::move(drawing),
+                std::move(renderTree),
                 std::move(areas),
                 std::move(obb),
                 std::move(keyboardInputs),

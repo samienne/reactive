@@ -4,24 +4,23 @@
 
 #include "reactive/signal/signal.h"
 
-#include <avg/drawing.h>
+#include <avg/rendertree.h>
 
 #include <btl/cloneoncopy.h>
-
-#include <vector>
 
 namespace reactive::widget
 {
     template <typename T>
-    auto setDrawing(Signal<T, avg::Drawing> drawing)
+    auto setRenderTree(Signal<T, avg::RenderTree> renderTree)
     {
         return makeWidgetTransformer(
-            [drawing=btl::cloneOnCopy(std::move(drawing))](auto w) mutable
+            [renderTree=btl::cloneOnCopy(std::move(renderTree))](auto w) mutable
             {
                 return makeWidgetTransformerResult(
-                        std::move(w).setDrawing(std::move(*drawing))
+                        std::move(w).setRenderTree(std::move(*renderTree))
                         );
             });
     }
 } // namespace reactive::widget
+
 

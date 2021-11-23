@@ -86,6 +86,8 @@ namespace reactive::signal
 
         Map(Map&& other) noexcept = default;
 
+        Map& operator=(Map&&) noexcept = default;
+
         auto evaluate() const -> decltype(auto)
         {
             if constexpr(IsSignalResult<decltype(storage_->evaluate())>::value)
@@ -176,6 +178,7 @@ namespace reactive::signal
 
     private:
         Map(Map const&) = default;
+        Map& operator=(Map const&) = default;
 
         mutable btl::ForceNoexcept<TFunc> func_;
         btl::CloneOnCopy<TStorage> storage_;
@@ -241,10 +244,10 @@ namespace reactive::signal
     protected:
         Signal(Signal const&) = default;
         Signal& operator=(Signal const&) = default;
-        Signal& operator=(Signal&&) noexcept = default;
 
     public:
         Signal(Signal&&) noexcept = default;
+        Signal& operator=(Signal&&) noexcept = default;
 
         auto evaluate() const -> decltype(auto)
         {

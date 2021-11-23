@@ -1,5 +1,4 @@
 #include "adder.h"
-#include "spinner.h"
 #include "testwidget.h"
 
 #include <reactive/debug/drawkeyboardinputs.h>
@@ -54,27 +53,10 @@ int main()
         , vbox({
                 widget::scrollView(
                         uniformGrid(3, 3)
-                        .cell(0, 0, 1, 1, makeSpinner())
-                        .cell(1, 1, 1, 1, makeSpinner())
-                        .cell(2, 2, 1, 1, makeSpinner())
+                        .cell(0, 0, 1, 1, widget::label(signal::constant("test")))
+                        .cell(1, 1, 1, 1, widget::label(signal::constant("test")))
+                        .cell(2, 2, 1, 1, widget::label(signal::constant("test")))
                         )
-                , makeSpinner()
-                    | widget::frame()
-                    | widget::onPointerMove([](reactive::PointerMoveEvent const& e)
-                            {
-                                std::cout << "MoveEvent: " << e.rel << " " << e.pos
-                                    << ", " << e.buttons[0] << " " << e.buttons[1]
-                                    << " " << e.buttons[2] << " " << e.buttons[3]
-                                    << " hover: " << e.hover
-                                    << std::endl;
-
-                                return EventResult::possible;
-                            })
-                    | widget::onPointerDown([](reactive::PointerButtonEvent const&)
-                            {
-                                std::cout << "down" << std::endl;
-                                return EventResult::possible;
-                            })
                 , widget::label(signal::constant<std::string>("AbcTest"))
                     | widget::frame()
                 , widget::textEdit(textState.handle,

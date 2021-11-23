@@ -1,5 +1,6 @@
 #include "widget/textedit.h"
 
+#include "widget/ondrawcustom.h"
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
@@ -36,7 +37,7 @@ namespace reactive::widget
 
 TextEdit::operator WidgetFactory() const
 {
-    auto draw = [](DrawContext const& drawContext, ase::Vector2f size,
+    auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
             widget::Theme const& theme, TextEditState const& state,
             float percentage)
         -> avg::Drawing
@@ -136,7 +137,7 @@ TextEdit::operator WidgetFactory() const
                 state.pos = i.index();
             }
         }
-        if (e.is<TextEvent>())
+        else if (e.is<TextEvent>())
         {
             auto& textEvent = e.get<TextEvent>();
             state.text.insert(state.pos, textEvent.getText());
@@ -160,11 +161,18 @@ TextEdit::operator WidgetFactory() const
     auto requestFocus = stream::pipe<bool>();
 
     auto focus = signal::input(false);
-    auto focusPercentage = signal::tween(
+    /*auto focusPercentage = signal::tween(
             std::chrono::milliseconds(500),
             0.0f,
             std::move(focus.signal),
             signal::TweenType::pingpong
+            );
+            */
+    auto focusPercentage = signal::map([](bool b)
+            {
+                return b ? 1.0f : 0.0f;
+            },
+            std::move(focus.signal)
             );
 
     auto frameColor = signal::constant(Theme().getSecondary());
@@ -179,9 +187,9 @@ TextEdit::operator WidgetFactory() const
     return makeWidgetFactory()
         | trackFocus(focus.handle)
         | makeWidgetTransformer()
-            .compose(bindDrawContext(), bindSize(), bindTheme())
+            .compose(bindTheme())
             .values(std::move(newState), std::move(focusPercentage))
-            .bind(onDraw(draw))
+            .bind(onDrawCustom(draw))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))

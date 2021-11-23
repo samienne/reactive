@@ -1,8 +1,7 @@
 #pragma once
 
-#include "reactive/widget/ondraw.h"
+#include "reactive/widget/ondrawcustom.h"
 #include "reactive/widget/bindkeyboardinputs.h"
-#include "reactive/widget/binddrawcontext.h"
 #include "reactive/widget/widgettransformer.h"
 
 #include "reactive/shapes.h"
@@ -16,7 +15,7 @@ namespace reactive::debug
 {
     namespace detail
     {
-        inline avg::Drawing makeRect(DrawContext const& drawContext, avg::Obb obb)
+        inline avg::Drawing makeRect(avg::DrawContext const& drawContext, avg::Obb obb)
         {
             float w = obb.getSize().x();
             float h = obb.getSize().y();
@@ -36,9 +35,11 @@ namespace reactive::debug
     inline auto drawKeyboardInputs()
     {
         return widget::makeWidgetTransformer()
-            .compose(widget::bindDrawContext(), widget::bindKeyboardInputs())
-            .bind(widget::onDraw(
-            [](DrawContext const& drawContext, auto const& inputs)
+            /*
+            .compose(widget::bindKeyboardInputs())
+            .bind(widget::onDrawCustom(
+            [](avg::DrawContext const& drawContext, avg::Obb const&,
+                auto const& inputs)
             {
                 {
                     auto result = drawContext.drawing();
@@ -50,7 +51,9 @@ namespace reactive::debug
 
                     return result;
                 }
-            }));
+            }))
+            */
+            ;
     }
 } // reactive::debug
 

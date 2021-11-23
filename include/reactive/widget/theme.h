@@ -45,5 +45,10 @@ namespace reactive::widget
     {
         return stream << "Theme()" << std::endl;
     }
+
+    inline Theme lerp(Theme const& a, Theme const& b, float t)
+    {
+        return t <= 0.0f ? a : b;
+    }
 } // namespace reactice::widget
 

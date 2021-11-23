@@ -12,21 +12,12 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawButton(DrawContext const& drawContext, avg::Vector2f size,
-            widget::Theme const& theme, bool hover, bool down)
+    avg::Drawing drawButton(avg::DrawContext const& drawContext,
+            avg::Obb obb,
+            avg::Color fgColor,
+            avg::Color bgColor)
     {
-        avg::Color bgColor = theme.getBackground();
-        avg::Color fgColor = theme.getSecondary();
-
-        if (down)
-        {
-            fgColor = theme.getEmphasized();
-            bgColor = theme.getSecondary();
-        }
-        else if (hover)
-        {
-            bgColor = theme.getBackgroundHighlight();
-        }
+        auto size = obb.getSize();
 
         auto pen = avg::Pen(fgColor);
 
@@ -53,9 +44,34 @@ WidgetFactory button(AnySignal<std::string> label,
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
         | makeWidgetTransformer()
-        .compose(bindDrawContext(), bindSize(), bindTheme())
-        .values(std::move(hover.signal), std::move(down.signal))
-        .bind(onDrawBehind(&drawButton))
+        .compose(bindTheme())
+        .values(down.signal, hover.signal)
+        .bind([](auto theme, auto down, auto hover)
+        {
+            auto fgColor = group(theme, down)
+                .map([](widget::Theme const& theme, bool down)
+                {
+                    return down ? theme.getEmphasized() : theme.getSecondary();
+                });
+
+            auto bgColor = group(theme, down, hover)
+                .map([](widget::Theme const& theme, bool down, bool hover)
+                {
+                    avg::Color bgColor = theme.getBackground();
+
+                    if (down)
+                        bgColor = theme.getSecondary();
+                    else if (hover)
+                        bgColor = theme.getBackgroundHighlight();
+
+                    return bgColor;
+                });
+
+            return makeWidgetTransformer()
+                .values(std::move(fgColor), std::move(bgColor))
+                .bind(onDrawBehindCustom(&drawButton))
+                ;
+        })
         | onPointerDown([handle=down.handle](auto&) mutable
                 {
                     handle.set(true);
