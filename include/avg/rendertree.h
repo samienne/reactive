@@ -147,7 +147,6 @@ namespace avg
             if (getDuration() <= std::chrono::milliseconds(0))
             {
                 return final_;
-                //return (time < getBeginTime()) ? initial_ : final_;
             }
 
             float a = std::clamp(
@@ -628,11 +627,9 @@ namespace avg
 
         RenderTree transform(Transform const& transform) &&;
 
-        //RenderTreeNode const* findNode(UniqueId id) const;
         std::shared_ptr<RenderTreeNode> const& getRoot() const;
 
     private:
-        //std::unordered_map<UniqueId, RenderTreeNode*> nodes_;
         std::shared_ptr<RenderTreeNode> root_;
     };
 } // namespace avg

@@ -13,24 +13,11 @@ namespace reactive::widget
 namespace
 {
     avg::Drawing drawButton(avg::DrawContext const& drawContext,
-            avg::Obb obb, /*widget::Theme const& theme,*/
+            avg::Obb obb,
             avg::Color fgColor,
-            avg::Color bgColor)//,
-            //bool hover, bool down)
+            avg::Color bgColor)
     {
         auto size = obb.getSize();
-        //avg::Color bgColor = backgroundColor;//theme.getBackground();
-        //avg::Color fgColor = secondaryColor;//theme.getSecondary();
-
-        //if (down)
-        //{
-            //fgColor = emphasizedColor;//theme.getEmphasized();
-            //bgColor = secondaryColor;//theme.getSecondary();
-        //}
-        //else if (hover)
-        //{
-            //bgColor = backgroundHighlightColor;//theme.getBackgroundHighlight();
-        //}
 
         auto pen = avg::Pen(fgColor);
 

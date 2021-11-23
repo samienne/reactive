@@ -39,13 +39,6 @@ namespace
     {
         return ++s_frameId_;
     }
-
-    /*
-    uint64_t getCurrentFrameId()
-    {
-        return s_frameId_;
-    }
-    */
 } // anonymous namespace
 
 class WindowGlue;
@@ -320,10 +313,6 @@ public:
         {
             auto [renderTree, nextUpdate] = std::move(renderTree_).update(
                     widget_.getRenderTree().evaluate(),
-                    /*avg::AnimationOptions {
-                        std::chrono::milliseconds(500),
-                        avg::linearCurve
-                    },*/
                     animationOptions,
                     timer
                     );
@@ -459,7 +448,6 @@ int App::run(AnySignal<bool> running) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
-    //std::vector<btl::shared<WindowGlue>> glues;
     d()->windowGlues_.reserve(d()->windows_.size());
 
     ase::RenderContext context = platform.makeRenderContext();
