@@ -12,32 +12,23 @@ namespace reactive::widget
     {
         return makeWidgetTransformer([](auto widget)
         {
-            auto inputs = signal::share(widget.getInputAreas());
+            auto w = signal::share(std::move(widget));
 
-            return std::make_pair(
-                    std::move(widget).setAreas(inputs),
-                    btl::cloneOnCopy(std::make_tuple(
-                            inputs
-                            ))
+            auto inputs = signal::map([](Widget w)// -> std::vector<InputArea> const&
+                    {
+                        return w.getInputAreas();
+                    }, w);
+
+            return makeWidgetTransformerResult(
+                    std::move(w),
+                    std::move(inputs)
                     );
         });
     }
 
     inline auto grabInputAreas()
     {
-        return makeWidgetTransformer([](auto widget)
-        {
-            auto inputs = std::move(widget.getInputAreas());
-
-            return std::make_pair(
-                    std::move(widget).setAreas(
-                        signal::constant(std::vector<InputArea>())
-                        ),
-                    btl::cloneOnCopy(std::make_tuple(
-                            std::move(inputs)
-                            ))
-                    );
-        });
+        return bindInputAreas();
     }
 } // namespace reactive::widget
 

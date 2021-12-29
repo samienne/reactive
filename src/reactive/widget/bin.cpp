@@ -3,6 +3,7 @@
 #include "widget/addwidgets.h"
 #include "widget/bindsize.h"
 #include "widget/clip.h"
+#include "widget/transform.h"
 #include "widget/widgettransformer.h"
 
 namespace reactive::widget
@@ -15,7 +16,7 @@ WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSiz
     return makeWidgetTransformer()
         .compose(bindSize())
         .values(std::move(contentSize), std::move(f))
-        .bind([](auto viewSize, auto contentSize, auto f) mutable
+        .bind([](auto viewSize, auto contentSize, WidgetFactory f) mutable
         {
             auto cs = signal::share(std::move(contentSize));
 
@@ -29,10 +30,11 @@ WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSiz
                     cs
                     );
 
-            auto w = std::move(f)(
-                    std::move(cs)
+            auto w = std::move(f)
+                    .map(transform(std::move(t)))
+                    (
+                     std::move(cs)
                     )
-                    .transform(std::move(t))
                     ;
 
             return addWidget(std::move(w))

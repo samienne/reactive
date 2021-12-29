@@ -33,6 +33,7 @@ namespace reactive::widget
                             for (auto&& input : inputs)
                                 input = std::move(input)
                                     .onKeyEvent(handler);
+
                             return inputs;
                         },
                         std::move(inputs),
@@ -60,12 +61,8 @@ namespace reactive::widget
         {
         }
 
-        template <typename TWidget, typename = typename
-            std::enable_if
-            <
-                IsWidget<TWidget>::value
-            >::type>
-        inline auto operator()(TWidget&& widget, bool = true) const
+        template <typename T>
+        inline auto operator()(Signal<T, Widget> widget, bool = true) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -80,7 +77,7 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return makeWidgetTransformerResult(std::forward<TWidget>(widget)
+            return makeWidgetTransformerResult(std::move(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
                 );

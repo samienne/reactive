@@ -11,7 +11,7 @@ namespace reactive::widget
 {
     template <typename... Ts>
     using WidgetTransformerFunc = std::function<
-        std::pair<Widget, btl::CloneOnCopy<std::tuple<Ts...>>>(Widget)
+        std::pair<AnySignal<Widget>, btl::CloneOnCopy<std::tuple<Ts...>>>(AnySignal<Widget>)
         >;
 
     template <typename TFunc, typename... Ts>
@@ -44,14 +44,6 @@ namespace reactive::widget
         template <typename T, typename U>
         inline constexpr bool isPair<std::pair<T, U>> = true;
 
-        /*
-        template <typename T>
-        struct IsPair : std::false_type {};
-
-        template <typename T, typename U>
-        struct IsPair<std::pair<T, U>> : std::true_type {};
-        */
-
         struct WidgetTransformerBuildTag {};
 
     } // namespace detail
@@ -82,9 +74,8 @@ namespace reactive::widget
         WidgetTransformer& operator=(WidgetTransformer&&) = default;
 
         template <typename U>
-        auto operator()(U widget)
+        auto operator()(Signal<U, Widget> widget)
         {
-            //return std::move(func_)(std::move(widget));
             return func_(std::move(widget));
         }
 
@@ -107,8 +98,8 @@ namespace reactive::widget
         template <typename U, typename... Us>
         auto compose(WidgetTransformer<U, Us...> u) &&
         {
-            static_assert(std::is_invocable_v<U, Widget>);
-            using UReturnType = std::invoke_result_t<U, Widget>;
+            static_assert(std::is_invocable_v<U, AnySignal<Widget>>);
+            using UReturnType = std::invoke_result_t<U, AnySignal<Widget>>;
             static_assert(detail::isPair<UReturnType>);
 
             return makeWidgetTransformer(
@@ -186,7 +177,7 @@ namespace reactive::widget
     template <typename TFunc>
     auto makeWidgetTransformer(TFunc&& func)
     {
-        using ResultType = std::invoke_result_t<TFunc, Widget>;
+        using ResultType = std::invoke_result_t<TFunc, signal::AnySignal<Widget>>;
         using WidgetTransformerType = typename detail::GetWidgetTransformerType<
             std::decay_t<TFunc>,
             ResultType
@@ -224,14 +215,18 @@ namespace reactive::widget
     }
 
     template <typename TWidget, typename... Ts>
-    auto makeWidgetTransformerResult(TWidget&& widget, Ts&&... ts)
+    auto makeWidgetTransformerResult(signal::Signal<TWidget, Widget> widget, Ts&&... ts)
     {
-        static_assert(IsWidget<TWidget>::value);
-
         return std::make_pair(
-                std::forward<TWidget>(widget),
+                std::move(widget),
                 btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))
                 );
+    }
+
+    template <typename T, typename... Us>
+    auto operator|(Signal<T, Widget> w, WidgetTransformer<Us...> t)
+    {
+        return std::move(std::move(t)(std::move(w)).first);
     }
 } // reactive::widget
 

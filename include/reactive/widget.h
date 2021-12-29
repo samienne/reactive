@@ -61,6 +61,7 @@ namespace reactive
             return r;
         }
 
+        /*
         inline auto makeKeyboardInputs(AnySignal<avg::Obb> obb)
         {
             auto focus = signal::input(false);
@@ -77,8 +78,22 @@ namespace reactive
                     };
                 }, std::move(focus.signal), std::move(obb));
         }
+        */
+
+        inline std::vector<KeyboardInput> makeKeyboardInputs(avg::Obb obb)
+        {
+            auto focus = signal::input(false);
+            auto focusHandle = focus.handle;
+
+            return {
+                KeyboardInput(std::move(obb))
+                    .setFocus(false)
+                    .setFocusHandle(focusHandle)
+            };
+        }
     } // detail
 
+    /*
     template <typename TRenderTree, typename TAreas, typename TObb,
              typename TKeyboardInputs, typename TTheme>
     class Wid;
@@ -428,7 +443,157 @@ namespace reactive
         btl::CloneOnCopy<std::decay_t<TKeyboardInputs>> keyboardInputs_;
         btl::CloneOnCopy<std::decay_t<TTheme>> theme_;
     };
+    */
 
+    class Widget
+    {
+    public:
+        Widget(avg::RenderTree renderTree,
+                std::vector<InputArea> inputAreas,
+                avg::Obb const& obb,
+                std::vector<KeyboardInput> keyboardInputs,
+                widget::Theme theme
+              ) :
+            renderTree_(std::move(renderTree)),
+            inputAreas_(std::move(inputAreas)),
+            obb_(obb),
+            keyboardInputs_(std::move(keyboardInputs)),
+            theme_(std::move(theme))
+        {
+        }
+
+        avg::RenderTree const& getRenderTree() const
+        {
+            return renderTree_;
+        }
+
+        std::vector<InputArea> const& getInputAreas() const
+        {
+            return inputAreas_;
+        }
+
+        avg::Obb const& getObb() const
+        {
+            return obb_;
+        }
+
+        avg::Vector2f getSize() const
+        {
+            return obb_.getSize();
+        }
+
+        std::vector<KeyboardInput> const& getKeyboardInputs() const
+        {
+            return keyboardInputs_;
+        }
+
+        widget::Theme const& getTheme() const
+        {
+            return theme_;
+        }
+
+        Widget setRenderTree(avg::RenderTree renderTree) &&
+        {
+            return Widget(
+                    std::move(renderTree),
+                    std::move(inputAreas_),
+                    obb_,
+                    std::move(keyboardInputs_),
+                    std::move(theme_)
+                    );
+        }
+
+        Widget setInputAreas(std::vector<InputArea> inputAreas) &&
+        {
+            return Widget(
+                    std::move(renderTree_),
+                    std::move(inputAreas),
+                    obb_,
+                    std::move(keyboardInputs_),
+                    std::move(theme_)
+                    );
+        }
+
+        Widget setObb(avg::Obb const& obb) &&
+        {
+            return Widget(
+                    std::move(renderTree_),
+                    std::move(inputAreas_),
+                    obb,
+                    std::move(keyboardInputs_),
+                    std::move(theme_)
+                    );
+        }
+
+        Widget setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&
+        {
+            return Widget(
+                    std::move(renderTree_),
+                    std::move(inputAreas_),
+                    obb_,
+                    std::move(keyboardInputs),
+                    std::move(theme_)
+                    );
+        }
+
+        Widget setTheme(widget::Theme theme) &&
+        {
+            return Widget(
+                    std::move(renderTree_),
+                    std::move(inputAreas_),
+                    obb_,
+                    std::move(keyboardInputs_),
+                    std::move(theme)
+                    );
+        }
+
+        Widget transform(avg::Transform const& t) &&
+        {
+            for (auto&& a : inputAreas_)
+                a = std::move(a).transform(t);
+
+            for (auto&& k : keyboardInputs_)
+                k = std::move(k).transform(t);
+
+            return Widget(
+                    std::move(renderTree_).transform(t),
+                    std::move(inputAreas_),
+                    t * obb_,
+                    std::move(keyboardInputs_),
+                    std::move(theme_)
+                    );
+        }
+
+        Widget transformR(avg::Transform const& t) &&
+        {
+            return std::move(*this).transform(
+                    obb_.getTransform() * t * obb_.getTransform().inverse()
+                    );
+        }
+
+        template <typename TWidgetTransform>
+        auto operator|(TWidgetTransform&& t) &&
+        -> decltype(
+            std::forward<TWidgetTransform>(t)(std::move(*this)).first
+            )
+        {
+            return std::forward<TWidgetTransform>(t)(std::move(*this)).first;
+        }
+
+        Widget clone() const
+        {
+            return *this;
+        }
+
+    private:
+        avg::RenderTree renderTree_;
+        std::vector<InputArea> inputAreas_;
+        avg::Obb obb_;
+        std::vector<KeyboardInput> keyboardInputs_;
+        widget::Theme theme_;
+    };
+
+    /*
     struct Widget : WidgetBase
     {
         inline Widget(WidgetBase base) :
@@ -449,8 +614,29 @@ namespace reactive
             return WidgetBase::clone();
         }
     };
+    */
 
+    /*
     template <typename T>
     using IsWidget = std::is_convertible<T, WidgetBase>;
+    */
+
+    template <typename T>
+    auto makeWidget(Signal<T, avg::Vector2f> size)
+    {
+        return signal::map([](avg::Vector2f size)
+                {
+                    return Widget(
+                            avg::RenderTree(),
+                            {},
+                            avg::Obb(size),
+                            detail::makeKeyboardInputs(avg::Obb(size)),
+                            widget::Theme()
+                            );
+                },
+                std::move(size)
+                );
+    }
+
 } // reactive
 

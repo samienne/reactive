@@ -76,6 +76,11 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
     });
+    /*
+    auto widgets = widget::textEdit(textState.handle,
+                        signal::cast<widget::TextEditState>(textState.signal))
+        .build();
+        */
 
     return app()
         .windows({
@@ -83,7 +88,7 @@ int main()
                     signal::constant<std::string>("Test program"),
                     std::move(widgets)
                     //| debug::drawKeyboardInputs()
-                    | widget::focusGroup()
+                    //| widget::focusGroup()
                     )
                 })
         .run();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "widgettransformer.h"
+#include "widget.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -22,12 +23,22 @@ namespace reactive::widget
                 return false;
             };
 
+            auto w = signal::share(std::move(widget));
+
             auto input = signal::tee(
-                    signal::share(widget.getKeyboardInputs()),
-                    anyHasFocus, handle);
+                    signal::map(&Widget::getKeyboardInputs, w),
+                    anyHasFocus,
+                    handle
+                    );
+
+            auto w2 = group(std::move(w), std::move(input))
+                .map([](Widget w, std::vector<KeyboardInput> inputs) -> Widget
+                        {
+                            return std::move(w).setKeyboardInputs(std::move(inputs));
+                        });
 
             return widget::makeWidgetTransformerResult(
-                    std::move(widget).setKeyboardInputs(std::move(input))
+                    std::move(w2)
                     );
         };
 

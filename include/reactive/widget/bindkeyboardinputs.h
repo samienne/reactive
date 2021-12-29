@@ -15,30 +15,24 @@ namespace reactive::widget
     {
         return makeWidgetTransformer([](auto widget)
         {
-            auto inputs = signal::share(widget.getKeyboardInputs());
+            auto w = signal::share(std::move(widget));
 
-            return std::make_pair(
-                    std::move(widget).setKeyboardInputs(inputs),
-                    btl::cloneOnCopy(std::make_tuple(inputs))
+            auto inputs = signal::map([](Widget const& w) -> std::vector<KeyboardInput> const&
+                    {
+                        return w.getKeyboardInputs();
+                    },
+                    w);
+
+            return makeWidgetTransformerResult(
+                    std::move(w),
+                    signal::share(std::move(inputs))
                     );
         });
     }
 
     inline auto grabKeyboardInputs()
     {
-        return makeWidgetTransformer([](auto widget)
-        {
-            auto inputs = std::move(widget.getKeyboardInputs());
-
-            return std::make_pair(
-                    std::move(widget).setKeyboardInputs(
-                        signal::constant(std::vector<KeyboardInput>())
-                        ),
-                    btl::cloneOnCopy(std::make_tuple(
-                            std::move(inputs)
-                            ))
-                    );
-        });
+        return bindKeyboardInputs();
     }
 
 } // namespace reactive::widget

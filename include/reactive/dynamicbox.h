@@ -8,6 +8,8 @@
 
 #include "box.h"
 
+#include "signal/combine.h"
+
 #include <avg/rendertree.h>
 
 namespace reactive
@@ -23,12 +25,12 @@ namespace reactive
         {
             auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
 
-            auto resultWidgets = signal::map(
+            auto resultWidgets = join(map(
                     [](std::vector<widget::WidgetObject> const& widgets,
                         std::vector<avg::Obb> const& obbs)
                     {
                         assert(widgets.size() == obbs.size());
-                        std::vector<Widget> result;
+                        std::vector<AnySignal<Widget>> result;
 
                         auto i = obbs.begin();
                         for (auto& w : widgets)
@@ -37,15 +39,15 @@ namespace reactive
                                 const_cast<widget::WidgetObject&>(w);
 
                             widgetObject.setObb(*i);
-                            result.push_back(widgetObject.getWidget());
+                            result.push_back(widgetObject.getWidget().clone());
                             ++i;
                         }
 
-                        return result;
+                        return combine(std::move(result));
                     },
                     std::move(widgets),
                     std::move(obbs)
-                    );
+                    ));
 
             return widget::addWidgets(std::move(resultWidgets));
         }

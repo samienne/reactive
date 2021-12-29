@@ -12,11 +12,17 @@ namespace reactive::widget
     {
         return makeWidgetTransformer([](auto widget)
         {
-            auto theme = signal::share(widget.getTheme());
+            auto w = signal::share(std::move(widget));
+
+            auto theme = signal::map([](Widget const& w) //-> widget::Theme const&
+                    {
+                        return w.getTheme();
+                    },
+                    w);
 
             return makeWidgetTransformerResult(
-                    std::move(widget).setTheme(theme),
-                    theme
+                    std::move(w),
+                    signal::share(std::move(theme))
                     );
         });
     }

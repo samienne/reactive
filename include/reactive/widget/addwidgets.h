@@ -20,14 +20,60 @@
 
 namespace reactive::widget
 {
-    template <typename TWidgets, std::enable_if_t<
+    inline auto addWidgets(Widget w, std::vector<Widget> const& widgets)
+    {
+        auto container = std::make_shared<avg::ContainerNode>(
+                w.getObb()
+                //avg::Obb(w.getObb().getSize())
+                );
+
+        container->addChild(w.getRenderTree().getRoot());
+
+        for (auto const& widget : widgets)
+        {
+            container->addChild(widget.getRenderTree().getRoot());
+        }
+
+        std::vector<InputArea> areas = w.getInputAreas();
+        for (auto const& widget : widgets)
+            for (auto const& area : widget.getInputAreas())
+                areas.push_back(area);
+
+        std::vector<KeyboardInput> inputs = w.getKeyboardInputs();
+        for (auto const& widget : widgets)
+            for (auto const& input : widget.getKeyboardInputs())
+                if (input.isFocusable())
+                    inputs.push_back(input);
+
+        return std::move(w)
+            .setRenderTree(avg::RenderTree(std::move(container)))
+            .setInputAreas(std::move(areas))
+            .setKeyboardInputs(std::move(inputs))
+            ;
+    }
+
+    /*template <typename TWidgets, std::enable_if_t<
         btl::All<
             btl::IsSequence<TWidgets>
             >::value
         , int> = 0
-    >
-    auto addWidgets(TWidgets widgets)
+    >*/
+    inline auto addWidgets(std::vector<AnySignal<Widget>> widgets)
     {
+        return makeWidgetTransformer([widgets=std::move(widgets)](auto w) mutable
+        {
+            auto widget = group(std::move(w), combine(std::move(widgets)))
+                .map([](Widget w, std::vector<Widget> widgets)
+                {
+                    return addWidgets(std::move(w), std::move(widgets));
+                });
+
+            return makeWidgetTransformerResult(
+                    std::move(widget)
+                    );
+        });
+
+        /*
         auto f = [widgets=btl::cloneOnCopy(std::move(widgets))]
             (auto widget)
         {
@@ -136,32 +182,41 @@ namespace reactive::widget
         };
 
         return makeWidgetTransformer(std::move(f));
+        */
+        //return makeWidgetTransformer();
     }
+
 
     template <typename T>
     auto addWidgets(Signal<T, std::vector<Widget>> widgets)
     {
         auto f = [widgets=btl::cloneOnCopy(std::move(widgets))](auto widget)
         {
-            auto w1 = signal::map([widget=std::move(widget)]
-                    (std::vector<Widget> widgets)
+            auto w1 = signal::map([]
+                    (Widget w, std::vector<Widget> widgets)
                     {
+                        /*
                         return btl::clone(widget)
                             | addWidgets(std::move(widgets))
                             ;
+                            */
+
+                        return addWidgets(std::move(w), std::move(widgets));
+
                     },
+                    std::move(widget),
                     btl::clone(*widgets)
                     );
 
-            return makeWidgetTransformerResult(reduce(std::move(w1)));
+            return makeWidgetTransformerResult(std::move(w1));
         };
 
         return makeWidgetTransformer(std::move(f));
     }
 
-    inline auto addWidget(Widget widget)
+    inline auto addWidget(AnySignal<Widget> widget)
     {
-        std::vector<Widget> widgets;
+        std::vector<AnySignal<Widget>> widgets;
         widgets.push_back(std::move(widget));
 
         return addWidgets(std::move(widgets));

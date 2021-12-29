@@ -40,16 +40,19 @@ namespace reactive::widget
         return makeWidgetTransformer(
             [f=std::move(f), cb=signal::share(std::move(cb))](auto widget) mutable
             {
-                auto w2 = std::move(widget)
-                    .setObb(signal::share(widget.getObb()))
-                    ;
+                auto w = signal::share(std::move(widget));
+                auto size = signal::map([](Widget const& w)
+                        {
+                            return w.getSize();
+                        },
+                        w);
 
                 auto map = onPointerUp(
-                        signal::mapFunction(std::move(f), cb, w2.getSize()
+                        signal::mapFunction(std::move(f), cb, std::move(size)
                         ));
 
                 return makeWidgetTransformerResult(
-                        std::move(map)(std::move(w2)).first
+                        std::move(map)(std::move(w)).first
                         );
             });
     }

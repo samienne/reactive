@@ -18,8 +18,14 @@ namespace reactive::widget
         return makeWidgetTransformer(
             [inputs=btl::cloneOnCopy(std::move(inputs))](auto w) mutable
             {
+                auto widget = group(std::move(w), std::move(*inputs))
+                    .map([](Widget w, std::vector<KeyboardInput> inputs) -> Widget
+                            {
+                                return std::move(w).setKeyboardInputs(std::move(inputs));
+                            });
+
                 return makeWidgetTransformerResult(
-                        std::move(w).setKeyboardInputs(std::move(*inputs))
+                        std::move(widget)
                     );
             });
     }

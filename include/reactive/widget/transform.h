@@ -13,10 +13,13 @@ namespace reactive::widget
     {
         auto tt = btl::cloneOnCopy(std::move(t));
 
-        auto f = [t=std::move(tt)](auto widget)
+        auto f = [t=std::move(tt)](auto widget) mutable
         {
-            auto w = std::move(widget)
-                .transform(t->clone())
+            auto w = group(std::move(widget), std::move(*t))
+                .map([](Widget w, avg::Transform const& t) -> Widget
+                        {
+                            return std::move(w).transform(t);
+                        });
                 ;
 
             return widget::makeWidgetTransformerResult(std::move(w));

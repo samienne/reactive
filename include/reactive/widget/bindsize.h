@@ -13,7 +13,10 @@ namespace reactive::widget
             .bind([](auto obb)
             {
                 return provideValues(
-                        signal::map(&avg::Obb::getSize, std::move(obb))
+                        signal::map([](avg::Obb const& obb)
+                            {
+                                return obb.getSize();
+                            }, std::move(obb))
                         );
             });
     }

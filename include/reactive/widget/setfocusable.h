@@ -22,6 +22,7 @@ namespace reactive::widget
                     {
                         if (inputs.size() > 0)
                             inputs[0] = std::move(inputs[0]).setFocusable(focusable);
+
                         return inputs;
                     },
                     std::move(keyboardInputs),

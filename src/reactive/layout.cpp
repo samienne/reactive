@@ -1,8 +1,10 @@
 #include "layout.h"
 
-#include "avg/rendertree.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
+#include "widget/bindsize.h"
+
+#include "avg/rendertree.h"
 
 namespace reactive
 {
@@ -19,40 +21,40 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto transformer = [obbMap=std::move(obbMap),
-            hintsSignal, factories=btl::cloneOnCopy(std::move(factories))]
-                (auto w)
-        // -> Widget
-    {
-        auto obbs = share(signal::map(obbMap, w.getSize(), hintsSignal));
+    auto transformer = widget::makeWidgetTransformer()
+        .compose(widget::bindSize())
+        .values(std::move(obbMap), hintsSignal, std::move(factories))
+        .bind([](auto size, auto obbMap, auto hintsSignal, auto factories)
+        {
 
-        size_t index = 0;
-        auto widgets = btl::fmap(*factories, [&index, &obbs](auto&& f)
-            {
-                auto t = signal::map([index](
-                            std::vector<avg::Obb> const& obbs)
-                        {
-                            return obbs.at(index).getTransform();
-                        }, obbs);
+            auto obbs = share(signal::map(obbMap, std::move(size), hintsSignal));
 
-                auto size = signal::map([index](
-                            std::vector<avg::Obb> const& obbs)
-                        {
-                            return obbs.at(index).getSize();
-                        }, obbs);
+            size_t index = 0;
+            auto widgets = btl::fmap(factories, [&index, &obbs](auto&& f)
+                    -> AnySignal<Widget>
+                {
+                    auto t = signal::map([index](
+                                std::vector<avg::Obb> const& obbs)
+                            {
+                                return obbs.at(index).getTransform();
+                            }, obbs);
 
-                auto factory = f.clone()
-                    | widget::transform(std::move(t));
+                    auto size = signal::map([index](
+                                std::vector<avg::Obb> const& obbs)
+                            {
+                                return obbs.at(index).getSize();
+                            }, obbs);
 
-                ++index;
+                    auto factory = f.clone()
+                        | widget::transform(std::move(t));
 
-                return std::move(factory)(std::move(size));
-            });
+                    ++index;
 
-        return widget::makeWidgetTransformerResult(
-                std::move(w) | widget::addWidgets(std::move(widgets))
-                );
-    };
+                    return std::move(factory)(std::move(size));
+                });
+
+            return widget::addWidgets(std::move(widgets));
+        });
 
     return makeWidgetFactory()
         | widget::makeWidgetTransformer(std::move(transformer))

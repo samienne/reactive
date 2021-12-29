@@ -12,28 +12,24 @@ namespace reactive::widget
     {
         return makeWidgetTransformer([](auto widget)
         {
-            auto renderTree = signal::share(widget.getRenderTree());
+            auto w = signal::share(std::move(widget));
+
+            auto renderTree = map([](Widget const& w) //-> avg::RenderTree const&
+                    {
+                        return w.getRenderTree();
+                    },
+                    w);
 
             return makeWidgetTransformerResult(
-                    std::move(widget).setRenderTree(renderTree),
-                    renderTree
+                    std::move(w),
+                    std::move(renderTree)
                     );
         });
     }
 
     inline auto grabRenderTree()
     {
-        return makeWidgetTransformer([](auto widget)
-        {
-            auto renderTree = widget.getRenderTree();
-
-            auto empty = signal::constant(avg::RenderTree());
-
-            return makeWidgetTransformerResult(
-                    std::move(widget).setRenderTree(std::move(empty)),
-                    std::move(renderTree)
-                    );
-        });
+        return bindRenderTree();
     }
 
 } // namespace reactive::widget

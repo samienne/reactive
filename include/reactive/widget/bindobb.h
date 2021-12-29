@@ -12,11 +12,16 @@ namespace reactive::widget
     {
         return makeWidgetTransformer([](auto widget)
         {
-            auto obb = signal::share(widget.getObb());
+            auto w = signal::share(std::move(widget));
+            auto obb = map([](Widget w) //-> avg::Obb const&
+                    {
+                        return w.getObb();
+                    },
+                    w);
 
             return makeWidgetTransformerResult(
-                    std::move(widget).setObb(obb),
-                    obb
+                    std::move(w),
+                    signal::share(std::move(obb))
                     );
 
         });
@@ -24,15 +29,7 @@ namespace reactive::widget
 
     inline auto grabObb()
     {
-        return makeWidgetTransformer([](auto widget)
-        {
-            auto obb = widget.getObb();
-
-            return makeWidgetTransformerResult(
-                    std::move(widget).setObb(signal::constant(avg::Obb())),
-                    std::move(obb)
-                    );
-        });
+        return bindObb();
     }
 } // namespace reactive::widget
 

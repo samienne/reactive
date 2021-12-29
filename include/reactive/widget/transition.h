@@ -64,32 +64,31 @@ auto transition(Transition<T> transition)
     return makeWidgetTransformer([=, transition=std::move(transition)]
         (auto widget) mutable
         {
-            auto renderTree = share(widget.getRenderTree());
+            auto w = signal::share(std::move(widget));
+            //auto renderTree = share(widget.getRenderTree());
 
-            auto w = std::move(widget).setRenderTree(std::move(renderTree));
+            //auto w = std::move(widget).setRenderTree(std::move(renderTree));
 
             auto [activeWidget, p1] = transition.active(w.clone());
             auto [transitionedWidget, p2] = transition.transitioned(w.clone());
 
-            auto newRenderTree = group(activeWidget.getRenderTree().clone(),
-                    transitionedWidget.getRenderTree().clone())
-                    .map([=](auto const& activeRenderTree, auto transitionedRenderTree)
+            auto newRenderTree = group(activeWidget.clone(),
+                    transitionedWidget.clone())
+                    .map([=](auto const& activeRenderTree, auto const& transitionedRenderTree)
                     {
                         auto transition = std::make_shared<avg::TransitionNode>(
                                 avg::Obb(),
                                 true,
-                                activeRenderTree.getRoot(),
-                                transitionedRenderTree.getRoot()
+                                activeRenderTree.getRenderTree().getRoot(),
+                                transitionedRenderTree.getRenderTree().getRoot()
                                 );
 
                         return avg::RenderTree(std::move(transition));
                     });
 
-            //return setRenderTree(std::move(newRenderTree));
 
-            return std::make_pair(
-                    std::move(w).setRenderTree(std::move(newRenderTree)),
-                    btl::cloneOnCopy(std::make_tuple())
+            return makeWidgetTransformerResult(
+                    std::move(w) | setRenderTree(std::move(newRenderTree))
                     );
         });
 

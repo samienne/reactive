@@ -1,6 +1,8 @@
 #include "reactive/widget/focusgroup.h"
 
 #include "reactive/widget/onkeyevent.h"
+#include "reactive/widget/bindobb.h"
+#include "reactive/widget/setobb.h"
 
 #include "reactive/widget.h"
 
@@ -275,33 +277,30 @@ FocusGroupState step(FocusGroupState oldState,
 
 WidgetTransformer<void> focusGroup()
 {
-    auto f = [](Widget w)
-    {
-        auto keyStream = stream::pipe<KeyEvent>();
+    return makeWidgetTransformer()
+        .compose(bindKeyboardInputs(), bindObb())
+        .bind([](auto inputs, auto obb)
+        {
+            auto keyStream = stream::pipe<KeyEvent>();
 
-        auto state = signal::foldp(&step,
-                FocusGroupState(),
-                w.getKeyboardInputs(),
-                stream::collect(std::move(keyStream.stream))
-                );
+            auto state = signal::foldp(&step,
+                    FocusGroupState(),
+                    std::move(inputs),
+                    stream::collect(std::move(keyStream.stream))
+                    );
 
-        auto obb = signal::share(w.getObb());
-        static_assert(signal::IsSignal<decltype(state)>::value, "");
+            auto newInputs = signal::map(
+                    mapStateToInputs,
+                    std::move(state),
+                    signal::constant(keyStream.handle),
+                    obb
+                    );
 
-        auto inputs = signal::map(
-                mapStateToInputs,
-                std::move(state),
-                signal::constant(keyStream.handle),
-                obb
-                );
-
-        return makeWidgetTransformerResult(std::move(w)
-            .setObb(std::move(obb))
-            .setKeyboardInputs(std::move(inputs))
-            );
-    };
-
-    return makeWidgetTransformer(f);
+            return makeWidgetTransformer().compose(
+                    setObb(std::move(obb)),
+                    setKeyboardInputs(std::move(newInputs))
+                    );
+        });
 }
 
 } // reactive::widget

@@ -454,6 +454,27 @@ std::type_index ContainerNode::getType() const
     return typeid(ContainerNode);
 }
 
+std::shared_ptr<RenderTreeNode> ContainerNode::clone() const
+{
+    /*
+    std::vector<Child> children;
+    for (auto const& child : children_)
+    {
+        children.emplace_back(
+                child.node->clone(),
+                child.active
+                );
+    }
+
+    return std::make_shared<ContainerNode>(
+            getObb(),
+            std::move(children)
+            );
+    */
+
+    return std::make_shared<ContainerNode>(*this);
+}
+
 RectNode::RectNode(
         Animated<Obb> obb,
         Animated<float> radius,
@@ -535,6 +556,12 @@ UpdateResult TransitionNode::update(
         newActive = newTransition.activeNode_;
         newTransitioned = newTransition.transitionedNode_;
         newObb = newNode->getObb();
+
+        if (animationOptions)
+        {
+            nextUpdate = time + animationOptions->duration;
+            transition = Transition { time, animationOptions->duration };
+        }
     }
     else if (oldNode && !newNode)
     {
@@ -616,6 +643,9 @@ UpdateResult TransitionNode::update(
     if (transition.has_value())
         nextUpdate = transition->startTime + transition->duration;
 
+    if (nextUpdate < time)
+        nextUpdate = std::nullopt;
+
     return {
         std::move(result),
         earlier(nextUpdate, nextChildUpdate)
@@ -642,6 +672,11 @@ std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
 std::type_index TransitionNode::getType() const
 {
     return typeid(TransitionNode);
+}
+
+std::shared_ptr<RenderTreeNode> TransitionNode::clone() const
+{
+    return std::make_shared<TransitionNode>(*this);
 }
 
 ClipNode::ClipNode(
@@ -808,6 +843,11 @@ std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
 std::type_index ClipNode::getType() const
 {
     return typeid(ClipNode);
+}
+
+std::shared_ptr<RenderTreeNode> ClipNode::clone() const
+{
+    return std::make_shared<ClipNode>(*this);
 }
 
 IdNode::IdNode(
@@ -981,6 +1021,11 @@ std::type_index IdNode::getType() const
     return typeid(IdNode);
 }
 
+std::shared_ptr<RenderTreeNode> IdNode::clone() const
+{
+    return std::make_shared<IdNode>(*this);
+}
+
 RenderTree::RenderTree()
 {
 }
@@ -1043,7 +1088,12 @@ std::pair<Drawing, bool> RenderTree::draw(
 RenderTree RenderTree::transform(Transform const& transform) &&
 {
     if (root_)
+    {
+        if (!root_.unique())
+            root_ = root_->clone();
+
         root_->transform(transform);
+    }
 
     return *this;
 }
