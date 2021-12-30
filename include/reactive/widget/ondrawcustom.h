@@ -23,6 +23,7 @@ namespace detail
         >
     auto onDrawCustom(TFunc&& f, Ts&&... ts)
     {
+        /*
         return makeWidgetTransformer()
             .compose(grabRenderTree(), bindObb())
             .values(std::forward<Ts>(ts)...)
@@ -57,6 +58,39 @@ namespace detail
 
                 return setRenderTree(std::move(newTree));
             });
+        */
+
+        return makeWidgetModifier([f=std::forward<TFunc>(f)]
+            (auto widget, auto&&... ts)
+            {
+                return signal::map([f]
+                    (Widget widget, auto... ts)
+                    {
+                        auto shape = avg::makeShapeNode(widget.getObb(), f, ts...);
+
+                        auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
+
+                        if (reverse)
+                        {
+                            container->addChild(std::move(shape));
+                            container->addChild(widget.getRenderTree().getRoot());
+                        }
+                        else
+                        {
+                            container->addChild(widget.getRenderTree().getRoot());
+                            container->addChild(std::move(shape));
+                        }
+
+                        return std::move(widget)
+                            .setRenderTree(avg::RenderTree(std::move(container)))
+                            ;
+                    },
+                    std::move(widget),
+                    std::forward<decltype(ts)>(ts)...
+                    );
+            },
+            std::forward<Ts>(ts)...
+        );
     }
 
 } // namespace

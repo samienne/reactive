@@ -6,6 +6,7 @@
 
 #include <functional>
 #include <tuple>
+#include <type_traits>
 
 namespace reactive::widget
 {
@@ -214,6 +215,7 @@ namespace reactive::widget
             });
     }
 
+
     template <typename TWidget, typename... Ts>
     auto makeWidgetTransformerResult(signal::Signal<TWidget, Widget> widget, Ts&&... ts)
     {
@@ -222,6 +224,144 @@ namespace reactive::widget
                 btl::cloneOnCopy(std::make_tuple(std::forward<Ts>(ts)...))
                 );
     }
+
+    template <typename TFunc, typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>
+                 > > >
+    auto makeWidgetModifier(TFunc&& f)
+    {
+        return makeWidgetTransformer([f=std::forward<TFunc>(f)](auto widget)
+        {
+            return makeWidgetTransformerResult(
+                    std::invoke(f, std::move(widget))
+                    );
+        });
+    }
+
+    template <typename TFunc, typename T,
+             typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T
+                 > > >
+    auto makeWidgetModifier(TFunc&& f, T&& t)
+    {
+        return makeWidgetTransformer(
+            [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t))]
+            (auto widget) mutable
+            {
+                return makeWidgetTransformerResult(
+                        std::invoke(f, std::move(widget), std::move(*t))
+                        );
+            });
+    }
+
+    template <typename TFunc, typename T, typename U,
+             typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U
+                 > > >
+    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u)
+    {
+        return makeWidgetTransformer(
+            [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t)),
+            u=btl::cloneOnCopy(std::forward<U>(u))]
+            (auto widget) mutable
+            {
+                return makeWidgetTransformerResult(
+                        std::invoke(f, std::move(widget), std::move(*t), std::move(*u))
+                        );
+            });
+    }
+
+    template <typename TFunc, typename T, typename U, typename V,
+             typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V
+                 > > >
+    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v)
+    {
+        return makeWidgetTransformer(
+            [f=std::forward<TFunc>(f),
+            t=btl::cloneOnCopy(std::forward<T>(t)),
+            u=btl::cloneOnCopy(std::forward<U>(u)),
+            v=btl::cloneOnCopy(std::forward<V>(v))]
+            (auto widget) mutable
+            {
+                return makeWidgetTransformerResult(
+                        std::invoke(f, std::move(widget), std::move(*t), std::move(*u),
+                            std::move(*v))
+                        );
+            });
+    }
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W
+                 > > >
+    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w)
+    {
+        return makeWidgetTransformer(
+            [f=std::forward<TFunc>(f),
+            t=btl::cloneOnCopy(std::forward<T>(t)),
+            u=btl::cloneOnCopy(std::forward<U>(u)),
+            v=btl::cloneOnCopy(std::forward<V>(v)),
+            w=btl::cloneOnCopy(std::forward<W>(w))]
+            (auto widget) mutable
+            {
+                return makeWidgetTransformerResult(
+                        std::invoke(f, std::move(widget), std::move(*t), std::move(*u),
+                            std::move(*v), std::move(*w))
+                        );
+            });
+    }
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename X,
+             typename = std::enable_if_t<std::is_invocable_r_v<
+                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W, X
+                 > > >
+    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w, X&& x)
+    {
+        return makeWidgetTransformer(
+            [f=std::forward<TFunc>(f),
+            t=btl::cloneOnCopy(std::forward<T>(t)),
+            u=btl::cloneOnCopy(std::forward<U>(u)),
+            v=btl::cloneOnCopy(std::forward<V>(v)),
+            w=btl::cloneOnCopy(std::forward<W>(w)),
+            x=btl::cloneOnCopy(std::forward<X>(x))]
+            (auto widget) mutable
+            {
+                return makeWidgetTransformerResult(
+                        std::invoke(f, std::move(widget), std::move(*t), std::move(*u),
+                            std::move(*v), std::move(*w), std::move(*x))
+                        );
+            });
+    }
+
+    /*
+    template <typename TFunc, typename T, typename... Ts, typename = std::enable_if_t<
+        std::is_convertible_v<
+            TFunc,
+            std::function<AnySignal<Widget>(AnySignal<Widget>, T, Ts...)>>
+        >>
+    auto makeWidgetModifier(TFunc&& f, T&& t, Ts&&... ts)
+    {
+        return makeWidgetTransformer([f=std::forward<TFunc>(f),
+                ts=std::make_tuple(std::forward<T>(t), std::forward<Ts>(ts)...)]
+                    (auto widget) mutable
+        {
+            return std::apply([&](auto&&... ts) mutable
+                    {
+                        return makeWidgetTransformerResult(
+                                std::invoke(
+                                    f,
+                                    std::move(widget),
+                                    std::forward<decltype(ts)>(ts)...)
+                                );
+                    },
+                    std::move(ts)
+                    );
+        });
+    }
+    */
+
 
     template <typename T, typename... Us>
     auto operator|(Signal<T, Widget> w, WidgetTransformer<Us...> t)
