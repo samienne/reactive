@@ -13,85 +13,56 @@
 
 namespace reactive::widget
 {
-    /*
-    inline auto clipDrawing()
-    {
-        return makeWidgetTransformer()
-            .compose(bindObb(), grabDrawing())
-            .bind([](auto obb, auto drawing)
-            {
-                auto newDrawing = signal::map(
-                    [](avg::Obb obb, avg::Drawing d)
-                    {
-                        return std::move(d).clip(obb);
-                    },
-                    std::move(obb),
-                    std::move(drawing)
-                    );
-
-                return setDrawing(std::move(newDrawing));
-            });
-    }
-    */
-
     inline auto clipRenderTree()
     {
-        return makeWidgetTransformer()
-            .compose(bindObb(), grabRenderTree())
-            .bind([](auto obb, auto renderTree)
+        return makeWidgetModifier([](auto widget)
             {
-                auto newRenderTree = signal::map(
-                    []
-                    (avg::Obb const& obb, avg::RenderTree const& renderTree)
+                return signal::map([](Widget widget)
                     {
                         auto clip = std::make_shared<avg::ClipNode>(
-                                obb,
-                                renderTree.getRoot()
+                                widget.getObb(),
+                                widget.getRenderTree().getRoot()
                                 );
 
-                        return avg::RenderTree(std::move(clip));
+                        return std::move(widget)
+                            .setRenderTree(avg::RenderTree(std::move(clip)))
+                            ;
                     },
-                    std::move(obb),
-                    std::move(renderTree)
+                    std::move(widget)
                     );
-
-                return setRenderTree(std::move(newRenderTree));
             });
     }
 
     inline auto clipInputAreas()
     {
-        return makeWidgetTransformer()
-            .compose(bindObb(), grabInputAreas())
-            .bind([](auto obb, auto inputAreas)
+        return makeWidgetModifier([](auto widget)
             {
-                auto newAreas = signal::map(
-                    [](avg::Obb obb, std::vector<InputArea> areas)
+                return signal::map([](Widget widget)
                     {
+                        auto areas = widget.getInputAreas();
                         for (auto&& area : areas)
-                            area = std::move(area).clip(obb);
+                            area = std::move(area).clip(widget.getObb());
 
-                        return areas;
+                        return std::move(widget)
+                            .setInputAreas(std::move(areas))
+                            ;
+
                     },
-                    std::move(obb),
-                    std::move(inputAreas)
+                    std::move(widget)
                     );
-
-                return setInputAreas(std::move(newAreas));
             });
     }
 
     inline auto clipKeyboardInputs()
     {
-        return makeWidgetTransformer()
-            .compose(bindObb(), grabKeyboardInputs())
-            .bind([](auto obb, auto keyboardInputs)
+        return makeWidgetModifier([](auto widget)
             {
-                auto newKeyboardInputs = signal::map(
-                    [](avg::Obb obb, std::vector<KeyboardInput> inputs)
+                return signal::map([](Widget widget)
                     {
-                        auto obbTInverse = obb.getTransform().inverse();
-                        avg::Rect obbRect(avg::Vector2f(0.0f, 0.0f), obb.getSize());
+                        auto obbTInverse = widget.getObb().getTransform().inverse();
+                        avg::Rect obbRect(avg::Vector2f(0.0f, 0.0f), widget.getSize());
+
+                        auto inputs = widget.getKeyboardInputs();
 
                         inputs.erase(
                                 std::remove_if(
@@ -106,13 +77,12 @@ namespace reactive::widget
                                 inputs.end()
                                 );
 
-                        return inputs;
+                        return std::move(widget)
+                            .setKeyboardInputs(std::move(inputs))
+                            ;
                     },
-                    std::move(obb),
-                    std::move(keyboardInputs)
+                    std::move(widget)
                     );
-
-                return setKeyboardInputs(std::move(newKeyboardInputs));
             });
     }
 
@@ -121,7 +91,6 @@ namespace reactive::widget
         return makeWidgetTransformer()
             .compose(
                     clipRenderTree(),
-                    //clipDrawing(),
                     clipInputAreas(),
                     clipKeyboardInputs()
                     )
