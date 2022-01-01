@@ -236,13 +236,13 @@ TEST(signal, shareOptimizations)
 template <typename T, typename U>
 auto asdf(Signal<T, U> s)
 {
-    return std::move(s);
+    return s;
 }
 
 template <typename T>
 auto asdf2(AnySignal<T> s)
 {
-    return std::move(s);
+    return s;
 }
 
 TEST(signal, typedSharedSignalIsASignal)

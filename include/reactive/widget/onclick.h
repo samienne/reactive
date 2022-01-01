@@ -17,7 +17,8 @@
 namespace reactive::widget
 {
     template <typename T, typename U, std::enable_if_t<
-        std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
+        //std::is_convertible<T, std::function<void(ClickEvent const&)>>::value
+        std::is_invocable_v<T, ClickEvent>
         , int> = 0>
     inline auto onClick(unsigned int button, Signal<U, T> cb)
             //Signal<std::function<void(ClickEvent const&)>> cb)
@@ -58,7 +59,8 @@ namespace reactive::widget
     }
 
     template <typename T, typename U, std::enable_if_t<
-        std::is_convertible<T, std::function<void()>>::value
+        std::is_invocable_v<T>
+        //std::is_convertible<T, std::function<void()>>::value
         , int> = 0>
     inline auto onClick(unsigned int button, Signal<U, T> cb)
     {

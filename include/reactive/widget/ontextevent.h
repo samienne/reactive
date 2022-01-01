@@ -11,29 +11,27 @@ namespace reactive::widget
     template <typename T, typename U>
     auto onTextEvent(Signal<T, U> handler)
     {
-        return makeWidgetTransformer()
-            .compose(grabKeyboardInputs())
-            .values(std::move(handler))
-            .bind([](auto inputs, auto handler) mutable
+        return makeWidgetModifier([](auto widget, auto handler)
             {
-                auto newInputs = signal::map(
-                    [](std::vector<KeyboardInput> inputs, auto const& handler)
-                    -> std::vector<KeyboardInput>
+                return signal::map([](Widget widget, auto handler)
                     {
+                        auto inputs = widget.getKeyboardInputs();
                         for (auto&& input : inputs)
                         {
                             input = std::move(input)
                                 .onTextEvent(handler);
                         }
 
-                        return inputs;
+                        return std::move(widget)
+                            .setKeyboardInputs(std::move(inputs))
+                            ;
                     },
-                    std::move(inputs),
+                    std::move(widget),
                     std::move(handler)
                     );
-
-                return setKeyboardInputs(std::move(newInputs));
-            });
+            },
+            std::move(handler)
+            );
     }
 
     inline auto onTextEvent(KeyboardInput::TextHandler handler)

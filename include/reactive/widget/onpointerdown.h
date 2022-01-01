@@ -23,36 +23,36 @@ namespace reactive::widget
     {
         btl::UniqueId id = btl::makeUniqueId();
 
-        return makeWidgetTransformer()
-            .compose(grabInputAreas(), bindObb())
-            .values(std::forward<T>(cb))
-            .bind([id](auto areas, auto obb, auto cb)
+        return makeWidgetModifier([id](auto widget, auto cb)
             {
-                auto newAreas = signal::map(
-                    [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
-                    -> std::vector<InputArea>
+                return signal::map([id](auto widget, auto cb)
                     {
+                        auto areas = widget.getInputAreas();
+
                         if (!areas.empty()
                                 && areas.back().getObbs().size() == 1
-                                && areas.back().getObbs().front() == obb)
+                                && areas.back().getObbs().front() == widget.getObb())
                         {
                             areas.back() = std::move(areas.back()).onDown(std::move(cb));
-                            return areas;
+                        }
+                        else
+                        {
+                            areas.push_back(
+                                    makeInputArea(id, widget.getObb())
+                                        .onDown(std::move(cb))
+                                    );
                         }
 
-                        areas.push_back(
-                                makeInputArea(id, obb).onDown(std::move(cb))
-                                );
-
-                        return areas;
+                        return std::move(widget)
+                            .setInputAreas(std::move(areas))
+                            ;
                     },
-                    std::move(areas),
-                    std::move(obb),
+                    std::move(widget),
                     std::move(cb)
                     );
-
-                return setInputAreas(std::move(newAreas));
-            });
+            },
+            std::forward<T>(cb)
+            );
     }
 
     inline auto onPointerDown(

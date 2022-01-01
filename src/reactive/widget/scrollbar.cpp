@@ -238,18 +238,6 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
-                    /*
-                    .values(
-                            //std::move(drawContext),
-                            //size.clone(),
-                            std::move(theme),
-                            amount,
-                            handleSize,
-                            std::move(hover),
-                            std::move(isDown)
-                            )
-                    .bind(onDrawCustom(drawScrollBar<IsHorizontal>))
-                    */
                     .compose(onDraw(
                                 drawScrollBar<IsHorizontal>,
                                 std::move(theme),
