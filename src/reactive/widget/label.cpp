@@ -1,6 +1,6 @@
 #include "widget/label.h"
 
-#include "widget/ondrawcustom.h"
+#include "widget/ondraw.h"
 #include "widget/bindobb.h"
 #include "widget/bindtheme.h"
 #include "widget/margin.h"
@@ -17,14 +17,16 @@
 
 #include <iostream>
 
-namespace reactive { namespace widget {
+namespace reactive::widget
+{
 
 WidgetFactory label(AnySharedSignal<std::string> text)
 {
     auto draw = [](avg::DrawContext const& drawContext, avg::Vector2f size,
-            widget::Theme const& theme,
             std::string const& text) -> avg::Drawing
     {
+        widget::Theme theme;
+
         float height = theme.getTextHeight();
         auto& font = theme.getFont();
         auto te = font.getTextExtents(utf8::asUtf8(text), height);
@@ -54,15 +56,17 @@ WidgetFactory label(AnySharedSignal<std::string> text)
     };
 
     return makeWidgetFactory()
-        | makeWidgetTransformer()
-            .compose(bindTheme())
-            .values(text)
-            .bind(onDrawCustom(draw))
+        | onDraw(draw, text)
         | setSizeHint(signal::map(getSizeHint, text,
                     signal::constant(Theme())))
         | margin(signal::constant(5.0f))
         ;
 }
 
-}} // namespace
+WidgetFactory label(std::string const& text)
+{
+    return label(signal::constant(std::move(text)));
+}
+
+} // namespace reactive::widget
 

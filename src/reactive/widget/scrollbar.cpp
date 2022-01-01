@@ -4,7 +4,7 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/ondrawcustom.h"
+#include "widget/ondraw.h"
 #include "widget/bindtheme.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
@@ -238,6 +238,7 @@ namespace
                             return EventResult::accept;
                         }, downOffset.signal, size.clone(), handleSize))
                     )
+                    /*
                     .values(
                             //std::move(drawContext),
                             //size.clone(),
@@ -248,6 +249,16 @@ namespace
                             std::move(isDown)
                             )
                     .bind(onDrawCustom(drawScrollBar<IsHorizontal>))
+                    */
+                    .compose(onDraw(
+                                drawScrollBar<IsHorizontal>,
+                                std::move(theme),
+                                amount,
+                                handleSize,
+                                std::move(hover),
+                                std::move(isDown)
+                                )
+                            )
                     ;
             });
     }

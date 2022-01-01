@@ -14,6 +14,7 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT WidgetFactory label(AnySharedSignal<std::string> text);
+    REACTIVE_EXPORT WidgetFactory label(std::string const& text);
 
     inline WidgetFactory label(AnySignal<std::string> text)
     {

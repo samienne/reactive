@@ -48,24 +48,24 @@ int main()
     auto vScrollState = signal::input(0.5f);
 
     auto widgets = hbox({
-        widget::label(signal::constant<std::string>("TestTest"))
+        widget::label("TestTest")
             | widget::frame()
         , vbox({
                 widget::scrollView(
                         uniformGrid(3, 3)
-                        .cell(0, 0, 1, 1, widget::label(signal::constant("test")))
-                        .cell(1, 1, 1, 1, widget::label(signal::constant("test")))
-                        .cell(2, 2, 1, 1, widget::label(signal::constant("test")))
+                        .cell(0, 0, 1, 1, widget::label("test"))
+                        .cell(1, 1, 1, 1, widget::label("test"))
+                        .cell(2, 2, 1, 1, widget::label("test"))
                         )
-                , widget::label(signal::constant<std::string>("AbcTest"))
+                , widget::label("AbcTest")
                     | widget::frame()
                 , widget::textEdit(textState.handle,
                         signal::cast<widget::TextEditState>(textState.signal))
                 , reactive::vfiller()
                 , widget::hScrollBar(hScrollState.handle, hScrollState.signal,
                         signal::constant(0.0f))
-                , widget::label(signal::toString(hScrollState.signal))
-                , widget::label(signal::toString(vScrollState.signal))
+                , widget::label(toString(hScrollState.signal))
+                , widget::label(toString(vScrollState.signal))
                 })
         , adder()
             | widget::frame()
@@ -76,11 +76,6 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
     });
-    /*
-    auto widgets = widget::textEdit(textState.handle,
-                        signal::cast<widget::TextEditState>(textState.signal))
-        .build();
-        */
 
     return app()
         .windows({
@@ -88,7 +83,7 @@ int main()
                     signal::constant<std::string>("Test program"),
                     std::move(widgets)
                     //| debug::drawKeyboardInputs()
-                    //| widget::focusGroup()
+                    | widget::focusGroup()
                     )
                 })
         .run();

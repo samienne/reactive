@@ -1,6 +1,6 @@
 #include "widget/textedit.h"
 
-#include "widget/ondrawcustom.h"
+#include "widget/ondraw.h"
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
@@ -188,9 +188,7 @@ TextEdit::operator WidgetFactory() const
 
     return makeWidgetFactory()
         | trackFocus(focus.handle)
-        | makeWidgetTransformer()
-            .values(std::move(newState), std::move(focusPercentage))
-            .bind(onDrawCustom(draw))
+        | widget::onDraw(std::move(draw), std::move(newState), std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))

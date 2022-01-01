@@ -12,11 +12,23 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawButton(avg::DrawContext const& drawContext,
+    avg::Drawing drawButton(
+            avg::DrawContext const& drawContext,
             avg::Obb obb,
-            avg::Color fgColor,
-            avg::Color bgColor)
+            bool down,
+            bool hover
+            )
     {
+        widget::Theme theme;
+
+        avg::Color fgColor(down ? theme.getEmphasized() : theme.getSecondary());
+        avg::Color bgColor = theme.getBackground();
+
+        if (down)
+            bgColor = theme.getSecondary();
+        else if (hover)
+            bgColor = theme.getBackgroundHighlight();
+
         auto size = obb.getSize();
 
         auto pen = avg::Pen(fgColor);
@@ -43,35 +55,7 @@ WidgetFactory button(AnySignal<std::string> label,
 
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
-        | makeWidgetTransformer()
-        .compose(bindTheme())
-        .values(down.signal, hover.signal)
-        .bind([](auto theme, auto down, auto hover)
-        {
-            auto fgColor = group(theme, down)
-                .map([](widget::Theme const& theme, bool down)
-                {
-                    return down ? theme.getEmphasized() : theme.getSecondary();
-                });
-
-            auto bgColor = group(theme, down, hover)
-                .map([](widget::Theme const& theme, bool down, bool hover)
-                {
-                    avg::Color bgColor = theme.getBackground();
-
-                    if (down)
-                        bgColor = theme.getSecondary();
-                    else if (hover)
-                        bgColor = theme.getBackgroundHighlight();
-
-                    return bgColor;
-                });
-
-            return makeWidgetTransformer()
-                .values(std::move(fgColor), std::move(bgColor))
-                .bind(onDrawBehindCustom(&drawButton))
-                ;
-        })
+        | onDrawBehind(drawButton, std::move(down.signal), std::move(hover.signal))
         | onPointerDown([handle=down.handle](auto&) mutable
                 {
                     handle.set(true);
