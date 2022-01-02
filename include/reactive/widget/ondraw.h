@@ -19,33 +19,26 @@ namespace detail
     auto onDrawCustom(TFunc&& f, Ts&&... ts)
     {
         return makeWidgetModifier([f=std::forward<TFunc>(f)]
-            (auto widget, auto&&... ts) mutable
+            (Widget widget, auto&&... ts) mutable
             {
-                return signal::map([f]
-                    (Widget widget, auto... ts)
-                    {
-                        auto shape = avg::makeShapeNode(widget.getObb(), f, ts...);
+                auto shape = avg::makeShapeNode(widget.getObb(), f, ts...);
 
-                        auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
+                auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
 
-                        if constexpr (reverse)
-                        {
-                            container->addChild(std::move(shape));
-                            container->addChild(widget.getRenderTree().getRoot());
-                        }
-                        else
-                        {
-                            container->addChild(widget.getRenderTree().getRoot());
-                            container->addChild(std::move(shape));
-                        }
+                if constexpr (reverse)
+                {
+                    container->addChild(std::move(shape));
+                    container->addChild(widget.getRenderTree().getRoot());
+                }
+                else
+                {
+                    container->addChild(widget.getRenderTree().getRoot());
+                    container->addChild(std::move(shape));
+                }
 
-                        return std::move(widget)
-                            .setRenderTree(avg::RenderTree(std::move(container)))
-                            ;
-                    },
-                    std::move(widget),
-                    std::forward<decltype(ts)>(ts)...
-                    );
+                return std::move(widget)
+                    .setRenderTree(avg::RenderTree(std::move(container)))
+                    ;
             },
             std::forward<Ts>(ts)...
         );

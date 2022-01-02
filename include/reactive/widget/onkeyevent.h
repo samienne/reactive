@@ -21,23 +21,17 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetModifier([](auto widget, auto handler)
+            return makeWidgetModifier([](Widget widget, auto handler)
                 {
-                    return signal::map([](auto widget, auto handler)
-                        {
-                            auto inputs = widget.getKeyboardInputs();
+                    auto inputs = widget.getKeyboardInputs();
 
-                            for (auto&& input : inputs)
-                                input = std::move(input)
-                                    .onKeyEvent(handler);
+                    for (auto&& input : inputs)
+                        input = std::move(input)
+                            .onKeyEvent(handler);
 
-                            return std::move(widget)
-                                .setKeyboardInputs(std::move(inputs))
-                                ;
-                        },
-                        std::move(widget),
-                        std::move(handler)
-                        );
+                    return std::move(widget)
+                        .setKeyboardInputs(std::move(inputs))
+                        ;
                 },
                 std::move(handler)
                 );

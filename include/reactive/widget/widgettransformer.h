@@ -228,9 +228,9 @@ namespace reactive::widget
     template <typename TFunc, typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>
                  > > >
-    auto makeWidgetModifier(TFunc&& f)
+    auto makeWidgetSignalModifier(TFunc&& f)
     {
-        return makeWidgetTransformer([f=std::forward<TFunc>(f)](auto widget)
+        return makeWidgetTransformer([f=std::forward<TFunc>(f)](auto widget) mutable
         {
             return makeWidgetTransformerResult(
                     std::invoke(f, std::move(widget))
@@ -242,7 +242,7 @@ namespace reactive::widget
              typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>, T
                  > > >
-    auto makeWidgetModifier(TFunc&& f, T&& t)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t)
     {
         return makeWidgetTransformer(
             [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t))]
@@ -258,7 +258,7 @@ namespace reactive::widget
              typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U
                  > > >
-    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u)
     {
         return makeWidgetTransformer(
             [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t)),
@@ -275,7 +275,7 @@ namespace reactive::widget
              typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V
                  > > >
-    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v)
     {
         return makeWidgetTransformer(
             [f=std::forward<TFunc>(f),
@@ -295,7 +295,7 @@ namespace reactive::widget
              typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W
                  > > >
-    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w)
     {
         return makeWidgetTransformer(
             [f=std::forward<TFunc>(f),
@@ -317,7 +317,7 @@ namespace reactive::widget
              typename = std::enable_if_t<std::is_invocable_r_v<
                  AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W, X
                  > > >
-    auto makeWidgetModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w, X&& x)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w, X&& x)
     {
         return makeWidgetTransformer(
             [f=std::forward<TFunc>(f),
@@ -335,13 +335,12 @@ namespace reactive::widget
             });
     }
 
-    /*
     template <typename TFunc, typename T, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
             std::function<AnySignal<Widget>(AnySignal<Widget>, T, Ts...)>>
         >>
-    auto makeWidgetModifier(TFunc&& f, T&& t, Ts&&... ts)
+    auto makeWidgetSignalModifier(TFunc&& f, T&& t, Ts&&... ts)
     {
         return makeWidgetTransformer([f=std::forward<TFunc>(f),
                 ts=std::make_tuple(std::forward<T>(t), std::forward<Ts>(ts)...)]
@@ -360,8 +359,24 @@ namespace reactive::widget
                     );
         });
     }
-    */
 
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<Widget, TFunc, Widget, typename signal::SignalType<Ts>...>
+        >>
+    auto makeWidgetModifier(TFunc&& func, Ts&&... ts)
+    {
+        return makeWidgetSignalModifier([func=std::forward<TFunc>(func)]
+            (auto widget, auto&&... ts) mutable
+            {
+                return signal::map(
+                        func,
+                        std::move(widget),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+            },
+            std::forward<Ts>(ts)...
+            );
+    }
 
     template <typename T, typename... Us>
     auto operator|(Signal<T, Widget> w, WidgetTransformer<Us...> t)

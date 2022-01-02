@@ -20,23 +20,17 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetModifier([](auto widget, auto amount)
+        return makeWidgetModifier([](Widget widget, auto amount)
             {
-                return signal::map([](Widget widget, float amount)
-                    {
-                        auto size = widget.getObb().getSize();
-                        auto newSize = avg::Vector2f(
-                            size[0] + 2.0f * amount,
-                            size[1] + 2.0f * amount
-                            );
-
-                        return std::move(widget)
-                            .setObb(avg::Obb(newSize))
-                            ;
-                    },
-                    std::move(widget),
-                    std::move(amount)
+                auto size = widget.getObb().getSize();
+                auto newSize = avg::Vector2f(
+                    size[0] + 2.0f * amount,
+                    size[1] + 2.0f * amount
                     );
+
+                return std::move(widget)
+                    .setObb(avg::Obb(newSize))
+                    ;
             },
             std::forward<TSignalAmount>(amount)
             );
