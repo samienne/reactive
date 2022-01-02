@@ -1,8 +1,5 @@
 #pragma once
 
-#include "bindinputareas.h"
-#include "bindobb.h"
-#include "setinputareas.h"
 #include "widgettransformer.h"
 
 #include "reactive/signal/signal.h"
@@ -17,37 +14,30 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetTransformer()
-            .compose(grabInputAreas())
-            .values(std::move(area), std::move(cb))
-            .bind([id](auto areas, auto area, auto cb)
-            {
-                auto newAreas = signal::map(
-                    [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
+        return makeWidgetModifier([id](Widget widget, avg::Obb const& area, auto cb)
+                {
+                    auto areas = widget.getInputAreas();
+                    if (!areas.empty()
+                            && areas.back().getObbs().size() == 1
+                            && areas.back().getObbs().front() == area)
                     {
-                        if (!areas.empty()
-                                && areas.back().getObbs().size() == 1
-                                && areas.back().getObbs().front() == obb)
-                        {
-                            areas.back() = std::move(areas.back())
-                                .onHover(std::move(cb));
-
-                            return areas;
-                        }
-
+                        areas.back() = std::move(areas.back())
+                            .onHover(std::move(cb));
+                    }
+                    else
+                    {
                         areas.push_back(
-                                makeInputArea(id, obb).onHover(std::move(cb))
+                                makeInputArea(id, area).onHover(std::move(cb))
                                 );
+                    }
 
-                        return areas;
-                    },
-                    std::move(areas),
-                    std::move(area),
-                    std::move(cb)
-                    );
-
-                return setInputAreas(std::move(newAreas));
-            });
+                    return std::move(widget)
+                        .setInputAreas(std::move(areas))
+                        ;
+                },
+                std::move(area),
+                std::move(cb)
+                );
     }
 
     inline auto onHover(AnySignal<
@@ -56,37 +46,28 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetTransformer()
-            .compose(grabInputAreas(), bindObb())
-            .values(std::move(cb))
-            .bind([id](auto areas, auto obb, auto cb)
+        return makeWidgetModifier([id](Widget widget, auto cb)
             {
-                auto newAreas = signal::map(
-                    [id](std::vector<InputArea> areas, avg::Obb const& obb, auto cb)
-                    -> std::vector<InputArea>
-                    {
-                        if (!areas.empty()
-                                && areas.back().getObbs().size() == 1
-                                && areas.back().getObbs().front() == obb)
-                        {
-                            areas.back() = std::move(areas.back()).onHover(std::move(cb));
-                            return areas;
-                        }
+                auto areas = widget.getInputAreas();
+                if (!areas.empty()
+                        && areas.back().getObbs().size() == 1
+                        && areas.back().getObbs().front() == widget.getObb())
+                {
+                    areas.back() = std::move(areas.back()).onHover(std::move(cb));
+                }
+                else
+                {
+                    areas.push_back(
+                            makeInputArea(id, widget.getObb()).onHover(std::move(cb))
+                            );
+                }
 
-                        areas.push_back(
-                                makeInputArea(id, obb).onHover(std::move(cb))
-                                );
-
-                        return areas;
-                    },
-                    std::move(areas),
-                    std::move(obb),
-                    std::move(cb)
-                    );
-
-                return setInputAreas(std::move(newAreas));
-
-            });
+                return std::move(widget)
+                    .setInputAreas(std::move(areas))
+                    ;
+            },
+            std::move(cb)
+            );
     }
 
     inline auto onHover(
