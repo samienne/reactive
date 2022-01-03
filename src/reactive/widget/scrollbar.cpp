@@ -5,7 +5,6 @@
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
 #include "widget/ondraw.h"
-#include "widget/bindtheme.h"
 #include "widget/bindsize.h"
 #include "widget/bindhover.h"
 #include "widget/widgettransformer.h"
@@ -196,10 +195,11 @@ namespace
         AnySharedSignal<float> handleSize)
     {
         return makeWidgetTransformer()
-            .compose(bindSize(), bindTheme())
+            .compose(bindSize())
             .compose(bindHoverOnSlider<IsHorizontal>(amount, handleSize))
-            .bind([=](auto size, auto theme, auto hover) mutable
+            .bind([=](auto size, auto hover) mutable
             {
+                auto theme = signal::constant(widget::Theme());
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
                 auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
                         downOffset.signal);

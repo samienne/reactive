@@ -1,8 +1,6 @@
 #include "widget/label.h"
 
 #include "widget/ondraw.h"
-#include "widget/bindobb.h"
-#include "widget/bindtheme.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
 #include "widget/widgettransformer.h"

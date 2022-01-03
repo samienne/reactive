@@ -361,6 +361,26 @@ namespace reactive::widget
     }
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_convertible_v<
+            TFunc,
+            std::function<AnySignal<Widget>(AnySharedSignal<Widget>, Ts...)>>
+        >>
+    auto makeSharedWidgetSignalModifier(TFunc&& f, Ts&&... ts)
+    {
+        return makeWidgetSignalModifier([](auto widget, auto&& f, auto&&... ts)
+            {
+                return std::invoke(
+                        std::forward<decltype(f)>(f),
+                        share(std::move(widget)),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+            },
+            std::forward<TFunc>(f),
+            std::forward<Ts>(ts)...
+            );
+    }
+
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<Widget, TFunc, Widget, typename signal::SignalType<Ts>...>
         >>
     auto makeWidgetModifier(TFunc&& func, Ts&&... ts)

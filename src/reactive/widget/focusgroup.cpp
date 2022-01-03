@@ -1,8 +1,6 @@
 #include "reactive/widget/focusgroup.h"
 
 #include "reactive/widget/onkeyevent.h"
-#include "reactive/widget/bindobb.h"
-#include "reactive/widget/setobb.h"
 
 #include "reactive/widget.h"
 
@@ -277,10 +275,11 @@ FocusGroupState step(FocusGroupState oldState,
 
 WidgetTransformer<void> focusGroup()
 {
-    return makeWidgetTransformer()
-        .compose(bindKeyboardInputs(), bindObb())
-        .bind([](auto inputs, auto obb)
+    return makeSharedWidgetSignalModifier([](auto widget)
         {
+            auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
+            auto obb = signal::map(&Widget::getObb, widget);
+
             auto keyStream = stream::pipe<KeyEvent>();
 
             auto state = signal::foldp(&step,
@@ -293,13 +292,12 @@ WidgetTransformer<void> focusGroup()
                     mapStateToInputs,
                     std::move(state),
                     signal::constant(keyStream.handle),
-                    obb
+                    std::move(obb)
                     );
 
-            return makeWidgetTransformer().compose(
-                    setObb(std::move(obb)),
-                    setKeyboardInputs(std::move(newInputs))
-                    );
+            return std::move(widget)
+                | setKeyboardInputs(std::move(newInputs))
+                ;
         });
 }
 

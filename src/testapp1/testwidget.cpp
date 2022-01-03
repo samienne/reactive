@@ -2,8 +2,6 @@
 
 #include <reactive/widget/onclick.h>
 #include <reactive/widget/ondraw.h>
-#include <reactive/widget/bindsize.h>
-#include <reactive/widget/bindtheme.h>
 #include <reactive/widget/onkeyevent.h>
 #include <reactive/widget/widgettransformer.h>
 
@@ -82,12 +80,6 @@ WidgetFactory makeTestWidget()
     auto focus = signal::input(false);
 
     return makeWidgetFactory()
-        /*
-        | makeWidgetTransformer()
-        .compose(bindTheme())
-        .values(std::move(state), std::move(textState))
-        .bind(onDrawCustom(drawTestWidget))
-        */
         | onDraw(drawTestWidget, std::move(state), std::move(textState))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))

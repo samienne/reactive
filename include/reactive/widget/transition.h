@@ -51,12 +51,10 @@ inline auto transitionLeft()
 template <typename T>
 auto transition(Transition<T> transition)
 {
-    return makeWidgetSignalModifier([transition=std::move(transition)](auto widget) mutable
+    return makeSharedWidgetSignalModifier([transition=std::move(transition)](auto widget) mutable
         {
-            auto w = signal::share(std::move(widget));
-
-            auto [activeWidget, p1] = transition.active(w.clone());
-            auto [transitionedWidget, p2] = transition.transitioned(w.clone());
+            auto [activeWidget, p1] = transition.active(widget.clone());
+            auto [transitionedWidget, p2] = transition.transitioned(widget.clone());
 
             auto newRenderTree = group(activeWidget.clone(),
                     transitionedWidget.clone())
@@ -72,7 +70,7 @@ auto transition(Transition<T> transition)
                         return avg::RenderTree(std::move(transition));
                     });
 
-            return std::move(w)
+            return std::move(widget)
                 | setRenderTree(std::move(newRenderTree))
                 ;
         });
