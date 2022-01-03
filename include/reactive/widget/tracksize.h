@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>

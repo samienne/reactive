@@ -3,7 +3,7 @@
 #include "widget/addwidgets.h"
 #include "widget/clip.h"
 #include "widget/transform.h"
-#include "widget/widgettransformer.h"
+#include "widget/widgetmodifier.h"
 
 namespace reactive::widget
 {

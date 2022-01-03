@@ -1,8 +1,6 @@
 #pragma once
 
-#include "setkeyboardinputs.h"
-#include "bindkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <iostream>
 

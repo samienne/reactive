@@ -3,7 +3,7 @@
 #include "bindinputareas.h"
 #include "bindobb.h"
 #include "setinputareas.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/eventresult.h"
 #include "reactive/pointerbuttonevent.h"

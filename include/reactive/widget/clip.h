@@ -1,13 +1,6 @@
 #pragma once
 
-#include "setrendertree.h"
-#include "bindrendertree.h"
-#include "bindobb.h"
-#include "bindinputareas.h"
-#include "bindkeyboardinputs.h"
-#include "setinputareas.h"
-#include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
 

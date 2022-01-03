@@ -2,7 +2,7 @@
 
 #include "bindkeyboardinputs.h"
 #include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
 

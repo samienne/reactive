@@ -1,9 +1,7 @@
 #pragma once
 
-#include "setobb.h"
-#include "bindobb.h"
 #include "transform.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"

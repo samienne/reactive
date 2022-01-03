@@ -2,6 +2,7 @@
 
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
+#include "widget/widgetmodifier.h"
 
 #include "avg/rendertree.h"
 

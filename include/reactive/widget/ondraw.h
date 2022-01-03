@@ -1,8 +1,6 @@
 #pragma once
 
-#include "setrendertree.h"
-#include "bindrendertree.h"
-#include "bindobb.h"
+#include "widgetmodifier.h"
 
 #include <avg/rendertree.h>
 

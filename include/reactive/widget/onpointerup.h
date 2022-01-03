@@ -1,9 +1,7 @@
 #pragma once
 
-#include "bindinputareas.h"
-#include "bindobb.h"
 #include "setinputareas.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/signal/signal.h"
 

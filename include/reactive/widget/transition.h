@@ -2,7 +2,7 @@
 
 #include "transform.h"
 #include "setrendertree.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <avg/rendertree.h>
 
