@@ -6,39 +6,19 @@
 
 namespace reactive::widget
 {
-    inline auto clipRenderTree()
+    inline auto clip()
     {
-        return makeWidgetModifier([](Widget widget)
+        return makeWidgetModifier([](auto widget)
             {
                 auto clip = std::make_shared<avg::ClipNode>(
                         widget.getObb(),
                         widget.getRenderTree().getRoot()
                         );
 
-                return std::move(widget)
-                    .setRenderTree(avg::RenderTree(std::move(clip)))
-                    ;
-            });
-    }
-
-    inline auto clipInputAreas()
-    {
-        return makeWidgetModifier([](auto widget)
-            {
                 auto areas = widget.getInputAreas();
                 for (auto&& area : areas)
                     area = std::move(area).clip(widget.getObb());
 
-                return std::move(widget)
-                    .setInputAreas(std::move(areas))
-                    ;
-            });
-    }
-
-    inline auto clipKeyboardInputs()
-    {
-        return makeWidgetModifier([](auto widget)
-            {
                 auto obbTInverse = widget.getObb().getTransform().inverse();
                 avg::Rect obbRect(avg::Vector2f(0.0f, 0.0f), widget.getSize());
 
@@ -59,19 +39,10 @@ namespace reactive::widget
 
                 return std::move(widget)
                     .setKeyboardInputs(std::move(inputs))
+                    .setInputAreas(std::move(areas))
+                    .setRenderTree(avg::RenderTree(std::move(clip)))
                     ;
             });
-    }
-
-    inline auto clip()
-    {
-        return makeWidgetTransformer()
-            .compose(
-                    clipRenderTree(),
-                    clipInputAreas(),
-                    clipKeyboardInputs()
-                    )
-            ;
     }
 } // reactive::widget
 
