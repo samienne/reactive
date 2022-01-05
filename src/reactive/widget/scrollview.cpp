@@ -7,7 +7,7 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/widgettransformer.h"
+#include "widget/widgetmodifier.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
@@ -74,8 +74,7 @@ WidgetFactory scrollView(WidgetFactory f)
             {{100, 800, 10000}}
             )))
         | trackSize(viewSize.handle)
-        | makeWidgetTransformer()
-            .compose(onPointerDown(signal::mapFunction(
+        | onPointerDown(signal::mapFunction(
                 [dragOffsetHandle=dragOffset.handle,
                 scrollPosHandle=scrollPos.handle
                 ]
@@ -89,35 +88,35 @@ WidgetFactory scrollView(WidgetFactory f)
                     }
 
                     return EventResult::possible;
-                }, x.signal, y.signal)))
-            .compose(onPointerMove(signal::mapFunction(
-                    [xHandle=x.handle, yHandle=y.handle]
-                    (avg::Vector2f dragOffset, avg::Vector2f viewSize,
-                        avg::Vector2f contentSize,
-                        btl::option<avg::Vector2f> scrollPos,
-                        PointerMoveEvent const& e) mutable
-                    {
-                        if (!scrollPos.valid())
-                            return EventResult::possible;
+                }, x.signal, y.signal))
+        | onPointerMove(signal::mapFunction(
+                [xHandle=x.handle, yHandle=y.handle]
+                (avg::Vector2f dragOffset, avg::Vector2f viewSize,
+                    avg::Vector2f contentSize,
+                    btl::option<avg::Vector2f> scrollPos,
+                    PointerMoveEvent const& e) mutable
+                {
+                    if (!scrollPos.valid())
+                        return EventResult::possible;
 
-                        float hLen = contentSize[0] - viewSize[0];
-                        float vLen = contentSize[1] - viewSize[1];
+                    float hLen = contentSize[0] - viewSize[0];
+                    float vLen = contentSize[1] - viewSize[1];
 
-                        float x = -(e.pos[0] - dragOffset[0]) / hLen + (*scrollPos)[0];
-                        float y = -(e.pos[1] - dragOffset[1]) / vLen + (*scrollPos)[1];
+                    float x = -(e.pos[0] - dragOffset[0]) / hLen + (*scrollPos)[0];
+                    float y = -(e.pos[1] - dragOffset[1]) / vLen + (*scrollPos)[1];
 
-                        xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
-                        yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
+                    xHandle.set(std::max(0.0f, std::min(x, 1.0f)));
+                    yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
-                        return EventResult::accept;
-                    }, dragOffset.signal, viewSize.signal, contentSize,
-                    scrollPos.signal)))
-            .compose(onPointerUp([scrollPosHandle=scrollPos.handle]
-                    (PointerButtonEvent const&) mutable
-                    {
-                        scrollPosHandle.set(btl::none);
-                        return EventResult::reject;
-                    }))
+                    return EventResult::accept;
+                }, dragOffset.signal, viewSize.signal, contentSize,
+                scrollPos.signal))
+        | onPointerUp([scrollPosHandle=scrollPos.handle]
+                (PointerButtonEvent const&) mutable
+                {
+                    scrollPosHandle.set(btl::none);
+                    return EventResult::reject;
+                })
         | widget::frame()
         ;
 

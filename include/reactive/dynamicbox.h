@@ -2,9 +2,8 @@
 
 
 #include "widget/addwidgets.h"
-#include "widget/bindsize.h"
+#include "widget/widgetmodifier.h"
 #include "widget/widgetobject.h"
-#include "widget//widgettransformer.h"
 
 #include "box.h"
 
@@ -83,17 +82,22 @@ namespace reactive
                 );
 
         return makeWidgetFactory()
-            | widget::makeWidgetTransformer()
-            .compose(widget::bindSize())
-            .values(hints.clone(), std::move(widgets))
-            .bind([](auto size, auto hints, auto widgets) mutable
-                {
-                    return detail::doDynamicBox<dir>(
-                            std::move(size),
-                            std::move(widgets),
-                            std::move(hints)
-                            );
-                })
+            | widget::makeSharedWidgetSignalModifier(
+                    [](auto widget, auto hints, auto widgets)
+                    {
+                        auto size = signal::map(&Widget::getSize, widget);
+
+                        return std::move(widget)
+                            | detail::doDynamicBox<dir>(
+                                    std::move(size),
+                                    std::move(widgets),
+                                    std::move(hints)
+                                    )
+                            ;
+                    },
+                    hints,
+                    std::move(widgets)
+                    )
             | setSizeHint(std::move(resultHint))
             ;
     }

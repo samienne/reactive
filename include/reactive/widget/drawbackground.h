@@ -35,12 +35,6 @@ namespace reactive::widget
     auto background(Signal<T, avg::Brush> brush)
     {
         return onDrawBehind(detail::drawBackground, std::move(brush));
-        /*
-        return makeWidgetTransformer()
-            .values(std::move(brush))
-            .bind(onDrawBehindCustom(detail::drawBackground))
-            ;
-        */
     }
 
     inline auto background()
@@ -48,21 +42,6 @@ namespace reactive::widget
         widget::Theme theme;
 
         return background(signal::constant(avg::Brush(theme.getBackground())));
-
-        /*
-        return makeWidgetTransformer()
-            .compose(bindTheme())
-            .bind([](auto theme)
-            {
-                return background(signal::map(
-                            [](Theme const& theme)
-                            {
-                                return avg::Brush(theme.getBackground());
-                            },
-                            std::move(theme)
-                            ));
-            });
-            */
     }
 } // namespace reactive::widget
 

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "bindkeyboardinputs.h"
-#include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/signal.h>
 
@@ -11,26 +9,18 @@ namespace reactive::widget
     template <typename T>
     auto setFocusable(Signal<T, bool> focusable)
     {
-        return widget::makeWidgetTransformer()
-            .compose(widget::grabKeyboardInputs())
-            .values(std::move(focusable))
-            .bind([](auto keyboardInputs, auto focusable)
+        return makeWidgetModifier([](Widget widget, bool focusable)
             {
-                auto newInputs = signal::map(
-                    [](std::vector<KeyboardInput> inputs, bool focusable)
-                    -> std::vector<KeyboardInput>
-                    {
-                        if (inputs.size() > 0)
-                            inputs[0] = std::move(inputs[0]).setFocusable(focusable);
+                auto inputs = widget.getKeyboardInputs();
+                if (inputs.size() > 0)
+                    inputs[0] = std::move(inputs[0]).setFocusable(focusable);
 
-                        return inputs;
-                    },
-                    std::move(keyboardInputs),
-                    std::move(focusable)
-                    );
-
-                return widget::setKeyboardInputs(std::move(newInputs));
-            });
+                return std::move(widget)
+                    .setKeyboardInputs(std::move(inputs))
+                    ;
+            },
+            std::move(focusable)
+            );
     }
 
 } // namespace reactice::widget

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "bindinputareas.h"
-#include "bindobb.h"
 #include "setinputareas.h"
 #include "widgetmodifier.h"
 
