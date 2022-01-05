@@ -3,6 +3,7 @@
 #include "widgetmodifier.h"
 
 #include "reactive/signal/signal.h"
+#include <reactive/signal/inputhandle.h>
 
 #include <ase/hoverevent.h>
 
@@ -75,6 +76,40 @@ namespace reactive::widget
             )
     {
         return onHover(signal::constant(std::move(cb)));
+    }
+
+    inline auto onHover(signal::InputHandle<bool> handle)
+    {
+        return makeWidgetSignalModifier([](auto widget, auto handle)
+            {
+                return std::move(widget)
+                    | onHover([handle=std::move(handle)](HoverEvent const& e) mutable
+                        {
+                            handle.set(e.hover);
+                        })
+                    ;
+            },
+            std::move(handle)
+            );
+    }
+
+    template <typename T>
+    auto onHover(Signal<T, avg::Obb> obb, signal::InputHandle<bool> handle)
+    {
+        return makeWidgetSignalModifier([](auto widget, auto obb, auto handle)
+            {
+                return std::move(widget)
+                    | onHover(signal::constant([handle=std::move(handle)]
+                        (HoverEvent const& e) mutable
+                        {
+                            handle.set(e.hover);
+                        }), std::move(obb)
+                        )
+                    ;
+            },
+            std::move(obb),
+            std::move(handle)
+            );
     }
 } // namespace reactive::widget
 
