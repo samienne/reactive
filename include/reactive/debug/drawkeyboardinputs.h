@@ -33,7 +33,6 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        /*
         return widget::makeSharedWidgetSignalModifier([](auto widget)
             {
                 auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
@@ -54,12 +53,6 @@ namespace reactive::debug
                         std::move(inputs)
                         )
                     ;
-            });
-        */
-
-        return widget::makeWidgetModifier([](auto widget)
-            {
-                return widget;
             });
     }
 } // reactive::debug
