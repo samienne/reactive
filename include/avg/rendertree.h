@@ -334,18 +334,37 @@ namespace avg
         std::vector<Child> children_;
     };
 
+    template <typename T>
+    struct IsAnimated : std::false_type {};
+
+    template <typename T>
+    struct IsAnimated<Animated<T>> : std::true_type {};
+
+    template <typename T>
+    struct AnimatedType
+    {
+        using type = std::remove_reference_t<std::remove_cv_t<T>>;
+    };
+
+    template <typename T>
+    struct AnimatedType<Animated<T>>
+    {
+        using type = std::remove_reference_t<std::remove_cv_t<T>>;
+    };
+
     template <typename... Ts>
     class ShapeNode : public RenderTreeNode
     {
     public:
         using DrawFunction = std::function<
-            Drawing(DrawContext const&, Vector2f size, Ts const&...)
+            Drawing(DrawContext const&, Vector2f size,
+                    typename AnimatedType<Ts>::type const&...)
             >;
 
         ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
-                std::tuple<Animated<Ts>...> data) :
+                std::tuple<Ts...> data) :
             RenderTreeNode(
                     std::nullopt,
                     std::move(obb)
@@ -358,14 +377,14 @@ namespace avg
         ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
-                Animated<Ts>... data
+                Ts&&... data
                 ):
             RenderTreeNode(
                     std::nullopt,
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
-            data_(std::make_tuple(std::move(data)...))
+            data_(std::make_tuple(std::forward<Ts>(data)...))
         {
         }
 
@@ -376,7 +395,14 @@ namespace avg
             bool cont = btl::tuple_reduce(false, data_,
                     [&](bool cont, auto const& data)
                     {
-                        return cont || !data.hasAnimationEnded(time);
+                        if constexpr (IsAnimated<std::decay_t<decltype(data)>>::value)
+                        {
+                            return cont || !data.hasAnimationEnded(time);
+                        }
+                        else
+                        {
+                            return cont;
+                        }
                     });
 
             return std::make_pair(
@@ -385,7 +411,21 @@ namespace avg
                         return drawFunction_(
                                 context,
                                 getObbAt(time).getSize(),
-                                std::forward<decltype(ts)>(ts).getValue(time)...
+                                [&](auto&& t) -> decltype(auto)
+                                {
+                                    if constexpr (IsAnimated<
+                                            std::decay_t<decltype(t)>
+                                            >::value)
+                                    {
+                                        return std::forward<decltype(t)>(t).getValue(time);
+                                    }
+                                    else
+                                    {
+                                        return std::forward<decltype(t)>(t);
+                                    }
+                                }(
+                                    std::forward<decltype(ts)>(ts)
+                                )...
                                 )
                             .transform(obb.getTransform()
                                     * getObbAt(time).getTransform()
@@ -437,7 +477,7 @@ namespace avg
             };
         }
 
-        std::tuple<Animated<Ts>...> const& getData() const
+        std::tuple<Ts...> const& getData() const
         {
             return data_;
         }
@@ -457,26 +497,50 @@ namespace avg
         }
 
     private:
+        template <typename T>
+        static auto updateIfAnimated(
+                T const&,
+                T const& b,
+                std::chrono::milliseconds,
+                std::optional<AnimationOptions> const&)
+        {
+            return b;
+        }
+
+        template <typename T>
+        static auto updateIfAnimated(
+                Animated<T> const& a,
+                Animated<T> const& b,
+                std::chrono::milliseconds time,
+                std::optional<AnimationOptions> const& animationOptions)
+        {
+            return a.updated(b, animationOptions, time);
+        }
+
         template <size_t... S>
-        static std::tuple<Animated<Ts>...> updateTuples(
-                std::tuple<Animated<Ts>...> const& a,
-                std::tuple<Animated<Ts>...> const& b,
+        static std::tuple<Ts...> updateTuples(
+                std::tuple<Ts...> const& a,
+                std::tuple<Ts...> const& b,
                 std::chrono::milliseconds time,
                 std::optional<AnimationOptions> const& animationOptions,
                 std::index_sequence<S...>
                 )
         {
             return std::make_tuple(
-                    std::tuple_element_t<S, std::tuple<Animated<Ts>...>>(
+                    std::tuple_element_t<S, std::tuple<Ts...>>(
+                        /*
                         std::get<S>(a).updated(
                             std::get<S>(b), animationOptions, time)
+                        */
+                        updateIfAnimated(std::get<S>(a), std::get<S>(b),
+                            time, animationOptions)
                         )...
                     );
         }
 
     private:
         DrawFunction drawFunction_;
-        std::tuple<Animated<Ts>...> data_;
+        std::tuple<Ts...> data_;
     };
 
     template <typename... Ts>
@@ -491,8 +555,8 @@ namespace avg
                 );
     }
 
-    class AVG_EXPORT RectNode : public ShapeNode<float,
-        btl::option<Brush>, btl::option<Pen>>
+    class AVG_EXPORT RectNode : public ShapeNode<Animated<float>,
+        Animated<btl::option<Brush>>, Animated<btl::option<Pen>>>
     {
     public:
         RectNode(
