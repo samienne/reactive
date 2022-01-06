@@ -1,8 +1,6 @@
 #pragma once
 
 #include "ondraw.h"
-#include "bindsize.h"
-#include "bindtheme.h"
 
 #include "reactive/shapes.h"
 

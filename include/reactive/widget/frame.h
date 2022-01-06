@@ -3,8 +3,6 @@
 #include "ondraw.h"
 #include "margin.h"
 #include "theme.h"
-#include "bindsize.h"
-#include "bindtheme.h"
 #include "widgettransformer.h"
 
 #include "reactive/widget.h"
@@ -30,7 +28,7 @@ namespace reactive::widget
         auto cr = signal::share(std::move(cornerRadius));
         auto c = signal::share(std::move(color));
 
-        auto modifier = onDrawBehind(
+        return onDrawBehind(
                 [](avg::DrawContext const& context, avg::Vector2f size,
                     float radius, avg::Color const& color)
                     {
@@ -69,8 +67,6 @@ namespace reactive::widget
                     std::move(c
                     )
                 );
-
-        return mapFactoryWidget(std::move(modifier));
     }
 
     template <typename T>

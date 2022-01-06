@@ -80,6 +80,7 @@ namespace reactive::widget
             return func_(std::move(widget));
         }
 
+        /*
         template <typename U>
         auto bind(U&& u) && // std::function<WidgetTransformer(Ts...)>
         {
@@ -95,7 +96,9 @@ namespace reactive::widget
                     return std::move(transform)(std::move(pair.first));
                 });
         }
+        */
 
+        /*
         template <typename U, typename... Us>
         auto compose(WidgetTransformer<U, Us...> u) &&
         {
@@ -127,7 +130,9 @@ namespace reactive::widget
                 .compose(std::forward<Ws>(ws)...)
                 ;
         }
+        */
 
+        /*
         template <typename... Us>
         auto values(Us&&... us) &&
         {
@@ -147,6 +152,7 @@ namespace reactive::widget
                             );
                 });
         }
+        */
 
         operator WidgetTransformer<void, Ts...>() &&
         {

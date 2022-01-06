@@ -9,6 +9,7 @@
 using namespace reactive;
 using namespace reactive::widget;
 
+/*
 auto makeEmptyWidget()
 {
     return makeWidget(signal::constant(avg::Vector2f(0.0f, 0.0f)));
@@ -27,7 +28,7 @@ TEST(WidgetTransformer, simpleBind)
     //static_assert(IsWidget<decltype(w.first)>::value);
     static_assert(std::is_same_v<std::tuple<>, std::decay_t<decltype(*w.second)>>);
 }
-
+*/
 /*
 TEST(WidgetTransformer, simpleCompose)
 {
@@ -51,6 +52,7 @@ TEST(WidgetTransformer, simpleCompose)
 }
 */
 
+/*
 TEST(WidgetTransformer, typeErasure)
 {
     auto t = makeWidgetTransformer()
@@ -66,4 +68,5 @@ TEST(WidgetTransformer, typeErasure)
     //static_assert(IsWidget<decltype(w.first)>::value);
     static_assert(std::is_same_v<std::tuple<>, std::decay_t<decltype(*w.second)>>);
 }
+*/
 

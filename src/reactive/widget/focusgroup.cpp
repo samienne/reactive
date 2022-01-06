@@ -1,6 +1,7 @@
 #include "reactive/widget/focusgroup.h"
 
 #include "reactive/widget/onkeyevent.h"
+#include "reactive/widget/setkeyboardinputs.h"
 #include "reactive/widget/widgetmodifier.h"
 
 #include "reactive/widget.h"

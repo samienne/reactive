@@ -1,7 +1,5 @@
 #pragma once
 
-#include "bindkeyboardinputs.h"
-#include "setkeyboardinputs.h"
 #include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
