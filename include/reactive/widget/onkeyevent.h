@@ -68,10 +68,10 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return makeWidgetTransformerResult(std::move(widget)
+            return std::move(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
-                );
+                ;
         }
 
         inline OnKeyEvent acceptIf(

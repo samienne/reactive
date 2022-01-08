@@ -8,7 +8,7 @@
 namespace reactive::widget
 {
 
-WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
+AnyWidgetModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
 {
     return makeSharedWidgetSignalModifier([](auto widget, auto contentSize, auto f)
         {

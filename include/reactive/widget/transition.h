@@ -14,12 +14,12 @@ namespace reactive::widget
 template <typename T>
 struct Transition
 {
-    WidgetTransformer<T> active;
-    WidgetTransformer<T> transitioned;
+    WidgetModifier<T> active;
+    WidgetModifier<T> transitioned;
 };
 
 template <typename T>
-auto makeTransition(WidgetTransformer<T> active, WidgetTransformer<T> transitioned)
+auto makeTransition(WidgetModifier<T> active, WidgetModifier<T> transitioned)
 {
     return Transition<T> {
         std::move(active),
@@ -53,8 +53,8 @@ auto transition(Transition<T> transition)
 {
     return makeSharedWidgetSignalModifier([transition=std::move(transition)](auto widget) mutable
         {
-            auto [activeWidget, p1] = transition.active(widget.clone());
-            auto [transitionedWidget, p2] = transition.transitioned(widget.clone());
+            auto activeWidget = transition.active(widget.clone());
+            auto transitionedWidget = transition.transitioned(widget.clone());
 
             auto newRenderTree = group(activeWidget.clone(),
                     transitionedWidget.clone())

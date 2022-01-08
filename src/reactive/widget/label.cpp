@@ -3,7 +3,6 @@
 #include "widget/ondraw.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
-#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 

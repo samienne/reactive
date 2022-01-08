@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/signal.h>
 
@@ -11,21 +11,12 @@ namespace reactive::widget
     template <typename T>
     inline auto transform(Signal<T, avg::Transform> t)
     {
-        auto tt = btl::cloneOnCopy(std::move(t));
-
-        auto f = [t=std::move(tt)](auto widget) mutable
-        {
-            auto w = group(std::move(widget), std::move(*t))
-                .map([](Widget w, avg::Transform const& t) -> Widget
-                        {
-                            return std::move(w).transform(t);
-                        });
-                ;
-
-            return widget::makeWidgetTransformerResult(std::move(w));
-        };
-
-        return widget::makeWidgetTransformer(std::move(f));
+        return makeWidgetModifier([](Widget widget, avg::Transform const& t)
+                {
+                    return std::move(widget).transform(t);
+                },
+                std::move(t)
+                );
     }
 } // namespace reactive::widget
 

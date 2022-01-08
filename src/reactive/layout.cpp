@@ -63,7 +63,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             );
 
     return makeWidgetFactory()
-        | widget::makeWidgetTransformer(std::move(transformer))
+        | std::move(transformer)
         | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 

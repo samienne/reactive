@@ -3,7 +3,6 @@
 #include <reactive/widget/onclick.h>
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/onkeyevent.h>
-#include <reactive/widget/widgettransformer.h>
 
 #include <reactive/shapes.h>
 #include <reactive/send.h>

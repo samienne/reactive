@@ -275,7 +275,7 @@ FocusGroupState step(FocusGroupState oldState,
 
 } // anonymous
 
-WidgetTransformer<void> focusGroup()
+AnyWidgetModifier focusGroup()
 {
     return makeSharedWidgetSignalModifier([](auto widget)
         {

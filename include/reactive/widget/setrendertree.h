@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/signal/group.h"
 #include "reactive/signal/signal.h"
@@ -14,19 +14,15 @@ namespace reactive::widget
     template <typename T>
     auto setRenderTree(Signal<T, avg::RenderTree> renderTree)
     {
-        return makeWidgetTransformer(
-            [renderTree=btl::cloneOnCopy(std::move(renderTree))](auto w) mutable
-            {
-                auto widget = signal::group(std::move(w), std::move(*renderTree))
-                    .map([](Widget w, avg::RenderTree renderTree) -> Widget
-                            {
-                                return std::move(w).setRenderTree(std::move(renderTree));
-                            });
-
-                return makeWidgetTransformerResult(
-                        std::move(widget)
-                        );
-            });
+        return makeWidgetModifier([](Widget widget, avg::RenderTree renderTree)
+                -> Widget
+                {
+                    return std::move(widget)
+                        .setRenderTree(std::move(renderTree))
+                        ;
+                },
+                std::move(renderTree)
+                );
     }
 } // namespace reactive::widget
 

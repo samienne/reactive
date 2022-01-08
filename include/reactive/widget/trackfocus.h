@@ -1,6 +1,7 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
+#include "setkeyboardinputs.h"
 #include "widget.h"
 
 #include <reactive/signal/tee.h>
@@ -8,41 +9,35 @@
 
 namespace reactive::widget
 {
+    namespace detail
+    {
+        inline bool anyHasFocus(std::vector<KeyboardInput> const& inputs)
+        {
+            for (auto&& input : inputs)
+                if (input.hasFocus())
+                    return true;
+
+            return false;
+        };
+    } // namespace detail
+
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
         // -> FactoryMap
     {
-        auto f = [handle](auto widget)
-        {
-            auto anyHasFocus = [](std::vector<KeyboardInput> const& inputs)
-                -> bool
-            {
-                for (auto&& input : inputs)
-                    if (input.hasFocus())
-                        return true;
+        return makeSharedWidgetSignalModifier([](auto widget, auto handle)
+                {
+                    auto input = signal::tee(
+                            signal::map(&Widget::getKeyboardInputs, widget),
+                            detail::anyHasFocus,
+                            std::move(handle)
+                            );
 
-                return false;
-            };
-
-            auto w = signal::share(std::move(widget));
-
-            auto input = signal::tee(
-                    signal::map(&Widget::getKeyboardInputs, w),
-                    anyHasFocus,
-                    handle
-                    );
-
-            auto w2 = group(std::move(w), std::move(input))
-                .map([](Widget w, std::vector<KeyboardInput> inputs) -> Widget
-                        {
-                            return std::move(w).setKeyboardInputs(std::move(inputs));
-                        });
-
-            return widget::makeWidgetTransformerResult(
-                    std::move(w2)
-                    );
-        };
-
-        return widget::makeWidgetTransformer(std::move(f));
+                    return std::move(widget)
+                        | setKeyboardInputs(std::move(input))
+                        ;
+                },
+                std::move(handle)
+                );
     }
 } // namespace reactive::widget
 

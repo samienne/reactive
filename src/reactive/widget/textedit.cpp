@@ -9,7 +9,6 @@
 #include "widget/onkeyevent.h"
 #include "widget/ontextevent.h"
 #include "widget/onclick.h"
-#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
