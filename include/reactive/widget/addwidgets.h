@@ -3,9 +3,9 @@
 #include "reduce.h"
 
 #include "widgetmodifier.h"
+#include "widget.h"
 
 #include "reactive/inputarea.h"
-#include "reactive/widget.h"
 
 #include "reactive/signal/combine.h"
 #include "reactive/signal/mbind.h"

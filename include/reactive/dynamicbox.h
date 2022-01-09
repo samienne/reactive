@@ -29,7 +29,7 @@ namespace reactive
                         std::vector<avg::Obb> const& obbs)
                     {
                         assert(widgets.size() == obbs.size());
-                        std::vector<AnySignal<Widget>> result;
+                        std::vector<AnySignal<widget::Widget>> result;
 
                         auto i = obbs.begin();
                         for (auto& w : widgets)
@@ -85,7 +85,7 @@ namespace reactive
             | widget::makeSharedWidgetSignalModifier(
                     [](auto widget, auto hints, auto widgets)
                     {
-                        auto size = signal::map(&Widget::getSize, widget);
+                        auto size = signal::map(&widget::Widget::getSize, widget);
 
                         return std::move(widget)
                             | detail::doDynamicBox<dir>(

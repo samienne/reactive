@@ -396,12 +396,12 @@ public:
         return window_.getTitle().evaluate();
     }
 
-    AnySignal<Widget> const& getWidgetSignal() const
+    AnySignal<widget::Widget> const& getWidgetSignal() const
     {
         return widgetSignal_;
     }
 
-    Widget const& getWidget() const
+    widget::Widget const& getWidget() const
     {
         return widget_;
     }
@@ -415,8 +415,8 @@ private:
     Window window_;
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
-    AnySignal<Widget> widgetSignal_;
-    Widget widget_;
+    AnySignal<widget::Widget> widgetSignal_;
+    widget::Widget widget_;
     AnySignal<std::string> titleSignal_;
     //RenderCache cache_;
     bool resized_ = true;

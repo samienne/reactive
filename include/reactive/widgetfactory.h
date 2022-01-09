@@ -1,10 +1,10 @@
 #pragma once
 
 #include "widget/widgetmodifier.h"
+#include "widget/widget.h"
 
 #include "simplesizehint.h"
 #include "sizehint.h"
-#include "widget.h"
 
 #include "signal/cast.h"
 #include "signal/share.h"
@@ -29,7 +29,7 @@ namespace reactive
     template <typename TTupleMaps, typename TSizeHint>
     class WidFac;
 
-    using FactoryMapWidget = std::function<Widget(Widget)>;
+    using FactoryMapWidget = std::function<widget::Widget(widget::Widget)>;
     using WidgetFactoryBase = WidFac<
         std::tuple<widget::AnyWidgetModifier>, AnySignal<SizeHint>
         >;
@@ -96,14 +96,14 @@ namespace reactive
                 TMaps&& maps)
         -> decltype(
             btl::tuple_reduce(
-                    makeWidget(std::move(size)),
+                    widget::makeWidget(std::move(size)),
                     std::forward<TMaps>(maps),
                     EvaluateWidgetFactoryMapper()
                     )
             )
         {
             return btl::tuple_reduce(
-                    makeWidget(std::move(size)),
+                    widget::makeWidget(std::move(size)),
                     std::forward<TMaps>(maps),
                     EvaluateWidgetFactoryMapper()
                     );

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/widget.h"
+#include "widget.h"
 
 #include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"

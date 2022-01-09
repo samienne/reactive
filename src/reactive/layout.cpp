@@ -24,13 +24,13 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
     auto transformer = widget::makeSharedWidgetSignalModifier([]
             (auto widget, auto obbMap, auto hintsSignal, auto factories)
             {
-                auto size = signal::map(&Widget::getSize, widget);
+                auto size = signal::map(&widget::Widget::getSize, widget);
 
                 auto obbs = share(signal::map(obbMap, std::move(size), hintsSignal));
 
                 size_t index = 0;
                 auto widgets = btl::fmap(factories, [&index, &obbs](auto&& f)
-                        -> AnySignal<Widget>
+                        -> AnySignal<widget::Widget>
                     {
                         auto t = signal::map([index](
                                     std::vector<avg::Obb> const& obbs)

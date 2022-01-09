@@ -1,9 +1,9 @@
 #pragma once
 
 #include "transform.h"
+#include "widget.h"
 #include "widgetmodifier.h"
 
-#include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
 #include "reactive/growsizehint.h"
 

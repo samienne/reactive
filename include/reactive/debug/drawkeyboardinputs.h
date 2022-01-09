@@ -35,7 +35,7 @@ namespace reactive::debug
     {
         return widget::makeSharedWidgetSignalModifier([](auto widget)
             {
-                auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
+                auto inputs = signal::map(&widget::Widget::getKeyboardInputs, widget);
 
                 return std::move(widget)
                     | widget::onDraw([](avg::DrawContext const& context,

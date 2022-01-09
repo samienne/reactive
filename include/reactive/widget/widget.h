@@ -1,13 +1,13 @@
 #pragma once
 
-#include "widget/theme.h"
+#include "theme.h"
 
-#include "keyboardinput.h"
-#include "inputarea.h"
+#include "reactive/keyboardinput.h"
+#include "reactive/inputarea.h"
 
-#include "signal/map.h"
-#include "signal/share.h"
-#include "signal/signal.h"
+#include "reactive/signal/map.h"
+#include "reactive/signal/share.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
 #include <avg/obb.h>
@@ -16,10 +16,8 @@
 #include <btl/tupleforeach.h>
 #include <btl/option.h>
 
-namespace reactive
+namespace reactive::widget
 {
-    class InputArea;
-
     class Widget
     {
     public:
@@ -27,7 +25,7 @@ namespace reactive
                 std::vector<InputArea> inputAreas,
                 avg::Obb const& obb,
                 std::vector<KeyboardInput> keyboardInputs,
-                widget::Theme theme
+                Theme theme
               ) :
             renderTree_(std::move(renderTree)),
             inputAreas_(std::move(inputAreas)),
@@ -62,7 +60,7 @@ namespace reactive
             return keyboardInputs_;
         }
 
-        widget::Theme const& getTheme() const
+        Theme const& getTheme() const
         {
             return theme_;
         }
@@ -111,7 +109,7 @@ namespace reactive
                     );
         }
 
-        Widget setTheme(widget::Theme theme) &&
+        Widget setTheme(Theme theme) &&
         {
             return Widget(
                     std::move(renderTree_),
@@ -165,7 +163,7 @@ namespace reactive
         std::vector<InputArea> inputAreas_;
         avg::Obb obb_;
         std::vector<KeyboardInput> keyboardInputs_;
-        widget::Theme theme_;
+        Theme theme_;
     };
 
     template <typename T>
@@ -185,7 +183,7 @@ namespace reactive
                                     .setFocus(focused)
                                     .setFocusHandle(focusHandle)
                             },
-                            widget::Theme()
+                            Theme()
                             );
                 },
                 std::move(size),
@@ -193,5 +191,5 @@ namespace reactive
                 );
     }
 
-} // reactive
+} // reactive::widget
 
