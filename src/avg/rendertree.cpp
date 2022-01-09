@@ -354,68 +354,6 @@ UpdateResult ContainerNode::update(
         assert(false);
     }
 
-    /*
-    for (auto const& child : newContainer.children_)
-    {
-        auto i = std::find_if(oldContainer.children_.begin(),
-                oldContainer.children_.end(),
-                [&](Child const& node)
-                {
-                    return node.node->getId() == child.node->getId();
-                });
-
-        std::shared_ptr<RenderTreeNode> oldChild = nullptr;
-        if (i != oldContainer.children_.end())
-            oldChild = i->node;
-
-        auto [newChild, nextChildUpdate] = child.node->update(
-                oldTree,
-                newTree,
-                oldChild,
-                child.node,
-                animationOptions,
-                time
-                );
-
-        nextUpdate = earlier(nextUpdate, nextChildUpdate);
-
-        if (newChild)
-        {
-            nodes.push_back(Child{
-                    std::move(newChild),
-                    true
-                    });
-        }
-    }
-
-    for (auto const& oldChild : oldContainer.children_)
-    {
-        auto i = std::find_if(newContainer.children_.begin(),
-                newContainer.children_.end(),
-                [&](Child const& node)
-                {
-                    return node.node->getId() == oldChild.node->getId();
-                });
-
-        if (i == newContainer.children_.end())
-        {
-            auto [newChild, nextChildUpdate] = oldChild.node->update(
-                    oldTree,
-                    newTree,
-                    oldChild.node,
-                    nullptr,
-                    animationOptions,
-                    time
-                    );
-
-            nextUpdate = earlier(nextUpdate, nextChildUpdate);
-
-            if (newChild)
-                nodes.push_back(Child { std::move(newChild), true });;
-        }
-    }
-    */
-
     return {
         std::make_shared<ContainerNode>(
                 oldContainer.getObb().updated(newContainer.getObb(),
@@ -456,22 +394,6 @@ std::type_index ContainerNode::getType() const
 
 std::shared_ptr<RenderTreeNode> ContainerNode::clone() const
 {
-    /*
-    std::vector<Child> children;
-    for (auto const& child : children_)
-    {
-        children.emplace_back(
-                child.node->clone(),
-                child.active
-                );
-    }
-
-    return std::make_shared<ContainerNode>(
-            getObb(),
-            std::move(children)
-            );
-    */
-
     return std::make_shared<ContainerNode>(*this);
 }
 
@@ -766,17 +688,6 @@ UpdateResult ClipNode::update(
 
     if (oldClip.childNode_->getId() != newClip.childNode_->getId())
     {
-        /*
-        auto [oldChild, nextOldUpdate] = oldNode->update(
-                oldTree,
-                newTree,
-                oldClip.childNode_,
-                nullptr,
-                animationOptions,
-                time
-                );
-                */
-
         auto [newChild, nextNewUpdate] = newNode->update(
                 oldTree,
                 newTree,
@@ -940,17 +851,6 @@ UpdateResult IdNode::update(
 
     if (oldId.childNode_->getId() != newId.childNode_->getId())
     {
-        /*
-        auto [oldChild, nextOldUpdate] = oldNode->update(
-                oldTree,
-                newTree,
-                oldId.childNode_,
-                nullptr,
-                animationOptions,
-                time
-                );
-                */
-
         auto [newChild, nextNewUpdate] = newNode->update(
                 oldTree,
                 newTree,
