@@ -19,11 +19,13 @@ namespace reactive::widget
     template <typename T>
     struct IsWidgetModifier<WidgetModifier<T>> : std::true_type {};
 
+    struct WidgetModifierBuildTag {};
+
     template <typename TFunc>
     class WidgetModifier
     {
     public:
-        explicit WidgetModifier(TFunc func) :
+        WidgetModifier(WidgetModifierBuildTag&&, TFunc&& func) :
             func_(std::move(func))
         {
         }
@@ -43,6 +45,7 @@ namespace reactive::widget
         operator AnyWidgetModifier() &&
         {
             return AnyWidgetModifier(
+                    WidgetModifierBuildTag{},
                     std::move(func_)
                     );
         }
@@ -62,10 +65,10 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f)
     {
-        return WidgetModifier([f=std::forward<TFunc>(f)](auto widget) mutable
-        {
-            return std::invoke(f, std::move(widget));
-        });
+        return WidgetModifier<std::decay_t<TFunc>>(
+                WidgetModifierBuildTag{},
+                std::forward<TFunc>(f)
+                );
     }
 
     template <typename TFunc, typename T,
@@ -74,7 +77,7 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t)
     {
-        return WidgetModifier(
+        return makeWidgetSignalModifier(
             [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t))]
             (auto widget) mutable
             {
@@ -88,7 +91,7 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u)
     {
-        return WidgetModifier(
+        return makeWidgetSignalModifier(
             [f=std::forward<TFunc>(f), t=btl::cloneOnCopy(std::forward<T>(t)),
             u=btl::cloneOnCopy(std::forward<U>(u))]
             (auto widget) mutable
@@ -103,7 +106,7 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v)
     {
-        return WidgetModifier(
+        return makeWidgetSignalModifier(
             [f=std::forward<TFunc>(f),
             t=btl::cloneOnCopy(std::forward<T>(t)),
             u=btl::cloneOnCopy(std::forward<U>(u)),
@@ -121,7 +124,7 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w)
     {
-        return WidgetModifier(
+        return makeWidgetSignalModifier(
             [f=std::forward<TFunc>(f),
             t=btl::cloneOnCopy(std::forward<T>(t)),
             u=btl::cloneOnCopy(std::forward<U>(u)),
@@ -141,7 +144,7 @@ namespace reactive::widget
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w, X&& x)
     {
-        return WidgetModifier(
+        return makeWidgetSignalModifier(
             [f=std::forward<TFunc>(f),
             t=btl::cloneOnCopy(std::forward<T>(t)),
             u=btl::cloneOnCopy(std::forward<U>(u)),
@@ -162,7 +165,7 @@ namespace reactive::widget
         >>
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, Ts&&... ts)
     {
-        return WidgetModifier([f=std::forward<TFunc>(f),
+        return makeWidgetSignalModifier([f=std::forward<TFunc>(f),
                 ts=std::make_tuple(std::forward<T>(t), std::forward<Ts>(ts)...)]
                     (auto widget) mutable
         {
