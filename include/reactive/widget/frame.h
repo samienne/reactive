@@ -1,11 +1,8 @@
 #pragma once
 
-#include "ondrawcustom.h"
+#include "ondraw.h"
 #include "margin.h"
 #include "theme.h"
-#include "bindsize.h"
-#include "bindtheme.h"
-#include "widgettransformer.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
@@ -30,48 +27,45 @@ namespace reactive::widget
         auto cr = signal::share(std::move(cornerRadius));
         auto c = signal::share(std::move(color));
 
-        return
-            mapFactoryWidget(
-                    makeWidgetTransformer()
-                    .compose(bindTheme())
-                    .values(cr, c)
-                    .bind(onDrawBehindCustom([](avg::DrawContext const& context,
-                                avg::Vector2f size, Theme const& theme, float radius,
-                                avg::Color const& color)
-                        {
-                            radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);
+        return onDrawBehind(
+                [](avg::DrawContext const& context, avg::Vector2f size,
+                    float radius, avg::Color const& color)
+                    {
+                        widget::Theme theme;
 
-                            using avg::Vector2f;
+                        radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);
 
-                            float x1 = 2.5f;
-                            float y1 = 2.5f;
-                            float x2 = size[0] - 2.5f;
-                            float y2 = size[1] - 2.5f;
+                        using avg::Vector2f;
 
-                            auto path = context.pathBuilder()
-                                .start(Vector2f(radius, y1))
-                                .lineTo(x2 - radius, y1)
-                                .conicTo(Vector2f(x2, y1), Vector2f(x2, y1 + radius))
-                                .lineTo(x2, y2 - radius)
-                                .conicTo(Vector2f(x2, y2), Vector2f(x2 - radius, y2))
-                                .lineTo(x1 + radius, y2)
-                                .conicTo(Vector2f(x1, y2), Vector2f(x1, y2 - radius))
-                                .lineTo(x1, y1 + radius)
-                                .conicTo(Vector2f(x1, y1), Vector2f(x1 + radius, y1))
-                                .build();
+                        float x1 = 2.5f;
+                        float y1 = 2.5f;
+                        float x2 = size[0] - 2.5f;
+                        float y2 = size[1] - 2.5f;
 
-                            auto pen = avg::Pen(avg::Brush(color),
-                                    1.0f);
-                            auto brush = avg::Brush(theme.getBackground());
+                        auto path = context.pathBuilder()
+                            .start(Vector2f(radius, y1))
+                            .lineTo(x2 - radius, y1)
+                            .conicTo(Vector2f(x2, y1), Vector2f(x2, y1 + radius))
+                            .lineTo(x2, y2 - radius)
+                            .conicTo(Vector2f(x2, y2), Vector2f(x2 - radius, y2))
+                            .lineTo(x1 + radius, y2)
+                            .conicTo(Vector2f(x1, y2), Vector2f(x1, y2 - radius))
+                            .lineTo(x1, y1 + radius)
+                            .conicTo(Vector2f(x1, y1), Vector2f(x1 + radius, y1))
+                            .build();
 
-                            return context.drawing()
-                                + avg::Shape(path, btl::just(brush), btl::just(pen))
-                                ;
-                        }
-                        )
+                        auto pen = avg::Pen(avg::Brush(color),
+                                1.0f);
+                        auto brush = avg::Brush(theme.getBackground());
+
+                        return context.drawing()
+                            + avg::Shape(path, btl::just(brush), btl::just(pen))
+                            ;
+                    },
+                    std::move(cr),
+                    std::move(c
                     )
-                )
-            ;
+                );
     }
 
     template <typename T>

@@ -1,9 +1,6 @@
 #pragma once
 
-#include "setkeyboardinputs.h"
-#include "bindkeyboardinputs.h"
-#include "bindobb.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -15,38 +12,27 @@ namespace reactive::widget
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
         //-> FactoryMap
     {
-        auto f = [handle = std::move(handle)](auto widget) mutable
-            // -> Widget
-        {
-            auto obb = signal::tee(
-                    widget.getObb(),
-                    std::mem_fn(&avg::Obb::getSize),
-                    std::move(handle)
-                    );
-
-            return widget::makeWidgetTransformerResult(std::move(widget)
-                .setObb(std::move(obb))
-                | widget::makeWidgetTransformer()
-                .compose(bindObb(), grabKeyboardInputs())
-                .bind([](auto obb, auto inputs)
-                {
-                    auto newInputs = signal::map(
-                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto widget) mutable
+            {
+                auto obb = signal::map([](Widget const& w) -> avg::Obb
                         {
-                            // TODO: Remove this hack. This is needed to keep
-                            // the obb signal in around.
-                            return inputs;
+                            return w.getObb();
                         },
+                        widget);
+
+                auto obb2 = signal::tee(
                         std::move(obb),
-                        std::move(inputs)
+                        std::mem_fn(&avg::Obb::getSize),
+                        std::move(handle)
                         );
 
-                    return widget::setKeyboardInputs(std::move(newInputs));
-                }));
-        };
-
-        return widget::makeWidgetTransformer(std::move(f));
+                return group(std::move(widget), std::move(obb2))
+                    .map([](Widget w, avg::Obb const& obb) -> Widget
+                        {
+                            return std::move(w)
+                            .setObb(obb);
+                        });
+            });
     }
-
 } // namespace reactive::widget
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/inputarea.h"
 
@@ -15,13 +15,14 @@ namespace reactive::widget
     template <typename T>
     auto setInputAreas(Signal<T, std::vector<InputArea>> areas)
     {
-        return makeWidgetTransformer(
-            [areas=btl::cloneOnCopy(std::move(areas))](auto w) mutable
-            {
-                return makeWidgetTransformerResult(
-                        std::move(w).setAreas(std::move(*areas))
-                        );
-            });
+        return makeWidgetModifier([](Widget widget, auto areas)
+                {
+                    return std::move(widget)
+                        .setInputAreas(std::move(areas))
+                        ;
+                },
+                std::move(areas)
+                );
     }
 } // namespace reactive::widget
 

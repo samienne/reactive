@@ -12,7 +12,7 @@ devtest = executable('devtest',
         dependencies : [gtestdep])
 
 unittest = executable('unittest',
-        'widgettransformtest.cpp',
+        'widgetmodifiertest.cpp',
         'pmrtest.cpp',
         'databindtest.cpp',
         'btlreducetest.cpp',

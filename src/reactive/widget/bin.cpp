@@ -1,23 +1,18 @@
 #include "widget/bin.h"
 
 #include "widget/addwidgets.h"
-#include "widget/bindsize.h"
 #include "widget/clip.h"
-#include "widget/widgettransformer.h"
+#include "widget/transform.h"
+#include "widget/widgetmodifier.h"
 
 namespace reactive::widget
 {
 
-WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
+AnyWidgetModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
 {
-    auto sizeHint = signal::share(f.getSizeHint());
-
-    return makeWidgetTransformer()
-        .compose(bindSize())
-        .values(std::move(contentSize), std::move(f))
-        .bind([](auto viewSize, auto contentSize, auto f) mutable
+    return makeSharedWidgetSignalModifier([](auto widget, auto contentSize, auto f)
         {
-            auto cs = signal::share(std::move(contentSize));
+            auto viewSize = signal::map(&Widget::getSize, widget);
 
             auto t = signal::map([](avg::Vector2f viewSize,
                         avg::Vector2f contentSize)
@@ -26,19 +21,25 @@ WidgetTransformer<void> bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSiz
                         return avg::translate(0.0f, -offY);
                     },
                     std::move(viewSize),
-                    cs
+                    contentSize
                     );
 
-            auto w = std::move(f)(
-                    std::move(cs)
+            auto newWidget = std::move(f)
+                    .map(transform(std::move(t)))
+                    (
+                    std::move(contentSize)
                     )
-                    .transform(std::move(t))
                     ;
 
-            return addWidget(std::move(w))
-                .compose(clip())
+            return std::move(widget)
+                | addWidget(std::move(newWidget))
+                | clip()
                 ;
-        })
-        ;
+        },
+        share(std::move(contentSize)),
+        std::move(f)
+        );
 }
+
 } // namespace reactive::widget
+

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "setkeyboardinputs.h"
-#include "bindkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <iostream>
 
@@ -11,29 +9,21 @@ namespace reactive::widget
     template <typename T, typename U>
     auto onTextEvent(Signal<T, U> handler)
     {
-        return makeWidgetTransformer()
-            .compose(grabKeyboardInputs())
-            .values(std::move(handler))
-            .bind([](auto inputs, auto handler) mutable
+        return makeWidgetModifier([](Widget widget, auto handler)
             {
-                auto newInputs = signal::map(
-                    [](std::vector<KeyboardInput> inputs, auto const& handler)
-                    -> std::vector<KeyboardInput>
-                    {
-                        for (auto&& input : inputs)
-                        {
-                            input = std::move(input)
-                                .onTextEvent(handler);
-                        }
+                auto inputs = widget.getKeyboardInputs();
+                for (auto&& input : inputs)
+                {
+                    input = std::move(input)
+                        .onTextEvent(handler);
+                }
 
-                        return inputs;
-                    },
-                    std::move(inputs),
-                    std::move(handler)
-                    );
-
-                return setKeyboardInputs(std::move(newInputs));
-            });
+                return std::move(widget)
+                    .setKeyboardInputs(std::move(inputs))
+                    ;
+            },
+            std::move(handler)
+            );
     }
 
     inline auto onTextEvent(KeyboardInput::TextHandler handler)

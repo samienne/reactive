@@ -1,13 +1,13 @@
 #pragma once
 
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetTransformer<void> bin(WidgetFactory f,
+    REACTIVE_EXPORT AnyWidgetModifier bin(WidgetFactory f,
             AnySignal<avg::Vector2f> contentSize);
 } // reactive::widget
 

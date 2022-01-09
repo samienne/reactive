@@ -1,6 +1,6 @@
 #include "widget/textedit.h"
 
-#include "widget/ondrawcustom.h"
+#include "widget/ondraw.h"
 #include "widget/clip.h"
 #include "widget/label.h"
 #include "widget/frame.h"
@@ -9,7 +9,6 @@
 #include "widget/onkeyevent.h"
 #include "widget/ontextevent.h"
 #include "widget/onclick.h"
-#include "widget/widgettransformer.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -38,10 +37,11 @@ namespace reactive::widget
 TextEdit::operator WidgetFactory() const
 {
     auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
-            widget::Theme const& theme, TextEditState const& state,
-            float percentage)
+            TextEditState const& state, float percentage)
         -> avg::Drawing
     {
+        widget::Theme theme;
+
         auto height = theme.getTextHeight();
         auto const& font = theme.getFont();
         auto text = utf8::split(utf8::asUtf8(state.text),
@@ -100,10 +100,11 @@ TextEdit::operator WidgetFactory() const
     using Events = btl::variant<KeyEvent, TextEvent, ClickEvent>;
 
     auto update = [](TextEditState state, Events const& e,
-            widget::Theme const& theme,
             std::vector<std::function<void()>> const& onEnter)
         -> TextEditState
     {
+        widget::Theme theme;
+
         if (e.is<KeyEvent>())
         {
             auto& keyEvent = e.get<KeyEvent>();
@@ -181,15 +182,12 @@ TextEdit::operator WidgetFactory() const
 
     auto newState = signal::tee(
             stream::iterate(update, oldState, std::move(keyStream.stream),
-                signal::constant(Theme()), signal::combine(onEnter_)),
+                signal::combine(onEnter_)),
             handle_ );
 
     return makeWidgetFactory()
         | trackFocus(focus.handle)
-        | makeWidgetTransformer()
-            .compose(bindTheme())
-            .values(std::move(newState), std::move(focusPercentage))
-            .bind(onDrawCustom(draw))
+        | widget::onDraw(std::move(draw), std::move(newState), std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
         | widget::clip()
         | widget::frame(std::move(frameColor))

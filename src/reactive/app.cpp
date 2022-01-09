@@ -63,7 +63,8 @@ public:
         window_(std::move(window)),
         painter_(memory_, context_),
         size_(signal::input(ase::Vector2f(800, 600))),
-        widget_(window_.getWidget()(std::move(size_.signal))),
+        widgetSignal_(window_.getWidget()(std::move(size_.signal))),
+        widget_(widgetSignal_.evaluate()),
         titleSignal_(window_.getTitle().clone()),
         drawing_(memory_)
     {
@@ -87,7 +88,8 @@ public:
         {
             if (e.state == ase::ButtonState::down)
             {
-                for (auto const &a : widget_.getInputAreas().evaluate())
+                auto areas = widget_.getInputAreas();
+                for (auto const &a : areas)
                 {
                     if (a.acceptsButtonEvent(e))
                     {
@@ -114,14 +116,13 @@ public:
 
         aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e)
         {
-            std::vector<InputArea> const &areas = widget_.getInputAreas().evaluate();
-
             if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
             {
                 currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
                 currentHoverArea_ = btl::none;
             }
 
+            auto areas = widget_.getInputAreas();
             for (auto const &a : areas)
             {
                 if (a.contains(e.pos))
@@ -248,19 +249,21 @@ public:
 
         signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        auto timeToNext = widget_.updateBegin(frameInfo);
+        auto timeToNext = widgetSignal_.updateBegin(frameInfo);
         timeToNext = signal::min(timeToNext, titleSignal_.updateBegin(frameInfo));
 
-        timeToNext = signal::min(timeToNext, widget_.updateEnd(frameInfo));
+        timeToNext = signal::min(timeToNext, widgetSignal_.updateEnd(frameInfo));
         timeToNext = signal::min(timeToNext, titleSignal_.updateEnd(frameInfo));
 
         if (titleSignal_.hasChanged())
             aseWindow.setTitle(titleSignal_.evaluate());
 
-        if (widget_.getInputAreas().hasChanged())
+        if (widgetSignal_.hasChanged())
         {
+            widget_ = widgetSignal_.evaluate();
+
             // If there's an area with the same id -> update
-            auto areas = widget_.getInputAreas().evaluate();
+            auto areas = widget_.getInputAreas();
             for (auto&& area : areas_)
             {
                 for (InputArea& area3 : area.second)
@@ -275,11 +278,8 @@ public:
                     }
                 }
             }
-        }
 
-        if (widget_.getKeyboardInputs().hasChanged())
-        {
-            auto inputs = widget_.getKeyboardInputs().evaluate();
+            auto inputs = widget_.getKeyboardInputs();
             for (auto&& input : inputs)
             {
                 auto handle = input.getFocusHandle();
@@ -307,18 +307,21 @@ public:
             }
         }
 
-        if (widget_.getRenderTree().hasChanged()
+        if (widgetSignal_.hasChanged()
                 || (nextUpdate_ && *nextUpdate_ <= timer)
                 )
         {
             auto [renderTree, nextUpdate] = std::move(renderTree_).update(
-                    widget_.getRenderTree().evaluate(),
+                    btl::clone(widget_.getRenderTree()),
                     animationOptions,
                     timer
                     );
 
             if (nextUpdate_ && *nextUpdate_ < timer)
                 nextUpdate_ = std::nullopt;
+
+            if (nextUpdate && *nextUpdate < timer)
+                nextUpdate = std::nullopt;
 
             nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
 
@@ -349,11 +352,13 @@ public:
 
         if (animating_)
         {
+
             auto [drawing, cont] = renderTree_.draw(
                     avg::DrawContext(&painter_),
                     avg::Obb(aseWindow.getSize().cast<float>()),
                     timer
                     );
+
             drawing_ = std::move(drawing);
             animating_ = cont;
             redraw_ = true;
@@ -391,6 +396,11 @@ public:
         return window_.getTitle().evaluate();
     }
 
+    AnySignal<Widget> const& getWidgetSignal() const
+    {
+        return widgetSignal_;
+    }
+
     Widget const& getWidget() const
     {
         return widget_;
@@ -405,6 +415,7 @@ private:
     Window window_;
     avg::Painter painter_;
     signal::Input<ase::Vector2f> size_;
+    AnySignal<Widget> widgetSignal_;
     Widget widget_;
     AnySignal<std::string> titleSignal_;
     //RenderCache cache_;

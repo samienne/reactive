@@ -1,9 +1,6 @@
 #pragma once
 
-#include "bindobb.h"
-#include "bindkeyboardinputs.h"
-#include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -13,33 +10,27 @@ namespace reactive::widget
     inline auto trackObb(signal::InputHandle<avg::Obb> handle)
         //-> FactoryMap
     {
-        auto f = [handle = std::move(handle)](auto widget)
-            // -> Widget
-        {
-            auto obb = signal::tee(widget.getObb(), handle);
-
-            return widget::makeWidgetTransformerResult(std::move(widget)
-                .setObb(std::move(obb))
-                | widget::makeWidgetTransformer()
-                .compose(bindObb(), grabKeyboardInputs())
-                .bind([](auto obb, auto inputs)
-                {
-                    auto newInputs = signal::map(
-                        [](avg::Obb, std::vector<KeyboardInput> inputs)
+        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto widget)
+            {
+                auto obb = signal::map([](Widget const& widget)
                         {
-                            // TODO: Remove this hack. This is needed to keep
-                            // the obb signal in around.
-                            return inputs;
+                            return widget.getObb();
                         },
-                        std::move(obb),
-                        std::move(inputs)
+                        widget
                         );
 
-                    return widget::setKeyboardInputs(std::move(newInputs));
-                }));
-        };
+                auto obb2 = signal::tee(std::move(obb), handle);
 
-        return widget::makeWidgetTransformer(std::move(f));
+                return signal::map([](auto widget, auto obb)
+                        {
+                            return std::move(widget)
+                                .setObb(obb)
+                                ;
+                        },
+                        std::move(widget),
+                        std::move(obb2)
+                        );
+            });
     }
 
 } // namespace reactive::widget

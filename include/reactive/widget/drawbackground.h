@@ -1,8 +1,6 @@
 #pragma once
 
-#include "ondrawcustom.h"
-#include "bindsize.h"
-#include "bindtheme.h"
+#include "ondraw.h"
 
 #include "reactive/shapes.h"
 
@@ -34,26 +32,14 @@ namespace reactive::widget
     template <typename T>
     auto background(Signal<T, avg::Brush> brush)
     {
-        return makeWidgetTransformer()
-            .values(std::move(brush))
-            .bind(onDrawBehindCustom(detail::drawBackground))
-            ;
+        return onDrawBehind(detail::drawBackground, std::move(brush));
     }
 
     inline auto background()
     {
-        return makeWidgetTransformer()
-            .compose(bindTheme())
-            .bind([](auto theme)
-            {
-                return background(signal::map(
-                            [](Theme const& theme)
-                            {
-                                return avg::Brush(theme.getBackground());
-                            },
-                            std::move(theme)
-                            ));
-            });
+        widget::Theme theme;
+
+        return background(signal::constant(avg::Brush(theme.getBackground())));
     }
 } // namespace reactive::widget
 

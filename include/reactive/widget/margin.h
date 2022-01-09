@@ -1,9 +1,7 @@
 #pragma once
 
-#include "setobb.h"
-#include "bindobb.h"
 #include "transform.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widget.h"
 #include "reactive/widgetfactory.h"
@@ -20,28 +18,20 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetTransformer()
-            .compose(grabObb())
-            .values(std::move(amount))
-            .bind([](auto obb, auto amount)
+        return makeWidgetModifier([](Widget widget, auto amount)
             {
-                auto newObb = signal::map(
-                    [](avg::Obb const& obb, float amount) -> avg::Obb
-                    {
-                        auto size = obb.getSize();
-                        auto newSize = avg::Vector2f(
-                            size[0] + 2.0f * amount,
-                            size[1] + 2.0f * amount
-                            );
-
-                        return avg::Obb(newSize);
-                    },
-                    std::move(obb),
-                    std::move(amount)
+                auto size = widget.getObb().getSize();
+                auto newSize = avg::Vector2f(
+                    size[0] + 2.0f * amount,
+                    size[1] + 2.0f * amount
                     );
 
-                return setObb(std::move(newObb));
-            });
+                return std::move(widget)
+                    .setObb(avg::Obb(newSize))
+                    ;
+            },
+            std::forward<TSignalAmount>(amount)
+            );
     }
 
     template <typename T>

@@ -54,7 +54,7 @@ namespace ase
         std::vector<WaitingFence> fences_;
 
         // Current state
-        Vector2i viewportSize_;
+        Vector2i viewportSize_ = Vector2i(0, 0);
         GlBaseFramebuffer const* boundFramebuffer_ = nullptr;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;

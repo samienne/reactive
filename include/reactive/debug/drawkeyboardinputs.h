@@ -1,8 +1,7 @@
 #pragma once
 
-#include "reactive/widget/ondrawcustom.h"
-#include "reactive/widget/bindkeyboardinputs.h"
-#include "reactive/widget/widgettransformer.h"
+#include "reactive/widget/ondraw.h"
+#include "reactive/widget/widgetmodifier.h"
 
 #include "reactive/shapes.h"
 #include "reactive/widgetfactory.h"
@@ -34,26 +33,27 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        return widget::makeWidgetTransformer()
-            /*
-            .compose(widget::bindKeyboardInputs())
-            .bind(widget::onDrawCustom(
-            [](avg::DrawContext const& drawContext, avg::Obb const&,
-                auto const& inputs)
+        return widget::makeSharedWidgetSignalModifier([](auto widget)
             {
-                {
-                    auto result = drawContext.drawing();
+                auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
 
-                    for (auto&& input : inputs)
-                    {
-                        result += detail::makeRect(drawContext, input.getObb());
-                    }
+                return std::move(widget)
+                    | widget::onDraw([](avg::DrawContext const& context,
+                                avg::Vector2f const&, auto const& inputs)
+                        {
+                            auto result = context.drawing();
 
-                    return result;
-                }
-            }))
-            */
-            ;
+                            for (auto&& input : inputs)
+                            {
+                                result += detail::makeRect(context, input.getObb());
+                            }
+
+                            return result;
+                        },
+                        std::move(inputs)
+                        )
+                    ;
+            });
     }
 } // reactive::debug
 

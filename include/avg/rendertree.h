@@ -194,31 +194,26 @@ namespace avg
             return time >= (beginTime_ + getDuration());
         }
 
+        bool isAnimationRunning(std::chrono::milliseconds time) const
+        {
+            return beginTime_ < time && time < (beginTime_ + getDuration());
+        }
+
         Animated updated(
                 Animated const& newValue,
                 std::optional<AnimationOptions> const& options,
                 std::chrono::milliseconds time
                 ) const
         {
-            if (hasAnimationEnded(time)
-                    && getFinalValue() == newValue.getFinalValue())
-            {
+            if (getFinalValue() == newValue.getFinalValue())
                 return *this;
-
-            }
 
             if (!options)
             {
-                if (getFinalValue() != newValue.getFinalValue())
+                if (isAnimationRunning(time))
+                    return *this;
+                else
                     return newValue;
-
-                return Animated(
-                        getValue(time),
-                        newValue.getFinalValue(),
-                        linearCurve,
-                        time,
-                        std::chrono::milliseconds(0)
-                        );
             }
 
             return Animated(
@@ -284,6 +279,7 @@ namespace avg
                 ) const = 0;
 
         virtual std::type_index getType() const = 0;
+        virtual std::shared_ptr<RenderTreeNode> clone() const = 0;
 
     private:
         std::optional<UniqueId> id_;
@@ -313,6 +309,8 @@ namespace avg
                 std::vector<Child> children = {}
                 );
 
+        ContainerNode(ContainerNode const&) = default;
+
         void addChild(std::shared_ptr<RenderTreeNode> node);
         void addChildBehind(std::shared_ptr<RenderTreeNode> node);
 
@@ -330,9 +328,28 @@ namespace avg
                 std::chrono::milliseconds time) const override;
 
         std::type_index getType() const override;
+        std::shared_ptr<RenderTreeNode> clone() const override;
 
     private:
         std::vector<Child> children_;
+    };
+
+    template <typename T>
+    struct IsAnimated : std::false_type {};
+
+    template <typename T>
+    struct IsAnimated<Animated<T>> : std::true_type {};
+
+    template <typename T>
+    struct AnimatedType
+    {
+        using type = std::remove_reference_t<std::remove_cv_t<T>>;
+    };
+
+    template <typename T>
+    struct AnimatedType<Animated<T>>
+    {
+        using type = std::remove_reference_t<std::remove_cv_t<T>>;
     };
 
     template <typename... Ts>
@@ -340,13 +357,14 @@ namespace avg
     {
     public:
         using DrawFunction = std::function<
-            Drawing(DrawContext const&, Vector2f size, Ts const&...)
+            Drawing(DrawContext const&, Vector2f size,
+                    typename AnimatedType<Ts>::type const&...)
             >;
 
         ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
-                std::tuple<Animated<Ts>...> data) :
+                std::tuple<Ts...> data) :
             RenderTreeNode(
                     std::nullopt,
                     std::move(obb)
@@ -359,14 +377,14 @@ namespace avg
         ShapeNode(
                 Animated<Obb> obb,
                 DrawFunction drawFunction,
-                Animated<Ts>... data
+                Ts&&... data
                 ):
             RenderTreeNode(
                     std::nullopt,
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
-            data_(std::make_tuple(std::move(data)...))
+            data_(std::make_tuple(std::forward<Ts>(data)...))
         {
         }
 
@@ -377,7 +395,14 @@ namespace avg
             bool cont = btl::tuple_reduce(false, data_,
                     [&](bool cont, auto const& data)
                     {
-                        return cont || !data.hasAnimationEnded(time);
+                        if constexpr (IsAnimated<std::decay_t<decltype(data)>>::value)
+                        {
+                            return cont || !data.hasAnimationEnded(time);
+                        }
+                        else
+                        {
+                            return cont;
+                        }
                     });
 
             return std::make_pair(
@@ -386,7 +411,21 @@ namespace avg
                         return drawFunction_(
                                 context,
                                 getObbAt(time).getSize(),
-                                std::forward<decltype(ts)>(ts).getValue(time)...
+                                [&](auto&& t) -> decltype(auto)
+                                {
+                                    if constexpr (IsAnimated<
+                                            std::decay_t<decltype(t)>
+                                            >::value)
+                                    {
+                                        return std::forward<decltype(t)>(t).getValue(time);
+                                    }
+                                    else
+                                    {
+                                        return std::forward<decltype(t)>(t);
+                                    }
+                                }(
+                                    std::forward<decltype(ts)>(ts)
+                                )...
                                 )
                             .transform(obb.getTransform()
                                     * getObbAt(time).getTransform()
@@ -438,32 +477,70 @@ namespace avg
             };
         }
 
+        std::tuple<Ts...> const& getData() const
+        {
+            return data_;
+        }
+
         std::type_index getType() const override
         {
             return typeid(ShapeNode);
         }
 
+        std::shared_ptr<RenderTreeNode> clone() const override
+        {
+            return std::make_shared<ShapeNode>(
+                    getObb(),
+                    drawFunction_,
+                    data_
+                    );
+        }
+
     private:
+        template <typename T>
+        static auto updateIfAnimated(
+                T const&,
+                T const& b,
+                std::chrono::milliseconds,
+                std::optional<AnimationOptions> const&)
+        {
+            return b;
+        }
+
+        template <typename T>
+        static auto updateIfAnimated(
+                Animated<T> const& a,
+                Animated<T> const& b,
+                std::chrono::milliseconds time,
+                std::optional<AnimationOptions> const& animationOptions)
+        {
+            return a.updated(b, animationOptions, time);
+        }
+
         template <size_t... S>
-        static std::tuple<Animated<Ts>...> updateTuples(
-                std::tuple<Animated<Ts>...> const& a,
-                std::tuple<Animated<Ts>...> const& b,
+        static std::tuple<Ts...> updateTuples(
+                std::tuple<Ts...> const& a,
+                std::tuple<Ts...> const& b,
                 std::chrono::milliseconds time,
                 std::optional<AnimationOptions> const& animationOptions,
                 std::index_sequence<S...>
                 )
         {
             return std::make_tuple(
-                    std::tuple_element_t<S, std::tuple<Animated<Ts>...>>(
+                    std::tuple_element_t<S, std::tuple<Ts...>>(
+                        /*
                         std::get<S>(a).updated(
                             std::get<S>(b), animationOptions, time)
+                        */
+                        updateIfAnimated(std::get<S>(a), std::get<S>(b),
+                            time, animationOptions)
                         )...
                     );
         }
 
     private:
         DrawFunction drawFunction_;
-        std::tuple<Animated<Ts>...> data_;
+        std::tuple<Ts...> data_;
     };
 
     template <typename... Ts>
@@ -478,8 +555,8 @@ namespace avg
                 );
     }
 
-    class AVG_EXPORT RectNode : public ShapeNode<float,
-        btl::option<Brush>, btl::option<Pen>>
+    class AVG_EXPORT RectNode : public ShapeNode<Animated<float>,
+        Animated<btl::option<Brush>>, Animated<btl::option<Pen>>>
     {
     public:
         RectNode(
@@ -488,6 +565,16 @@ namespace avg
                 Animated<btl::option<Brush>> brush,
                 Animated<btl::option<Pen>> pen
                 );
+
+        std::shared_ptr<RenderTreeNode> clone() const override
+        {
+            return std::make_shared<RectNode>(
+                    getObb(),
+                    std::get<0>(getData()),
+                    std::get<1>(getData()),
+                    std::get<2>(getData())
+                    );
+        }
 
     private:
         static Drawing drawRect(
@@ -523,6 +610,8 @@ namespace avg
                 std::shared_ptr<RenderTreeNode> transitionedNode
                 );
 
+        TransitionNode(TransitionNode const&) = default;
+
         UpdateResult update(
                 RenderTree const& oldTree,
                 RenderTree const& newTree,
@@ -538,6 +627,7 @@ namespace avg
                 ) const override;
 
         std::type_index getType() const override;
+        std::shared_ptr<RenderTreeNode> clone() const override;
 
     private:
         std::shared_ptr<RenderTreeNode> activeNode_;
@@ -554,6 +644,8 @@ namespace avg
                 std::shared_ptr<RenderTreeNode> childNode
                 );
 
+        ClipNode(ClipNode const&) = default;
+
         UpdateResult update(
                 RenderTree const& oldTree,
                 RenderTree const& newTree,
@@ -569,6 +661,7 @@ namespace avg
                 ) const override;
 
         std::type_index getType() const override;
+        std::shared_ptr<RenderTreeNode> clone() const override;
 
     private:
         std::shared_ptr<RenderTreeNode> childNode_;
@@ -583,6 +676,8 @@ namespace avg
                 std::shared_ptr<RenderTreeNode> childNode
                 );
 
+        IdNode(IdNode const&) = default;
+
         UpdateResult update(
                 RenderTree const& oldTree,
                 RenderTree const& newTree,
@@ -598,6 +693,7 @@ namespace avg
                 ) const override;
 
         std::type_index getType() const override;
+        std::shared_ptr<RenderTreeNode> clone() const override;
 
     private:
         std::shared_ptr<RenderTreeNode> childNode_;

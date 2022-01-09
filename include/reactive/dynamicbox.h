@@ -2,11 +2,12 @@
 
 
 #include "widget/addwidgets.h"
-#include "widget/bindsize.h"
+#include "widget/widgetmodifier.h"
 #include "widget/widgetobject.h"
-#include "widget//widgettransformer.h"
 
 #include "box.h"
+
+#include "signal/combine.h"
 
 #include <avg/rendertree.h>
 
@@ -23,12 +24,12 @@ namespace reactive
         {
             auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
 
-            auto resultWidgets = signal::map(
+            auto resultWidgets = join(map(
                     [](std::vector<widget::WidgetObject> const& widgets,
                         std::vector<avg::Obb> const& obbs)
                     {
                         assert(widgets.size() == obbs.size());
-                        std::vector<Widget> result;
+                        std::vector<AnySignal<Widget>> result;
 
                         auto i = obbs.begin();
                         for (auto& w : widgets)
@@ -37,15 +38,15 @@ namespace reactive
                                 const_cast<widget::WidgetObject&>(w);
 
                             widgetObject.setObb(*i);
-                            result.push_back(widgetObject.getWidget());
+                            result.push_back(widgetObject.getWidget().clone());
                             ++i;
                         }
 
-                        return result;
+                        return combine(std::move(result));
                     },
                     std::move(widgets),
                     std::move(obbs)
-                    );
+                    ));
 
             return widget::addWidgets(std::move(resultWidgets));
         }
@@ -81,17 +82,22 @@ namespace reactive
                 );
 
         return makeWidgetFactory()
-            | widget::makeWidgetTransformer()
-            .compose(widget::bindSize())
-            .values(hints.clone(), std::move(widgets))
-            .bind([](auto size, auto hints, auto widgets) mutable
-                {
-                    return detail::doDynamicBox<dir>(
-                            std::move(size),
-                            std::move(widgets),
-                            std::move(hints)
-                            );
-                })
+            | widget::makeSharedWidgetSignalModifier(
+                    [](auto widget, auto hints, auto widgets)
+                    {
+                        auto size = signal::map(&Widget::getSize, widget);
+
+                        return std::move(widget)
+                            | detail::doDynamicBox<dir>(
+                                    std::move(size),
+                                    std::move(widgets),
+                                    std::move(hints)
+                                    )
+                            ;
+                    },
+                    hints,
+                    std::move(widgets)
+                    )
             | setSizeHint(std::move(resultHint))
             ;
     }

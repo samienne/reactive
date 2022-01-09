@@ -1,11 +1,8 @@
 #include "testwidget.h"
 
 #include <reactive/widget/onclick.h>
-#include <reactive/widget/ondrawcustom.h>
-#include <reactive/widget/bindsize.h>
-#include <reactive/widget/bindtheme.h>
+#include <reactive/widget/ondraw.h>
 #include <reactive/widget/onkeyevent.h>
-#include <reactive/widget/widgettransformer.h>
 
 #include <reactive/shapes.h>
 #include <reactive/send.h>
@@ -29,10 +26,11 @@ using namespace reactive;
 namespace
 {
     auto drawTestWidget = [](avg::DrawContext const& drawContext,
-            avg::Obb const& obb, widget::Theme const& theme,
-            bool state, std::string const& str)
+            avg::Obb const& obb, bool state, std::string const& str)
         -> avg::Drawing
     {
+        widget::Theme theme;
+
         auto size = obb.getSize();
 
         std::cout << "draw() -> " << size[0] << ", " << size[1] << std::endl;
@@ -81,10 +79,7 @@ WidgetFactory makeTestWidget()
     auto focus = signal::input(false);
 
     return makeWidgetFactory()
-        | makeWidgetTransformer()
-        .compose(bindTheme())
-        .values(std::move(state), std::move(textState))
-        .bind(onDrawCustom(drawTestWidget))
+        | onDraw(drawTestWidget, std::move(state), std::move(textState))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))

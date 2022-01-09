@@ -7,6 +7,8 @@ jobs:
             matrix:
                 compiler: [
                     { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release" },
+                    { "deps": "gcc-9 g++-9", "CC": "gcc-9", "CXX": "g++-9", "type": "release" },
+                    { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release" },
                     { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release" }
                 ]
         runs-on: "ubuntu-20.04"

@@ -354,68 +354,6 @@ UpdateResult ContainerNode::update(
         assert(false);
     }
 
-    /*
-    for (auto const& child : newContainer.children_)
-    {
-        auto i = std::find_if(oldContainer.children_.begin(),
-                oldContainer.children_.end(),
-                [&](Child const& node)
-                {
-                    return node.node->getId() == child.node->getId();
-                });
-
-        std::shared_ptr<RenderTreeNode> oldChild = nullptr;
-        if (i != oldContainer.children_.end())
-            oldChild = i->node;
-
-        auto [newChild, nextChildUpdate] = child.node->update(
-                oldTree,
-                newTree,
-                oldChild,
-                child.node,
-                animationOptions,
-                time
-                );
-
-        nextUpdate = earlier(nextUpdate, nextChildUpdate);
-
-        if (newChild)
-        {
-            nodes.push_back(Child{
-                    std::move(newChild),
-                    true
-                    });
-        }
-    }
-
-    for (auto const& oldChild : oldContainer.children_)
-    {
-        auto i = std::find_if(newContainer.children_.begin(),
-                newContainer.children_.end(),
-                [&](Child const& node)
-                {
-                    return node.node->getId() == oldChild.node->getId();
-                });
-
-        if (i == newContainer.children_.end())
-        {
-            auto [newChild, nextChildUpdate] = oldChild.node->update(
-                    oldTree,
-                    newTree,
-                    oldChild.node,
-                    nullptr,
-                    animationOptions,
-                    time
-                    );
-
-            nextUpdate = earlier(nextUpdate, nextChildUpdate);
-
-            if (newChild)
-                nodes.push_back(Child { std::move(newChild), true });;
-        }
-    }
-    */
-
     return {
         std::make_shared<ContainerNode>(
                 oldContainer.getObb().updated(newContainer.getObb(),
@@ -452,6 +390,11 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
 std::type_index ContainerNode::getType() const
 {
     return typeid(ContainerNode);
+}
+
+std::shared_ptr<RenderTreeNode> ContainerNode::clone() const
+{
+    return std::make_shared<ContainerNode>(*this);
 }
 
 RectNode::RectNode(
@@ -535,6 +478,12 @@ UpdateResult TransitionNode::update(
         newActive = newTransition.activeNode_;
         newTransitioned = newTransition.transitionedNode_;
         newObb = newNode->getObb();
+
+        if (animationOptions)
+        {
+            nextUpdate = time + animationOptions->duration;
+            transition = Transition { time, animationOptions->duration };
+        }
     }
     else if (oldNode && !newNode)
     {
@@ -616,6 +565,9 @@ UpdateResult TransitionNode::update(
     if (transition.has_value())
         nextUpdate = transition->startTime + transition->duration;
 
+    if (nextUpdate < time)
+        nextUpdate = std::nullopt;
+
     return {
         std::move(result),
         earlier(nextUpdate, nextChildUpdate)
@@ -642,6 +594,11 @@ std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
 std::type_index TransitionNode::getType() const
 {
     return typeid(TransitionNode);
+}
+
+std::shared_ptr<RenderTreeNode> TransitionNode::clone() const
+{
+    return std::make_shared<TransitionNode>(*this);
 }
 
 ClipNode::ClipNode(
@@ -731,17 +688,6 @@ UpdateResult ClipNode::update(
 
     if (oldClip.childNode_->getId() != newClip.childNode_->getId())
     {
-        /*
-        auto [oldChild, nextOldUpdate] = oldNode->update(
-                oldTree,
-                newTree,
-                oldClip.childNode_,
-                nullptr,
-                animationOptions,
-                time
-                );
-                */
-
         auto [newChild, nextNewUpdate] = newNode->update(
                 oldTree,
                 newTree,
@@ -808,6 +754,11 @@ std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
 std::type_index ClipNode::getType() const
 {
     return typeid(ClipNode);
+}
+
+std::shared_ptr<RenderTreeNode> ClipNode::clone() const
+{
+    return std::make_shared<ClipNode>(*this);
 }
 
 IdNode::IdNode(
@@ -900,17 +851,6 @@ UpdateResult IdNode::update(
 
     if (oldId.childNode_->getId() != newId.childNode_->getId())
     {
-        /*
-        auto [oldChild, nextOldUpdate] = oldNode->update(
-                oldTree,
-                newTree,
-                oldId.childNode_,
-                nullptr,
-                animationOptions,
-                time
-                );
-                */
-
         auto [newChild, nextNewUpdate] = newNode->update(
                 oldTree,
                 newTree,
@@ -981,6 +921,11 @@ std::type_index IdNode::getType() const
     return typeid(IdNode);
 }
 
+std::shared_ptr<RenderTreeNode> IdNode::clone() const
+{
+    return std::make_shared<IdNode>(*this);
+}
+
 RenderTree::RenderTree()
 {
 }
@@ -1043,7 +988,12 @@ std::pair<Drawing, bool> RenderTree::draw(
 RenderTree RenderTree::transform(Transform const& transform) &&
 {
     if (root_)
+    {
+        if (!root_.unique())
+            root_ = root_->clone();
+
         root_->transform(transform);
+    }
 
     return *this;
 }

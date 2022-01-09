@@ -1,8 +1,6 @@
 #pragma once
 
-#include "bindkeyboardinputs.h"
-#include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/signal.h>
 
@@ -11,26 +9,18 @@ namespace reactive::widget
     template <typename T>
     auto requestFocus(Signal<T, bool> requestFocus)
     {
-        return widget::makeWidgetTransformer()
-            .compose(widget::grabKeyboardInputs())
-            .values(std::move(requestFocus))
-            .bind([](auto keyboardInputs, auto requestFocus)
+        return makeWidgetModifier([](Widget widget, bool requestFocus)
             {
-                auto newInputs = signal::map(
-                    [](std::vector<KeyboardInput> inputs, bool requestFocus)
-                    -> std::vector<KeyboardInput>
-                    {
-                        if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))
-                            inputs[0] = std::move(inputs[0]).requestFocus(requestFocus);
+                auto inputs = widget.getKeyboardInputs();
+                if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))
+                    inputs[0] = std::move(inputs[0]).requestFocus(requestFocus);
 
-                        return inputs;
-                    },
-                    std::move(keyboardInputs),
-                    std::move(requestFocus)
-                    );
-
-                return widget::setKeyboardInputs(std::move(newInputs));
-            });
+                return std::move(widget)
+                    .setKeyboardInputs(std::move(inputs))
+                    ;
+            },
+            std::move(requestFocus)
+            );
     }
 
 } // namespace reactive::widget

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "bindkeyboardinputs.h"
-#include "setkeyboardinputs.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
 
@@ -21,26 +19,20 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetTransformer()
-                .compose(grabKeyboardInputs())
-                .values(std::move(handler))
-                .bind([](auto inputs, auto handler) mutable
+            return makeWidgetModifier([](Widget widget, auto handler)
                 {
-                    auto newInputs = signal::map(
-                        [](std::vector<KeyboardInput> inputs, auto const& handler)
-                        -> std::vector<KeyboardInput>
-                        {
-                            for (auto&& input : inputs)
-                                input = std::move(input)
-                                    .onKeyEvent(handler);
-                            return inputs;
-                        },
-                        std::move(inputs),
-                        std::move(handler)
-                        );
+                    auto inputs = widget.getKeyboardInputs();
 
-                    return setKeyboardInputs(std::move(newInputs));
-                });
+                    for (auto&& input : inputs)
+                        input = std::move(input)
+                            .onKeyEvent(handler);
+
+                    return std::move(widget)
+                        .setKeyboardInputs(std::move(inputs))
+                        ;
+                },
+                std::move(handler)
+                );
         }
 
         inline auto onKeyEvent(KeyboardInput::KeyHandler handler)
@@ -60,12 +52,8 @@ namespace reactive::widget
         {
         }
 
-        template <typename TWidget, typename = typename
-            std::enable_if
-            <
-                IsWidget<TWidget>::value
-            >::type>
-        inline auto operator()(TWidget&& widget, bool = true) const
+        template <typename T>
+        inline auto operator()(Signal<T, Widget> widget, bool = true) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -80,10 +68,10 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return makeWidgetTransformerResult(std::forward<TWidget>(widget)
+            return std::move(widget)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
-                );
+                ;
         }
 
         inline OnKeyEvent acceptIf(

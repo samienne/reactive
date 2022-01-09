@@ -1,6 +1,8 @@
 #include "reactive/widget/focusgroup.h"
 
 #include "reactive/widget/onkeyevent.h"
+#include "reactive/widget/setkeyboardinputs.h"
+#include "reactive/widget/widgetmodifier.h"
 
 #include "reactive/widget.h"
 
@@ -273,35 +275,32 @@ FocusGroupState step(FocusGroupState oldState,
 
 } // anonymous
 
-WidgetTransformer<void> focusGroup()
+AnyWidgetModifier focusGroup()
 {
-    auto f = [](Widget w)
-    {
-        auto keyStream = stream::pipe<KeyEvent>();
+    return makeSharedWidgetSignalModifier([](auto widget)
+        {
+            auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
+            auto obb = signal::map(&Widget::getObb, widget);
 
-        auto state = signal::foldp(&step,
-                FocusGroupState(),
-                w.getKeyboardInputs(),
-                stream::collect(std::move(keyStream.stream))
-                );
+            auto keyStream = stream::pipe<KeyEvent>();
 
-        auto obb = signal::share(w.getObb());
-        static_assert(signal::IsSignal<decltype(state)>::value, "");
+            auto state = signal::foldp(&step,
+                    FocusGroupState(),
+                    std::move(inputs),
+                    stream::collect(std::move(keyStream.stream))
+                    );
 
-        auto inputs = signal::map(
-                mapStateToInputs,
-                std::move(state),
-                signal::constant(keyStream.handle),
-                obb
-                );
+            auto newInputs = signal::map(
+                    mapStateToInputs,
+                    std::move(state),
+                    signal::constant(keyStream.handle),
+                    std::move(obb)
+                    );
 
-        return makeWidgetTransformerResult(std::move(w)
-            .setObb(std::move(obb))
-            .setKeyboardInputs(std::move(inputs))
-            );
-    };
-
-    return makeWidgetTransformer(f);
+            return std::move(widget)
+                | setKeyboardInputs(std::move(newInputs))
+                ;
+        });
 }
 
 } // reactive::widget

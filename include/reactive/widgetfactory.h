@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widget/widgettransformer.h"
+#include "widget/widgetmodifier.h"
 
 #include "simplesizehint.h"
 #include "sizehint.h"
@@ -31,7 +31,7 @@ namespace reactive
 
     using FactoryMapWidget = std::function<Widget(Widget)>;
     using WidgetFactoryBase = WidFac<
-        std::tuple<widget::WidgetTransformer<void>>, AnySignal<SizeHint>
+        std::tuple<widget::AnyWidgetModifier>, AnySignal<SizeHint>
         >;
     struct WidgetFactory;
     using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
@@ -46,7 +46,7 @@ namespace reactive
     struct IsTupleMaps : std::false_type {};
 
     template <typename... Ts>
-    struct IsTupleMaps<std::tuple<Ts...>> : btl::All<widget::IsWidgetTransformer<Ts>...> {};
+    struct IsTupleMaps<std::tuple<Ts...>> : btl::All<widget::IsWidgetModifier<Ts>...> {};
 
     template <typename TFunc>
     struct FactoryMapWrapper
@@ -81,12 +81,12 @@ namespace reactive
             -> decltype(
                     std::forward<decltype(map)>(map)(
                         std::forward<decltype(initial)>(initial)
-                        ).first
+                        )
                     )
             {
                 return std::forward<decltype(map)>(map)(
                         std::forward<decltype(initial)>(initial)
-                        ).first;
+                        );
             }
         };
 
@@ -201,19 +201,19 @@ namespace reactive
 
         operator WidgetFactoryBase() &&
         {
-            widget::WidgetTransformer<void> f = widget::makeWidgetTransformer(
-                [maps = std::move(maps_)]
-                (auto w) mutable
+            widget::AnyWidgetModifier f = widget::makeWidgetSignalModifier(
+                [](auto w, auto maps) mutable
                 {
-                    return widget::makeWidgetTransformerResult(
-                            btl::tuple_reduce(std::move(w), std::move(*maps),
-                            [](auto&& initial, auto&& map) mutable
-                            {
-                                return std::forward<decltype(map)>(map)(
-                                    std::forward<decltype(initial)>(initial)
-                                    ).first;
-                            }));
-                });
+                    return btl::tuple_reduce(std::move(w), std::move(*maps),
+                        [](auto&& initial, auto&& map) mutable
+                        {
+                            return std::forward<decltype(map)>(map)(
+                                std::forward<decltype(initial)>(initial)
+                                );
+                        });
+                },
+                std::move(maps_)
+                );
 
             return WidgetFactoryBase(
                     std::make_tuple(std::move(f)),
@@ -267,7 +267,7 @@ namespace reactive
         <
             btl::All<
                 IsWidgetFactory<TFactory>,
-                widget::IsWidgetTransformer<TFunc>
+                widget::IsWidgetModifier<TFunc>
             >::value
         >::type>
     auto map(TFactory factory, TFunc func)
@@ -281,7 +281,7 @@ namespace reactive
         <
             btl::All<
                 IsWidgetFactory<TFactory>,
-                widget::IsWidgetTransformer<TFunc>
+                widget::IsWidgetModifier<TFunc>
             >::value
         >::type>
     auto preMap(TFactory factory, TFunc func)
@@ -291,12 +291,8 @@ namespace reactive
             .preMap(std::move(func));
     }
 
-    template <typename TFunc, typename = typename
-        std::enable_if
-        <
-            widget::IsWidgetTransformer<TFunc>::value
-        >::type>
-    auto mapFactoryWidget(TFunc f)
+    template <typename TFunc>
+    auto mapFactoryWidget(widget::WidgetModifier<TFunc> f)
     //-> FactoryMap
     {
         auto g = [f = std::move(f)](auto factory)
@@ -308,12 +304,8 @@ namespace reactive
         return mapFactory(std::move(g));
     }
 
-    template <typename TFunc, typename = typename
-        std::enable_if
-        <
-            widget::IsWidgetTransformer<TFunc>::value
-        >::type>
-    auto preMapFactory(TFunc f)
+    template <typename TFunc>
+    auto preMapFactory(widget::WidgetModifier<TFunc> f)
     //-> FactoryMap
     {
         auto g = [f = std::move(f)](auto factory)
@@ -355,15 +347,15 @@ namespace reactive
         return std::move(f)(std::move(factory));
     }
 
-    template <typename TWidgetTransformer, typename... Ts>
-    auto operator|(WidFac<Ts...> factory, TWidgetTransformer&& f)
+    template <typename TWidgetModifier, typename... Ts>
+    auto operator|(WidFac<Ts...> factory, TWidgetModifier&& f)
     -> decltype(std::move(factory)
-            .map(std::forward<TWidgetTransformer>(f))
+            .map(std::forward<TWidgetModifier>(f))
             )
         //-> WidgetFactory
     {
         return std::move(factory)
-            .map(std::forward<TWidgetTransformer>(f));
+            .map(std::forward<TWidgetModifier>(f));
     }
 
     template <typename TSignalSizeHint, typename = std::enable_if_t<

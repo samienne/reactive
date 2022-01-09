@@ -2,7 +2,7 @@
 
 #include "setfocusable.h"
 #include "requestfocus.h"
-#include "widgettransformer.h"
+#include "widgetmodifier.h"
 
 #include <reactive/signal/map.h>
 
@@ -11,29 +11,30 @@
 
 namespace reactive::widget
 {
-    inline auto focusOn(stream::Stream<bool> stream)
+    namespace detail
     {
-        auto hasValues = [](std::vector<bool> const& v) -> bool
+        bool hasValues(std::vector<bool> const& v)
         {
             return !v.empty();
         };
+    } // namespace detail
 
+    inline auto focusOn(stream::Stream<bool> stream)
+    {
         auto focusRequest = signal::map(
-                hasValues,
+                detail::hasValues,
                 stream::collect(std::move(stream))
                 );
 
-        auto f = [focusRequest=btl::cloneOnCopy(std::move(focusRequest))]
-            (auto widget)
-        {
-            return makeWidgetTransformerResult(
-                    std::move(widget)
+        return makeWidgetSignalModifier([](auto widget, auto focusRequest)
+            {
+                return std::move(widget)
                     | setFocusable(signal::constant(true))
-                    | requestFocus(focusRequest->clone())
-                    );
-        };
-
-        return widget::makeWidgetTransformer(std::move(f));
+                    | requestFocus(std::move(focusRequest))
+                    ;
+            },
+            std::move(focusRequest)
+            );
     }
 } // namespace reactive::widget
 
