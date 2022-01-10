@@ -10,7 +10,7 @@
 namespace reactive::widget
 {
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
-        //-> FactoryMap
+        //-> BuiderModifier
     {
         return makeSharedInstanceSignalModifier(
             [handle=std::move(handle)](auto instance) mutable

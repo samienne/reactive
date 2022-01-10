@@ -11,12 +11,12 @@ namespace reactive::widget
 static_assert(std::is_copy_constructible_v<WidgetObject>, "");
 static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
-WidgetObject::Impl::Impl(WidgetFactory factory) :
-    factory_(std::move(factory)),
-    sizeHint_(factory_.getSizeHint()),
+WidgetObject::Impl::Impl(Builder builder) :
+    builder_(std::move(builder)),
+    sizeHint_(builder_.getSizeHint()),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
     transformInput_(signal::input(avg::Transform())),
-    widget_((factory_
+    widget_((builder_
             | widget::setId(signal::constant(id_))
             | transform(transformInput_.signal.clone())
             )
@@ -25,8 +25,8 @@ WidgetObject::Impl::Impl(WidgetFactory factory) :
 {
 }
 
-WidgetObject::WidgetObject(WidgetFactory factory) :
-    impl_(std::make_shared<Impl>(std::move(factory)))
+WidgetObject::WidgetObject(Builder builder) :
+    impl_(std::make_shared<Impl>(std::move(builder)))
 {
 }
 

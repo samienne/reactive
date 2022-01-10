@@ -13,6 +13,7 @@
 #include <reactive/widget/onpointermove.h>
 #include <reactive/widget/onpointerdown.h>
 #include <reactive/widget/onhover.h>
+#include <reactive/widget/builder.h>
 
 #include <reactive/filler.h>
 #include <reactive/keyboardinput.h>
@@ -22,7 +23,6 @@
 #include <reactive/uniformgrid.h>
 #include <reactive/hbox.h>
 #include <reactive/vbox.h>
-#include <reactive/widgetfactory.h>
 
 #include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>

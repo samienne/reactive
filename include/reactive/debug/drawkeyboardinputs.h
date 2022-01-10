@@ -2,9 +2,9 @@
 
 #include "reactive/widget/ondraw.h"
 #include "reactive/widget/instancemodifier.h"
+#include "reactive/widget/builder.h"
 
 #include "reactive/shapes.h"
-#include "reactive/widgetfactory.h"
 
 #include "reactive/signal/map.h"
 

@@ -18,7 +18,7 @@
 namespace reactive::widget
 {
 
-WidgetFactory scrollView(WidgetFactory f)
+Builder scrollView(Builder f)
 {
     auto viewSize = signal::input(avg::Vector2f(10.0f, 200.0f));
     auto x = signal::input(0.5f);
@@ -67,7 +67,7 @@ WidgetFactory scrollView(WidgetFactory f)
         | transform(std::move(t))
         ;
 
-    auto view = makeWidgetFactory()
+    auto view = makeBuilder()
         | bin(std::move(f2), contentSize)
         | setSizeHint(signal::constant(simpleSizeHint(
             {{100, 400, 10000}},

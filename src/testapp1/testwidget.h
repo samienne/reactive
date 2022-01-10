@@ -1,8 +1,8 @@
 #pragma once
 
-#include <reactive/widgetfactory.h>
+#include <reactive/widget/builder.h>
 
 #include <avg/font.h>
 
-reactive::WidgetFactory makeTestWidget();
+reactive::widget::Builder makeTestWidget();
 

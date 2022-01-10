@@ -47,7 +47,7 @@ namespace
     }
 } // anonymous namespace
 
-WidgetFactory button(AnySignal<std::string> label,
+Builder button(AnySignal<std::string> label,
         AnySignal<std::function<void()>> onClick)
 {
     auto down = signal::input<bool>(false);
@@ -74,7 +74,7 @@ WidgetFactory button(AnySignal<std::string> label,
         ;
 }
 
-WidgetFactory button(std::string label, AnySignal<std::function<void()>> onClick)
+Builder button(std::string label, AnySignal<std::function<void()>> onClick)
 {
     return button(signal::constant(std::move(label)), std::move(onClick));
 }

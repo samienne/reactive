@@ -1,8 +1,8 @@
 #pragma once
 
 #include "layout.h"
-#include "widgetfactory.h"
 
+#include "widget/builder.h"
 #include "widget/instance.h"
 
 #include "signal/combine.h"
@@ -246,14 +246,14 @@ namespace reactive
     }
 
     template <Axis dir>
-    auto box(std::vector<WidgetFactory> factories)  //-> WidgetFactory
+    auto box(std::vector<widget::Builder> builders)  //-> Builder
     {
         return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
-                std::move(factories));
+                std::move(builders));
     }
 
     template <Axis dir, typename... Ts>
-    auto box(std::tuple<Ts...> factories) // -> WidgetFactory
+    auto box(std::tuple<Ts...> builders) // -> Builder
     {
         return layout(
                 [](auto hints)
@@ -261,7 +261,7 @@ namespace reactive
                     return accumulateSizeHintsTuple<dir>(std::move(hints));
                 },
                 MapObbs<dir>(),
-                std::move(factories)
+                std::move(builders)
                 );
     }
 }

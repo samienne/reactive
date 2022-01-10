@@ -1,8 +1,7 @@
 #pragma once
 
 #include "instancemodifier.h"
-
-#include "reactive/widgetfactory.h"
+#include "builder.h"
 
 namespace reactive::widget
 {

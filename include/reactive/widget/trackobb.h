@@ -8,7 +8,6 @@
 namespace reactive::widget
 {
     inline auto trackObb(signal::InputHandle<avg::Obb> handle)
-        //-> FactoryMap
     {
         return makeSharedInstanceSignalModifier([handle=std::move(handle)](auto instance)
             {
@@ -32,6 +31,5 @@ namespace reactive::widget
                         );
             });
     }
-
 } // namespace reactive::widget
 

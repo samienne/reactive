@@ -4,8 +4,8 @@
 #include "margin.h"
 #include "theme.h"
 #include "instance.h"
+#include "builder.h"
 
-#include "reactive/widgetfactory.h"
 #include "reactive/shapes.h"
 
 #include "reactive/signal/constant.h"

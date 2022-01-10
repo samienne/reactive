@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetfactory.h"
+#include "widget/builder.h"
 
 #include "reactivevisibility.h"
 
@@ -13,7 +13,7 @@ namespace reactive
     class REACTIVE_EXPORT Window
     {
     public:
-        Window(WidgetFactory widget, AnySignal<std::string> const& title);
+        Window(widget::Builder widget, AnySignal<std::string> const& title);
 
         Window(Window const&) = default;
         Window& operator=(Window const&) = default;
@@ -23,7 +23,7 @@ namespace reactive
 
         Window onClose(std::function<void()> const& cb) &&;
 
-        WidgetFactory getWidget() const;
+        widget::Builder getWidget() const;
 
         AnySharedSignal<std::string> const& getTitle() const;
 
@@ -35,12 +35,12 @@ namespace reactive
         }
 
     private:
-        btl::CloneOnCopy<WidgetFactory> widget_;
+        btl::CloneOnCopy<widget::Builder> widget_;
         AnySharedSignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };
 
     REACTIVE_EXPORT auto window(AnySignal<std::string> const& title,
-            WidgetFactory widget) -> Window;
+            widget::Builder widget) -> Window;
 }
 

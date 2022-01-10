@@ -18,10 +18,10 @@ UniformGrid::UniformGrid(unsigned int w, unsigned int h) :
 
 auto UniformGrid::cell(unsigned int x, unsigned int y,
         unsigned int w, unsigned int h,
-        WidgetFactory factory) && -> UniformGrid
+        widget::Builder builder) && -> UniformGrid
 {
     cells_.push_back({x, y, w, h});
-    factories_.push_back(std::move(factory));
+    builders_.push_back(std::move(builder));
     return std::move(*this);
 }
 
@@ -43,18 +43,18 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
             );
 }
 
-UniformGrid::operator WidgetFactory() &&
+UniformGrid::operator widget::Builder() &&
 {
     std::vector<AnySignal<SizeHint>> hints;
     hints.reserve(cells_.size());
 
     auto cells = std::move(cells_);
-    auto factories = std::move(factories_);
+    auto builders = std::move(builders_);
     size_t i = 0;
     for (auto const& cell : cells)
     {
         auto hi = signal::map(multiplySizeHint,
-                factories[i].getSizeHint(),
+                builders[i].getSizeHint(),
                 signal::constant(1.0f / (float)cell.w),
                 signal::constant(1.0f / (float)cell.h)
                 );
@@ -100,17 +100,17 @@ UniformGrid::operator WidgetFactory() &&
     };
 
     i = 0;
-    for (auto&& factory : factories)
+    for (auto&& builder : builders)
     {
-        factory = std::move(factory)
-            | setSizeHint(std::move(hints[i++]))
+        builder = std::move(builder)
+            | widget::setSizeHint(std::move(hints[i++]))
             ;
     }
 
     auto r = layout(
             std::move(mapHints),
             std::move(mapObbs),
-            std::move(factories)
+            std::move(builders)
             );
 
     return r;

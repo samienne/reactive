@@ -8,7 +8,7 @@
 namespace reactive::widget
 {
 
-AnyInstanceModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
+AnyInstanceModifier bin(Builder f, AnySignal<avg::Vector2f> contentSize)
 {
     return makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto f)
         {

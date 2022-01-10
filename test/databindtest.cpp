@@ -16,8 +16,8 @@ TEST(DataBind, setup)
 
     auto s1 = signal::dataBind<std::string>(
             dataSourceFromCollection(collection),
-            [](AnySignal<std::string>, size_t) -> WidgetFactory
+            [](AnySignal<std::string>, size_t) -> widget::Builder
             {
-                return makeWidgetFactory();
+                return widget::makeBuilder();
             });
 }

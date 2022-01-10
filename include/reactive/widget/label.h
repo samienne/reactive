@@ -1,8 +1,8 @@
 #pragma once
 
 #include "theme.h"
+#include "builder.h"
 
-#include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
 
 #include "reactive/signal/signal.h"
@@ -13,10 +13,10 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetFactory label(AnySharedSignal<std::string> text);
-    REACTIVE_EXPORT WidgetFactory label(std::string const& text);
+    REACTIVE_EXPORT Builder label(AnySharedSignal<std::string> text);
+    REACTIVE_EXPORT Builder label(std::string const& text);
 
-    inline WidgetFactory label(AnySignal<std::string> text)
+    inline Builder label(AnySignal<std::string> text)
     {
         return label(signal::share(std::move(text)));
     }

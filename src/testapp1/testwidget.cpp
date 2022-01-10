@@ -3,11 +3,11 @@
 #include <reactive/widget/onclick.h>
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/onkeyevent.h>
+#include <reactive/widget/builder.h>
 
 #include <reactive/shapes.h>
 #include <reactive/send.h>
 
-#include <reactive/widgetfactory.h>
 #include <reactive/simplesizehint.h>
 
 #include <reactive/signal/droprepeats.h>
@@ -54,7 +54,7 @@ namespace
     };
 } // anonymous namespace
 
-WidgetFactory makeTestWidget()
+widget::Builder makeTestWidget()
 {
     using namespace reactive::widget;
 
@@ -78,12 +78,12 @@ WidgetFactory makeTestWidget()
 
     auto focus = signal::input(false);
 
-    return makeWidgetFactory()
+    return widget::makeBuilder()
         | onDraw(drawTestWidget, std::move(state), std::move(textState))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))
         | widget::onKeyEvent(sendKeysTo(p2.handle))
-        | setSizeHint(signal::constant(simpleSizeHint(
+        | widget::setSizeHint(signal::constant(simpleSizeHint(
                     {{200.0f, 400.0f, 10000.0f}},
                     {{50.0f, 150.0f, 10000.0f}})))
     ;

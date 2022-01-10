@@ -229,19 +229,19 @@ namespace
 } // anonymous namespace
 
 template <bool IsHorizontal>
-WidgetFactory scrollBar(
+Builder scrollBar(
         signal::InputHandle<float> scrollHandle,
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
 {
-    return makeWidgetFactory()
+    return makeBuilder()
         | makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
         | widget::margin(signal::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;
 }
 
-WidgetFactory hScrollBar(
+Builder hScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)
@@ -253,7 +253,7 @@ WidgetFactory hScrollBar(
                     }, std::move(handleSize))));
 }
 
-WidgetFactory vScrollBar(
+Builder vScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)

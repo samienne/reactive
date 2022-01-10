@@ -1,18 +1,18 @@
 #pragma once
 
-#include "widget/instancemodifier.h"
-#include "widget/instance.h"
+#include "instancemodifier.h"
+#include "instance.h"
 
-#include "simplesizehint.h"
-#include "sizehint.h"
+#include "reactive/simplesizehint.h"
+#include "reactive/sizehint.h"
 
-#include "signal/cast.h"
-#include "signal/share.h"
-#include "signal/cache.h"
-#include "signal/changed.h"
-#include "signal/tee.h"
-#include "signal/constant.h"
-#include "signal/signal.h"
+#include "reactive/signal/cast.h"
+#include "reactive/signal/share.h"
+#include "reactive/signal/cache.h"
+#include "reactive/signal/changed.h"
+#include "reactive/signal/tee.h"
+#include "reactive/signal/constant.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/transform.h>
 
@@ -24,23 +24,22 @@
 #include <functional>
 #include <deque>
 
-namespace reactive
+namespace reactive::widget
 {
     template <typename TTupleMaps, typename TSizeHint>
-    class WidFac;
+    class Bldr;
 
-    using FactoryMapWidget = std::function<widget::Instance(widget::Instance)>;
-    using WidgetFactoryBase = WidFac<
+    using BuilderBase = Bldr<
         std::tuple<widget::AnyInstanceModifier>, AnySignal<SizeHint>
         >;
-    struct WidgetFactory;
-    using FactoryMap = std::function<WidgetFactory(WidgetFactory)>;
+    struct Builder;
+    using BuiderModifier = std::function<Builder(Builder)>;
 
     template <typename T>
-    using IsWidgetFactory = typename std::is_convertible<T, WidgetFactory>::type;
+    using IsBuilder = typename std::is_convertible<T, Builder>::type;
 
     template <typename T>
-    using IsFactoryMap = typename std::is_convertible<T, FactoryMap>::type;
+    using IsBuilderModifier = typename std::is_convertible<T, BuiderModifier>::type;
 
     template <typename T>
     struct IsTupleMaps : std::false_type {};
@@ -49,32 +48,32 @@ namespace reactive
     struct IsTupleMaps<std::tuple<Ts...>> : btl::All<widget::IsInstanceModifier<Ts>...> {};
 
     template <typename TFunc>
-    struct FactoryMapWrapper
+    struct BuilderModifierWrapper
     {
-        template <typename TFactory, typename = std::enable_if_t<
-            IsWidgetFactory<TFactory>::value
+        template <typename T, typename = std::enable_if_t<
+            IsBuilder<T>::value
             >
         >
-        auto operator()(TFactory factory)
+        auto operator()(T builder)
         {
-            return std::move(*func)(std::move(factory));
+            return std::move(*func)(std::move(builder));
         }
 
         btl::CloneOnCopy<std::decay_t<TFunc>> func;
     };
 
     template <typename TFunc, typename = std::enable_if_t<
-        IsFactoryMap<TFunc>::value
+        IsBuilderModifier<TFunc>::value
         >
     >
-    auto mapFactory(TFunc&& func)
+    auto makeBuilderModifier(TFunc&& func)
     {
-        return FactoryMapWrapper<std::decay_t<TFunc>>{std::forward<TFunc>(func)};
+        return BuilderModifierWrapper<std::decay_t<TFunc>>{std::forward<TFunc>(func)};
     }
 
     namespace detail
     {
-        struct EvaluateWidgetFactoryMapper
+        struct EvaluateBuilderMapper
         {
             template <typename T, typename U>
             auto operator()(T&& initial, U&& map) const
@@ -91,21 +90,21 @@ namespace reactive
         };
 
         template <typename T, typename TMaps>
-        auto evaluateWidgetFactory(
+        auto evaluateBuilder(
                 Signal<T, avg::Vector2f> size,
                 TMaps&& maps)
         -> decltype(
             btl::tuple_reduce(
                     widget::makeInstance(std::move(size)),
                     std::forward<TMaps>(maps),
-                    EvaluateWidgetFactoryMapper()
+                    EvaluateBuilderMapper()
                     )
             )
         {
             return btl::tuple_reduce(
                     widget::makeInstance(std::move(size)),
                     std::forward<TMaps>(maps),
-                    EvaluateWidgetFactoryMapper()
+                    EvaluateBuilderMapper()
                     );
         }
     }
@@ -119,41 +118,41 @@ namespace reactive
                         IsSizeHint<signal::SignalType<TSizeHint>>
                     >::value
                  >>
-    auto makeWidFac(TTupleMaps maps, TSizeHint sizeHint)
+    auto makeBldr(TTupleMaps maps, TSizeHint sizeHint)
     {
-        return WidFac<std::decay_t<TTupleMaps>, std::decay_t<TSizeHint>>(
+        return Bldr<std::decay_t<TTupleMaps>, std::decay_t<TSizeHint>>(
                 std::forward<TTupleMaps>(maps),
                 std::move(sizeHint)
                 );
     }
 
     template <typename TTupleMaps, typename TSizeHint>
-    class WidFac
+    class Bldr
     {
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
 
-        WidFac<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
+        Bldr<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
             maps_(std::move(maps)),
             sizeHint_(std::move(sizeHint))
         {
         }
 
-        WidFac<TTupleMaps, TSizeHint> clone() const
+        Bldr<TTupleMaps, TSizeHint> clone() const
         {
             return *this;
         }
 
-        WidFac<TTupleMaps, TSizeHint>(WidFac<TTupleMaps, TSizeHint> const&) = default;
-        WidFac<TTupleMaps, TSizeHint>& operator=(WidFac<TTupleMaps, TSizeHint> const&) = default;
+        Bldr<TTupleMaps, TSizeHint>(Bldr<TTupleMaps, TSizeHint> const&) = default;
+        Bldr<TTupleMaps, TSizeHint>& operator=(Bldr<TTupleMaps, TSizeHint> const&) = default;
 
-        WidFac<TTupleMaps, TSizeHint>(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
-        WidFac<TTupleMaps, TSizeHint>& operator=(WidFac<TTupleMaps, TSizeHint>&&) noexcept = default;
+        Bldr<TTupleMaps, TSizeHint>(Bldr<TTupleMaps, TSizeHint>&&) noexcept = default;
+        Bldr<TTupleMaps, TSizeHint>& operator=(Bldr<TTupleMaps, TSizeHint>&&) noexcept = default;
 
         template <typename T>
         auto operator()(Signal<T, avg::Vector2f> size) &&
         {
-            return detail::evaluateWidgetFactory(
+            return detail::evaluateBuilder(
                     std::move(size),
                     std::move(*maps_)
                     );
@@ -162,7 +161,7 @@ namespace reactive
         template <typename TFunc>
         auto map(TFunc&& func) &&
         -> decltype(
-                makeWidFac(
+                makeBldr(
                     btl::pushBack(
                         std::move(std::declval<btl::decay_t<TTupleMaps>>()),
                         std::forward<TFunc>(func)
@@ -170,7 +169,7 @@ namespace reactive
                     std::move(std::declval<btl::decay_t<TSizeHint>>())
                 ))
         {
-            return makeWidFac(
+            return makeBldr(
                     btl::pushBack(std::move(*maps_), std::forward<TFunc>(func)),
                     std::move(*sizeHint_)
                     );
@@ -179,7 +178,7 @@ namespace reactive
         template <typename TFunc>
         auto preMap(TFunc&& func) &&
         {
-            return makeWidFac(
+            return makeBldr(
                     btl::pushFront(std::move(*maps_), std::forward<TFunc>(func)),
                     std::move(*sizeHint_)
                     );
@@ -188,7 +187,7 @@ namespace reactive
         template <typename TSignalSizeHint>
         auto setSizeHint(TSignalSizeHint sizeHint) &&
         {
-            return makeWidFac(
+            return makeBldr(
                     std::move(*maps_),
                     std::move(sizeHint)
                     );
@@ -199,7 +198,7 @@ namespace reactive
             return sizeHint_->clone();
         }
 
-        operator WidgetFactoryBase() &&
+        operator BuilderBase() &&
         {
             widget::AnyInstanceModifier f = widget::makeInstanceSignalModifier(
                 [](auto w, auto maps) mutable
@@ -215,7 +214,7 @@ namespace reactive
                 std::move(maps_)
                 );
 
-            return WidgetFactoryBase(
+            return BuilderBase(
                     std::make_tuple(std::move(f)),
                     std::move(*sizeHint_)
                     );
@@ -226,15 +225,15 @@ namespace reactive
         btl::CloneOnCopy<btl::decay_t<TSizeHint>> sizeHint_;
     };
 
-    struct WidgetFactory : WidgetFactoryBase
+    struct Builder : BuilderBase
     {
-        WidgetFactory(WidgetFactoryBase base) :
-            WidgetFactoryBase(std::move(base))
+        Builder(BuilderBase base) :
+            BuilderBase(std::move(base))
         {
         }
 
         template <typename TTupleMaps, typename TSizeHint>
-        static auto castFactory(WidFac<TTupleMaps, TSizeHint> base)
+        static auto castBuilder(Bldr<TTupleMaps, TSizeHint> base)
         {
             auto sizeHint = base.getSizeHint();
 
@@ -243,118 +242,118 @@ namespace reactive
         }
 
         template <typename TTupleMaps, typename TSizeHint>
-        WidgetFactory(WidFac<TTupleMaps, TSizeHint> base) :
-            WidgetFactoryBase(castFactory(std::move(base)))
+        Builder(Bldr<TTupleMaps, TSizeHint> base) :
+            BuilderBase(castBuilder(std::move(base)))
         {
         }
 
-        WidgetFactory clone() const
+        Builder clone() const
         {
-            return WidgetFactoryBase::clone();
+            return BuilderBase::clone();
         }
     };
 
-    inline auto makeWidgetFactory()
+    inline auto makeBuilder()
     {
-        return makeWidFac(
+        return makeBldr(
                 std::tuple<>(),
                 signal::constant(simpleSizeHint(100.0f, 100.0f))
                 );
     }
 
-    template <typename TFactory, typename TFunc, typename = typename
+    template <typename TBuilder, typename TFunc, typename = typename
         std::enable_if
         <
             btl::All<
-                IsWidgetFactory<TFactory>,
+                IsBuilder<TBuilder>,
                 widget::IsInstanceModifier<TFunc>
             >::value
         >::type>
-    auto map(TFactory factory, TFunc func)
+    auto map(TBuilder builder, TFunc func)
     {
-        return std::move(factory)
+        return std::move(builder)
             .map(std::move(func));
     }
 
-    template <typename TFactory, typename TFunc, typename = typename
+    template <typename TBuilder, typename TFunc, typename = typename
         std::enable_if
         <
             btl::All<
-                IsWidgetFactory<TFactory>,
+                IsBuilder<TBuilder>,
                 widget::IsInstanceModifier<TFunc>
             >::value
         >::type>
-    auto preMap(TFactory factory, TFunc func)
-    //-> WidgetFactory
+    auto preMap(TBuilder builder, TFunc func)
+    //-> Builder
     {
-        return std::move(factory)
+        return std::move(builder)
             .preMap(std::move(func));
     }
 
     template <typename TFunc>
-    auto mapFactoryWidget(widget::InstanceModifier<TFunc> f)
-    //-> FactoryMap
+    auto makeBuilderModifier(widget::InstanceModifier<TFunc> f)
+    //-> BuiderModifier
     {
-        auto g = [f = std::move(f)](auto factory)
-            //-> WidgetFactory
+        auto g = [f = std::move(f)](auto builder)
+            //-> Builder
         {
-            return map(std::move(factory), f);
+            return map(std::move(builder), f);
         };
 
-        return mapFactory(std::move(g));
+        return makeBuilderModifier(std::move(g));
     }
 
     template <typename TFunc>
-    auto preMapFactory(widget::InstanceModifier<TFunc> f)
-    //-> FactoryMap
+    auto preMapBuilder(widget::InstanceModifier<TFunc> f)
+    //-> BuiderModifier
     {
-        auto g = [f = std::move(f)](auto factory)
-            // -> WidgetFactory
+        auto g = [f = std::move(f)](auto builder)
+            // -> Builder
         {
-            return preMap(std::move(factory), f);
+            return preMap(std::move(builder), f);
         };
 
-        return mapFactory(std::move(g));
+        return makeBuilderModifier(std::move(g));
     }
 
-    template <typename TFactoryMapL, typename TFactoryMapR,
+    template <typename TBuilderMapL, typename TBuilderMapR,
              typename = typename std::enable_if<
                  btl::All<
-                    IsFactoryMap<TFactoryMapL>,
-                    IsFactoryMap<TFactoryMapR>
+                    IsBuilderModifier<TBuilderMapL>,
+                    IsBuilderModifier<TBuilderMapR>
                  >::value
             >::type
         >
-    inline auto operator>>(TFactoryMapL&& lhs, TFactoryMapR&& rhs)
-        // -> FactoryMap
+    inline auto operator>>(TBuilderMapL&& lhs, TBuilderMapR&& rhs)
+        // -> BuiderModifier
     {
-        return mapFactory(
-                [lhs=std::forward<TFactoryMapL>(lhs),
-                rhs=std::forward<TFactoryMapR>(rhs)]
-                (auto factory) mutable
+        return makeBuilderModifier(
+                [lhs=std::forward<TBuilderMapL>(lhs),
+                rhs=std::forward<TBuilderMapR>(rhs)]
+                (auto builder) mutable
                 {
-                    return rhs(lhs(std::move(factory)));
+                    return rhs(lhs(std::move(builder)));
                 });
     }
 
-    template <typename TFactoryMap, typename... Ts>
-    auto operator|(WidFac<Ts...> factory, FactoryMapWrapper<TFactoryMap> f)
+    template <typename TBuilderMap, typename... Ts>
+    auto operator|(Bldr<Ts...> builder, BuilderModifierWrapper<TBuilderMap> f)
     -> decltype(
-            std::move(f)(std::move(factory))
+            std::move(f)(std::move(builder))
             )
-        // -> WidgetFactory
+        // -> Builder
     {
-        return std::move(f)(std::move(factory));
+        return std::move(f)(std::move(builder));
     }
 
     template <typename TInstanceModifier, typename... Ts>
-    auto operator|(WidFac<Ts...> factory, TInstanceModifier&& f)
-    -> decltype(std::move(factory)
+    auto operator|(Bldr<Ts...> builder, TInstanceModifier&& f)
+    -> decltype(std::move(builder)
             .map(std::forward<TInstanceModifier>(f))
             )
-        //-> WidgetFactory
+        //-> Builder
     {
-        return std::move(factory)
+        return std::move(builder)
             .map(std::forward<TInstanceModifier>(f));
     }
 
@@ -363,26 +362,26 @@ namespace reactive
         >
     >
     auto setSizeHint(TSignalSizeHint sizeHint)
-        //-> FactoryMap;
+        //-> BuiderModifier;
     {
         auto f = [sh = btl::cloneOnCopy(std::move(sizeHint))]
-            (auto factory) // -> WidgetFactory
+            (auto builder) // -> Builder
         {
-            return std::move(factory)
+            return std::move(builder)
                 .setSizeHint(sh->clone())
                 ;
         };
 
-        return mapFactory(std::move(f));
+        return makeBuilderModifier(std::move(f));
     }
 
-    template <typename TWidgetFactory, typename = typename std::enable_if
+    template <typename TBuilder, typename = typename std::enable_if
         <
-            IsWidgetFactory<TWidgetFactory>::value
+            IsBuilder<TBuilder>::value
         >::type>
-    auto copy(TWidgetFactory&& factory) -> btl::decay_t<TWidgetFactory>
+    auto copy(TBuilder&& builder) -> btl::decay_t<TBuilder>
     {
-        return { std::forward<TWidgetFactory>(factory) };
+        return { std::forward<TBuilder>(builder) };
     }
 }
 

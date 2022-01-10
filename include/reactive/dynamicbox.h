@@ -81,7 +81,7 @@ namespace reactive
                 hints.clone()
                 );
 
-        return makeWidgetFactory()
+        return widget::makeBuilder()
             | widget::makeSharedInstanceSignalModifier(
                     [](auto widget, auto hints, auto widgets)
                     {
@@ -98,7 +98,7 @@ namespace reactive
                     hints,
                     std::move(widgets)
                     )
-            | setSizeHint(std::move(resultHint))
+            | widget::setSizeHint(std::move(resultHint))
             ;
     }
 } // namespace reactive

@@ -6,7 +6,8 @@
 #include <reactive/stream/pipe.h>
 
 #include <reactive/widget/widgetobject.h>
-#include <reactive/widgetfactory.h>
+#include <reactive/widget/builder.h>
+
 #include <reactive/datasource.h>
 
 #include <reactive/signal/signal.h>
@@ -18,7 +19,7 @@ namespace reactive::signal
     template <typename T>
     AnySignal<std::vector<widget::WidgetObject>> dataBind(
             DataSource<T> source,
-            std::function<WidgetFactory(AnySignal<T> value, size_t id)> delegate
+            std::function<widget::Builder(AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;

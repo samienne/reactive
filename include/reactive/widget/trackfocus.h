@@ -22,7 +22,6 @@ namespace reactive::widget
     } // namespace detail
 
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
-        // -> FactoryMap
     {
         return makeSharedInstanceSignalModifier([](auto instance, auto handle)
                 {

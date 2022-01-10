@@ -9,12 +9,12 @@
 namespace reactive
 {
 
-WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
-        std::vector<WidgetFactory> factories)
+widget::Builder layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+        std::vector<widget::Builder> builders)
 {
-    auto hints = btl::fmap(factories, [](auto const& factory)
+    auto hints = btl::fmap(builders, [](auto const& builder)
             {
-                return factory.getSizeHint();
+                return builder.getSizeHint();
             });
 
     auto hintsSignal = share(
@@ -22,14 +22,14 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             );
 
     auto transformer = widget::makeSharedInstanceSignalModifier([]
-            (auto widget, auto obbMap, auto hintsSignal, auto factories)
+            (auto widget, auto obbMap, auto hintsSignal, auto builders)
             {
                 auto size = signal::map(&widget::Instance::getSize, widget);
 
                 auto obbs = share(signal::map(obbMap, std::move(size), hintsSignal));
 
                 size_t index = 0;
-                auto widgets = btl::fmap(factories, [&index, &obbs](auto&& f)
+                auto widgets = btl::fmap(builders, [&index, &obbs](auto&& f)
                         -> AnySignal<widget::Instance>
                     {
                         auto t = signal::map([index](
@@ -44,12 +44,12 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                                     return obbs.at(index).getSize();
                                 }, obbs);
 
-                        auto factory = f.clone()
+                        auto builder = f.clone()
                             | widget::transform(std::move(t));
 
                         ++index;
 
-                        return std::move(factory)(std::move(size));
+                        return std::move(builder)(std::move(size));
                     });
 
                 return std::move(widget)
@@ -59,12 +59,12 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             ,
             std::move(obbMap),
             hintsSignal,
-            std::move(factories)
+            std::move(builders)
             );
 
-    return makeWidgetFactory()
+    return widget::makeBuilder()
         | std::move(transformer)
-        | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
+        | widget::setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 
 } // namespace reactive

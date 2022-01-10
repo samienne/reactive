@@ -1,10 +1,11 @@
 #pragma once
 
-#include "reactive/widgetfactory.h"
+#include "builder.h"
+
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetFactory scrollView(WidgetFactory f);
+    REACTIVE_EXPORT Builder scrollView(Builder f);
 } // namespace reactive::widget
 

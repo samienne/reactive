@@ -1,16 +1,17 @@
 #pragma once
 
 #include "widget/widgetobject.h"
-#include "widgetfactory.h"
+#include "widget/builder.h"
+
 #include "reactivevisibility.h"
 
 #include <vector>
 
 namespace reactive
 {
-    REACTIVE_EXPORT WidgetFactory hbox(std::vector<WidgetFactory> widgets);
+    REACTIVE_EXPORT widget::Builder hbox(std::vector<widget::Builder> widgets);
 
-    REACTIVE_EXPORT WidgetFactory hbox(
+    REACTIVE_EXPORT widget::Builder hbox(
             AnySignal<std::vector<widget::WidgetObject>> widgets
             );
 } // namespace reactive

@@ -3,8 +3,8 @@
 #include "transform.h"
 #include "instance.h"
 #include "instancemodifier.h"
+#include "builder.h"
 
-#include "reactive/widgetfactory.h"
 #include "reactive/growsizehint.h"
 
 #include "reactive/signal/signal.h"
@@ -48,21 +48,21 @@ namespace reactive::widget
                     return avg::translate(amount, amount);
                 }, a);
 
-        auto factoryGrowSizeHint = [a](WidgetFactory factory)
-            -> WidgetFactory
+        auto builderGrowSizeHint = [a](Builder builder)
+            -> Builder
         {
             auto hint = signal::map(BTL_FN(growSizeHint),
-                    factory.getSizeHint(),
+                    builder.getSizeHint(),
                     a);
 
-            return std::move(factory)
+            return std::move(builder)
                 .setSizeHint(std::move(hint));
         };
 
-        return preMapFactory(growSize(std::move(aNeg)))
-            >> mapFactoryWidget(transform(std::move(t)))
-            >> mapFactoryWidget(growSize(a))
-            >> std::move(factoryGrowSizeHint)
+        return preMapBuilder(growSize(std::move(aNeg)))
+            >> makeBuilderModifier(transform(std::move(t)))
+            >> makeBuilderModifier(growSize(a))
+            >> std::move(builderGrowSizeHint)
             ;
     }
 } // reactive::widget

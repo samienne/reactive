@@ -1,6 +1,6 @@
 #pragma once
 
-#include <reactive/widgetfactory.h>
+#include <reactive/widget/builder.h>
 
-reactive::WidgetFactory adder();
+reactive::widget::Builder adder();
 
