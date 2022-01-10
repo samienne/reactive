@@ -7,7 +7,7 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"

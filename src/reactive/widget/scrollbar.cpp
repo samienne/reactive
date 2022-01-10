@@ -6,7 +6,7 @@
 #include "widget/onpointermove.h"
 #include "widget/ondraw.h"
 #include "widget/onhover.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 
 #include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
@@ -159,7 +159,7 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedWidgetSignalModifier([](auto instance, auto scrollHandle,
+        return makeSharedInstanceSignalModifier([](auto instance, auto scrollHandle,
                     auto amount, auto handleSize)
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);

@@ -2,7 +2,7 @@
 
 #include "transform.h"
 #include "setrendertree.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <avg/rendertree.h>
 
@@ -14,12 +14,12 @@ namespace reactive::widget
 template <typename T>
 struct Transition
 {
-    WidgetModifier<T> active;
-    WidgetModifier<T> transitioned;
+    InstanceModifier<T> active;
+    InstanceModifier<T> transitioned;
 };
 
 template <typename T>
-auto makeTransition(WidgetModifier<T> active, WidgetModifier<T> transitioned)
+auto makeTransition(InstanceModifier<T> active, InstanceModifier<T> transitioned)
 {
     return Transition<T> {
         std::move(active),
@@ -31,7 +31,7 @@ inline auto transitionLeft()
 {
     auto makeTransformer = [](float offset)
     {
-        return makeWidgetModifier([offset](Instance instance)
+        return makeInstanceModifier([offset](Instance instance)
             {
                 auto container = std::make_shared<avg::ContainerNode>(
                         avg::Transform().translate(offset * instance.getSize()[0], 0)
@@ -51,7 +51,8 @@ inline auto transitionLeft()
 template <typename T>
 auto transition(Transition<T> transition)
 {
-    return makeSharedWidgetSignalModifier([transition=std::move(transition)](auto widget) mutable
+    return makeSharedInstanceSignalModifier(
+        [transition=std::move(transition)](auto widget) mutable
         {
             auto activeWidget = transition.active(widget.clone());
             auto transitionedWidget = transition.transitioned(widget.clone());

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -12,7 +12,8 @@ namespace reactive::widget
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
         //-> FactoryMap
     {
-        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto instance) mutable
+        return makeSharedInstanceSignalModifier(
+            [handle=std::move(handle)](auto instance) mutable
             {
                 auto obb = signal::map([](Instance const& w) -> avg::Obb
                         {

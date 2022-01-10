@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/signal.h"
 #include <reactive/signal/inputhandle.h>
@@ -15,7 +15,7 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Instance instance, avg::Obb const& area, auto cb)
+        return makeInstanceModifier([id](Instance instance, avg::Obb const& area, auto cb)
                 {
                     auto areas = instance.getInputAreas();
                     if (!areas.empty()
@@ -47,7 +47,7 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Instance instance, auto cb)
+        return makeInstanceModifier([id](Instance instance, auto cb)
             {
                 auto areas = instance.getInputAreas();
                 if (!areas.empty()
@@ -80,7 +80,7 @@ namespace reactive::widget
 
     inline auto onHover(signal::InputHandle<bool> handle)
     {
-        return makeWidgetSignalModifier([](auto instance, auto handle)
+        return makeInstanceSignalModifier([](auto instance, auto handle)
             {
                 return std::move(instance)
                     | onHover([handle=std::move(handle)](HoverEvent const& e) mutable
@@ -96,7 +96,7 @@ namespace reactive::widget
     template <typename T>
     auto onHover(Signal<T, avg::Obb> obb, signal::InputHandle<bool> handle)
     {
-        return makeWidgetSignalModifier([](auto instance, auto obb, auto handle)
+        return makeInstanceSignalModifier([](auto instance, auto obb, auto handle)
             {
                 return std::move(instance)
                     | onHover(signal::constant([handle=std::move(handle)]

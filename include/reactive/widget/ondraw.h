@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <avg/rendertree.h>
 
@@ -16,7 +16,7 @@ namespace detail
     template <bool reverse, typename TFunc, typename... Ts>
     auto onDrawCustom(TFunc&& f, Ts&&... ts)
     {
-        return makeWidgetModifier([f=std::forward<TFunc>(f)]
+        return makeInstanceModifier([f=std::forward<TFunc>(f)]
             (Instance instance, auto&&... ts) mutable
             {
                 auto shape = avg::makeShapeNode(instance.getObb(), f, ts...);

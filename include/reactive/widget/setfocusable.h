@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <reactive/signal/signal.h>
 
@@ -9,7 +9,7 @@ namespace reactive::widget
     template <typename T>
     auto setFocusable(Signal<T, bool> focusable)
     {
-        return makeWidgetModifier([](Instance instance, bool focusable)
+        return makeInstanceModifier([](Instance instance, bool focusable)
             {
                 auto inputs = instance.getKeyboardInputs();
                 if (inputs.size() > 0)

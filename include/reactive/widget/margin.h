@@ -2,7 +2,7 @@
 
 #include "transform.h"
 #include "instance.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/widgetfactory.h"
 #include "reactive/growsizehint.h"
@@ -18,7 +18,7 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetModifier([](Instance instance, auto amount)
+        return makeInstanceModifier([](Instance instance, auto amount)
             {
                 auto size = instance.getObb().getSize();
                 auto newSize = avg::Vector2f(

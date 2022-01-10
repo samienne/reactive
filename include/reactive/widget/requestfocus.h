@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <reactive/signal/signal.h>
 
@@ -9,7 +9,7 @@ namespace reactive::widget
     template <typename T>
     auto requestFocus(Signal<T, bool> requestFocus)
     {
-        return makeWidgetModifier([](Instance instance, bool requestFocus)
+        return makeInstanceModifier([](Instance instance, bool requestFocus)
             {
                 auto inputs = instance.getKeyboardInputs();
                 if (!inputs.empty() && (!inputs[0].hasFocus() || requestFocus))

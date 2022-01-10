@@ -2,7 +2,7 @@
 
 #include "reduce.h"
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 #include "instance.h"
 
 #include "reactive/inputarea.h"
@@ -53,7 +53,7 @@ namespace reactive::widget
 
     inline auto addWidgets(std::vector<AnySignal<Instance>> instances)
     {
-        return makeWidgetModifier([](Instance instance, auto instances)
+        return makeInstanceModifier([](Instance instance, auto instances)
                 {
                     return addWidgets(std::move(instance), std::move(instances));
                 },
@@ -66,7 +66,7 @@ namespace reactive::widget
     template <typename T>
     auto addWidgets(Signal<T, std::vector<Instance>> instances)
     {
-        return makeWidgetModifier([](Instance instance, auto instances)
+        return makeInstanceModifier([](Instance instance, auto instances)
                 {
                     return addWidgets(std::move(instance), std::move(instances));
                 },

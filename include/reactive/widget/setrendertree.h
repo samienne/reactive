@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/group.h"
 #include "reactive/signal/signal.h"
@@ -14,7 +14,7 @@ namespace reactive::widget
     template <typename T>
     auto setRenderTree(Signal<T, avg::RenderTree> renderTree)
     {
-        return makeWidgetModifier([](Instance instance, avg::RenderTree renderTree)
+        return makeInstanceModifier([](Instance instance, avg::RenderTree renderTree)
                 -> Instance
                 {
                     return std::move(instance)

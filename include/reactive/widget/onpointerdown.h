@@ -1,7 +1,7 @@
 #pragma once
 
 #include "setinputareas.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/eventresult.h"
 #include "reactive/pointerbuttonevent.h"
@@ -21,7 +21,7 @@ namespace reactive::widget
     {
         btl::UniqueId id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Instance widget, auto cb)
+        return makeInstanceModifier([id](Instance widget, auto cb)
             {
                 auto areas = widget.getInputAreas();
 

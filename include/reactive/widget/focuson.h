@@ -2,7 +2,7 @@
 
 #include "setfocusable.h"
 #include "requestfocus.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <reactive/signal/map.h>
 
@@ -26,7 +26,7 @@ namespace reactive::widget
                 stream::collect(std::move(stream))
                 );
 
-        return makeWidgetSignalModifier([](auto instance, auto focusRequest)
+        return makeInstanceSignalModifier([](auto instance, auto focusRequest)
             {
                 return std::move(instance)
                     | setFocusable(signal::constant(true))

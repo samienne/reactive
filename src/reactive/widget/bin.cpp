@@ -3,14 +3,14 @@
 #include "widget/addwidgets.h"
 #include "widget/clip.h"
 #include "widget/transform.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 
 namespace reactive::widget
 {
 
-AnyWidgetModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
+AnyInstanceModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
 {
-    return makeSharedWidgetSignalModifier([](auto widget, auto contentSize, auto f)
+    return makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto f)
         {
             auto viewSize = signal::map(&Instance::getSize, widget);
 

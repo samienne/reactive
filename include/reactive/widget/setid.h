@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/signal.h"
 
@@ -13,7 +13,7 @@ namespace reactive::widget
     template <typename T>
     auto setId(Signal<T, avg::UniqueId> id)
     {
-        return makeWidgetModifier([](Instance instance, avg::UniqueId const& id)
+        return makeInstanceModifier([](Instance instance, avg::UniqueId const& id)
             {
                 auto container = std::make_shared<avg::IdNode>(
                         id,

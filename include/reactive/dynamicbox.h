@@ -2,7 +2,7 @@
 
 
 #include "widget/addwidgets.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 #include "widget/widgetobject.h"
 
 #include "box.h"
@@ -82,7 +82,7 @@ namespace reactive
                 );
 
         return makeWidgetFactory()
-            | widget::makeSharedWidgetSignalModifier(
+            | widget::makeSharedInstanceSignalModifier(
                     [](auto widget, auto hints, auto widgets)
                     {
                         auto size = signal::map(&widget::Instance::getSize, widget);

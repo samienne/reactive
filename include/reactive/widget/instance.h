@@ -167,7 +167,7 @@ namespace reactive::widget
     };
 
     template <typename T>
-    auto makeWidget(Signal<T, avg::Vector2f> size)
+    auto makeInstance(Signal<T, avg::Vector2f> size)
     {
         auto focus = signal::input(false);
 

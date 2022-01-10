@@ -2,7 +2,7 @@
 
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 
 #include "avg/rendertree.h"
 
@@ -21,7 +21,7 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             signal::combine(std::move(hints))
             );
 
-    auto transformer = widget::makeSharedWidgetSignalModifier([]
+    auto transformer = widget::makeSharedInstanceSignalModifier([]
             (auto widget, auto obbMap, auto hintsSignal, auto factories)
             {
                 auto size = signal::map(&widget::Instance::getSize, widget);

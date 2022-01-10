@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/widgetfactory.h"
 
@@ -19,7 +19,7 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetModifier([](Instance instance, auto handler)
+            return makeInstanceModifier([](Instance instance, auto handler)
                 {
                     auto inputs = instance.getKeyboardInputs();
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/signal.h"
 
@@ -13,7 +13,7 @@ namespace reactive::widget
     template <typename T>
     auto setObb(Signal<T, avg::Obb> obb)
     {
-        return makeWidgetModifier([](Instance instance, avg::Obb const& obb)
+        return makeInstanceModifier([](Instance instance, avg::Obb const& obb)
                 {
                     std::move(instance)
                         .setObb(obb)

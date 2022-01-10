@@ -32,7 +32,7 @@ namespace reactive::widget
 
         auto theme = signal::mbind([](auto&& w) { return w.getTheme().clone(); }, w);
 
-        return makeWidget(
+        return makeInstance(
                 std::move(renderTree),
                 std::move(areas),
                 std::move(obb),

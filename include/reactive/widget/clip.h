@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/widgetfactory.h"
 
@@ -8,7 +8,7 @@ namespace reactive::widget
 {
     inline auto clip()
     {
-        return makeWidgetModifier([](auto instance)
+        return makeInstanceModifier([](Instance instance)
             {
                 auto clip = std::make_shared<avg::ClipNode>(
                         instance.getObb(),

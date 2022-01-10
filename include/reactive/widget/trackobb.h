@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -10,7 +10,7 @@ namespace reactive::widget
     inline auto trackObb(signal::InputHandle<avg::Obb> handle)
         //-> FactoryMap
     {
-        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto instance)
+        return makeSharedInstanceSignalModifier([handle=std::move(handle)](auto instance)
             {
                 auto obb = signal::map([](Instance const& instance)
                         {

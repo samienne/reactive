@@ -1,7 +1,7 @@
 #pragma once
 
 #include "setinputareas.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/signal.h"
 
@@ -21,7 +21,7 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Instance instance, auto cb)
+        return makeInstanceModifier([id](Instance instance, auto cb)
             {
                 auto areas = instance.getInputAreas();
 

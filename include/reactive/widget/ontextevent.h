@@ -1,15 +1,13 @@
 #pragma once
 
-#include "widgetmodifier.h"
-
-#include <iostream>
+#include "instancemodifier.h"
 
 namespace reactive::widget
 {
     template <typename T, typename U>
     auto onTextEvent(Signal<T, U> handler)
     {
-        return makeWidgetModifier([](Instance instance, auto handler)
+        return makeInstanceModifier([](Instance instance, auto handler)
             {
                 auto inputs = instance.getKeyboardInputs();
                 for (auto&& input : inputs)
