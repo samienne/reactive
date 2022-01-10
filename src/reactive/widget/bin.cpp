@@ -12,7 +12,7 @@ AnyWidgetModifier bin(WidgetFactory f, AnySignal<avg::Vector2f> contentSize)
 {
     return makeSharedWidgetSignalModifier([](auto widget, auto contentSize, auto f)
         {
-            auto viewSize = signal::map(&Widget::getSize, widget);
+            auto viewSize = signal::map(&Instance::getSize, widget);
 
             auto t = signal::map([](avg::Vector2f viewSize,
                         avg::Vector2f contentSize)

@@ -14,10 +14,10 @@ namespace reactive::widget
     template <typename T>
     auto setRenderTree(Signal<T, avg::RenderTree> renderTree)
     {
-        return makeWidgetModifier([](Widget widget, avg::RenderTree renderTree)
-                -> Widget
+        return makeWidgetModifier([](Instance instance, avg::RenderTree renderTree)
+                -> Instance
                 {
-                    return std::move(widget)
+                    return std::move(instance)
                         .setRenderTree(std::move(renderTree))
                         ;
                 },

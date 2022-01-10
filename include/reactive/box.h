@@ -3,7 +3,7 @@
 #include "layout.h"
 #include "widgetfactory.h"
 
-#include "widget/widget.h"
+#include "widget/instance.h"
 
 #include "signal/combine.h"
 #include "signal/constant.h"

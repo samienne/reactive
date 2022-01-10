@@ -159,7 +159,7 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedWidgetSignalModifier([](auto widget, auto scrollHandle,
+        return makeSharedWidgetSignalModifier([](auto instance, auto scrollHandle,
                     auto amount, auto handleSize)
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
@@ -167,7 +167,7 @@ namespace
                         downOffset.signal);
                 auto hover = signal::input(false);
 
-                auto size = signal::map(&Widget::getSize, widget);
+                auto size = signal::map(&Instance::getSize, instance);
 
                 auto sliderObb = signal::map([]
                         (avg::Vector2f size, float amount, float handleSize)
@@ -178,7 +178,7 @@ namespace
                                         handleSize));
                         }, size.clone(), amount, handleSize);
 
-                return widget
+                return instance
                     | onHover(std::move(sliderObb), hover.handle)
                     | onPointerDown(scrollPointerDown<IsHorizontal>(
                                 downOffset.handle, size.clone(), amount, handleSize)

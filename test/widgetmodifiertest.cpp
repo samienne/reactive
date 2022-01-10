@@ -23,6 +23,6 @@ TEST(WidgetTransformer, typeErasure)
     auto w = makeEmptyWidget()
         | std::move(t2);
 
-    static_assert(reactive::signal::IsSignalType<decltype(w), Widget>::value);
+    static_assert(reactive::signal::IsSignalType<decltype(w), Instance>::value);
 }
 

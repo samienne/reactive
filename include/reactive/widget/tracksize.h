@@ -12,13 +12,13 @@ namespace reactive::widget
     inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
         //-> FactoryMap
     {
-        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto widget) mutable
+        return makeSharedWidgetSignalModifier([handle=std::move(handle)](auto instance) mutable
             {
-                auto obb = signal::map([](Widget const& w) -> avg::Obb
+                auto obb = signal::map([](Instance const& w) -> avg::Obb
                         {
                             return w.getObb();
                         },
-                        widget);
+                        instance);
 
                 auto obb2 = signal::tee(
                         std::move(obb),
@@ -26,10 +26,10 @@ namespace reactive::widget
                         std::move(handle)
                         );
 
-                return group(std::move(widget), std::move(obb2))
-                    .map([](Widget w, avg::Obb const& obb) -> Widget
+                return group(std::move(instance), std::move(obb2))
+                    .map([](Instance instance, avg::Obb const& obb) -> Instance
                         {
-                            return std::move(w)
+                            return std::move(instance)
                             .setObb(obb);
                         });
             });

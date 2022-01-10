@@ -1,7 +1,7 @@
 #pragma once
 
 #include "widget/widgetmodifier.h"
-#include "widget/widget.h"
+#include "widget/instance.h"
 
 #include "simplesizehint.h"
 #include "sizehint.h"
@@ -29,7 +29,7 @@ namespace reactive
     template <typename TTupleMaps, typename TSizeHint>
     class WidFac;
 
-    using FactoryMapWidget = std::function<widget::Widget(widget::Widget)>;
+    using FactoryMapWidget = std::function<widget::Instance(widget::Instance)>;
     using WidgetFactoryBase = WidFac<
         std::tuple<widget::AnyWidgetModifier>, AnySignal<SizeHint>
         >;

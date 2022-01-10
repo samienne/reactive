@@ -31,16 +31,16 @@ inline auto transitionLeft()
 {
     auto makeTransformer = [](float offset)
     {
-        return makeWidgetModifier([offset](Widget widget)
+        return makeWidgetModifier([offset](Instance instance)
             {
                 auto container = std::make_shared<avg::ContainerNode>(
-                        avg::Transform().translate(offset * widget.getSize()[0], 0)
-                            * avg::Obb(widget.getSize())
+                        avg::Transform().translate(offset * instance.getSize()[0], 0)
+                            * avg::Obb(instance.getSize())
                         );
 
-                container->addChild(widget.getRenderTree().getRoot());
+                container->addChild(instance.getRenderTree().getRoot());
 
-                return std::move(widget)
+                return std::move(instance)
                     .setRenderTree(avg::RenderTree(std::move(container)));
             });
     };

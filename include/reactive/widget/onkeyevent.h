@@ -19,15 +19,15 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetModifier([](Widget widget, auto handler)
+            return makeWidgetModifier([](Instance instance, auto handler)
                 {
-                    auto inputs = widget.getKeyboardInputs();
+                    auto inputs = instance.getKeyboardInputs();
 
                     for (auto&& input : inputs)
                         input = std::move(input)
                             .onKeyEvent(handler);
 
-                    return std::move(widget)
+                    return std::move(instance)
                         .setKeyboardInputs(std::move(inputs))
                         ;
                 },
@@ -53,7 +53,7 @@ namespace reactive::widget
         }
 
         template <typename T>
-        inline auto operator()(Signal<T, Widget> widget, bool = true) const
+        inline auto operator()(Signal<T, Instance> instance, bool = true) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -68,7 +68,7 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return std::move(widget)
+            return std::move(instance)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
                 ;

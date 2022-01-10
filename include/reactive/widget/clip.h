@@ -8,21 +8,21 @@ namespace reactive::widget
 {
     inline auto clip()
     {
-        return makeWidgetModifier([](auto widget)
+        return makeWidgetModifier([](auto instance)
             {
                 auto clip = std::make_shared<avg::ClipNode>(
-                        widget.getObb(),
-                        widget.getRenderTree().getRoot()
+                        instance.getObb(),
+                        instance.getRenderTree().getRoot()
                         );
 
-                auto areas = widget.getInputAreas();
+                auto areas = instance.getInputAreas();
                 for (auto&& area : areas)
-                    area = std::move(area).clip(widget.getObb());
+                    area = std::move(area).clip(instance.getObb());
 
-                auto obbTInverse = widget.getObb().getTransform().inverse();
-                avg::Rect obbRect(avg::Vector2f(0.0f, 0.0f), widget.getSize());
+                auto obbTInverse = instance.getObb().getTransform().inverse();
+                avg::Rect obbRect(avg::Vector2f(0.0f, 0.0f), instance.getSize());
 
-                auto inputs = widget.getKeyboardInputs();
+                auto inputs = instance.getKeyboardInputs();
 
                 inputs.erase(
                         std::remove_if(
@@ -37,7 +37,7 @@ namespace reactive::widget
                         inputs.end()
                         );
 
-                return std::move(widget)
+                return std::move(instance)
                     .setKeyboardInputs(std::move(inputs))
                     .setInputAreas(std::move(areas))
                     .setRenderTree(avg::RenderTree(std::move(clip)))

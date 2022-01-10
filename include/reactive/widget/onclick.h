@@ -39,7 +39,7 @@ namespace reactive::widget
 
         return makeSharedWidgetSignalModifier([](auto widget, auto f, auto cb)
                 {
-                    auto size = signal::map([](Widget const& w)
+                    auto size = signal::map([](Instance const& w)
                             {
                                 return w.getSize();
                             },

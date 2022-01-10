@@ -13,15 +13,15 @@ namespace reactive::widget
     template <typename T>
     auto setId(Signal<T, avg::UniqueId> id)
     {
-        return makeWidgetModifier([](Widget widget, avg::UniqueId const& id)
+        return makeWidgetModifier([](Instance instance, avg::UniqueId const& id)
             {
                 auto container = std::make_shared<avg::IdNode>(
                         id,
-                        widget.getObb(),
-                        widget.getRenderTree().getRoot()
+                        instance.getObb(),
+                        instance.getRenderTree().getRoot()
                         );
 
-                return std::move(widget)
+                return std::move(instance)
                     .setRenderTree(avg::RenderTree(std::move(container)))
                     ;
             },

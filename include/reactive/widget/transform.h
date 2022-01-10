@@ -11,9 +11,9 @@ namespace reactive::widget
     template <typename T>
     inline auto transform(Signal<T, avg::Transform> t)
     {
-        return makeWidgetModifier([](Widget widget, avg::Transform const& t)
+        return makeWidgetModifier([](Instance instance, avg::Transform const& t)
                 {
-                    return std::move(widget).transform(t);
+                    return std::move(instance).transform(t);
                 },
                 std::move(t)
                 );

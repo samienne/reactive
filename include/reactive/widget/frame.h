@@ -3,7 +3,7 @@
 #include "ondraw.h"
 #include "margin.h"
 #include "theme.h"
-#include "widget.h"
+#include "instance.h"
 
 #include "reactive/widgetfactory.h"
 #include "reactive/shapes.h"

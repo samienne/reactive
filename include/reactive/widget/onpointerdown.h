@@ -21,7 +21,7 @@ namespace reactive::widget
     {
         btl::UniqueId id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Widget widget, auto cb)
+        return makeWidgetModifier([id](Instance widget, auto cb)
             {
                 auto areas = widget.getInputAreas();
 

@@ -3,7 +3,7 @@
 #include "reduce.h"
 
 #include "widgetmodifier.h"
-#include "widget.h"
+#include "instance.h"
 
 #include "reactive/inputarea.h"
 
@@ -20,67 +20,66 @@
 
 namespace reactive::widget
 {
-    inline auto addWidgets(Widget w, std::vector<Widget> const& widgets)
+    inline auto addWidgets(Instance i, std::vector<Instance> const& instances)
     {
         auto container = std::make_shared<avg::ContainerNode>(
-                w.getObb()
-                //avg::Obb(w.getObb().getSize())
+                i.getObb()
                 );
 
-        container->addChild(w.getRenderTree().getRoot());
+        container->addChild(i.getRenderTree().getRoot());
 
-        for (auto const& widget : widgets)
+        for (auto const& instance : instances)
         {
-            container->addChild(widget.getRenderTree().getRoot());
+            container->addChild(instance.getRenderTree().getRoot());
         }
 
-        std::vector<InputArea> areas = w.getInputAreas();
-        for (auto const& widget : widgets)
-            for (auto const& area : widget.getInputAreas())
+        std::vector<InputArea> areas = i.getInputAreas();
+        for (auto const& instance : instances)
+            for (auto const& area : instance.getInputAreas())
                 areas.push_back(area);
 
-        std::vector<KeyboardInput> inputs = w.getKeyboardInputs();
-        for (auto const& widget : widgets)
-            for (auto const& input : widget.getKeyboardInputs())
+        std::vector<KeyboardInput> inputs = i.getKeyboardInputs();
+        for (auto const& instance : instances)
+            for (auto const& input : instance.getKeyboardInputs())
                 if (input.isFocusable())
                     inputs.push_back(input);
 
-        return std::move(w)
+        return std::move(i)
             .setRenderTree(avg::RenderTree(std::move(container)))
             .setInputAreas(std::move(areas))
             .setKeyboardInputs(std::move(inputs))
             ;
     }
 
-    inline auto addWidgets(std::vector<AnySignal<Widget>> widgets)
+    inline auto addWidgets(std::vector<AnySignal<Instance>> instances)
     {
-        return makeWidgetModifier([](Widget widget, auto widgets)
+        return makeWidgetModifier([](Instance instance, auto instances)
                 {
-                    return addWidgets(std::move(widget), std::move(widgets));
+                    return addWidgets(std::move(instance), std::move(instances));
                 },
-                combine(std::move(widgets))
+                combine(std::move(instances))
                 );
 
     }
 
 
     template <typename T>
-    auto addWidgets(Signal<T, std::vector<Widget>> widgets)
+    auto addWidgets(Signal<T, std::vector<Instance>> instances)
     {
-        return makeWidgetModifier([](Widget widget, auto widgets)
+        return makeWidgetModifier([](Instance instance, auto instances)
                 {
-                    return addWidgets(std::move(widget), std::move(widgets));
+                    return addWidgets(std::move(instance), std::move(instances));
                 },
-                std::move(widgets)
+                std::move(instances)
                 );
     }
 
-    inline auto addWidget(AnySignal<Widget> widget)
+    inline auto addWidget(AnySignal<Instance> instance)
     {
-        std::vector<AnySignal<Widget>> widgets;
-        widgets.push_back(std::move(widget));
+        std::vector<AnySignal<Instance>> instances;
+        instances.push_back(std::move(instance));
 
-        return addWidgets(std::move(widgets));
+        return addWidgets(std::move(instances));
     }
 } // namespace reactive::widget
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "widget.h"
-
 #include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
 

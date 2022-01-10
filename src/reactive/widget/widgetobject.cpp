@@ -46,7 +46,7 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-AnySignal<Widget> const& WidgetObject::getWidget()
+AnySignal<Instance> const& WidgetObject::getWidget()
 {
     return impl_->widget_;
 }

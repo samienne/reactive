@@ -26,9 +26,9 @@ namespace reactive::widget
                 stream::collect(std::move(stream))
                 );
 
-        return makeWidgetSignalModifier([](auto widget, auto focusRequest)
+        return makeWidgetSignalModifier([](auto instance, auto focusRequest)
             {
-                return std::move(widget)
+                return std::move(instance)
                     | setFocusable(signal::constant(true))
                     | requestFocus(std::move(focusRequest))
                     ;

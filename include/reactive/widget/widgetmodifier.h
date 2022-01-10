@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widget.h"
+#include "instance.h"
 
 #include <type_traits>
 
@@ -10,7 +10,7 @@ namespace reactive::widget
     class WidgetModifier;
 
     using AnyWidgetModifier = WidgetModifier<
-        std::function<AnySignal<Widget>(AnySignal<Widget>)>
+        std::function<AnySignal<Instance>(AnySignal<Instance>)>
         >;
 
     template <typename T>
@@ -37,7 +37,7 @@ namespace reactive::widget
         WidgetModifier& operator=(WidgetModifier&&) = default;
 
         template <typename U>
-        auto operator()(Signal<U, Widget> widget)
+        auto operator()(Signal<U, Instance> widget)
         {
             return func_(std::move(widget));
         }
@@ -55,13 +55,13 @@ namespace reactive::widget
     };
 
     template <typename T, typename U>
-    auto operator|(Signal<T, Widget> w, WidgetModifier<U> t)
+    auto operator|(Signal<T, Instance> w, WidgetModifier<U> t)
     {
         return std::move(std::move(t)(std::move(w)));
     }
 
     template <typename TFunc, typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f)
     {
@@ -73,7 +73,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename T,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>, T
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t)
     {
@@ -87,7 +87,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename T, typename U,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>, T, U
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u)
     {
@@ -102,7 +102,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename T, typename U, typename V,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>, T, U, V
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v)
     {
@@ -120,7 +120,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename T, typename U, typename V, typename W,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>, T, U, V, W
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w)
     {
@@ -140,7 +140,7 @@ namespace reactive::widget
     template <typename TFunc, typename T, typename U, typename V, typename W,
              typename X,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Widget>, TFunc, AnySignal<Widget>, T, U, V, W, X
+                 AnySignal<Instance>, TFunc, AnySignal<Instance>, T, U, V, W, X
                  > > >
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, U&& u, V&& v, W&& w, X&& x)
     {
@@ -161,7 +161,7 @@ namespace reactive::widget
     template <typename TFunc, typename T, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
-            std::function<AnySignal<Widget>(AnySignal<Widget>, T, Ts...)>>
+            std::function<AnySignal<Instance>(AnySignal<Instance>, T, Ts...)>>
         >>
     auto makeWidgetSignalModifier(TFunc&& f, T&& t, Ts&&... ts)
     {
@@ -184,7 +184,7 @@ namespace reactive::widget
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
-            std::function<AnySignal<Widget>(AnySharedSignal<Widget>, Ts...)>>
+            std::function<AnySignal<Instance>(AnySharedSignal<Instance>, Ts...)>>
         >>
     auto makeSharedWidgetSignalModifier(TFunc&& f, Ts&&... ts)
     {
@@ -202,7 +202,7 @@ namespace reactive::widget
     }
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<Widget, TFunc, Widget, typename signal::SignalType<Ts>...>
+        std::is_invocable_r_v<Instance, TFunc, Instance, typename signal::SignalType<Ts>...>
         >>
     auto makeWidgetModifier(TFunc&& func, Ts&&... ts)
     {

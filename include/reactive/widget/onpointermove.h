@@ -20,23 +20,23 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](Widget widget, auto cb)
+        return makeWidgetModifier([id](Instance instance, auto cb)
                 {
-                    auto areas = widget.getInputAreas();
+                    auto areas = instance.getInputAreas();
                     if (!areas.empty()
                             && areas.back().getObbs().size() == 1
-                            && areas.back().getObbs().front() == widget.getObb())
+                            && areas.back().getObbs().front() == instance.getObb())
                     {
                         areas.back() = std::move(areas.back()).onMove(std::move(cb));
                     }
                     else
                     {
                         areas.push_back(
-                                makeInputArea(id, widget.getObb()).onMove(std::move(cb))
+                                makeInputArea(id, instance.getObb()).onMove(std::move(cb))
                                 );
                     }
 
-                    return std::move(widget)
+                    return std::move(instance)
                         .setInputAreas(std::move(areas))
                         ;
                 },

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "transform.h"
-#include "widget.h"
+#include "instance.h"
 #include "widgetmodifier.h"
 
 #include "reactive/widgetfactory.h"
@@ -18,15 +18,15 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetModifier([](Widget widget, auto amount)
+        return makeWidgetModifier([](Instance instance, auto amount)
             {
-                auto size = widget.getObb().getSize();
+                auto size = instance.getObb().getSize();
                 auto newSize = avg::Vector2f(
                     size[0] + 2.0f * amount,
                     size[1] + 2.0f * amount
                     );
 
-                return std::move(widget)
+                return std::move(instance)
                     .setObb(avg::Obb(newSize))
                     ;
             },

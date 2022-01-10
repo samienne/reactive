@@ -9,16 +9,16 @@ namespace reactive::widget
     template <typename T, typename U>
     auto onTextEvent(Signal<T, U> handler)
     {
-        return makeWidgetModifier([](Widget widget, auto handler)
+        return makeWidgetModifier([](Instance instance, auto handler)
             {
-                auto inputs = widget.getKeyboardInputs();
+                auto inputs = instance.getKeyboardInputs();
                 for (auto&& input : inputs)
                 {
                     input = std::move(input)
                         .onTextEvent(handler);
                 }
 
-                return std::move(widget)
+                return std::move(instance)
                     .setKeyboardInputs(std::move(inputs))
                     ;
             },
