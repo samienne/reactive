@@ -1,9 +1,9 @@
 #pragma once
 
-
 #include "widget/addwidgets.h"
 #include "widget/instancemodifier.h"
 #include "widget/widgetobject.h"
+#include "widget/setsizehint.h"
 
 #include "box.h"
 

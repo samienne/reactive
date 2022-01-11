@@ -47,7 +47,7 @@ namespace reactive::widget
 
     struct REACTIVE_EXPORT TextEdit
     {
-        operator Builder() const;
+        operator AnyBuilder() const;
         TextEdit onEnter(AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
@@ -61,7 +61,7 @@ namespace reactive::widget
                 ;
         }
 
-        Builder build() &&;
+        AnyBuilder build() &&;
 
         signal::InputHandle<TextEditState> handle_;
         AnySignal<TextEditState> state_;

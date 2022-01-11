@@ -144,15 +144,6 @@ namespace reactive::widget
                     );
         }
 
-        template <typename TWidgetTransform>
-        auto operator|(TWidgetTransform&& t) &&
-        -> decltype(
-            std::forward<TWidgetTransform>(t)(std::move(*this)).first
-            )
-        {
-            return std::forward<TWidgetTransform>(t)(std::move(*this)).first;
-        }
-
         Instance clone() const
         {
             return *this;

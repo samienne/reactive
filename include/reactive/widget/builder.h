@@ -27,49 +27,22 @@
 namespace reactive::widget
 {
     template <typename TTupleMaps, typename TSizeHint>
-    class Bldr;
+    class Builder;
 
-    using BuilderBase = Bldr<
+    struct AnyBuilder;
+
+    using BuilderBase = Builder<
         std::tuple<widget::AnyInstanceModifier>, AnySignal<SizeHint>
         >;
-    struct Builder;
-    using BuiderModifier = std::function<Builder(Builder)>;
 
     template <typename T>
-    using IsBuilder = typename std::is_convertible<T, Builder>::type;
-
-    template <typename T>
-    using IsBuilderModifier = typename std::is_convertible<T, BuiderModifier>::type;
+    using IsBuilder = typename std::is_convertible<T, AnyBuilder>::type;
 
     template <typename T>
     struct IsTupleMaps : std::false_type {};
 
     template <typename... Ts>
     struct IsTupleMaps<std::tuple<Ts...>> : btl::All<widget::IsInstanceModifier<Ts>...> {};
-
-    template <typename TFunc>
-    struct BuilderModifierWrapper
-    {
-        template <typename T, typename = std::enable_if_t<
-            IsBuilder<T>::value
-            >
-        >
-        auto operator()(T builder)
-        {
-            return std::move(*func)(std::move(builder));
-        }
-
-        btl::CloneOnCopy<std::decay_t<TFunc>> func;
-    };
-
-    template <typename TFunc, typename = std::enable_if_t<
-        IsBuilderModifier<TFunc>::value
-        >
-    >
-    auto makeBuilderModifier(TFunc&& func)
-    {
-        return BuilderModifierWrapper<std::decay_t<TFunc>>{std::forward<TFunc>(func)};
-    }
 
     namespace detail
     {
@@ -118,36 +91,40 @@ namespace reactive::widget
                         IsSizeHint<signal::SignalType<TSizeHint>>
                     >::value
                  >>
-    auto makeBldr(TTupleMaps maps, TSizeHint sizeHint)
+    auto makeBuilder(TTupleMaps maps, TSizeHint sizeHint)
     {
-        return Bldr<std::decay_t<TTupleMaps>, std::decay_t<TSizeHint>>(
+        return Builder<std::decay_t<TTupleMaps>, std::decay_t<TSizeHint>>(
                 std::forward<TTupleMaps>(maps),
                 std::move(sizeHint)
                 );
     }
 
     template <typename TTupleMaps, typename TSizeHint>
-    class Bldr
+    class Builder
     {
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
 
-        Bldr<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
+        Builder<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
             maps_(std::move(maps)),
             sizeHint_(std::move(sizeHint))
         {
         }
 
-        Bldr<TTupleMaps, TSizeHint> clone() const
+        Builder<TTupleMaps, TSizeHint> clone() const
         {
             return *this;
         }
 
-        Bldr<TTupleMaps, TSizeHint>(Bldr<TTupleMaps, TSizeHint> const&) = default;
-        Bldr<TTupleMaps, TSizeHint>& operator=(Bldr<TTupleMaps, TSizeHint> const&) = default;
+        Builder<TTupleMaps, TSizeHint>(
+                Builder<TTupleMaps, TSizeHint> const&) = default;
+        Builder<TTupleMaps, TSizeHint>& operator=(
+                Builder<TTupleMaps, TSizeHint> const&) = default;
 
-        Bldr<TTupleMaps, TSizeHint>(Bldr<TTupleMaps, TSizeHint>&&) noexcept = default;
-        Bldr<TTupleMaps, TSizeHint>& operator=(Bldr<TTupleMaps, TSizeHint>&&) noexcept = default;
+        Builder<TTupleMaps, TSizeHint>(
+                Builder<TTupleMaps, TSizeHint>&&) noexcept = default;
+        Builder<TTupleMaps, TSizeHint>& operator=(
+                Builder<TTupleMaps, TSizeHint>&&) noexcept = default;
 
         template <typename T>
         auto operator()(Signal<T, avg::Vector2f> size) &&
@@ -161,7 +138,7 @@ namespace reactive::widget
         template <typename TFunc>
         auto map(TFunc&& func) &&
         -> decltype(
-                makeBldr(
+                makeBuilder(
                     btl::pushBack(
                         std::move(std::declval<btl::decay_t<TTupleMaps>>()),
                         std::forward<TFunc>(func)
@@ -169,7 +146,7 @@ namespace reactive::widget
                     std::move(std::declval<btl::decay_t<TSizeHint>>())
                 ))
         {
-            return makeBldr(
+            return makeBuilder(
                     btl::pushBack(std::move(*maps_), std::forward<TFunc>(func)),
                     std::move(*sizeHint_)
                     );
@@ -178,7 +155,7 @@ namespace reactive::widget
         template <typename TFunc>
         auto preMap(TFunc&& func) &&
         {
-            return makeBldr(
+            return makeBuilder(
                     btl::pushFront(std::move(*maps_), std::forward<TFunc>(func)),
                     std::move(*sizeHint_)
                     );
@@ -187,7 +164,7 @@ namespace reactive::widget
         template <typename TSignalSizeHint>
         auto setSizeHint(TSignalSizeHint sizeHint) &&
         {
-            return makeBldr(
+            return makeBuilder(
                     std::move(*maps_),
                     std::move(sizeHint)
                     );
@@ -225,15 +202,10 @@ namespace reactive::widget
         btl::CloneOnCopy<btl::decay_t<TSizeHint>> sizeHint_;
     };
 
-    struct Builder : BuilderBase
+    struct AnyBuilder : Builder<std::tuple<AnyInstanceModifier>, AnySignal<SizeHint>>
     {
-        Builder(BuilderBase base) :
-            BuilderBase(std::move(base))
-        {
-        }
-
         template <typename TTupleMaps, typename TSizeHint>
-        static auto castBuilder(Bldr<TTupleMaps, TSizeHint> base)
+        static auto castBuilder(Builder<TTupleMaps, TSizeHint> base)
         {
             auto sizeHint = base.getSizeHint();
 
@@ -241,13 +213,19 @@ namespace reactive::widget
                 .setSizeHint(signal::cast<SizeHint>(std::move(sizeHint)));
         }
 
+        AnyBuilder(AnyBuilder const&) = default;
+        AnyBuilder(AnyBuilder&&) noexcept = default;
+
+        AnyBuilder& operator=(AnyBuilder const&) = default;
+        AnyBuilder& operator=(AnyBuilder&&) noexcept = default;
+
         template <typename TTupleMaps, typename TSizeHint>
-        Builder(Bldr<TTupleMaps, TSizeHint> base) :
+        AnyBuilder(Builder<TTupleMaps, TSizeHint> base) :
             BuilderBase(castBuilder(std::move(base)))
         {
         }
 
-        Builder clone() const
+        AnyBuilder clone() const
         {
             return BuilderBase::clone();
         }
@@ -255,124 +233,10 @@ namespace reactive::widget
 
     inline auto makeBuilder()
     {
-        return makeBldr(
+        return makeBuilder(
                 std::tuple<>(),
                 signal::constant(simpleSizeHint(100.0f, 100.0f))
                 );
-    }
-
-    template <typename TBuilder, typename TFunc, typename = typename
-        std::enable_if
-        <
-            btl::All<
-                IsBuilder<TBuilder>,
-                widget::IsInstanceModifier<TFunc>
-            >::value
-        >::type>
-    auto map(TBuilder builder, TFunc func)
-    {
-        return std::move(builder)
-            .map(std::move(func));
-    }
-
-    template <typename TBuilder, typename TFunc, typename = typename
-        std::enable_if
-        <
-            btl::All<
-                IsBuilder<TBuilder>,
-                widget::IsInstanceModifier<TFunc>
-            >::value
-        >::type>
-    auto preMap(TBuilder builder, TFunc func)
-    //-> Builder
-    {
-        return std::move(builder)
-            .preMap(std::move(func));
-    }
-
-    template <typename TFunc>
-    auto makeBuilderModifier(widget::InstanceModifier<TFunc> f)
-    //-> BuiderModifier
-    {
-        auto g = [f = std::move(f)](auto builder)
-            //-> Builder
-        {
-            return map(std::move(builder), f);
-        };
-
-        return makeBuilderModifier(std::move(g));
-    }
-
-    template <typename TFunc>
-    auto preMapBuilder(widget::InstanceModifier<TFunc> f)
-    //-> BuiderModifier
-    {
-        auto g = [f = std::move(f)](auto builder)
-            // -> Builder
-        {
-            return preMap(std::move(builder), f);
-        };
-
-        return makeBuilderModifier(std::move(g));
-    }
-
-    template <typename TBuilderMapL, typename TBuilderMapR,
-             typename = typename std::enable_if<
-                 btl::All<
-                    IsBuilderModifier<TBuilderMapL>,
-                    IsBuilderModifier<TBuilderMapR>
-                 >::value
-            >::type
-        >
-    inline auto operator>>(TBuilderMapL&& lhs, TBuilderMapR&& rhs)
-        // -> BuiderModifier
-    {
-        return makeBuilderModifier(
-                [lhs=std::forward<TBuilderMapL>(lhs),
-                rhs=std::forward<TBuilderMapR>(rhs)]
-                (auto builder) mutable
-                {
-                    return rhs(lhs(std::move(builder)));
-                });
-    }
-
-    template <typename TBuilderMap, typename... Ts>
-    auto operator|(Bldr<Ts...> builder, BuilderModifierWrapper<TBuilderMap> f)
-    -> decltype(
-            std::move(f)(std::move(builder))
-            )
-        // -> Builder
-    {
-        return std::move(f)(std::move(builder));
-    }
-
-    template <typename TInstanceModifier, typename... Ts>
-    auto operator|(Bldr<Ts...> builder, TInstanceModifier&& f)
-    -> decltype(std::move(builder)
-            .map(std::forward<TInstanceModifier>(f))
-            )
-        //-> Builder
-    {
-        return std::move(builder)
-            .map(std::forward<TInstanceModifier>(f));
-    }
-
-    template <typename TSignalSizeHint, typename = std::enable_if_t<
-        IsSizeHint<signal::SignalType<TSignalSizeHint>>::value
-        >
-    >
-    auto setSizeHint(TSignalSizeHint sizeHint)
-        //-> BuiderModifier;
-    {
-        auto f = [sh = btl::cloneOnCopy(std::move(sizeHint))]
-            (auto builder) // -> Builder
-        {
-            return std::move(builder)
-                .setSizeHint(sh->clone())
-                ;
-        };
-
-        return makeBuilderModifier(std::move(f));
     }
 
     template <typename TBuilder, typename = typename std::enable_if

@@ -8,10 +8,10 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT Builder button(AnySignal<std::string> label,
+    REACTIVE_EXPORT AnyBuilder button(AnySignal<std::string> label,
             AnySignal<std::function<void()>> onClick);
 
-    REACTIVE_EXPORT Builder button(std::string label,
+    REACTIVE_EXPORT AnyBuilder button(std::string label,
             AnySignal<std::function<void()>> onClick);
 } // namespace reactive::widget
 

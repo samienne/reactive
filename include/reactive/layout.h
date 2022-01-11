@@ -30,7 +30,7 @@ namespace reactive
             std::is_copy_constructible<T>
         > {};
 
-    REACTIVE_EXPORT widget::Builder layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, std::vector<widget::Builder> builders);
+    REACTIVE_EXPORT widget::AnyBuilder layout(SizeHintMap sizeHintMap,
+            ObbMap obbMap, std::vector<widget::AnyBuilder> builders);
 } // reactive
 

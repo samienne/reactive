@@ -12,13 +12,13 @@
 namespace reactive
 {
 
-widget::Builder vbox(std::vector<widget::Builder> widgets)
+widget::AnyBuilder vbox(std::vector<widget::AnyBuilder> widgets)
 {
     return box<Axis::y>(std::move(widgets));
 }
 
 
-widget::Builder vbox(AnySignal<std::vector<widget::WidgetObject>> widgets)
+widget::AnyBuilder vbox(AnySignal<std::vector<widget::WidgetObject>> widgets)
 {
     return dynamicBox<Axis::y>(std::move(widgets));
 }

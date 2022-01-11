@@ -6,6 +6,6 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT Builder scrollView(Builder f);
+    REACTIVE_EXPORT AnyBuilder scrollView(AnyBuilder f);
 } // namespace reactive::widget
 

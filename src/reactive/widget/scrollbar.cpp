@@ -7,6 +7,7 @@
 #include "widget/ondraw.h"
 #include "widget/onhover.h"
 #include "widget/instancemodifier.h"
+#include "widget/setsizehint.h"
 
 #include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
@@ -229,7 +230,7 @@ namespace
 } // anonymous namespace
 
 template <bool IsHorizontal>
-Builder scrollBar(
+AnyBuilder scrollBar(
         signal::InputHandle<float> scrollHandle,
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
@@ -241,7 +242,7 @@ Builder scrollBar(
         ;
 }
 
-Builder hScrollBar(
+AnyBuilder hScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)
@@ -253,7 +254,7 @@ Builder hScrollBar(
                     }, std::move(handleSize))));
 }
 
-Builder vScrollBar(
+AnyBuilder vScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)

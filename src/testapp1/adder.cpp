@@ -25,7 +25,7 @@ using namespace reactive;
 
 namespace
 {
-    widget::Builder itemEntry(
+    widget::AnyBuilder itemEntry(
             signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
             std::function<void()> onSort
@@ -60,7 +60,7 @@ namespace
     }
 } // anonymous namespace
 
-reactive::widget::Builder adder()
+reactive::widget::AnyBuilder adder()
 {
     Collection<std::string> items;
 
@@ -79,7 +79,7 @@ reactive::widget::Builder adder()
     auto widgets = signal::dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (AnySignal<std::string> value, size_t id) mutable -> widget::Builder
+            (AnySignal<std::string> value, size_t id) mutable -> widget::AnyBuilder
             {
                 return hbox({
                     widget::button("U", signal::mapFunction([items, id]

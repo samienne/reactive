@@ -13,9 +13,9 @@ namespace reactive
 
         auto cell(unsigned int x, unsigned int y,
                 unsigned int w, unsigned int h,
-                widget::Builder builder) && -> UniformGrid;
+                widget::AnyBuilder builder) && -> UniformGrid;
 
-        operator widget::Builder() &&;
+        operator widget::AnyBuilder() &&;
 
     private:
         struct Cell
@@ -29,7 +29,7 @@ namespace reactive
         unsigned int w_;
         unsigned int h_;
         std::vector<Cell> cells_;
-        std::vector<widget::Builder> builders_;
+        std::vector<widget::AnyBuilder> builders_;
     };
 
     inline auto uniformGrid(unsigned int w, unsigned int h)

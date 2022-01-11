@@ -8,6 +8,7 @@
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
 #include "widget/instancemodifier.h"
+#include "widget/setsizehint.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"
@@ -18,7 +19,7 @@
 namespace reactive::widget
 {
 
-Builder scrollView(Builder f)
+AnyBuilder scrollView(AnyBuilder f)
 {
     auto viewSize = signal::input(avg::Vector2f(10.0f, 200.0f));
     auto x = signal::input(0.5f);

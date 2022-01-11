@@ -13,10 +13,10 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT Builder label(AnySharedSignal<std::string> text);
-    REACTIVE_EXPORT Builder label(std::string const& text);
+    REACTIVE_EXPORT AnyBuilder label(AnySharedSignal<std::string> text);
+    REACTIVE_EXPORT AnyBuilder label(std::string const& text);
 
-    inline Builder label(AnySignal<std::string> text)
+    inline AnyBuilder label(AnySignal<std::string> text)
     {
         return label(signal::share(std::move(text)));
     }

@@ -4,6 +4,7 @@
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/onkeyevent.h>
 #include <reactive/widget/builder.h>
+#include <reactive/widget/setsizehint.h>
 
 #include <reactive/shapes.h>
 #include <reactive/send.h>
@@ -54,7 +55,7 @@ namespace
     };
 } // anonymous namespace
 
-widget::Builder makeTestWidget()
+widget::AnyBuilder makeTestWidget()
 {
     using namespace reactive::widget;
 

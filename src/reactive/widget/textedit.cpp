@@ -9,6 +9,7 @@
 #include "widget/onkeyevent.h"
 #include "widget/ontextevent.h"
 #include "widget/onclick.h"
+#include "widget/setsizehint.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -34,7 +35,7 @@
 namespace reactive::widget
 {
 
-TextEdit::operator Builder() const
+TextEdit::operator AnyBuilder() const
 {
     auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
             TextEditState const& state, float percentage)
@@ -216,7 +217,7 @@ TextEdit TextEdit::onEnter(std::function<void()> cb) &&
     return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
 }
 
-Builder TextEdit::build() &&
+AnyBuilder TextEdit::build() &&
 {
     return *this;
 }

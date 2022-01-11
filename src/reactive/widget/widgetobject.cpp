@@ -2,6 +2,7 @@
 
 #include "widget/setid.h"
 #include "widget/transform.h"
+#include "widget/buildermodifier.h"
 
 #include <pmr/new_delete_resource.h>
 
@@ -11,7 +12,7 @@ namespace reactive::widget
 static_assert(std::is_copy_constructible_v<WidgetObject>, "");
 static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
-WidgetObject::Impl::Impl(Builder builder) :
+WidgetObject::Impl::Impl(AnyBuilder builder) :
     builder_(std::move(builder)),
     sizeHint_(builder_.getSizeHint()),
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
@@ -25,7 +26,7 @@ WidgetObject::Impl::Impl(Builder builder) :
 {
 }
 
-WidgetObject::WidgetObject(Builder builder) :
+WidgetObject::WidgetObject(AnyBuilder builder) :
     impl_(std::make_shared<Impl>(std::move(builder)))
 {
 }

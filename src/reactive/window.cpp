@@ -2,11 +2,12 @@
 
 #include "widget/drawbackground.h"
 #include "widget/builder.h"
+#include "widget/buildermodifier.h"
 
 namespace reactive
 {
 
-Window::Window(widget::Builder widget,
+Window::Window(widget::AnyBuilder widget,
         AnySignal<std::string> const& title) :
     widget_(std::move(widget)),
     title_(signal::share(btl::clone(title)))
@@ -19,7 +20,7 @@ Window Window::onClose(std::function<void()> const& cb) &&
     return std::move(*this);
 }
 
-widget::Builder Window::getWidget() const
+widget::AnyBuilder Window::getWidget() const
 {
     return widget_->clone()
         | widget::background()
@@ -38,7 +39,7 @@ void Window::invokeOnClose() const
         cb();
 }
 
-auto window(AnySignal<std::string> const& title, widget::Builder widget)
+auto window(AnySignal<std::string> const& title, widget::AnyBuilder widget)
     -> Window
 {
     return Window(std::move(widget), title);

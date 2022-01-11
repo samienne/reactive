@@ -3,6 +3,7 @@
 #include "layout.h"
 #include "mapsizehint.h"
 #include "stacksizehint.h"
+#include "widget/setsizehint.h"
 
 #include "signal/combine.h"
 #include "signal/constant.h"
@@ -18,7 +19,7 @@ UniformGrid::UniformGrid(unsigned int w, unsigned int h) :
 
 auto UniformGrid::cell(unsigned int x, unsigned int y,
         unsigned int w, unsigned int h,
-        widget::Builder builder) && -> UniformGrid
+        widget::AnyBuilder builder) && -> UniformGrid
 {
     cells_.push_back({x, y, w, h});
     builders_.push_back(std::move(builder));
@@ -43,7 +44,7 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
             );
 }
 
-UniformGrid::operator widget::Builder() &&
+UniformGrid::operator widget::AnyBuilder() &&
 {
     std::vector<AnySignal<SizeHint>> hints;
     hints.reserve(cells_.size());

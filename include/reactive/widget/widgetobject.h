@@ -13,7 +13,7 @@ namespace reactive::widget
     class REACTIVE_EXPORT WidgetObject
     {
     public:
-        WidgetObject(Builder builder);
+        WidgetObject(AnyBuilder builder);
         WidgetObject(WidgetObject const&) = default;
         WidgetObject(WidgetObject&&) noexcept = default;
 
@@ -32,10 +32,10 @@ namespace reactive::widget
     private:
         struct Impl
         {
-            Impl(Builder builder);
+            Impl(AnyBuilder builder);
 
             avg::UniqueId id_;
-            Builder builder_;
+            AnyBuilder builder_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;

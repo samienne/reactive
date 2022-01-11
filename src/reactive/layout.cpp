@@ -1,5 +1,6 @@
 #include "layout.h"
 
+#include "widget/setsizehint.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
 #include "widget/instancemodifier.h"
@@ -9,8 +10,8 @@
 namespace reactive
 {
 
-widget::Builder layout(SizeHintMap sizeHintMap, ObbMap obbMap,
-        std::vector<widget::Builder> builders)
+widget::AnyBuilder layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+        std::vector<widget::AnyBuilder> builders)
 {
     auto hints = btl::fmap(builders, [](auto const& builder)
             {

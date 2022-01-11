@@ -4,6 +4,7 @@
 #include "instance.h"
 #include "instancemodifier.h"
 #include "builder.h"
+#include "setsizehint.h"
 
 #include "reactive/growsizehint.h"
 
@@ -37,33 +38,38 @@ namespace reactive::widget
     template <typename T>
     auto margin(Signal<T, float> amount)
     {
-        auto a = signal::share(std::move(amount));
-        auto aNeg = signal::map([](float f)
-                {
-                    return -f;
-                }, a);
-
-        auto t = signal::map([](float amount)
-                {
-                    return avg::translate(amount, amount);
-                }, a);
-
-        auto builderGrowSizeHint = [a](Builder builder)
-            -> Builder
+        return makeBuilderModifier([](auto builder, auto amount)
         {
-            auto hint = signal::map(BTL_FN(growSizeHint),
-                    builder.getSizeHint(),
-                    a);
+            auto a = signal::share(std::move(amount));
+            auto aNeg = signal::map([](float f)
+                    {
+                        return -f;
+                    }, a);
+
+            auto t = signal::map([](float amount)
+                    {
+                        return avg::translate(amount, amount);
+                    }, a);
+
+            auto builderGrowSizeHint = makeBuilderModifier([a](auto builder)
+                    {
+                        auto hint = signal::map(BTL_FN(growSizeHint),
+                                builder.getSizeHint(),
+                                a);
+
+                        return std::move(builder)
+                            .setSizeHint(std::move(hint));
+                    });
 
             return std::move(builder)
-                .setSizeHint(std::move(hint));
-        };
-
-        return preMapBuilder(growSize(std::move(aNeg)))
-            >> makeBuilderModifier(transform(std::move(t)))
-            >> makeBuilderModifier(growSize(a))
-            >> std::move(builderGrowSizeHint)
-            ;
+                | makeBuilderPreModifier(growSize(std::move(aNeg)))
+                | transform(std::move(t))
+                | growSize(a)
+                | std::move(builderGrowSizeHint)
+                ;
+        },
+        std::move(amount)
+        );
     }
 } // reactive::widget
 

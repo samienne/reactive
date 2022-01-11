@@ -246,14 +246,14 @@ namespace reactive
     }
 
     template <Axis dir>
-    auto box(std::vector<widget::Builder> builders)  //-> Builder
+    auto box(std::vector<widget::AnyBuilder> builders)  //-> AnyBuilder
     {
         return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
                 std::move(builders));
     }
 
     template <Axis dir, typename... Ts>
-    auto box(std::tuple<Ts...> builders) // -> Builder
+    auto box(std::tuple<Ts...> builders) // -> AnyBuilder
     {
         return layout(
                 [](auto hints)

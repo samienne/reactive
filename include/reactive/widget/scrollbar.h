@@ -6,12 +6,12 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT Builder hScrollBar(
+    REACTIVE_EXPORT AnyBuilder hScrollBar(
             signal::InputHandle<float> handle,
             AnySignal<float> amount,
             AnySignal<float> handleSize);
 
-    REACTIVE_EXPORT Builder vScrollBar(
+    REACTIVE_EXPORT AnyBuilder vScrollBar(
             signal::InputHandle<float> handle,
             AnySignal<float> amount,
             AnySignal<float> handleSize);

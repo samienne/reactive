@@ -4,5 +4,5 @@
 
 #include <avg/font.h>
 
-reactive::widget::Builder makeTestWidget();
+reactive::widget::AnyBuilder makeTestWidget();
 

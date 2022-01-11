@@ -7,7 +7,7 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyInstanceModifier bin(Builder f,
+    REACTIVE_EXPORT AnyInstanceModifier bin(AnyBuilder f,
             AnySignal<avg::Vector2f> contentSize);
 } // reactive::widget
 

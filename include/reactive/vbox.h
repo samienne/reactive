@@ -9,9 +9,9 @@
 
 namespace reactive
 {
-    REACTIVE_EXPORT widget::Builder vbox(std::vector<widget::Builder> widgets);
+    REACTIVE_EXPORT widget::AnyBuilder vbox(std::vector<widget::AnyBuilder> widgets);
 
-    REACTIVE_EXPORT widget::Builder vbox(
+    REACTIVE_EXPORT widget::AnyBuilder vbox(
             AnySignal<std::vector<widget::WidgetObject>> widgets
             );
 } // namespace reactive

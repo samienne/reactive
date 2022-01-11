@@ -8,6 +8,6 @@
 
 namespace reactive
 {
-    REACTIVE_EXPORT widget::Builder stack(std::vector<widget::Builder> widgets);
+    REACTIVE_EXPORT widget::AnyBuilder stack(std::vector<widget::AnyBuilder> widgets);
 }
 

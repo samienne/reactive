@@ -2,5 +2,5 @@
 
 #include <reactive/widget/builder.h>
 
-reactive::widget::Builder adder();
+reactive::widget::AnyBuilder adder();
 
