@@ -105,7 +105,7 @@ namespace reactive::widget
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
 
-        Builder<TTupleMaps, TSizeHint>(TTupleMaps maps, TSizeHint sizeHint) :
+        Builder(TTupleMaps maps, TSizeHint sizeHint) :
             maps_(std::move(maps)),
             sizeHint_(std::move(sizeHint))
         {
@@ -197,7 +197,7 @@ namespace reactive::widget
                     );
         }
 
-    private:
+    protected:
         btl::CloneOnCopy<btl::decay_t<TTupleMaps>> maps_;
         btl::CloneOnCopy<btl::decay_t<TSizeHint>> sizeHint_;
     };
@@ -227,7 +227,7 @@ namespace reactive::widget
 
         AnyBuilder clone() const
         {
-            return BuilderBase::clone();
+            return *this;
         }
     };
 
