@@ -1,13 +1,17 @@
 #pragma once
 
 #include "widget/addwidgets.h"
+#include "widget/widgetobject.h"
 #include "widget/instancemodifier.h"
+#include "widget/builder.h"
+#include "widget/widget.h"
 #include "widget/widgetobject.h"
 #include "widget/setsizehint.h"
 
 #include "box.h"
 
 #include "signal/combine.h"
+#include "signal/foldp.h"
 
 #include <avg/rendertree.h>
 
@@ -53,35 +57,118 @@ namespace reactive
     } // namespace detail
 
     template <Axis dir, typename T>
-    auto dynamicBox(Signal<T, std::vector<widget::WidgetObject>> widgets)
+    auto dynamicBox(Signal<T, std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
-        // Signal<std::vector<SizeHint>>
-        auto hints = signal::share(signal::join(signal::map(
-                [](std::vector<widget::WidgetObject> const& widgets)
+        return widget::makeWidget()
+            | widget::withParams([](
+                        auto widget,
+                        widget::BuildParams const& params,
+                        auto widgets
+                        )
                 {
-                    std::vector<AnySignal<SizeHint>> hints;
+                    auto widgetObjectsWithId = foldp([params](
+                                std::vector<std::pair<size_t, widget::WidgetObject>> initial,
+                                std::vector<std::pair<size_t, widget::AnyWidget>> widgets
+                                )
+                            -> std::vector<std::pair<size_t, widget::WidgetObject>>
+                            {
+                                std::vector<std::pair<size_t, widget::WidgetObject>> result;
 
-                    for (auto const& w : widgets)
-                    {
-                        hints.push_back(w.getSizeHint().clone());
-                    }
+                                for (auto&& widget : widgets)
+                                {
+                                    bool found = false;
+                                    for (auto&& builder : initial)
+                                    {
+                                        if (builder.first == widget.first)
+                                        {
+                                            found = true;
+                                            result.push_back(std::move(builder));
+                                            break;
+                                        }
+
+                                    }
+
+                                    if (!found)
+                                    {
+                                        result.emplace_back(
+                                                widget.first,
+                                                widget::WidgetObject(
+                                                    std::move(widget.second)(params)
+                                                    )
+                                                );
+                                    }
+                                }
+
+                                return result;
+                            },
+                            std::vector<std::pair<size_t, widget::WidgetObject>>(),
+                            std::move(widgets)
+                            );
+
+                    auto widgetObjects = share(map(
+                            [](std::vector<std::pair<size_t,
+                                widget::WidgetObject>> const& widgetObjects)
+                            {
+                                std::vector<widget::WidgetObject> result;
+                                for (auto const& widgetObject : widgetObjects)
+                                    result.push_back(widgetObject.second);
+
+                                return result;
+                            },
+                            std::move(widgetObjectsWithId)
+                            ));
 
                     // Signal<std::vector<SizeHint>>
-                    return signal::combine(std::move(hints));
-                },
-                widgets.clone()
-                )));
+                    auto hints = signal::share(signal::join(signal::map(
+                            [](std::vector<widget::WidgetObject> const& widgets)
+                            {
+                                std::vector<AnySignal<SizeHint>> hints;
 
-        //Signal<SizeHint>
-        auto resultHint = signal::map(
-                [](std::vector<SizeHint> hints) -> SizeHint
-                {
-                    return accumulateSizeHints<dir>(std::move(hints));
-                },
-                hints.clone()
-                );
+                                for (auto const& w : widgets)
+                                {
+                                    hints.push_back(w.getSizeHint().clone());
+                                }
 
-        return widget::makeBuilder()
+                                // Signal<std::vector<SizeHint>>
+                                return signal::combine(std::move(hints));
+                            },
+                            widgetObjects
+                            )));
+
+                    //Signal<SizeHint>
+                    auto resultHint = signal::map(
+                            [](std::vector<SizeHint> hints) -> SizeHint
+                            {
+                                return accumulateSizeHints<dir>(std::move(hints));
+                            },
+                            hints
+                            );
+
+                    return std::move(widget)
+                        | makeSharedInstanceSignalModifier(
+                            [](auto instance, auto hints, auto widgetObjects)
+                            {
+                                auto size = map(&widget::Instance::getSize, instance);
+
+                                return std::move(instance)
+                                    | detail::doDynamicBox<dir>(
+                                            std::move(size),
+                                            std::move(widgetObjects),
+                                            std::move(hints)
+                                            )
+                                    ;
+                            },
+                            std::move(hints),
+                            std::move(widgetObjects)
+                            )
+                        | widget::setSizeHint(std::move(resultHint))
+                        ;
+                },
+                share(std::move(widgets))
+                )
+            ;
+
+            /*
             | widget::makeSharedInstanceSignalModifier(
                     [](auto widget, auto hints, auto widgets)
                     {
@@ -100,5 +187,6 @@ namespace reactive
                     )
             | widget::setSizeHint(std::move(resultHint))
             ;
+            */
     }
 } // namespace reactive

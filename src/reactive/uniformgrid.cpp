@@ -19,10 +19,10 @@ UniformGrid::UniformGrid(unsigned int w, unsigned int h) :
 
 auto UniformGrid::cell(unsigned int x, unsigned int y,
         unsigned int w, unsigned int h,
-        widget::AnyBuilder builder) && -> UniformGrid
+        widget::AnyWidget widget) && -> UniformGrid
 {
     cells_.push_back({x, y, w, h});
-    builders_.push_back(std::move(builder));
+    widgets_.push_back(std::move(widget));
     return std::move(*this);
 }
 
@@ -44,77 +44,86 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
             );
 }
 
-UniformGrid::operator widget::AnyBuilder() &&
+UniformGrid::operator widget::AnyWidget() &&
 {
-    std::vector<AnySignal<SizeHint>> hints;
-    hints.reserve(cells_.size());
-
-    auto cells = std::move(cells_);
-    auto builders = std::move(builders_);
-    size_t i = 0;
-    for (auto const& cell : cells)
-    {
-        auto hi = signal::map(multiplySizeHint,
-                builders[i].getSizeHint(),
-                signal::constant(1.0f / (float)cell.w),
-                signal::constant(1.0f / (float)cell.h)
-                );
-
-        hints.push_back(std::move(hi));
-
-        ++i;
-    }
-
-    auto w = w_;
-    auto h = h_;
-    auto mapHints = [w, h](std::vector<SizeHint> const& hints)
-        -> SizeHint
-    {
-        return multiplySizeHint(stackSizeHints(hints), (float)w, (float)h);
-    };
-
-    auto mapObbs = [w, h, cells](ase::Vector2f size,
-            std::vector<SizeHint> const& hints)
-        -> std::vector<avg::Obb>
-    {
-        if (hints.empty())
-            return {};
-
-        auto cellSize = ase::Vector2f(
-                size[0] / (float)w,
-                size[1] / (float)h);
-
-        std::vector<avg::Obb> obbs;
-        for (auto const& cell : cells)
+    return makeWidget([](widget::BuildParams const& params, auto widgets, auto cells,
+                unsigned int w, unsigned int h)
         {
-            auto t = avg::Transform().translate(
-                    (float)cell.x * cellSize[0],
-                    (float)cell.y * cellSize[1]);
+            std::vector<widget::AnyBuilder> builders;
 
-            obbs.push_back(
-                    t * avg::Obb(ase::Vector2f(
-                            (float)cell.w * cellSize[0],
-                            (float)cell.h * cellSize[1])));
-        }
+            for (auto&& widget : widgets)
+                builders.push_back(std::move(widget)(params));
 
-        return obbs;
-    };
+            std::vector<AnySignal<SizeHint>> hints;
+            hints.reserve(cells.size());
 
-    i = 0;
-    for (auto&& builder : builders)
-    {
-        builder = std::move(builder)
-            | widget::setSizeHint(std::move(hints[i++]))
-            ;
-    }
+            size_t i = 0;
+            for (auto const& cell : cells)
+            {
+                auto hi = signal::map(multiplySizeHint,
+                        builders[i].getSizeHint(),
+                        signal::constant(1.0f / (float)cell.w),
+                        signal::constant(1.0f / (float)cell.h)
+                        );
 
-    auto r = layout(
-            std::move(mapHints),
-            std::move(mapObbs),
-            std::move(builders)
-            );
+                hints.push_back(std::move(hi));
 
-    return r;
+                ++i;
+            }
+
+            auto mapHints = [w, h](std::vector<SizeHint> const& hints)
+                -> SizeHint
+            {
+                return multiplySizeHint(stackSizeHints(hints), (float)w, (float)h);
+            };
+
+            auto mapObbs = [w, h, cells](ase::Vector2f size,
+                    std::vector<SizeHint> const& hints)
+                -> std::vector<avg::Obb>
+            {
+                if (hints.empty())
+                    return {};
+
+                auto cellSize = ase::Vector2f(
+                        size[0] / (float)w,
+                        size[1] / (float)h);
+
+                std::vector<avg::Obb> obbs;
+                for (auto const& cell : cells)
+                {
+                    auto t = avg::Transform().translate(
+                            (float)cell.x * cellSize[0],
+                            (float)cell.y * cellSize[1]);
+
+                    obbs.push_back(
+                            t * avg::Obb(ase::Vector2f(
+                                    (float)cell.w * cellSize[0],
+                                    (float)cell.h * cellSize[1])));
+                }
+
+                return obbs;
+            };
+
+            i = 0;
+            for (auto&& builder : builders)
+            {
+                builder = std::move(builder)
+                    | widget::setSizeHint(std::move(hints[i++]))
+                    ;
+            }
+
+            return layout(
+                    std::move(mapHints),
+                    std::move(mapObbs),
+                    std::move(widgets)
+                    );
+
+        },
+        std::move(widgets_),
+        std::move(cells_),
+        w_,
+        h_
+        );
 }
 
 } // reactive

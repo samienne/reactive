@@ -7,7 +7,7 @@
 namespace reactive
 {
 
-Window::Window(widget::AnyBuilder widget,
+Window::Window(widget::AnyWidget widget,
         AnySignal<std::string> const& title) :
     widget_(std::move(widget)),
     title_(signal::share(btl::clone(title)))
@@ -20,7 +20,7 @@ Window Window::onClose(std::function<void()> const& cb) &&
     return std::move(*this);
 }
 
-widget::AnyBuilder Window::getWidget() const
+widget::AnyWidget Window::getWidget() const
 {
     return widget_->clone()
         | widget::background()
@@ -39,7 +39,7 @@ void Window::invokeOnClose() const
         cb();
 }
 
-auto window(AnySignal<std::string> const& title, widget::AnyBuilder widget)
+auto window(AnySignal<std::string> const& title, widget::AnyWidget widget)
     -> Window
 {
     return Window(std::move(widget), title);

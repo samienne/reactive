@@ -80,7 +80,10 @@ namespace reactive::widget
 
         operator AnyWidget() &&
         {
-            return AnyWidget(std::move(*func_));
+            return AnyWidget(
+                    WidgetBuildTag{},
+                    std::move(*func_)
+                    );
         }
 
         template <typename T>
@@ -90,6 +93,11 @@ namespace reactive::widget
                     std::move(modifier),
                     std::move(*this)
                     );
+        }
+
+        auto clone() const
+        {
+            return *this;
         }
 
     private:
@@ -120,9 +128,9 @@ namespace reactive::widget
                 ](BuildParams params) mutable
                 {
                     return std::invoke(
-                            std::move(*func),
+                            func,
                             std::move(params),
-                            std::move(*t)
+                            *t
                             );
                 });
     }
@@ -140,13 +148,116 @@ namespace reactive::widget
                 ](BuildParams params) mutable
                 {
                     return std::invoke(
-                            std::move(*func),
+                            *func,
                             std::move(params),
-                            std::move(*t),
-                            std::move(*u)
+                            *t,
+                            *u
                             );
                 });
     }
+
+    template <typename TFunc, typename T, typename U, typename V,
+             typename = std::enable_if_t<
+                 std::is_invocable_r_v<AnyBuilder, TFunc, BuildParams, T&&, U&&, V&&>
+             >
+    >
+    auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v)
+    {
+        return makeWidget([
+                func=btl::cloneOnCopy(std::forward<TFunc>(func)),
+                t=btl::cloneOnCopy(std::forward<T>(t)),
+                u=btl::cloneOnCopy(std::forward<U>(u)),
+                v=btl::cloneOnCopy(std::forward<V>(v))
+                ](BuildParams params) mutable
+                {
+                    return std::invoke(
+                            *func,
+                            std::move(params),
+                            *t,
+                            *u,
+                            *v
+                            );
+                });
+    }
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename = std::enable_if_t<
+                 std::is_invocable_r_v<AnyBuilder, TFunc, BuildParams, T&&, U&&, V&&, W&&>
+             >
+    >
+    auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v, W&& w)
+    {
+        return makeWidget([
+                func=btl::cloneOnCopy(std::forward<TFunc>(func)),
+                t=btl::cloneOnCopy(std::forward<T>(t)),
+                u=btl::cloneOnCopy(std::forward<U>(u)),
+                v=btl::cloneOnCopy(std::forward<V>(v)),
+                w=btl::cloneOnCopy(std::forward<W>(w))
+                ](BuildParams params) mutable
+                {
+                    return std::invoke(
+                            *func,
+                            std::move(params),
+                            *t,
+                            *u,
+                            *v,
+                            *w
+                            );
+                });
+    }
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename X,
+             typename = std::enable_if_t<
+                 std::is_invocable_r_v<AnyBuilder, TFunc, BuildParams, T&&, U&&, V&&, W&&, X&&>
+             >
+    >
+    auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v, W&& w, X&& x)
+    {
+        return makeWidget([
+                func=btl::cloneOnCopy(std::forward<TFunc>(func)),
+                t=btl::cloneOnCopy(std::forward<T>(t)),
+                u=btl::cloneOnCopy(std::forward<U>(u)),
+                v=btl::cloneOnCopy(std::forward<V>(v)),
+                w=btl::cloneOnCopy(std::forward<W>(w)),
+                x=btl::cloneOnCopy(std::forward<X>(x))
+                ](BuildParams params) mutable
+                {
+                    return std::invoke(
+                            *func,
+                            std::move(params),
+                            *t,
+                            *u,
+                            *v,
+                            *w,
+                            *x
+                            );
+                });
+    }
+
+
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, BuildParams, Ts&&...>
+        >
+    >
+    auto makeWidget(TFunc&& func, Ts&&... ts)
+    {
+        return makeWidget([](BuildParams const& params, auto func, auto&&... ts)
+            {
+                return std::invoke(
+                    std::invoke(
+                        std::move(func),
+                        params,
+                        std::forward<decltype(ts)>(ts)...
+                        ),
+                    params
+                    );
+            },
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
+    }
+
 
     inline auto makeWidget()
     {
@@ -308,7 +419,7 @@ namespace reactive::widget
                 return makeWidget(
                         [widget=btl::cloneOnCopy(std::move(widget)),
                         func=btl::cloneOnCopy(std::move(func))]
-                        (BuildParams params) mutable -> AnyBuilder
+                        (BuildParams params) mutable// -> AnyBuilder
                         {
                             return std::invoke(
                                     std::invoke(
@@ -322,6 +433,50 @@ namespace reactive::widget
             },
             std::forward<TFunc>(func)
             );
+    }
+
+    template <typename TFunc, typename T, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, BuildParams const&, T>
+        >
+    >
+    auto withParams(TFunc&& func, T&& t)
+    {
+        return withParams([
+                func=btl::cloneOnCopy(std::forward<TFunc>(func)),
+                t=btl::cloneOnCopy(std::forward<T>(t))
+                ]
+                (auto widget, BuildParams const& params) mutable
+                {
+                    return std::invoke(
+                            std::move(*func),
+                            std::move(widget),
+                            params,
+                            std::move(*t)
+                            );
+                });
+    }
+
+    template <typename TFunc, typename T, typename U, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, BuildParams const&, T, U>
+        >
+    >
+    auto withParams(TFunc&& func, T&& t, U&& u)
+    {
+        return withParams([
+                func=btl::cloneOnCopy(std::forward<TFunc>(func)),
+                t=btl::cloneOnCopy(std::forward<T>(t)),
+                u=btl::cloneOnCopy(std::forward<U>(u))
+                ]
+                (auto widget, BuildParams const& params) mutable
+                {
+                    return std::invoke(
+                            std::move(*func),
+                            std::move(widget),
+                            params,
+                            std::move(*t),
+                            std::move(*u)
+                            );
+                });
     }
 
     template <typename TFunc, typename = std::enable_if_t<

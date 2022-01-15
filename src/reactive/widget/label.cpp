@@ -18,7 +18,7 @@
 namespace reactive::widget
 {
 
-AnyBuilder label(AnySharedSignal<std::string> text)
+AnyWidget label(AnySharedSignal<std::string> text)
 {
     auto draw = [](avg::DrawContext const& drawContext, avg::Vector2f size,
             std::string const& text) -> avg::Drawing
@@ -53,7 +53,7 @@ AnyBuilder label(AnySharedSignal<std::string> text)
         return simpleSizeHint(extents.size[0], extents.size[1]);
     };
 
-    return makeBuilder()
+    return makeWidget()
         | onDraw(draw, text)
         | setSizeHint(signal::map(getSizeHint, text,
                     signal::constant(Theme())))
@@ -61,7 +61,7 @@ AnyBuilder label(AnySharedSignal<std::string> text)
         ;
 }
 
-AnyBuilder label(std::string const& text)
+AnyWidget label(std::string const& text)
 {
     return label(signal::constant(std::move(text)));
 }

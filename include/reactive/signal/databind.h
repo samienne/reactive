@@ -5,7 +5,7 @@
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
 
-#include <reactive/widget/widgetobject.h>
+#include <reactive/widget/widget.h>
 #include <reactive/widget/builder.h>
 
 #include <reactive/datasource.h>
@@ -17,16 +17,17 @@
 namespace reactive::signal
 {
     template <typename T>
-    AnySignal<std::vector<widget::WidgetObject>> dataBind(
+    AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
             DataSource<T> source,
-            std::function<widget::AnyBuilder(AnySignal<T> value, size_t id)> delegate
+            std::function<widget::AnyWidget(AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;
 
         struct WidgetState
         {
-            WidgetObject widget;
+            //WidgetObject widget;
+            AnyWidget widget;
             InputHandle<T> valueHandle;
             size_t id;
         };
@@ -52,9 +53,9 @@ namespace reactive::signal
                     state.objects.insert(
                             state.objects.begin() + insert.index,
                             WidgetState{
-                                WidgetObject(
+                                //WidgetObject(
                                     delegate(std::move(valueInput.signal), insert.id)
-                                ),
+                                ,//),
                                 std::move(valueInput.handle),
                                 insert.id
                                 });
@@ -189,11 +190,11 @@ namespace reactive::signal
         auto widgetObjects = signal::map(
             [](State const& state)
             {
-                std::vector<WidgetObject> widgetObjects;
+                std::vector<std::pair<size_t, AnyWidget>> widgetObjects;
 
                 for (auto const& o : state.objects)
                 {
-                    widgetObjects.push_back(o.widget);
+                    widgetObjects.emplace_back(o.id, o.widget);
                 }
 
                 return widgetObjects;

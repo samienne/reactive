@@ -246,14 +246,14 @@ namespace reactive
     }
 
     template <Axis dir>
-    auto box(std::vector<widget::AnyBuilder> builders)  //-> AnyBuilder
+    auto box(std::vector<widget::AnyWidget> builders)  //-> AnyBuilder
     {
         return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
                 std::move(builders));
     }
 
     template <Axis dir, typename... Ts>
-    auto box(std::tuple<Ts...> builders) // -> AnyBuilder
+    auto box(std::tuple<Ts...> widgets) // -> AnyBuilder
     {
         return layout(
                 [](auto hints)
@@ -261,7 +261,7 @@ namespace reactive
                     return accumulateSizeHintsTuple<dir>(std::move(hints));
                 },
                 MapObbs<dir>(),
-                std::move(builders)
+                std::move(widgets)
                 );
     }
 }

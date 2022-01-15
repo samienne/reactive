@@ -35,7 +35,7 @@
 namespace reactive::widget
 {
 
-TextEdit::operator AnyBuilder() const
+TextEdit::operator AnyWidget() const
 {
     auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
             TextEditState const& state, float percentage)
@@ -186,7 +186,7 @@ TextEdit::operator AnyBuilder() const
                 signal::combine(onEnter_)),
             handle_ );
 
-    return makeBuilder()
+    return makeWidget()
         | trackFocus(focus.handle)
         | widget::onDraw(std::move(draw), std::move(newState), std::move(focusPercentage))
         | widget::margin(signal::constant(5.0f))
@@ -217,7 +217,7 @@ TextEdit TextEdit::onEnter(std::function<void()> cb) &&
     return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
 }
 
-AnyBuilder TextEdit::build() &&
+AnyWidget TextEdit::build() &&
 {
     return *this;
 }

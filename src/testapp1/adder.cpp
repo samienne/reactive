@@ -25,7 +25,7 @@ using namespace reactive;
 
 namespace
 {
-    widget::AnyBuilder itemEntry(
+    widget::AnyWidget itemEntry(
             signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
             std::function<void()> onSort
@@ -60,7 +60,7 @@ namespace
     }
 } // anonymous namespace
 
-reactive::widget::AnyBuilder adder()
+reactive::widget::AnyWidget adder()
 {
     Collection<std::string> items;
 
@@ -79,66 +79,66 @@ reactive::widget::AnyBuilder adder()
     auto widgets = signal::dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (AnySignal<std::string> value, size_t id) mutable -> widget::AnyBuilder
+            (AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
                 return hbox({
-                    widget::button("U", signal::mapFunction([items, id]
-                        (std::string str) mutable
+                widget::button("U", signal::mapFunction([items, id]
+                    (std::string str) mutable
+                    {
+                        auto range = items.rangeLock();
+                        auto i = range.findId(id);
+                        if (i != range.end())
+                        {
+                            range.update(i, std::move(str));
+                        }
+                    },
+                    textInputSignal.clone()
+                    ))
+                ,
+                widget::button("T", signal::mapFunction([items, id]() mutable
+                    {
+                        auto range = items.rangeLock();
+                        auto i = range.findId(id);
+
+                        range.move(i, range.begin());
+                    }))
+                ,
+                widget::button("S", signal::mapFunction(
+                    [items, id, swapState]() mutable
+                    {
+                        if (*swapState == 0)
+                        {
+                            *swapState = id;
+                        }
+                        else
                         {
                             auto range = items.rangeLock();
                             auto i = range.findId(id);
-                            if (i != range.end())
-                            {
-                                range.update(i, std::move(str));
-                            }
-                        },
-                        textInputSignal.clone()
-                        ))
-                    ,
-                    widget::button("T", signal::mapFunction([items, id]() mutable
-                        {
-                            auto range = items.rangeLock();
-                            auto i = range.findId(id);
+                            auto j = range.findId(*swapState);
 
-                            range.move(i, range.begin());
-                        }))
-                    ,
-                    widget::button("S", signal::mapFunction(
-                        [items, id, swapState]() mutable
-                        {
-                            if (*swapState == 0)
-                            {
-                                *swapState = id;
-                            }
-                            else
-                            {
-                                auto range = items.rangeLock();
-                                auto i = range.findId(id);
-                                auto j = range.findId(*swapState);
-
-                                range.swap(i, j);
-                                *swapState = 0;
-                            }
-                        }))
-                    ,
-                    widget::label(std::move(value))
-                    ,
-                    hfiller()
-                    ,
-                    widget::button("x", signal::constant([id, items]() mutable
-                        {
-                            app().withAnimation(
-                                    std::chrono::milliseconds(300),
-                                    avg::linearCurve,
-                                    [id, items]() mutable
-                                    {
-                                        items.rangeLock().eraseWithId(id);
-                                    });
-                        }))
-                    })
-                    | reactive::widget::transition(reactive::widget::transitionLeft())
-                    | reactive::widget::clip()
-                ;
+                            range.swap(i, j);
+                            *swapState = 0;
+                        }
+                    }))
+                ,
+                widget::label(std::move(value))
+                ,
+                hfiller()
+                ,
+                widget::button("x", signal::constant([id, items]() mutable
+                    {
+                        app().withAnimation(
+                                std::chrono::milliseconds(300),
+                                avg::linearCurve,
+                                [id, items]() mutable
+                                {
+                                    items.rangeLock().eraseWithId(id);
+                                });
+                    }))
+                })
+                | reactive::widget::transition(reactive::widget::transitionLeft())
+                | reactive::widget::clip()
+            ;
             });
 
     return vbox({

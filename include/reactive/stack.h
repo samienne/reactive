@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widget/builder.h"
+#include "widget/widget.h"
 
 #include "reactivevisibility.h"
 
@@ -8,6 +8,6 @@
 
 namespace reactive
 {
-    REACTIVE_EXPORT widget::AnyBuilder stack(std::vector<widget::AnyBuilder> widgets);
+    REACTIVE_EXPORT widget::AnyWidget stack(std::vector<widget::AnyWidget> widgets);
 }
 

@@ -52,7 +52,7 @@ namespace reactive::widget
         }
 
         template <typename T>
-        inline auto operator()(Signal<T, Instance> instance, bool = true) const
+        inline auto operator()(Signal<T, Instance> instance) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -183,11 +183,13 @@ namespace reactive::widget
 
     template <typename TAction>
     auto onKeyEvent(TAction&& action)
-        -> decltype(onKeyEvent().action(std::forward<TAction>(action)))
+        -> decltype(makeInstanceSignalModifier(onKeyEvent().action(std::forward<TAction>(action))))
     {
-        return onKeyEvent()
-            .acceptIfNot(&isNavigationKey)
-            .action(std::forward<TAction>(action));
+        return makeInstanceSignalModifier(
+                onKeyEvent()
+                .acceptIfNot(&isNavigationKey)
+                .action(std::forward<TAction>(action))
+                );
     }
 } // reactive::widget
 

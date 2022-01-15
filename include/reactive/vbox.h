@@ -1,7 +1,6 @@
 #pragma once
 
-#include "widget/widgetobject.h"
-#include "widget/builder.h"
+#include "widget/widget.h"
 
 #include "reactivevisibility.h"
 
@@ -9,10 +8,10 @@
 
 namespace reactive
 {
-    REACTIVE_EXPORT widget::AnyBuilder vbox(std::vector<widget::AnyBuilder> widgets);
+    REACTIVE_EXPORT widget::AnyWidget vbox(std::vector<widget::AnyWidget> widgets);
 
-    REACTIVE_EXPORT widget::AnyBuilder vbox(
-            AnySignal<std::vector<widget::WidgetObject>> widgets
+    REACTIVE_EXPORT widget::AnyWidget vbox(
+            AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets
             );
 } // namespace reactive
 

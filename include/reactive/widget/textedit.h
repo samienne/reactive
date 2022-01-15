@@ -1,6 +1,6 @@
 #pragma once
 
-#include "builder.h"
+#include "widget.h"
 
 #include "reactive/sizehint.h"
 #include "reactive/reactivevisibility.h"
@@ -47,7 +47,7 @@ namespace reactive::widget
 
     struct REACTIVE_EXPORT TextEdit
     {
-        operator AnyBuilder() const;
+        operator AnyWidget() const;
         TextEdit onEnter(AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
@@ -61,7 +61,7 @@ namespace reactive::widget
                 ;
         }
 
-        AnyBuilder build() &&;
+        AnyWidget build() &&;
 
         signal::InputHandle<TextEditState> handle_;
         AnySignal<TextEditState> state_;

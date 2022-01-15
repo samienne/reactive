@@ -1,11 +1,11 @@
 #pragma once
 
-#include "builder.h"
+#include "widget.h"
 
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyBuilder scrollView(AnyBuilder f);
+    REACTIVE_EXPORT AnyWidget scrollView(AnyWidget f);
 } // namespace reactive::widget
 

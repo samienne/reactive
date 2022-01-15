@@ -10,7 +10,7 @@
 namespace reactive
 {
 
-widget::AnyBuilder layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+widget::AnyWidget layout(SizeHintMap sizeHintMap, ObbMap obbMap,
         std::vector<widget::AnyBuilder> builders)
 {
     auto hints = btl::fmap(builders, [](auto const& builder)
@@ -63,10 +63,32 @@ widget::AnyBuilder layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             std::move(builders)
             );
 
-    return widget::makeBuilder()
+    return widget::makeWidget()
         | std::move(transformer)
         | widget::setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 
+widget::AnyWidget layout(SizeHintMap sizeHintMap,
+        ObbMap obbMap, std::vector<widget::AnyWidget> widgets)
+{
+    return makeWidget([](widget::BuildParams const& params,
+                SizeHintMap sizeHintMap, ObbMap obbMap, auto widgets)
+    {
+        std::vector<widget::AnyBuilder> builders;
+
+        for (auto&& widget : widgets)
+            builders.push_back(std::move(widget)(params));
+
+        return layout(
+                std::move(sizeHintMap),
+                std::move(obbMap),
+                std::move(builders)
+                );
+    },
+    std::move(sizeHintMap),
+    std::move(obbMap),
+    std::move(widgets)
+    );
+}
 } // namespace reactive
 
