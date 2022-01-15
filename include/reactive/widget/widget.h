@@ -104,16 +104,25 @@ namespace reactive::widget
         btl::CloneOnCopy<TFunc> func_;
     };
 
+    namespace detail
+    {
+        template <typename TFunc>
+        auto makeWidget(TFunc&& func)
+        {
+            return Widget<std::decay_t<TFunc>>(
+                    WidgetBuildTag{},
+                    std::forward<TFunc>(func)
+                    );
+        }
+    } // namespace detail
+
     template <typename TFunc, typename = std::enable_if_t<
         std::is_invocable_r_v<AnyBuilder, TFunc, BuildParams>
         >
     >
     auto makeWidget(TFunc&& func)
     {
-        return Widget<std::decay_t<TFunc>>(
-                WidgetBuildTag{},
-                std::forward<TFunc>(func)
-                );
+        return detail::makeWidget(std::forward<TFunc>(func));
     }
 
     template <typename TFunc, typename T, typename = std::enable_if_t<
@@ -122,7 +131,7 @@ namespace reactive::widget
     >
     auto makeWidget(TFunc&& func, T&& t)
     {
-        return makeWidget([
+        return detail::makeWidget([
                 func=btl::cloneOnCopy(std::forward<TFunc>(func)),
                 t=btl::cloneOnCopy(std::forward<T>(t))
                 ](BuildParams params) mutable
@@ -141,7 +150,7 @@ namespace reactive::widget
     >
     auto makeWidget(TFunc&& func, T&& t, U&& u)
     {
-        return makeWidget([
+        return detail::makeWidget([
                 func=btl::cloneOnCopy(std::forward<TFunc>(func)),
                 t=btl::cloneOnCopy(std::forward<T>(t)),
                 u=btl::cloneOnCopy(std::forward<U>(u))
@@ -163,7 +172,7 @@ namespace reactive::widget
     >
     auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v)
     {
-        return makeWidget([
+        return detail::makeWidget([
                 func=btl::cloneOnCopy(std::forward<TFunc>(func)),
                 t=btl::cloneOnCopy(std::forward<T>(t)),
                 u=btl::cloneOnCopy(std::forward<U>(u)),
@@ -187,7 +196,7 @@ namespace reactive::widget
     >
     auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v, W&& w)
     {
-        return makeWidget([
+        return detail::makeWidget([
                 func=btl::cloneOnCopy(std::forward<TFunc>(func)),
                 t=btl::cloneOnCopy(std::forward<T>(t)),
                 u=btl::cloneOnCopy(std::forward<U>(u)),
@@ -214,7 +223,7 @@ namespace reactive::widget
     >
     auto makeWidget(TFunc&& func, T&& t, U&& u, V&& v, W&& w, X&& x)
     {
-        return makeWidget([
+        return detail::makeWidget([
                 func=btl::cloneOnCopy(std::forward<TFunc>(func)),
                 t=btl::cloneOnCopy(std::forward<T>(t)),
                 u=btl::cloneOnCopy(std::forward<U>(u)),

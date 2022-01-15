@@ -44,16 +44,25 @@ namespace reactive::widget
     template <typename T>
     struct IsBuilderModifier<BuilderModifier<T>> : std::true_type {};
 
+    namespace detail
+    {
+        template <typename TFunc>
+        auto makeBuilderModifier(TFunc&& func)
+        {
+            return BuilderModifier<std::decay_t<TFunc>>(
+                    BuilderModifierBuildTag{},
+                    std::forward<TFunc>(func)
+                    );
+        }
+    } // namespace detail
+
     template <typename TFunc, typename = std::enable_if_t<
         std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder>
         >
     >
     auto makeBuilderModifier(TFunc&& func)
     {
-        return BuilderModifier<std::decay_t<TFunc>>(
-                BuilderModifierBuildTag{},
-                std::forward<TFunc>(func)
-                );
+        return detail::makeBuilderModifier(std::forward<TFunc>(func));
     }
 
     template <typename TFunc, typename T, typename = std::enable_if_t<
@@ -62,7 +71,7 @@ namespace reactive::widget
     >
     auto makeBuilderModifier(TFunc&& func, T&& t)
     {
-        return makeBuilderModifier(
+        return detail::makeBuilderModifier(
                 [
                 func=std::forward<TFunc>(func),
                 t=btl::cloneOnCopy(std::forward<T>(t))
@@ -80,7 +89,7 @@ namespace reactive::widget
         >
     auto makeBuilderModifier(TFunc&& func, T&& t, U&& u)
     {
-        return makeBuilderModifier(
+        return detail::makeBuilderModifier(
                 [
                 func=std::forward<TFunc>(func),
                 t=btl::cloneOnCopy(std::forward<T>(t)),
