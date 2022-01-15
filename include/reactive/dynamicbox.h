@@ -62,7 +62,7 @@ namespace reactive
         return widget::makeWidget()
             | widget::withParams([](
                         auto widget,
-                        widget::BuildParams const& params,
+                        reactive::widget::BuildParams const& params,
                         auto widgets
                         )
                 {
@@ -167,26 +167,5 @@ namespace reactive
                 share(std::move(widgets))
                 )
             ;
-
-            /*
-            | widget::makeSharedInstanceSignalModifier(
-                    [](auto widget, auto hints, auto widgets)
-                    {
-                        auto size = signal::map(&widget::Instance::getSize, widget);
-
-                        return std::move(widget)
-                            | detail::doDynamicBox<dir>(
-                                    std::move(size),
-                                    std::move(widgets),
-                                    std::move(hints)
-                                    )
-                            ;
-                    },
-                    hints,
-                    std::move(widgets)
-                    )
-            | widget::setSizeHint(std::move(resultHint))
-            ;
-            */
     }
 } // namespace reactive
