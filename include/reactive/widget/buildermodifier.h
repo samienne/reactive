@@ -6,6 +6,7 @@
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>
 #include <btl/not.h>
+#include <btl/bindarguments.h>
 
 #include <functional>
 
@@ -47,63 +48,43 @@ namespace reactive::widget
     namespace detail
     {
         template <typename TFunc>
-        auto makeBuilderModifier(TFunc&& func)
+        auto makeBuilderModifierUnchecked(TFunc&& func)
         {
             return BuilderModifier<std::decay_t<TFunc>>(
                     BuilderModifierBuildTag{},
                     std::forward<TFunc>(func)
                     );
         }
+
+        template <typename TFunc, typename... Ts>
+        auto makeBuilderModifierUnchecked(TFunc&& func, Ts&&... ts)
+        {
+            return makeBuilderModifierUnchecked(btl::bindArguments(
+                        [](auto builder, auto&& func, auto&&... ts)
+                        {
+                            return std::invoke(
+                                    std::forward<decltype(func)>(func),
+                                    std::move(builder),
+                                    std::forward<decltype(ts)>(ts)...
+                                    );
+                        },
+                        std::forward<TFunc>(func),
+                        std::forward<Ts>(ts)...
+                        )
+                    );
+        }
     } // namespace detail
 
-    template <typename TFunc, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder>
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder, Ts&&...>
         >
     >
-    auto makeBuilderModifier(TFunc&& func)
+    auto makeBuilderModifier(TFunc&& func, Ts&&... ts)
     {
-        return detail::makeBuilderModifier(std::forward<TFunc>(func));
-    }
-
-    template <typename TFunc, typename T, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder, T>
-        >
-    >
-    auto makeBuilderModifier(TFunc&& func, T&& t)
-    {
-        return detail::makeBuilderModifier(
-                [
-                func=std::forward<TFunc>(func),
-                t=btl::cloneOnCopy(std::forward<T>(t))
-                ]
-                (auto builder) mutable
-                {
-                    return std::invoke(std::move(func), std::move(builder), std::move(*t));
-                });
-    }
-
-    template <typename TFunc, typename T, typename U,
-             typename = std::enable_if_t<
-                 std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder, T, U>
-            >
-        >
-    auto makeBuilderModifier(TFunc&& func, T&& t, U&& u)
-    {
-        return detail::makeBuilderModifier(
-                [
-                func=std::forward<TFunc>(func),
-                t=btl::cloneOnCopy(std::forward<T>(t)),
-                u=btl::cloneOnCopy(std::forward<U>(u))
-                ]
-                (auto builder) mutable
-                {
-                    return std::invoke(
-                            std::move(func),
-                            std::move(builder),
-                            std::move(*t),
-                            std::move(*u)
-                            );
-                });
+        return detail::makeBuilderModifierUnchecked(
+                std::forward<TFunc>(func),
+                std::forward<Ts>(ts)...
+                );
     }
 
     template <typename TFunc>
