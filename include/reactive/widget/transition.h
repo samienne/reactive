@@ -2,7 +2,8 @@
 
 #include "transform.h"
 #include "setrendertree.h"
-#include "instancemodifier.h"
+#include "withparamsobject.h"
+#include "widget.h"
 
 #include <avg/rendertree.h>
 
@@ -14,12 +15,12 @@ namespace reactive::widget
 template <typename T>
 struct Transition
 {
-    InstanceModifier<T> active;
-    InstanceModifier<T> transitioned;
+    WidgetModifier<T> active;
+    WidgetModifier<T> transitioned;
 };
 
 template <typename T>
-auto makeTransition(InstanceModifier<T> active, InstanceModifier<T> transitioned)
+auto makeTransition(WidgetModifier<T> active, WidgetModifier<T> transitioned)
 {
     return Transition<T> {
         std::move(active),
@@ -45,36 +46,54 @@ inline auto transitionLeft()
             });
     };
 
-    return makeTransition(makeTransformer(0.0f), makeTransformer(-1.0f));
+    return makeTransition(
+            makeWidgetModifier(makeTransformer(0.0f)),
+            makeWidgetModifier(makeTransformer(-1.0f))
+            );
 }
 
 template <typename T>
 auto transition(Transition<T> transition)
 {
-    return makeSharedInstanceSignalModifier(
-        [transition=std::move(transition)](auto widget) mutable
-        {
-            auto activeWidget = transition.active(widget.clone());
-            auto transitionedWidget = transition.transitioned(widget.clone());
+    return withParamsObject([](auto widget, BuildParams const& params,
+                Transition<T> transition)
+    {
+        auto transitionedBuilder = std::move(transition.transitioned)(
+                btl::clone(widget)
+                )(params);
 
-            auto newRenderTree = group(activeWidget.clone(),
-                    transitionedWidget.clone())
-                    .map([=](auto const& activeRenderTree, auto const& transitionedRenderTree)
-                    {
-                        auto transition = std::make_shared<avg::TransitionNode>(
-                                avg::Obb(),
-                                true,
-                                activeRenderTree.getRenderTree().getRoot(),
-                                transitionedRenderTree.getRenderTree().getRoot()
-                                );
+        return std::move(widget)
+            | std::move(transition.active)
+            | makeSharedInstanceSignalModifier(
+                [](auto instance, auto transitionedBuilder)
+                {
+                    auto size = share(map(&Instance::getSize, instance));
+                    auto transitionedInstance = std::move(transitionedBuilder)(size);
 
-                        return avg::RenderTree(std::move(transition));
-                    });
+                    auto newRenderTree = group(instance, std::move(transitionedInstance))
+                            .map([=](auto const& activeInstance,
+                                        auto const& transitionedInstance)
+                            {
+                                auto transition = std::make_shared<avg::TransitionNode>(
+                                        avg::Obb(),
+                                        true,
+                                        activeInstance.getRenderTree().getRoot(),
+                                        transitionedInstance.getRenderTree().getRoot()
+                                        );
 
-            return std::move(widget)
-                | setRenderTree(std::move(newRenderTree))
-                ;
-        });
+                                return avg::RenderTree(std::move(transition));
+                            });
+
+                    return std::move(instance)
+                        | setRenderTree(std::move(newRenderTree))
+                        ;
+                },
+                std::move(transitionedBuilder)
+                )
+            ;
+    },
+    std::move(transition)
+    );
 }
 
 } // namespace reactive::widget
