@@ -1,5 +1,7 @@
+#include <reactive/widget/setparamsobject.h>
+#include <reactive/widget/modifyparamsobject.h>
+#include <reactive/widget/withparamsobject.h>
 #include <reactive/widget/instancemodifier.h>
-
 #include <reactive/widget/margin.h>
 #include <reactive/widget/frame.h>
 #include <reactive/widget/widget.h>
@@ -38,7 +40,7 @@ TEST(Widget, widgetBuildParameters)
     };
 
     auto widget = makeWidget()
-        | withParams([](auto widget, BuildParams const& params)
+        | withParamsObject([](auto widget, BuildParams const& params)
             {
                 auto p = params.get<TestTag>();
                 if (p)
@@ -48,12 +50,12 @@ TEST(Widget, widgetBuildParameters)
 
                 return widget;
             })
-        | modifyParams([](BuildParams params)
+        | modifyParamsObject([](BuildParams params)
             {
                 params.set<TestTag>(share(signal::constant<std::string>("test")));
                 return params;
             })
-        | withParams([](auto widget, BuildParams const& params)
+        | withParamsObject([](auto widget, BuildParams const& params)
             {
                 auto p = params.get<TestTag>();
                 if (p)
@@ -63,7 +65,7 @@ TEST(Widget, widgetBuildParameters)
 
                 return widget;
             })
-        | modifyParams([](BuildParams params)
+        | modifyParamsObject([](BuildParams params)
             {
                 params.set<TestTag>(share(signal::constant<std::string>("foo")));
                 return params;
@@ -72,6 +74,8 @@ TEST(Widget, widgetBuildParameters)
 
     BuildParams params;
     auto builder = std::move(widget)(std::move(params));
+
+    std::move(builder)(signal::constant(avg::Vector2f(400.0f, 300.0f)));
 }
 
 TEST(Widget, differentModifiers)

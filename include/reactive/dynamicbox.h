@@ -59,12 +59,10 @@ namespace reactive
     template <Axis dir, typename T>
     auto dynamicBox(Signal<T, std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
-        return widget::makeWidget()
-            | widget::withParams([](
-                        auto widget,
-                        reactive::widget::BuildParams const& params,
-                        auto widgets
-                        )
+        return widget::makeWidget([](
+                    reactive::widget::BuildParams const& params,
+                    auto widgets
+                    )
                 {
                     auto widgetObjectsWithId = foldp([params](
                                 std::vector<std::pair<size_t, widget::WidgetObject>> initial,
@@ -144,7 +142,7 @@ namespace reactive
                             hints
                             );
 
-                    return std::move(widget)
+                    return widget::makeBuilder()
                         | makeSharedInstanceSignalModifier(
                             [](auto instance, auto hints, auto widgetObjects)
                             {
