@@ -6,6 +6,8 @@
 #include "widget/onpointerup.h"
 #include "widget/onhover.h"
 #include "widget/onclick.h"
+#include "widget/withparams.h"
+#include "widget/settheme.h"
 
 namespace reactive::widget
 {
@@ -15,12 +17,11 @@ namespace
     avg::Drawing drawButton(
             avg::DrawContext const& drawContext,
             avg::Obb obb,
+            Theme const& theme,
             bool down,
             bool hover
             )
     {
-        widget::Theme theme;
-
         avg::Color fgColor(down ? theme.getEmphasized() : theme.getSecondary());
         avg::Color bgColor = theme.getBackground();
 
@@ -55,21 +56,31 @@ AnyWidget button(AnySignal<std::string> label,
 
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
-        | onDrawBehind(drawButton, std::move(down.signal), std::move(hover.signal))
+        | widget::withParams<widget::ThemeTag>(
+            [](auto widget, auto theme, auto downSignal, auto hoverSignal)
+            {
+                return std::move(widget)
+                    | onDrawBehind(drawButton, std::move(theme),
+                            std::move(downSignal), std::move(hoverSignal))
+                    ;
+            },
+            std::move(down.signal),
+            std::move(hover.signal)
+            )
         | onPointerDown([handle=down.handle](auto&) mutable
-                {
-                    handle.set(true);
-                    return EventResult::possible;
-                })
+            {
+                handle.set(true);
+                return EventResult::possible;
+            })
         | onPointerUp([handle=down.handle](auto&) mutable
-                {
-                    handle.set(false);
-                    return EventResult::possible;
-                })
+            {
+                handle.set(false);
+                return EventResult::possible;
+            })
         | onHover([handle=hover.handle](HoverEvent const& e) mutable
-                {
-                    handle.set(e.hover);
-                })
+            {
+                handle.set(e.hover);
+            })
         | widget::onClick(1, std::move(onClick))
         ;
 }

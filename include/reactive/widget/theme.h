@@ -34,6 +34,8 @@ namespace reactive::widget
         avg::Font const& getFont() const;
         float getTextHeight() const;
 
+        void setSecondary(avg::Color const& color);
+
         bool operator==(Theme const& rhs) const;
         bool operator!=(Theme const& rhs) const;
 

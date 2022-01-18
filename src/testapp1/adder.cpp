@@ -1,5 +1,4 @@
 #include "adder.h"
-#include "avg/rendertree.h"
 
 #include <reactive/widget/clip.h>
 #include <reactive/widget/transition.h>
@@ -8,6 +7,8 @@
 #include <reactive/widget/textedit.h>
 #include <reactive/widget/label.h>
 #include <reactive/widget/button.h>
+#include <reactive/widget/theme.h>
+#include <reactive/widget/settheme.h>
 
 #include <reactive/datasourcefromcollection.h>
 #include <reactive/datasource.h>
@@ -18,6 +19,8 @@
 
 #include <reactive/signal/databind.h>
 #include <reactive/signal/constant.h>
+
+#include <avg/rendertree.h>
 
 #include <string>
 
@@ -141,6 +144,33 @@ reactive::widget::AnyWidget adder()
             ;
             });
 
+    auto fancy = signal::input(false);
+
+    auto theme = signal::map([](bool fancy)
+            {
+                if (fancy)
+                {
+                    widget::Theme fancyTheme;
+                    fancyTheme.setSecondary(avg::Color(0.3f, 0.0f, 0.2f));
+                    return fancyTheme;
+                }
+
+                return widget::Theme();
+
+            },
+            fancy.signal
+            );
+
+    auto buttonTitle = signal::map([](bool fancy) -> std::string
+            {
+                if (fancy)
+                    return "Fancy";
+
+                return "Normal";
+            },
+            fancy.signal
+            );
+
     return vbox({
             vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
@@ -163,7 +193,26 @@ reactive::widget::AnyWidget adder()
                                 items.rangeLock().sort();
                             });
                 }
-                )
-            });
+                ),
+                hbox({
+                    widget::label("Theme:"),
+                    widget::button(std::move(buttonTitle), signal::mapFunction(
+                        [handle=fancy.handle](bool fancy) mutable
+                        {
+                            app().withAnimation(
+                                    std::chrono::milliseconds(300),
+                                    avg::linearCurve,
+                                    [&]()
+                                    {
+                                        handle.set(!fancy);
+                                    });
+                        },
+                        fancy.signal
+                        ))
+                    })
+            }
+        )
+        | widget::setTheme(std::move(theme))
+        ;
 }
 

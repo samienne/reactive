@@ -1,3 +1,5 @@
+#include "reactive/widget/withparams.h"
+#include <reactive/widget/setparams.h>
 #include <reactive/widget/setparamsobject.h>
 #include <reactive/widget/modifyparamsobject.h>
 #include <reactive/widget/withparamsobject.h>
@@ -20,6 +22,15 @@ auto makeEmptyInstance()
     return makeInstance(signal::constant(avg::Vector2f(0.0f, 0.0f)));
 }
 
+struct TestTag
+{
+    using type = std::string;
+    static AnySharedSignal<type> const defaultValue;
+};
+
+AnySharedSignal<std::string> const TestTag::defaultValue =
+    share(signal::constant<std::string>("test"));
+
 TEST(WidgetInstanceModifier, typeErasure)
 {
     auto t = makeEmptyInstanceModifier();
@@ -34,11 +45,6 @@ TEST(WidgetInstanceModifier, typeErasure)
 
 TEST(Widget, widgetBuildParameters)
 {
-    struct TestTag
-    {
-        using type = std::string;
-    };
-
     auto widget = makeWidget()
         | withParamsObject([](auto widget, BuildParams const& params)
             {
@@ -95,5 +101,36 @@ TEST(Widget, differentModifiers)
     auto instance = instanceSignal.evaluate();
 
     EXPECT_EQ(avg::Vector2f(200.0f, 400.0f), instance.getSize());
+}
+
+TEST(Widget, withParams)
+{
+    auto widget = makeWidget()
+        | withParams<TestTag>([](auto widget, auto str)
+            {
+                std::cout << "Value: " << str.evaluate() << std::endl;
+                return widget;
+            })
+        ;
+
+    auto builder = std::move(widget)(BuildParams());
+
+    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
+}
+
+TEST(Widget, setParams)
+{
+    auto widget = makeWidget()
+        | withParams<TestTag>([](auto widget, auto str)
+            {
+                std::cout << "Value: " << str.evaluate() << std::endl;
+                return widget;
+            })
+        | setParams<TestTag>(share(signal::constant<std::string>("test")))
+        ;
+
+    auto builder = std::move(widget)(BuildParams());
+
+    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
 }
 
