@@ -19,7 +19,11 @@ namespace detail
         return makeInstanceModifier([f=std::forward<TFunc>(f)]
             (Instance instance, auto&&... ts) mutable
             {
-                auto shape = avg::makeShapeNode(instance.getObb(), f, ts...);
+                auto shape = avg::makeShapeNode(
+                        instance.getObb(),
+                        f,
+                        std::forward<decltype(ts)>(ts)...
+                        );
 
                 auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
 
@@ -39,10 +43,9 @@ namespace detail
                     ;
             },
             std::forward<Ts>(ts)...
-        );
+            );
     }
-
-} // namespace
+} // namespace detail
 
 // func(DrawContext, size, ...)
 template <typename TFunc, typename... Ts,
@@ -72,7 +75,7 @@ template <typename TFunc, typename... Ts,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
-                signal::SignalType<std::decay_t<Ts>>...
+                avg::AnimatedTypeT<signal::SignalType<std::decay_t<Ts>>>...
             >
         >
     >

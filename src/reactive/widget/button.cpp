@@ -18,15 +18,16 @@ namespace
             avg::DrawContext const& drawContext,
             avg::Obb obb,
             Theme const& theme,
+            avg::Color const& secondary,
             bool down,
             bool hover
             )
     {
-        avg::Color fgColor(down ? theme.getEmphasized() : theme.getSecondary());
+        avg::Color fgColor(down ? theme.getEmphasized() : secondary);
         avg::Color bgColor = theme.getBackground();
 
         if (down)
-            bgColor = theme.getSecondary();
+            bgColor = secondary;
         else if (hover)
             bgColor = theme.getBackgroundHighlight();
 
@@ -59,8 +60,15 @@ AnyWidget button(AnySignal<std::string> label,
         | widget::withParams<widget::ThemeTag>(
             [](auto widget, auto theme, auto downSignal, auto hoverSignal)
             {
+                auto secondary = signal::map([](Theme const& theme)
+                        {
+                            return avg::Animated<avg::Color>(theme.getSecondary());
+                        },
+                        theme.clone()
+                        );
+
                 return std::move(widget)
-                    | onDrawBehind(drawButton, std::move(theme),
+                    | onDrawBehind(drawButton, std::move(theme), std::move(secondary),
                             std::move(downSignal), std::move(hoverSignal))
                     ;
             },
