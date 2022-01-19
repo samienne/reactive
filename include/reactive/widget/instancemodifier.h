@@ -112,7 +112,8 @@ namespace reactive::widget
         >>
     auto makeSharedInstanceSignalModifier(TFunc&& f, Ts&&... ts)
     {
-        return makeInstanceSignalModifier([](auto instance, auto&& f, auto&&... ts)
+        return detail::makeInstanceSignalModifierUnchecked(
+            [](auto instance, auto&& f, auto&&... ts)
             {
                 return std::invoke(
                         std::forward<decltype(f)>(f),
@@ -130,7 +131,8 @@ namespace reactive::widget
         >>
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {
-        return makeInstanceSignalModifier([func=std::forward<TFunc>(func)]
+        return detail::makeInstanceSignalModifierUnchecked(
+            [func=std::forward<TFunc>(func)]
             (auto instance, auto&&... ts) mutable
             {
                 return signal::map(
@@ -145,7 +147,7 @@ namespace reactive::widget
 
     inline auto makeEmptyInstanceModifier()
     {
-        return makeInstanceSignalModifier([](auto instance)
+        return detail::makeInstanceSignalModifierUnchecked([](auto instance)
                 {
                     return instance;
                 });

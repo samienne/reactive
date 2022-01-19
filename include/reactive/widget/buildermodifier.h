@@ -91,7 +91,7 @@ namespace reactive::widget
     auto makeBuilderModifier(widget::InstanceModifier<TFunc> f)
     //-> BuilderModifier
     {
-        return makeBuilderModifier([](auto builder, auto f)
+        return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
             {
                 return std::move(builder)
                     .map(std::move(f))
@@ -105,7 +105,7 @@ namespace reactive::widget
     auto makeBuilderPreModifier(widget::InstanceModifier<TFunc> f)
     //-> BuilderModifier
     {
-        return makeBuilderModifier([](auto builder, auto f)
+        return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
             {
                 return std::move(builder)
                     .preMap(std::move(f))
