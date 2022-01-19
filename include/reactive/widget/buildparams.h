@@ -5,6 +5,8 @@
 
 #include <any>
 #include <typeindex>
+#include <optional>
+#include <unordered_map>
 
 namespace reactive::widget
 {
