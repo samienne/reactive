@@ -126,7 +126,7 @@ TEST(Widget, setParams)
                 std::cout << "Value: " << str.evaluate() << std::endl;
                 return widget;
             })
-        | setParams<TestTag>(share(signal::constant<std::string>("test")))
+        | setParams<TestTag>("test")
         ;
 
     auto builder = std::move(widget)(BuildParams());

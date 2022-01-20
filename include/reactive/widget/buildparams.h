@@ -30,10 +30,25 @@ namespace reactive::widget
             return std::any_cast<AnySharedSignal<typename Tag::type>>(r->second);
         }
 
-        template <typename Tag>
-        void set(AnySharedSignal<typename Tag::type> value)
+        template <typename Tag, typename T>
+        void set(SharedSignal<T, typename Tag::type> value)
         {
-            params_.insert_or_assign(typeid(Tag), std::move(value));
+            params_.insert_or_assign(
+                    typeid(Tag),
+                    AnySharedSignal<typename Tag::type>(std::move(value))
+                    );
+        }
+
+        template <typename Tag, typename T>
+        void set(Signal<T, typename Tag::type> value)
+        {
+            set(share(std::move(value)));
+        }
+
+        template <typename Tag>
+        void set(typename Tag::type value)
+        {
+            set(share(signal::constant<typename Tag::type>(std::move(value))));
         }
 
     private:
