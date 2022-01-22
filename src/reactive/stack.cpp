@@ -6,7 +6,7 @@
 
 namespace reactive
 {
-    WidgetFactory stack(std::vector<WidgetFactory> widgets)
+    widget::AnyWidget stack(std::vector<widget::AnyWidget> widgets)
     {
         auto obbMap = [](ase::Vector2f size,
                 std::vector<SizeHint> const& hints)

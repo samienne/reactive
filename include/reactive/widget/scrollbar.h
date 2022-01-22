@@ -1,18 +1,17 @@
 #pragma once
 
-#include "reactive/widget.h"
+#include "widget.h"
 
-#include "reactive/widgetfactory.h"
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT WidgetFactory hScrollBar(
+    REACTIVE_EXPORT AnyWidget hScrollBar(
             signal::InputHandle<float> handle,
             AnySignal<float> amount,
             AnySignal<float> handleSize);
 
-    REACTIVE_EXPORT WidgetFactory vScrollBar(
+    REACTIVE_EXPORT AnyWidget vScrollBar(
             signal::InputHandle<float> handle,
             AnySignal<float> amount,
             AnySignal<float> handleSize);

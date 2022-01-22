@@ -1,11 +1,12 @@
 #pragma once
 
-#include "reactive/widget/widgetmodifier.h"
-#include "reactive/widgetfactory.h"
+#include "instancemodifier.h"
+#include "builder.h"
+
 #include "reactive/reactivevisibility.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyWidgetModifier focusGroup();
+    REACTIVE_EXPORT AnyInstanceModifier focusGroup();
 } // reactive
 

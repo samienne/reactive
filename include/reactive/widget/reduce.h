@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widget.h"
+#include "instance.h"
 
 #include <reactive/signal/mbind.h>
 #include <reactive/signal/signaltraits.h>
@@ -12,7 +12,7 @@ namespace reactive::widget
     template <typename TSignalWidget, typename = typename
         std::enable_if
         <
-            signal::IsSignalType<TSignalWidget, Widget>::value
+            signal::IsSignalType<TSignalWidget, Instance>::value
         >::type>
     auto reduce(TSignalWidget w2)
     {
@@ -32,7 +32,7 @@ namespace reactive::widget
 
         auto theme = signal::mbind([](auto&& w) { return w.getTheme().clone(); }, w);
 
-        return makeWidget(
+        return makeInstance(
                 std::move(renderTree),
                 std::move(areas),
                 std::move(obb),

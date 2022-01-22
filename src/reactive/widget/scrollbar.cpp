@@ -6,7 +6,8 @@
 #include "widget/onpointermove.h"
 #include "widget/ondraw.h"
 #include "widget/onhover.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
+#include "widget/setsizehint.h"
 
 #include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
@@ -159,7 +160,7 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedWidgetSignalModifier([](auto widget, auto scrollHandle,
+        return makeSharedInstanceSignalModifier([](auto instance, auto scrollHandle,
                     auto amount, auto handleSize)
             {
                 auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
@@ -167,7 +168,7 @@ namespace
                         downOffset.signal);
                 auto hover = signal::input(false);
 
-                auto size = signal::map(&Widget::getSize, widget);
+                auto size = signal::map(&Instance::getSize, instance);
 
                 auto sliderObb = signal::map([]
                         (avg::Vector2f size, float amount, float handleSize)
@@ -178,7 +179,7 @@ namespace
                                         handleSize));
                         }, size.clone(), amount, handleSize);
 
-                return widget
+                return instance
                     | onHover(std::move(sliderObb), hover.handle)
                     | onPointerDown(scrollPointerDown<IsHorizontal>(
                                 downOffset.handle, size.clone(), amount, handleSize)
@@ -229,19 +230,19 @@ namespace
 } // anonymous namespace
 
 template <bool IsHorizontal>
-WidgetFactory scrollBar(
+AnyWidget scrollBar(
         signal::InputHandle<float> scrollHandle,
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
 {
-    return makeWidgetFactory()
+    return makeWidget()
         | makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
         | widget::margin(signal::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;
 }
 
-WidgetFactory hScrollBar(
+AnyWidget hScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)
@@ -253,7 +254,7 @@ WidgetFactory hScrollBar(
                     }, std::move(handleSize))));
 }
 
-WidgetFactory vScrollBar(
+AnyWidget vScrollBar(
         signal::InputHandle<float> handle,
         AnySignal<float> amount,
         AnySignal<float> handleSize)

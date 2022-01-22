@@ -3,16 +3,17 @@ gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
 devtest = executable('devtest',
+        'widgetinstancemodifiertest.cpp',
+        include_directories : incdir,
+        link_with : [],
+        dependencies : [gtestdep, libasedep, libavgdep, libreactivedep]
+        )
+
+unittest = executable('unittest',
         'grouptest.cpp',
         'signalwraptest.cpp',
         'signalresulttest.cpp',
         'iteratetest.cpp',
-        include_directories : incdir,
-        link_with : [],
-        dependencies : [gtestdep])
-
-unittest = executable('unittest',
-        'widgetmodifiertest.cpp',
         'pmrtest.cpp',
         'databindtest.cpp',
         'btlreducetest.cpp',

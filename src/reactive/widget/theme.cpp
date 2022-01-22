@@ -198,6 +198,11 @@ float Theme::getTextHeight() const
     return deferred_->textHeight;
 }
 
+void Theme::setSecondary(avg::Color const& color)
+{
+    deferred_->secondary = color;
+}
+
 bool Theme::operator==(Theme const& rhs) const
 {
     if (deferred_ == rhs.deferred_)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/inputarea.h"
 
@@ -15,9 +15,9 @@ namespace reactive::widget
     template <typename T>
     auto setInputAreas(Signal<T, std::vector<InputArea>> areas)
     {
-        return makeWidgetModifier([](Widget widget, auto areas)
+        return makeInstanceModifier([](Instance instance, auto areas)
                 {
-                    return std::move(widget)
+                    return std::move(instance)
                         .setInputAreas(std::move(areas))
                         ;
                 },

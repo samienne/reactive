@@ -3,6 +3,7 @@
 #include "widget/ondraw.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
+#include "widget/setsizehint.h"
 
 #include "reactive/simplesizehint.h"
 
@@ -17,7 +18,7 @@
 namespace reactive::widget
 {
 
-WidgetFactory label(AnySharedSignal<std::string> text)
+AnyWidget label(AnySharedSignal<std::string> text)
 {
     auto draw = [](avg::DrawContext const& drawContext, avg::Vector2f size,
             std::string const& text) -> avg::Drawing
@@ -52,7 +53,7 @@ WidgetFactory label(AnySharedSignal<std::string> text)
         return simpleSizeHint(extents.size[0], extents.size[1]);
     };
 
-    return makeWidgetFactory()
+    return makeWidget()
         | onDraw(draw, text)
         | setSizeHint(signal::map(getSizeHint, text,
                     signal::constant(Theme())))
@@ -60,7 +61,7 @@ WidgetFactory label(AnySharedSignal<std::string> text)
         ;
 }
 
-WidgetFactory label(std::string const& text)
+AnyWidget label(std::string const& text)
 {
     return label(signal::constant(std::move(text)));
 }

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <reactive/widgetfactory.h>
+#include "builder.h"
+
 #include <reactive/signal/input.h>
 
 #include <btl/shared.h>
@@ -12,7 +13,7 @@ namespace reactive::widget
     class REACTIVE_EXPORT WidgetObject
     {
     public:
-        WidgetObject(WidgetFactory factory);
+        WidgetObject(AnyBuilder builder);
         WidgetObject(WidgetObject const&) = default;
         WidgetObject(WidgetObject&&) noexcept = default;
 
@@ -23,7 +24,7 @@ namespace reactive::widget
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        AnySignal<Widget> const& getWidget();
+        AnySignal<Instance> const& getWidget();
         avg::UniqueId const& getId() const;
 
         AnySignal<SizeHint> const& getSizeHint() const;
@@ -31,14 +32,14 @@ namespace reactive::widget
     private:
         struct Impl
         {
-            Impl(WidgetFactory factory);
+            Impl(AnyBuilder builder);
 
             avg::UniqueId id_;
-            WidgetFactory factory_;
+            AnyBuilder builder_;
             btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
-            AnySignal<Widget> widget_;
+            AnySignal<Instance> widget_;
         };
 
         btl::shared<Impl> impl_;

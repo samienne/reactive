@@ -1,6 +1,8 @@
 #pragma once
 
-#include "widgetfactory.h"
+#include "widget/builder.h"
+#include "widget/widget.h"
+
 #include "reactivevisibility.h"
 
 #include <btl/function.h>
@@ -29,7 +31,10 @@ namespace reactive
             std::is_copy_constructible<T>
         > {};
 
-    REACTIVE_EXPORT WidgetFactory layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, std::vector<WidgetFactory> factories);
+    REACTIVE_EXPORT widget::AnyWidget layout(SizeHintMap sizeHintMap,
+            ObbMap obbMap, std::vector<widget::AnyWidget> widgets);
+
+    REACTIVE_EXPORT widget::AnyWidget layout(SizeHintMap sizeHintMap,
+            ObbMap obbMap, std::vector<widget::AnyBuilder> builders);
 } // reactive
 

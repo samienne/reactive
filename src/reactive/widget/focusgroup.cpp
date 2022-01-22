@@ -2,9 +2,8 @@
 
 #include "reactive/widget/onkeyevent.h"
 #include "reactive/widget/setkeyboardinputs.h"
-#include "reactive/widget/widgetmodifier.h"
-
-#include "reactive/widget.h"
+#include "reactive/widget/instancemodifier.h"
+#include "reactive/widget/instance.h"
 
 #include "reactive/signal/foldp.h"
 #include "reactive/stream/pipe.h"
@@ -275,12 +274,12 @@ FocusGroupState step(FocusGroupState oldState,
 
 } // anonymous
 
-AnyWidgetModifier focusGroup()
+AnyInstanceModifier focusGroup()
 {
-    return makeSharedWidgetSignalModifier([](auto widget)
+    return makeSharedInstanceSignalModifier([](auto widget)
         {
-            auto inputs = signal::map(&Widget::getKeyboardInputs, widget);
-            auto obb = signal::map(&Widget::getObb, widget);
+            auto inputs = signal::map(&Instance::getKeyboardInputs, widget);
+            auto obb = signal::map(&Instance::getObb, widget);
 
             auto keyStream = stream::pipe<KeyEvent>();
 

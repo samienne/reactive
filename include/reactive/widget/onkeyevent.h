@@ -1,8 +1,7 @@
 #pragma once
 
-#include "widgetmodifier.h"
-
-#include "reactive/widgetfactory.h"
+#include "instancemodifier.h"
+#include "builder.h"
 
 #include "reactive/inputresult.h"
 
@@ -19,15 +18,15 @@ namespace reactive::widget
         template <typename TSignalHandler>
         auto onKeyEvent(TSignalHandler handler)
         {
-            return makeWidgetModifier([](Widget widget, auto handler)
+            return makeInstanceModifier([](Instance instance, auto handler)
                 {
-                    auto inputs = widget.getKeyboardInputs();
+                    auto inputs = instance.getKeyboardInputs();
 
                     for (auto&& input : inputs)
                         input = std::move(input)
                             .onKeyEvent(handler);
 
-                    return std::move(widget)
+                    return std::move(instance)
                         .setKeyboardInputs(std::move(inputs))
                         ;
                 },
@@ -53,7 +52,7 @@ namespace reactive::widget
         }
 
         template <typename T>
-        inline auto operator()(Signal<T, Widget> widget, bool = true) const
+        inline auto operator()(Signal<T, Instance> instance) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -68,7 +67,7 @@ namespace reactive::widget
                 return InputResult::handled;
             };
 
-            return std::move(widget)
+            return std::move(instance)
                 | detail::onKeyEvent(signal::mapFunction(std::move(f),
                             btl::clone(*predicate_), btl::clone(*action_)))
                 ;
@@ -184,11 +183,13 @@ namespace reactive::widget
 
     template <typename TAction>
     auto onKeyEvent(TAction&& action)
-        -> decltype(onKeyEvent().action(std::forward<TAction>(action)))
+        -> decltype(makeInstanceSignalModifier(onKeyEvent().action(std::forward<TAction>(action))))
     {
-        return onKeyEvent()
-            .acceptIfNot(&isNavigationKey)
-            .action(std::forward<TAction>(action));
+        return makeInstanceSignalModifier(
+                onKeyEvent()
+                .acceptIfNot(&isNavigationKey)
+                .action(std::forward<TAction>(action))
+                );
     }
 } // reactive::widget
 

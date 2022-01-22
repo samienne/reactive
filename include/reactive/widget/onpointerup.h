@@ -1,7 +1,7 @@
 #pragma once
 
 #include "setinputareas.h"
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 
 #include "reactive/signal/signal.h"
 
@@ -21,24 +21,24 @@ namespace reactive::widget
     {
         auto id = btl::makeUniqueId();
 
-        return makeWidgetModifier([id](auto widget, auto cb)
+        return makeInstanceModifier([id](Instance instance, auto cb)
             {
-                auto areas = widget.getInputAreas();
+                auto areas = instance.getInputAreas();
 
                 if (!areas.empty()
                         && areas.back().getObbs().size() == 1
-                        && areas.back().getObbs().front() == widget.getObb())
+                        && areas.back().getObbs().front() == instance.getObb())
                 {
                     areas.back() = std::move(areas.back()).onUp(std::move(cb));
                 }
                 else
                 {
                     areas.push_back(
-                            makeInputArea(id, widget.getObb()).onUp(std::move(cb))
+                            makeInputArea(id, instance.getObb()).onUp(std::move(cb))
                             );
                 }
 
-                return std::move(widget)
+                return std::move(instance)
                     .setInputAreas(std::move(areas))
                     ;
             },

@@ -1,36 +1,37 @@
 #include "layout.h"
 
+#include "widget/setsizehint.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
-#include "widget/widgetmodifier.h"
+#include "widget/instancemodifier.h"
 
 #include "avg/rendertree.h"
 
 namespace reactive
 {
 
-WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
-        std::vector<WidgetFactory> factories)
+widget::AnyWidget layout(SizeHintMap sizeHintMap, ObbMap obbMap,
+        std::vector<widget::AnyBuilder> builders)
 {
-    auto hints = btl::fmap(factories, [](auto const& factory)
+    auto hints = btl::fmap(builders, [](auto const& builder)
             {
-                return factory.getSizeHint();
+                return builder.getSizeHint();
             });
 
     auto hintsSignal = share(
             signal::combine(std::move(hints))
             );
 
-    auto transformer = widget::makeSharedWidgetSignalModifier([]
-            (auto widget, auto obbMap, auto hintsSignal, auto factories)
+    auto transformer = widget::makeSharedInstanceSignalModifier([]
+            (auto widget, auto obbMap, auto hintsSignal, auto builders)
             {
-                auto size = signal::map(&Widget::getSize, widget);
+                auto size = signal::map(&widget::Instance::getSize, widget);
 
                 auto obbs = share(signal::map(obbMap, std::move(size), hintsSignal));
 
                 size_t index = 0;
-                auto widgets = btl::fmap(factories, [&index, &obbs](auto&& f)
-                        -> AnySignal<Widget>
+                auto widgets = btl::fmap(builders, [&index, &obbs](auto&& f)
+                        -> AnySignal<widget::Instance>
                     {
                         auto t = signal::map([index](
                                     std::vector<avg::Obb> const& obbs)
@@ -44,12 +45,12 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                                     return obbs.at(index).getSize();
                                 }, obbs);
 
-                        auto factory = f.clone()
+                        auto builder = f.clone()
                             | widget::transform(std::move(t));
 
                         ++index;
 
-                        return std::move(factory)(std::move(size));
+                        return std::move(builder)(std::move(size));
                     });
 
                 return std::move(widget)
@@ -59,13 +60,35 @@ WidgetFactory layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             ,
             std::move(obbMap),
             hintsSignal,
-            std::move(factories)
+            std::move(builders)
             );
 
-    return makeWidgetFactory()
+    return widget::makeWidget()
         | std::move(transformer)
-        | setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
+        | widget::setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
 }
 
+widget::AnyWidget layout(SizeHintMap sizeHintMap,
+        ObbMap obbMap, std::vector<widget::AnyWidget> widgets)
+{
+    return makeWidget([](widget::BuildParams const& params,
+                SizeHintMap sizeHintMap, ObbMap obbMap, auto widgets)
+    {
+        std::vector<widget::AnyBuilder> builders;
+
+        for (auto&& widget : widgets)
+            builders.push_back(std::move(widget)(params));
+
+        return layout(
+                std::move(sizeHintMap),
+                std::move(obbMap),
+                std::move(builders)
+                );
+    },
+    std::move(sizeHintMap),
+    std::move(obbMap),
+    std::move(widgets)
+    );
+}
 } // namespace reactive
 

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "widget/theme.h"
+#include "theme.h"
 
-#include "keyboardinput.h"
-#include "inputarea.h"
+#include "reactive/keyboardinput.h"
+#include "reactive/inputarea.h"
 
-#include "signal/map.h"
-#include "signal/share.h"
-#include "signal/signal.h"
+#include "reactive/signal/map.h"
+#include "reactive/signal/share.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
 #include <avg/obb.h>
@@ -16,18 +16,16 @@
 #include <btl/tupleforeach.h>
 #include <btl/option.h>
 
-namespace reactive
+namespace reactive::widget
 {
-    class InputArea;
-
-    class Widget
+    class Instance
     {
     public:
-        Widget(avg::RenderTree renderTree,
+        Instance(avg::RenderTree renderTree,
                 std::vector<InputArea> inputAreas,
                 avg::Obb const& obb,
                 std::vector<KeyboardInput> keyboardInputs,
-                widget::Theme theme
+                Theme theme
               ) :
             renderTree_(std::move(renderTree)),
             inputAreas_(std::move(inputAreas)),
@@ -62,14 +60,14 @@ namespace reactive
             return keyboardInputs_;
         }
 
-        widget::Theme const& getTheme() const
+        Theme const& getTheme() const
         {
             return theme_;
         }
 
-        Widget setRenderTree(avg::RenderTree renderTree) &&
+        Instance setRenderTree(avg::RenderTree renderTree) &&
         {
-            return Widget(
+            return Instance(
                     std::move(renderTree),
                     std::move(inputAreas_),
                     obb_,
@@ -78,9 +76,9 @@ namespace reactive
                     );
         }
 
-        Widget setInputAreas(std::vector<InputArea> inputAreas) &&
+        Instance setInputAreas(std::vector<InputArea> inputAreas) &&
         {
-            return Widget(
+            return Instance(
                     std::move(renderTree_),
                     std::move(inputAreas),
                     obb_,
@@ -89,9 +87,9 @@ namespace reactive
                     );
         }
 
-        Widget setObb(avg::Obb const& obb) &&
+        Instance setObb(avg::Obb const& obb) &&
         {
-            return Widget(
+            return Instance(
                     std::move(renderTree_),
                     std::move(inputAreas_),
                     obb,
@@ -100,9 +98,9 @@ namespace reactive
                     );
         }
 
-        Widget setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&
+        Instance setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&
         {
-            return Widget(
+            return Instance(
                     std::move(renderTree_),
                     std::move(inputAreas_),
                     obb_,
@@ -111,9 +109,9 @@ namespace reactive
                     );
         }
 
-        Widget setTheme(widget::Theme theme) &&
+        Instance setTheme(Theme theme) &&
         {
-            return Widget(
+            return Instance(
                     std::move(renderTree_),
                     std::move(inputAreas_),
                     obb_,
@@ -122,7 +120,7 @@ namespace reactive
                     );
         }
 
-        Widget transform(avg::Transform const& t) &&
+        Instance transform(avg::Transform const& t) &&
         {
             for (auto&& a : inputAreas_)
                 a = std::move(a).transform(t);
@@ -130,7 +128,7 @@ namespace reactive
             for (auto&& k : keyboardInputs_)
                 k = std::move(k).transform(t);
 
-            return Widget(
+            return Instance(
                     std::move(renderTree_).transform(t),
                     std::move(inputAreas_),
                     t * obb_,
@@ -139,23 +137,14 @@ namespace reactive
                     );
         }
 
-        Widget transformR(avg::Transform const& t) &&
+        Instance transformR(avg::Transform const& t) &&
         {
             return std::move(*this).transform(
                     obb_.getTransform() * t * obb_.getTransform().inverse()
                     );
         }
 
-        template <typename TWidgetTransform>
-        auto operator|(TWidgetTransform&& t) &&
-        -> decltype(
-            std::forward<TWidgetTransform>(t)(std::move(*this)).first
-            )
-        {
-            return std::forward<TWidgetTransform>(t)(std::move(*this)).first;
-        }
-
-        Widget clone() const
+        Instance clone() const
         {
             return *this;
         }
@@ -165,18 +154,18 @@ namespace reactive
         std::vector<InputArea> inputAreas_;
         avg::Obb obb_;
         std::vector<KeyboardInput> keyboardInputs_;
-        widget::Theme theme_;
+        Theme theme_;
     };
 
     template <typename T>
-    auto makeWidget(Signal<T, avg::Vector2f> size)
+    auto makeInstance(Signal<T, avg::Vector2f> size)
     {
         auto focus = signal::input(false);
 
         return signal::map([focusHandle=std::move(focus.handle)]
                 (avg::Vector2f size, bool focused)
                 {
-                    return Widget(
+                    return Instance(
                             avg::RenderTree(),
                             {},
                             avg::Obb(size),
@@ -185,7 +174,7 @@ namespace reactive
                                     .setFocus(focused)
                                     .setFocusHandle(focusHandle)
                             },
-                            widget::Theme()
+                            Theme()
                             );
                 },
                 std::move(size),
@@ -193,5 +182,5 @@ namespace reactive
                 );
     }
 
-} // reactive
+} // reactive::widget
 

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "transform.h"
-#include "widgetmodifier.h"
+#include "instance.h"
+#include "instancemodifier.h"
+#include "builder.h"
+#include "setsizehint.h"
 
-#include "reactive/widget.h"
-#include "reactive/widgetfactory.h"
 #include "reactive/growsizehint.h"
 
 #include "reactive/signal/signal.h"
@@ -18,15 +19,15 @@ namespace reactive::widget
     template <typename TSignalAmount>
     auto growSize(TSignalAmount amount)
     {
-        return makeWidgetModifier([](Widget widget, auto amount)
+        return makeInstanceModifier([](Instance instance, auto amount)
             {
-                auto size = widget.getObb().getSize();
+                auto size = instance.getObb().getSize();
                 auto newSize = avg::Vector2f(
                     size[0] + 2.0f * amount,
                     size[1] + 2.0f * amount
                     );
 
-                return std::move(widget)
+                return std::move(instance)
                     .setObb(avg::Obb(newSize))
                     ;
             },
@@ -37,33 +38,38 @@ namespace reactive::widget
     template <typename T>
     auto margin(Signal<T, float> amount)
     {
-        auto a = signal::share(std::move(amount));
-        auto aNeg = signal::map([](float f)
-                {
-                    return -f;
-                }, a);
-
-        auto t = signal::map([](float amount)
-                {
-                    return avg::translate(amount, amount);
-                }, a);
-
-        auto factoryGrowSizeHint = [a](WidgetFactory factory)
-            -> WidgetFactory
+        return makeBuilderModifier([](auto builder, auto amount)
         {
-            auto hint = signal::map(BTL_FN(growSizeHint),
-                    factory.getSizeHint(),
-                    a);
+            auto a = signal::share(std::move(amount));
+            auto aNeg = signal::map([](float f)
+                    {
+                        return -f;
+                    }, a);
 
-            return std::move(factory)
-                .setSizeHint(std::move(hint));
-        };
+            auto t = signal::map([](float amount)
+                    {
+                        return avg::translate(amount, amount);
+                    }, a);
 
-        return preMapFactory(growSize(std::move(aNeg)))
-            >> mapFactoryWidget(transform(std::move(t)))
-            >> mapFactoryWidget(growSize(a))
-            >> std::move(factoryGrowSizeHint)
-            ;
+            auto builderGrowSizeHint = makeBuilderModifier([a](auto builder)
+                    {
+                        auto hint = signal::map(BTL_FN(growSizeHint),
+                                builder.getSizeHint(),
+                                a);
+
+                        return std::move(builder)
+                            .setSizeHint(std::move(hint));
+                    });
+
+            return std::move(builder)
+                | makeBuilderPreModifier(growSize(std::move(aNeg)))
+                | transform(std::move(t))
+                | growSize(a)
+                | std::move(builderGrowSizeHint)
+                ;
+        },
+        std::move(amount)
+        );
     }
 } // reactive::widget
 

@@ -3,22 +3,17 @@
 #include "box.h"
 #include "dynamicbox.h"
 
-#include "widget/addwidgets.h"
-
-#include "signal/map.h"
-#include "signal/combine.h"
-#include "signal/join.h"
+#include "signal/signal.h"
 
 namespace reactive
 {
 
-WidgetFactory vbox(std::vector<WidgetFactory> widgets)
+widget::AnyWidget vbox(std::vector<widget::AnyWidget> widgets)
 {
     return box<Axis::y>(std::move(widgets));
 }
 
-
-WidgetFactory vbox(AnySignal<std::vector<widget::WidgetObject>> widgets)
+widget::AnyWidget vbox(AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
 {
     return dynamicBox<Axis::y>(std::move(widgets));
 }

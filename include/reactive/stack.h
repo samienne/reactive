@@ -1,12 +1,13 @@
 #pragma once
 
-#include "widgetfactory.h"
+#include "widget/widget.h"
+
 #include "reactivevisibility.h"
 
 #include <vector>
 
 namespace reactive
 {
-    REACTIVE_EXPORT WidgetFactory stack(std::vector<WidgetFactory> widgets);
+    REACTIVE_EXPORT widget::AnyWidget stack(std::vector<widget::AnyWidget> widgets);
 }
 

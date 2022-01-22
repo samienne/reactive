@@ -1,6 +1,7 @@
 #pragma once
 
-#include "widgetfactory.h"
+#include "widget/widget.h"
+
 #include "reactivevisibility.h"
 
 namespace reactive
@@ -12,9 +13,9 @@ namespace reactive
 
         auto cell(unsigned int x, unsigned int y,
                 unsigned int w, unsigned int h,
-                WidgetFactory factory) && -> UniformGrid;
+                widget::AnyWidget widget) && -> UniformGrid;
 
-        operator WidgetFactory() &&;
+        operator widget::AnyWidget() &&;
 
     private:
         struct Cell
@@ -28,7 +29,7 @@ namespace reactive
         unsigned int w_;
         unsigned int h_;
         std::vector<Cell> cells_;
-        std::vector<WidgetFactory> factories_;
+        std::vector<widget::AnyWidget> widgets_;
     };
 
     inline auto uniformGrid(unsigned int w, unsigned int h)

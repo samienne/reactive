@@ -1,29 +1,31 @@
 #pragma once
 
-#include "widgetfactory.h"
+#include "widget/setsizehint.h"
+#include "widget/widget.h"
+
 #include "simplesizehint.h"
 #include "sizehint.h"
 
 namespace reactive
 {
-    inline auto hwfiller() -> WidgetFactory
+    inline auto hwfiller() -> widget::AnyWidget
     {
-        return makeWidgetFactory()
-            | setSizeHint(signal::constant(
+        return widget::makeWidget()
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 100000}}, {{0, 0, 100000}})));
     }
 
-    inline auto hfiller() -> WidgetFactory
+    inline auto hfiller() -> widget::AnyWidget
     {
-        return makeWidgetFactory()
-            | setSizeHint(signal::constant(
+        return widget::makeWidget()
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 100000}}, {{0, 0, 0}})));
     }
 
-    inline auto vfiller() -> WidgetFactory
+    inline auto vfiller() -> widget::AnyWidget
     {
-        return makeWidgetFactory()
-            | setSizeHint(signal::constant(
+        return widget::makeWidget()
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 0}}, {{0, 0, 100000}})));
     }
 }

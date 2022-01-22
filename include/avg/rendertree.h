@@ -352,6 +352,9 @@ namespace avg
         using type = std::remove_reference_t<std::remove_cv_t<T>>;
     };
 
+    template <typename T>
+    using AnimatedTypeT = typename AnimatedType<T>::type;
+
     template <typename... Ts>
     class ShapeNode : public RenderTreeNode
     {
@@ -546,7 +549,7 @@ namespace avg
     template <typename... Ts>
     auto makeShapeNode(avg::Obb const& obb,
             std::function<
-            Drawing(DrawContext const&, Vector2f size, std::decay_t<Ts> const&...)
+            Drawing(DrawContext const&, Vector2f size, AnimatedTypeT<Ts> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "instancemodifier.h"
 #include "setkeyboardinputs.h"
-#include "widget.h"
+#include "instance.h"
 
 #include <reactive/signal/tee.h>
 #include <reactive/signal/inputhandle.h>
@@ -22,17 +22,16 @@ namespace reactive::widget
     } // namespace detail
 
     inline auto trackFocus(signal::InputHandle<bool> const& handle)
-        // -> FactoryMap
     {
-        return makeSharedWidgetSignalModifier([](auto widget, auto handle)
+        return makeSharedInstanceSignalModifier([](auto instance, auto handle)
                 {
                     auto input = signal::tee(
-                            signal::map(&Widget::getKeyboardInputs, widget),
+                            signal::map(&Instance::getKeyboardInputs, instance),
                             detail::anyHasFocus,
                             std::move(handle)
                             );
 
-                    return std::move(widget)
+                    return std::move(instance)
                         | setKeyboardInputs(std::move(input))
                         ;
                 },

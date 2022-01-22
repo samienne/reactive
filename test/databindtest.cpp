@@ -1,5 +1,7 @@
 #include <reactive/signal/databind.h>
 
+#include <reactive/widget/widget.h>
+
 #include <reactive/datasourcefromcollection.h>
 #include <reactive/collection.h>
 
@@ -16,8 +18,8 @@ TEST(DataBind, setup)
 
     auto s1 = signal::dataBind<std::string>(
             dataSourceFromCollection(collection),
-            [](AnySignal<std::string>, size_t) -> WidgetFactory
+            [](AnySignal<std::string>, size_t) -> widget::AnyWidget
             {
-                return makeWidgetFactory();
+                return widget::makeWidget();
             });
 }

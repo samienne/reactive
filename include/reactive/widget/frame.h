@@ -3,9 +3,9 @@
 #include "ondraw.h"
 #include "margin.h"
 #include "theme.h"
+#include "instance.h"
+#include "builder.h"
 
-#include "reactive/widget.h"
-#include "reactive/widgetfactory.h"
 #include "reactive/shapes.h"
 
 #include "reactive/signal/constant.h"
