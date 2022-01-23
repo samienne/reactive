@@ -1,5 +1,7 @@
 #pragma once
 
+#include "curve/curves.h"
+
 #include "drawing.h"
 #include "transform.h"
 #include "drawcontext.h"
@@ -51,8 +53,6 @@ namespace avg
         std::chrono::milliseconds duration;
         std::function<float(float)> curve;
     };
-
-    AVG_EXPORT float linearCurve(float f);
 
     AVG_EXPORT float lerp(float a, float b, float t);
     AVG_EXPORT Vector2f lerp(Vector2f a, Vector2f b, float t);
@@ -123,7 +123,7 @@ namespace avg
         Animated(U&& value) :
             initial_(value),
             final_(value),
-            curve_(linearCurve),
+            curve_(curve::linear),
             beginTime_(std::chrono::milliseconds(0)),
             duration_(std::chrono::milliseconds(0))
         {
@@ -156,7 +156,7 @@ namespace avg
                     );
 
             if constexpr(HasLerp<T>::value)
-                return lerp(initial_, final_, a);
+                return lerp(initial_, final_, curve_(a));
             else
                 return a <= 0.0f ? initial_ : final_;
         }

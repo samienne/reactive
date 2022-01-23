@@ -16,11 +16,6 @@ namespace avg
 
 std::atomic<uint64_t> UniqueId::nextValue_ = 1;
 
-float linearCurve(float f)
-{
-    return f;
-}
-
 float lerp(float a, float b, float t)
 {
     return a + (b-a) * t;
