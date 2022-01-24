@@ -520,7 +520,6 @@ UpdateResult TransitionNode::update(
     }
     else if (oldNode && !newNode)
     {
-        std::cout << "disappear" << std::endl;
         // Disappear
         auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
 
@@ -530,7 +529,6 @@ UpdateResult TransitionNode::update(
                     && (oldTransition.transition_->startTime
                         + oldTransition.transition_->duration) <= time)
             {
-                std::cout << "dang" << std::endl;
                 return {
                     nullptr,
                     std::nullopt

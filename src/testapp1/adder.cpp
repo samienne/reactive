@@ -187,7 +187,7 @@ reactive::widget::AnyWidget adder()
                 [items]() mutable
                 {
                     app().withAnimation(
-                            std::chrono::milliseconds(300),
+                            std::chrono::milliseconds(500),
                             avg::curve::easeInOutCubic,
                             [&]()
                             {

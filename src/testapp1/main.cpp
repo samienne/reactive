@@ -97,10 +97,8 @@ int main()
                             reactive::app().withAnimation(
                                     0.5f,
                                     avg::curve::linear,
-                                    [&]()
-                                    {
-                                        handle.set((i+1) % curves.size());
-                                    });
+                                    reactive::send(i+1 % curves.size(), handle)
+                                    );
                         },
                         std::move(curveSelection.signal)
                         )

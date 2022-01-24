@@ -128,11 +128,11 @@ float easeOutBounce(float f)
     if (f < 1.0f / d1)
         return n1 * f * f;
     else if (f < 2.0f / d1)
-        return n1 * (f - 1.5f / d1) * (f - 1.5f) + 0.75f;
+        return n1 * (f - 1.5f / d1) * (f - 1.5f / d1) + 0.75f;
     else if (f < 2.5f / d1)
-        return n1 * (f - 2.25f / d1) * (f - 2.25f) + 0.9375f;
+        return n1 * (f - 2.25f / d1) * (f - 2.25f / d1) + 0.9375f;
     else
-        return n1 * (f - 2.625f / d1) * (f - 2.625f) + 0.984375f;
+        return n1 * (f - 2.625f / d1) * (f - 2.625f / d1) + 0.984375f;
 }
 
 float easeInOutBounce(float f)
