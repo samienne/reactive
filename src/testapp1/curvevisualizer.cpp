@@ -7,6 +7,7 @@
 
 #include <reactive/shapes.h>
 
+#include <avg/rendertree.h>
 #include <avg/drawcontext.h>
 
 using namespace reactive;
@@ -67,11 +68,16 @@ namespace {
 } // anonymous namespace
 
 reactive::widget::AnyWidget curveVisualizer(
-        reactive::AnySignal<std::function<float(float)>> curve
+        reactive::AnySignal<avg::Curve> curve
         )
 {
+    auto c = std::move(curve).map([](auto curve)
+            {
+                return avg::Animated<avg::Curve>(std::move(curve));
+            });
+
     return widget::makeWidget()
-        | widget::onDraw(drawGraph, std::move(curve))
+        | widget::onDraw(drawGraph, std::move(c))
         | widget::margin(signal::constant(7.0f))
         | widget::frame()
         | widget::setSizeHint(signal::constant(simpleSizeHint(300.0f, 300.0f)))

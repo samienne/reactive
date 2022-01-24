@@ -562,12 +562,27 @@ void App::withAnimation(avg::AnimationOptions animationOptions,
 
 void App::withAnimation(
         std::chrono::milliseconds duration,
-        std::function<float(float)> curve,
+        avg::Curve curve,
         std::function<void()> callback
         )
 {
     withAnimation(
             avg::AnimationOptions{ duration, std::move(curve) },
+            std::move(callback)
+            );
+}
+
+void App::withAnimation(
+        float seconds,
+        avg::Curve curve,
+        std::function<void()> callback
+        )
+{
+    withAnimation(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration<float>(seconds)
+                ),
+            std::move(curve),
             std::move(callback)
             );
 }

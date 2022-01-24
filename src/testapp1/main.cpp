@@ -45,7 +45,7 @@
 
 using namespace reactive;
 
-std::vector<std::pair<std::string, std::function<float(float)>>> curves = {
+std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "linear", avg::curve::linear },
     { "easeInCubic", avg::curve::easeInCubic },
     { "easeOutCubic", avg::curve::easeOutCubic },
@@ -94,7 +94,13 @@ int main()
             widget::button(std::move(curveName), signal::mapFunction(
                         [handle=curveSelection.handle](int i) mutable
                         {
-                            handle.set((i+1) % curves.size());
+                            reactive::app().withAnimation(
+                                    0.5f,
+                                    avg::curve::linear,
+                                    [&]()
+                                    {
+                                        handle.set((i+1) % curves.size());
+                                    });
                         },
                         std::move(curveSelection.signal)
                         )
