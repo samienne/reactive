@@ -88,7 +88,7 @@ int main()
 
     auto widgets = hbox({
         vbox({
-            widget::label("TestTest")
+            widget::label("Curves")
                 | widget::frame(),
             curveVisualizer(std::move(curve)),
             widget::button(std::move(curveName), signal::mapFunction(
@@ -97,7 +97,7 @@ int main()
                             reactive::app().withAnimation(
                                     0.5f,
                                     avg::curve::linear,
-                                    reactive::send(i+1 % curves.size(), handle)
+                                    reactive::send((i+1) % curves.size(), handle)
                                     );
                         },
                         std::move(curveSelection.signal)
