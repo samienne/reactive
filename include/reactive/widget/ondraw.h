@@ -55,7 +55,7 @@ template <typename TFunc, typename... Ts,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
-                signal::SignalType<std::decay_t<Ts>>...
+                avg::AnimatedTypeT<signal::SignalType<std::decay_t<Ts>>>...
             >
         >
     >

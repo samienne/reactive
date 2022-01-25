@@ -1,5 +1,8 @@
 #pragma once
 
+#include "curve/curves.h"
+#include "curve.h"
+
 #include "drawing.h"
 #include "transform.h"
 #include "drawcontext.h"
@@ -45,14 +48,11 @@ namespace avg
         static std::atomic<uint64_t> nextValue_;
     };
 
-
     struct AVG_EXPORT AnimationOptions
     {
         std::chrono::milliseconds duration;
-        std::function<float(float)> curve;
+        Curve curve;
     };
-
-    AVG_EXPORT float linearCurve(float f);
 
     AVG_EXPORT float lerp(float a, float b, float t);
     AVG_EXPORT Vector2f lerp(Vector2f a, Vector2f b, float t);
@@ -62,6 +62,7 @@ namespace avg
     AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
     AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
     AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
+    AVG_EXPORT Curve lerp(Curve a, Curve b, float t);
 
     template <typename T>
     btl::option<T> lerp(
@@ -114,8 +115,23 @@ namespace avg
         >> : std::true_type {};
 
     template <typename T>
+    using CompareType = decltype(
+            std::declval<std::decay_t<T>>() == std::declval<std::decay_t<T>>()
+            );
+
+    template <typename T, typename = void>
+    struct IsEqualityComparable : std::false_type {};
+
+    template <typename T>
+    struct IsEqualityComparable<T, btl::void_t<
+        CompareType<T>
+        >> : std::true_type {};
+
+    template <typename T>
     class Animated
     {
+        static_assert(IsEqualityComparable<T>::value);
+
     public:
         template <typename U, typename = std::enable_if_t<
             std::is_convertible_v<U, T>
@@ -123,14 +139,14 @@ namespace avg
         Animated(U&& value) :
             initial_(value),
             final_(value),
-            curve_(linearCurve),
+            curve_(curve::linear),
             beginTime_(std::chrono::milliseconds(0)),
             duration_(std::chrono::milliseconds(0))
         {
         }
 
         Animated(T initialValue, T finalValue,
-                std::function<float(float)> curve,
+                Curve curve,
                 std::chrono::milliseconds beginTime,
                 std::chrono::milliseconds duration
                 ) :
@@ -156,7 +172,7 @@ namespace avg
                     );
 
             if constexpr(HasLerp<T>::value)
-                return lerp(initial_, final_, a);
+                return lerp(initial_, final_, curve_(a));
             else
                 return a <= 0.0f ? initial_ : final_;
         }
@@ -171,7 +187,7 @@ namespace avg
             return final_;
         }
 
-        std::function<float(float)> const& getCurve() const
+        Curve const& getCurve() const
         {
             return curve_;
         };
@@ -205,8 +221,11 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const
         {
-            if (getFinalValue() == newValue.getFinalValue())
-                return *this;
+            //if constexpr (IsEqualityComparable<T>::value)
+            {
+                if (getFinalValue() == newValue.getFinalValue())
+                    return *this;
+            }
 
             if (!options)
             {
@@ -228,7 +247,7 @@ namespace avg
     private:
         T initial_;
         T final_;
-        std::function<float(float)> curve_;
+        Curve curve_;
         std::chrono::milliseconds beginTime_;
         std::chrono::milliseconds duration_;
     };

@@ -1,8 +1,11 @@
 #include "adder.h"
+#include "avg/curve/curves.h"
 #include "testwidget.h"
+#include "curvevisualizer.h"
 
 #include <reactive/debug/drawkeyboardinputs.h>
 
+#include <reactive/widget/button.h>
 #include <reactive/widget/label.h>
 #include <reactive/widget/focusgroup.h>
 #include <reactive/widget/textedit.h>
@@ -31,6 +34,8 @@
 
 #include <reactive/signal/map.h>
 
+#include <avg/curve/curves.h>
+
 #include <ase/vector.h>
 
 #include <btl/future.h>
@@ -40,6 +45,25 @@
 
 using namespace reactive;
 
+std::vector<std::pair<std::string, avg::Curve>> curves = {
+    { "linear", avg::curve::linear },
+    { "easeInCubic", avg::curve::easeInCubic },
+    { "easeOutCubic", avg::curve::easeOutCubic },
+    { "easeInOutCubic", avg::curve::easeInOutCubic },
+    { "easeInElastic", avg::curve::easeInElastic },
+    { "easeOutElastic", avg::curve::easeOutElastic },
+    { "easeInOutElastic", avg::curve::easeInOutElastic },
+    { "easeInQuad", avg::curve::easeInQuad },
+    { "easeOutQuad", avg::curve::easeOutQuad },
+    { "easeInOutQuad", avg::curve::easeInOutQuad },
+    { "easeInBack", avg::curve::easeInBack },
+    { "easeOutBack", avg::curve::easeOutBack },
+    { "easeInOutBack", avg::curve::easeInOutBack },
+    { "easeInBounce", avg::curve::easeInBounce },
+    { "easeOutBounce", avg::curve::easeOutBounce },
+    { "easaeInOutBounce", avg::curve::easeInOutBounce },
+};
+
 int main()
 {
     auto textState = signal::input(widget::TextEditState{"Test123"});
@@ -47,9 +71,40 @@ int main()
     auto hScrollState = signal::input(0.5f);
     auto vScrollState = signal::input(0.5f);
 
+    auto curveSelection = signal::input(0);
+    auto curve = signal::map([](int i)
+            {
+                return curves.at(i).second;
+            },
+            curveSelection.signal
+            );
+
+    auto curveName = signal::map([](int i) -> std::string
+            {
+                return curves.at(i).first;
+            },
+            curveSelection.signal
+            );
+
     auto widgets = hbox({
-        widget::label("TestTest")
-            | widget::frame()
+        vbox({
+            widget::label("Curves")
+                | widget::frame(),
+            curveVisualizer(std::move(curve)),
+            widget::button(std::move(curveName), signal::mapFunction(
+                        [handle=curveSelection.handle](int i) mutable
+                        {
+                            reactive::app().withAnimation(
+                                    0.5f,
+                                    avg::curve::linear,
+                                    reactive::send((i+1) % curves.size(), handle)
+                                    );
+                        },
+                        std::move(curveSelection.signal)
+                        )
+                    ),
+            vfiller()
+        })
         , vbox({
                 widget::scrollView(
                         uniformGrid(3, 3)

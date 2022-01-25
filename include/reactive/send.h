@@ -77,16 +77,17 @@ namespace reactive
                 std::forward<T>(t));
     }
 
-    template <typename T>
-    auto send(T&& t, signal::InputHandle<T> const& handle)
+    template <typename T, typename U, typename = std::enable_if_t<
+        std::is_convertible_v<U, T>
+        >>
+    auto send(U&& u, signal::InputHandle<T> const& handle)
         -> detail::Send<
-            signal::InputHandle<typename std::decay<T>::type> const&,
-            T
+            signal::InputHandle<std::decay_t<T>> const&, U
         >
     {
         return detail::Send<
-            signal::InputHandle<typename std::decay<T>::type> const&,
-            T>(handle, std::forward<T>(t));
+            signal::InputHandle<std::decay_t<T>> const&,
+            U>(handle, std::forward<U>(u));
     }
 
     template <typename T>

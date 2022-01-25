@@ -16,11 +16,6 @@ namespace avg
 
 std::atomic<uint64_t> UniqueId::nextValue_ = 1;
 
-float linearCurve(float f)
-{
-    return f;
-}
-
 float lerp(float a, float b, float t)
 {
     return a + (b-a) * t;
@@ -79,6 +74,44 @@ Pen lerp(Pen const& a, Pen const& b, float t)
             b.getJoinType(),
             b.getEndType()
             );
+}
+
+class CurveLerp : public CurveBase
+{
+public:
+    CurveLerp(Curve a, Curve b, float t) :
+        a_(std::move(a)),
+        b_(std::move(b)),
+        t_(t)
+    {
+    }
+
+    float call(float t) const override
+    {
+        return (1.0f - t_) * a_(t) + t_ * b_(t);
+    }
+
+    std::type_info const& getTypeInfo() const override
+    {
+        return typeid(CurveLerp);
+    }
+
+    bool compare(CurveBase const& rhs) const override
+    {
+        auto const& r =  reinterpret_cast<CurveLerp const&>(rhs);
+
+        return a_ == r.a_ && b_ == r.b_ && t_ == r.t_;
+    }
+
+private:
+    Curve a_;
+    Curve b_;
+    float t_;
+};
+
+Curve lerp(Curve a, Curve b, float t)
+{
+    return Curve(std::make_shared<CurveLerp>(std::move(a), std::move(b), t));
 }
 
 UniqueId::UniqueId() :
@@ -487,7 +520,6 @@ UpdateResult TransitionNode::update(
     }
     else if (oldNode && !newNode)
     {
-        std::cout << "disappear" << std::endl;
         // Disappear
         auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
 
@@ -497,7 +529,6 @@ UpdateResult TransitionNode::update(
                     && (oldTransition.transition_->startTime
                         + oldTransition.transition_->duration) <= time)
             {
-                std::cout << "dang" << std::endl;
                 return {
                     nullptr,
                     std::nullopt

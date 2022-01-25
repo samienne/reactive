@@ -28,7 +28,13 @@ namespace reactive
 
         void withAnimation(
                 std::chrono::milliseconds duration,
-                std::function<float(float)> curve,
+                avg::Curve curve,
+                std::function<void()> callback
+                );
+
+        void withAnimation(
+                float seconds,
+                avg::Curve curve,
                 std::function<void()> callback
                 );
 

@@ -1,4 +1,5 @@
 #include "adder.h"
+#include "avg/curve/curves.h"
 
 #include <reactive/widget/clip.h>
 #include <reactive/widget/transition.h>
@@ -132,7 +133,7 @@ reactive::widget::AnyWidget adder()
                     {
                         app().withAnimation(
                                 std::chrono::milliseconds(300),
-                                avg::linearCurve,
+                                avg::curve::linear,
                                 [id, items]() mutable
                                 {
                                     items.rangeLock().eraseWithId(id);
@@ -176,8 +177,8 @@ reactive::widget::AnyWidget adder()
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
                     app().withAnimation(
-                            std::chrono::milliseconds(300),
-                            avg::linearCurve,
+                            std::chrono::milliseconds(500),
+                            avg::curve::easeInCubic,
                             [&]()
                             {
                                 items.rangeLock().pushFront(std::move(text));
@@ -186,8 +187,8 @@ reactive::widget::AnyWidget adder()
                 [items]() mutable
                 {
                     app().withAnimation(
-                            std::chrono::milliseconds(300),
-                            avg::linearCurve,
+                            std::chrono::milliseconds(500),
+                            avg::curve::easeInOutCubic,
                             [&]()
                             {
                                 items.rangeLock().sort();
@@ -201,7 +202,7 @@ reactive::widget::AnyWidget adder()
                         {
                             app().withAnimation(
                                     std::chrono::milliseconds(300),
-                                    avg::linearCurve,
+                                    avg::curve::linear,
                                     [&]()
                                     {
                                         handle.set(!fancy);
