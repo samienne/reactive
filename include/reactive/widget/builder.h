@@ -2,6 +2,7 @@
 
 #include "instancemodifier.h"
 #include "instance.h"
+#include "buildparams.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sizehint.h"
@@ -91,11 +92,12 @@ namespace reactive::widget
                         IsSizeHint<signal::SignalType<TSizeHint>>
                     >::value
                  >>
-    auto makeBuilder(TTupleMaps maps, TSizeHint sizeHint)
+    auto makeBuilder(TTupleMaps maps, TSizeHint sizeHint, BuildParams params)
     {
         return Builder<std::decay_t<TTupleMaps>, std::decay_t<TSizeHint>>(
                 std::forward<TTupleMaps>(maps),
-                std::move(sizeHint)
+                std::move(sizeHint),
+                std::move(params)
                 );
     }
 
@@ -105,9 +107,10 @@ namespace reactive::widget
     public:
         using SizeHintType = btl::decay_t<TSizeHint>;
 
-        Builder(TTupleMaps maps, TSizeHint sizeHint) :
+        Builder(TTupleMaps maps, TSizeHint sizeHint, BuildParams params) :
             maps_(std::move(maps)),
-            sizeHint_(std::move(sizeHint))
+            sizeHint_(std::move(sizeHint)),
+            buildParams_(std::move(params))
         {
         }
 
@@ -116,15 +119,11 @@ namespace reactive::widget
             return *this;
         }
 
-        Builder<TTupleMaps, TSizeHint>(
-                Builder<TTupleMaps, TSizeHint> const&) = default;
-        Builder<TTupleMaps, TSizeHint>& operator=(
-                Builder<TTupleMaps, TSizeHint> const&) = default;
+        Builder(Builder const&) = default;
+        Builder& operator=(Builder const&) = default;
 
-        Builder<TTupleMaps, TSizeHint>(
-                Builder<TTupleMaps, TSizeHint>&&) noexcept = default;
-        Builder<TTupleMaps, TSizeHint>& operator=(
-                Builder<TTupleMaps, TSizeHint>&&) noexcept = default;
+        Builder(Builder&&) noexcept = default;
+        Builder& operator=(Builder&&) noexcept = default;
 
         template <typename T>
         auto operator()(Signal<T, avg::Vector2f> size) &&
@@ -143,12 +142,14 @@ namespace reactive::widget
                         std::move(std::declval<btl::decay_t<TTupleMaps>>()),
                         std::forward<TFunc>(func)
                         ),
-                    std::move(std::declval<btl::decay_t<TSizeHint>>())
+                    std::move(std::declval<btl::decay_t<TSizeHint>>()),
+                    BuildParams()
                 ))
         {
             return makeBuilder(
                     btl::pushBack(std::move(*maps_), std::forward<TFunc>(func)),
-                    std::move(*sizeHint_)
+                    std::move(*sizeHint_),
+                    std::move(buildParams_)
                     );
         }
 
@@ -157,7 +158,8 @@ namespace reactive::widget
         {
             return makeBuilder(
                     btl::pushFront(std::move(*maps_), std::forward<TFunc>(func)),
-                    std::move(*sizeHint_)
+                    std::move(*sizeHint_),
+                    std::move(buildParams_)
                     );
         }
 
@@ -166,13 +168,28 @@ namespace reactive::widget
         {
             return makeBuilder(
                     std::move(*maps_),
-                    std::move(sizeHint)
+                    std::move(sizeHint),
+                    std::move(buildParams_)
                     );
         }
 
         SizeHintType getSizeHint() const
         {
             return sizeHint_->clone();
+        }
+
+        auto setBuildParams(BuildParams params) &&
+        {
+            return makeBuilder(
+                    std::move(*maps_),
+                    std::move(*sizeHint_),
+                    std::move(std::move(params))
+                    );
+        }
+
+        BuildParams const& getBuildParams() const
+        {
+            return buildParams_;
         }
 
         operator BuilderBase() &&
@@ -193,13 +210,15 @@ namespace reactive::widget
 
             return BuilderBase(
                     std::make_tuple(std::move(f)),
-                    std::move(*sizeHint_)
+                    std::move(*sizeHint_),
+                    std::move(buildParams_)
                     );
         }
 
     protected:
-        btl::CloneOnCopy<btl::decay_t<TTupleMaps>> maps_;
-        btl::CloneOnCopy<btl::decay_t<TSizeHint>> sizeHint_;
+        btl::CloneOnCopy<TTupleMaps> maps_;
+        btl::CloneOnCopy<TSizeHint> sizeHint_;
+        BuildParams buildParams_;
     };
 
     struct AnyBuilder : Builder<std::tuple<AnyInstanceModifier>, AnySignal<SizeHint>>
@@ -235,7 +254,8 @@ namespace reactive::widget
     {
         return makeBuilder(
                 std::tuple<>(),
-                signal::constant(simpleSizeHint(100.0f, 100.0f))
+                signal::constant(simpleSizeHint(100.0f, 100.0f)),
+                BuildParams{}
                 );
     }
 

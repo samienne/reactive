@@ -3,6 +3,7 @@
 #include "curve/curves.h"
 #include "curve.h"
 
+#include "animationoptions.h"
 #include "drawing.h"
 #include "transform.h"
 #include "drawcontext.h"
@@ -46,12 +47,6 @@ namespace avg
     private:
         uint64_t value_;
         static std::atomic<uint64_t> nextValue_;
-    };
-
-    struct AVG_EXPORT AnimationOptions
-    {
-        std::chrono::milliseconds duration;
-        Curve curve;
     };
 
     AVG_EXPORT float lerp(float a, float b, float t);

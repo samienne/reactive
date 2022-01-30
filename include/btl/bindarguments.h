@@ -10,6 +10,7 @@ namespace btl
     template <typename TFunc, typename... Ts>
     class ArgumentBinder
     {
+    public:
         ArgumentBinder(TFunc func, Ts... ts) :
             func_(std::move(func)),
             ts_(std::make_tuple(std::move(ts)...))
@@ -28,7 +29,7 @@ namespace btl
                             btl::clone(ts)...
                             );
                 },
-                ts_
+                *ts_
                 );
         }
 

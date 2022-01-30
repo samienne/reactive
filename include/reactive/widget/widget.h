@@ -143,9 +143,11 @@ namespace reactive::widget
 
     inline auto makeWidget()
     {
-        return detail::makeWidgetUnchecked([](auto&&)
+        return detail::makeWidgetUnchecked([](auto&& params)
             {
-                return makeBuilder();
+                return makeBuilder()
+                    .setBuildParams(std::forward<decltype(params)>(params))
+                    ;
             });
     }
 
