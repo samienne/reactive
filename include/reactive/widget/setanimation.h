@@ -13,7 +13,7 @@ namespace reactive::widget
         static AnySharedSignal<type> const defaultValue;
     };
 
-    AnySharedSignal<typename AnimationTag::type> const AnimationTag::defaultValue =
+    inline AnySharedSignal<typename AnimationTag::type> const AnimationTag::defaultValue =
         share(signal::constant<typename AnimationTag::type>(std::nullopt));
 
     template <typename T>

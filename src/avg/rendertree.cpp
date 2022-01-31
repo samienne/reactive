@@ -432,12 +432,13 @@ std::shared_ptr<RenderTreeNode> ContainerNode::clone() const
 
 RectNode::RectNode(
         Animated<Obb> obb,
+        std::optional<AnimationOptions> animationOptions,
         Animated<float> radius,
         Animated<btl::option<Brush>> brush,
         Animated<btl::option<Pen>> pen
         ) :
-    ShapeNode(std::move(obb), RectNode::drawRect, std::move(radius),
-            std::move(brush), std::move(pen))
+    ShapeNode(std::move(obb), std::move(animationOptions), RectNode::drawRect,
+            std::move(radius), std::move(brush), std::move(pen))
 {
 }
 

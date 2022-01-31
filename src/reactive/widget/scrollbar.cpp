@@ -6,6 +6,7 @@
 #include "widget/onpointermove.h"
 #include "widget/ondraw.h"
 #include "widget/onhover.h"
+#include "widget/settheme.h"
 #include "widget/instancemodifier.h"
 #include "widget/setsizehint.h"
 
@@ -101,10 +102,9 @@ namespace
 
     template <bool IsHorizontal>
     avg::Drawing drawScrollBar(avg::DrawContext const& drawContext, avg::Vector2f size,
-            float amount, float handleSize, bool hover, bool isDown)
+            widget::Theme const& theme, float amount, float handleSize,
+            bool hover, bool isDown)
     {
-        widget::Theme theme;
-
         avg::Path line = getScrollLinePath<IsHorizontal>(drawContext, size);
 
         avg::Pen pen(theme.getBackgroundHighlight(), 1.0f);
@@ -160,72 +160,86 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedInstanceSignalModifier([](auto instance, auto scrollHandle,
-                    auto amount, auto handleSize)
+        return makeBuilderModifier([](auto builder, auto scrollHandle, auto amount,
+                    auto handleSize)
             {
-                auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
-                auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
-                        downOffset.signal);
-                auto hover = signal::input(false);
+                auto theme = builder.getBuildParams().template valueOrDefault<ThemeTag>();
 
-                auto size = signal::map(&Instance::getSize, instance);
+                return std::move(builder)
+                    | makeSharedInstanceSignalModifier([](auto instance, auto scrollHandle,
+                                auto amount, auto handleSize, auto theme)
+                    {
+                        auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
+                        auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
+                                downOffset.signal);
+                        auto hover = signal::input(false);
 
-                auto sliderObb = signal::map([]
-                        (avg::Vector2f size, float amount, float handleSize)
-                        {
-                            return avg::Obb(getSliderRect<IsHorizontal>(
-                                        size,
-                                        amount,
-                                        handleSize));
-                        }, size.clone(), amount, handleSize);
+                        auto size = signal::map(&Instance::getSize, instance);
 
-                return instance
-                    | onHover(std::move(sliderObb), hover.handle)
-                    | onPointerDown(scrollPointerDown<IsHorizontal>(
-                                downOffset.handle, size.clone(), amount, handleSize)
-                            )
-                    | onPointerUp([handle=downOffset.handle]() mutable
-                        {
-                            handle.set(btl::none);
-                            return EventResult::accept;
-                        })
-                    | onPointerMove(signal::mapFunction(
-                            [scrollHandle]
-                            (btl::option<avg::Vector2f> downOffset,
-                                avg::Vector2f size, float handleSize,
-                                PointerMoveEvent const& e) mutable -> EventResult
-                            {
-                                if (!downOffset.valid())
-                                    return EventResult::possible;
+                        auto sliderObb = signal::map([]
+                                (avg::Vector2f size, float amount, float handleSize)
+                                {
+                                    return avg::Obb(getSliderRect<IsHorizontal>(
+                                                size,
+                                                amount,
+                                                handleSize));
+                                }, size.clone(), amount, handleSize);
 
-                                if (handleSize == 1.0f)
-                                    return EventResult::possible;
+                        return instance
+                            | onHover(std::move(sliderObb), hover.handle)
+                            | onPointerDown(scrollPointerDown<IsHorizontal>(
+                                        downOffset.handle, size.clone(), amount, handleSize)
+                                    )
+                            | onPointerUp([handle=downOffset.handle]() mutable
+                                {
+                                    handle.set(btl::none);
+                                    return EventResult::accept;
+                                })
+                            | onPointerMove(signal::mapFunction(
+                                [scrollHandle]
+                                (btl::option<avg::Vector2f> downOffset,
+                                    avg::Vector2f size, float handleSize,
+                                    PointerMoveEvent const& e) mutable -> EventResult
+                                {
+                                    if (!downOffset.valid())
+                                        return EventResult::possible;
 
-                                int const axis = IsHorizontal ? 0 : 1;
-                                float offset = (*downOffset)[axis];
-                                float handleLen  = std::max(10.0f, handleSize * size[axis]);
-                                float lineLen = size[axis] - handleLen;
+                                    if (handleSize == 1.0f)
+                                        return EventResult::possible;
 
-                                float pos = e.pos[axis] - offset - handleLen / 2.0f;
+                                    int const axis = IsHorizontal ? 0 : 1;
+                                    float offset = (*downOffset)[axis];
+                                    float handleLen  = std::max(10.0f, handleSize * size[axis]);
+                                    float lineLen = size[axis] - handleLen;
 
-                                float len = pos / lineLen;
+                                    float pos = e.pos[axis] - offset - handleLen / 2.0f;
 
-                                scrollHandle.set(std::max(0.0f, std::min(len, 1.0f)));
-                                return EventResult::accept;
-                            }, downOffset.signal, size.clone(), handleSize))
-                    | onDraw(
-                            drawScrollBar<IsHorizontal>,
-                            amount,
-                            handleSize,
-                            std::move(hover.signal),
-                            std::move(isDown)
-                            )
-                    ;
+                                    float len = pos / lineLen;
+
+                                    scrollHandle.set(std::max(0.0f, std::min(len, 1.0f)));
+                                    return EventResult::accept;
+                                }, downOffset.signal, size.clone(), handleSize))
+                            | onDraw(
+                                    drawScrollBar<IsHorizontal>,
+                                    std::move(theme),
+                                    amount,
+                                    handleSize,
+                                    std::move(hover.signal),
+                                    std::move(isDown)
+                                    )
+                            ;
+                    },
+                    scrollHandle,
+                    std::move(amount),
+                    std::move(handleSize),
+                    std::move(theme)
+                    );
             },
             scrollHandle,
             std::move(amount),
             std::move(handleSize)
             );
+
     }
 } // anonymous namespace
 

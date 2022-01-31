@@ -1,4 +1,5 @@
 #include "curvevisualizer.h"
+#include "reactive/widget/buildermodifier.h"
 #include "reactive/widget/margin.h"
 
 #include <reactive/widget/setanimation.h>
@@ -78,7 +79,7 @@ reactive::widget::AnyWidget curveVisualizer(
             });
 
     return widget::makeWidget()
-        | widget::onDraw(drawGraph, std::move(c))
+        | widget::onDrawWithAnimation(drawGraph, std::move(c))
         | widget::setAnimation(0.9f, avg::curve::easeInBounce)
         | widget::margin(signal::constant(7.0f))
         | widget::frame()

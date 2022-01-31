@@ -380,6 +380,7 @@ namespace avg
 
         ShapeNode(
                 Animated<Obb> obb,
+                std::optional<AnimationOptions> animationOptions,
                 DrawFunction drawFunction,
                 std::tuple<Ts...> data) :
             RenderTreeNode(
@@ -387,12 +388,14 @@ namespace avg
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
+            animationOptions_(std::move(animationOptions)),
             data_(std::move(data))
         {
         }
 
         ShapeNode(
                 Animated<Obb> obb,
+                std::optional<AnimationOptions> animationOptions,
                 DrawFunction drawFunction,
                 Ts&&... data
                 ):
@@ -401,6 +404,7 @@ namespace avg
                     std::move(obb)
                     ),
             drawFunction_(std::move(drawFunction)),
+            animationOptions_(std::move(animationOptions)),
             data_(std::make_tuple(std::forward<Ts>(data)...))
         {
         }
@@ -477,21 +481,32 @@ namespace avg
             auto const& oldShape = reinterpret_cast<ShapeNode const&>(*oldNode);
             auto const& newShape = reinterpret_cast<ShapeNode const&>(*newNode);
 
+            auto newAnimationOptions = newShape.animationOptions_
+                ? newShape.animationOptions_
+                : animationOptions
+                ;
+
             return {
                 std::make_shared<ShapeNode>(
                         oldNode->getObb().updated(newNode->getObb(),
-                            animationOptions, time),
+                            newAnimationOptions, time),
+                        newShape.animationOptions_,
                         newShape.drawFunction_,
                         updateTuples(
                             oldShape.data_,
                             newShape.data_,
                             time,
-                            animationOptions,
+                            newAnimationOptions,
                             std::make_index_sequence<sizeof...(Ts)>()
                             )
                         ),
                     std::nullopt
             };
+        }
+
+        std::optional<AnimationOptions> const& getAnimationOptions() const
+        {
+            return animationOptions_;
         }
 
         std::tuple<Ts...> const& getData() const
@@ -508,6 +523,7 @@ namespace avg
         {
             return std::make_shared<ShapeNode>(
                     getObb(),
+                    animationOptions_,
                     drawFunction_,
                     data_
                     );
@@ -557,17 +573,19 @@ namespace avg
 
     private:
         DrawFunction drawFunction_;
+        std::optional<AnimationOptions> animationOptions_;
         std::tuple<Ts...> data_;
     };
 
     template <typename... Ts>
     auto makeShapeNode(avg::Obb const& obb,
+            std::optional<AnimationOptions> animationOptions,
             std::function<
             Drawing(DrawContext const&, Vector2f size, AnimatedTypeT<Ts> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(
-                obb, std::move(function),
+                obb, std::move(animationOptions), std::move(function),
                 std::make_tuple(std::forward<Ts>(ts)...)
                 );
     }
@@ -578,6 +596,7 @@ namespace avg
     public:
         RectNode(
                 Animated<Obb> obb,
+                std::optional<AnimationOptions> animationOptions,
                 Animated<float> radius,
                 Animated<btl::option<Brush>> brush,
                 Animated<btl::option<Pen>> pen
@@ -587,6 +606,7 @@ namespace avg
         {
             return std::make_shared<RectNode>(
                     getObb(),
+                    getAnimationOptions(),
                     std::get<0>(getData()),
                     std::get<1>(getData()),
                     std::get<2>(getData())
