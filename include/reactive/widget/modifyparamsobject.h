@@ -17,6 +17,7 @@ namespace reactive::widget
                         [](auto params, auto&& func, auto&& widget, auto&&... ts)
                         // -> AnyBuilder
                         {
+                            auto oldParams = params;
                             return std::invoke(
                                     std::forward<decltype(widget)>(widget),
                                     std::invoke(
@@ -24,7 +25,9 @@ namespace reactive::widget
                                         std::move(params),
                                         std::forward<decltype(ts)>(ts)...
                                         )
-                                    );
+                                    )
+                                    .setBuildParams(std::move(oldParams))
+                                    ;
 
                         },
                         std::forward<decltype(func)>(func),

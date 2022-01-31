@@ -56,17 +56,31 @@ namespace reactive::widget
                     );
         }
 
-        template <typename TFunc, typename... Ts>
+        template <typename... TParamTags, typename TFunc, typename... Ts>
         auto makeBuilderModifierUnchecked(TFunc&& func, Ts&&... ts)
         {
             return makeBuilderModifierUnchecked(btl::bindArguments(
                         [](auto builder, auto&& func, auto&&... ts)
                         {
-                            return std::invoke(
-                                    std::forward<decltype(func)>(func),
-                                    std::move(builder),
-                                    std::forward<decltype(ts)>(ts)...
-                                    );
+                            if constexpr (sizeof...(TParamTags) > 0)
+                            {
+                                auto params = builder.getBuildParams();
+
+                                return std::invoke(
+                                        std::forward<decltype(func)>(func),
+                                        std::move(builder),
+                                        params.template valueOrDefault<TParamTags>()...,
+                                        std::forward<decltype(ts)>(ts)...
+                                        );
+                            }
+                            else
+                            {
+                                return std::invoke(
+                                        std::forward<decltype(func)>(func),
+                                        std::move(builder),
+                                        std::forward<decltype(ts)>(ts)...
+                                        );
+                            }
                         },
                         std::forward<TFunc>(func),
                         std::forward<Ts>(ts)...
@@ -75,13 +89,17 @@ namespace reactive::widget
         }
     } // namespace detail
 
-    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, AnyBuilder, Ts&&...>
+    template <typename... TParamTags, typename TFunc, typename... Ts,
+        typename = std::enable_if_t<
+            std::is_invocable_r_v<
+                AnyBuilder, TFunc, AnyBuilder,
+                    AnySharedSignal<typename TParamTags::type>..., Ts&&...
+                >
         >
     >
     auto makeBuilderModifier(TFunc&& func, Ts&&... ts)
     {
-        return detail::makeBuilderModifierUnchecked(
+        return detail::makeBuilderModifierUnchecked<TParamTags...>(
                 std::forward<TFunc>(func),
                 std::forward<Ts>(ts)...
                 );
