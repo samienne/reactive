@@ -22,6 +22,7 @@ WidgetObject::Impl::Impl(AnyBuilder builder) :
             | transform(transformInput_.signal.clone())
             )
             (sizeInput_.signal.clone())
+            .getInstance()
             )
 {
 }

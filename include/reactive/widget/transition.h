@@ -68,7 +68,10 @@ auto transition(Transition<T> transition)
                 [](auto instance, auto transitionedBuilder)
                 {
                     auto size = share(map(&Instance::getSize, instance));
-                    auto transitionedInstance = std::move(transitionedBuilder)(size);
+                    auto transitionedInstance = std::move(transitionedBuilder)
+                        (size)
+                        .getInstance()
+                        ;
 
                     auto newRenderTree = group(instance, std::move(transitionedInstance))
                             .map([=](auto const& activeInstance,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "instancemodifier.h"
+#include "elementmodifier.h"
 #include "builder.h"
 
 #include <btl/cloneoncopy.h>
@@ -106,7 +107,7 @@ namespace reactive::widget
     }
 
     template <typename TFunc>
-    auto makeBuilderModifier(widget::InstanceModifier<TFunc> f)
+    auto makeBuilderModifier(widget::ElementModifier<TFunc> f)
     //-> BuilderModifier
     {
         return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
@@ -120,7 +121,15 @@ namespace reactive::widget
     }
 
     template <typename TFunc>
-    auto makeBuilderPreModifier(widget::InstanceModifier<TFunc> f)
+    auto makeBuilderModifier(widget::InstanceModifier<TFunc> f)
+    //-> BuilderModifier
+    {
+        return makeBuilderModifier(makeElementModifier(std::move(f)));
+    }
+
+
+    template <typename TFunc>
+    auto makeBuilderPreModifier(widget::ElementModifier<TFunc> f)
     //-> BuilderModifier
     {
         return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
@@ -133,6 +142,12 @@ namespace reactive::widget
             );
     }
 
+    template <typename TFunc>
+    auto makeBuilderPreModifier(widget::InstanceModifier<TFunc> f)
+    {
+        return makeBuilderPreModifier(makeElementModifier(std::move(f)));
+    }
+
     template <typename T, typename... Ts>
     auto operator|(Builder<Ts...> builder, BuilderModifier<T> f)
     -> decltype(
@@ -143,15 +158,25 @@ namespace reactive::widget
         return std::move(f)(std::move(builder));
     }
 
-    template <typename TInstanceModifier, typename... Ts>
-    auto operator|(Builder<Ts...> builder, TInstanceModifier&& f)
+    template <typename T, typename... Ts>
+    auto operator|(Builder<Ts...> builder, InstanceModifier<T> f)
+    {
+        return std::invoke(
+                makeBuilderModifier(std::move(f)),
+                std::move(builder)
+                );
+    }
+
+
+    template <typename TBuilderModifier, typename... Ts>
+    auto operator|(Builder<Ts...> builder, TBuilderModifier&& f)
     -> decltype(std::move(builder)
-            .map(std::forward<TInstanceModifier>(f))
+            .map(std::forward<TBuilderModifier>(f))
             )
         //-> Builder
     {
         return std::move(builder)
-            .map(std::forward<TInstanceModifier>(f));
+            .map(std::forward<TBuilderModifier>(f));
     }
 } // namespace reactive::widget
 

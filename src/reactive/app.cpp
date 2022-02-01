@@ -65,7 +65,7 @@ public:
         size_(signal::input(ase::Vector2f(800, 600))),
         widgetInstanceSignal_(window_.getWidget()(
                     widget::BuildParams{}
-                    )(std::move(size_.signal))),
+                    )(std::move(size_.signal)).getInstance()),
         widgetInstance_(widgetInstanceSignal_.evaluate()),
         titleSignal_(window_.getTitle().clone()),
         drawing_(memory_)

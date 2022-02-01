@@ -98,7 +98,7 @@ TEST(Widget, differentModifiers)
 
     auto instanceSignal = std::move(builder)(
             signal::constant(avg::Vector2f(200.0f, 400.0f))
-            );
+            ).getInstance();
 
     auto instance = instanceSignal.evaluate();
 

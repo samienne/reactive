@@ -50,7 +50,7 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 
                         ++index;
 
-                        return std::move(builder)(std::move(size));
+                        return std::move(builder)(std::move(size)).getInstance();
                     });
 
                 return std::move(widget)

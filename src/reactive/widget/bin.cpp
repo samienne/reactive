@@ -4,13 +4,14 @@
 #include "widget/clip.h"
 #include "widget/transform.h"
 #include "widget/instancemodifier.h"
+#include "widget/buildermodifier.h"
 
 namespace reactive::widget
 {
 
-AnyInstanceModifier bin(AnyBuilder f, AnySignal<avg::Vector2f> contentSize)
+AnyInstanceModifier bin(AnyBuilder builder, AnySignal<avg::Vector2f> contentSize)
 {
-    return makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto f)
+    return makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto builder)
         {
             auto viewSize = signal::map(&Instance::getSize, widget);
 
@@ -24,20 +25,20 @@ AnyInstanceModifier bin(AnyBuilder f, AnySignal<avg::Vector2f> contentSize)
                     contentSize
                     );
 
-            auto newWidget = std::move(f)
-                    .map(transform(std::move(t)))
-                    (
-                    std::move(contentSize)
-                    )
+            auto newBuilder = std::move(builder)
+                    | transform(std::move(t))
                     ;
 
+            auto newInstance = std::move(newBuilder)(std::move(contentSize))
+                .getInstance();
+
             return std::move(widget)
-                | addWidget(std::move(newWidget))
+                | addWidget(std::move(newInstance))
                 | clip()
                 ;
         },
         share(std::move(contentSize)),
-        std::move(f)
+        std::move(builder)
         );
 }
 

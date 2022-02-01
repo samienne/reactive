@@ -1,7 +1,7 @@
 #pragma once
 
-#include "instancemodifier.h"
-#include "instance.h"
+#include "elementmodifier.h"
+#include "element.h"
 #include "buildparams.h"
 
 #include "reactive/simplesizehint.h"
@@ -28,17 +28,17 @@ namespace reactive::widget
     struct AnyBuilder;
 
     using BuilderBase = Builder<
-        widget::AnyInstanceModifier, AnySignal<SizeHint>
+        widget::AnyElementModifier, AnySignal<SizeHint>
         >;
 
     template <typename T>
     using IsBuilder = typename std::is_convertible<T, AnyBuilder>::type;
 
     template <typename TModifier, typename TSizeHint>
-    auto makeBuilder(InstanceModifier<TModifier> modifier,
+    auto makeBuilder(ElementModifier<TModifier> modifier,
             TSizeHint&& sizeHint, BuildParams params)
     {
-        return Builder<InstanceModifier<TModifier>, std::decay_t<TSizeHint>>(
+        return Builder<ElementModifier<TModifier>, std::decay_t<TSizeHint>>(
                 std::move(modifier),
                 std::forward<TSizeHint>(sizeHint),
                 std::move(params)
@@ -72,24 +72,33 @@ namespace reactive::widget
         template <typename T>
         auto operator()(Signal<T, avg::Vector2f> size) &&
         {
-            return makeInstance(std::move(size))
+            return makeElement(std::move(size))
                 | std::move(*modifier_)
                 ;
         }
 
         template <typename TFunc, typename = std::enable_if_t<
-            std::is_invocable_r_v<AnySignal<Instance>, TFunc, AnySignal<Instance>>
+            std::is_invocable_r_v<AnyElement, TFunc, AnyElement>
             >>
         auto map(TFunc&& func) &&
         {
             return makeBuilder(
-                    detail::makeInstanceSignalModifierUnchecked(
-                        [](auto instance, auto&& modifier, auto&& func)
+                    detail::makeElementModifierUnchecked(
+                        [](auto element, auto&& modifier, auto&& func)
                         {
-                            return std::move(instance)
+                            return std::invoke(
+                                    std::forward<decltype(func)>(func),
+                                    std::invoke(
+                                        std::forward<decltype(modifier)>(modifier),
+                                        std::move(element)
+                                        )
+                                    );
+                            /*
+                            return std::move(element)
                                 | std::forward<decltype(modifier)>(modifier)
                                 | std::forward<decltype(func)>(func)
                                 ;
+                            */
                         },
                         std::move(*modifier_),
                         std::forward<TFunc>(func)
@@ -100,18 +109,27 @@ namespace reactive::widget
         }
 
         template <typename TFunc, typename = std::enable_if_t<
-            std::is_invocable_r_v<AnySignal<Instance>, TFunc, AnySignal<Instance>>
+            std::is_invocable_r_v<AnyElement, TFunc, AnyElement>
             >>
         auto preMap(TFunc&& func) &&
         {
             return makeBuilder(
-                    detail::makeInstanceSignalModifierUnchecked(
-                        [](auto instance, auto&& modifier, auto&& func)
+                    detail::makeElementModifierUnchecked(
+                        [](auto element, auto&& modifier, auto&& func)
                         {
+                            /*
                             return std::move(instance)
                                 | std::forward<decltype(func)>(func)
                                 | std::forward<decltype(modifier)>(modifier)
                                 ;
+                            */
+                            return std::invoke(
+                                    std::forward<decltype(modifier)>(modifier),
+                                    std::invoke(
+                                        std::forward<decltype(func)>(func),
+                                        std::move(element)
+                                        )
+                                    );
                         },
                         std::move(*modifier_),
                         std::forward<TFunc>(func)
@@ -165,7 +183,7 @@ namespace reactive::widget
         BuildParams buildParams_;
     };
 
-    struct AnyBuilder : Builder<AnyInstanceModifier, AnySignal<SizeHint>>
+    struct AnyBuilder : Builder<AnyElementModifier, AnySignal<SizeHint>>
     {
         template <typename TModifier, typename TSizeHint>
         static auto castBuilder(Builder<TModifier, TSizeHint> base)
@@ -198,8 +216,8 @@ namespace reactive::widget
     inline auto makeBuilder()
     {
         return makeBuilder(
-                detail::makeInstanceSignalModifierUnchecked(
-                    [](auto instance) { return instance; }),
+                detail::makeElementModifierUnchecked(
+                    [](auto element) { return element; }),
                 signal::constant(simpleSizeHint(100.0f, 100.0f)),
                 BuildParams{}
                 );
