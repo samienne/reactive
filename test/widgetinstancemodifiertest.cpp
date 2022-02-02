@@ -3,9 +3,10 @@
 #include <reactive/widget/setparamsobject.h>
 #include <reactive/widget/modifyparamsobject.h>
 #include <reactive/widget/withparamsobject.h>
-#include <reactive/widget/instancemodifier.h>
 #include <reactive/widget/margin.h>
 #include <reactive/widget/frame.h>
+#include <reactive/widget/instancemodifier.h>
+#include <reactive/widget/elementmodifier.h>
 #include <reactive/widget/widget.h>
 
 #include <reactive/signal/signal.h>
@@ -171,6 +172,39 @@ TEST(Widget, builderModifierTags)
         ;
 
     std::move(widget)(BuildParams());
+
+    EXPECT_EQ("set value 1", tag);
+    EXPECT_EQ("set value 2", tag2);
+    EXPECT_EQ("default value", tag3);
+}
+
+TEST(Widget, elementModifierParams)
+{
+    std::string tag = "not set";
+    std::string tag2 = "not set";
+    std::string tag3 = "not set";
+
+    auto widget = makeWidget()
+        | makeElementModifier([&](auto element)
+            {
+                tag = element.getParams().template valueOrDefault<TestTag>().evaluate();
+                return element;
+            })
+        | setParams<TestTag>("set value 1")
+        | makeElementModifier([&](auto element)
+            {
+                tag2 = element.getParams().template valueOrDefault<TestTag>().evaluate();
+                return element;
+            })
+        | setParams<TestTag>("set value 2")
+        | makeElementModifier([&](auto element)
+            {
+                tag3 = element.getParams().template valueOrDefault<TestTag>().evaluate();
+                return element;
+            })
+        ;
+
+    std::move(widget)(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
 
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);

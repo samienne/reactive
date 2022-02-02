@@ -14,6 +14,9 @@ namespace reactive::widget
     using AnyElement = Element<AnySignal<Instance>>;
 
     template <typename TInstance>
+    auto makeElement(Signal<TInstance, Instance> instance, BuildParams params);
+
+    template <typename TInstance>
     class Element
     {
     public:
@@ -28,6 +31,14 @@ namespace reactive::widget
             return std::move(*instance_);
         }
 
+        Element setParams(BuildParams params) &&
+        {
+            return makeElement(
+                    std::move(*instance_),
+                    std::move(params)
+                    );
+        }
+
         BuildParams const& getParams() const
         {
             return params_;
@@ -36,6 +47,39 @@ namespace reactive::widget
         operator AnyElement() &&
         {
             return AnyElement(std::move(*instance_), std::move(params_));
+        }
+
+        auto share() &&
+        {
+            return makeElement(
+                    signal::share(std::move(*instance_)),
+                    std::move(params_)
+                    );
+        }
+
+        auto getSize() const
+        {
+            return instance_->clone().map(&Instance::getSize);
+        }
+
+        auto getRenderTree() const
+        {
+            return instance_->clone().map(&Instance::getRenderTree);
+        }
+
+        auto getObb() const
+        {
+            return instance_->clone().map(&Instance::getObb);
+        }
+
+        auto getInputAreas() const
+        {
+            return instance_->clone().map(&Instance::getInputAreas);
+        }
+
+        auto getKeyboardInputs() const
+        {
+            return instance_->clone().map(&Instance::getKeyboardInputs);
         }
 
     private:

@@ -80,7 +80,7 @@ reactive::widget::AnyWidget curveVisualizer(
             });
 
     return widget::makeWidget()
-        | widget::onDrawWithAnimation(drawGraph, std::move(c))
+        | widget::onDraw(drawGraph, std::move(c))
         | widget::setAnimation(0.9f, avg::curve::easeInOutCubic)
         | widget::margin(signal::constant(7.0f))
         | widget::frame()

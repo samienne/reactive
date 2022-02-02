@@ -53,7 +53,6 @@ namespace detail
     }
 } // namespace detail
 
-// func(DrawContext, size, ...)
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
             std::is_invocable_r_v<
@@ -67,33 +66,13 @@ template <typename TFunc, typename... Ts,
     >
 auto onDraw(TFunc&& func, Ts&&... ts)
 {
-    return detail::onDrawCustom<false>(
-            std::forward<TFunc>(func),
-            signal::constant<std::optional<avg::AnimationOptions>>(std::nullopt),
-            std::forward<decltype(ts)>(ts)...
-            );
-}
-
-template <typename TFunc, typename... Ts,
-         typename = std::enable_if_t<
-            std::is_invocable_r_v<
-                avg::Drawing,
-                TFunc,
-                avg::DrawContext const&,
-                avg::Vector2f,
-                avg::AnimatedTypeT<signal::SignalType<std::decay_t<Ts>>>...
-            >
-        >
-    >
-auto onDrawWithAnimation(TFunc&& func, Ts&&... ts)
-{
-    return makeBuilderModifier([](auto builder, auto&& func, auto&&... ts)
+    return makeElementModifier([](auto element, auto&& func, auto&&... ts)
         {
-            auto animation = builder.getBuildParams()
+            auto animation = element.getParams()
                 .template valueOrDefault<AnimationTag>()
                 ;
 
-            return std::move(builder)
+            return std::move(element)
                 | detail::onDrawCustom<false>(
                         std::forward<decltype(func)>(func),
                         std::move(animation),
@@ -105,7 +84,6 @@ auto onDrawWithAnimation(TFunc&& func, Ts&&... ts)
         );
 }
 
-// func(DrawContext, size, ...)
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
             std::is_invocable_r_v<
@@ -119,11 +97,22 @@ template <typename TFunc, typename... Ts,
     >
 auto onDrawBehind(TFunc&& func, Ts&&... ts)
 {
-    return detail::onDrawCustom<true>(
-            std::forward<TFunc>(func),
-            signal::constant<std::optional<avg::AnimationOptions>>(std::nullopt),
-            std::forward<decltype(ts)>(ts)...
-            );
+    return makeElementModifier([](auto element, auto&& func, auto&&... ts)
+        {
+            auto animation = element.getParams()
+                .template valueOrDefault<AnimationTag>()
+                ;
+
+            return std::move(element)
+                | detail::onDrawCustom<true>(
+                        std::forward<decltype(func)>(func),
+                        std::move(animation),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+        },
+        std::forward<TFunc>(func),
+        std::forward<Ts>(ts)...
+        );
 }
 
 } // namespace reactive::widget

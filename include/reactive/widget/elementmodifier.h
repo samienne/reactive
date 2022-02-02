@@ -88,6 +88,25 @@ namespace reactive::widget
                 );
     }
 
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyElement, TFunc, AnyElement, Ts...>
+        >>
+    auto makeSharedElementModifier(TFunc&& func, Ts&&... ts)
+    {
+        return detail::makeElementModifierUnchecked(
+                [](auto element, auto&& func, auto&&... ts)
+                {
+                    return std::invoke(
+                            std::forward<decltype(func)>(func),
+                            std::move(element).share(),
+                            std::forward<decltype(ts)>(ts)...
+                            );
+                },
+                std::forward<TFunc>(func),
+                std::forward<Ts>(ts)...
+                );
+    }
+
     template <typename T>
     auto makeElementModifier(InstanceModifier<T> modifier)
     {
