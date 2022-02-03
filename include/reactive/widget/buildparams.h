@@ -30,6 +30,16 @@ namespace reactive::widget
             return std::any_cast<AnySharedSignal<typename Tag::type>>(r->second);
         }
 
+        template <typename Tag>
+        AnySharedSignal<typename Tag::type> valueOrDefault() const
+        {
+            auto value = get<Tag>();
+            if (!value)
+                return Tag::defaultValue;
+
+            return *value;
+        }
+
         template <typename Tag, typename T>
         void set(SharedSignal<T, typename Tag::type> value)
         {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "reactive/widget/ondraw.h"
-#include "reactive/widget/instancemodifier.h"
+#include "reactive/widget/elementmodifier.h"
 #include "reactive/widget/builder.h"
 
 #include "reactive/shapes.h"
@@ -33,11 +33,11 @@ namespace reactive::debug
 
     inline auto drawKeyboardInputs()
     {
-        return widget::makeSharedInstanceSignalModifier([](auto widget)
+        return widget::makeSharedElementModifier([](auto element)
             {
-                auto inputs = signal::map(&widget::Instance::getKeyboardInputs, widget);
+                auto inputs = element.getKeyboardInputs();
 
-                return std::move(widget)
+                return std::move(element)
                     | widget::onDraw([](avg::DrawContext const& context,
                                 avg::Vector2f const&, auto const& inputs)
                         {

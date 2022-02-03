@@ -10,6 +10,7 @@ namespace btl
     template <typename TFunc, typename... Ts>
     class ArgumentBinder
     {
+    public:
         ArgumentBinder(TFunc func, Ts... ts) :
             func_(std::move(func)),
             ts_(std::make_tuple(std::move(ts)...))
@@ -28,7 +29,7 @@ namespace btl
                             btl::clone(ts)...
                             );
                 },
-                ts_
+                *ts_
                 );
         }
 
@@ -234,6 +235,146 @@ namespace btl
         CloneOnCopy<Y> y_;
     };
 
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename X, typename Y, typename Z>
+    class ArgumentBinder<TFunc, T, U, V, W, X, Y, Z>
+    {
+    public:
+        ArgumentBinder(TFunc func, T t, U u, V v, W w, X x, Y y, Z z) :
+            func_(std::move(func)),
+            t_(std::move(t)),
+            u_(std::move(u)),
+            v_(std::move(v)),
+            w_(std::move(w)),
+            x_(std::move(x)),
+            y_(std::move(y)),
+            z_(std::move(z))
+        {
+        }
+
+        template <typename... Us>
+        auto operator()(Us&&... us) const
+        {
+            return std::invoke(
+                    *func_,
+                    std::forward<Us>(us)...,
+                    clone(*t_),
+                    clone(*u_),
+                    clone(*v_),
+                    clone(*w_),
+                    clone(*x_),
+                    clone(*y_),
+                    clone(*z_)
+                    );
+        }
+
+    private:
+        CloneOnCopy<TFunc> func_;
+        CloneOnCopy<T> t_;
+        CloneOnCopy<U> u_;
+        CloneOnCopy<V> v_;
+        CloneOnCopy<W> w_;
+        CloneOnCopy<X> x_;
+        CloneOnCopy<Y> y_;
+        CloneOnCopy<Z> z_;
+    };
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename X, typename Y, typename Z, typename A>
+    class ArgumentBinder<TFunc, T, U, V, W, X, Y, Z, A>
+    {
+    public:
+        ArgumentBinder(TFunc func, T t, U u, V v, W w, X x, Y y, Z z, A a) :
+            func_(std::move(func)),
+            t_(std::move(t)),
+            u_(std::move(u)),
+            v_(std::move(v)),
+            w_(std::move(w)),
+            x_(std::move(x)),
+            y_(std::move(y)),
+            z_(std::move(z)),
+            a_(std::move(a))
+        {
+        }
+
+        template <typename... Us>
+        auto operator()(Us&&... us) const
+        {
+            return std::invoke(
+                    *func_,
+                    std::forward<Us>(us)...,
+                    clone(*t_),
+                    clone(*u_),
+                    clone(*v_),
+                    clone(*w_),
+                    clone(*x_),
+                    clone(*y_),
+                    clone(*z_),
+                    clone(*a_)
+                    );
+        }
+
+    private:
+        CloneOnCopy<TFunc> func_;
+        CloneOnCopy<T> t_;
+        CloneOnCopy<U> u_;
+        CloneOnCopy<V> v_;
+        CloneOnCopy<W> w_;
+        CloneOnCopy<X> x_;
+        CloneOnCopy<Y> y_;
+        CloneOnCopy<Z> z_;
+        CloneOnCopy<A> a_;
+    };
+
+    template <typename TFunc, typename T, typename U, typename V, typename W,
+             typename X, typename Y, typename Z, typename A, typename B>
+    class ArgumentBinder<TFunc, T, U, V, W, X, Y, Z, A, B>
+    {
+    public:
+        ArgumentBinder(TFunc func, T t, U u, V v, W w, X x, Y y, Z z, A a, B b) :
+            func_(std::move(func)),
+            t_(std::move(t)),
+            u_(std::move(u)),
+            v_(std::move(v)),
+            w_(std::move(w)),
+            x_(std::move(x)),
+            y_(std::move(y)),
+            z_(std::move(z)),
+            a_(std::move(a)),
+            b_(std::move(b))
+        {
+        }
+
+        template <typename... Us>
+        auto operator()(Us&&... us) const
+        {
+            return std::invoke(
+                    *func_,
+                    std::forward<Us>(us)...,
+                    clone(*t_),
+                    clone(*u_),
+                    clone(*v_),
+                    clone(*w_),
+                    clone(*x_),
+                    clone(*y_),
+                    clone(*z_),
+                    clone(*a_),
+                    clone(*b_)
+                    );
+        }
+
+    private:
+        CloneOnCopy<TFunc> func_;
+        CloneOnCopy<T> t_;
+        CloneOnCopy<U> u_;
+        CloneOnCopy<V> v_;
+        CloneOnCopy<W> w_;
+        CloneOnCopy<X> x_;
+        CloneOnCopy<Y> y_;
+        CloneOnCopy<Z> z_;
+        CloneOnCopy<A> a_;
+        CloneOnCopy<B> b_;
+    };
 
     template <typename TFunc, typename... Ts>
     auto bindArguments(TFunc&& func, Ts&&... ts)

@@ -35,7 +35,7 @@ namespace btl
     btl::All<std::is_rvalue_reference<T&&>, btl::Not<std::is_const<T>>>::value,
         std::decay_t<T>>
     {
-        return std::move(t);
+        return std::forward<T>(t);
     }
 
     template <typename T>
@@ -46,7 +46,8 @@ namespace btl
 
     template <typename T>
     struct IsClonable<T, void_t<clone_t<T>>> :
-        btl::Not<std::is_pointer<clone_t<T>>> {};
+        //btl::Not<std::is_pointer<clone_t<T>>> {};
+        std::true_type {};
 
     template <typename T>
     struct Clone<T, btl::void_t<

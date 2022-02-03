@@ -11,7 +11,7 @@ namespace reactive::widget
         static AnySharedSignal<Theme> const defaultValue;
     };
 
-    AnySharedSignal<Theme> const ThemeTag::defaultValue =
+    inline AnySharedSignal<Theme> const ThemeTag::defaultValue =
         share(signal::constant(Theme()));
 
     template <typename T>

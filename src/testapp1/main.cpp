@@ -61,7 +61,7 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "easeInOutBack", avg::curve::easeInOutBack },
     { "easeInBounce", avg::curve::easeInBounce },
     { "easeOutBounce", avg::curve::easeOutBounce },
-    { "easaeInOutBounce", avg::curve::easeInOutBounce },
+    { "easeInOutBounce", avg::curve::easeInOutBounce },
 };
 
 int main()
@@ -94,11 +94,7 @@ int main()
             widget::button(std::move(curveName), signal::mapFunction(
                         [handle=curveSelection.handle](int i) mutable
                         {
-                            reactive::app().withAnimation(
-                                    0.5f,
-                                    avg::curve::linear,
-                                    reactive::send((i+1) % curves.size(), handle)
-                                    );
+                            handle.set((i+1) % curves.size());
                         },
                         std::move(curveSelection.signal)
                         )

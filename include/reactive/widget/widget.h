@@ -143,9 +143,11 @@ namespace reactive::widget
 
     inline auto makeWidget()
     {
-        return detail::makeWidgetUnchecked([](auto&&)
+        return detail::makeWidgetUnchecked([](auto&& params)
             {
-                return makeBuilder();
+                return makeBuilder()
+                    .setBuildParams(std::forward<decltype(params)>(params))
+                    ;
             });
     }
 
@@ -247,6 +249,30 @@ namespace reactive::widget
     }
 
     template <typename T>
+    auto makeWidgetModifier(ElementModifier<T> modifier)
+    {
+        return detail::makeWidgetModifierUnchecked([](auto widget, auto modifier)
+                {
+                    return detail::makeWidgetUnchecked([
+                            ](BuildParams params, auto widget, auto modifier) mutable
+                            {
+                                return std::invoke(
+                                        std::move(widget),
+                                        std::move(params)
+                                        )
+                                    | makeBuilderModifier(std::move(modifier))
+                                    ;
+                            },
+                            std::move(widget),
+                            std::move(modifier)
+                            );
+                },
+                std::move(modifier)
+                );
+    }
+
+
+    template <typename T>
     auto makeWidgetModifier(InstanceModifier<T> modifier)
     {
         return makeWidgetModifier([](auto widget, auto modifier)
@@ -270,6 +296,14 @@ namespace reactive::widget
 
     template <typename T, typename U>
     auto operator|(Widget<T>&& widget, BuilderModifier<U> modifier)
+    {
+        return std::move(widget)
+            | makeWidgetModifier(std::move(modifier))
+            ;
+    }
+
+    template <typename T, typename U>
+    auto operator|(Widget<T>&& widget, ElementModifier<U> modifier)
     {
         return std::move(widget)
             | makeWidgetModifier(std::move(modifier))
