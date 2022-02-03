@@ -93,12 +93,6 @@ namespace reactive::widget
                                         std::move(element)
                                         )
                                     );
-                            /*
-                            return std::move(element)
-                                | std::forward<decltype(modifier)>(modifier)
-                                | std::forward<decltype(func)>(func)
-                                ;
-                            */
                         },
                         std::move(*modifier_),
                         std::forward<TFunc>(func)
@@ -117,12 +111,6 @@ namespace reactive::widget
                     detail::makeElementModifierUnchecked(
                         [](auto element, auto&& modifier, auto&& func)
                         {
-                            /*
-                            return std::move(instance)
-                                | std::forward<decltype(func)>(func)
-                                | std::forward<decltype(modifier)>(modifier)
-                                ;
-                            */
                             return std::invoke(
                                     std::forward<decltype(modifier)>(modifier),
                                     std::invoke(

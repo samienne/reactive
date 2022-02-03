@@ -4,22 +4,6 @@
 
 namespace reactive::widget
 {
-    /*
-    template <typename T>
-    auto setParamsObject(Signal<T, BuildParams> params)
-    {
-        return makeWidgetModifierUnchecked([](auto widget, auto params)
-        {
-            return std::invoke(
-                    std::move(widget),
-                    std::move(params)
-                    );
-        },
-        std::move(params)
-        );
-    }
-    */
-
     template <typename T>
     auto setParamsObject(Signal<T, BuildParams> newParams)
     {
