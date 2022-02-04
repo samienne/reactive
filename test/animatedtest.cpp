@@ -7,6 +7,24 @@
 
 using namespace avg;
 
+TEST(Animated, nonAnimatedValue)
+{
+    Animated<float> b(1.0f);
+    EXPECT_FLOAT_EQ(1.0f, b.getValue(std::chrono::milliseconds(100)));
+}
+
+TEST(Animated, nonAnimatedUpdate)
+{
+    Animated<float> a(0.0f);
+    Animated<float> b(1.0f);
+    Animated<float> c = a.updated(b, std::nullopt, std::chrono::milliseconds(50));
+
+    EXPECT_FLOAT_EQ(1.0f, c.getValue(std::chrono::milliseconds(0)));
+    EXPECT_FLOAT_EQ(1.0f, c.getValue(std::chrono::milliseconds(50)));
+    EXPECT_FLOAT_EQ(1.0f, c.getValue(std::chrono::milliseconds(100)));
+    EXPECT_FLOAT_EQ(1.0f, c.getValue(std::chrono::milliseconds(200)));
+}
+
 TEST(Animated, simpleUpdate)
 {
     Animated<float> a(0.0f);
@@ -40,9 +58,9 @@ TEST(Animated, doubleUpdate)
     // Updating to same value while transitioning should have no effect
     Animated<float> e = d.updated(c, options, std::chrono::milliseconds(50));
 
-    EXPECT_FLOAT_EQ(0.0f, e.getValue(std::chrono::milliseconds(0)));
+    EXPECT_FLOAT_EQ(0.5f, e.getValue(std::chrono::milliseconds(0)));
     EXPECT_FLOAT_EQ(0.5f, e.getValue(std::chrono::milliseconds(50)));
-    EXPECT_FLOAT_EQ(1.0f, e.getValue(std::chrono::milliseconds(100)));
+    EXPECT_FLOAT_EQ(0.75f, e.getValue(std::chrono::milliseconds(100)));
     EXPECT_FLOAT_EQ(1.0f, e.getValue(std::chrono::milliseconds(200)));
 }
 

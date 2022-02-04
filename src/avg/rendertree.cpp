@@ -88,12 +88,24 @@ Obb RenderTreeNode::getFinalObb() const
 
 void RenderTreeNode::transform(Transform const& transform)
 {
+    /*
     obb_ = Animated<Obb>(
             transform * obb_.getInitialValue(),
             transform * obb_.getFinalValue(),
             obb_.getCurve(),
             obb_.getBeginTime(),
             obb_.getDuration()
+            );
+    */
+
+    std::vector<Animated<Obb>::KeyFrame> keyFrames = obb_.getKeyFrames();
+    for (auto& keyFrame : keyFrames)
+        keyFrame.target = transform * keyFrame.target;
+
+    obb_ = Animated<Obb>(
+            transform * obb_.getInitialValue(),
+            obb_.getBeginTime(),
+            std::move(keyFrames)
             );
 }
 

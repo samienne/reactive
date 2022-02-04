@@ -30,15 +30,39 @@ namespace avg
         static_assert(HasLerp<T>::value);
 
     public:
+        struct KeyFrame
+        {
+            T target;
+            Curve curve;
+            std::chrono::milliseconds duration;
+
+            bool operator==(KeyFrame const& rhs) const
+            {
+                return target == rhs.target
+                    && curve == rhs.curve
+                    && duration == rhs.duration;
+            }
+
+            bool operator!=(KeyFrame const& rhs) const
+            {
+                return !(*this == rhs);
+            }
+        };
+
         template <typename U, typename = std::enable_if_t<
             std::is_convertible_v<U, T>
             >>
         Animated(U&& value) :
             initial_(value),
-            final_(value),
-            curve_(curve::linear),
-            beginTime_(std::chrono::milliseconds(0)),
-            duration_(std::chrono::milliseconds(0))
+            beginTime_(std::chrono::milliseconds(0))
+        {
+        }
+
+        Animated(T initialValue, std::chrono::milliseconds beginTime,
+                std::vector<KeyFrame> keyFrames) :
+            initial_(std::move(initialValue)),
+            beginTime_(beginTime),
+            keyFrames_(std::move(keyFrames))
         {
         }
 
@@ -48,30 +72,62 @@ namespace avg
                 std::chrono::milliseconds duration
                 ) :
             initial_(std::move(initialValue)),
-            final_(std::move(finalValue)),
-            curve_(std::move(curve)),
             beginTime_(beginTime),
-            duration_(duration)
+            keyFrames_({ {
+                    std::move(finalValue),
+                    std::move(curve),
+                    duration
+                    }})
         {
         }
 
         T getValue(std::chrono::milliseconds time) const
         {
-            if (getDuration() <= std::chrono::milliseconds(0))
+            if (keyFrames_.empty())
+                return initial_;
+
+            auto t = time - beginTime_;
+            T const* value = &initial_;
+            KeyFrame const* keyFrame;
+
+            for (auto const& frame : keyFrames_)
             {
-                return final_;
+                keyFrame = &frame;
+                if (t < keyFrame->duration)
+                    break;
+
+                value = &frame.target;
+                t -= frame.duration;
             }
 
             float a = std::clamp(
-                    (float)(time - beginTime_).count() / (float)getDuration().count(),
+                    (float)t.count() / (float)keyFrame->duration.count(),
                     0.0f,
                     1.0f
                     );
 
-            if constexpr(HasLerp<T>::value)
-                return lerp(initial_, final_, curve_(a));
-            else
-                return a <= 0.0f ? initial_ : final_;
+            return lerp(*value, keyFrame->target, keyFrame->curve(a));
+        }
+
+        std::vector<KeyFrame> const& getKeyFrames() const
+        {
+            return keyFrames_;
+        }
+
+        KeyFrame const& getKeyFrameAt(std::chrono::milliseconds time) const
+        {
+            assert(!keyFrames_.empty());
+
+            auto t = time - beginTime_;
+            for (auto const& keyFrame : keyFrames_)
+            {
+                if (t < std::chrono::milliseconds(0))
+                    return keyFrame;
+
+                t -= keyFrame.duration;
+            }
+
+            return keyFrames_.back();
         }
 
         T const& getInitialValue() const
@@ -81,13 +137,11 @@ namespace avg
 
         T const& getFinalValue() const
         {
-            return final_;
-        }
+            if (keyFrames_.empty())
+                return initial_;
 
-        Curve const& getCurve() const
-        {
-            return curve_;
-        };
+            return keyFrames_.back().target;
+        }
 
         std::chrono::milliseconds getBeginTime() const
         {
@@ -97,7 +151,13 @@ namespace avg
         std::chrono::milliseconds getDuration() const
         {
             if constexpr(HasLerp<T>::value)
-                return duration_;
+            {
+                std::chrono::milliseconds duration(0);
+                for (auto const& keyFrame : keyFrames_)
+                    duration += keyFrame.duration;
+
+                return duration;
+            }
             else
                 return std::chrono::milliseconds(0);
         }
@@ -118,8 +178,11 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const
         {
-            if (getFinalValue() == newValue.getFinalValue())
+            if (getFinalValue() == newValue.getFinalValue()
+                    && getKeyFrames() == newValue.getKeyFrames())
+            {
                 return *this;
+            }
 
             if (!options)
             {
@@ -129,21 +192,43 @@ namespace avg
                     return newValue;
             }
 
-            return Animated(
-                    getValue(time),
-                    newValue.getFinalValue(),
-                    options->curve,
-                    time,
-                    options->duration
-                    );
+            if (newValue.getKeyFrames().empty())
+            {
+                return Animated(
+                        getValue(time),
+                        newValue.getFinalValue(),
+                        options->curve,
+                        time,
+                        options->duration
+                        );
+            }
+            else
+            {
+                std::vector<KeyFrame> keyFrames;
+                keyFrames.reserve(1llu + newValue.getKeyFrames().size());
+
+                keyFrames.push_back(KeyFrame{
+                        newValue.getInitialValue(),
+                        options->curve,
+                        options->duration
+                        });
+
+                for (auto const& keyFrame : newValue.getKeyFrames())
+                    keyFrames.push_back(keyFrame);
+
+                return Animated(
+                        getValue(time),
+                        time,
+                        std::move(keyFrames)
+                        );
+
+            }
         }
 
     private:
         T initial_;
-        T final_;
-        Curve curve_;
         std::chrono::milliseconds beginTime_;
-        std::chrono::milliseconds duration_;
+        std::vector<KeyFrame> keyFrames_;
     };
 
     template <typename T>
