@@ -216,11 +216,8 @@ namespace avg
                 std::chrono::milliseconds time
                 ) const
         {
-            //if constexpr (IsEqualityComparable<T>::value)
-            {
-                if (getFinalValue() == newValue.getFinalValue())
-                    return *this;
-            }
+            if (getFinalValue() == newValue.getFinalValue())
+                return *this;
 
             if (!options)
             {
@@ -561,10 +558,6 @@ namespace avg
         {
             return std::make_tuple(
                     std::tuple_element_t<S, std::tuple<Ts...>>(
-                        /*
-                        std::get<S>(a).updated(
-                            std::get<S>(b), animationOptions, time)
-                        */
                         updateIfAnimated(std::get<S>(a), std::get<S>(b),
                             time, animationOptions)
                         )...
