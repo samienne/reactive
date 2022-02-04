@@ -2,8 +2,7 @@
 
 #include "curve/curves.h"
 #include "curve.h"
-
-#include "animationoptions.h"
+#include "animated.h"
 #include "drawing.h"
 #include "transform.h"
 #include "drawcontext.h"
@@ -47,201 +46,6 @@ namespace avg
     private:
         uint64_t value_;
         static std::atomic<uint64_t> nextValue_;
-    };
-
-    AVG_EXPORT float lerp(float a, float b, float t);
-    AVG_EXPORT Vector2f lerp(Vector2f a, Vector2f b, float t);
-    AVG_EXPORT Rect lerp(Rect a, Rect b, float t);
-    AVG_EXPORT Transform lerp(Transform const a, Transform const& b, float t);
-    AVG_EXPORT Obb lerp(Obb const& a, Obb const& b, float t);
-    AVG_EXPORT Color lerp(Color const& a, Color const& b, float t);
-    AVG_EXPORT Brush lerp(Brush const& a, Brush const& b, float t);
-    AVG_EXPORT Pen lerp(Pen const& a, Pen const& b, float t);
-    AVG_EXPORT Curve lerp(Curve a, Curve b, float t);
-
-    template <typename T>
-    btl::option<T> lerp(
-            btl::option<T> const& a,
-            btl::option<T> const& b,
-            float t)
-    {
-        if (!a.valid())
-            return b;
-        if (!b.valid())
-            return a;
-
-        return btl::just(lerp(*a, *b, t));
-    }
-
-    template <typename... Ts, size_t... S>
-    std::tuple<Ts...> tupleLerp(
-            std::tuple<Ts...> const& a,
-            std::tuple<Ts...> const& b,
-            float t,
-            std::index_sequence<S...>)
-    {
-        return std::make_tuple(
-                lerp(std::get<S>(a), std::get<S>(b), t)...
-                );
-    }
-
-    template <typename... Ts>
-    std::tuple<Ts...> lerp(std::tuple<Ts...> const& a,
-            std::tuple<Ts...> const& b, float t)
-    {
-        return tuple_lerp(a, b, t, std::make_index_sequence<sizeof...(Ts)>());
-    }
-
-    template <typename T>
-    using LerpType = decltype(
-            lerp(
-                std::declval<std::decay_t<T>>(),
-                std::declval<std::decay_t<T>>(),
-                0.0f
-                )
-            );
-
-    template <typename T, typename = void>
-    struct HasLerp : std::false_type {};
-
-    template <typename T>
-    struct HasLerp<T, btl::void_t<
-        LerpType<T>
-        >> : std::true_type {};
-
-    template <typename T>
-    using CompareType = decltype(
-            std::declval<std::decay_t<T>>() == std::declval<std::decay_t<T>>()
-            );
-
-    template <typename T, typename = void>
-    struct IsEqualityComparable : std::false_type {};
-
-    template <typename T>
-    struct IsEqualityComparable<T, btl::void_t<
-        CompareType<T>
-        >> : std::true_type {};
-
-    template <typename T>
-    class Animated
-    {
-        static_assert(IsEqualityComparable<T>::value);
-
-    public:
-        template <typename U, typename = std::enable_if_t<
-            std::is_convertible_v<U, T>
-            >>
-        Animated(U&& value) :
-            initial_(value),
-            final_(value),
-            curve_(curve::linear),
-            beginTime_(std::chrono::milliseconds(0)),
-            duration_(std::chrono::milliseconds(0))
-        {
-        }
-
-        Animated(T initialValue, T finalValue,
-                Curve curve,
-                std::chrono::milliseconds beginTime,
-                std::chrono::milliseconds duration
-                ) :
-            initial_(std::move(initialValue)),
-            final_(std::move(finalValue)),
-            curve_(std::move(curve)),
-            beginTime_(beginTime),
-            duration_(duration)
-        {
-        }
-
-        T getValue(std::chrono::milliseconds time) const
-        {
-            if (getDuration() <= std::chrono::milliseconds(0))
-            {
-                return final_;
-            }
-
-            float a = std::clamp(
-                    (float)(time - beginTime_).count() / (float)getDuration().count(),
-                    0.0f,
-                    1.0f
-                    );
-
-            if constexpr(HasLerp<T>::value)
-                return lerp(initial_, final_, curve_(a));
-            else
-                return a <= 0.0f ? initial_ : final_;
-        }
-
-        T const& getInitialValue() const
-        {
-            return initial_;
-        }
-
-        T const& getFinalValue() const
-        {
-            return final_;
-        }
-
-        Curve const& getCurve() const
-        {
-            return curve_;
-        };
-
-        std::chrono::milliseconds getBeginTime() const
-        {
-            return beginTime_;
-        }
-
-        std::chrono::milliseconds getDuration() const
-        {
-            if constexpr(HasLerp<T>::value)
-                return duration_;
-            else
-                return std::chrono::milliseconds(0);
-        }
-
-        bool hasAnimationEnded(std::chrono::milliseconds time) const
-        {
-            return time >= (beginTime_ + getDuration());
-        }
-
-        bool isAnimationRunning(std::chrono::milliseconds time) const
-        {
-            return beginTime_ < time && time < (beginTime_ + getDuration());
-        }
-
-        Animated updated(
-                Animated const& newValue,
-                std::optional<AnimationOptions> const& options,
-                std::chrono::milliseconds time
-                ) const
-        {
-            if (getFinalValue() == newValue.getFinalValue())
-                return *this;
-
-            if (!options)
-            {
-                if (isAnimationRunning(time))
-                    return *this;
-                else
-                    return newValue;
-            }
-
-            return Animated(
-                    getValue(time),
-                    newValue.getFinalValue(),
-                    options->curve,
-                    time,
-                    options->duration
-                    );
-        }
-
-    private:
-        T initial_;
-        T final_;
-        Curve curve_;
-        std::chrono::milliseconds beginTime_;
-        std::chrono::milliseconds duration_;
     };
 
     class AVG_EXPORT RenderTree;
@@ -345,34 +149,13 @@ namespace avg
         std::vector<Child> children_;
     };
 
-    template <typename T>
-    struct IsAnimated : std::false_type {};
-
-    template <typename T>
-    struct IsAnimated<Animated<T>> : std::true_type {};
-
-    template <typename T>
-    struct AnimatedType
-    {
-        using type = std::remove_reference_t<std::remove_cv_t<T>>;
-    };
-
-    template <typename T>
-    struct AnimatedType<Animated<T>>
-    {
-        using type = std::remove_reference_t<std::remove_cv_t<T>>;
-    };
-
-    template <typename T>
-    using AnimatedTypeT = typename AnimatedType<T>::type;
-
     template <typename... Ts>
     class ShapeNode : public RenderTreeNode
     {
     public:
         using DrawFunction = std::function<
             Drawing(DrawContext const&, Vector2f size,
-                    typename AnimatedType<Ts>::type const&...)
+                    AnimatedTypeT<Ts> const&...)
             >;
 
         ShapeNode(
