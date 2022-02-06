@@ -77,6 +77,8 @@ namespace reactive::widget
         btl::CloneOnCopy<TFunc> func_;
     };
 
+    extern template class Widget<std::function<AnyBuilder(BuildParams)>>;
+
     namespace detail
     {
         template <typename TFunc>
@@ -176,12 +178,14 @@ namespace reactive::widget
 
         operator AnyWidgetModifier() &&
         {
-            return AnyWidgetModifier(std::move(*func_));
+            return AnyWidgetModifier(WidgetModifierBuildTag{}, std::move(*func_));
         }
 
     private:
         btl::CloneOnCopy<TFunc> func_;
     };
+
+    extern template class WidgetModifier<std::function<AnyWidget(AnyWidget)>>;
 
     namespace detail
     {

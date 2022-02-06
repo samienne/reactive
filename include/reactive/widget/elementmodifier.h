@@ -47,6 +47,8 @@ namespace reactive::widget
         btl::CloneOnCopy<TFunc> func_;
     };
 
+    extern template class ElementModifier<std::function<AnyElement(AnyElement)>>;
+
     namespace detail
     {
         template <typename TFunc>

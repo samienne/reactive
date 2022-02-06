@@ -16,7 +16,7 @@ namespace reactive::widget
         bool hasValues(std::vector<bool> const& v)
         {
             return !v.empty();
-        };
+        }
     } // namespace detail
 
     inline auto focusOn(stream::Stream<bool> stream)
