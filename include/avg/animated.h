@@ -8,6 +8,8 @@
 
 #include <btl/typetraits.h>
 
+#include <optional>
+
 namespace avg
 {
     template <typename T>
