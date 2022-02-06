@@ -127,9 +127,7 @@ int main()
                     })
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
-    })
-    | widget::setTheme(signal::constant(widget::Theme()))
-        ;
+    });
 
     return app()
         .windows({

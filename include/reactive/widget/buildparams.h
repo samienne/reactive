@@ -35,7 +35,7 @@ namespace reactive::widget
         {
             auto value = get<Tag>();
             if (!value)
-                return Tag::defaultValue;
+                return Tag::getDefaultValue();
 
             return *value;
         }
