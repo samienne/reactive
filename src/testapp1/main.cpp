@@ -5,6 +5,7 @@
 
 #include <reactive/debug/drawkeyboardinputs.h>
 
+#include <reactive/widget/settheme.h>
 #include <reactive/widget/button.h>
 #include <reactive/widget/label.h>
 #include <reactive/widget/focusgroup.h>
@@ -126,7 +127,9 @@ int main()
                     })
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
-    });
+    })
+    | widget::setTheme(signal::constant(widget::Theme()))
+        ;
 
     return app()
         .windows({

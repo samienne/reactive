@@ -9,16 +9,6 @@
 
 namespace reactive::widget
 {
-    template <typename TTag>
-    auto tagValueOrDefault(BuildParams const& params)
-    {
-        auto param = params.get<TTag>();
-        if (param)
-            return *param;
-
-        return TTag::defaultValue;
-    }
-
     template <typename... TTags, typename TFunc, typename... Ts, typename =
         std::enable_if_t<
             std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget,
@@ -32,7 +22,7 @@ namespace reactive::widget
                 return std::invoke(
                         std::forward<decltype(func)>(func),
                         std::move(widget),
-                        tagValueOrDefault<TTags>(params)...,
+                        params.valueOrDefault<TTags>()...,
                         std::forward<decltype(ts)>(ts)...
                         );
             },

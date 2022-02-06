@@ -172,17 +172,41 @@ namespace avg
             return beginTime_ < time && time < (beginTime_ + getDuration());
         }
 
+        bool isRedundantUpdate(Animated const& newValue) const
+        {
+            // Expect additional keyframe added for transition
+            if (getKeyFrames().size() != newValue.getKeyFrames().size() + 1)
+                return false;
+
+            // If there are no additional keyframes in the new value
+            // the final values must be the same. Otherwise an update
+            // is needed.
+            if (newValue.getKeyFrames().empty())
+                return getFinalValue() == newValue.getFinalValue();
+
+            bool isRedundant = true;
+            auto i = ++getKeyFrames().begin();
+            auto j = newValue.getKeyFrames().begin();
+            while (isRedundant
+                    && i != getKeyFrames().end()
+                    && j != newValue.getKeyFrames().end())
+            {
+                isRedundant = isRedundant && *i == *j;
+                ++i;
+                ++j;
+            }
+
+            return isRedundant;
+        }
+
         Animated updated(
                 Animated const& newValue,
                 std::optional<AnimationOptions> const& options,
                 std::chrono::milliseconds time
                 ) const
         {
-            if (getFinalValue() == newValue.getFinalValue()
-                    && getKeyFrames() == newValue.getKeyFrames())
-            {
+            if (isRedundantUpdate(newValue))
                 return *this;
-            }
 
             if (!options)
             {
