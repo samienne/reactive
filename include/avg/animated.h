@@ -257,6 +257,23 @@ namespace avg
         std::vector<KeyFrame> keyFrames_;
     };
 
+    class Rect;
+    class Transform;
+    class Obb;
+    class Color;
+    class Brush;
+    class Pen;
+
+    extern template class AVG_EXPORT Animated<float>;
+    extern template class AVG_EXPORT Animated<Vector2f>;
+    extern template class AVG_EXPORT Animated<Rect>;
+    extern template class AVG_EXPORT Animated<Transform>;
+    extern template class AVG_EXPORT Animated<Obb>;
+    extern template class AVG_EXPORT Animated<Color>;
+    extern template class AVG_EXPORT Animated<Brush>;
+    extern template class AVG_EXPORT Animated<Pen>;
+    extern template class AVG_EXPORT Animated<Curve>;
+
     template <typename T>
     struct IsAnimated : std::false_type {};
 
