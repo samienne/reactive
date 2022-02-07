@@ -88,7 +88,7 @@ namespace reactive::widget
         BuildParams params_;
     };
 
-    extern template class REACTIVE_EXPORT
+    extern template class REACTIVE_EXPORT_TEMPLATE
         Element<AnySignal<Instance>>;
 
     template <typename TInstance>

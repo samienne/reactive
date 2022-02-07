@@ -1,16 +1,24 @@
 #include "animated.h"
 
+#include "vector.h"
+#include "transform.h"
+#include "obb.h"
+#include "color.h"
+#include "brush.h"
+#include "pen.h"
+#include "curve.h"
+
 namespace avg
 {
-template class AVG_EXPORT Animated<float>;
-template class AVG_EXPORT Animated<Vector2f>;
-template class AVG_EXPORT Animated<Rect>;
-template class AVG_EXPORT Animated<Transform>;
-template class AVG_EXPORT Animated<Obb>;
-template class AVG_EXPORT Animated<Color>;
-template class AVG_EXPORT Animated<Brush>;
-template class AVG_EXPORT Animated<Pen>;
-template class AVG_EXPORT Animated<Curve>;
+template class Animated<float>;
+template class Animated<Vector2f>;
+template class Animated<Rect>;
+template class Animated<Transform>;
+template class Animated<Obb>;
+template class Animated<Color>;
+template class Animated<Brush>;
+template class Animated<Pen>;
+template class Animated<Curve>;
 
 } // namespace avg
 

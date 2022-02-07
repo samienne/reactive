@@ -26,7 +26,7 @@ namespace avg
         >> : std::true_type {};
 
     template <typename T>
-    class Animated
+    class AVG_EXPORT_CLASS_TEMPLATE Animated
     {
         static_assert(IsEqualityComparable<T>::value);
         static_assert(HasLerp<T>::value);
@@ -264,15 +264,15 @@ namespace avg
     class Brush;
     class Pen;
 
-    extern template class AVG_EXPORT Animated<float>;
-    extern template class AVG_EXPORT Animated<Vector2f>;
-    extern template class AVG_EXPORT Animated<Rect>;
-    extern template class AVG_EXPORT Animated<Transform>;
-    extern template class AVG_EXPORT Animated<Obb>;
-    extern template class AVG_EXPORT Animated<Color>;
-    extern template class AVG_EXPORT Animated<Brush>;
-    extern template class AVG_EXPORT Animated<Pen>;
-    extern template class AVG_EXPORT Animated<Curve>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<float>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Vector2f>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Rect>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Transform>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Obb>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Color>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Brush>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Pen>;
+    extern template class AVG_EXPORT_TEMPLATE Animated<Curve>;
 
     template <typename T>
     struct IsAnimated : std::false_type {};
