@@ -88,7 +88,8 @@ namespace reactive::widget
         BuildParams params_;
     };
 
-    extern template class Element<AnySignal<Instance>>;
+    extern template class REACTIVE_EXPORT
+        Element<AnySignal<Instance>>;
 
     template <typename TInstance>
     auto makeElement(Signal<TInstance, Instance> instance, BuildParams params)

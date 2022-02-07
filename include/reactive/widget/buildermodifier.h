@@ -40,7 +40,8 @@ namespace reactive::widget
         btl::CloneOnCopy<std::decay_t<TFunc>> func_;
     };
 
-    extern template class BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
+    extern template class REACTIVE_EXPORT
+        BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
 
     using AnyBuilderModifier = BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
 

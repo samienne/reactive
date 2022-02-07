@@ -77,7 +77,8 @@ namespace reactive::widget
         btl::CloneOnCopy<TFunc> func_;
     };
 
-    extern template class Widget<std::function<AnyBuilder(BuildParams)>>;
+    extern template class REACTIVE_EXPORT
+        Widget<std::function<AnyBuilder(BuildParams)>>;
 
     namespace detail
     {
@@ -185,7 +186,8 @@ namespace reactive::widget
         btl::CloneOnCopy<TFunc> func_;
     };
 
-    extern template class WidgetModifier<std::function<AnyWidget(AnyWidget)>>;
+    extern template class REACTIVE_EXPORT
+        WidgetModifier<std::function<AnyWidget(AnyWidget)>>;
 
     namespace detail
     {
