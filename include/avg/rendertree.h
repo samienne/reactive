@@ -357,7 +357,7 @@ namespace avg
     auto makeShapeNode(avg::Obb const& obb,
             std::optional<AnimationOptions> animationOptions,
             std::function<
-            Drawing(DrawContext const&, Vector2f size, AnimatedTypeT<Ts> const&...)
+            Drawing(DrawContext const&, Vector2f size, AnimatedTypeT<std::decay_t<Ts>> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(

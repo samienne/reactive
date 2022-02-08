@@ -1,5 +1,5 @@
 #include "adder.h"
-#include "avg/curve/curves.h"
+#include "spinner.h"
 #include "testwidget.h"
 #include "curvevisualizer.h"
 
@@ -105,9 +105,9 @@ int main()
         , vbox({
                 widget::scrollView(
                         uniformGrid(3, 3)
-                        .cell(0, 0, 1, 1, widget::label("test"))
-                        .cell(1, 1, 1, 1, widget::label("test"))
-                        .cell(2, 2, 1, 1, widget::label("test"))
+                        .cell(0, 0, 1, 1, spinner())
+                        .cell(1, 1, 1, 1, spinner())
+                        .cell(2, 2, 1, 1, spinner())
                         )
                 , widget::label("AbcTest")
                     | widget::frame()
