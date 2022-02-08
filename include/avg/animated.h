@@ -25,6 +25,12 @@ namespace avg
         CompareType<T>
         >> : std::true_type {};
 
+    enum class RepeatMode
+    {
+        normal,
+        reverse
+    };
+
     template <typename T>
     class AVG_EXPORT_CLASS_TEMPLATE Animated
     {
@@ -32,22 +38,54 @@ namespace avg
         static_assert(HasLerp<T>::value);
 
     public:
-        struct KeyFrame
+        struct AVG_EXPORT KeyFrame
         {
             T target;
             Curve curve;
             std::chrono::milliseconds duration;
+            RepeatMode repeat;
+            int repeatCount;
 
             bool operator==(KeyFrame const& rhs) const
             {
                 return target == rhs.target
                     && curve == rhs.curve
-                    && duration == rhs.duration;
+                    && duration == rhs.duration
+                    && repeat == rhs.repeat
+                    && repeatCount == rhs.repeatCount
+                    ;
             }
 
             bool operator!=(KeyFrame const& rhs) const
             {
                 return !(*this == rhs);
+            }
+
+            bool isInfinite() const
+            {
+                return repeatCount <= 0;
+            }
+
+            bool isActiveAt(std::chrono::milliseconds time) const
+            {
+                if (time < std::chrono::milliseconds(0))
+                    return false;
+
+                if (isInfinite())
+                    return true;
+
+                return time < (repeatCount * duration);
+            }
+
+            bool isReversedAt(std::chrono::milliseconds time) const
+            {
+                if (repeat != RepeatMode::reverse)
+                    return false;
+
+                if (duration <= std::chrono::milliseconds(0))
+                    return false;
+
+                return (time.count() / duration.count()) % 2 == 1;
             }
         };
 
@@ -78,14 +116,16 @@ namespace avg
             keyFrames_({ {
                     std::move(finalValue),
                     std::move(curve),
-                    duration
+                    duration,
+                    RepeatMode::normal,
+                    1
                     }})
         {
         }
 
         T getValue(std::chrono::milliseconds time) const
         {
-            if (keyFrames_.empty())
+            if (keyFrames_.empty() || time <= beginTime_)
                 return initial_;
 
             auto t = time - beginTime_;
@@ -95,11 +135,21 @@ namespace avg
             for (auto const& frame : keyFrames_)
             {
                 keyFrame = &frame;
-                if (t < keyFrame->duration)
+                if (keyFrame->isActiveAt(t))
+                {
+                    auto t2 = std::chrono::milliseconds(
+                            t.count() % keyFrame->duration.count()
+                            );
+
+                    if (keyFrame->isReversedAt(t))
+                        t2 = keyFrame->duration - t2;
+
+                    t = t2;
                     break;
+                }
 
                 value = &frame.target;
-                t -= frame.duration;
+                t -= frame.duration * frame.repeatCount;
             }
 
             float a = std::clamp(
@@ -114,22 +164,6 @@ namespace avg
         std::vector<KeyFrame> const& getKeyFrames() const
         {
             return keyFrames_;
-        }
-
-        KeyFrame const& getKeyFrameAt(std::chrono::milliseconds time) const
-        {
-            assert(!keyFrames_.empty());
-
-            auto t = time - beginTime_;
-            for (auto const& keyFrame : keyFrames_)
-            {
-                if (t < std::chrono::milliseconds(0))
-                    return keyFrame;
-
-                t -= keyFrame.duration;
-            }
-
-            return keyFrames_.back();
         }
 
         T const& getInitialValue() const
@@ -150,13 +184,25 @@ namespace avg
             return beginTime_;
         }
 
-        std::chrono::milliseconds getDuration() const
+        bool isInfinite() const
         {
+            for (auto const& keyFrame : keyFrames_)
+                if (keyFrame.isInfinite())
+                    return true;
+
+            return false;
+        }
+
+        std::optional<std::chrono::milliseconds> getDuration() const
+        {
+            if (isInfinite())
+                return std::nullopt;
+
             if constexpr(HasLerp<T>::value)
             {
                 std::chrono::milliseconds duration(0);
                 for (auto const& keyFrame : keyFrames_)
-                    duration += keyFrame.duration;
+                    duration += keyFrame.duration * keyFrame.repeatCount;
 
                 return duration;
             }
@@ -166,12 +212,16 @@ namespace avg
 
         bool hasAnimationEnded(std::chrono::milliseconds time) const
         {
-            return time >= (beginTime_ + getDuration());
+            if (isInfinite())
+                return false;
+
+            return time >= (beginTime_ + *getDuration());
         }
 
         bool isAnimationRunning(std::chrono::milliseconds time) const
         {
-            return beginTime_ < time && time < (beginTime_ + getDuration());
+            return beginTime_ < time && !hasAnimationEnded(time);
+            //time < (beginTime_ + getDuration());
         }
 
         bool isRedundantUpdate(Animated const& newValue) const
@@ -212,43 +262,28 @@ namespace avg
 
             if (!options)
             {
-                if (isAnimationRunning(time))
-                    return *this;
-                else
-                    return newValue;
+                return newValue;
             }
 
-            if (newValue.getKeyFrames().empty())
-            {
-                return Animated(
-                        getValue(time),
-                        newValue.getFinalValue(),
-                        options->curve,
-                        time,
-                        options->duration
-                        );
-            }
-            else
-            {
-                std::vector<KeyFrame> keyFrames;
-                keyFrames.reserve(1llu + newValue.getKeyFrames().size());
+            std::vector<KeyFrame> keyFrames;
+            keyFrames.reserve(1llu + newValue.getKeyFrames().size());
 
-                keyFrames.push_back(KeyFrame{
-                        newValue.getInitialValue(),
-                        options->curve,
-                        options->duration
-                        });
+            keyFrames.push_back(KeyFrame{
+                    newValue.getInitialValue(),
+                    options->curve,
+                    options->duration,
+                    RepeatMode::normal,
+                    1
+                    });
 
-                for (auto const& keyFrame : newValue.getKeyFrames())
-                    keyFrames.push_back(keyFrame);
+            for (auto const& keyFrame : newValue.getKeyFrames())
+                keyFrames.push_back(keyFrame);
 
-                return Animated(
-                        getValue(time),
-                        time,
-                        std::move(keyFrames)
-                        );
-
-            }
+            return Animated(
+                    getValue(time),
+                    time,
+                    std::move(keyFrames)
+                    );
         }
 
     private:
@@ -294,6 +329,20 @@ namespace avg
 
     template <typename T>
     using AnimatedTypeT = typename AnimatedType<T>::type;
+
+    template <typename T>
+    auto infiniteAnimation(T from, T to, Curve curve, float seconds,
+            RepeatMode repeat = RepeatMode::normal)
+    {
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::duration<float>(seconds)
+                );
+
+        return Animated<std::decay_t<T>>(std::move(from),
+                std::chrono::milliseconds(0), {
+                { std::move(to), std::move(curve), duration, repeat, 0 }
+                });
+    }
 
 } // namespace avg
 

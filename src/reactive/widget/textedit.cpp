@@ -25,6 +25,7 @@
 
 #include "debug.h"
 
+#include <avg/curve/curves.h>
 #include <avg/textextents.h>
 #include <avg/pathbuilder.h>
 
@@ -163,16 +164,14 @@ TextEdit::operator AnyWidget() const
     auto requestFocus = stream::pipe<bool>();
 
     auto focus = signal::input(false);
-    /*auto focusPercentage = signal::tween(
-            std::chrono::milliseconds(500),
-            0.0f,
-            std::move(focus.signal),
-            signal::TweenType::pingpong
-            );
-            */
-    auto focusPercentage = signal::map([](bool b)
+
+    auto focusPercentage = signal::map([](bool b) -> avg::Animated<float>
             {
-                return b ? 1.0f : 0.0f;
+                return b
+                    ? avg::infiniteAnimation(0.0f, 1.0f, avg::curve::linear, 0.5f,
+                            avg::RepeatMode::reverse)
+                    : avg::Animated<float>(0.0f)
+                    ;
             },
             std::move(focus.signal)
             );
