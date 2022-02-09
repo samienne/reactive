@@ -1,7 +1,7 @@
 #pragma once
 
 #include "instancemodifier.h"
-#include "setanimation.h"
+#include "getanimation.h"
 
 #include <avg/animationoptions.h>
 #include <avg/rendertree.h>
@@ -60,25 +60,24 @@ template <typename TFunc, typename... Ts,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
-                avg::AnimatedTypeT<std::decay_t<signal::SignalType<std::decay_t<Ts>>>>...
+                avg::AnimatedTypeT<std::decay_t<
+                    signal::SignalType<ParamProviderTypeT<std::decay_t<Ts>>>
+                    >>...
             >
         >
     >
 auto onDraw(TFunc&& func, Ts&&... ts)
 {
-    return makeElementModifier([](auto element, auto&& func, auto&&... ts)
+    return makeElementModifier([](auto element, auto&& animation, auto&& func, auto&&... ts)
         {
-            auto animation = element.getParams()
-                .template valueOrDefault<AnimationTag>()
-                ;
-
             return std::move(element)
                 | detail::onDrawCustom<false>(
                         std::forward<decltype(func)>(func),
-                        std::move(animation),
+                        std::forward<decltype(animation)>(animation),
                         std::forward<decltype(ts)>(ts)...
                         );
         },
+        getAnimation(),
         std::forward<TFunc>(func),
         std::forward<Ts>(ts)...
         );
@@ -91,25 +90,24 @@ template <typename TFunc, typename... Ts,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
-                avg::AnimatedTypeT<std::decay_t<signal::SignalType<std::decay_t<Ts>>>>...
+                avg::AnimatedTypeT<std::decay_t<
+                    signal::SignalType<ParamProviderTypeT<std::decay_t<Ts>>>
+                    >>...
             >
         >
     >
 auto onDrawBehind(TFunc&& func, Ts&&... ts)
 {
-    return makeElementModifier([](auto element, auto&& func, auto&&... ts)
+    return makeElementModifier([](auto element, auto&& animation, auto&& func, auto&&... ts)
         {
-            auto animation = element.getParams()
-                .template valueOrDefault<AnimationTag>()
-                ;
-
             return std::move(element)
                 | detail::onDrawCustom<true>(
                         std::forward<decltype(func)>(func),
-                        std::move(animation),
+                        std::forward<decltype(animation)>(animation),
                         std::forward<decltype(ts)>(ts)...
                         );
         },
+        getAnimation(),
         std::forward<TFunc>(func),
         std::forward<Ts>(ts)...
         );

@@ -227,8 +227,11 @@ namespace avg
         bool isRedundantUpdate(Animated const& newValue) const
         {
             // Expect additional keyframe added for transition
-            if (getKeyFrames().size() != newValue.getKeyFrames().size() + 1)
+            if (getKeyFrames().size() != newValue.getKeyFrames().size() + 1
+                    && getKeyFrames().size() != newValue.getKeyFrames().size())
+            {
                 return false;
+            }
 
             // If there are no additional keyframes in the new value
             // the final values must be the same. Otherwise an update
@@ -237,11 +240,11 @@ namespace avg
                 return getFinalValue() == newValue.getFinalValue();
 
             bool isRedundant = true;
-            auto i = ++getKeyFrames().begin();
-            auto j = newValue.getKeyFrames().begin();
+            auto i = getKeyFrames().rbegin();
+            auto j = newValue.getKeyFrames().rbegin();
             while (isRedundant
-                    && i != getKeyFrames().end()
-                    && j != newValue.getKeyFrames().end())
+                    && i != getKeyFrames().rend()
+                    && j != newValue.getKeyFrames().rend())
             {
                 isRedundant = isRedundant && *i == *j;
                 ++i;

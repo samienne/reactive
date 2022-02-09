@@ -1,12 +1,12 @@
 #include "spinner.h"
-#include "avg/curve/curves.h"
 
 #include <reactive/widget/ondraw.h>
-#include <reactive/widget/settheme.h>
+#include <reactive/widget/gettheme.h>
 #include <reactive/widget/elementmodifier.h>
 #include <reactive/shapes.h>
 
 #include <avg/animated.h>
+#include <avg/curve/curves.h>
 
 using namespace reactive;
 
@@ -51,19 +51,12 @@ namespace {
 
 reactive::widget::AnyWidget spinner()
 {
+    auto state = signal::constant(avg::infiniteAnimation(
+                0.0f, 1.0f, avg::curve::linear, 2.0f
+                ));
+
     return widget::makeWidget()
-        | widget::makeElementModifier([](auto element)
-            {
-                auto theme = element.getParams().template valueOrDefault<widget::ThemeTag>();
-
-                auto state = signal::constant(avg::infiniteAnimation(
-                            0.0f, 1.0f, avg::curve::linear, 2.0f
-                            ));
-
-                return std::move(element)
-                    | widget::onDraw(drawSpinner, std::move(theme), std::move(state))
-                    ;
-            })
+        | widget::onDraw(drawSpinner, widget::getTheme(), std::move(state))
         ;
 }
 
