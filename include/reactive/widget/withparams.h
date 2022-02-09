@@ -12,7 +12,8 @@ namespace reactive::widget
     template <typename... TTags, typename TFunc, typename... Ts, typename =
         std::enable_if_t<
             std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget,
-                AnySharedSignal<typename TTags::type>..., Ts&&...>
+                AnySharedSignal<typename TTags::type>...,
+                ParamProviderTypeT<Ts>...>
         >>
     auto withParams(TFunc&& func, Ts&&... ts)
     {
@@ -23,7 +24,10 @@ namespace reactive::widget
                         std::forward<decltype(func)>(func),
                         std::move(widget),
                         params.valueOrDefault<TTags>()...,
-                        std::forward<decltype(ts)>(ts)...
+                        invokeParamProvider(
+                            std::forward<decltype(ts)>(ts),
+                            params
+                            )...
                         );
             },
             std::forward<TFunc>(func),

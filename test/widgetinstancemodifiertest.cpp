@@ -111,11 +111,11 @@ TEST(Widget, withParams)
     std::string tag;
 
     auto widget = makeWidget()
-        | withParams<TestTag>([&](auto widget, auto str)
+        | withParams([&](auto widget, auto str)
             {
                 tag = str.evaluate();
                 return widget;
-            })
+            }, getParam<TestTag>())
         ;
 
     auto builder = std::move(widget)(BuildParams());
