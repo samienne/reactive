@@ -10,11 +10,11 @@ namespace reactive::widget
     struct AnimationTag
     {
         using type = std::optional<avg::AnimationOptions>;
-        static AnySharedSignal<type> const defaultValue;
+        static AnySharedSignal<type> getDefaultValue()
+        {
+            return share(signal::constant<typename AnimationTag::type>(std::nullopt));
+        }
     };
-
-    inline AnySharedSignal<typename AnimationTag::type> const AnimationTag::defaultValue =
-        share(signal::constant<typename AnimationTag::type>(std::nullopt));
 
     template <typename T>
     auto setAnimation(Signal<T, std::optional<avg::AnimationOptions>> animationOptions)

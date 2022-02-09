@@ -26,11 +26,11 @@ auto makeEmptyInstance()
 struct TestTag
 {
     using type = std::string;
-    static AnySharedSignal<type> const defaultValue;
+    static AnySharedSignal<type> getDefaultValue()
+    {
+        return share(signal::constant<std::string>("default value"));
+    }
 };
-
-AnySharedSignal<std::string> const TestTag::defaultValue =
-    share(signal::constant<std::string>("default value"));
 
 TEST(WidgetInstanceModifier, typeErasure)
 {

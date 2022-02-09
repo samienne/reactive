@@ -1,5 +1,7 @@
 #pragma once
 
+#include "avgvisibility.h"
+
 #include <btl/all.h>
 #include <btl/not.h>
 

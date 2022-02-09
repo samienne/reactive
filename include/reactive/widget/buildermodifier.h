@@ -16,8 +16,9 @@ namespace reactive::widget
     struct BuilderModifierBuildTag {};
 
     template <typename TFunc>
-    struct BuilderModifier
+    class BuilderModifier
     {
+    public:
         BuilderModifier(BuilderModifierBuildTag const&, TFunc func) :
             func_(std::move(func))
         {
@@ -35,8 +36,12 @@ namespace reactive::widget
             return std::invoke(std::move(*func_), std::move(builder));
         }
 
+    private:
         btl::CloneOnCopy<std::decay_t<TFunc>> func_;
     };
+
+    extern template class REACTIVE_EXPORT_TEMPLATE
+        BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
 
     using AnyBuilderModifier = BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
 

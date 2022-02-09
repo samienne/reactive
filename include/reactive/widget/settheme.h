@@ -8,11 +8,11 @@ namespace reactive::widget
     struct ThemeTag
     {
         using type = Theme;
-        static AnySharedSignal<Theme> const defaultValue;
+        static AnySharedSignal<Theme> const getDefaultValue()
+        {
+            return share(signal::constant(Theme()));
+        };
     };
-
-    inline AnySharedSignal<Theme> const ThemeTag::defaultValue =
-        share(signal::constant(Theme()));
 
     template <typename T>
     auto setTheme(Signal<T, Theme> theme)

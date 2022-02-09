@@ -18,7 +18,7 @@ namespace reactive::widget
                     return true;
 
             return false;
-        };
+        }
     } // namespace detail
 
     inline auto trackFocus(signal::InputHandle<bool> const& handle)

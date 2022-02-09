@@ -18,7 +18,7 @@
 
 namespace reactive::widget
 {
-    class Instance
+    class REACTIVE_EXPORT Instance
     {
     public:
         Instance(avg::RenderTree renderTree,
@@ -26,128 +26,22 @@ namespace reactive::widget
                 avg::Obb const& obb,
                 std::vector<KeyboardInput> keyboardInputs,
                 Theme theme
-              ) :
-            renderTree_(std::move(renderTree)),
-            inputAreas_(std::move(inputAreas)),
-            obb_(obb),
-            keyboardInputs_(std::move(keyboardInputs)),
-            theme_(std::move(theme))
-        {
-        }
+              );
 
-        avg::RenderTree const& getRenderTree() const
-        {
-            return renderTree_;
-        }
-
-        std::vector<InputArea> const& getInputAreas() const
-        {
-            return inputAreas_;
-        }
-
-        avg::Obb const& getObb() const
-        {
-            return obb_;
-        }
-
-        avg::Vector2f getSize() const
-        {
-            return obb_.getSize();
-        }
-
-        std::vector<KeyboardInput> const& getKeyboardInputs() const
-        {
-            return keyboardInputs_;
-        }
-
-        Theme const& getTheme() const
-        {
-            return theme_;
-        }
-
-        Instance setRenderTree(avg::RenderTree renderTree) &&
-        {
-            return Instance(
-                    std::move(renderTree),
-                    std::move(inputAreas_),
-                    obb_,
-                    std::move(keyboardInputs_),
-                    std::move(theme_)
-                    );
-        }
-
-        Instance setInputAreas(std::vector<InputArea> inputAreas) &&
-        {
-            return Instance(
-                    std::move(renderTree_),
-                    std::move(inputAreas),
-                    obb_,
-                    std::move(keyboardInputs_),
-                    std::move(theme_)
-                    );
-        }
-
-        Instance setObb(avg::Obb const& obb) &&
-        {
-            return Instance(
-                    std::move(renderTree_),
-                    std::move(inputAreas_),
-                    obb,
-                    std::move(keyboardInputs_),
-                    std::move(theme_)
-                    );
-        }
-
-        Instance setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&
-        {
-            return Instance(
-                    std::move(renderTree_),
-                    std::move(inputAreas_),
-                    obb_,
-                    std::move(keyboardInputs),
-                    std::move(theme_)
-                    );
-        }
-
-        Instance setTheme(Theme theme) &&
-        {
-            return Instance(
-                    std::move(renderTree_),
-                    std::move(inputAreas_),
-                    obb_,
-                    std::move(keyboardInputs_),
-                    std::move(theme)
-                    );
-        }
-
-        Instance transform(avg::Transform const& t) &&
-        {
-            for (auto&& a : inputAreas_)
-                a = std::move(a).transform(t);
-
-            for (auto&& k : keyboardInputs_)
-                k = std::move(k).transform(t);
-
-            return Instance(
-                    std::move(renderTree_).transform(t),
-                    std::move(inputAreas_),
-                    t * obb_,
-                    std::move(keyboardInputs_),
-                    std::move(theme_)
-                    );
-        }
-
-        Instance transformR(avg::Transform const& t) &&
-        {
-            return std::move(*this).transform(
-                    obb_.getTransform() * t * obb_.getTransform().inverse()
-                    );
-        }
-
-        Instance clone() const
-        {
-            return *this;
-        }
+        avg::RenderTree const& getRenderTree() const;
+        std::vector<InputArea> const& getInputAreas() const;
+        avg::Obb const& getObb() const;
+        avg::Vector2f getSize() const;
+        std::vector<KeyboardInput> const& getKeyboardInputs() const;
+        Theme const& getTheme() const;
+        Instance setRenderTree(avg::RenderTree renderTree) &&;
+        Instance setInputAreas(std::vector<InputArea> inputAreas) &&;
+        Instance setObb(avg::Obb const& obb) &&;
+        Instance setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&;
+        Instance setTheme(Theme theme) &&;
+        Instance transform(avg::Transform const& t) &&;
+        Instance transformR(avg::Transform const& t) &&;
+        Instance clone() const;
 
     private:
         avg::RenderTree renderTree_;

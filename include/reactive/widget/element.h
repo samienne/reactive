@@ -1,10 +1,11 @@
 #pragma once
 
-#include "btl/cloneoncopy.h"
 #include "instance.h"
 #include "buildparams.h"
 
 #include <avg/vector.h>
+
+#include <btl/cloneoncopy.h>
 
 namespace reactive::widget
 {
@@ -86,6 +87,9 @@ namespace reactive::widget
         btl::CloneOnCopy<TInstance> instance_;
         BuildParams params_;
     };
+
+    extern template class REACTIVE_EXPORT_TEMPLATE
+        Element<AnySignal<Instance>>;
 
     template <typename TInstance>
     auto makeElement(Signal<TInstance, Instance> instance, BuildParams params)

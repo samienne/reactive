@@ -3,6 +3,7 @@ gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
 devtest = executable('devtest',
+        'animatedtest.cpp',
         'widgetinstancemodifiertest.cpp',
         include_directories : incdir,
         link_with : [],

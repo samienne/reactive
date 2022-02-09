@@ -14,9 +14,22 @@
     #define BTL_EXPORT BTL_VISIBLE
     #define BTL_IMPORT
 
+    #if defined(__clang__)
+        #define BTL_EXPORT_TEMPLATE BTL_EXPORT
+        #define BTL_EXPORT_CLASS_TEMPLATE
+        #define BTL_IMPORT_TEMPLATE BTL_IMPORT
+    #else
+        #define BTL_EXPORT_TEMPLATE
+        #define BTL_EXPORT_CLASS_TEMPLATE BTL_EXPORT
+        #define BTL_IMPORT_TEMPLATE
+    #endif
+
 #elif defined(_WIN32)
     #define BTL_EXPORT __declspec(dllexport)
     #define BTL_IMPORT __declspec(dllimport)
+    #define BTL_EXPORT_TEMPLATE
+    #define BTL_IMPORT_TEMPLATE
+    #define BTL_EXPORT_CLASS_TEMPLATE
 
     #define BTL_FORCE_INLINE inline
 #endif
