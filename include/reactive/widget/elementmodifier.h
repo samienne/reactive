@@ -1,10 +1,11 @@
 #pragma once
 
-#include "btl/cloneoncopy.h"
+#include "paramprovider.h"
 #include "instancemodifier.h"
 #include "element.h"
 
 #include <btl/bindarguments.h>
+#include <btl/cloneoncopy.h>
 
 #include <type_traits>
 
@@ -67,10 +68,15 @@ namespace reactive::widget
             return makeElementModifierUnchecked(btl::bindArguments(
                         [](auto element, auto&& func, auto&&... ts)
                         {
+                            auto params = element.getParams();
+
                             return std::invoke(
                                     std::forward<decltype(func)>(func),
                                     std::move(element),
-                                    std::forward<decltype(ts)>(ts)...
+                                    invokeParamProvider(
+                                        std::forward<decltype(ts)>(ts),
+                                        params
+                                        )...
                                     );
                         },
                         std::forward<TFunc>(func),
@@ -81,7 +87,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyElement, TFunc, AnyElement, Ts...>
+        std::is_invocable_r_v<AnyElement, TFunc, AnyElement, ParamProviderTypeT<Ts>...>
         >>
     auto makeElementModifier(TFunc&& func, Ts&&... ts)
     {
@@ -92,17 +98,22 @@ namespace reactive::widget
     }
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyElement, TFunc, AnyElement, Ts...>
+        std::is_invocable_r_v<AnyElement, TFunc, AnyElement, ParamProviderTypeT<Ts>...>
         >>
     auto makeSharedElementModifier(TFunc&& func, Ts&&... ts)
     {
         return detail::makeElementModifierUnchecked(
                 [](auto element, auto&& func, auto&&... ts)
                 {
+                    auto params = element.getParams();
+
                     return std::invoke(
                             std::forward<decltype(func)>(func),
                             std::move(element).share(),
-                            std::forward<decltype(ts)>(ts)...
+                            invokeParamProvider(
+                                std::forward<decltype(ts)>(ts),
+                                params
+                                )...
                             );
                 },
                 std::forward<TFunc>(func),

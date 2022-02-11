@@ -111,11 +111,11 @@ TEST(Widget, withParams)
     std::string tag;
 
     auto widget = makeWidget()
-        | withParams<TestTag>([&](auto widget, auto str)
+        | withParams([&](auto widget, auto str)
             {
                 tag = str.evaluate();
                 return widget;
-            })
+            }, getParam<TestTag>())
         ;
 
     auto builder = std::move(widget)(BuildParams());
@@ -152,23 +152,23 @@ TEST(Widget, builderModifierTags)
     std::string tag3;
 
     auto widget = makeWidget()
-        | makeBuilderModifier<TestTag>([&](auto builder, auto tagValue)
+        | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag = tagValue.evaluate();
                 return builder;
-            })
+            }, getParam<TestTag>())
         | setParams<TestTag>("set value 1")
-        | makeBuilderModifier<TestTag>([&](auto builder, auto tagValue)
+        | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag2 = tagValue.evaluate();
                 return builder;
-            })
+            }, getParam<TestTag>())
         | setParams<TestTag>("set value 2")
-        | makeBuilderModifier<TestTag>([&](auto builder, auto tagValue)
+        | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag3 = tagValue.evaluate();
                 return builder;
-            })
+            }, getParam<TestTag>())
         ;
 
     std::move(widget)(BuildParams());
