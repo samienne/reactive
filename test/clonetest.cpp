@@ -56,7 +56,6 @@ static_assert(!std::is_copy_constructible<NotClonable>::value, "");
 
 TEST(CloneOnCopy, copy)
 {
-    std::optional<Clonable> c = std::make_optional(btl::clone(Clonable(10)));
     std::optional<std::string> ss = std::make_optional("test");
 
     auto v = btl::cloneOnCopy(Clonable(10));
