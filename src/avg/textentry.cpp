@@ -6,8 +6,8 @@ namespace avg
 {
 
 TextEntry::TextEntry(Font const& font, Transform const& transform,
-    std::string const& text, btl::option<Brush> const& brush,
-    btl::option<Pen> const& pen) :
+    std::string const& text, std::optional<Brush> const& brush,
+    std::optional<Pen> const& pen) :
     font_(font),
     transform_(transform),
     text_(text),
@@ -73,12 +73,12 @@ std::string const& TextEntry::getText() const
     return text_;
 }
 
-btl::option<Brush> const& TextEntry::getBrush() const
+std::optional<Brush> const& TextEntry::getBrush() const
 {
     return brush_;
 }
 
-btl::option<Pen> const& TextEntry::getPen() const
+std::optional<Pen> const& TextEntry::getPen() const
 {
     return pen_;
 }

@@ -1,9 +1,9 @@
 #pragma once
 
-#include <btl/option.h>
 #include <btl/spinlock.h>
 
 #include <memory>
+#include <optional>
 
 namespace reactive
 {
@@ -42,7 +42,7 @@ namespace reactive
 
         T const& getValue() const
         {
-            assert(value_.valid());
+            assert(value_.has_value());
             // Value never changes so no need for lock
             return *value_;
         }
@@ -54,7 +54,7 @@ namespace reactive
 
         std::shared_ptr<Element> next_;
         mutable btl::SpinLock spin_;
-        btl::option<T> value_;
+        std::optional<T> value_;
     };
 
     } // stream

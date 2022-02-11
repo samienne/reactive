@@ -349,8 +349,8 @@ RectNode::RectNode(
         Animated<Obb> obb,
         std::optional<AnimationOptions> animationOptions,
         Animated<float> radius,
-        Animated<btl::option<Brush>> brush,
-        Animated<btl::option<Pen>> pen
+        Animated<std::optional<Brush>> brush,
+        Animated<std::optional<Pen>> pen
         ) :
     ShapeNode(std::move(obb), std::move(animationOptions), RectNode::drawRect,
             std::move(radius), std::move(brush), std::move(pen))
@@ -361,8 +361,8 @@ Drawing RectNode::drawRect(
         DrawContext const& context,
         Vector2f size,
         float radius,
-        btl::option<Brush> const& brush,
-        btl::option<Pen> const& pen
+        std::optional<Brush> const& brush,
+        std::optional<Pen> const& pen
         )
 {
     radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);

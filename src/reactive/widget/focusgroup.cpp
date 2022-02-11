@@ -38,12 +38,12 @@ enum class Direction
     previous
 };
 
-btl::option<size_t> getClosestInDirection(
+std::optional<size_t> getClosestInDirection(
         std::vector<KeyboardInput> const& inputs, size_t currentIndex,
         Direction dir)
 {
     if (inputs.empty())
-        return btl::none;
+        return std::nullopt;
 
     auto const& current = inputs[currentIndex];
 
@@ -58,7 +58,7 @@ btl::option<size_t> getClosestInDirection(
     const float d2 = n2.dot(center);
 
     float closestDistance = 0.0f;
-    btl::option<size_t> result(btl::none);
+    std::optional<size_t> result(std::nullopt);
 
     for (size_t i = 0; i < inputs.size(); ++i)
     {
@@ -76,10 +76,10 @@ btl::option<size_t> getClosestInDirection(
             ase::Vector2f v = inputCenter - center;
             float inputDistance = v.x() * v.x() + v.y() * v.y();
 
-            if (!result.valid() || inputDistance < closestDistance)
+            if (!result.has_value() || inputDistance < closestDistance)
             {
                 closestDistance = inputDistance;
-                result = btl::just(i);
+                result = std::make_optional(i);
             }
         }
     }
@@ -140,7 +140,7 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
     case Direction::up:
     case Direction::down:
         return getClosestInDirection(state.inputs, state.focusIndex,
-                dir).valid();
+                dir).has_value();
     case Direction::previous:
         return state.focusIndex != 0;
     case Direction::next:
@@ -152,14 +152,14 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
 
  auto makeKeyHandler(
          stream::Handle<KeyEvent> keyHandle,
-         btl::option<KeyboardInput::KeyHandler> handler,
+         std::optional<KeyboardInput::KeyHandler> handler,
          FocusGroupState state)
     -> KeyboardInput::KeyHandler
 {
     return [handler, keyHandle, state](KeyEvent const& e) mutable
         -> InputResult
     {
-        if (handler.valid())
+        if (handler.has_value())
         {
             auto r = (*handler)(e);
             if (r == InputResult::handled)
@@ -177,12 +177,12 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
     };
 }
 
-auto makeTextHandler(btl::option<KeyboardInput::TextHandler> handler)
+auto makeTextHandler(std::optional<KeyboardInput::TextHandler> handler)
 {
     return [handler=std::move(handler)]
         (TextEvent const& e) mutable -> InputResult
     {
-        if (!handler.valid())
+        if (!handler.has_value())
             return InputResult::unhandled;
 
         return (*handler)(e);
@@ -256,7 +256,7 @@ FocusGroupState step(FocusGroupState oldState,
         auto dir = getNavigationDirection(event);
         auto closest = getClosestInDirection(state.inputs, index, dir);
 
-        if (closest.valid())
+        if (closest.has_value())
             index = *closest;
     }
 

@@ -40,7 +40,7 @@ namespace reactive
         {
             {
                 std::unique_lock<btl::SpinLock> lock(spin_);
-                last_->value_ = btl::just(value);
+                last_->value_ = std::make_optional(value);
                 last_->next_->next_ = std::make_shared<Element>();
                 last_ = last_->next_;
             }

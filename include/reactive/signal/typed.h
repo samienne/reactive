@@ -129,32 +129,32 @@ namespace reactive::signal
             return sig_.hasChanged();
         }
 
-        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        std::optional<signal_time_t> updateBegin(FrameInfo const& frame)
             override final
         {
             if (frameId_ == frame.getFrameId())
-                return btl::none;
+                return std::nullopt;
 
             frameId_ = frame.getFrameId();
             return sig_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        std::optional<signal_time_t> updateEnd(FrameInfo const& frame)
             override final
         {
-            btl::option<signal_time_t> r = btl::none;
+            std::optional<signal_time_t> r = std::nullopt;
             if(frameId_ != frame.getFrameId())
                 r = sig_.updateBegin(frame);
 
             if (frameId2_ == frame.getFrameId())
-                return btl::none;
+                return std::nullopt;
 
             frameId2_ = frame.getFrameId();
             auto r2 = sig_.updateEnd(frame);
 
-            if (!r2.valid())
+            if (!r2.has_value())
                 return r;
-            else if(!r.valid())
+            else if(!r.has_value())
                 return r2;
             else
                 return std::min(r2, r);

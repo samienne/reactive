@@ -13,7 +13,7 @@ Mesh::Mesh(Aabb const& aabb, VertexBuffer vertexBuffer,
         IndexBuffer indexBuffer) :
     aabb_(aabb),
     vertexBuffer_(std::move(vertexBuffer)),
-    indexBuffer_(btl::just(std::move(indexBuffer)))
+    indexBuffer_(std::make_optional(std::move(indexBuffer)))
 {
 }
 
@@ -38,7 +38,7 @@ IndexBuffer const& Mesh::getIndexBuffer() const
 
 bool Mesh::hasIndexBuffer() const
 {
-    return indexBuffer_.valid();
+    return indexBuffer_.has_value();
 }
 
 bool Mesh::operator<(Mesh const& other) const

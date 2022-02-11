@@ -5,9 +5,9 @@
 #include "path.h"
 #include "avgvisibility.h"
 
-#include <btl/option.h>
-
 #include <pmr/memory_resource.h>
+
+#include <optional>
 
 namespace avg
 {
@@ -15,7 +15,7 @@ namespace avg
     {
     public:
         explicit Shape(pmr::memory_resource* memory);
-        Shape(Path path, btl::option<Brush> brush, btl::option<Pen> pen);
+        Shape(Path path, std::optional<Brush> brush, std::optional<Pen> pen);
         Shape(Shape const&) = default;
         Shape(Shape&&) noexcept = default;
         ~Shape();
@@ -26,12 +26,12 @@ namespace avg
         Shape& operator=(Shape&&) noexcept = default;
 
         Shape setPath(Path const& path) &&;
-        Shape setBrush(btl::option<Brush> const& brush) &&;
-        Shape setPen(btl::option<Pen> const& pen) &&;
+        Shape setBrush(std::optional<Brush> const& brush) &&;
+        Shape setPen(std::optional<Pen> const& pen) &&;
 
         Path const& getPath() const;
-        btl::option<Pen> const& getPen() const;
-        btl::option<Brush> const& getBrush() const;
+        std::optional<Pen> const& getPen() const;
+        std::optional<Brush> const& getBrush() const;
         Rect getControlBb() const;
         Obb getControlObb() const;
 
@@ -55,8 +55,8 @@ namespace avg
 
     private:
         Path path_;
-        btl::option<Brush> brush_;
-        btl::option<Pen> pen_;
+        std::optional<Brush> brush_;
+        std::optional<Pen> pen_;
     };
 }
 

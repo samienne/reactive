@@ -10,7 +10,7 @@ Shape::Shape(pmr::memory_resource* memory) :
 {
 }
 
-Shape::Shape(Path path, btl::option<Brush> brush, btl::option<Pen> pen) :
+Shape::Shape(Path path, std::optional<Brush> brush, std::optional<Pen> pen) :
     path_(std::move(path)),
     brush_(std::move(brush)),
     pen_(std::move(pen))
@@ -32,13 +32,13 @@ Shape Shape::setPath(Path const& path) &&
     return std::move(*this);
 }
 
-Shape Shape::setBrush(btl::option<Brush> const& brush) &&
+Shape Shape::setBrush(std::optional<Brush> const& brush) &&
 {
     brush_ = brush;
     return std::move(*this);
 }
 
-Shape Shape::setPen(btl::option<Pen> const& pen) &&
+Shape Shape::setPen(std::optional<Pen> const& pen) &&
 {
     pen_ = pen;
     return std::move(*this);
@@ -49,12 +49,12 @@ Path const& Shape::getPath() const
     return path_;
 }
 
-btl::option<Pen> const& Shape::getPen() const
+std::optional<Pen> const& Shape::getPen() const
 {
     return pen_;
 }
 
-btl::option<Brush> const& Shape::getBrush() const
+std::optional<Brush> const& Shape::getBrush() const
 {
     return brush_;
 }
@@ -73,15 +73,15 @@ Shape Shape::operator*(float scale) const &
 {
     return Shape(getResource())
         .setPath(path_ * scale)
-        .setBrush(brush_ * scale)
-        .setPen(pen_ * scale);
+        .setBrush(brush_ ? *brush_ * scale : std::optional<Brush>(std::nullopt))
+        .setPen(pen_ ? *pen_ * scale : std::optional<Pen>(std::nullopt));
 }
 
 Shape Shape::operator*(float scale) &&
 {
     path_ = std::move(path_) * scale;
-    brush_ = brush_ * scale;
-    pen_ = pen_ * scale;
+    brush_ = brush_ ? *brush_ * scale : std::optional<Brush>(std::nullopt);
+    pen_ = pen_ ? *pen_ * scale : std::optional<Pen>(std::nullopt);
     return std::move(*this);
 }
 
@@ -102,7 +102,7 @@ Shape Shape::operator+(Vector2f offset) &&
 Shape& Shape::operator*=(float scale)
 {
     path_ *= scale;
-    pen_ *= scale;
+    pen_ = pen_ ? *pen_ * scale : std::optional<Pen>(std::nullopt);
     return *this;
 }
 

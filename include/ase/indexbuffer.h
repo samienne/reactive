@@ -27,6 +27,7 @@ namespace ase
         IndexBuffer& operator=(IndexBuffer&& other) = default;
 
         bool operator==(IndexBuffer const& rhs) const;
+        bool operator!=(IndexBuffer const& rhs) const;
         bool operator<(IndexBuffer const& rhs) const;
 
         template <class T>

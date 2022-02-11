@@ -35,8 +35,8 @@ namespace {
             auto shape = makeShape(
                     makeCircle(context.getResource(),
                         ase::Vector2f(0.0f, 0.0f), s/2.0f),
-                    btl::just(brush),
-                    btl::none);
+                    std::make_optional(brush),
+                    std::nullopt);
 
             float a = 6.28f / 10.0f * (float) i;
             drawing += context.drawing(std::move(shape))

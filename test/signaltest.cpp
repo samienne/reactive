@@ -74,7 +74,7 @@ static_assert(RequireSignal<InputSignal<int, btl::DummyLock>>::value,
 static_assert(RequireSignal<Every>::value, "Every is not a signal");
 static_assert(RequireSignal<
         OnChange<Constant<int>, btl::Function<void()>>>::value, "");
-static_assert(RequireSignal<UpdateIfJust<Constant<btl::option<int>>>>::value, "");
+static_assert(RequireSignal<UpdateIfJust<Constant<std::optional<int>>>>::value, "");
 static_assert(RequireSignal<Changed<Constant<int>>>::value,
         "Changed is not a signal");
 static_assert(RequireSignal<Blip<Constant<int>>>::value, "");

@@ -9,10 +9,11 @@
 #include "vector.h"
 #include "avgvisibility.h"
 
+#include <btl/optional.h>
 #include <btl/hash.h>
-#include <btl/option.h>
 
 #include <string>
+#include <optional>
 
 namespace avg
 {
@@ -21,8 +22,8 @@ namespace avg
     public:
         TextEntry(Font const& font, Transform const& transform,
                 std::string const& text,
-                btl::option<Brush> const& brush = btl::none,
-                btl::option<Pen> const& pen = btl::none);
+                std::optional<Brush> const& brush = std::nullopt,
+                std::optional<Pen> const& pen = std::nullopt);
         TextEntry(TextEntry const&) = default;
         TextEntry(TextEntry&&) = default;
         ~TextEntry();
@@ -41,8 +42,8 @@ namespace avg
         Font const& getFont() const;
         Transform const& getTransform() const;
         std::string const& getText() const;
-        btl::option<Brush> const& getBrush() const;
-        btl::option<Pen> const& getPen() const;
+        std::optional<Brush> const& getBrush() const;
+        std::optional<Pen> const& getPen() const;
 
         Rect getControlBb() const;
         Obb getControlObb() const;
@@ -74,8 +75,8 @@ namespace avg
         Font font_;
         Transform transform_;
         std::string text_;
-        btl::option<Brush> brush_;
-        btl::option<Pen> pen_;
+        std::optional<Brush> brush_;
+        std::optional<Pen> pen_;
     };
 }
 

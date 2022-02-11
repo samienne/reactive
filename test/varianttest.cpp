@@ -24,7 +24,7 @@ struct S
 
 TEST(variant, maxSizeof)
 {
-    btl::multiply_t<avg::Transform, btl::option<avg::Pen>> n;
+    btl::multiply_t<avg::Transform, std::optional<avg::Pen>> n;
     size_t s = sizeof(S);
 
     auto s2 = (btl::detail::MaxSizeOf<char, uint32_t, S>::value);

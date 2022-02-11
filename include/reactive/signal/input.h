@@ -53,10 +53,10 @@ namespace reactive::signal
 
         T const& evaluate() const
         {
-            if (!value_.valid())
+            if (!value_.has_value())
             {
                 auto lock = deferred_->lock();
-                value_ = btl::just(btl::clone(deferred_->evaluate(lock)));
+                value_ = btl::clone(deferred_->evaluate(lock));
             }
 
             return *value_;
@@ -65,7 +65,7 @@ namespace reactive::signal
         UpdateResult updateBegin(FrameInfo const& frame)
         {
             if (frameId_ == frame.getFrameId())
-                return btl::none;
+                return std::nullopt;
 
             frameId_ = frame.getFrameId();
 
@@ -80,8 +80,8 @@ namespace reactive::signal
 
             changed_ = deferred_->hasChanged(lock, tag_);
 
-            if (changed_ || !value_.valid())
-                value_ = btl::just(btl::clone(deferred_->evaluate(lock)));
+            if (changed_ || !value_.has_value())
+                value_ = btl::clone(deferred_->evaluate(lock));
             tag_ = deferred_->getTag(lock);
 
             return r;
@@ -117,7 +117,7 @@ namespace reactive::signal
         std::shared_ptr<InputDeferredValue<T, TLock>> deferred_;
         uint64_t frameId_ = 0;
         uint32_t tag_ = 0;
-        mutable btl::option<T> value_;
+        mutable std::optional<T> value_;
         bool changed_ = false;
     };
 

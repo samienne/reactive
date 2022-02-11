@@ -485,7 +485,7 @@ TEST(async, just)
 
     auto value = std::move(f2).get();
 
-    EXPECT_TRUE(value.valid());
+    EXPECT_TRUE(value.has_value());
     EXPECT_EQ(1, *value);
 }
 

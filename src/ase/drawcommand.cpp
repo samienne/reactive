@@ -8,7 +8,7 @@ DrawCommandDeferred::DrawCommandDeferred(
         std::vector<Texture> textures,
         Pipeline pipeline,
         VertexBuffer vertexBuffer,
-        btl::option<IndexBuffer> indexBuffer,
+        std::optional<IndexBuffer> indexBuffer,
         UniformSet uniforms,
         float z) :
     framebuffer_(std::move(framebuffer)),
@@ -26,7 +26,7 @@ DrawCommand::DrawCommand(
         Pipeline pipeline,
         UniformSet uniforms,
         VertexBuffer vertexBuffer,
-        btl::option<IndexBuffer> indexBuffer,
+        std::optional<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
         float z)
     : deferred_(

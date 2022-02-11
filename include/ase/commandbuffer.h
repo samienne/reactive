@@ -1,11 +1,10 @@
 #pragma once
 
 #include "rendercommand.h"
-
-#include <btl/option.h>
 #include "asevisibility.h"
 
 #include <vector>
+#include <optional>
 
 namespace ase
 {
@@ -20,7 +19,7 @@ namespace ase
                 Pipeline pipeline,
                 UniformSet uniforms,
                 VertexBuffer vertexBuffer,
-                btl::option<IndexBuffer> indexBuffer,
+                std::optional<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
 

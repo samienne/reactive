@@ -85,17 +85,17 @@ namespace reactive::stream
         {
             std::unique_lock<btl::SpinLock> lock(control_->mutex);
             if (control_->frameId == frame.getFrameId())
-                return btl::none;
+                return std::nullopt;
 
             control_->frameId = frame.getFrameId();
             control_->values.clear();
             control_->values.swap(control_->newValues);
-            return btl::none;
+            return std::nullopt;
         }
 
         signal::UpdateResult updateEnd(signal::FrameInfo const&)
         {
-            return btl::none;
+            return std::nullopt;
         }
 
         template <typename TCallback>

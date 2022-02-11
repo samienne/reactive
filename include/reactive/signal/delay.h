@@ -20,8 +20,8 @@ namespace reactive::signal
         Delay(Signal<T, U>&& signal) :
             signal_(std::move(signal)),
             values_({
-                    btl::just(btl::clone(signal_->evaluate())),
-                    btl::none
+                    std::make_optional(btl::clone(signal_->evaluate())),
+                    std::nullopt
                     })
         {
         }
@@ -44,14 +44,14 @@ namespace reactive::signal
             auto r = signal_->updateBegin(frame);
 
             changed_ = false;
-            if (values_[(index_+1)%2].valid())
+            if (values_[(index_+1)%2].has_value())
             {
                 index_ = (index_+1)%2;
                 changed_ = true;
             }
 
             if (changed_)
-                return btl::just(signal_time_t(0));
+                return std::make_optional(signal_time_t(0));
 
             return r;
         }
@@ -60,9 +60,9 @@ namespace reactive::signal
         {
             auto r = signal_->updateEnd(frame);
             if (signal_->hasChanged())
-                values_[(index_+1)%2] = btl::just(btl::clone(signal_->evaluate()));
+                values_[(index_+1)%2] = std::make_optional(btl::clone(signal_->evaluate()));
             else
-                values_[(index_+1)%2] = btl::none;
+                values_[(index_+1)%2] = std::nullopt;
 
             return r;
         }
@@ -92,7 +92,7 @@ namespace reactive::signal
 
     private:
         btl::CloneOnCopy<Signal<T, U>> signal_;
-        btl::option<std::decay_t<T>> values_[2];
+        std::optional<std::decay_t<T>> values_[2];
         uint8_t index_ = 0;
         bool changed_ = false;
     };

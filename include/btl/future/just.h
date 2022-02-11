@@ -1,18 +1,19 @@
 #pragma once
 
 #include "future.h"
-#include <btl/option.h>
+
+#include <optional>
 
 namespace btl
 {
     namespace future
     {
         template <typename T>
-        auto just(Future<T> f) -> Future<btl::option<T>>
+        auto just(Future<T> f) -> Future<std::optional<T>>
         {
             return std::move(f).fmap([](auto&& v)
             {
-                return btl::just(v);
+                return std::make_optional(v);
             });
         }
     } // future

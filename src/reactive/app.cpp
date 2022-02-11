@@ -118,10 +118,10 @@ public:
 
         aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e)
         {
-            if (currentHoverArea_.valid() && !currentHoverArea_->contains(e.pos))
+            if (currentHoverArea_.has_value() && !currentHoverArea_->contains(e.pos))
             {
                 currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
-                currentHoverArea_ = btl::none;
+                currentHoverArea_ = std::nullopt;
             }
 
             auto areas = widgetInstance_.getInputAreas();
@@ -130,15 +130,15 @@ public:
                 if (a.contains(e.pos))
                 {
 
-                    if (!currentHoverArea_.valid() ||
+                    if (!currentHoverArea_.has_value() ||
                         currentHoverArea_->getId() != a.getId())
                     {
-                        if (currentHoverArea_.valid())
+                        if (currentHoverArea_.has_value())
                         {
                             currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
                         }
 
-                        currentHoverArea_ = btl::just(a);
+                        currentHoverArea_ = a;
 
                         a.emitHoverEvent(HoverEvent{true, true});
                     }
@@ -186,7 +186,7 @@ public:
 
         aseWindow.setKeyCallback([this](ase::KeyEvent const &e)
         {
-            if (currentKeyHandler_.valid() && e.isDown())
+            if (currentKeyHandler_.has_value() && e.isDown())
             {
                 (*currentKeyHandler_)(e);
                 keys_[e.getKey()] = *currentKeyHandler_;
@@ -209,7 +209,7 @@ public:
 
         aseWindow.setTextCallback([this](ase::TextEvent const& e)
         {
-            if (currentTextHandler_.valid())
+            if (currentTextHandler_.has_value())
             {
                 (*currentTextHandler_)(e);
 
@@ -221,10 +221,10 @@ public:
         {
             if (!e.hover)
             {
-                if (currentHoverArea_.valid())
+                if (currentHoverArea_.has_value())
                 {
                     currentHoverArea_->emitHoverEvent(e);
-                    currentHoverArea_ = btl::none;
+                    currentHoverArea_ = std::nullopt;
 
                     makeTransaction(signal::signal_time_t(0), std::nullopt);
                 }
@@ -242,7 +242,7 @@ public:
             << std::endl;
     }
 
-    btl::option<signal::signal_time_t> makeTransaction(
+    std::optional<signal::signal_time_t> makeTransaction(
             std::chrono::microseconds dt,
             std::optional<avg::AnimationOptions> const& animationOptions
             )
@@ -286,9 +286,9 @@ public:
             {
                 auto handle = input.getFocusHandle();
 
-                if (input.getRequestFocus() && handle.valid())
+                if (input.getRequestFocus() && handle.has_value())
                 {
-                    if (currentHandle_.valid())
+                    if (currentHandle_.has_value())
                         currentHandle_->set(false);
                     handle->set(true);
                     currentHandle_ = handle;
@@ -298,11 +298,11 @@ public:
                 }
             }
 
-            if (!currentHandle_.valid() && !inputs.empty())
+            if (!currentHandle_.has_value() && !inputs.empty())
             {
                 auto handle = inputs[0];
                 currentHandle_ = handle.getFocusHandle();
-                if (currentHandle_.valid())
+                if (currentHandle_.has_value())
                     currentHandle_->set(true);
                 currentKeyHandler_ = handle.getKeyHandler();
                 currentTextHandler_ = handle.getTextHandler();
@@ -335,7 +335,7 @@ public:
         return timeToNext;
     }
 
-    btl::option<signal::signal_time_t> frame(std::chrono::microseconds dt)
+    std::optional<signal::signal_time_t> frame(std::chrono::microseconds dt)
     {
         pointerEventsOnThisFrame_ = 0;
 
@@ -383,7 +383,7 @@ public:
         }
 
         if (animating_)
-            return btl::just(signal::signal_time_t(0));
+            return signal::signal_time_t(0);
 
         return timeToNext;
     }
@@ -426,12 +426,12 @@ private:
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
-    btl::option<signal::InputHandle<bool>> currentHandle_;
-    btl::option<KeyboardInput::KeyHandler> currentKeyHandler_;
-    btl::option<KeyboardInput::TextHandler> currentTextHandler_;
+    std::optional<signal::InputHandle<bool>> currentHandle_;
+    std::optional<KeyboardInput::KeyHandler> currentKeyHandler_;
+    std::optional<KeyboardInput::TextHandler> currentTextHandler_;
     uint64_t frames_ = 0;
     uint32_t pointerEventsOnThisFrame_ = 0;
-    btl::option<InputArea> currentHoverArea_;
+    std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
     avg::UniqueId containerId_;
@@ -501,7 +501,7 @@ int App::run(AnySignal<bool> running) &&
 
         mainQueue.flush();
 
-        if (timeToNext.valid())
+        if (timeToNext.has_value())
         {
             auto frameTime = std::chrono::duration_cast<
                 std::chrono::microseconds>(clock.now() - thisFrame);

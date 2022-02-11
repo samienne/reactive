@@ -9,12 +9,12 @@
 
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>
-#include <btl/option.h>
 #include <btl/typetraits.h>
 
 #include <functional>
 #include <type_traits>
 #include <chrono>
+#include <optional>
 
 namespace reactive::signal
 {

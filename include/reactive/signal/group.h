@@ -47,7 +47,7 @@ namespace reactive::signal
 
         UpdateResult updateBegin(FrameInfo const& frame)
         {
-            return btl::tuple_reduce(UpdateResult(btl::none), *sigs_,
+            return btl::tuple_reduce(UpdateResult(std::nullopt), *sigs_,
                     [&frame](UpdateResult r, auto&& s)
                     {
                         return min(r, s.updateBegin(frame));
@@ -56,7 +56,7 @@ namespace reactive::signal
 
         UpdateResult updateEnd(FrameInfo const& frame)
         {
-            return btl::tuple_reduce(UpdateResult(btl::none), *sigs_,
+            return btl::tuple_reduce(UpdateResult(std::nullopt), *sigs_,
                     [&frame](UpdateResult r, auto&& s)
                     {
                         return min(r, s.updateEnd(frame));

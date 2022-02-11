@@ -33,17 +33,17 @@ namespace reactive::signal
             if (dt_ >= phase_)
             {
                 changed_ = true;
-                return btl::just(phase_ + phase_ - dt_);
+                return std::make_optional(phase_ + phase_ - dt_);
             }
 
             changed_ = false;
 
-            return btl::just(std::max(signal_time_t(0), phase_ - dt_));
+            return std::make_optional(std::max(signal_time_t(0), phase_ - dt_));
         }
 
         inline UpdateResult updateEnd(FrameInfo const&)
         {
-            return btl::none;
+            return std::nullopt;
         }
 
         inline signal_time_t evaluate() const

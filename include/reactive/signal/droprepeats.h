@@ -26,8 +26,8 @@ namespace reactive::signal
 
         signal_value_t<TSignal> const& evaluate() const
         {
-            if (!value_.valid())
-                value_ = btl::just(btl::clone(signal_->evaluate()));
+            if (!value_.has_value())
+                value_ = std::make_optional(btl::clone(signal_->evaluate()));
 
             return *value_;
         }
@@ -48,15 +48,15 @@ namespace reactive::signal
 
             auto value = btl::clone(signal_->evaluate());
 
-            if (!value_.valid())
+            if (!value_.has_value())
             {
-                value_ = btl::just(std::move(value));
+                value_ = std::make_optional(std::move(value));
                 changed_ = signal_->hasChanged();
                 return r;
             }
 
             changed_ = !(value == *value_);
-            value_ = btl::just(std::move(value));
+            value_ = std::make_optional(std::move(value));
 
             return r;
         }
@@ -87,7 +87,7 @@ namespace reactive::signal
 
     private:
         btl::CloneOnCopy<std::decay_t<TSignal>> signal_;
-        mutable btl::option<signal_value_t<TSignal>> value_;
+        mutable std::optional<signal_value_t<TSignal>> value_;
         bool changed_ = false;
     };
 

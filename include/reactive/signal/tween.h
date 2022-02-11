@@ -86,7 +86,7 @@ namespace reactive::signal
             if (finished_ && changed)
             {
                 finished_ = false;
-                return btl::just(signal_time_t(0));
+                return std::make_optional(signal_time_t(0));
             }
             else if (!finished_)
             {
@@ -131,7 +131,7 @@ namespace reactive::signal
                 value_ = (float)currentTime_.count()
                     / (float)tweenTime_.count();
 
-                return btl::just(signal_time_t(0));
+                return std::make_optional(signal_time_t(0));
             }
 
             changed_ = false;

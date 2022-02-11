@@ -54,7 +54,7 @@ namespace reactive::signal
             if (auto p = deferred_.lock())
                 return p->updateBegin(frame);
             else
-                return btl::none;
+                return std::nullopt;
         }
 
         UpdateResult updateEnd(FrameInfo const& frame)
@@ -62,7 +62,7 @@ namespace reactive::signal
             if (auto p = deferred_.lock())
                 return p->updateEnd(frame);
             else
-                return btl::none;
+                return std::nullopt;
         }
 
         template <typename TCallback>

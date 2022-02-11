@@ -9,12 +9,11 @@
 #include "vertexspec.h"
 #include "framebuffer.h"
 #include "uniformset.h"
-
-#include <btl/option.h>
 #include "asevisibility.h"
 
 #include <vector>
 #include <memory>
+#include <optional>
 
 namespace ase
 {
@@ -25,7 +24,7 @@ namespace ase
                 std::vector<Texture> textures,
                 Pipeline pipeline,
                 VertexBuffer vertexBuffer,
-                btl::option<IndexBuffer> indexBuffer,
+                std::optional<IndexBuffer> indexBuffer,
                 UniformSet uniforms,
                 float z);
 
@@ -44,7 +43,7 @@ namespace ase
 
         // Vertex data
         VertexBuffer vertexBuffer_;
-        btl::option<IndexBuffer> indexBuffer_;
+        std::optional<IndexBuffer> indexBuffer_;
 
         // Uniforms
         UniformSet uniforms_;
@@ -60,7 +59,7 @@ namespace ase
                 Pipeline pipeline,
                 UniformSet uniforms,
                 VertexBuffer vertexBuffer,
-                btl::option<IndexBuffer> indexBuffer,
+                std::optional<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
                 float z);
 
@@ -91,7 +90,7 @@ namespace ase
             return d()->vertexBuffer_;
         }
 
-        inline btl::option<IndexBuffer> const& getIndexBuffer() const
+        inline std::optional<IndexBuffer> const& getIndexBuffer() const
         {
             return d()->indexBuffer_;
         }

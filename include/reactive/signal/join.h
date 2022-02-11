@@ -34,7 +34,7 @@ namespace reactive::signal
         Join(Join&&) noexcept = default;
         Join& operator=(Join&&) noexcept = default;
 
-        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        std::optional<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             changed_ = false;
             auto r = outer_->updateBegin(frame);
@@ -47,11 +47,11 @@ namespace reactive::signal
             return r;
         }
 
-        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        std::optional<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             auto r1 = outer_->updateEnd(frame);
 
-            btl::option<signal_time_t> r2 = btl::none;
+            std::optional<signal_time_t> r2 = std::nullopt;
             if (!inner_ || outer_->hasChanged())
             {
                 inner_ = btl::cloneOnCopy(

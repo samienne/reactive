@@ -48,11 +48,11 @@ namespace reactive::signal
 
         UpdateResult updateBegin(FrameInfo const&)
         {
-            return btl::none; }
+            return std::nullopt; }
 
         UpdateResult updateEnd(FrameInfo const&)
         {
-            return btl::none;
+            return std::nullopt;
         }
 
         template <typename TCallback>
