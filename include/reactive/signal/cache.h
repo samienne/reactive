@@ -37,8 +37,8 @@ namespace reactive::signal
 
         ValueType const& evaluate() const
         {
-            if (value_.empty())
-                value_ = btl::just(btl::clone(sig_->evaluate()));
+            if (!value_.has_value())
+                value_ = btl::clone(sig_->evaluate());
 
             return *value_;
         }
@@ -59,7 +59,7 @@ namespace reactive::signal
 
             changed_ = sig_->hasChanged();
             if (changed_)
-                value_ = btl::none;
+                value_ = std::nullopt;
 
             return r;
         }
@@ -86,7 +86,7 @@ namespace reactive::signal
 
     private:
         btl::CloneOnCopy<std::decay_t<TStorage>> sig_;
-        mutable btl::option<ValueType> value_;
+        mutable std::optional<ValueType> value_;
         bool changed_ = false;
     };
 

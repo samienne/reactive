@@ -24,12 +24,12 @@ namespace reactive::signal
         inline UpdateResult updateBegin(FrameInfo const& frame)
         {
             dt_ = frame.getDeltaTime();
-            return btl::just(signal_time_t(0));
+            return std::make_optional(signal_time_t(0));
         }
 
         inline UpdateResult updateEnd(FrameInfo const&)
         {
-            return btl::just(signal_time_t(0));
+            return std::make_optional(signal_time_t(0));
         }
 
         inline signal_time_t const& evaluate() const

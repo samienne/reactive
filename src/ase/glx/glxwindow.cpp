@@ -6,8 +6,6 @@
 
 #include "debug.h"
 
-#include <btl/option.h>
-
 #include <stdexcept>
 #include <algorithm>
 #include <fstream>

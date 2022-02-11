@@ -4,8 +4,6 @@
 
 #include "signaltraits.h"
 
-#include <btl/option.h>
-
 namespace reactive::signal
 {
     template <typename TSignal>
@@ -26,12 +24,12 @@ namespace reactive::signal
         {
         }
 
-        btl::option<signal_value_t<TSignal>> evaluate() const
+        std::optional<signal_value_t<TSignal>> evaluate() const
         {
             if (!didChange_)
-                return btl::none;
+                return std::nullopt;
 
-            return btl::just(btl::clone(sig_->evaluate()));
+            return std::make_optional(btl::clone(sig_->evaluate()));
         }
 
         bool hasChanged() const
@@ -44,7 +42,7 @@ namespace reactive::signal
             auto r = sig_->updateBegin(frame);
 
             if (didChange_)
-                r = btl::just(signal_time_t(0));
+                r = std::make_optional(signal_time_t(0));
 
             return r;
         }

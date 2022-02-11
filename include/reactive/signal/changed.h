@@ -45,7 +45,7 @@ namespace reactive::signal
 
             changed_ = signal_.hasChanged();
             if (changed_)
-                return btl::just(signal_time_t(0));
+                return std::make_optional(signal_time_t(0));
 
             return r;
         }

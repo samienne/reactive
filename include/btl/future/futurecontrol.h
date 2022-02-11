@@ -3,12 +3,12 @@
 #include "traits.h"
 #include "futurebase.h"
 
-#include "../option.h"
 #include "../threadpool.h"
 
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
+#include <optional>
 
 namespace btl
 {
@@ -72,7 +72,7 @@ namespace btl
                     condition.wait(lock);
                 }
 
-                assert(value.valid());
+                assert(value.has_value());
 
                 return *std::move(value);
             }
@@ -82,7 +82,7 @@ namespace btl
                 return ready.load(std::memory_order_acquire);
             }
 
-            option<T> value;
+            std::optional<T> value;
             std::atomic<bool> ready;
         };
 

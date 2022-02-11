@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <ostream>
+#include <optional>
 
 namespace avg
 {
@@ -44,6 +45,15 @@ namespace avg
         inline float getRotation() const;
         inline Vector2f getTranslation() const;
         inline Matrix2f getRsMatrix() const;
+
+        template <typename T>
+        auto operator*(std::optional<T> rhs) const -> std::optional<T>
+        {
+            if (!rhs)
+                return std::nullopt;
+
+            return *this * *rhs;
+        }
 
         inline Vector2f operator*(Vector2f rhs) const;
         inline Transform operator*(Transform const& rhs) const;

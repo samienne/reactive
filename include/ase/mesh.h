@@ -3,9 +3,9 @@
 #include "vertexbuffer.h"
 #include "indexbuffer.h"
 #include "aabb.h"
-
-#include <btl/option.h>
 #include "asevisibility.h"
+
+#include <optional>
 
 namespace ase
 {
@@ -27,7 +27,7 @@ namespace ase
     private:
         Aabb aabb_;
         VertexBuffer vertexBuffer_;
-        btl::option<IndexBuffer> indexBuffer_;
+        std::optional<IndexBuffer> indexBuffer_;
     };
 }
 

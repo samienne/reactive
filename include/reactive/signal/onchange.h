@@ -45,12 +45,12 @@ namespace reactive::signal
             return sig_.hasChanged();
         }
 
-        btl::option<signal_time_t> updateBegin(FrameInfo const& frame)
+        std::optional<signal_time_t> updateBegin(FrameInfo const& frame)
         {
             return sig_.updateBegin(frame);
         }
 
-        btl::option<signal_time_t> updateEnd(FrameInfo const& frame)
+        std::optional<signal_time_t> updateEnd(FrameInfo const& frame)
         {
             auto r = sig_.updateEnd(frame);
 

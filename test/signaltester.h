@@ -42,14 +42,14 @@ public:
             const&)
     {
         ++data_->updateBeginCount_;
-        return btl::none;
+        return std::nullopt;
     }
 
     reactive::signal::UpdateResult updateEnd(reactive::signal::FrameInfo
             const&)
     {
         ++data_->updateEndCount_;
-        return btl::none;
+        return std::nullopt;
     }
 
     template <typename TFunc>

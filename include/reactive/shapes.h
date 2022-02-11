@@ -22,7 +22,7 @@ namespace reactive
 
     REACTIVE_EXPORT avg::Shape makeShape(
             avg::Path path,
-            btl::option<avg::Brush> brush,
-            btl::option<avg::Pen> pen);
+            std::optional<avg::Brush> brush,
+            std::optional<avg::Pen> pen);
 } // namespace reactive
 

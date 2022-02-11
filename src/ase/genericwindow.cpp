@@ -104,10 +104,10 @@ void GenericWindow::injectPointerMoveEvent(unsigned int /*pointerIndex*/,
 {
     Vector2f rel(0.0f, 0.0f);
 
-    if (pointerPos_.valid())
+    if (pointerPos_.has_value())
         rel = pos - *pointerPos_;
 
-    pointerPos_ = btl::just(pos);
+    pointerPos_ = std::make_optional(pos);
 
     PointerMoveEvent event{
         pos, rel, buttonPressedState_, hover_

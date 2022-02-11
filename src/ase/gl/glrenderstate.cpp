@@ -344,7 +344,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         vbo = vertexBuffer.getBuffer().getBuffer();
         mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());
 
-        if (command.getIndexBuffer().valid())
+        if (command.getIndexBuffer().has_value())
         {
             GlIndexBuffer const& ib = command.getIndexBuffer()
                 ->getImpl<GlIndexBuffer>();

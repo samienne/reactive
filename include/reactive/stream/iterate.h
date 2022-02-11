@@ -100,8 +100,8 @@ namespace reactive::stream
 
         signal::signal_value_t<TInitial> evaluate() const
         {
-            if (!value_.valid())
-                value_ = btl::just(btl::clone(initial_->evaluate()));
+            if (!value_.has_value())
+                value_ = std::make_optional(btl::clone(initial_->evaluate()));
 
             return *value_;
         }
@@ -121,14 +121,14 @@ namespace reactive::stream
             btl::tuple_foreach(*sigs_, stream::detail::UpdateEnd{frame});
             auto r2 = streamValues_->updateEnd(frame);
 
-            if (!value_.valid() || initial_->hasChanged())
+            if (!value_.has_value() || initial_->hasChanged())
             {
-                value_ = btl::clone(btl::just(initial_->evaluate()));
+                value_ = btl::clone(std::make_optional(initial_->evaluate()));
             }
 
             for (auto&& v : streamValues_->evaluate())
             {
-                value_ = btl::just(std::apply(
+                value_ = std::make_optional(std::apply(
                         func_,
                         std::tuple_cat(
                             std::forward_as_tuple(std::move(*value_),
@@ -172,7 +172,7 @@ namespace reactive::stream
         btl::CloneOnCopy<std::tuple<std::decay_t<TSignals>...>> sigs_;
         btl::CloneOnCopy<std::decay_t<TInitial>> initial_;
         btl::CloneOnCopy<decltype(collect(std::declval<Stream<T>>()))> streamValues_;
-        mutable btl::option<signal::signal_value_t<TInitial>> value_;
+        mutable std::optional<signal::signal_value_t<TInitial>> value_;
     };
 
     template <typename TFunc, typename TInitial, typename T,
@@ -207,7 +207,7 @@ namespace reactive::stream
             btl::tuple_foreach(*sigs_, stream::detail::UpdateBegin{frame});
             streamValues_->updateBegin(frame);
 
-            return btl::none;
+            return std::nullopt;
         }
 
         signal::UpdateResult updateEnd(signal::FrameInfo const& frame)

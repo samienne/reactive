@@ -40,8 +40,8 @@ namespace
         auto shape =  makeShape(
                 makeRoundedRect(drawContext.getResource(),
                     size[0] - 5.0f, size[1] - 5.0f, 10.0f),
-                btl::just(brush),
-                btl::just(pen));
+                std::make_optional(brush),
+                std::make_optional(pen));
 
         return avg::Transform()
             .translate(0.5f * size[0], 0.5f * size[1])

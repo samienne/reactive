@@ -4,8 +4,6 @@
 #include "controlwithdata.h"
 #include "futureconnection.h"
 
-#include <btl/option.h>
-
 namespace btl
 {
     namespace future

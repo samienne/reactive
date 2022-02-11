@@ -58,7 +58,7 @@ AnyWidget scrollView(AnyWidget widget)
                 }, contentSize, viewSize.signal);
 
         auto dragOffset = signal::input(avg::Vector2f());
-        auto scrollPos = signal::input<btl::option<avg::Vector2f>>(btl::none);
+        auto scrollPos = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
 
         auto t = signal::map([](float x, float y,
                     avg::Vector2f contentSize, avg::Vector2f viewSize)
@@ -89,7 +89,7 @@ AnyWidget scrollView(AnyWidget widget)
                         if (e.button == 1)
                         {
                             dragOffsetHandle.set(e.pos );
-                            scrollPosHandle.set(btl::just(avg::Vector2f(x, y)));
+                            scrollPosHandle.set(std::make_optional(avg::Vector2f(x, y)));
                         }
 
                         return EventResult::possible;
@@ -98,10 +98,10 @@ AnyWidget scrollView(AnyWidget widget)
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,
-                        btl::option<avg::Vector2f> scrollPos,
+                        std::optional<avg::Vector2f> scrollPos,
                         PointerMoveEvent const& e) mutable
                     {
-                        if (!scrollPos.valid())
+                        if (!scrollPos.has_value())
                             return EventResult::possible;
 
                         float hLen = contentSize[0] - viewSize[0];
@@ -119,7 +119,7 @@ AnyWidget scrollView(AnyWidget widget)
             | onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
                     {
-                        scrollPosHandle.set(btl::none);
+                        scrollPosHandle.set(std::nullopt);
                         return EventResult::reject;
                     })
             | widget::frame()

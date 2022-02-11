@@ -10,7 +10,6 @@
 
 #include <pmr/memory_resource.h>
 
-#include <btl/option.h>
 #include <btl/tuplereduce.h>
 #include <btl/tupleforeach.h>
 
@@ -367,15 +366,15 @@ namespace avg
     }
 
     class AVG_EXPORT RectNode : public ShapeNode<Animated<float>,
-        Animated<btl::option<Brush>>, Animated<btl::option<Pen>>>
+        Animated<std::optional<Brush>>, Animated<std::optional<Pen>>>
     {
     public:
         RectNode(
                 Animated<Obb> obb,
                 std::optional<AnimationOptions> animationOptions,
                 Animated<float> radius,
-                Animated<btl::option<Brush>> brush,
-                Animated<btl::option<Pen>> pen
+                Animated<std::optional<Brush>> brush,
+                Animated<std::optional<Pen>> pen
                 );
 
         std::shared_ptr<RenderTreeNode> clone() const override
@@ -394,8 +393,8 @@ namespace avg
                 DrawContext const& drawContext,
                 Vector2f size,
                 float radius,
-                btl::option<Brush> const& brush,
-                btl::option<Pen> const& pen
+                std::optional<Brush> const& brush,
+                std::optional<Pen> const& pen
                 );
     };
 

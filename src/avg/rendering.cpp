@@ -21,12 +21,13 @@
 #include <btl/fnv1a.h>
 #include <btl/uhash.h>
 #include <btl/hash.h>
-#include <btl/option.h>
 
 #include <pmr/vector.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/new_delete_resource.h>
+
+#include <optional>
 
 namespace avg
 {
@@ -150,14 +151,14 @@ pmr::vector<SoftMesh> generateMeshesForShape(pmr::memory_resource* memory,
 
     pmr::vector<SoftMesh> result(memory);
 
-    if (brush.valid())
+    if (brush.has_value())
     {
         bool needClip = !path.getControlBb().isFullyContainedIn(r);
         result.push_back(generateMeshForBrush(memory, path, *brush, pixelSize,
                     resPerPixel, r, clip && needClip));
     }
 
-    if (pen.valid())
+    if (pen.has_value())
     {
         Rect penRect = path.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
@@ -303,7 +304,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     std::sort(elements.begin(), elements.end(), compare);
 
     std::vector<Vertex> resultVertices;
-    btl::option<ase::Pipeline> previousPipeline;
+    std::optional<ase::Pipeline> previousPipeline;
 
     size_t count = 0u;
     for (auto const& element : elements)
@@ -321,7 +322,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
             resultVertices.push_back(v);
 
         bool const outOfElements = next == elements.end();
-        bool const pipelineChanged = previousPipeline.valid()
+        bool const pipelineChanged = previousPipeline.has_value()
                 && *previousPipeline != pipeline;
 
         if (!resultVertices.empty() && (outOfElements || pipelineChanged))
@@ -337,13 +338,13 @@ void renderElements(ase::CommandBuffer& commandBuffer,
                     );
 
             commandBuffer.push(framebuffer, pipeline, painter.getUniformSet(),
-                    std::move(vb), btl::none, {}, z);
+                    std::move(vb), std::nullopt, {}, z);
 
             resultVertices.clear();
         }
 
-        if (!previousPipeline.valid())
-            previousPipeline = btl::just(pipeline);
+        if (!previousPipeline.has_value())
+            previousPipeline = std::make_optional(pipeline);
     }
 }
 

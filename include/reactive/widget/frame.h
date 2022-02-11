@@ -59,7 +59,7 @@ namespace reactive::widget
                         auto brush = avg::Brush(theme.getBackground());
 
                         return context.drawing()
-                            + avg::Shape(path, btl::just(brush), btl::just(pen))
+                            + avg::Shape(path, std::make_optional(brush), std::make_optional(pen))
                             ;
                     },
                     std::move(cr),

@@ -9,8 +9,6 @@
 
 #include "debug.h"
 
-#include <btl/option.h>
-
 #include <GL/glx.h>
 
 #include <X11/extensions/sync.h>
@@ -22,6 +20,7 @@
 #include <stdexcept>
 #include <utility>
 #include <unordered_set>
+#include <optional>
 
 #include <cstdlib>
 

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "option.h"
 #include "moveonlyfunction.h"
 
 #include <vector>
@@ -64,12 +63,12 @@ namespace btl
             return tasks_.front().timePoint <= time;
         }
 
-        inline btl::option<TimePoint> getNextEventTime() const noexcept
+        inline std::optional<TimePoint> getNextEventTime() const noexcept
         {
             if (tasks_.empty())
-                return btl::none;
+                return std::nullopt;
 
-            return btl::just(tasks_.front().timePoint);
+            return tasks_.front().timePoint;
         }
 
         inline bool empty() const noexcept
@@ -146,43 +145,43 @@ namespace btl
             return true;
         }
 
-        inline option<MoveOnlyFunction<void()>> pop()
+        inline std::optional<MoveOnlyFunction<void()>> pop()
         {
             LockType lock(mutex_);
             while (tasks_.empty() && !timedQueue_.hasTaskReady() && !done_)
             {
                 auto time = timedQueue_.getNextEventTime();
-                if (time.valid())
+                if (time.has_value())
                     condition_.wait_until(lock, *time);
                 else
                     condition_.wait(lock);
             }
 
             if (timedQueue_.hasTaskReady())
-                return btl::just(timedQueue_.pop());
+                return timedQueue_.pop();
 
             if (tasks_.empty())
-                return none;
+                return std::nullopt;
 
             auto task = std::move(tasks_.front());
             tasks_.pop_front();
 
-            return btl::just(std::move(task));
+            return task;
         }
 
-        inline option<MoveOnlyFunction<void()>> tryPop()
+        inline std::optional<MoveOnlyFunction<void()>> tryPop()
         {
             LockType lock(mutex_, std::try_to_lock);
             bool hasTimedTask = !lock || timedQueue_.hasTaskReady();
             if (!lock || (tasks_.empty() && !hasTimedTask))
-                return none;
+                return std::nullopt;
 
             if (hasTimedTask)
-                return btl::just(timedQueue_.pop());
+                return timedQueue_.pop();
 
             auto task = std::move(tasks_.front());
             tasks_.pop_front();
-            return btl::just(std::move(task));
+            return task;
         }
 
     private:
@@ -279,19 +278,19 @@ namespace btl
         {
             while (true)
             {
-                option<MoveOnlyFunction<void()>> f;
+                std::optional<MoveOnlyFunction<void()>> f;
 
                 for (unsigned n = 0; n != count_ * 32u; ++n)
                 {
                     f = queues_[(n+i) % count_].tryPop();
-                    if (f.valid())
+                    if (f.has_value())
                         break;
                 }
 
-                if (!f.valid())
+                if (!f.has_value())
                     f = queues_[i].pop();
 
-                if (!f.valid())
+                if (!f.has_value())
                     break;
 
                 std::move(*f)();

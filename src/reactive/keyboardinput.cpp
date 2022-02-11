@@ -12,9 +12,9 @@ KeyboardInput::KeyboardInput(avg::Obb obb) :
 
 KeyboardInput::KeyboardInput(
         avg::Obb obb,
-        btl::option<FocusHandle> focusHandle,
-        btl::option<KeyHandler> keyHandler,
-        btl::option<TextHandler> textHandler,
+        std::optional<FocusHandle> focusHandle,
+        std::optional<KeyHandler> keyHandler,
+        std::optional<TextHandler> textHandler,
         bool requestFocus,
         bool hasFocus) :
     obb_(std::move(obb)),
@@ -40,19 +40,19 @@ KeyboardInput KeyboardInput::setFocus(bool focus) &&
 
 KeyboardInput KeyboardInput::onKeyEvent(KeyHandler handler) &&
 {
-    keyHandler_ = btl::just(std::move(handler));
+    keyHandler_ = std::make_optional(std::move(handler));
     return std::move(*this);
 }
 
 KeyboardInput KeyboardInput::onTextEvent(TextHandler handler) &&
 {
-    textHandler_ = btl::just(std::move(handler));
+    textHandler_ = std::make_optional(std::move(handler));
     return std::move(*this);
 }
 
 KeyboardInput KeyboardInput::setFocusHandle(FocusHandle handle) &&
 {
-    focusHandle_ = btl::just(std::move(handle));
+    focusHandle_ = std::make_optional(std::move(handle));
     return std::move(*this);
 }
 
@@ -62,7 +62,7 @@ KeyboardInput KeyboardInput::setFocusable(bool focusable) &&
     return std::move(*this);
 }
 
-KeyboardInput KeyboardInput::setFocusHandle(btl::option<FocusHandle> handle) &&
+KeyboardInput KeyboardInput::setFocusHandle(std::optional<FocusHandle> handle) &&
 {
     focusHandle_ = std::move(handle);
     return std::move(*this);
@@ -100,17 +100,17 @@ avg::Obb const& KeyboardInput::getObb() const
     return obb_;
 }
 
-btl::option<KeyboardInput::FocusHandle> const& KeyboardInput::getFocusHandle() const
+std::optional<KeyboardInput::FocusHandle> const& KeyboardInput::getFocusHandle() const
 {
     return focusHandle_;
 }
 
-btl::option<KeyboardInput::KeyHandler> const& KeyboardInput::getKeyHandler() const
+std::optional<KeyboardInput::KeyHandler> const& KeyboardInput::getKeyHandler() const
 {
     return keyHandler_;
 }
 
-btl::option<KeyboardInput::TextHandler> const& KeyboardInput::getTextHandler() const
+std::optional<KeyboardInput::TextHandler> const& KeyboardInput::getTextHandler() const
 {
     return textHandler_;
 }

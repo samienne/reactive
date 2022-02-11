@@ -35,7 +35,7 @@ public:
     UpdateResult updateBegin(Lock const&, FrameInfo const& frame)
     {
         if (frameId_ == frame.getFrameId())
-            return btl::none;
+            return std::nullopt;
 
         frameId_ = frame.getFrameId();
 
@@ -49,7 +49,7 @@ public:
         assert(frameId_ == frame.getFrameId());
 
         if (frameId2_ == frame.getFrameId())
-            return btl::none;
+            return std::nullopt;
 
         frameId2_ = frame.getFrameId();
 

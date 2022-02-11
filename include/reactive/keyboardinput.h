@@ -11,8 +11,9 @@
 #include <ase/keyevent.h>
 #include <ase/textevent.h>
 
-#include <btl/option.h>
 #include <btl/function.h>
+
+#include <optional>
 
 namespace reactive
 {
@@ -37,9 +38,9 @@ namespace reactive
 
         KeyboardInput(avg::Obb obb);
         KeyboardInput(avg::Obb obb,
-                btl::option<FocusHandle> focusHandle,
-                btl::option<KeyHandler> keyHandler,
-                btl::option<TextHandler> textHandler,
+                std::optional<FocusHandle> focusHandle,
+                std::optional<KeyHandler> keyHandler,
+                std::optional<TextHandler> textHandler,
                 bool requestFocus,
                 bool hasFocus);
         KeyboardInput requestFocus(bool focus) &&;
@@ -47,7 +48,7 @@ namespace reactive
         KeyboardInput onKeyEvent(KeyHandler handler) &&;
         KeyboardInput onTextEvent(TextHandler handler) &&;
         KeyboardInput setFocusHandle(FocusHandle handle) &&;
-        KeyboardInput setFocusHandle(btl::option<FocusHandle> handle) &&;
+        KeyboardInput setFocusHandle(std::optional<FocusHandle> handle) &&;
         KeyboardInput setFocusable(bool focusable) &&;
         KeyboardInput transform(avg::Transform const& t) &&;
         KeyboardInput setObb(avg::Obb obb) &&;
@@ -57,18 +58,18 @@ namespace reactive
         bool isFocusable() const;
         avg::Obb const& getObb() const;
 
-        btl::option<FocusHandle> const& getFocusHandle() const;
-        btl::option<KeyHandler> const& getKeyHandler() const;
-        btl::option<TextHandler> const& getTextHandler() const;
+        std::optional<FocusHandle> const& getFocusHandle() const;
+        std::optional<KeyHandler> const& getKeyHandler() const;
+        std::optional<TextHandler> const& getTextHandler() const;
 
     private:
         avg::Obb obb_;
 
         // Handle to send the focus status to
-        btl::option<FocusHandle> focusHandle_;
+        std::optional<FocusHandle> focusHandle_;
 
-        btl::option<KeyHandler> keyHandler_;
-        btl::option<TextHandler> textHandler_;
+        std::optional<KeyHandler> keyHandler_;
+        std::optional<TextHandler> textHandler_;
 
         bool requestFocus_ = false;
         bool hasFocus_ = false;

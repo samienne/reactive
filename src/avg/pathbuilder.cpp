@@ -130,23 +130,23 @@ Path PathBuilder::build() const&
 
 Shape PathBuilder::buildShape() &&
 {
-    return Shape(Path(std::move(data_)), btl::none, btl::none);
+    return Shape(Path(std::move(data_)), std::nullopt, std::nullopt);
 }
 
 Shape PathBuilder::buildShape(avg::Brush brush) &&
 {
-    return Shape(Path(std::move(data_)), btl::just(std::move(brush)), btl::none);
+    return Shape(Path(std::move(data_)), std::make_optional(std::move(brush)), std::nullopt);
 }
 
 Shape PathBuilder::buildShape(avg::Brush brush, avg::Pen pen) &&
 {
-    return Shape(Path(std::move(data_)), btl::just(std::move(brush)),
-            btl::just(std::move(pen)));
+    return Shape(Path(std::move(data_)), std::make_optional(std::move(brush)),
+            std::make_optional(std::move(pen)));
 }
 
 Shape PathBuilder::buildShape(avg::Pen pen) &&
 {
-    return Shape(Path(std::move(data_)), btl::none, btl::just(std::move(pen)));
+    return Shape(Path(std::move(data_)), std::nullopt, std::make_optional(std::move(pen)));
 }
 
 } // avg

@@ -44,8 +44,8 @@ namespace {
         return context.drawing(
                 makeShape(
                     std::move(path).build(),
-                    btl::none,
-                    btl::just(avg::Pen(avg::Brush(curveColor)))
+                    std::nullopt,
+                    std::make_optional(avg::Pen(avg::Brush(curveColor)))
                     )
                 )
             + makeShape(
@@ -54,8 +54,8 @@ namespace {
                     .lineTo(size[0], margin)
                     .build()
                     ,
-                    btl::none,
-                    btl::just(avg::Pen(avg::Brush(axisColor)))
+                    std::nullopt,
+                    std::make_optional(avg::Pen(avg::Brush(axisColor)))
                     )
             + makeShape(
                     context.pathBuilder()
@@ -63,8 +63,8 @@ namespace {
                     .lineTo(size[0], margin + graphHeight)
                     .build()
                     ,
-                    btl::none,
-                    btl::just(avg::Pen(avg::Brush(axisColor)))
+                    std::nullopt,
+                    std::make_optional(avg::Pen(avg::Brush(axisColor)))
                     )
             ;
     }

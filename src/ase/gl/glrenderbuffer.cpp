@@ -6,8 +6,8 @@
 namespace ase
 {
 
-GlRenderbuffer::GlRenderbuffer(GlRenderContext& context, Vector2i size, Format format) :
-    context_(context),
+GlRenderbuffer::GlRenderbuffer(GlRenderContext& /*context*/, Vector2i size, Format format) :
+    //context_(context),
     format_(format),
     glObject_(0),
     size_(size)

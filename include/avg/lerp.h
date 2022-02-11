@@ -10,9 +10,8 @@
 #include "rect.h"
 #include "avgvisibility.h"
 
-#include <btl/option.h>
-
 #include <tuple>
+#include <optional>
 
 namespace avg
 {
@@ -27,17 +26,17 @@ namespace avg
     AVG_EXPORT Curve lerp(Curve a, Curve b, float t);
 
     template <typename T>
-    btl::option<T> lerp(
-            btl::option<T> const& a,
-            btl::option<T> const& b,
+    std::optional<T> lerp(
+            std::optional<T> const& a,
+            std::optional<T> const& b,
             float t)
     {
-        if (!a.valid())
+        if (!a)
             return b;
-        if (!b.valid())
+        if (!b)
             return a;
 
-        return btl::just(lerp(*a, *b, t));
+        return lerp(*a, *b, t);
     }
 
     template <typename... Ts, size_t... S>

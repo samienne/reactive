@@ -38,8 +38,8 @@ AnyWidget label(AnySharedSignal<std::string> text)
                     .scale(height)
                     .translate(offset),
                 text,
-                btl::just(avg::Brush(theme.getPrimary())),
-                btl::none);
+                std::make_optional(avg::Brush(theme.getPrimary())),
+                std::nullopt);
 
         return drawContext.drawing(std::move(textEntry));
     };

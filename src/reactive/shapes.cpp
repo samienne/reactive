@@ -99,8 +99,8 @@ REACTIVE_EXPORT avg::Path makeCircle(pmr::memory_resource* memory,
 }
 
 avg::Shape makeShape(avg::Path path,
-        btl::option<avg::Brush> brush,
-        btl::option<avg::Pen> pen)
+        std::optional<avg::Brush> brush,
+        std::optional<avg::Pen> pen)
 {
     return avg::Shape(std::move(path), std::move(brush), std::move(pen));
 }

@@ -23,8 +23,8 @@ namespace reactive::widget
 
             return t * drawContext.drawing(makeShape(
                         makeRect(drawContext.getResource(), size[0], size[1]),
-                        btl::just(brush),
-                        btl::none
+                        std::make_optional(brush),
+                        std::nullopt
                         ));
         }
     } // namespace detail

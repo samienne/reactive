@@ -55,8 +55,8 @@ namespace reactive::signal
         UpdateResult updateBegin(FrameInfo const& frame)
         {
             return btl::reduce(
-                    btl::option<signal_time_t>(btl::none), *sigs_,
-                    [&frame](btl::option<signal_time_t> t, auto& sig) noexcept
+                    std::optional<signal_time_t>(std::nullopt), *sigs_,
+                    [&frame](std::optional<signal_time_t> t, auto& sig) noexcept
                     {
                         auto t2 = sig.updateBegin(frame);
                         return min(t, t2);
@@ -66,8 +66,8 @@ namespace reactive::signal
         UpdateResult updateEnd(FrameInfo const& frame)
         {
             return btl::reduce(
-                    btl::option<signal_time_t>(btl::none), *sigs_,
-                    [&frame](btl::option<signal_time_t> t, auto& sig) noexcept
+                    std::optional<signal_time_t>(std::nullopt), *sigs_,
+                    [&frame](std::optional<signal_time_t> t, auto& sig) noexcept
                     {
                         auto t2 = sig.updateEnd(frame);
                         return min(t, t2);

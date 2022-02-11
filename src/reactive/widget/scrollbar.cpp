@@ -76,7 +76,7 @@ namespace
                     ));
 
         return drawContext.drawing(
-            makeShape(std::move(slider), btl::just(brush), btl::just(pen))
+            makeShape(std::move(slider), std::make_optional(brush), std::make_optional(pen))
             );
     }
 
@@ -110,7 +110,7 @@ namespace
         avg::Pen pen(theme.getBackgroundHighlight(), 1.0f);
 
         return drawContext.drawing()
-            + makeShape(std::move(line), btl::none, btl::just(pen))
+            + makeShape(std::move(line), std::nullopt, std::make_optional(pen))
             + drawSlider<IsHorizontal>(drawContext, size, theme, amount,
                     handleSize, hover, isDown)
             ;
@@ -118,7 +118,7 @@ namespace
 
     template <bool IsHorizontal, typename T, typename U, typename V>
     auto scrollPointerDown(
-            signal::InputHandle<btl::option<avg::Vector2f>> downHandle,
+            signal::InputHandle<std::optional<avg::Vector2f>> downHandle,
             Signal<T, avg::Vector2f> sizeSignal,
             SharedSignal<U, float> amountSignal,
             Signal<V, float> handleSizeSignal)
@@ -132,7 +132,7 @@ namespace
                         handleSize);
 
                 if (e.button == 1 && r.contains(e.pos))
-                    downHandle.set(btl::just(e.pos-r.getCenter()));
+                    downHandle.set(e.pos-r.getCenter());
 
                 return EventResult::possible;
             },
@@ -165,9 +165,8 @@ namespace
         {
             auto theme = element.getParams().template valueOrDefault<ThemeTag>();
 
-            auto downOffset = signal::input<btl::option<avg::Vector2f>>(btl::none);
-            auto isDown = signal::map(&btl::option<avg::Vector2f>::valid,
-                    downOffset.signal);
+            auto downOffset = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
+            auto isDown = map([](auto v) { return v.has_value(); }, downOffset.signal);
             auto hover = signal::input(false);
 
             auto size = element.getSize();
@@ -188,16 +187,16 @@ namespace
                         )
                 | onPointerUp([handle=downOffset.handle]() mutable
                     {
-                        handle.set(btl::none);
+                        handle.set(std::nullopt);
                         return EventResult::accept;
                     })
                 | onPointerMove(signal::mapFunction(
                     [scrollHandle]
-                    (btl::option<avg::Vector2f> downOffset,
+                    (std::optional<avg::Vector2f> downOffset,
                         avg::Vector2f size, float handleSize,
                         PointerMoveEvent const& e) mutable -> EventResult
                     {
-                        if (!downOffset.valid())
+                        if (!downOffset.has_value())
                             return EventResult::possible;
 
                         if (handleSize == 1.0f)

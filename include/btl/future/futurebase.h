@@ -1,7 +1,6 @@
 #pragma once
 
 #include <btl/moveonlyfunction.h>
-#include <btl/option.h>
 #include <btl/spinlock.h>
 
 #include <btl/tsan.h>
@@ -9,6 +8,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace btl
 {
@@ -39,12 +39,12 @@ namespace btl
                 assert(!ready());
 
                 LockType lock(mutex_);
-                value_ = btl::just(std::forward<T>(value));
+                value_ = std::make_optional(std::forward<T>(value));
                 TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
                 TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
                 ready_.store(true, std::memory_order_release);
 
-                if (callback_.valid())
+                if (callback_.has_value())
                 {
                     auto callback = std::move(*callback_);
                     lock.unlock();
@@ -62,7 +62,7 @@ namespace btl
                 LockType lock(mutex_);
 
                 // Second check after actually locking the mutex just to be sure.
-                if (value_.valid())
+                if (value_.has_value())
                     return;
 
                 //assert(!callback_);
@@ -71,7 +71,7 @@ namespace btl
                 std::condition_variable condition;
 
                 auto oldCallback = std::move(callback_);
-                callback_ = btl::just<MoveOnlyFunction<void()>>(
+                callback_ = std::make_optional<MoveOnlyFunction<void()>>(
                         [&condition, &mutex]() mutable
                 {
                     std::unique_lock<std::mutex> lock2(mutex);
@@ -82,7 +82,7 @@ namespace btl
 
                 lock.unlock();
                 condition.wait(lock2);
-                if (oldCallback.valid())
+                if (oldCallback.has_value())
                     (*oldCallback)();
             }
 
@@ -100,7 +100,7 @@ namespace btl
             {
                 waitForResult();
 
-                assert(value_.valid());
+                assert(value_.has_value());
 
                 // No need for lock as the value will be set only once
                 // and we know that it has been set already.
@@ -127,16 +127,16 @@ namespace btl
 
                 // Check if the value was set between calling ready() and
                 // locking the mutex..
-                if (value_.valid())
+                if (value_.has_value())
                 {
                     lock.unlock();
                     callback();
                     return;
                 }
 
-                if (callback_.valid())
+                if (callback_.has_value())
                 {
-                    callback_ = btl::just<MoveOnlyFunction<void()>>(
+                    callback_ = std::make_optional<MoveOnlyFunction<void()>>(
                             [oldCb = std::move(callback_),
                                 cb=std::move(callback)]() mutable
                     {
@@ -145,14 +145,14 @@ namespace btl
                     });
                 }
                 else
-                    callback_ = btl::just(std::move(callback));
+                    callback_ = std::make_optional(std::move(callback));
             }
 
         private:
             SpinLock mutex_;
             std::atomic<bool> ready_;
-            btl::option<T> value_;
-            btl::option<btl::MoveOnlyFunction<void()>> callback_;
+            std::optional<T> value_;
+            std::optional<btl::MoveOnlyFunction<void()>> callback_;
         };
 
     } // future

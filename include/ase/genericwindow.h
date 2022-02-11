@@ -7,10 +7,9 @@
 #include "keyevent.h"
 #include "hoverevent.h"
 
-#include <btl/option.h>
-
 #include <functional>
 #include <string>
+#include <optional>
 
 namespace ase
 {
@@ -73,7 +72,7 @@ namespace ase
         Vector2i size_;
         float scalingFactor_;
 
-        btl::option<Vector2f> pointerPos_;
+        std::optional<Vector2f> pointerPos_;
         bool hover_ = false;
 
         std::array<bool, 15> buttonPressedState_ = { {

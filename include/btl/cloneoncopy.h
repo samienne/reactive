@@ -1,6 +1,5 @@
 #pragma once
 
-#include "option.h"
 #include "fmap.h"
 #include "voidt.h"
 #include "not.h"
@@ -9,6 +8,7 @@
 #include <vector>
 #include <utility>
 #include <type_traits>
+#include <optional>
 
 namespace btl
 {
@@ -94,16 +94,16 @@ namespace btl
     };
 
     template <typename T>
-    struct Clone<btl::option<T>, std::enable_if_t<
+    struct Clone<std::optional<T>, std::enable_if_t<
         IsClonable<T>::value
     >>
     {
-        static btl::option<T> clone(btl::option<T> const& v)
+        static std::optional<T> clone(std::optional<T> const& v)
         {
-            if (!v.valid())
-                return btl::none;
+            if (!v.has_value())
+                return std::nullopt;
 
-            return btl::just(btl::clone(*v));
+            return btl::clone(*v);
         }
     };
 

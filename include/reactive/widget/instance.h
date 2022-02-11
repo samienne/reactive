@@ -14,7 +14,8 @@
 #include <avg/transform.h>
 
 #include <btl/tupleforeach.h>
-#include <btl/option.h>
+
+#include <optional>
 
 namespace reactive::widget
 {

@@ -23,6 +23,11 @@ bool IndexBuffer::operator==(IndexBuffer const& rhs) const
     return d() == rhs.d();
 }
 
+bool IndexBuffer::operator!=(IndexBuffer const& rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool IndexBuffer::operator<(IndexBuffer const& other) const
 {
     return d() < other.d();

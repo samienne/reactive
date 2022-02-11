@@ -62,8 +62,8 @@ TextEdit::operator AnyWidget() const
                     .scale(height)
                     .translate(offset),
                 text.first.str(),
-                btl::just(avg::Brush(color)),
-                btl::none);
+                std::make_optional(avg::Brush(color)),
+                std::nullopt);
 
         auto textEntry2 = avg::TextEntry(
                 font,
@@ -71,8 +71,8 @@ TextEdit::operator AnyWidget() const
                     .scale(height)
                     .translate(te1.advance + offset),
                 text.second.str(),
-                btl::just(avg::Brush(color)),
-                btl::none);
+                std::make_optional(avg::Brush(color)),
+                std::nullopt);
 
         avg::Drawing texts = drawContext.drawing(textEntry1) + textEntry2;
 
@@ -88,7 +88,7 @@ TextEdit::operator AnyWidget() const
             texts = std::move(texts)
                 + avg::Shape(drawContext.getResource())
                 .setPath(line)
-                .setPen(btl::just(
+                .setPen(std::make_optional(
                             avg::Pen(
                                 avg::Brush(theme.getEmphasized() * percentage),
                                 1.0f)

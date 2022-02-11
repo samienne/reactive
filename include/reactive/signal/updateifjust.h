@@ -56,7 +56,7 @@ namespace reactive::signal
             {
                 auto v = btl::clone(signal_->evaluate());
                 changed_ = false;
-                if (v.valid())
+                if (v.has_value())
                 {
                     value_ = std::move(*v);
                     changed_ = true;

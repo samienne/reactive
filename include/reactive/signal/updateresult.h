@@ -1,19 +1,19 @@
 #pragma once
 
-#include <btl/option.h>
-
 #include <chrono>
+#include <optional>
+#include <algorithm>
 
 namespace reactive::signal
 {
     using signal_time_t = std::chrono::microseconds;
-    using UpdateResult = btl::option<signal_time_t>;
+    using UpdateResult = std::optional<signal_time_t>;
 
     inline UpdateResult min(UpdateResult const& l, UpdateResult const& r)
     {
-        if (l.valid() && r.valid())
-            return btl::just(std::min(*l, *r));
-        else if (r.valid())
+        if (l.has_value() && r.has_value())
+            return std::min(*l, *r);
+        else if (r.has_value())
             return r;
         else
             return l;
