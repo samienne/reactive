@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <ostream>
+#include <optional>
 
 namespace avg
 {
