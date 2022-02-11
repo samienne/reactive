@@ -166,8 +166,7 @@ namespace
             auto theme = element.getParams().template valueOrDefault<ThemeTag>();
 
             auto downOffset = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
-            auto isDown = signal::map(&std::optional<avg::Vector2f>::has_value,
-                    downOffset.signal);
+            auto isDown = map([](auto v) { return v.has_value(); }, downOffset.signal);
             auto hover = signal::input(false);
 
             auto size = element.getSize();
