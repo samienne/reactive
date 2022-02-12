@@ -3,10 +3,11 @@
 #include "polyline.h"
 #include "rect.h"
 
-#include "poly2tri/poly2tri.h"
 #include "clipper/clipper.hpp"
 
 #include "debug.h"
+
+#include <mapbox/earcut.hpp>
 
 #include <pmr/vector.h>
 #include <pmr/shared_ptr.h>
@@ -18,6 +19,22 @@
 #include <queue>
 #include <stdexcept>
 #include <memory>
+
+namespace mapbox::util {
+
+template <>
+struct nth<0, ClipperLib::IntPoint> {
+    inline static auto get(const ClipperLib::IntPoint &t) {
+        return t.x();
+    };
+};
+template <>
+struct nth<1, ClipperLib::IntPoint> {
+    inline static auto get(const ClipperLib::IntPoint &t) {
+        return t.y();
+    };
+};
+} // namespace mapbox::util
 
 namespace avg
 {
@@ -399,11 +416,11 @@ Region Region::offset(JoinType join, EndType end, float offset) const
     return result;
 }
 
-std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
+std::pair<pmr::vector<Vector2f>, pmr::vector<uint32_t> >
     Region::triangulate(pmr::memory_resource* memory) const
 {
     if (!d())
-        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint32_t>(memory)};
 
     size_t pointCount = 0;
     ClipperLib::PolyNode* node = d()->polyTree_->GetFirst();
@@ -414,7 +431,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
     }
 
     if (pointCount == 0)
-        return {pmr::vector<Vector2f>(memory), pmr::vector<uint16_t>(memory)};
+        return {pmr::vector<Vector2f>(memory), pmr::vector<uint32_t>(memory)};
 
     pmr::monotonic_buffer_resource mono(memory);
 
@@ -428,92 +445,48 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint16_t> >
     node = stack.front();
     stack.pop();
 
-    pmr::vector<uint16_t> indices(memory);
+    pmr::vector<uint32_t> indices(memory);
     pmr::vector<Vector2f> vertices(memory);
-    //DBG("Top level paths: %1", d()->polyTree_.Childs.size());
+
     while (node)
     {
         assert(!node->IsHole());
         assert(ClipperLib::Orientation(node->Contour)
                 && "Wrong orientation");
 
-        //points.clear();
-        pmr::vector<p2t::Point*> polyline(&mono);
         assert(node->Contour.front() != node->Contour.back());
 
         size_t pointCount = node->Contour.size();
         for (auto const& child : node->Childs)
             pointCount += child->Contour.size();
 
-        pmr::vector<p2t::Point> points(&mono);
-        points.reserve(pointCount);
-
-        for (auto const& pt : node->Contour)
-        {
-            points.emplace_back(
-                    &mono,
-                    (float)pt.x() / xRes,
-                    (float)pt.y() / yRes
-                    );
-
-            polyline.push_back(&points.back());
-        }
-
-        /*DBG("Polyline size: %1, children: %2", polyline.size(),
-                node->ChildCount());*/
-        p2t::CDT cdt(polyline);
+        pmr::vector<pmr::vector<ClipperLib::IntPoint>> polygons(&mono);
+        polygons.push_back(node->Contour);
 
         for (auto const& child : node->Childs)
         {
-            polyline.clear();
-            //assert(child->IsHole());
-            //assert(!ClipperLib::Orientation(child->Contour)
-                    //&& "Wrong orientation");
-            for (auto const& pt : child->Contour)
-            {
-                assert(child->Contour.front() != child->Contour.back());
-                points.push_back(p2t::Point(
-                            &mono,
-                            (float)pt.x() / xRes,
-                            (float)pt.y() / yRes));
-                polyline.push_back(&points.back());
-            }
-
-            //DBG("hole %1", polyline.size());
-            cdt.AddHole(polyline);
+            polygons.push_back(child->Contour);
 
             for (auto const& grandChild : child->Childs)
                 stack.push(grandChild);
         }
 
-        //assert(nextPoint <= points.size() && "Too many points");
-        cdt.Triangulate();
+        std::vector<uint32_t> triangles = mapbox::earcut(polygons);
 
-        pmr::vector<p2t::Triangle*> const& triangles = cdt.GetTriangles();
-
-        for (auto const& triangle : triangles)
+        size_t offset = vertices.size();
+        for (auto const& polygon : polygons)
         {
-            for (int l = 0; l < 3; ++l)
+            for (auto const& vertex : polygon)
             {
-                /*size_t index = (size_t)((char*)(*k)->GetPoint(l)
-                        - (char*)points.data()) / sizeof(p2t::Point);
-                indices.push_back(index);*/
-
-#if 0
-                p2t::Point& p = *(*k)->GetPoint(l);
-                p2t::Point& p2 = *(*k)->GetPoint((l+1)%3);
-
-                //if (!(*k)->constrained_edge[(*k)->EdgeIndex(&p, &p2)])
-                    //continue;
-
-                vertices.push_back(Vector2f(p.x, p.y));
-                vertices.push_back(Vector2f(p2.x, p2.y));
-#else
-                p2t::Point& p = *(triangle)->GetPoint(l);
-                vertices.push_back(Vector2f(p.x, p.y));
-#endif
+                vertices.emplace_back(
+                        (float)vertex.x() / xRes,
+                        (float)vertex.y() / yRes
+                        );
             }
         }
+
+        for (auto index : triangles)
+            indices.push_back(index + offset);
 
         if (stack.empty())
             break;

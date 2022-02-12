@@ -12,6 +12,9 @@ libeigendep = eigen.get_variable('eigen_dep')
 freetype = subproject('freetype2')
 libfreetypedep = freetype.get_variable('freetype_dep')
 
+mapbox = subproject('mapbox')
+mapboxdep = mapbox.get_variable('mapbox_dep')
+
 subdir('src')
 subdir('test')
 

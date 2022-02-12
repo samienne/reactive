@@ -89,7 +89,7 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
 {
     auto bufs = std::make_pair(
             pmr::vector<ase::Vector2f>(memory),
-            pmr::vector<uint16_t>(memory)
+            pmr::vector<uint32_t>(memory)
             );
 
     if (clip)
@@ -107,8 +107,8 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
 
     pmr::vector<std::array<float, 2>> vertices(memory);
     vertices.reserve(bufs.first.size());
-    for (auto const& v : bufs.first)
-        vertices.push_back(toVertex(v));
+    for (auto const& i : bufs.second)
+        vertices.push_back(toVertex(bufs.first[i]));
 
     return SoftMesh(std::move(vertices), brush);
 }
