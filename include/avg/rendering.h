@@ -9,8 +9,6 @@
 #include <ase/commandbuffer.h>
 #include <ase/framebuffer.h>
 
-#include <btl/variant.h>
-
 #include <pmr/memory_resource.h>
 
 namespace avg

@@ -4,7 +4,7 @@
 #include "stream/stream.h"
 #include "collection.h"
 
-#include <btl/variant.h>
+#include <variant>
 
 namespace reactive
 {
@@ -50,7 +50,7 @@ namespace reactive
             std::vector<std::pair<size_t, T>> values;
         };
 
-        using Event = btl::variant<Insert, Update, Erase, Swap, Move, Refresh>;
+        using Event = std::variant<Insert, Update, Erase, Swap, Move, Refresh>;
 
         stream::Stream<Event> input;
         std::function<void()> initialize;
