@@ -1,37 +1,11 @@
 #pragma once
 
 #include "all.h"
-#include "variant.h"
+
+#include <variant>
 
 namespace btl
 {
-    /*
-    template <typename TValue, typename TErr>
-    class Result;
-
-    template <typename T>
-    struct IsResult : std::false_type {};
-
-    template <typename T, typename U>
-    struct IsResult<Result<T, U>> : std::true_type {};
-
-    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        All<IsResult, Ts...>::value
-        >
-    >
-    auto fmap(TFunc&& func, Ts&&... ts)
-    -> Result<
-        std::invoke_result_t<TFunc&&, typename Ts::ValueType...>,
-        std::common_type_t<typename Ts::ErrorType...>
-    >
-    {
-        if (all(!std::forward<Ts>(ts).valid()...))
-            return 
-
-        return std::forward<TFunc>(func)(std::forward<Ts>(ts).value()...);
-    }
-    */
-
     template <typename TValue, typename TErr>
     class Result
     {
@@ -61,37 +35,37 @@ namespace btl
 
         bool valid() const noexcept
         {
-            return value_.template is<TValue>();
+            return std::holds_alternative<TValue>(value_);
         }
 
         TValue const& value() const&
         {
-            return value_.template get<TValue>();
+            return std::get<TValue>(value_);
         }
 
         TValue value() &&
         {
-            return std::move(value_.template get<TValue>());
+            return std::move(std::get<TValue>(value_));
         }
 
         TValue& value() &
         {
-            return value_.template get<TValue>();
+            return std::get<TValue>(value_);
         }
 
         TErr const& err() const&
         {
-            return value_.template get<TErr>();
+            return std::get<TErr>(value_);
         }
 
         TErr err() &&
         {
-            return std::move(value_.template get<TErr>());
+            return std::move(std::get<TErr>(value_));
         }
 
         TErr& err() &
         {
-            return value_.template get<TErr>();
+            return std::get<TErr>(value_);
         }
 
         template <typename TFunc>
@@ -155,7 +129,7 @@ namespace btl
         }
 
     private:
-        btl::variant<TValue, TErr> value_;
+        std::variant<TValue, TErr> value_;
     };
 } // btl
 

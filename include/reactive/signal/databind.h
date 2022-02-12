@@ -12,7 +12,9 @@
 
 #include <reactive/signal/signal.h>
 
+#include <variant>
 #include <vector>
+#include <variant>
 
 namespace reactive::signal
 {
@@ -26,7 +28,6 @@ namespace reactive::signal
 
         struct WidgetState
         {
-            //WidgetObject widget;
             AnyWidget widget;
             InputHandle<T> valueHandle;
             size_t id;
@@ -44,9 +45,9 @@ namespace reactive::signal
             [delegate, connection=std::move(source.connection)]
             (State state, typename DataSource<T>::Event event)
             {
-                if (event.template is<typename DataSource<T>::Insert>())
+                if (std::holds_alternative<typename DataSource<T>::Insert>(event))
                 {
-                    auto& insert = event.template get<typename DataSource<T>::Insert>();
+                    auto& insert = std::get<typename DataSource<T>::Insert>(event);
 
                     auto valueInput = signal::input<T>(std::move(insert.value));
 
@@ -60,9 +61,9 @@ namespace reactive::signal
                                 insert.id
                                 });
                 }
-                else if(event.template is<typename DataSource<T>::Update>())
+                else if(std::holds_alternative<typename DataSource<T>::Update>(event))
                 {
-                    auto& update = event.template get<typename DataSource<T>::Update>();
+                    auto& update = std::get<typename DataSource<T>::Update>(event);
 
                     for (auto i = state.objects.begin();
                             i != state.objects.end(); ++i)
@@ -74,9 +75,9 @@ namespace reactive::signal
                         }
                     }
                 }
-                else if (event.template is<typename DataSource<T>::Erase>())
+                else if (std::holds_alternative<typename DataSource<T>::Erase>(event))
                 {
-                    auto& erase = event.template get<typename DataSource<T>::Erase>();
+                    auto& erase = std::get<typename DataSource<T>::Erase>(event);
 
                     for (auto i = state.objects.begin();
                             i != state.objects.end(); ++i)
@@ -88,9 +89,9 @@ namespace reactive::signal
                         }
                     }
                 }
-                else if(event.template is<typename DataSource<T>::Swap>())
+                else if(std::holds_alternative<typename DataSource<T>::Swap>(event))
                 {
-                    auto& swap = event.template get<typename DataSource<T>::Swap>();
+                    auto& swap = std::get<typename DataSource<T>::Swap>(event);
                     auto i = state.objects.end();
                     auto j = state.objects.end();
 
@@ -110,9 +111,9 @@ namespace reactive::signal
                         }
                     }
                 }
-                else if(event.template is<typename DataSource<T>::Move>())
+                else if(std::holds_alternative<typename DataSource<T>::Move>(event))
                 {
-                    auto& move = event.template get<typename DataSource<T>::Move>();
+                    auto& move = std::get<typename DataSource<T>::Move>(event);
 
                     assert(move.newIndex < static_cast<int>(state.objects.size()));
 
@@ -143,10 +144,9 @@ namespace reactive::signal
                         }
                     }
                 }
-                else if(event.template is<typename DataSource<T>::Refresh>())
+                else if(std::holds_alternative<typename DataSource<T>::Refresh>(event))
                 {
-                    auto& refresh = event.template get<
-                        typename DataSource<T>::Refresh>();
+                    auto& refresh = std::get<typename DataSource<T>::Refresh>(event);
 
                     std::vector<WidgetState> newObjects;
                     newObjects.reserve(state.objects.size());

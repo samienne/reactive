@@ -29,9 +29,8 @@
 #include <avg/textextents.h>
 #include <avg/pathbuilder.h>
 
-#include <btl/variant.h>
-
 #include <algorithm>
+#include <variant>
 
 namespace reactive::widget
 {
@@ -99,7 +98,7 @@ TextEdit::operator AnyWidget() const
         return texts;
     };
 
-    using Events = btl::variant<KeyEvent, TextEvent, ClickEvent>;
+    using Events = std::variant<KeyEvent, TextEvent, ClickEvent>;
 
     auto update = [](TextEditState state, Events const& e,
             std::vector<std::function<void()>> const& onEnter)
@@ -107,9 +106,9 @@ TextEdit::operator AnyWidget() const
     {
         widget::Theme theme;
 
-        if (e.is<KeyEvent>())
+        if (std::holds_alternative<KeyEvent>(e))
         {
-            auto& keyEvent = e.get<KeyEvent>();
+            auto& keyEvent = std::get<KeyEvent>(e);
 
             if (!keyEvent.isDown())
                 return state;
@@ -140,15 +139,15 @@ TextEdit::operator AnyWidget() const
                 state.pos = i.index();
             }
         }
-        else if (e.is<TextEvent>())
+        else if (std::holds_alternative<TextEvent>(e))
         {
-            auto& textEvent = e.get<TextEvent>();
+            auto& textEvent = std::get<TextEvent>(e);
             state.text.insert(state.pos, textEvent.getText());
             state.pos += textEvent.getText().size();
         }
-        else if (e.is<ClickEvent>())
+        else if (std::holds_alternative<ClickEvent>(e))
         {
-            auto& clickEvent = e.get<ClickEvent>();
+            auto& clickEvent = std::get<ClickEvent>(e);
 
             state.pos = theme.getFont().getCharacterIndex(
                     utf8::asUtf8(state.text),
