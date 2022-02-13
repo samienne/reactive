@@ -46,7 +46,15 @@ template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 // Vertex: rgbaxyz
 using Vertex = std::array<float, 7>;
 using Vertices = pmr::vector<Vertex>;
-using Element = std::pair<ase::Pipeline, Vertices>;
+
+struct Element
+{
+    ase::Pipeline pipeline;
+    Vertices vertices;
+    pmr::vector<uint32_t> indices;
+};
+
+//using Element = std::pair<ase::Pipeline, Vertices>;
 
 Color premultiply(Color c)
 {
@@ -68,7 +76,7 @@ Vertices generateVertices(pmr::memory_resource* memory,
 
     Matrix2f rs = t.getRsMatrix();
 
-    auto toVertex = [z, &t, &c, &rs](std::array<float, 2> const& v)
+    auto toVertex = [z, &t, &c, &rs](Vector2f const& v)
     {
         Vector2f p = t.getTranslation() + rs * Vector2f(v[0], v[1]);
 
@@ -89,7 +97,7 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
 {
     auto bufs = std::make_pair(
             pmr::vector<ase::Vector2f>(memory),
-            pmr::vector<uint16_t>(memory)
+            pmr::vector<uint32_t>(memory)
             );
 
     if (clip)
@@ -98,19 +106,8 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
         bufs = region.triangulate(memory);
 
     Color color = premultiply(brush.getColor());
-    auto toVertex = [](ase::Vector2f v)
-    {
-        auto vertex = std::array<float, 2>( { { v[0], v[1]} } );
 
-        return vertex;
-    };
-
-    pmr::vector<std::array<float, 2>> vertices(memory);
-    vertices.reserve(bufs.first.size());
-    for (auto const& v : bufs.first)
-        vertices.push_back(toVertex(v));
-
-    return SoftMesh(std::move(vertices), brush);
+    return SoftMesh(std::move(bufs.first), std::move(bufs.second), brush);
 }
 
 SoftMesh generateMeshForBrush(pmr::memory_resource* memory,
@@ -295,41 +292,54 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
         Painter const& painter, pmr::vector<Element>&& elements)
 {
-    auto compare = [](std::pair<ase::Pipeline, Vertices> const& a,
-            std::pair<ase::Pipeline, Vertices> const& b)
+    auto compare = [](Element const& a, Element const& b)
     {
-        return a.first < b.first;
+        return a.pipeline < b.pipeline;
     };
 
     std::sort(elements.begin(), elements.end(), compare);
 
     std::vector<Vertex> resultVertices;
+    std::vector<uint32_t> resultIndices;
+
     std::optional<ase::Pipeline> previousPipeline;
 
-    size_t count = 0u;
+    size_t vertexCount = 0u;
+    size_t indexCount = 0u;
     for (auto const& element : elements)
-        count += element.second.size();
-    resultVertices.reserve(count);
+    {
+        vertexCount += element.vertices.size();
+        indexCount += element.indices.size();
+    }
+
+    resultVertices.reserve(vertexCount);
+    resultIndices.reserve(indexCount);
 
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
         auto const& element = *i;
         auto next = i+1;
-        auto const& pipeline = element.first;
-        auto const& vertices = element.second;
 
-        for (auto const& v : vertices)
+        uint32_t indexOffset = resultVertices.size();
+
+        for (auto const& v : element.vertices)
             resultVertices.push_back(v);
+
+        for (auto index : element.indices)
+            resultIndices.push_back(indexOffset + index);
 
         bool const outOfElements = next == elements.end();
         bool const pipelineChanged = previousPipeline.has_value()
-                && *previousPipeline != pipeline;
+                && *previousPipeline != element.pipeline;
 
-        if (!resultVertices.empty() && (outOfElements || pipelineChanged))
+        if (!resultVertices.empty()
+                && !resultIndices.empty()
+                && (outOfElements || pipelineChanged))
         {
             float const z = resultVertices[0][2];
 
             auto vb = context.makeVertexBuffer();
+            auto ib = context.makeIndexBuffer();
 
             commandBuffer.pushUpload(
                     vb,
@@ -337,14 +347,21 @@ void renderElements(ase::CommandBuffer& commandBuffer,
                     ase::Usage::StreamDraw
                     );
 
-            commandBuffer.push(framebuffer, pipeline, painter.getUniformSet(),
-                    std::move(vb), std::nullopt, {}, z);
+            commandBuffer.pushUpload(
+                    ib,
+                    ase::Buffer(std::move(resultIndices)),
+                    ase::Usage::StreamDraw
+                    );
+
+            commandBuffer.push(framebuffer, element.pipeline, painter.getUniformSet(),
+                    std::move(vb), std::move(ib), {}, z);
 
             resultVertices.clear();
+            resultIndices.clear();
         }
 
         if (!previousPipeline.has_value())
-            previousPipeline = std::make_optional(pipeline);
+            previousPipeline = element.pipeline;
     }
 }
 
@@ -359,9 +376,11 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
     uint32_t i = 1;
     for (auto const& mesh : meshes)
     {
-        elements.push_back(std::make_pair(painter.getPipeline(mesh.getBrush()),
-                    generateVertices(memory,
-                        mesh, 1.0f - (float)i * step)));
+        elements.push_back(Element{
+                    painter.getPipeline(mesh.getBrush()),
+                    generateVertices(memory, mesh, 1.0f - (float)i * step),
+                    mesh.getIndices()
+                    });
         ++i;
     }
 
