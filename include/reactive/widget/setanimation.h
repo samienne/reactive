@@ -2,6 +2,8 @@
 
 #include "setparams.h"
 
+#include <reactive/signal/changed.h>
+
 #include <avg/curve.h>
 #include <avg/animationoptions.h>
 
@@ -31,6 +33,21 @@ namespace reactive::widget
                 );
     }
 
+    template <typename T, typename U>
+    auto setAnimation(avg::AnimationOptions options, Signal<T, U> signal)
+    {
+        return setAnimation(
+                changed(std::move(signal)).map([options=std::move(options)]
+                    (bool hasChanged) -> std::optional<avg::AnimationOptions>
+                    {
+                        return hasChanged
+                            ? std::make_optional(options)
+                            : std::nullopt
+                            ;
+                    })
+                );
+    }
+
     inline auto setAnimation(std::nullopt_t)
     {
         return setAnimation(
@@ -48,6 +65,19 @@ namespace reactive::widget
                         ),
                 std::move(curve)
                 });
+    }
+
+    template <typename T, typename U>
+    auto setAnimation(float duration, avg::Curve curve, Signal<T, U> signal)
+    {
+        return setAnimation(avg::AnimationOptions{
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::duration<float>(duration)
+                        ),
+                std::move(curve)
+                },
+                std::move(signal)
+                );
     }
 } // namespace reactive::widget
 

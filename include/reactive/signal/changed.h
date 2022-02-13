@@ -2,6 +2,7 @@
 
 #include "constant.h"
 #include "signaltraits.h"
+#include "signal.h"
 
 namespace reactive::signal
 {
@@ -25,7 +26,7 @@ namespace reactive::signal
 
         bool evaluate() const
         {
-            return changed_ != changedPrevious_;
+            return changed_;
         }
 
         bool hasChanged() const
@@ -81,9 +82,8 @@ namespace reactive::signal
 
     template <typename T, typename TSignal>
     auto changed(Signal<TSignal, T> sig)
-        -> Changed<Signal<std::decay_t<TSignal>, T>>
     {
-        return Changed<Signal<std::decay_t<TSignal>, T>>(std::move(sig));
+        return wrap(Changed<Signal<std::decay_t<TSignal>, T>>(std::move(sig)));
     }
 } // namespace reactive::signal
 

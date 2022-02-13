@@ -74,14 +74,14 @@ reactive::widget::AnyWidget curveVisualizer(
         reactive::AnySignal<avg::Curve> curve
         )
 {
-    auto c = std::move(curve).map([](auto curve)
+    auto c = curve.clone().map([](auto curve)
             {
                 return avg::Animated<avg::Curve>(std::move(curve));
             });
 
     return widget::makeWidget()
         | widget::onDraw(drawGraph, std::move(c))
-        | widget::setAnimation(0.9f, avg::curve::easeInOutCubic)
+        | widget::setAnimation(0.9f, avg::curve::easeInOutCubic, std::move(curve))
         | widget::margin(signal::constant(7.0f))
         | widget::frame()
         | widget::setSizeHint(signal::constant(simpleSizeHint(300.0f, 300.0f)))
