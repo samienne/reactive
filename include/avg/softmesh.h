@@ -19,9 +19,10 @@ namespace avg
     class AVG_EXPORT SoftMesh
     {
     public:
-        using Vertex = std::array<float, 2>;
-        SoftMesh(pmr::vector<Vertex>&& vertices, Brush const& brush);
-        SoftMesh(pmr::vector<Vertex> const& vertices, Brush const& brush);
+        using Vertex = Vector2f;
+        SoftMesh(pmr::vector<Vertex> vertices,
+                pmr::vector<uint32_t> indices,
+                Brush brush);
         SoftMesh(SoftMesh const&) = default;
         SoftMesh(SoftMesh&&) noexcept = default;
 
@@ -33,6 +34,7 @@ namespace avg
         pmr::memory_resource* getResource() const;
 
         pmr::vector<Vertex> const& getVertices() const;
+        pmr::vector<uint32_t> const & getIndices() const;
         Brush const& getBrush() const;
         Transform const& getTransform() const;
 

@@ -463,7 +463,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
 
         if (ibo)
-            glDrawElements(mode, count, GL_UNSIGNED_SHORT, 0);
+            glDrawElements(mode, count, GL_UNSIGNED_INT, 0);
         else
             glDrawArrays(mode, 0, count);
     }

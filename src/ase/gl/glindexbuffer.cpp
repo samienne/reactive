@@ -29,7 +29,7 @@ size_t GlIndexBuffer::getCount() const
 void GlIndexBuffer::setData(Dispatched d, GlFunctions const& gl,
         Buffer const& buffer, Usage usage)
 {
-    size_ = buffer.getSize() / 2;
+    size_ = buffer.getSize() / sizeof(uint32_t);
     buffer_.setData(d, gl, buffer.data(), buffer.getSize(), usage);
 }
 
