@@ -106,19 +106,6 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
         bufs = region.triangulate(memory);
 
     Color color = premultiply(brush.getColor());
-    /*
-    auto toVertex = [](ase::Vector2f v)
-    {
-        auto vertex = std::array<float, 2>( { { v[0], v[1]} } );
-
-        return vertex;
-    };
-
-    pmr::vector<std::array<float, 2>> vertices(memory);
-    vertices.reserve(bufs.first.size());
-    for (auto const& i : bufs.second)
-        vertices.push_back(toVertex(bufs.first[i]));
-        */
 
     return SoftMesh(std::move(bufs.first), std::move(bufs.second), brush);
 }
