@@ -1,6 +1,7 @@
 #pragma once
 
 #include "setparams.h"
+#include "withparams.h"
 
 #include <reactive/signal/changed.h>
 
@@ -36,15 +37,26 @@ namespace reactive::widget
     template <typename T, typename U>
     auto setAnimation(avg::AnimationOptions options, Signal<T, U> signal)
     {
-        return setAnimation(
-                changed(std::move(signal)).map([options=std::move(options)]
-                    (bool hasChanged) -> std::optional<avg::AnimationOptions>
-                    {
-                        return hasChanged
-                            ? std::make_optional(options)
-                            : std::nullopt
-                            ;
-                    })
+        return withParams<AnimationTag>(
+                [](auto widget, auto animation, auto options, auto signal)
+                {
+                    return std::move(widget)
+                        | setAnimation(
+                            group(changed(std::move(signal)), std::move(animation))
+                            .map([options=std::move(options)]
+                                (bool hasChanged,
+                                 std::optional<avg::AnimationOptions> animation)
+                                -> std::optional<avg::AnimationOptions>
+                                {
+                                    return hasChanged
+                                        ? std::make_optional(options)
+                                        : animation
+                                        ;
+                                })
+                            );
+                },
+                std::move(options),
+                std::move(signal)
                 );
     }
 
