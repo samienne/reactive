@@ -154,6 +154,7 @@ TEST(async, fmapWithRef)
     EXPECT_TRUE(std::move(f2).get());
 }
 
+/*
 TEST(async, futureMemberFMap)
 {
     auto f = makeFuture(std::make_unique<int>(20));
@@ -164,7 +165,9 @@ TEST(async, futureMemberFMap)
 
     EXPECT_TRUE(std::move(f2).get());
 }
+*/
 
+/*
 TEST(async, futureMemberFMapMultiArg)
 {
     auto f = makeFuture(std::make_unique<int>(20));
@@ -176,6 +179,7 @@ TEST(async, futureMemberFMapMultiArg)
 
     EXPECT_TRUE(std::move(f3).get());
 }
+*/
 
 TEST(async, sharedFutureMemberFMap)
 {
@@ -308,12 +312,14 @@ TEST(async, fmapMember)
 }
 */
 
+/*
 TEST(async, futureJoin)
 {
     auto ff = makeFuture(makeFuture(std::make_unique<int>(20)));
     auto f = join(std::move(ff));
     EXPECT_EQ(20, *std::move(f).get());
 }
+*/
 
 TEST(async, sharedFutureJoin)
 {
@@ -323,6 +329,7 @@ TEST(async, sharedFutureJoin)
     EXPECT_EQ(20, *std::move(f).get());
 }
 
+/*
 TEST(async, futureMbind)
 {
     auto f = makeFuture(std::make_unique<int>(20));
@@ -333,7 +340,9 @@ TEST(async, futureMbind)
 
     EXPECT_EQ(std::string("test"), *std::move(f2).get());
 }
+*/
 
+/*
 TEST(async, futureMemberMbind)
 {
     auto f = makeFuture(std::make_unique<int>(20));
@@ -344,7 +353,9 @@ TEST(async, futureMemberMbind)
 
     EXPECT_EQ(std::string("test"), *std::move(f2).get());
 }
+*/
 
+/*
 TEST(async, futureMemberMbindMultiArg)
 {
     auto f = makeFuture(std::make_unique<int>(20));
@@ -356,6 +367,7 @@ TEST(async, futureMemberMbindMultiArg)
 
     EXPECT_EQ(std::string("test"), *std::move(f3).get());
 }
+*/
 
 TEST(async, sharedFutureMbind)
 {
@@ -420,7 +432,7 @@ TEST(async, perf)
         int delta = count / steps;
         for (size_t i = 0; i < steps; ++i)
         {
-            auto fut = async(std::bind(f, delta));
+            auto fut = btl::async(std::bind(f, delta));
             accs.push_back(std::move(fut));
         }
 

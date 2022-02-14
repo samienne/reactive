@@ -9,85 +9,219 @@
 #include <mutex>
 #include <condition_variable>
 #include <optional>
+#include <tuple>
+#include <utility>
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    template <typename... Ts>
+    class FutureControl : public FutureBase
     {
-        namespace detail
-        {
-            struct DoMap;
+        using LockType = std::unique_lock<SpinLock>;
 
-            // Use 2-phase lookup to "break" circular dependency
-            template <typename T>
-            struct MyDoMap
+    public:
+        FutureControl() :
+            ready_(false)
+        {
+        }
+
+        void set(std::tuple<Ts...> value)
+        {
+            assert(!ready());
+
+            LockType lock(mutex_);
+            value_ = std::make_optional(std::move(value));
+            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
+            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
+            ready_.store(true, std::memory_order_release);
+
+            if (callback_.has_value())
             {
-                using type = future::detail::DoMap;
-            };
+                auto callback = std::move(*callback_);
+                lock.unlock();
+
+                callback();
+            }
         }
 
-        template <typename T>
-        struct FutureControl;
-
-        template <typename T>
-        auto get(T&& future)
-            -> decltype(future->get())
+        void waitForResult()
         {
-            return std::forward<T>(future)->get();
-        }
+            // Fast preliminary check if we don't have to wait.
+            if (ready())
+                return;
 
-        template <typename T>
-        auto isReady(T&& future)
-            -> decltype(future->isReady())
-        {
-            return std::forward<T>(future)->isReady();
-        }
+            LockType lock(mutex_);
 
-        template <typename T>
-        struct FutureControl final : public FutureBase<T>
-        {
-            FutureControl()
+            // Second check after actually locking the mutex just to be sure.
+            if (value_.has_value())
+                return;
+
+            //assert(!callback_);
+
+            std::mutex mutex;
+            std::condition_variable condition;
+
+            auto oldCallback = std::move(callback_);
+            callback_ = std::make_optional<MoveOnlyFunction<void()>>(
+                    [&condition, &mutex]() mutable
             {
-                ready.store(false, std::memory_order_release);
+                std::unique_lock<std::mutex> lock2(mutex);
+                condition.notify_one();
+            });
+
+            std::unique_lock<std::mutex> lock2(mutex);
+
+            lock.unlock();
+            condition.wait(lock2);
+            if (oldCallback.has_value())
+                (*oldCallback)();
+        }
+
+        /*
+        template <int... S>
+        std::tuple<std::decay_t<Ts> const&...> getTupleRefImpl(std::index_sequence<S...>) const&
+        {
+            assert(value_.has_value());
+
+            return std::make_tuple<std::decay_t<Ts> const&...>(
+                    std::get<S>(*value_)...
+                    );
+        }
+
+        std::tuple<std::decay_t<Ts> const&...> getTupleRef() const&
+        {
+        }
+        */
+
+        //std::tuple<Ts...> get()
+        /*
+        auto get()
+        {
+            waitForResult();
+
+            assert(value_.has_value());
+
+            // No need for lock as the value will be set only once
+            // and we know that it has been set already. Also we are
+            // the only consumer for the value.
+            if constexpr(sizeof...(Ts) == 0)
+                return;
+            else if constexpr(sizeof...(Ts) == 1)
+                return std::move(std::get<0>(*value_));
+            else
+                return getTuple();
+        }
+        */
+
+        template <typename... Us, size_t... S>
+        auto getAsTupleImpl(std::index_sequence<S...>) -> decltype(auto)
+        {
+            assert(value_.has_value());
+
+            return std::make_tuple<Us...>(
+                    (Us)std::get<S>(*value_)...
+                    );
+        }
+
+        template <typename U, typename... Us>
+        auto getAsTuple()
+        {
+            assert(value_.has_value());
+
+            return getAsTupleImpl<U, Us...>(std::make_index_sequence<sizeof...(Us)+1>());
+        }
+
+        template <typename U>
+        auto getFirst() -> U
+        {
+            assert(value_.has_value());
+            return std::move(std::get<0>(*value_));
+        }
+
+        template <typename... Us>
+        auto get() -> decltype(auto)
+        {
+            static_assert(sizeof...(Ts) == sizeof...(Us));
+            waitForResult();
+
+            assert(value_.has_value());
+
+            // No need for lock as the value will be set only once
+            // and we know that it has been set already. Also we are
+            // the only consumer for the value.
+            if constexpr(sizeof...(Ts) == 0)
+                return;
+            else if constexpr(sizeof...(Ts) == 1)
+                return getFirst<Us...>();
+            else
+                return getAsTuple<Us...>();
+        }
+
+        //std::tuple<std::decay_t<Ts> const&...> getRef()
+        /*
+        auto getRef()
+        {
+            waitForResult();
+
+            assert(value_.has_value());
+
+            // No need for lock as the value will be set only once
+            // and we know that it has been set already.
+            if constexpr(sizeof...(Ts) == 0)
+                return;
+            else if constexpr(sizeof...(Ts) == 1)
+                return std::get<0>(*value_);
+            else
+                return getTupleRef();
+        }
+        */
+
+        bool ready() const
+        {
+            bool r = ready_.load(std::memory_order_acquire);
+            TSAN_ANNOTATE_HAPPENS_AFTER(&value_);
+            TSAN_ANNOTATE_HAPPENS_AFTER(&value_.getReferenceForTsan());
+            return r;
+        }
+
+        void addCallback(btl::MoveOnlyFunction<void()> callback)
+        {
+            if (ready())
+            {
+                callback();
+                return;
             }
 
-            T get() override
+            LockType lock(mutex_);
+
+            // Check if the value was set between calling ready() and
+            // locking the mutex..
+            if (value_.has_value())
             {
-                if (!isReady())
+                lock.unlock();
+                callback();
+                return;
+            }
+
+            if (callback_.has_value())
+            {
+                callback_ = std::make_optional<MoveOnlyFunction<void()>>(
+                        [oldCb = std::move(callback_),
+                            cb=std::move(callback)]() mutable
                 {
-                    std::mutex mutex;
-                    std::condition_variable condition;
-
-                    std::unique_lock<std::mutex> lock(mutex);
-                    auto selfPtr = this->shared_from_this();
-                    /*auto f = typename detail::MyDoMap<T>::type()(
-                            [&](T const&)
-                            {
-                                std::unique_lock<std::mutex> lock(mutex);
-                                condition.notify_all();
-                                return true;
-                            }, std::move(selfPtr));*/
-
-                    ThreadPool::getInstance().flush();
-                    condition.wait(lock);
-                }
-
-                assert(value.has_value());
-
-                return *std::move(value);
+                    std::move(*oldCb)();
+                    std::move(cb)();
+                });
             }
+            else
+                callback_ = std::make_optional(std::move(callback));
+        }
 
-            bool isReady() const override
-            {
-                return ready.load(std::memory_order_acquire);
-            }
-
-            std::optional<T> value;
-            std::atomic<bool> ready;
-        };
-
-        static_assert(IsFuture<FutureControl<int>>::value, "");
-
-    } // future
-} // btl
+    private:
+        SpinLock mutex_;
+        std::atomic<bool> ready_;
+        std::optional<std::tuple<Ts...>> value_;
+        std::optional<btl::MoveOnlyFunction<void()>> callback_;
+    };
+} // namespace btl::future
 

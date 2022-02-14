@@ -4,18 +4,15 @@
 
 #include <optional>
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    template <typename T>
+    auto just(Future<T> f) -> Future<std::optional<T>>
     {
-        template <typename T>
-        auto just(Future<T> f) -> Future<std::optional<T>>
+        return std::move(f).fmap([](auto&& v)
         {
-            return std::move(f).fmap([](auto&& v)
-            {
-                return std::make_optional(v);
-            });
-        }
-    } // future
-} // btl
+            return std::make_optional(v);
+        });
+    }
+} // namespace btl
 

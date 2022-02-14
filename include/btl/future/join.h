@@ -1,51 +1,49 @@
 #pragma once
 
-#include "futurebase.h"
 #include "controlwithdata.h"
+#include "futurecontrol.h"
+#include "futurebase.h"
 #include "futureconnection.h"
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    template <typename... Ts>
+    class Future;
+
+    template <typename... Ts>
+    class SharedFuture;
+
+    template <typename TFuture>
+    auto join(TFuture f)
+    -> Future<FutureType<std::decay_t<FutureType<TFuture>>>>
     {
-        template <typename T>
-        class Future;
+        using T = FutureType<FutureType<TFuture>>;
+        using ControlType = detail::ControlWithData<
+            FutureConnection,
+            std::decay_t<T>>;
 
-        template <typename T>
-        class SharedFuture;
+        auto control = std::make_shared<ControlType>(f.connect());
+        std::weak_ptr<ControlType> weakControl = control;
 
-        template <typename TFuture>
-        auto join(TFuture f)
-        -> Future<FutureType<std::decay_t<FutureType<TFuture>>>>
-        {
-            using T = FutureType<FutureType<TFuture>>;
-            using ControlType = detail::ControlWithData<T,
-                  FutureConnection>;
-
-            auto control = std::make_shared<ControlType>(f.connect());
-            std::weak_ptr<ControlType> weakControl = control;
-
-            std::move(f).listen(
-                    [control=std::move(weakControl)](auto&& f2) mutable
+        std::move(f).listen(
+                [control=std::move(weakControl)](auto&& f2) mutable
+            {
+                if (auto p = control.lock())
                 {
-                    if (auto p = control.lock())
-                    {
-                        p->data = f2.connect();
-                        std::forward<decltype(f2)>(f2)
-                            .listen([control=std::move(control)](auto&& f3)
+                    p->data = f2.connect();
+                    std::forward<decltype(f2)>(f2)
+                        .listen([control=std::move(control)](auto&& f3)
+                        {
+                            if (auto p = control.lock())
                             {
-                                if (auto p = control.lock())
-                                {
-                                    p->set(std::forward<decltype(f3)>(f3));
-                                }
-                            });
+                                p->set(std::forward<decltype(f3)>(f3));
+                            }
+                        });
 
-                    }
-                });
+                }
+            });
 
-
-            return { std::move(control) };
-        }
-    } // future
-} // btl
+        return { std::move(control) };
+    }
+} // namespace btl::future
 
