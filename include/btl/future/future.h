@@ -128,7 +128,7 @@ namespace btl::future
             auto control = std::make_shared<ControlType>(
                     std::make_pair(connect(), std::forward<TFunc>(func))
                     );
-            std::weak_ptr weakControl = control;
+            std::weak_ptr<ControlType> weakControl = control;
 
             std::move(*this).listen(
                 [control=std::move(weakControl)](auto&&... ts) mutable
