@@ -14,7 +14,6 @@
 #include <btl/typetraits.h>
 #include <btl/sequence.h>
 #include <btl/cloneoncopy.h>
-#include <btl/bundle.h>
 
 #include <type_traits>
 
