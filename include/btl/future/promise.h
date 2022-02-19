@@ -1,5 +1,6 @@
 #pragma once
 
+#include "futurecontrol.h"
 #include "futurebase.h"
 
 #include <memory>

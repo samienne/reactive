@@ -3,8 +3,7 @@
 #include <reactive/signal/mbind.h>
 #include <reactive/signal/signal.h>
 
-#include <btl/future/fmap.h>
-#include <btl/future/mbind.h>
+#include <btl/future/whenall.h>
 
 #include <btl/bundle.h>
 #include <btl/fmap.h>
@@ -46,43 +45,5 @@ TEST(Bundle, signalMBind)
     AnySignal<int> d = std::move(c);
 
     EXPECT_EQ(30, d.evaluate());
-}
-
-TEST(Bundle, futureFMap)
-{
-    auto a = btl::async([]() { return 10; });
-    auto b = btl::async([]() { return 20; });
-
-    auto c = *btl::bundleMove(a, b)
-        .fmap([](int i, int j)
-        {
-            return i + j;
-        })
-        .fmap([](int n)
-        {
-            return std::to_string(n);
-        })
-        ;
-
-    EXPECT_EQ(std::string("30"), std::move(c).get());
-}
-
-TEST(Bundle, futureMBind)
-{
-    auto a = btl::async([]() { return 10; });
-    auto b = btl::async([]() { return 20; });
-
-    auto c = *btl::bundleMove(a, b)
-        .mbind([](int i, int j)
-        {
-            return btl::async([=]() { return i + j; });
-        })
-        .fmap([](int n)
-        {
-            return std::to_string(n);
-        })
-        ;
-
-    EXPECT_EQ(std::string("30"), std::move(c).get());
 }
 
