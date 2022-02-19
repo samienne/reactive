@@ -113,6 +113,13 @@ namespace btl::future
         }
         */
 
+        std::tuple<Ts...> getTuple()
+        {
+            assert(value_.has_value());
+
+            return *value_;
+        }
+
         template <typename... Us, size_t... S>
         auto getAsTupleImpl(std::index_sequence<S...>) -> decltype(auto)
         {
@@ -123,12 +130,12 @@ namespace btl::future
                     );
         }
 
-        template <typename U, typename... Us>
+        template <typename... Us>
         auto getAsTuple()
         {
             assert(value_.has_value());
 
-            return getAsTupleImpl<U, Us...>(std::make_index_sequence<sizeof...(Us)+1>());
+            return getAsTupleImpl<Us...>(std::make_index_sequence<sizeof...(Us)>());
         }
 
         template <typename U>

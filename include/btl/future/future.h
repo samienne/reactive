@@ -21,6 +21,29 @@
 
 namespace btl::future
 {
+    template <typename T, template <typename... Us> typename U>
+    struct ApplyParamsFrom
+    {
+    };
+
+    template <template <typename... Vs> typename T, template <typename... Us> typename U,
+             typename... Vs>
+    struct ApplyParamsFrom<T<Vs...>, U>
+    {
+        using type = U<Vs...>;
+    };
+
+    template <typename T, template <typename... Us> typename U>
+    using ApplyParamsFromT = typename ApplyParamsFrom<T, U>::type;
+
+    static_assert(std::is_same_v<
+            FutureControl<int, char>,
+            ApplyParamsFromT<std::tuple<int, char>, FutureControl>
+            >);
+
+    template <typename... Ts>
+    class SharedFuture;
+
     template <typename... Ts>
     class Future
     {
@@ -30,11 +53,38 @@ namespace btl::future
         {
         }
 
+        Future(SharedFuture<Ts...>& rhs) :
+            control_(rhs.control_)
+        {
+        };
+
+        Future(SharedFuture<Ts...> const& rhs) :
+            control_(rhs.control_)
+        {
+        };
+
+        Future(SharedFuture<Ts...>&& rhs) :
+            control_(std::move(rhs.control_))
+        {
+        };
+
         Future(Future const&) = delete;
         Future(Future&&) noexcept = default;
 
         Future& operator=(Future const&) = delete;
         Future& operator=(Future&&) noexcept = default;
+
+        Future& operator=(SharedFuture<Ts...> const& rhs)
+        {
+            control_ = rhs.control_;
+            return *this;
+        }
+
+        Future& operator=(SharedFuture<Ts...>&& rhs)
+        {
+            control_ = std::move(rhs.control_);
+            return *this;
+        }
 
         /*template <typename T2 = T,
             typename = std::enable_if_t<!std::is_reference<T2>::value>>
@@ -42,6 +92,16 @@ namespace btl::future
         auto get() && -> decltype(auto)
         {
             return control_->template get<Ts...>();
+        }
+
+        auto getTuple() && -> decltype(auto)
+        {
+            return control_->template getAsTuple<Ts&&...>();
+        }
+
+        auto getRefTuple() -> decltype(auto)
+        {
+            return control_->template getAsTuple<Ts&...>();
         }
 
         /*
@@ -88,7 +148,65 @@ namespace btl::future
                     );
         }
 
-        void listen(btl::MoveOnlyFunction<void(Ts...)> callback) &&
+        template <typename TFunc, typename = std::enable_if_t<
+            std::is_invocable_v<TFunc, FutureValueTypeT<Ts>...>
+            >>
+        auto then(TFunc&& func) &&
+        {
+            using ReturnType = std::decay_t<std::invoke_result_t<
+                TFunc,
+                FutureValueTypeT<Ts>...
+                >>;
+            using ValueType = FutureValueTypeT<ReturnType>;
+
+            using ControlType = detail::ControlWithData<
+                std::pair<FutureConnection, std::decay_t<TFunc>>,
+                std::decay_t<ValueType>
+                >;
+
+            auto control = std::make_shared<ControlType>(
+                    std::make_pair(connect(), std::forward<TFunc>(func))
+                    );
+            std::weak_ptr weakControl = control;
+
+            std::move(*this).listen(
+                [control=std::move(weakControl)](auto&&... ts) mutable
+                {
+                    if (auto p = control.lock())
+                    {
+                        auto r = std::invoke(
+                                std::move(p->data.second),
+                                std::forward<decltype(ts)>(ts)...
+                                );
+
+                        if constexpr (IsFuture<std::decay_t<decltype(r)>>::value)
+                        {
+                            auto f = std::move(r).then(
+                                [control=std::move(control)](auto&&... ts) mutable
+                                {
+                                    if (auto p = control.lock())
+                                    {
+                                        p->set(std::forward_as_tuple(
+                                                    std::forward<decltype(ts)>(ts)...
+                                                    ));
+                                    }
+
+                                    return true;
+                                });
+
+                            p->data.first = std::move(f).connect();
+                        }
+                        else
+                        {
+                            p->set(std::make_tuple(std::move(r)));
+                        }
+                    }
+                });
+
+            return Future<ValueType>(std::move(control));
+        }
+
+        void listen(btl::MoveOnlyFunction<void(Ts...)> callback)
         {
             std::weak_ptr<FutureControl<std::decay_t<Ts>...>> weak(
                     std::move(control_));
@@ -99,7 +217,10 @@ namespace btl::future
                 {
                     if (auto p = control.lock())
                     {
-                        std::move(cb)(p->template get<Ts...>());
+                        std::apply(
+                            std::move(cb),
+                            p->template getAsTuple<Ts&&...>()
+                            );
                     }
                 });
         }
@@ -179,7 +300,7 @@ namespace btl::future
                 });
         }
 
-    private:
+    protected:
         std::shared_ptr<FutureControl<std::decay_t<Ts>...>> control_;
     };
 
