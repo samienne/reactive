@@ -1,13 +1,9 @@
 #pragma once
 
 #include "sharedfuture.h"
-#include "promise.h"
 #include "futureconnection.h"
 #include "futurecontrol.h"
 #include "futurebase.h"
-#include "mbind.h"
-#include "fmap.h"
-#include "join.h"
 
 #include <btl/all.h>
 #include <btl/moveonlyfunction.h>
@@ -42,7 +38,19 @@ namespace btl::future
             >);
 
     template <typename... Ts>
+    class Future;
+
+    template <typename... Ts>
     class SharedFuture;
+
+    template <typename T>
+    struct IsFuture : std::false_type {};
+
+    template <typename... Ts>
+    struct IsFuture<Future<Ts...>> : std::true_type {};
+
+    template <typename... Ts>
+    struct IsFuture<SharedFuture<Ts...>> : std::true_type {};
 
     template <typename... Ts>
     class Future
@@ -86,9 +94,6 @@ namespace btl::future
             return *this;
         }
 
-        /*template <typename T2 = T,
-            typename = std::enable_if_t<!std::is_reference<T2>::value>>
-        */
         auto get() && -> decltype(auto)
         {
             return control_->template get<Ts...>();
@@ -102,50 +107,6 @@ namespace btl::future
         auto getRefTuple() -> decltype(auto)
         {
             return control_->template getAsTuple<Ts&...>();
-        }
-
-        /*
-        template <typename T2 = T,
-                    typename = std::enable_if_t<std::is_reference<T2>::value>,
-                    int = 0>
-        T const& get() &&
-        {
-            return control_->getRef();
-        }
-        */
-
-        template <typename TFunc, typename... TFutures>
-        auto fmap(TFunc&& func, TFutures&&... futures) &&
-        -> decltype(
-                future::fmap(
-                    std::forward<TFunc>(func),
-                    std::move(*this),
-                    std::forward<TFutures>(futures)...
-                    )
-                )
-        {
-            return future::fmap(
-                    std::forward<TFunc>(func),
-                    std::move(*this),
-                    std::forward<TFutures>(futures)...
-                    );
-        }
-
-        template <typename TFunc, typename... TFutures>
-        auto mbind(TFunc&& func, TFutures&&... futures) &&
-        -> decltype(
-                future::mbind(
-                    std::forward<TFunc>(func),
-                    std::move(*this),
-                    std::forward<TFutures>(futures)...
-                    )
-                )
-        {
-            return future::mbind(
-                    std::forward<TFunc>(func),
-                    std::move(*this),
-                    std::forward<TFutures>(futures)...
-                    );
         }
 
         template <typename TFunc, typename = std::enable_if_t<
@@ -245,20 +206,6 @@ namespace btl::future
             return { std::move(control_) };
         }
 
-        /*
-        template <typename T2 = T,
-            typename = std::enable_if_t<!std::is_reference<T2>::value>>
-        operator Future<std::decay_t<T2> const&>() &&
-        {
-            return { std::move(control_) };
-        }
-        */
-
-        /*
-        template <typename T2 = T,
-            typename = std::enable_if_t<std::is_reference<T2>::value>>
-        operator Future<std::decay_t<T2>>() &&
-        */
         template <typename... Us, typename = std::enable_if_t<
             btl::All<
                 std::is_convertible<Ts, Us>...

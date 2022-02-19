@@ -9,7 +9,7 @@ namespace btl::future
     template <typename T>
     auto just(Future<T> f) -> Future<std::optional<T>>
     {
-        return std::move(f).fmap([](auto&& v)
+        return std::move(f).then([](auto&& v)
         {
             return std::make_optional(v);
         });

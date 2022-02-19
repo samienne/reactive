@@ -1,7 +1,6 @@
 #include <btl/future/just.h>
+#include <btl/future/join.h>
 #include <btl/future/merge.h>
-#include <btl/future/mbind.h>
-#include <btl/future/fmap.h>
 #include <btl/future/whenall.h>
 #include <btl/future/sharedfuture.h>
 #include <btl/future/future.h>

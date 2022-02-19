@@ -1,5 +1,6 @@
 #pragma once
 
+#include "future/promise.h"
 #include "future/future.h"
 
 #include "threadpool.h"
