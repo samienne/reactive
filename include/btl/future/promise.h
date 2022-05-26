@@ -27,8 +27,14 @@ namespace btl::future
                 p->set(std::forward<Ts>(values)...);
         }
 
+        void setFromTuple(std::tuple<Ts...> values)
+        {
+            if (auto p = control_.lock())
+                p->set(std::move(values));
+        }
+
     private:
         std::weak_ptr<FutureControl<Ts...>> control_;
     };
-} // btl::future
+} // namespace btl::future
 

@@ -488,3 +488,20 @@ TEST(async, just)
     EXPECT_EQ(1, *value);
 }
 
+TEST(async, futureResult)
+{
+    auto f = btl::async([]()
+            {
+                return makeFutureResult(true, 20);
+            }).then([](bool, int)
+            {
+                return makeFutureResult(10, std::string("test"), 20);
+            });
+
+    auto r = std::move(f).getTuple();
+
+    EXPECT_EQ(10, std::get<0>(r));
+    EXPECT_EQ(std::string("test"), std::get<1>(r));
+    EXPECT_EQ(20, std::get<2>(r));
+}
+

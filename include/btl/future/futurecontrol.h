@@ -115,6 +115,8 @@ namespace btl::future
 
         std::tuple<Ts...> getTuple()
         {
+            waitForResult();
+
             assert(value_.has_value());
 
             return *value_;
@@ -133,6 +135,8 @@ namespace btl::future
         template <typename... Us>
         auto getAsTuple()
         {
+            waitForResult();
+
             assert(value_.has_value());
 
             return getAsTupleImpl<Us...>(std::make_index_sequence<sizeof...(Us)>());
@@ -141,6 +145,7 @@ namespace btl::future
         template <typename U>
         auto getFirst() -> U
         {
+            waitForResult();
             assert(value_.has_value());
             return std::move(std::get<0>(*value_));
         }

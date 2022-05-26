@@ -1,9 +1,11 @@
 #pragma once
 
+#include "btl/future/controlwithdata.h"
 #include "sharedfuture.h"
 #include "futureconnection.h"
 #include "futurecontrol.h"
 #include "futurebase.h"
+#include "futureresult.h"
 
 #include <btl/all.h>
 #include <btl/moveonlyfunction.h>
@@ -17,20 +19,21 @@
 
 namespace btl::future
 {
-    template <typename T, template <typename... Us> typename U>
+    template <typename T, template <typename... Us> typename U, typename... Ws>
     struct ApplyParamsFrom
     {
+        using type = void;
     };
 
     template <template <typename... Vs> typename T, template <typename... Us> typename U,
-             typename... Vs>
-    struct ApplyParamsFrom<T<Vs...>, U>
+             typename... Ws, typename... Vs>
+    struct ApplyParamsFrom<T<Vs...>, U, Ws...>
     {
-        using type = U<Vs...>;
+        using type = U<Ws..., Vs...>;
     };
 
-    template <typename T, template <typename... Us> typename U>
-    using ApplyParamsFromT = typename ApplyParamsFrom<T, U>::type;
+    template <typename T, template <typename... Us> typename U, typename... Ws>
+    using ApplyParamsFromT = typename ApplyParamsFrom<T, U, Ws...>::type;
 
     static_assert(std::is_same_v<
             FutureControl<int, char>,
@@ -120,9 +123,18 @@ namespace btl::future
                 >>;
             using ValueType = FutureValueTypeT<ReturnType>;
 
-            using ControlType = detail::ControlWithData<
-                std::pair<FutureConnection, std::decay_t<TFunc>>,
-                std::decay_t<ValueType>
+            using DataType = std::pair<FutureConnection, std::decay_t<TFunc>>;
+
+            using ControlType = std::conditional_t<
+                IsFutureResult<std::decay_t<ValueType>>::value,
+                ApplyParamsFromT<ValueType, detail::ControlWithData, DataType>,
+                detail::ControlWithData<DataType, std::decay_t<ValueType>>
+                >;
+
+            using FutureType = std::conditional_t<
+                IsFutureResult<std::decay_t<ValueType>>::value,
+                ApplyParamsFromT<std::decay_t<ValueType>, Future>,
+                Future<ValueType>
                 >;
 
             auto control = std::make_shared<ControlType>(
@@ -157,6 +169,10 @@ namespace btl::future
 
                             p->data.first = std::move(f).connect();
                         }
+                        else if constexpr (IsFutureResult<std::decay_t<decltype(r)>>::value)
+                        {
+                            p->set(std::move(r).getAsTuple());
+                        }
                         else
                         {
                             p->set(std::make_tuple(std::move(r)));
@@ -164,7 +180,7 @@ namespace btl::future
                     }
                 });
 
-            return Future<ValueType>(std::move(control));
+            return FutureType(std::move(control));
         }
 
         void listen(btl::MoveOnlyFunction<void(Ts...)> callback)
