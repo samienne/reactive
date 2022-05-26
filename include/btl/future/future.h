@@ -1,6 +1,5 @@
 #pragma once
 
-#include "btl/future/controlwithdata.h"
 #include "sharedfuture.h"
 #include "futureconnection.h"
 #include "futurecontrol.h"
@@ -12,6 +11,7 @@
 #include <btl/foreach.h>
 #include <btl/tupleforeach.h>
 #include <btl/tuplemap.h>
+#include <btl/future/controlwithdata.h>
 
 #include <tuple>
 #include <memory>

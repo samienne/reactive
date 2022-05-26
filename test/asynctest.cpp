@@ -1,4 +1,3 @@
-#include <btl/future/just.h>
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
 #include <btl/future/whenall.h>
@@ -474,18 +473,6 @@ TEST(async, delayed)
     auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
     EXPECT_GE(delay.count(), 1.99f);
-}
-
-TEST(async, just)
-{
-    auto f = btl::delayed(std::chrono::seconds(1), btl::always(1));
-
-    auto f2 = btl::future::just(std::move(f));
-
-    auto value = std::move(f2).get();
-
-    EXPECT_TRUE(value.has_value());
-    EXPECT_EQ(1, *value);
 }
 
 TEST(async, futureResult)
