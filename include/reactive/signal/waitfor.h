@@ -13,12 +13,13 @@ namespace reactive::signal
         auto i = signal::input<T, btl::SpinLock>(std::move(initial));
 
         std::move(f)
-            .fmap([h=std::move(i.handle)](T value) mutable
+            .then([h=std::move(i.handle)](T value) mutable
             {
                 h.set(std::move(value));
                 return true;
             })
-            .detach();
+            .detach()
+            ;
 
         return std::move(i.signal);
     }

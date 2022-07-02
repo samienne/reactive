@@ -1,36 +1,40 @@
 #pragma once
 
+#include "futurecontrol.h"
 #include "futurebase.h"
 
 #include <memory>
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    template <typename... Ts>
+    class Promise
     {
-        template <typename T>
-        class Promise
+    public:
+        Promise(std::weak_ptr<FutureControl<Ts...>> control) :
+            control_(std::move(control))
         {
-        public:
-            Promise(std::weak_ptr<FutureControl<T>> control) :
-                control_(std::move(control))
-            {
-            }
+        }
 
-            bool valid() const
-            {
-                return !control_.expired();
-            }
+        bool valid() const
+        {
+            return !control_.expired();
+        }
 
-            void set(T value)
-            {
-                if (auto p = control_.lock())
-                    p->set(std::forward<T>(value));
-            }
+        void set(Ts... values)
+        {
+            if (auto p = control_.lock())
+                p->set(std::forward<Ts>(values)...);
+        }
 
-        private:
-            std::weak_ptr<FutureControl<T>> control_;
-        };
-    } // future
-} // btl
+        void setFromTuple(std::tuple<Ts...> values)
+        {
+            if (auto p = control_.lock())
+                p->set(std::move(values));
+        }
+
+    private:
+        std::weak_ptr<FutureControl<Ts...>> control_;
+    };
+} // namespace btl::future
 

@@ -1,25 +1,23 @@
 #pragma once
 
+#include "futurecontrol.h"
 #include "futurebase.h"
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    namespace detail
     {
-        namespace detail
+        template <typename TData, typename... Ts>
+        class ControlWithData final : public FutureControl<Ts...>
         {
-            template <typename T, typename TData>
-            class ControlWithData final : public FutureControl<std::decay_t<T>>
+        public:
+            ControlWithData(TData data) :
+                data(std::move(data))
             {
-            public:
-                ControlWithData(TData data) :
-                    data(std::move(data))
-                {
-                }
+            }
 
-                TData data;
-            };
-        } // detail
-    } // future
-} // btl
+            TData data;
+        };
+    } // namespace detail
+} // namespace btl::future
 

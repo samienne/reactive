@@ -1,5 +1,6 @@
 #pragma once
 
+#include "future/promise.h"
 #include "future/future.h"
 
 #include "threadpool.h"
@@ -17,13 +18,31 @@ namespace btl
 
     template <typename TFunc, typename... Ts>
     auto async(TFunc&& f, Ts&&... ts)
-        -> future::Future<std::decay_t<std::invoke_result_t<TFunc, Ts...>>>
+        //-> future::Future<std::decay_t<std::invoke_result_t<TFunc, Ts...>>>
     {
         using ValueType = std::decay_t<std::invoke_result_t<TFunc, Ts...>>;
 
-        auto control = std::make_shared<future::FutureControl<ValueType>>();
-        future::Promise<ValueType> promise(control);
-        future::Future<ValueType> future(std::move(control));
+        using ControlType = std::conditional_t<
+            future::IsFutureResult<ValueType>::value,
+            future::ApplyParamsFromT<ValueType, future::FutureControl>,
+            future::FutureControl<ValueType>
+            >;
+
+        using FutureType = std::conditional_t<
+            future::IsFutureResult<ValueType>::value,
+            future::ApplyParamsFromT<ValueType, future::Future>,
+            future::Future<ValueType>
+            >;
+
+        using PromiseType = std::conditional_t<
+            future::IsFutureResult<ValueType>::value,
+            future::ApplyParamsFromT<ValueType, future::Promise>,
+            future::Promise<ValueType>
+            >;
+
+        auto control = std::make_shared<ControlType>();
+        PromiseType promise(control);
+        FutureType future(std::move(control));
         auto params = std::make_tuple(std::forward<Ts>(ts)...);
 
         btl::asyncJob(
@@ -37,7 +56,19 @@ namespace btl
             if (!promise.valid())
                 return;
 
-            promise.set(std::apply(std::move(func), std::move(params)));
+
+            if constexpr (future::IsFutureResult<ValueType>::value)
+            {
+                promise.setFromTuple(std::apply(
+                            std::move(func),
+                            std::move(params)
+                            ).getAsTuple()
+                        );
+            }
+            else
+            {
+                promise.set(std::apply(std::move(func), std::move(params)));
+            }
         });
 
         return future;

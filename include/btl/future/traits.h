@@ -43,6 +43,7 @@ namespace btl
         using IsReadyType = decltype(future::isReady(std::declval<T const>()));
     } // detail
 
+    /*
     template <typename T, typename = void>
     struct IsFuture : std::false_type {};
 
@@ -53,5 +54,6 @@ namespace btl
             detail::IsReadyType<typename std::decay<T>::type>
         >
     > : std::true_type {};
+    */
 } // btl
 

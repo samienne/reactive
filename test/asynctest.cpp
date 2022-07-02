@@ -1,7 +1,6 @@
-#include <btl/future/just.h>
+#include <btl/future/join.h>
 #include <btl/future/merge.h>
-#include <btl/future/mbind.h>
-#include <btl/future/fmap.h>
+#include <btl/future/whenall.h>
 #include <btl/future/sharedfuture.h>
 #include <btl/future/future.h>
 
@@ -15,6 +14,7 @@
 
 #include <random>
 #include <chrono>
+#include <thread>
 #include <type_traits>
 
 using namespace btl::future;
@@ -62,35 +62,46 @@ TEST(async, run)
         EXPECT_EQ(20, std::move(r[i]).get());
 }
 
-TEST(async, fmap)
+static_assert(std::is_same_v<
+        std::string,
+        FutureValueTypeT<Future<Future<Future<std::string>>>>
+        >);
+
+TEST(async, then)
 {
-    auto f = [](int a, int b)
-    {
-        return a + b;
-    };
+    auto f = async([]() { return 10; });
 
-    auto g = []()
-    {
-        return 20;
-    };
-
-    auto future = fmap(f, async(g), async(g));
-
-    EXPECT_EQ(40, std::move(future).get());
-}
-
-TEST(async, fmap2)
-{
-    auto f = fmap2(makeFuture(std::string("test")), makeFuture(3),
-            [](std::string const& s, int n)
+    auto f2 = std::move(f).then([](int i)
             {
-                std::string r;
-                for (int i = 0; i < n; ++i)
-                    r += s;
-                return r;
+                return std::to_string(i);
             });
 
-    EXPECT_EQ(std::string("testtesttest"), std::move(f).get());
+    auto f3 = std::move(f2).then([](std::string s)
+            {
+                return async([s]()
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+                    return "test: " + s;
+                });
+            });
+
+    EXPECT_EQ("test: 10", std::move(f3).get());
+}
+
+TEST(async, whenAll)
+{
+    auto f = whenAll(
+            async([]() { return 10; }),
+            async([]() { return 20; })
+            );
+
+    auto f2 = std::move(f).then([](int i, int j)
+            {
+                return i + j;
+            });
+
+    EXPECT_EQ(30, std::move(f2).get());
 }
 
 TEST(async, futureShare)
@@ -139,48 +150,37 @@ TEST(async, futureToConstRefFuture)
     EXPECT_EQ(20, *std::move(f2).get());
 }
 
-TEST(async, fmapWithRef)
+TEST(async, thenWithRef)
 {
     auto s = makeSharedFuture(std::make_shared<int>(20));
     Future<std::shared_ptr<int> const&> f = s;
 
-    auto f2 = fmap([](std::shared_ptr<int> const& p) -> bool
+    auto f2 = std::move(f)
+        .then([](std::shared_ptr<int> const& p) -> bool
         {
             return p != nullptr;
-        },
-        std::move(f)
-        );
-
-    EXPECT_TRUE(std::move(f2).get());
-}
-
-TEST(async, futureMemberFMap)
-{
-    auto f = makeFuture(std::make_unique<int>(20));
-    auto f2 = std::move(f).fmap([](std::unique_ptr<int>)
-        {
-            return true;
         });
 
     EXPECT_TRUE(std::move(f2).get());
 }
 
-TEST(async, futureMemberFMapMultiArg)
+TEST(async, whenAllMulti)
 {
     auto f = makeFuture(std::make_unique<int>(20));
     auto f2 = makeFuture(std::make_unique<int>(40));
-    auto f3 = std::move(f).fmap([](std::unique_ptr<int>, std::unique_ptr<int>)
+    auto f3 = whenAll(std::move(f), std::move(f2))
+        .then([](std::unique_ptr<int>, std::unique_ptr<int>)
         {
             return true;
-        }, std::move(f2));
+        });
 
     EXPECT_TRUE(std::move(f3).get());
 }
 
-TEST(async, sharedFutureMemberFMap)
+TEST(async, sharedFutureMemberThen)
 {
     auto f = makeSharedFuture(std::make_shared<int>(20));
-    auto f2 = std::move(f).fmap([](std::shared_ptr<int>)
+    auto f2 = std::move(f).then([](std::shared_ptr<int>)
         {
             return true;
         });
@@ -188,14 +188,15 @@ TEST(async, sharedFutureMemberFMap)
     EXPECT_TRUE(std::move(f2).get());
 }
 
-TEST(async, sharedFutureMemberFMapMultiArg)
+TEST(async, sharedFutureMemberThenMultiArg)
 {
     auto f = makeFuture(std::make_shared<int>(20));
     auto f2 = makeFuture(std::make_shared<int>(40));
-    auto f3 = std::move(f).fmap([](std::shared_ptr<int>, std::shared_ptr<int>)
+    auto f3 = whenAll(std::move(f), std::move(f2))
+        .then([](std::shared_ptr<int>, std::shared_ptr<int>)
         {
             return true;
-        }, std::move(f2));
+        });
 
     EXPECT_TRUE(std::move(f3).get());
 }
@@ -216,11 +217,11 @@ TEST(async, autoCancel)
     {
         auto f = makeFuture(std::make_shared<int>(20));
 
-        auto f2 = fmap([&didRun](std::shared_ptr<int>)
+        auto f2 = std::move(f).then([&didRun](std::shared_ptr<int>)
             {
                 didRun = true;
                 return false;
-            }, std::move(f));
+            });
     }
 
     // Make sure that the future has time to finish if it is running
@@ -297,16 +298,14 @@ TEST(async, sharedFutureListenCancel)
     EXPECT_FALSE(didCall);
 }
 
-/*
-TEST(async, fmapMember)
+TEST(async, thenMember)
 {
     auto f = makeFuture(std::vector<int>({10, 20, 30}));
     auto f2 = std::move(f)
-        .fmap(&std::vector<int>::size);
+        .then(&std::vector<int>::size);
 
     EXPECT_EQ(3, std::move(f2).get());
 }
-*/
 
 TEST(async, futureJoin)
 {
@@ -326,10 +325,10 @@ TEST(async, sharedFutureJoin)
 TEST(async, futureMbind)
 {
     auto f = makeFuture(std::make_unique<int>(20));
-    auto f2 = mbind([](std::unique_ptr<int>)
+    auto f2 = std::move(f).then([](std::unique_ptr<int>)
         {
             return makeFuture(std::make_unique<std::string>("test"));
-        }, std::move(f));
+        });
 
     EXPECT_EQ(std::string("test"), *std::move(f2).get());
 }
@@ -337,7 +336,7 @@ TEST(async, futureMbind)
 TEST(async, futureMemberMbind)
 {
     auto f = makeFuture(std::make_unique<int>(20));
-    auto f2 = std::move(f).mbind([](std::unique_ptr<int>)
+    auto f2 = std::move(f).then([](std::unique_ptr<int>)
         {
             return makeFuture(std::make_unique<std::string>("test"));
         });
@@ -349,10 +348,11 @@ TEST(async, futureMemberMbindMultiArg)
 {
     auto f = makeFuture(std::make_unique<int>(20));
     auto f2 = makeFuture(std::make_unique<int>(20));
-    auto f3 = std::move(f).mbind([](std::unique_ptr<int>, std::unique_ptr<int>)
+    auto f3 = whenAll(std::move(f), std::move(f2))
+        .then([](std::unique_ptr<int>, std::unique_ptr<int>)
         {
             return makeFuture(std::make_unique<std::string>("test"));
-        }, std::move(f2));
+        });
 
     EXPECT_EQ(std::string("test"), *std::move(f3).get());
 }
@@ -360,10 +360,10 @@ TEST(async, futureMemberMbindMultiArg)
 TEST(async, sharedFutureMbind)
 {
     auto f = makeSharedFuture(std::make_shared<int>(20));
-    auto f2 = mbind([](std::shared_ptr<int>)
+    auto f2 = f.then([](std::shared_ptr<int>)
         {
             return makeSharedFuture(std::make_shared<std::string>("test"));
-        }, f);
+        });
 
     EXPECT_EQ(std::string("test"), *std::move(f2).get());
 }
@@ -371,7 +371,7 @@ TEST(async, sharedFutureMbind)
 TEST(async, sharedFutureMemberMbind)
 {
     auto f = makeSharedFuture(std::make_shared<int>(20));
-    auto f2 = f.mbind([](std::shared_ptr<int>)
+    auto f2 = f.then([](std::shared_ptr<int>)
         {
             return makeSharedFuture(std::make_shared<std::string>("test"));
         });
@@ -383,10 +383,10 @@ TEST(async, sharedFutureMemberMbindMultiArg)
 {
     auto f = makeSharedFuture(std::make_shared<int>(20));
     auto f2 = makeSharedFuture(std::make_shared<int>(20));
-    auto f3 = f.mbind([](std::shared_ptr<int>, std::shared_ptr<int>)
+    auto f3 = whenAll(f, f2).then([](std::shared_ptr<int>, std::shared_ptr<int>)
         {
             return makeSharedFuture(std::make_shared<std::string>("test"));
-        }, f2);
+        });
 
     EXPECT_EQ(std::string("test"), *std::move(f3).get());
 }
@@ -420,16 +420,14 @@ TEST(async, perf)
         int delta = count / steps;
         for (size_t i = 0; i < steps; ++i)
         {
-            auto fut = async(std::bind(f, delta));
+            auto fut = btl::async(std::bind(f, delta));
             accs.push_back(std::move(fut));
         }
 
-        auto acc = fmap([](std::vector<uint64_t> const& accs)
+        auto acc = merge(std::move(accs)).then([](std::vector<uint64_t> const& accs)
             {
                 return btl::reduce(0ul, accs, btl::Plus());
-            },
-            merge(std::move(accs))
-            );
+            });
 
         std::cout << std::move(acc).get() << std::endl;
 
@@ -477,15 +475,20 @@ TEST(async, delayed)
     EXPECT_GE(delay.count(), 1.99f);
 }
 
-TEST(async, just)
+TEST(async, futureResult)
 {
-    auto f = btl::delayed(std::chrono::seconds(1), btl::always(1));
+    auto f = btl::async([]()
+            {
+                return makeFutureResult(true, 20);
+            }).then([](bool, int)
+            {
+                return makeFutureResult(10, std::string("test"), 20);
+            });
 
-    auto f2 = btl::future::just(std::move(f));
+    auto r = std::move(f).getTuple();
 
-    auto value = std::move(f2).get();
-
-    EXPECT_TRUE(value.has_value());
-    EXPECT_EQ(1, *value);
+    EXPECT_EQ(10, std::get<0>(r));
+    EXPECT_EQ(std::string("test"), std::get<1>(r));
+    EXPECT_EQ(20, std::get<2>(r));
 }
 

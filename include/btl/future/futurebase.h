@@ -10,151 +10,78 @@
 #include <mutex>
 #include <optional>
 
-namespace btl
+namespace btl::future
 {
-    namespace future
+    template <typename T>
+    using FutureType = decltype(std::declval<std::decay_t<T>>().get());
+
+    template <typename... Ts>
+    class Future;
+
+    template <typename... Ts>
+    class SharedFuture;
+
+    template <typename T>
+    struct FutureValueType
     {
-        template <typename T>
-        using FutureType = decltype(std::declval<T>().get());
+        using type = T;
+    };
 
-        class FutureBase : public std::enable_shared_from_this<FutureBase>
-        {
-        public:
-            virtual ~FutureBase() = default;
-        };
+    template <typename T>
+    struct FutureValueType<Future<T>>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-        template <typename T>
-        class FutureControl : public FutureBase
-        {
-            using LockType = std::unique_lock<SpinLock>;
+    template <typename T>
+    struct FutureValueType<Future<T>&>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-        public:
-            FutureControl() :
-                ready_(false)
-            {
-            }
+    template <typename T>
+    struct FutureValueType<Future<T> const&>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-            void set(T value)
-            {
-                assert(!ready());
+    template <typename T>
+    struct FutureValueType<Future<T>&&>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-                LockType lock(mutex_);
-                value_ = std::make_optional(std::forward<T>(value));
-                TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
-                TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
-                ready_.store(true, std::memory_order_release);
+    template <typename T>
+    struct FutureValueType<SharedFuture<T>>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-                if (callback_.has_value())
-                {
-                    auto callback = std::move(*callback_);
-                    lock.unlock();
+    template <typename T>
+    struct FutureValueType<SharedFuture<T>&>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-                    callback();
-                }
-            }
+    template <typename T>
+    struct FutureValueType<SharedFuture<T> const &>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-            void waitForResult()
-            {
-                // Fast preliminary check if we don't have to wait.
-                if (ready())
-                    return;
+    template <typename T>
+    struct FutureValueType<SharedFuture<T>&&>
+    {
+        using type = typename FutureValueType<T>::type;
+    };
 
-                LockType lock(mutex_);
+    template <typename T>
+    using FutureValueTypeT = typename FutureValueType<T>::type;
 
-                // Second check after actually locking the mutex just to be sure.
-                if (value_.has_value())
-                    return;
-
-                //assert(!callback_);
-
-                std::mutex mutex;
-                std::condition_variable condition;
-
-                auto oldCallback = std::move(callback_);
-                callback_ = std::make_optional<MoveOnlyFunction<void()>>(
-                        [&condition, &mutex]() mutable
-                {
-                    std::unique_lock<std::mutex> lock2(mutex);
-                    condition.notify_one();
-                });
-
-                std::unique_lock<std::mutex> lock2(mutex);
-
-                lock.unlock();
-                condition.wait(lock2);
-                if (oldCallback.has_value())
-                    (*oldCallback)();
-            }
-
-            T get()
-            {
-                waitForResult();
-
-                // No need for lock as the value will be set only once
-                // and we know that it has been set already. Also we are
-                // the only consumer for the value.
-                return std::move(*value_);
-            }
-
-            std::decay_t<T> const& getRef()
-            {
-                waitForResult();
-
-                assert(value_.has_value());
-
-                // No need for lock as the value will be set only once
-                // and we know that it has been set already.
-                return *value_;
-            }
-
-            bool ready() const
-            {
-                bool r = ready_.load(std::memory_order_acquire);
-                TSAN_ANNOTATE_HAPPENS_AFTER(&value_);
-                TSAN_ANNOTATE_HAPPENS_AFTER(&value_.getReferenceForTsan());
-                return r;
-            }
-
-            void addCallback(btl::MoveOnlyFunction<void()> callback)
-            {
-                if (ready())
-                {
-                    callback();
-                    return;
-                }
-
-                LockType lock(mutex_);
-
-                // Check if the value was set between calling ready() and
-                // locking the mutex..
-                if (value_.has_value())
-                {
-                    lock.unlock();
-                    callback();
-                    return;
-                }
-
-                if (callback_.has_value())
-                {
-                    callback_ = std::make_optional<MoveOnlyFunction<void()>>(
-                            [oldCb = std::move(callback_),
-                                cb=std::move(callback)]() mutable
-                    {
-                        std::move(*oldCb)();
-                        std::move(cb)();
-                    });
-                }
-                else
-                    callback_ = std::make_optional(std::move(callback));
-            }
-
-        private:
-            SpinLock mutex_;
-            std::atomic<bool> ready_;
-            std::optional<T> value_;
-            std::optional<btl::MoveOnlyFunction<void()>> callback_;
-        };
-
-    } // future
-} // btl
+    class FutureBase : public std::enable_shared_from_this<FutureBase>
+    {
+    public:
+        virtual ~FutureBase() = default;
+    };
+} // namespace btl::future
 
