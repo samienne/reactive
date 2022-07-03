@@ -13,6 +13,7 @@
 #include <btl/tuplemap.h>
 #include <btl/future/controlwithdata.h>
 
+#include <exception>
 #include <tuple>
 #include <memory>
 #include <type_traits>
@@ -59,6 +60,8 @@ namespace btl::future
     class Future
     {
     public:
+        using ControlType = FutureControl<std::decay_t<Ts>...>;
+
         Future(std::shared_ptr<FutureControl<std::decay_t<Ts>...>> base) :
             control_(std::move(base))
         {
@@ -113,6 +116,21 @@ namespace btl::future
         }
 
         template <typename TFunc, typename = std::enable_if_t<
+            std::is_invocable_v<TFunc, std::exception_ptr>
+            >>
+        auto onFailure(TFunc callback) &&
+        {
+            control_->addCallback(
+                [callback=std::move(callback)](auto& control) mutable
+                {
+                    if (control.hasException())
+                        callback(control.getException());
+                });
+
+            return std::move(*this);
+        }
+
+        template <typename TFunc, typename = std::enable_if_t<
             std::is_invocable_v<TFunc, FutureValueTypeT<Ts>...>
             >>
         auto then(TFunc&& func) &&
@@ -142,40 +160,54 @@ namespace btl::future
                     );
             std::weak_ptr<ControlType> weakControl = control;
 
-            std::move(*this).listen(
-                [control=std::move(weakControl)](auto&&... ts) mutable
+            control_->addCallback(
+                [newControl=std::move(weakControl)](/*auto&&... ts*/ auto& control) mutable
                 {
-                    if (auto p = control.lock())
+                    if (auto p = newControl.lock())
                     {
-                        auto r = std::invoke(
-                                std::move(p->data.second),
-                                std::forward<decltype(ts)>(ts)...
-                                );
-
-                        if constexpr (IsFuture<std::decay_t<decltype(r)>>::value)
+                        try
                         {
-                            auto f = std::move(r).then(
-                                [control=std::move(control)](auto&&... ts) mutable
-                                {
-                                    if (auto p = control.lock())
+                            auto r = std::apply(
+                                    std::move(p->data.second),
+                                    std::move(control.getTupleRef())
+                                    );
+
+                            if constexpr (IsFuture<std::decay_t<decltype(r)>>::value)
+                            {
+                                auto f = std::move(r).then(
+                                    [newControl=newControl](auto&&... ts) mutable
                                     {
-                                        p->set(std::forward_as_tuple(
-                                                    std::forward<decltype(ts)>(ts)...
-                                                    ));
-                                    }
+                                        if (auto p = newControl.lock())
+                                        {
+                                            p->setValue(std::forward_as_tuple(
+                                                        std::forward<decltype(ts)>(ts)...
+                                                        ));
+                                        }
 
-                                    return true;
-                                });
+                                        return true;
+                                    }).onFailure(
+                                    [newControl=std::move(newControl)](std::exception_ptr err)
+                                    {
+                                        if (auto p = newControl.lock())
+                                        {
+                                            p->setFailure(std::move(err));
+                                        }
+                                    });
 
-                            p->data.first = std::move(f).connect();
+                                p->data.first = std::move(f).connect();
+                            }
+                            else if constexpr (IsFutureResult<std::decay_t<decltype(r)>>::value)
+                            {
+                                p->setValue(std::move(r).getAsTuple());
+                            }
+                            else
+                            {
+                                p->setValue(std::make_tuple(std::move(r)));
+                            }
                         }
-                        else if constexpr (IsFutureResult<std::decay_t<decltype(r)>>::value)
+                        catch(...)
                         {
-                            p->set(std::move(r).getAsTuple());
-                        }
-                        else
-                        {
-                            p->set(std::make_tuple(std::move(r)));
+                            p->setFailure(std::current_exception());
                         }
                     }
                 });
@@ -183,31 +215,12 @@ namespace btl::future
             return FutureType(std::move(control));
         }
 
-        void listen(btl::MoveOnlyFunction<void(Ts...)> callback)
-        {
-            std::weak_ptr<FutureControl<std::decay_t<Ts>...>> weak(
-                    std::move(control_));
-
-            control_->addCallback(
-                    [cb=std::move(callback), control=std::move(weak)]()
-                    mutable
-                {
-                    if (auto p = control.lock())
-                    {
-                        std::apply(
-                            std::move(cb),
-                            p->template getAsTuple<Ts&&...>()
-                            );
-                    }
-                });
-        }
-
         FutureConnection connect() const
         {
             return FutureConnection(std::move(control_));
         }
 
-        void addCallback_(std::function<void()> callback)
+        void addCallback_(std::function<void(ControlType&)> callback)
         {
             control_->addCallback(std::move(callback));
         }
@@ -244,11 +257,14 @@ namespace btl::future
 
             std::weak_ptr<ControlType> weakControl = control;
 
-            control->data->addCallback([control=weakControl]() mutable
+            control->data->addCallback([weakControl=weakControl](auto& control) mutable
                 {
-                    if (auto p = control.lock())
+                    if (auto p = weakControl.lock())
                     {
-                        p->set(p->data->template get<Us...>());
+                        if (control.hasValue())
+                            p->setValue(control.template get<Us...>());
+                        else
+                            p->setFailure(control.getException());
                     }
                 });
 
@@ -258,20 +274,25 @@ namespace btl::future
         void detach() &&
         {
             auto control = control_;
-            control_->addCallback([control=std::move(control)]() mutable
+            control_->addCallback([control=std::move(control)](auto&) mutable
                 {
                 });
         }
 
+        void cancel() &&
+        {
+            control_.reset();
+        }
+
     protected:
-        std::shared_ptr<FutureControl<std::decay_t<Ts>...>> control_;
+        std::shared_ptr<ControlType> control_;
     };
 
     template <typename... Ts>
     auto makeReadyFuture(Ts&&... ts) -> Future<std::decay_t<Ts>...>
     {
         auto control = std::make_shared<FutureControl<std::decay_t<Ts>...>>();
-        control->set(std::forward<Ts>(ts)...);
+        control->setValue(std::forward<Ts>(ts)...);
         return Future<std::decay_t<Ts>...>(std::move(control));
     }
 } // namespace btl::future

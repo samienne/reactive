@@ -47,6 +47,16 @@ namespace btl::future
         }
 
         template <typename TFunc, typename = std::enable_if_t<
+            std::is_invocable_v<TFunc, std::exception_ptr>
+            >>
+        auto onFailure(TFunc callback)
+        {
+            Future<std::decay_t<Ts> const&...> copy(control_);
+
+            return std::move(copy).onFailure(std::forward<TFunc>(std::move(callback)));
+        }
+
+        template <typename TFunc, typename = std::enable_if_t<
             std::is_invocable_v<TFunc, FutureValueTypeT<Ts const&>...>
             >>
         auto then(TFunc&& func) const
@@ -61,31 +71,12 @@ namespace btl::future
             return { control_ };
         }
 
-        void listen(btl::MoveOnlyFunction<void(Ts...)> callback)
-        {
-            std::weak_ptr<FutureControl<std::decay_t<Ts>...>> weak(
-                    std::move(control_));
-
-            control_->addCallback(
-                    [cb=std::move(callback), control=std::move(weak)]()
-                    mutable
-                {
-                    if (auto p = control.lock())
-                    {
-                        std::apply(
-                            std::move(cb),
-                            p->template getAsTuple<Ts&&...>()
-                            );
-                    }
-                });
-        }
-
         FutureConnection connect() const
         {
             return FutureConnection(std::move(control_));
         }
 
-        void addCallback_(std::function<void()> callback)
+        void addCallback_(std::function<void(FutureControl<std::decay_t<Ts>...>&)> callback)
         {
             control_->addCallback(std::move(callback));
         }

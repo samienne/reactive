@@ -25,18 +25,20 @@ namespace btl::future
         auto control = std::make_shared<ControlType>(f.connect());
         std::weak_ptr<ControlType> weakControl = control;
 
-        std::move(f).listen(
-                [control=std::move(weakControl)](auto&& f2) mutable
+        std::move(f).addCallback_(
+                [newControl=std::move(weakControl)](auto& control) mutable
             {
-                if (auto p = control.lock())
+                if (auto p = newControl.lock())
                 {
+                    auto f2 = std::get<0>(std::move(control.getTupleRef()));
                     p->data = f2.connect();
                     std::forward<decltype(f2)>(f2)
-                        .listen([control=std::move(control)](auto&& f3)
+                        .addCallback_([newControl=std::move(newControl)](auto& control)
                         {
-                            if (auto p = control.lock())
+                            if (auto p = newControl.lock())
                             {
-                                p->set(std::forward<decltype(f3)>(f3));
+                                auto f3 = std::get<0>(std::move(control.getTupleRef()));
+                                p->setValue(std::forward<decltype(f3)>(f3));
                             }
                         });
 

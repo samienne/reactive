@@ -230,6 +230,7 @@ TEST(async, autoCancel)
     EXPECT_FALSE(didRun);
 }
 
+/*
 TEST(async, futureListen)
 {
     std::atomic<bool> didCall(false);
@@ -297,6 +298,7 @@ TEST(async, sharedFutureListenCancel)
 
     EXPECT_FALSE(didCall);
 }
+*/
 
 TEST(async, thenMember)
 {
@@ -490,5 +492,55 @@ TEST(async, futureResult)
     EXPECT_EQ(10, std::get<0>(r));
     EXPECT_EQ(std::string("test"), std::get<1>(r));
     EXPECT_EQ(20, std::get<2>(r));
+}
+
+TEST(async, futureFail)
+{
+    bool failCalled = false;
+    auto f = btl::async([]()
+            {
+                throw std::runtime_error("test error");
+
+                return 10;
+            })
+            .onFailure([&](std::exception_ptr const&)
+            {
+                failCalled = true;
+            });
+
+
+    EXPECT_THROW(std::move(f).get(), std::runtime_error);
+    EXPECT_TRUE(failCalled);
+}
+
+TEST(async, whenAllFail)
+{
+    auto f1 = btl::async([]()
+            {
+                throw std::runtime_error("test error");
+
+                return 10;
+            });
+
+    auto f2 = btl::async([]()
+            {
+                return 20;
+            });
+
+    bool failCalled = false;
+
+    auto r1 = whenAll(std::move(f1), std::move(f2))
+        .then([](int x, int y)
+        {
+            return x+y;
+        })
+        .onFailure([&](std::exception_ptr const&)
+        {
+            failCalled = true;
+        })
+        ;
+
+    EXPECT_THROW(std::move(r1).get(), std::runtime_error);
+    EXPECT_TRUE(failCalled);
 }
 

@@ -24,13 +24,19 @@ namespace btl::future
         void set(Ts... values)
         {
             if (auto p = control_.lock())
-                p->set(std::forward<Ts>(values)...);
+                p->setValue(std::forward<Ts>(values)...);
         }
 
         void setFromTuple(std::tuple<Ts...> values)
         {
             if (auto p = control_.lock())
-                p->set(std::move(values));
+                p->setValue(std::move(values));
+        }
+
+        void setFailure(std::exception_ptr err)
+        {
+            if (auto p = control_.lock())
+                p->setFailure(std::move(err));
         }
 
     private:

@@ -28,7 +28,7 @@ namespace btl
 
                 btl::forEach(futures_, [&control](auto&& future) mutable
                 {
-                    future.addCallback_([control]() mutable
+                    future.addCallback_([control](auto&) mutable
                         {
                             if (auto p = control.lock())
                             {
@@ -54,7 +54,7 @@ namespace btl
                     result.reserve(futures_.size());
                     for (auto&& future : futures_)
                         result.push_back(std::move(future).get());
-                    this->set(std::move(result));
+                    this->setValue(std::move(result));
                 }
             }
 

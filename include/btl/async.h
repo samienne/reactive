@@ -4,6 +4,7 @@
 #include "future/future.h"
 
 #include "threadpool.h"
+#include <exception>
 
 namespace btl
 {
@@ -56,18 +57,24 @@ namespace btl
             if (!promise.valid())
                 return;
 
-
-            if constexpr (future::IsFutureResult<ValueType>::value)
+            try
             {
-                promise.setFromTuple(std::apply(
-                            std::move(func),
-                            std::move(params)
-                            ).getAsTuple()
-                        );
+                if constexpr (future::IsFutureResult<ValueType>::value)
+                {
+                    promise.setFromTuple(std::apply(
+                                std::move(func),
+                                std::move(params)
+                                ).getAsTuple()
+                            );
+                }
+                else
+                {
+                    promise.set(std::apply(std::move(func), std::move(params)));
+                }
             }
-            else
+            catch(...)
             {
-                promise.set(std::apply(std::move(func), std::move(params)));
+                promise.setFailure(std::current_exception());
             }
         });
 
