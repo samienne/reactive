@@ -46,11 +46,11 @@ namespace btl::future
 
             LockType lock(mutex_);
 
+            ready_.load(std::memory_order_acquire);
+
             // Second check after actually locking the mutex just to be sure.
             if (!std::holds_alternative<std::monostate>(value_))
                 return;
-
-            //assert(!callback_);
 
             std::mutex mutex;
             std::condition_variable condition;
@@ -67,6 +67,9 @@ namespace btl::future
 
             lock.unlock();
             condition.wait(lock2);
+
+            ready_.load(std::memory_order_acquire);
+
             if (oldCallback.has_value())
                 (*oldCallback)(*this);
         }
@@ -140,7 +143,8 @@ namespace btl::future
 
         std::exception_ptr getException()
         {
-            assert(hasException());
+            bool r = ready();
+            assert(r && hasException());
 
             return std::get<std::exception_ptr>(value_);
         }
@@ -155,14 +159,16 @@ namespace btl::future
 
         bool hasValue() const
         {
-            assert(ready());
+            bool r = ready();
+            assert(r);
 
             return std::holds_alternative<std::tuple<Ts...>>(value_);
         }
 
         bool hasException() const
         {
-            assert(ready());
+            bool r = ready();
+            assert(r);
 
             return std::holds_alternative<std::exception_ptr>(value_);
         }
@@ -176,6 +182,8 @@ namespace btl::future
             }
 
             LockType lock(mutex_);
+
+            ready_.load(std::memory_order_acquire);
 
             // Check if the value was set between calling ready() and
             // locking the mutex..
@@ -203,7 +211,8 @@ namespace btl::future
     private:
         void set(std::variant<std::monostate, std::tuple<Ts...>, std::exception_ptr> value)
         {
-            assert(!ready());
+            bool r = ready();
+            assert(!r);
 
             LockType lock(mutex_);
             value_ = std::move(value);
@@ -214,6 +223,8 @@ namespace btl::future
             if (callback_.has_value())
             {
                 auto callback = std::move(*callback_);
+                callback_.reset();
+
                 lock.unlock();
 
                 callback(*this);
