@@ -37,7 +37,7 @@ auto makeFuture(T&& value)
     return async([value=std::forward<T>(value)]() mutable
         -> std::decay_t<T>
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         return std::forward<T>(value);
     });
 }
@@ -225,7 +225,7 @@ TEST(async, autoCancel)
     }
 
     // Make sure that the future has time to finish if it is running
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     EXPECT_FALSE(didRun);
 }
@@ -330,8 +330,10 @@ TEST(async, perf)
     size_t const count = 100000;
     size_t const steps = 20;
 
+    std::chrono::duration<float> threadedTime;
+
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::cout << "start threaded" << std::endl;
         auto start = std::chrono::steady_clock::now();
 
@@ -366,6 +368,7 @@ TEST(async, perf)
         auto stop = std::chrono::steady_clock::now();
 
         std::chrono::duration<float> t = stop - start;
+        threadedTime = t;
 
         std::cout << "Threaded took: " << t.count() << std::endl;
     }
@@ -390,13 +393,15 @@ TEST(async, perf)
 
         std::chrono::duration<float> t = stop - start;
 
-        std::cout << "Unthreaded took: " << t.count() << std::endl;
+        std::cout << "Unthreaded took: " << t.count() << ". "
+            << 100.0f * t.count() / threadedTime.count()
+            << "% speedup for threaded." << std::endl;
     }
 }
 
 TEST(async, delayed)
 {
-    auto f = btl::delayed(std::chrono::seconds(2), btl::always(1));
+    auto f = btl::delayed(std::chrono::milliseconds(200), btl::always(1));
 
     auto start = std::chrono::steady_clock::now();
     EXPECT_TRUE(std::move(f).get());
@@ -404,7 +409,7 @@ TEST(async, delayed)
 
     auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
-    EXPECT_GE(delay.count(), 1.99f);
+    EXPECT_GE(delay.count(), 0.199f);
 }
 
 TEST(async, futureResult)
@@ -445,6 +450,8 @@ TEST(async, futureFail)
 
 TEST(async, whenAllFail)
 {
+    for (int i = 0; i < 20000; ++i)
+    {
     auto f1 = btl::async([]()
             {
                 throw std::runtime_error("test error");
@@ -472,5 +479,6 @@ TEST(async, whenAllFail)
 
     EXPECT_THROW(std::move(r1).get(), std::runtime_error);
     EXPECT_TRUE(failCalled);
+    }
 }
 

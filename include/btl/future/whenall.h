@@ -2,6 +2,7 @@
 
 #include "future.h"
 
+#include <atomic>
 #include <btl/tupleforeach.h>
 
 #include <exception>
@@ -71,9 +72,14 @@ namespace btl::future
 
         void reportFailure(std::exception_ptr err)
         {
-            values_.reset();
+            bool failed = failed_.load(std::memory_order_acquire);
+            if (!failed)
+            {
+                this->setFailure(std::move(err));
+                failed_.store(true, std::memory_order_release);
+            }
 
-            this->setFailure(std::move(err));
+            reportValueReady();
         }
 
         void reportValueReady()
@@ -84,21 +90,29 @@ namespace btl::future
 
             if (count == 1)
             {
-                std::apply([this](auto&&... values)
-                    {
-                        this->setValue(std::tuple_cat(
-                                    detail::getValueAsTuple(
-                                        std::forward<decltype(values)>(values)
-                                        )...
-                                    ));
-                    },
-                    std::move(*values_)
-                    );
+                bool failed = failed_.load(std::memory_order_acquire);
+
+                if (!failed)
+                {
+                    std::apply([this](auto&&... values)
+                        {
+                            this->setValue(std::tuple_cat(
+                                        detail::getValueAsTuple(
+                                            std::forward<decltype(values)>(values)
+                                            )...
+                                        ));
+                        },
+                        std::move(*values_)
+                        );
+                }
+
+                values_.reset();
             }
         }
 
     private:
         std::atomic_int count_;
+        std::atomic_bool failed_ = false;
         std::optional<std::tuple<Ts...>> values_;
     };
 

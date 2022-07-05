@@ -222,6 +222,7 @@ namespace btl::future
 
         void addCallback_(std::function<void(ControlType&)> callback)
         {
+            assert(control_);
             control_->addCallback(std::move(callback));
         }
 
