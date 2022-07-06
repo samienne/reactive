@@ -518,6 +518,32 @@ TEST(async, whenAllCancelOnFail)
 
         EXPECT_THROW(std::move(r).get();, std::runtime_error);
         EXPECT_FALSE(called.load());
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+TEST(async, mergeFail)
+{
+    for (int n = 0; n < 2000; ++n)
+    {
+        std::vector<Future<int>> v;
+        v.reserve(2000);
+
+        for (int i = 0; i < 200; ++i)
+        {
+            v.push_back(btl::async([i]()
+                {
+                    if (i % 3)
+                        throw std::runtime_error("Test error");
+
+                    return i;
+                }));
+        }
+
+        auto r = merge(std::move(v));
+
+        EXPECT_THROW(std::move(r).get(), std::runtime_error);
     }
 }
 

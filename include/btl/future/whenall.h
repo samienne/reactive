@@ -64,8 +64,6 @@ namespace btl::future
                         if (auto p = control.lock())
                         {
                             auto ptr = static_cast<WhenAll*>(p.get());
-                            if (ptr->failed_.load(std::memory_order_acquire))
-                                return;
 
                             if (valueControl.hasValue())
                                 ptr->reportValueReady();
@@ -73,20 +71,25 @@ namespace btl::future
                                 ptr->reportFailure(valueControl.getException());
                         }
                     });
+
             });
 
             if (failed_.load(std::memory_order_acquire))
                 values_.reset();
+
+            initialized_.store(true, std::memory_order_release);
         }
 
         void reportFailure(std::exception_ptr err)
         {
-            bool failed = failed_.load(std::memory_order_acquire);
-            if (!failed)
+            bool expected = false;
+            bool hadNotFailed = failed_.compare_exchange_strong(expected, true);
+            if (hadNotFailed)
             {
                 this->setFailure(std::move(err));
-                failed_.store(true, std::memory_order_release);
-                values_.reset();
+
+                if (initialized_.load(std::memory_order_acquire))
+                    values_.reset();
             }
         }
 
@@ -116,6 +119,7 @@ namespace btl::future
     private:
         std::atomic_int count_;
         std::atomic_bool failed_ = false;
+        std::atomic_bool initialized_ = false;
         std::optional<std::tuple<Ts...>> values_;
     };
 
