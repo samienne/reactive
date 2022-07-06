@@ -1,3 +1,4 @@
+#include <atomic>
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
 #include <btl/future/whenall.h>
@@ -328,7 +329,7 @@ TEST(async, perf)
     std::uniform_int_distribution<int> dist(1, 12);
 
     size_t const count = 100000;
-    size_t const steps = 20;
+    size_t const steps = 32;
 
     std::chrono::duration<float> threadedTime;
 
@@ -396,6 +397,12 @@ TEST(async, perf)
         std::cout << "Unthreaded took: " << t.count() << ". "
             << 100.0f * t.count() / threadedTime.count()
             << "% speedup for threaded." << std::endl;
+
+        std::cout << "Threads: " << std::thread::hardware_concurrency() << ". "
+            << (100.0f * t.count() / threadedTime.count()
+                    / (float)std::thread::hardware_concurrency())
+            << "% utilization per thread."
+            << std::endl;
     }
 }
 
@@ -452,33 +459,65 @@ TEST(async, whenAllFail)
 {
     for (int i = 0; i < 20000; ++i)
     {
-    auto f1 = btl::async([]()
+        auto f1 = btl::async([]()
+                {
+                    throw std::runtime_error("test error");
+
+                    return 10;
+                });
+
+        auto f2 = btl::async([]()
+                {
+                    return 20;
+                });
+
+        std::atomic_bool failCalled = false;
+
+        auto r1 = whenAll(std::move(f1), std::move(f2))
+            .then([](int x, int y)
             {
-                throw std::runtime_error("test error");
-
-                return 10;
-            });
-
-    auto f2 = btl::async([]()
+                return x+y;
+            })
+            .onFailure([&](std::exception_ptr const&)
             {
-                return 20;
-            });
+                failCalled.store(true);
+            })
+            ;
 
-    bool failCalled = false;
+        EXPECT_THROW(std::move(r1).get(), std::runtime_error);
+        EXPECT_TRUE(failCalled.load());
+    }
+}
 
-    auto r1 = whenAll(std::move(f1), std::move(f2))
-        .then([](int x, int y)
-        {
-            return x+y;
-        })
-        .onFailure([&](std::exception_ptr const&)
-        {
-            failCalled = true;
-        })
-        ;
+TEST(async, whenAllCancelOnFail)
+{
+    for (int i = 0; i < 100; ++i)
+    {
+        auto f1 = btl::async([]()
+                {
+                    throw std::runtime_error("test error");
 
-    EXPECT_THROW(std::move(r1).get(), std::runtime_error);
-    EXPECT_TRUE(failCalled);
+                    return 10;
+                });
+
+        std::atomic_bool called = false;
+
+        auto f2 = btl::async([]()
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    return true;
+                })
+                .then([&called](bool)
+                {
+                    called.store(true);
+                    return true;
+                })
+                ;
+
+        auto r = whenAll(std::move(f1), std::move(f2));
+
+        EXPECT_THROW(std::move(r).get();, std::runtime_error);
+        EXPECT_FALSE(called.load());
     }
 }
 

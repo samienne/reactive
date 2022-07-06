@@ -53,14 +53,20 @@ namespace btl::future
         {
             auto control = this->weak_from_this();
 
-            btl::tuple_foreach(*values_, [&control](auto&& value)
+            btl::tuple_foreach(*values_, [this, &control](auto&& value)
             {
+                if (failed_.load(std::memory_order_acquire))
+                    return;
+
                 detail::waitForValue(std::forward<decltype(value)>(value),
                     [control](auto& valueControl) mutable
                     {
                         if (auto p = control.lock())
                         {
                             auto ptr = static_cast<WhenAll*>(p.get());
+                            if (ptr->failed_.load(std::memory_order_acquire))
+                                return;
+
                             if (valueControl.hasValue())
                                 ptr->reportValueReady();
                             else
@@ -68,6 +74,9 @@ namespace btl::future
                         }
                     });
             });
+
+            if (failed_.load(std::memory_order_acquire))
+                values_.reset();
         }
 
         void reportFailure(std::exception_ptr err)
@@ -77,9 +86,8 @@ namespace btl::future
             {
                 this->setFailure(std::move(err));
                 failed_.store(true, std::memory_order_release);
+                values_.reset();
             }
-
-            reportValueReady();
         }
 
         void reportValueReady()
@@ -90,21 +98,16 @@ namespace btl::future
 
             if (count == 1)
             {
-                bool failed = failed_.load(std::memory_order_acquire);
-
-                if (!failed)
-                {
-                    std::apply([this](auto&&... values)
-                        {
-                            this->setValue(std::tuple_cat(
-                                        detail::getValueAsTuple(
-                                            std::forward<decltype(values)>(values)
-                                            )...
-                                        ));
-                        },
-                        std::move(*values_)
-                        );
-                }
+                std::apply([this](auto&&... values)
+                    {
+                        this->setValue(std::tuple_cat(
+                                    detail::getValueAsTuple(
+                                        std::forward<decltype(values)>(values)
+                                        )...
+                                    ));
+                    },
+                    std::move(*values_)
+                    );
 
                 values_.reset();
             }
