@@ -510,7 +510,6 @@ TEST(async, whenAllCancelOnFail)
                 .then([&called](bool)
                 {
                     called.store(true);
-                    return true;
                 })
                 ;
 
