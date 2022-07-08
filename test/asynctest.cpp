@@ -1,3 +1,4 @@
+#include <atomic>
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
 #include <btl/future/whenall.h>
@@ -37,7 +38,7 @@ auto makeFuture(T&& value)
     return async([value=std::forward<T>(value)]() mutable
         -> std::decay_t<T>
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         return std::forward<T>(value);
     });
 }
@@ -225,77 +226,9 @@ TEST(async, autoCancel)
     }
 
     // Make sure that the future has time to finish if it is running
-    std::this_thread::sleep_for(std::chrono::seconds(2));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     EXPECT_FALSE(didRun);
-}
-
-TEST(async, futureListen)
-{
-    std::atomic<bool> didCall(false);
-
-    auto f = makeFuture(std::make_unique<int>(20));
-    auto c = f.connect();
-    std::move(f).listen([&didCall](std::unique_ptr<int>)
-        {
-            didCall = true;
-        });
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    EXPECT_TRUE(didCall);
-}
-
-TEST(async, futureListenCancel)
-{
-    std::atomic<bool> didCall(false);
-
-    {
-        auto f = makeFuture(std::make_unique<int>(20));
-        auto c = f.connect();
-        std::move(f).listen([&didCall](std::unique_ptr<int>)
-            {
-                didCall = true;
-            });
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    EXPECT_FALSE(didCall);
-}
-
-TEST(async, sharedFutureListen)
-{
-    std::atomic<bool> didCall(false);
-
-    auto f = makeSharedFuture(std::make_shared<int>(20));
-    auto c = f.connect();
-    f.listen([&didCall](std::shared_ptr<int>)
-        {
-            didCall = true;
-        });
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    EXPECT_TRUE(didCall);
-}
-
-TEST(async, sharedFutureListenCancel)
-{
-    std::atomic<bool> didCall(false);
-
-    {
-        auto f = makeSharedFuture(std::make_shared<int>(20));
-        auto c = f.connect();
-        f.listen([&didCall](std::shared_ptr<int>)
-            {
-                didCall = true;
-            });
-    }
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    EXPECT_FALSE(didCall);
 }
 
 TEST(async, thenMember)
@@ -396,10 +329,12 @@ TEST(async, perf)
     std::uniform_int_distribution<int> dist(1, 12);
 
     size_t const count = 100000;
-    size_t const steps = 20;
+    size_t const steps = 32;
+
+    std::chrono::duration<float> threadedTime;
 
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         std::cout << "start threaded" << std::endl;
         auto start = std::chrono::steady_clock::now();
 
@@ -434,6 +369,7 @@ TEST(async, perf)
         auto stop = std::chrono::steady_clock::now();
 
         std::chrono::duration<float> t = stop - start;
+        threadedTime = t;
 
         std::cout << "Threaded took: " << t.count() << std::endl;
     }
@@ -458,13 +394,21 @@ TEST(async, perf)
 
         std::chrono::duration<float> t = stop - start;
 
-        std::cout << "Unthreaded took: " << t.count() << std::endl;
+        std::cout << "Unthreaded took: " << t.count() << ". "
+            << 100.0f * t.count() / threadedTime.count()
+            << "% speedup for threaded." << std::endl;
+
+        std::cout << "Threads: " << std::thread::hardware_concurrency() << ". "
+            << (100.0f * t.count() / threadedTime.count()
+                    / (float)std::thread::hardware_concurrency())
+            << "% utilization per thread."
+            << std::endl;
     }
 }
 
 TEST(async, delayed)
 {
-    auto f = btl::delayed(std::chrono::seconds(2), btl::always(1));
+    auto f = btl::delayed(std::chrono::milliseconds(200), btl::always(1));
 
     auto start = std::chrono::steady_clock::now();
     EXPECT_TRUE(std::move(f).get());
@@ -472,7 +416,7 @@ TEST(async, delayed)
 
     auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
-    EXPECT_GE(delay.count(), 1.99f);
+    EXPECT_GE(delay.count(), 0.199f);
 }
 
 TEST(async, futureResult)
@@ -490,5 +434,116 @@ TEST(async, futureResult)
     EXPECT_EQ(10, std::get<0>(r));
     EXPECT_EQ(std::string("test"), std::get<1>(r));
     EXPECT_EQ(20, std::get<2>(r));
+}
+
+TEST(async, futureFail)
+{
+    bool failCalled = false;
+    auto f = btl::async([]()
+            {
+                throw std::runtime_error("test error");
+
+                return 10;
+            })
+            .onFailure([&](std::exception_ptr const&)
+            {
+                failCalled = true;
+            });
+
+
+    EXPECT_THROW(std::move(f).get(), std::runtime_error);
+    EXPECT_TRUE(failCalled);
+}
+
+TEST(async, whenAllFail)
+{
+    for (int i = 0; i < 20000; ++i)
+    {
+        auto f1 = btl::async([]()
+                {
+                    throw std::runtime_error("test error");
+
+                    return 10;
+                });
+
+        auto f2 = btl::async([]()
+                {
+                    return 20;
+                });
+
+        std::atomic_bool failCalled = false;
+
+        auto r1 = whenAll(std::move(f1), std::move(f2))
+            .then([](int x, int y)
+            {
+                return x+y;
+            })
+            .onFailure([&](std::exception_ptr const&)
+            {
+                failCalled.store(true);
+            })
+            ;
+
+        EXPECT_THROW(std::move(r1).get(), std::runtime_error);
+        EXPECT_TRUE(failCalled.load());
+    }
+}
+
+TEST(async, whenAllCancelOnFail)
+{
+    for (int i = 0; i < 100; ++i)
+    {
+        auto f1 = btl::async([]()
+                {
+                    throw std::runtime_error("test error");
+
+                    return 10;
+                });
+
+        std::atomic_bool called = false;
+
+        auto f2 = btl::async([]()
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                    return true;
+                })
+                .then([&called](bool)
+                {
+                    called.store(true);
+                    return true;
+                })
+                ;
+
+        auto r = whenAll(std::move(f1), std::move(f2));
+
+        EXPECT_THROW(std::move(r).get();, std::runtime_error);
+        EXPECT_FALSE(called.load());
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
+TEST(async, mergeFail)
+{
+    for (int n = 0; n < 2000; ++n)
+    {
+        std::vector<Future<int>> v;
+        v.reserve(2000);
+
+        for (int i = 0; i < 200; ++i)
+        {
+            v.push_back(btl::async([i]()
+                {
+                    if (i % 3)
+                        throw std::runtime_error("Test error");
+
+                    return i;
+                }));
+        }
+
+        auto r = merge(std::move(v));
+
+        EXPECT_THROW(std::move(r).get(), std::runtime_error);
+    }
 }
 

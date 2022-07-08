@@ -6,11 +6,13 @@
 #include "../threadpool.h"
 
 #include <atomic>
+#include <exception>
 #include <mutex>
 #include <condition_variable>
 #include <optional>
 #include <tuple>
 #include <utility>
+#include <variant>
 
 namespace btl::future
 {
@@ -21,27 +23,19 @@ namespace btl::future
 
     public:
         FutureControl() :
-            ready_(false)
+            ready_(false),
+            value_(std::monostate{})
         {
         }
 
-        void set(std::tuple<Ts...> value)
+        void setValue(std::tuple<Ts...> value)
         {
-            assert(!ready());
+            set(std::move(value));
+        }
 
-            LockType lock(mutex_);
-            value_ = std::make_optional(std::move(value));
-            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
-            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
-            ready_.store(true, std::memory_order_release);
-
-            if (callback_.has_value())
-            {
-                auto callback = std::move(*callback_);
-                lock.unlock();
-
-                callback();
-            }
+        void setFailure(std::exception_ptr err)
+        {
+            set(std::move(err));
         }
 
         void waitForResult()
@@ -52,18 +46,18 @@ namespace btl::future
 
             LockType lock(mutex_);
 
-            // Second check after actually locking the mutex just to be sure.
-            if (value_.has_value())
-                return;
+            ready_.load(std::memory_order_acquire);
 
-            //assert(!callback_);
+            // Second check after actually locking the mutex just to be sure.
+            if (!std::holds_alternative<std::monostate>(value_))
+                return;
 
             std::mutex mutex;
             std::condition_variable condition;
 
             auto oldCallback = std::move(callback_);
-            callback_ = std::make_optional<MoveOnlyFunction<void()>>(
-                    [&condition, &mutex]() mutable
+            callback_ = std::make_optional<MoveOnlyFunction<void(FutureControl&)>>(
+                    [&condition, &mutex](FutureControl&) mutable
             {
                 std::unique_lock<std::mutex> lock2(mutex);
                 condition.notify_one();
@@ -73,90 +67,68 @@ namespace btl::future
 
             lock.unlock();
             condition.wait(lock2);
+
+            ready_.load(std::memory_order_acquire);
+
             if (oldCallback.has_value())
-                (*oldCallback)();
+                (*oldCallback)(*this);
         }
 
-        /*
-        template <int... S>
-        std::tuple<std::decay_t<Ts> const&...> getTupleRefImpl(std::index_sequence<S...>) const&
-        {
-            assert(value_.has_value());
-
-            return std::make_tuple<std::decay_t<Ts> const&...>(
-                    std::get<S>(*value_)...
-                    );
-        }
-
-        std::tuple<std::decay_t<Ts> const&...> getTupleRef() const&
-        {
-        }
-        */
-
-        //std::tuple<Ts...> get()
-        /*
-        auto get()
+        std::tuple<Ts...> const& getTupleRef() const
         {
             waitForResult();
 
-            assert(value_.has_value());
+            assert(!std::holds_alternative<std::monostate>(value_));
 
-            // No need for lock as the value will be set only once
-            // and we know that it has been set already. Also we are
-            // the only consumer for the value.
-            if constexpr(sizeof...(Ts) == 0)
-                return;
-            else if constexpr(sizeof...(Ts) == 1)
-                return std::move(std::get<0>(*value_));
-            else
-                return getTuple();
+            if (std::holds_alternative<std::exception_ptr>(value_))
+                std::rethrow_exception(std::get<std::exception_ptr>(value_));
+
+            return std::get<std::tuple<Ts...>>(value_);
         }
-        */
+
+        std::tuple<Ts...>& getTupleRef()
+        {
+            waitForResult();
+
+            assert(!std::holds_alternative<std::monostate>(value_));
+
+            if (std::holds_alternative<std::exception_ptr>(value_))
+                std::rethrow_exception(std::get<std::exception_ptr>(value_));
+
+            return std::get<std::tuple<Ts...>>(value_);
+        }
 
         std::tuple<Ts...> getTuple()
         {
-            waitForResult();
-
-            assert(value_.has_value());
-
-            return *value_;
+            return getTupleRef();
         }
 
         template <typename... Us, size_t... S>
         auto getAsTupleImpl(std::index_sequence<S...>) -> decltype(auto)
         {
-            assert(value_.has_value());
+            auto&& value = getTupleRef();
 
             return std::make_tuple<Us...>(
-                    (Us)std::get<S>(*value_)...
+                    (Us)std::get<S>(value)...
                     );
         }
 
         template <typename... Us>
         auto getAsTuple()
         {
-            waitForResult();
-
-            assert(value_.has_value());
-
             return getAsTupleImpl<Us...>(std::make_index_sequence<sizeof...(Us)>());
         }
 
         template <typename U>
         auto getFirst() -> U
         {
-            waitForResult();
-            assert(value_.has_value());
-            return std::move(std::get<0>(*value_));
+            return std::move(std::get<0>(getTupleRef()));
         }
 
         template <typename... Us>
         auto get() -> decltype(auto)
         {
             static_assert(sizeof...(Ts) == sizeof...(Us));
-            waitForResult();
-
-            assert(value_.has_value());
 
             // No need for lock as the value will be set only once
             // and we know that it has been set already. Also we are
@@ -169,24 +141,13 @@ namespace btl::future
                 return getAsTuple<Us...>();
         }
 
-        //std::tuple<std::decay_t<Ts> const&...> getRef()
-        /*
-        auto getRef()
+        std::exception_ptr getException()
         {
-            waitForResult();
+            bool r = ready();
+            assert(r && hasException());
 
-            assert(value_.has_value());
-
-            // No need for lock as the value will be set only once
-            // and we know that it has been set already.
-            if constexpr(sizeof...(Ts) == 0)
-                return;
-            else if constexpr(sizeof...(Ts) == 1)
-                return std::get<0>(*value_);
-            else
-                return getTupleRef();
+            return std::get<std::exception_ptr>(value_);
         }
-        */
 
         bool ready() const
         {
@@ -196,33 +157,51 @@ namespace btl::future
             return r;
         }
 
-        void addCallback(btl::MoveOnlyFunction<void()> callback)
+        bool hasValue() const
+        {
+            bool r = ready();
+            assert(r);
+
+            return std::holds_alternative<std::tuple<Ts...>>(value_);
+        }
+
+        bool hasException() const
+        {
+            bool r = ready();
+            assert(r);
+
+            return std::holds_alternative<std::exception_ptr>(value_);
+        }
+
+        void addCallback(btl::MoveOnlyFunction<void(FutureControl&)> callback)
         {
             if (ready())
             {
-                callback();
+                callback(*this);
                 return;
             }
 
             LockType lock(mutex_);
 
+            ready_.load(std::memory_order_acquire);
+
             // Check if the value was set between calling ready() and
             // locking the mutex..
-            if (value_.has_value())
+            if (!std::holds_alternative<std::monostate>(value_))
             {
                 lock.unlock();
-                callback();
+                callback(*this);
                 return;
             }
 
             if (callback_.has_value())
             {
-                callback_ = std::make_optional<MoveOnlyFunction<void()>>(
+                callback_ = std::make_optional<MoveOnlyFunction<void(FutureControl&)>>(
                         [oldCb = std::move(callback_),
-                            cb=std::move(callback)]() mutable
+                            cb=std::move(callback)](FutureControl& control) mutable
                 {
-                    std::move(*oldCb)();
-                    std::move(cb)();
+                    std::move(*oldCb)(control);
+                    std::move(cb)(control);
                 });
             }
             else
@@ -230,10 +209,33 @@ namespace btl::future
         }
 
     private:
+        void set(std::variant<std::monostate, std::tuple<Ts...>, std::exception_ptr> value)
+        {
+            bool r = ready();
+            assert(!r);
+
+            LockType lock(mutex_);
+            value_ = std::move(value);
+            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
+            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
+            ready_.store(true, std::memory_order_release);
+
+            if (callback_.has_value())
+            {
+                auto callback = std::move(*callback_);
+                callback_.reset();
+
+                lock.unlock();
+
+                callback(*this);
+            }
+        }
+
+    private:
         SpinLock mutex_;
         std::atomic<bool> ready_;
-        std::optional<std::tuple<Ts...>> value_;
-        std::optional<btl::MoveOnlyFunction<void()>> callback_;
+        std::variant<std::monostate, std::tuple<Ts...>, std::exception_ptr> value_;
+        std::optional<btl::MoveOnlyFunction<void(FutureControl&)>> callback_;
     };
 } // namespace btl::future
 

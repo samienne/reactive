@@ -2,8 +2,10 @@
 
 #include "future.h"
 
+#include <atomic>
 #include <btl/tupleforeach.h>
 
+#include <exception>
 #include <type_traits>
 #include <utility>
 
@@ -16,9 +18,9 @@ namespace btl::future
         {
             if constexpr(IsFuture<std::decay_t<T>>::value)
             {
-                t.addCallback_([func=std::forward<TFunc>(func)]() mutable
+                t.addCallback_([func=std::forward<TFunc>(func)](auto& control) mutable
                 {
-                    std::invoke(std::move(func));
+                    std::invoke(std::move(func), control);
                 });
             }
         }
@@ -51,18 +53,44 @@ namespace btl::future
         {
             auto control = this->weak_from_this();
 
-            btl::tuple_foreach(values_, [&control](auto&& value)
+            btl::tuple_foreach(*values_, [this, &control](auto&& value)
             {
+                if (failed_.load(std::memory_order_acquire))
+                    return;
+
                 detail::waitForValue(std::forward<decltype(value)>(value),
-                    [control]() mutable
+                    [control](auto& valueControl) mutable
                     {
                         if (auto p = control.lock())
                         {
                             auto ptr = static_cast<WhenAll*>(p.get());
-                            ptr->reportValueReady();
+
+                            if (valueControl.hasValue())
+                                ptr->reportValueReady();
+                            else
+                                ptr->reportFailure(valueControl.getException());
                         }
                     });
+
             });
+
+            if (failed_.load(std::memory_order_acquire))
+                values_.reset();
+
+            initialized_.store(true, std::memory_order_release);
+        }
+
+        void reportFailure(std::exception_ptr err)
+        {
+            bool expected = false;
+            bool hadNotFailed = failed_.compare_exchange_strong(expected, true);
+            if (hadNotFailed)
+            {
+                this->setFailure(std::move(err));
+
+                if (initialized_.load(std::memory_order_acquire))
+                    values_.reset();
+            }
         }
 
         void reportValueReady()
@@ -75,20 +103,24 @@ namespace btl::future
             {
                 std::apply([this](auto&&... values)
                     {
-                        this->set(std::tuple_cat(
+                        this->setValue(std::tuple_cat(
                                     detail::getValueAsTuple(
                                         std::forward<decltype(values)>(values)
                                         )...
                                     ));
                     },
-                    std::move(values_)
+                    std::move(*values_)
                     );
+
+                values_.reset();
             }
         }
 
     private:
         std::atomic_int count_;
-        std::tuple<Ts...> values_;
+        std::atomic_bool failed_ = false;
+        std::atomic_bool initialized_ = false;
+        std::optional<std::tuple<Ts...>> values_;
     };
 
     template <typename... Ts>
