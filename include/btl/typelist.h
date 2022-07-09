@@ -57,6 +57,19 @@ namespace btl
         typename Filter<TPredicate, TypeList<Ts...>>::type
     > {};
 
+    template <template<typename> class TPredicate, typename T>
+    struct FilterOut {};
+
+    template <template<typename> class TPredicate>
+    struct FilterOut<TPredicate, TypeList<>> { using type = TypeList<>; };
+
+    template <template<typename> class TPredicate, typename T, typename... Ts>
+    struct FilterOut<TPredicate, TypeList<T, Ts...>> : std::conditional<
+        !TPredicate<T>::value,
+        ConcatType<TypeList<T>, typename FilterOut<TPredicate, TypeList<Ts...>>::type>,
+        typename FilterOut<TPredicate, TypeList<Ts...>>::type
+    > {};
+
     template <template<typename> class TMap, typename T>
     struct MapList {};
 

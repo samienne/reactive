@@ -221,7 +221,6 @@ TEST(async, autoCancel)
         auto f2 = std::move(f).then([&didRun](std::shared_ptr<int>)
             {
                 didRun = true;
-                return false;
             });
     }
 
@@ -505,12 +504,10 @@ TEST(async, whenAllCancelOnFail)
         auto f2 = btl::async([]()
                 {
                     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                    return true;
                 })
-                .then([&called](bool)
+                .then([&called]()
                 {
                     called.store(true);
-                    return true;
                 })
                 ;
 

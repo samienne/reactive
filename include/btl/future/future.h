@@ -146,14 +146,20 @@ namespace btl::future
             using ControlType = std::conditional_t<
                 IsFutureResult<std::decay_t<ValueType>>::value,
                 ApplyParamsFromT<ValueType, detail::ControlWithData, DataType>,
-                detail::ControlWithData<DataType, std::decay_t<ValueType>>
-                >;
+                std::conditional_t<
+                    std::is_same_v<void, ValueType>,
+                    detail::ControlWithData<DataType>,
+                    detail::ControlWithData<DataType, std::decay_t<ValueType>>
+                >>;
 
             using FutureType = std::conditional_t<
                 IsFutureResult<std::decay_t<ValueType>>::value,
                 ApplyParamsFromT<std::decay_t<ValueType>, Future>,
-                Future<ValueType>
-                >;
+                std::conditional_t<
+                    std::is_same_v<void, ValueType>,
+                    Future<>,
+                    Future<ValueType>
+                >>;
 
             auto control = std::make_shared<ControlType>(
                     std::make_pair(connect(), std::forward<TFunc>(func))
@@ -161,48 +167,58 @@ namespace btl::future
             std::weak_ptr<ControlType> weakControl = control;
 
             control_->addCallback(
-                [newControl=std::move(weakControl)](/*auto&&... ts*/ auto& control) mutable
+                [newControl=std::move(weakControl)](auto& control) mutable
                 {
                     if (auto p = newControl.lock())
                     {
                         try
                         {
-                            auto r = std::apply(
-                                    std::move(p->data.second),
-                                    std::move(control.getTupleRef())
-                                    );
-
-                            if constexpr (IsFuture<std::decay_t<decltype(r)>>::value)
+                            if constexpr(std::is_same_v<void, ValueType>)
                             {
-                                auto f = std::move(r).then(
-                                    [newControl=newControl](auto&&... ts) mutable
-                                    {
-                                        if (auto p = newControl.lock())
-                                        {
-                                            p->setValue(std::forward_as_tuple(
-                                                        std::forward<decltype(ts)>(ts)...
-                                                        ));
-                                        }
+                                std::apply(
+                                        std::move(p->data.second),
+                                        std::move(control.getTupleRef())
+                                        );
 
-                                        return true;
-                                    }).onFailure(
-                                    [newControl=std::move(newControl)](std::exception_ptr err)
-                                    {
-                                        if (auto p = newControl.lock())
-                                        {
-                                            p->setFailure(std::move(err));
-                                        }
-                                    });
-
-                                p->data.first = std::move(f).connect();
-                            }
-                            else if constexpr (IsFutureResult<std::decay_t<decltype(r)>>::value)
-                            {
-                                p->setValue(std::move(r).getAsTuple());
+                                p->setValue(std::tuple<>());
                             }
                             else
                             {
-                                p->setValue(std::make_tuple(std::move(r)));
+                                auto r = std::apply(
+                                        std::move(p->data.second),
+                                        std::move(control.getTupleRef())
+                                        );
+
+                                if constexpr (IsFuture<std::decay_t<decltype(r)>>::value)
+                                {
+                                    auto f = std::move(r).then(
+                                        [newControl=newControl](auto&&... ts) mutable
+                                        {
+                                            if (auto p = newControl.lock())
+                                            {
+                                                p->setValue(std::forward_as_tuple(
+                                                            std::forward<decltype(ts)>(ts)...
+                                                            ));
+                                            }
+                                        }).onFailure(
+                                        [newControl=std::move(newControl)](std::exception_ptr err)
+                                        {
+                                            if (auto p = newControl.lock())
+                                            {
+                                                p->setFailure(std::move(err));
+                                            }
+                                        });
+
+                                    p->data.first = std::move(f).connect();
+                                }
+                                else if constexpr (IsFutureResult<std::decay_t<decltype(r)>>::value)
+                                {
+                                    p->setValue(std::move(r).getAsTuple());
+                                }
+                                else
+                                {
+                                    p->setValue(std::make_tuple(std::move(r)));
+                                }
                             }
                         }
                         catch(...)

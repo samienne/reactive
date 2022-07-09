@@ -2,9 +2,10 @@
 
 #include "future.h"
 
-#include <atomic>
 #include <btl/tupleforeach.h>
+#include <btl/typelist.h>
 
+#include <atomic>
 #include <exception>
 #include <type_traits>
 #include <utility>
@@ -40,7 +41,14 @@ namespace btl::future
     } // namespace detail
 
     template <typename... Ts>
-    class WhenAll : public FutureControl<std::decay_t<FutureType<Ts>>...>
+    class WhenAll : public //FutureControl<std::decay_t<FutureType<Ts>>...>
+                    ApplyParamsFromT<
+                    typename  btl::FilterOut<
+                    std::is_void,
+                    btl::TypeList<std::decay_t<FutureType<Ts>>...>
+                    >::type,
+                    FutureControl
+                    >
     {
     public:
         WhenAll(std::tuple<Ts...> values) :
@@ -124,7 +132,7 @@ namespace btl::future
     };
 
     template <typename... Ts>
-    auto whenAll(Ts&&... ts) -> Future<FutureType<std::decay_t<Ts>>...>
+    auto whenAll(Ts&&... ts) // -> Future<FutureType<std::decay_t<Ts>>...>
     {
         constexpr size_t futureCount = ((IsFuture<std::decay_t<Ts>>::value ? 1 : 0) + ... + 0);
 
@@ -137,9 +145,14 @@ namespace btl::future
 
         control->init();
 
-        return Future<FutureType<std::decay_t<Ts>>...>(
-                std::move(control)
-                );
+        using Types = typename btl::FilterOut<
+            std::is_void,
+            btl::TypeList<FutureType<std::decay_t<Ts>>...>
+            >::type;
+
+        using ResultType = ApplyParamsFromT<Types, Future>;
+
+        return ResultType(std::move(control));
     }
 } // namespace btl::future
 
