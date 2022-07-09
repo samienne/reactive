@@ -24,7 +24,7 @@ namespace btl::future
         void set(Ts... values)
         {
             if (auto p = control_.lock())
-                p->setValue(std::forward<Ts>(values)...);
+                p->setValue(std::make_tuple(std::forward<Ts>(values)...));
         }
 
         void setFromTuple(std::tuple<Ts...> values)

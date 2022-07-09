@@ -90,7 +90,7 @@ float easeInOutQuad(float f)
 
 float easeInBack(float f)
 {
-    constexpr float const c1 = 1.70158;
+    constexpr float const c1 = 1.70158f;
     constexpr float const c3 = c1 + 1.0f;
 
     return c3 * f * f* f - c1 * f * f;
@@ -98,7 +98,7 @@ float easeInBack(float f)
 
 float easeOutBack(float f)
 {
-    constexpr float const c1 = 1.70158;
+    constexpr float const c1 = 1.70158f;
     constexpr float const c3 = c1 + 1.0f;
 
     return 1.0f + c3 * std::pow(f - 1.0f, 3.0f) + c1 * std::pow(f - 1.0f, 2.0f);

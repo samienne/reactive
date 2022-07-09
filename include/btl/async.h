@@ -26,20 +26,15 @@ namespace btl
         using ControlType = std::conditional_t<
             future::IsFutureResult<ValueType>::value,
             future::ApplyParamsFromT<ValueType, future::FutureControl>,
-            future::FutureControl<ValueType>
-            >;
+            std::conditional_t<
+                std::is_same_v<void, ValueType>,
+                future::FutureControl<>,
+                future::FutureControl<ValueType>
+            >>;
 
-        using FutureType = std::conditional_t<
-            future::IsFutureResult<ValueType>::value,
-            future::ApplyParamsFromT<ValueType, future::Future>,
-            future::Future<ValueType>
-            >;
+        using FutureType = future::ApplyParamsFromT<ControlType, future::Future>;
 
-        using PromiseType = std::conditional_t<
-            future::IsFutureResult<ValueType>::value,
-            future::ApplyParamsFromT<ValueType, future::Promise>,
-            future::Promise<ValueType>
-            >;
+        using PromiseType = future::ApplyParamsFromT<FutureType, future::Promise>;
 
         auto control = std::make_shared<ControlType>();
         PromiseType promise(control);
@@ -66,6 +61,11 @@ namespace btl
                                 std::move(params)
                                 ).getAsTuple()
                             );
+                }
+                else if constexpr (std::is_void_v<ValueType>)
+                {
+                    std::apply(std::move(func), std::move(params));
+                    promise.set();
                 }
                 else
                 {

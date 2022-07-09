@@ -200,8 +200,6 @@ namespace btl::future
                                                             std::forward<decltype(ts)>(ts)...
                                                             ));
                                             }
-
-                                            return true;
                                         }).onFailure(
                                         [newControl=std::move(newControl)](std::exception_ptr err)
                                         {
