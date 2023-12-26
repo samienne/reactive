@@ -48,6 +48,9 @@ namespace btl
 
         inline Buffer& operator=(Buffer const& rhs)
         {
+            if (this == &rhs)
+                return *this;
+
             if (data_)
                 memory_->deallocate(data_, reserved_);
 
@@ -168,6 +171,5 @@ namespace btl
         std::size_t size_ = 0;
         std::size_t reserved_ = 0;
     };
-
 } // namespace btl
 

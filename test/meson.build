@@ -2,14 +2,21 @@ incdir = include_directories('../include')
 gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
+config_file = configure_file(
+  input: 'config.h.in',
+  output: 'config.h',
+  configuration: { 'DATA_PATH': join_paths(meson.project_source_root(), 'data') }
+  )
+
 devtest = executable('devtest',
-        'asynctest.cpp',
+        'filetest.cpp',
         include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep]#, libasedep, libavgdep, libreactivedep]
         )
 
 unittest = executable('unittest',
+        'asynctest.cpp',
         'animatedtest.cpp',
         'widgetinstancemodifiertest.cpp',
         'grouptest.cpp',
