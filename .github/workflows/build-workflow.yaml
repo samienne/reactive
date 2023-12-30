@@ -36,7 +36,7 @@ jobs:
             ./test/devtest --gtest_output=xml
 
     build-macos:
-        runs-on: "macOS-10.15"
+        runs-on: "macOS-latest"
         steps:
         - uses: actions/checkout@v2
           with:
