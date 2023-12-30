@@ -49,14 +49,27 @@ namespace reactive::widget
     };
 
     template <typename T>
-    struct ParamProviderType : std::decay<T> {};
+    struct ParamProviderType
+    {
+        using type = T;
+    };
 
     template <typename T>
     struct ParamProviderType<ParamProvider<T>>
     {
-        using type = std::decay_t<
-            decltype(std::declval<ParamProvider<T>>()(BuildParams()))
-            >;
+        using type = decltype(std::declval<ParamProvider<T>>()(BuildParams()));
+    };
+
+    template <typename T>
+    struct ParamProviderType<ParamProvider<T> const&>
+    {
+        using type = decltype(std::declval<ParamProvider<T> const&>()(BuildParams()));
+    };
+
+    template <typename T>
+    struct ParamProviderType<ParamProvider<T>&&>
+    {
+        using type = decltype(std::declval<ParamProvider<T>&&>()(BuildParams()));
     };
 
     template <typename T>

@@ -1,12 +1,12 @@
 #include "widget/button.h"
 
+#include "widget/gettheme.h"
 #include "widget/frame.h"
 #include "widget/label.h"
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onhover.h"
 #include "widget/onclick.h"
-#include "widget/withparams.h"
 #include "widget/settheme.h"
 
 namespace reactive::widget
@@ -57,7 +57,7 @@ AnyWidget button(AnySignal<std::string> label,
 
     return widget::label(std::move(label))
         | margin(signal::constant(5.0f))
-        | widget::withParams<widget::ThemeTag>(
+        | widget::makeWidgetModifier(
             [](auto widget, auto theme, auto downSignal, auto hoverSignal)
             {
                 auto secondary = signal::map([](Theme const& theme)
@@ -72,6 +72,7 @@ AnyWidget button(AnySignal<std::string> label,
                             std::move(downSignal), std::move(hoverSignal))
                     ;
             },
+            getTheme(),
             std::move(down.signal),
             std::move(hover.signal)
             )

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widget/getbuildparams.h"
 #include "widget/addwidgets.h"
 #include "widget/widgetobject.h"
 #include "widget/instancemodifier.h"
@@ -142,7 +143,7 @@ namespace reactive
                             hints
                             );
 
-                    return widget::makeBuilder()
+                    return widget::makeWidget()
                         | makeSharedInstanceSignalModifier(
                             [](auto instance, auto hints, auto widgetObjects)
                             {
@@ -162,6 +163,7 @@ namespace reactive
                         | widget::setSizeHint(std::move(resultHint))
                         ;
                 },
+                widget::getBuildParams(),
                 share(std::move(widgets))
                 )
             ;

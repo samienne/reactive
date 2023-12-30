@@ -1,5 +1,6 @@
 #include "widget/scrollview.h"
 
+#include "widget/getbuildparams.h"
 #include "widget/frame.h"
 #include "widget/scrollbar.h"
 #include "widget/bin.h"
@@ -138,6 +139,7 @@ AnyWidget scrollView(AnyWidget widget)
                         })
                 });
     },
+    widget::getBuildParams(),
     std::move(widget)
     );
 }

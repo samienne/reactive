@@ -1,5 +1,6 @@
 #pragma once
 
+#include "getbuildparams.h"
 #include "paramprovider.h"
 #include "instancemodifier.h"
 #include "element.h"

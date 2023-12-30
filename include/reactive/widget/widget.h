@@ -1,5 +1,6 @@
 #pragma once
 
+#include "getbuildparams.h"
 #include "buildparams.h"
 #include "buildermodifier.h"
 
@@ -62,10 +63,7 @@ namespace reactive::widget
         template <typename T>
         auto operator|(WidgetModifier<T> modifier) &&
         {
-            return std::invoke(
-                    std::move(modifier),
-                    std::move(*this)
-                    );
+            return std::move(modifier)(std::move(*this));
         }
 
         auto clone() const
@@ -83,7 +81,7 @@ namespace reactive::widget
     namespace detail
     {
         template <typename TFunc>
-        auto makeWidgetUnchecked(TFunc&& func)
+        auto makeWidgetUncheckedWithParams(TFunc&& func)
         {
             return Widget<std::decay_t<TFunc>>(
                     WidgetBuildTag{},
@@ -92,15 +90,41 @@ namespace reactive::widget
         }
 
         template <typename TFunc, typename... Ts>
-        auto makeWidgetUnchecked(TFunc&& func, Ts&&... ts)
+        auto makeWidgetUncheckedWithParams(TFunc&& func, Ts&&... ts)
         {
-            return makeWidgetUnchecked(btl::bindArguments(
-                        [](BuildParams params, auto&& func, auto&&... ts)
+            return makeWidgetUncheckedWithParams(btl::bindArguments(
+                        [](BuildParams const& params, auto&& func, auto&&... ts)
                         {
                             return std::invoke(
-                                    std::forward<decltype(func)>(func),
-                                    std::move(params),
-                                    std::forward<decltype(ts)>(ts)...
+                                std::forward<decltype(func)>(func),
+                                params,
+                                invokeParamProvider(
+                                    std::forward<decltype(ts)>(ts),
+                                    params
+                                    )...
+                                );
+                        },
+                        std::forward<TFunc>(func),
+                        std::forward<Ts>(ts)...
+                        )
+                    );
+        }
+
+        template <typename TFunc, typename... Ts>
+        auto makeWidgetUnchecked(TFunc&& func, Ts&&... ts)
+        {
+            return makeWidgetUncheckedWithParams(btl::bindArguments(
+                        [](BuildParams const& params, auto&& func, auto&&... ts)
+                        {
+                            return std::invoke(
+                                    std::invoke(
+                                        std::forward<decltype(func)>(func),
+                                        invokeParamProvider(
+                                            std::forward<decltype(ts)>(ts),
+                                            params
+                                            )...
+                                        ),
+                                    params
                                     );
                         },
                         std::forward<TFunc>(func),
@@ -111,9 +135,8 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, BuildParams, Ts&&...>
-        >
-    >
+        std::is_invocable_r_v<AnyWidget, TFunc, ParamProviderTypeT<Ts>...>
+        >>
     auto makeWidget(TFunc&& func, Ts&&... ts)
     {
         return detail::makeWidgetUnchecked(
@@ -122,31 +145,9 @@ namespace reactive::widget
                 );
     }
 
-    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, BuildParams, Ts&&...>
-        >, int = 0>
-    auto makeWidget(TFunc&& func, Ts&&... ts)
-    {
-        return detail::makeWidgetUnchecked([](BuildParams const& params,
-                    auto func, auto&&... ts)
-            {
-                return std::invoke(
-                    std::invoke(
-                        std::move(func),
-                        params,
-                        std::forward<decltype(ts)>(ts)...
-                        ),
-                    params
-                    );
-            },
-            std::forward<TFunc>(func),
-            std::forward<Ts>(ts)...
-            );
-    }
-
     inline auto makeWidget()
     {
-        return detail::makeWidgetUnchecked([](auto&& params)
+        return detail::makeWidgetUncheckedWithParams([](auto&& params)
             {
                 return makeBuilder()
                     .setBuildParams(std::forward<decltype(params)>(params))
@@ -206,10 +207,21 @@ namespace reactive::widget
             return makeWidgetModifierUnchecked(btl::bindArguments(
                         [](auto widget, auto&& func, auto&&... ts)
                         {
-                            return std::invoke(
+                            return makeWidgetUncheckedWithParams(
+                                    [](BuildParams const& params, auto widget,
+                                        auto&& func, auto&&... ts)
+                                    {
+                                        return std::invoke(
+                                                std::invoke(
+                                                    std::forward<decltype(func)>(func),
+                                                    std::move(widget),
+                                                    std::forward<decltype(ts)>(ts)...
+                                                    ),
+                                                params);
+                                    },
+                                    std::forward<decltype(widget)>(widget),
                                     std::forward<decltype(func)>(func),
-                                    std::move(widget),
-                                    std::forward<decltype(ts)>(ts)...
+                                    std::forward<Ts>(ts)...
                                     );
                         },
                         std::forward<TFunc>(func),
@@ -220,7 +232,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, Ts&&...>
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, ParamProviderTypeT<Ts>...>
         >
     >
     auto makeWidgetModifier(TFunc&& func, Ts&&... ts)
@@ -236,7 +248,7 @@ namespace reactive::widget
     {
         return detail::makeWidgetModifierUnchecked([](auto widget, auto modifier)
                 {
-                    return detail::makeWidgetUnchecked([
+                    return detail::makeWidgetUncheckedWithParams([
                             ](BuildParams params, auto widget, auto modifier) mutable
                             {
                                 return std::invoke(
@@ -259,8 +271,8 @@ namespace reactive::widget
     {
         return detail::makeWidgetModifierUnchecked([](auto widget, auto modifier)
                 {
-                    return detail::makeWidgetUnchecked([
-                            ](BuildParams params, auto widget, auto modifier) mutable
+                    return detail::makeWidgetUncheckedWithParams(
+                            [](BuildParams params, auto widget, auto modifier)
                             {
                                 return std::invoke(
                                         std::move(widget),
@@ -283,7 +295,7 @@ namespace reactive::widget
     {
         return makeWidgetModifier([](auto widget, auto modifier)
                 {
-                    return detail::makeWidgetUnchecked([](BuildParams params,
+                    return detail::makeWidgetUncheckedWithParams([](BuildParams params,
                                 auto widget, auto modifier)
                             {
                                 return std::invoke(
