@@ -56,7 +56,7 @@ TEST(Widget, widgetBuildParameters)
 
                 return widget;
             },
-            getBuildParams()
+            provideBuildParams()
             )
         | modifyParamsObject([](BuildParams params)
             {
@@ -71,7 +71,7 @@ TEST(Widget, widgetBuildParameters)
 
                 return widget;
             },
-            getBuildParams()
+            provideBuildParams()
             )
         | modifyParamsObject([](BuildParams params)
             {
@@ -117,7 +117,7 @@ TEST(Widget, withParams)
             {
                 tag = str.evaluate();
                 return widget;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         ;
 
     auto builder = std::move(widget)(BuildParams());
@@ -137,7 +137,7 @@ TEST(Widget, setParams)
                 tag = str.evaluate();
                 return widget;
             },
-            getParam<TestTag>()
+            provideParam<TestTag>()
             )
         | setParams<TestTag>("set value")
         ;
@@ -160,19 +160,19 @@ TEST(Widget, builderModifierTags)
             {
                 tag = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         | setParams<TestTag>("set value 1")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag2 = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         | setParams<TestTag>("set value 2")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag3 = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         ;
 
     std::move(widget)(BuildParams());

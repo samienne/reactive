@@ -1,6 +1,6 @@
 #pragma once
 
-#include "getparam.h"
+#include "provideparam.h"
 
 #include <avg/animationoptions.h>
 
@@ -15,9 +15,9 @@ namespace reactive::widget
         }
     };
 
-    inline auto getAnimation()
+    inline auto provideAnimation()
     {
-        return getParam<AnimationTag>();
+        return provideParam<AnimationTag>();
     }
 } // namespace reactive::widget
 

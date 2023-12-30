@@ -1,7 +1,7 @@
 #pragma once
 
 #include "instancemodifier.h"
-#include "getanimation.h"
+#include "provideanimation.h"
 
 #include <avg/animationoptions.h>
 #include <avg/rendertree.h>
@@ -77,7 +77,7 @@ auto onDraw(TFunc&& func, Ts&&... ts)
                         std::forward<decltype(ts)>(ts)...
                         );
         },
-        getAnimation(),
+        provideAnimation(),
         std::forward<TFunc>(func),
         std::forward<Ts>(ts)...
         );
@@ -107,7 +107,7 @@ auto onDrawBehind(TFunc&& func, Ts&&... ts)
                         std::forward<decltype(ts)>(ts)...
                         );
         },
-        getAnimation(),
+        provideAnimation(),
         std::forward<TFunc>(func),
         std::forward<Ts>(ts)...
         );

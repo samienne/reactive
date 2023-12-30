@@ -9,6 +9,7 @@
 #include "widget/settheme.h"
 #include "widget/instancemodifier.h"
 #include "widget/setsizehint.h"
+#include "widget/providetheme.h"
 
 #include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
@@ -160,11 +161,9 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedElementModifier([](auto element, auto scrollHandle,
+        return makeSharedElementModifier([](auto element, auto theme, auto scrollHandle,
                     auto amount, auto handleSize)
         {
-            auto theme = element.getParams().template valueOrDefault<ThemeTag>();
-
             auto downOffset = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
             auto isDown = map([](auto v) { return v.has_value(); }, downOffset.signal);
             auto hover = signal::input(false);
@@ -224,6 +223,7 @@ namespace
                         )
                 ;
         },
+        provideTheme(),
         scrollHandle,
         std::move(amount),
         std::move(handleSize)

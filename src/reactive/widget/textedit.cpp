@@ -1,6 +1,6 @@
 #include "widget/textedit.h"
 
-#include "widget/gettheme.h"
+#include "widget/providetheme.h"
 #include "widget/ondraw.h"
 #include "widget/clip.h"
 #include "widget/label.h"
@@ -224,7 +224,7 @@ TextEdit::operator AnyWidget() const
 {
     return makeWidget(
             makeTextEdit,
-            getTheme(),
+            provideTheme(),
             handle_,
             onEnter_,
             signal::share(btl::clone(state_))

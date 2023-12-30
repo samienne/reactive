@@ -1,7 +1,7 @@
 #pragma once
 
 #include "setparams.h"
-#include "getanimation.h"
+#include "provideanimation.h"
 
 #include <reactive/signal/changed.h>
 
@@ -46,7 +46,7 @@ namespace reactive::widget
                                 })
                             );
                 },
-                getAnimation(),
+                provideAnimation(),
                 std::move(options),
                 std::move(signal)
                 );

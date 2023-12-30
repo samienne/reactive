@@ -1,6 +1,6 @@
 #include "layout.h"
 
-#include "widget/getbuildparams.h"
+#include "widget/providebuildparams.h"
 #include "widget/setsizehint.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
@@ -86,7 +86,7 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
                 std::move(builders)
                 );
     },
-    widget::getBuildParams(),
+    widget::provideBuildParams(),
     std::move(sizeHintMap),
     std::move(obbMap),
     std::move(widgets)

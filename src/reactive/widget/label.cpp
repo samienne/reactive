@@ -1,6 +1,6 @@
 #include "widget/label.h"
 
-#include "widget/gettheme.h"
+#include "widget/providetheme.h"
 #include "widget/ondraw.h"
 #include "widget/margin.h"
 #include "widget/theme.h"
@@ -67,7 +67,7 @@ auto makeLabel(AnySignal<widget::Theme> theme, AnySharedSignal<std::string> text
 
 AnyWidget label(AnySharedSignal<std::string> text)
 {
-    return makeWidget(makeLabel, getTheme(), std::move(text));
+    return makeWidget(makeLabel, provideTheme(), std::move(text));
 }
 
 AnyWidget label(std::string const& text)

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "widget/getbuildparams.h"
+#include "widget/providebuildparams.h"
 #include "widget/addwidgets.h"
 #include "widget/widgetobject.h"
 #include "widget/instancemodifier.h"
@@ -163,7 +163,7 @@ namespace reactive
                         | widget::setSizeHint(std::move(resultHint))
                         ;
                 },
-                widget::getBuildParams(),
+                widget::provideBuildParams(),
                 share(std::move(widgets))
                 )
             ;

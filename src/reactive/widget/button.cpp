@@ -1,12 +1,12 @@
 #include "widget/button.h"
 
-#include "widget/gettheme.h"
 #include "widget/frame.h"
 #include "widget/label.h"
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onhover.h"
 #include "widget/onclick.h"
+#include "widget/providetheme.h"
 #include "widget/settheme.h"
 
 namespace reactive::widget
@@ -72,7 +72,7 @@ AnyWidget button(AnySignal<std::string> label,
                             std::move(downSignal), std::move(hoverSignal))
                     ;
             },
-            getTheme(),
+            provideTheme(),
             std::move(down.signal),
             std::move(hover.signal)
             )

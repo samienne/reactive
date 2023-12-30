@@ -1,7 +1,7 @@
 #include "spinner.h"
 
 #include <reactive/widget/ondraw.h>
-#include <reactive/widget/gettheme.h>
+#include <reactive/widget/providetheme.h>
 #include <reactive/widget/elementmodifier.h>
 #include <reactive/shapes.h>
 
@@ -56,7 +56,7 @@ reactive::widget::AnyWidget spinner()
                 ));
 
     return widget::makeWidget()
-        | widget::onDraw(drawSpinner, widget::getTheme(), std::move(state))
+        | widget::onDraw(drawSpinner, widget::provideTheme(), std::move(state))
         ;
 }
 

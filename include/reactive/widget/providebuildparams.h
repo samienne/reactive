@@ -1,16 +1,16 @@
 #pragma once
 
+#include "buildparams.h"
 #include "paramprovider.h"
 
 namespace reactive::widget
 {
-    template <typename TTag>
-    auto getParam()
+    inline auto provideBuildParams()
     {
         return makeParamProviderUnchecked([](BuildParams const& params)
+                -> BuildParams const&
             {
-                return params.valueOrDefault<TTag>();
+                return params;
             });
     }
 } // namespace reactive::widget
-

@@ -94,7 +94,7 @@ auto transition(Transition<T> transition)
                 )
             ;
     },
-    getBuildParams(),
+    provideBuildParams(),
     std::move(transition)
     );
 }

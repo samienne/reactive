@@ -1,6 +1,6 @@
 #include "uniformgrid.h"
 
-#include "widget/getbuildparams.h"
+#include "widget/providebuildparams.h"
 #include "widget/setsizehint.h"
 
 #include "layout.h"
@@ -121,7 +121,7 @@ UniformGrid::operator widget::AnyWidget() &&
                     );
 
         },
-        widget::getBuildParams(),
+        widget::provideBuildParams(),
         std::move(widgets_),
         std::move(cells_),
         w_,
