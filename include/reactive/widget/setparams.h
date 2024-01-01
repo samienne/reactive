@@ -1,6 +1,7 @@
 #pragma once
 
 #include "modifyparamsobject.h"
+#include "widget.h"
 
 #include <initializer_list>
 
@@ -11,7 +12,7 @@ namespace reactive::widget
     {
         if constexpr (sizeof...(TTags) == 0)
         {
-            return makeWidgetModifier([](auto widget)
+            return detail::makeWidgetModifierUnchecked([](auto widget)
                 {
                     return widget;
                 });

@@ -106,15 +106,10 @@ namespace reactive::widget
         return detail::makeElementModifierUnchecked(
                 [](auto element, auto&& func, auto&&... ts)
                 {
-                    auto params = element.getParams();
-
                     return std::invoke(
                             std::forward<decltype(func)>(func),
                             std::move(element).share(),
-                            invokeParamProvider(
-                                std::forward<decltype(ts)>(ts),
-                                params
-                                )...
+                            std::forward<decltype(ts)>(ts)...
                             );
                 },
                 std::forward<TFunc>(func),

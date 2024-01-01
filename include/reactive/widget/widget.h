@@ -7,6 +7,8 @@
 #include "reactive/signal/constant.h"
 #include "reactive/signal/signal.h"
 
+#include <avg/vector.h>
+
 #include <btl/pushback.h>
 #include <btl/bindarguments.h>
 
@@ -155,6 +157,8 @@ namespace reactive::widget
             });
     }
 
+    using EmptyWidget = std::decay_t<decltype(makeWidget())>;
+
     struct WidgetModifierBuildTag {};
 
     template <typename TFunc>
@@ -232,7 +236,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, ParamProviderTypeT<Ts>...>
+        std::is_invocable_r_v<AnyWidget, TFunc, EmptyWidget, ParamProviderTypeT<Ts>...>
         >
     >
     auto makeWidgetModifier(TFunc&& func, Ts&&... ts)
@@ -334,6 +338,37 @@ namespace reactive::widget
         return std::move(widget)
             | makeWidgetModifier(std::move(modifier))
             ;
+    }
+
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, AnySignal<avg::Vector2f>,
+        ParamProviderTypeT<Ts>...>
+        >>
+    auto makeWidgetWithSize(TFunc&& func, Ts&&... ts)
+    {
+        return makeWidget()
+            | detail::makeElementModifierUnchecked([](
+                        auto element,
+                        BuildParams const& params,
+                        auto&& func,
+                        auto&&... ts
+                        )
+            {
+                auto sharedElement = std::move(element).share();
+                auto size = sharedElement.getSize();
+
+                auto widget = std::invoke(
+                        std::forward<TFunc>(func),
+                        size.clone(),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+
+                return std::move(widget)(params)(size.clone());
+            },
+            provideBuildParams(),
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
     }
 } // namespace reactive::widget
 
