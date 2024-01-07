@@ -34,26 +34,16 @@ AnyWidgetModifier onClick(unsigned int button,
         return EventResult::possible;
     };
 
-    return makeWidgetModifier(
-            makeSharedInstanceSignalModifier([](auto widget, auto f, auto cb)
-            {
-                auto size = signal::map([](Instance const& w)
-                        {
-                            return w.getSize();
-                        },
-                        widget);
-
-                auto map = onPointerUp(
-                        signal::mapFunction(std::move(f), cb, std::move(size)
-                        ));
-
-                return std::move(widget)
-                    | std::move(map)
-                    ;
-            },
-            std::move(f),
-            signal::share(std::move(cb))
-            ));
+    return makeWidgetModifierWithSize([](auto widget, auto size, auto f, auto cb)
+        {
+            return std::move(widget)
+                | onPointerUp(
+                        signal::mapFunction(std::move(f), std::move(cb), std::move(size))
+                        );
+        },
+        std::move(f),
+        signal::share(std::move(cb))
+        );
 }
 
 AnyWidgetModifier onClick(unsigned int button, AnySignal<std::function<void()>> cb)

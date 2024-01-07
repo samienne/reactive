@@ -18,13 +18,23 @@
 
 namespace reactive::widget
 {
+
+template <typename T, typename U>
+auto animate(Signal<T, U> sig)
+{
+    return std::move(sig).map([](auto value)
+            {
+                return avg::Animated<std::decay_t<decltype(value)>>(std::move(value));
+            });
+}
+
 AnyWidgetModifier frame(
         AnySignal<float> cornerRadius,
         AnySignal<avg::Color> color
         )
 {
-    auto cr = signal::share(std::move(cornerRadius));
-    auto c = signal::share(std::move(color));
+    auto cr = signal::share(animate(std::move(cornerRadius)));
+    auto c = signal::share(animate(std::move(color)));
 
     return onDrawBehind(
             [](avg::DrawContext const& context, avg::Vector2f size,

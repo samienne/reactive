@@ -371,6 +371,47 @@ namespace reactive::widget
             );
     }
 
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, AnySignal<avg::Vector2f>,
+        ParamProviderTypeT<Ts>...>
+        >>
+    auto makeWidgetModifierWithSize(TFunc&& func, Ts&&... ts)
+    {
+        return makeWidgetModifier([](auto widget, auto const& params, auto&& func, auto&&... ts)
+            {
+                auto builder = std::move(widget)(params);
+
+                auto sizeHint = builder.getSizeHint().clone();
+
+                return makeWidgetWithSize(
+                    [](auto&& size, auto builder, auto&& func, auto&&... ts)
+                    {
+                        return std::invoke(
+                                std::forward<decltype(func)>(func),
+                                std::move(makeWidgetFromBuilder(builder)),
+                                std::forward<decltype(size)>(size),
+                                std::forward<decltype(ts)>(ts)...
+                                );
+                    },
+                    std::move(builder),
+                    std::forward<decltype(func)>(func),
+                    std::forward<decltype(ts)>(ts)...
+                    )
+                    | makeWidgetModifier(makeBuilderModifier(
+                        [](auto builder, auto sizeHint)
+                        {
+                            return std::move(builder)
+                                .setSizeHint(std::move(sizeHint));
+                        },
+                        std::move(sizeHint)))
+                    ;
+            },
+            provideBuildParams(),
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
+    }
+
     template <typename T, typename U>
     auto makeWidgetFromBuilder(Builder<T, U> builder)
     {

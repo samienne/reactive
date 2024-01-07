@@ -14,6 +14,7 @@ libreactivesrc = [
     'widget/margin.cpp',
     'widget/onpointerdown.cpp',
     'widget/onpointermove.cpp',
+    'widget/onpointerup.cpp',
     'widget/onclick.cpp',
     'widget/onhover.cpp',
     'widget/onkeyevent.cpp',

@@ -39,7 +39,6 @@ namespace reactive::widget
 
 namespace
 {
-
     auto drawTextEdit(
             avg::DrawContext const& drawContext,
             ase::Vector2f size,
@@ -192,7 +191,7 @@ namespace
         auto newState = signal::tee(
                 stream::iterate(updateTextEdit, oldState, std::move(keyStream.stream),
                     theme, signal::combine(onEnter)),
-                handle );
+                handle);
 
         return makeWidget()
             | trackFocus(focus.handle)

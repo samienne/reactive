@@ -571,10 +571,22 @@ UpdateResult ClipNode::update(
         std::chrono::milliseconds time
         ) const
 {
-    if (!oldNode && newNode)
+    auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
+    auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
+    bool const hasOldNode = oldNode && oldClip.childNode_;
+    bool const hasNewNode = newNode && newClip.childNode_;
+
+    if (!hasOldNode && !hasNewNode)
+    {
+        return {
+            nullptr,
+            std::nullopt
+        };
+    }
+
+    if (!hasOldNode && hasNewNode)
     {
         // Appear
-        auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
 
         auto [newChild, nextChildUpdate] = newClip.childNode_->update(
                 oldTree,
@@ -601,10 +613,9 @@ UpdateResult ClipNode::update(
             std::nullopt
         };
     }
-    else if (oldNode && !newNode)
+    else if (hasOldNode && !hasNewNode)
     {
         // Disappear
-        auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
         auto [newChild, nextChildUpdate] = oldClip.childNode_->update(
                 oldTree,
                 newTree,
@@ -633,8 +644,8 @@ UpdateResult ClipNode::update(
 
     assert(oldNode->getId() == newNode->getId());
 
-    auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
-    auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
+    //auto const& oldClip = reinterpret_cast<ClipNode const&>(*oldNode);
+    //auto const& newClip = reinterpret_cast<ClipNode const&>(*newNode);
 
     std::optional<std::chrono::milliseconds> nextUpdate;
 
@@ -689,6 +700,11 @@ std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
         std::chrono::milliseconds time
         ) const
 {
+    if (!childNode_)
+    {
+        return std::make_pair(context.drawing(), false);
+    }
+
     auto obb = parentObb.getTransform() * getObbAt(time);
 
     auto [drawing, childCont] = childNode_->draw(
