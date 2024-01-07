@@ -1,5 +1,6 @@
 #include "widget/button.h"
 
+#include "widget/margin.h"
 #include "widget/frame.h"
 #include "widget/label.h"
 #include "widget/onpointerdown.h"
@@ -8,6 +9,9 @@
 #include "widget/onclick.h"
 #include "widget/providetheme.h"
 #include "widget/settheme.h"
+#include "widget/ondraw.h"
+
+#include "reactive/shapes.h"
 
 namespace reactive::widget
 {

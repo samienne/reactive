@@ -109,19 +109,19 @@ namespace reactive
         template <typename T>
         struct KeySender
         {
-            auto operator()(ase::KeyEvent const& e) -> InputResult
+            auto operator()(ase::KeyEvent const& e) const -> InputResult
             {
                 handle.push(e);
                 return InputResult::handled;
             }
 
-            auto operator()(ase::TextEvent const& e) -> InputResult
+            auto operator()(ase::TextEvent const& e) const -> InputResult
             {
                 handle.push(e);
                 return InputResult::handled;
             }
 
-            stream::Handle<T> handle;
+            mutable stream::Handle<T> handle;
         };
     } // detail
 

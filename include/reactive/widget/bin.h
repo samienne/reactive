@@ -1,13 +1,10 @@
 #pragma once
 
-#include "instancemodifier.h"
-#include "builder.h"
-
-#include "reactive/reactivevisibility.h"
+#include "widget.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyInstanceModifier bin(AnyBuilder f,
+    REACTIVE_EXPORT AnyWidgetModifier bin(AnyBuilder f,
             AnySignal<avg::Vector2f> contentSize);
 } // reactive::widget
 

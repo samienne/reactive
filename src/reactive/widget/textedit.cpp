@@ -1,6 +1,7 @@
 #include "widget/textedit.h"
 
 #include "widget/providetheme.h"
+#include "widget/margin.h"
 #include "widget/ondraw.h"
 #include "widget/clip.h"
 #include "widget/label.h"

@@ -8,8 +8,9 @@
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onpointermove.h"
-#include "widget/instancemodifier.h"
 #include "widget/setsizehint.h"
+#include "widget/transform.h"
+#include "widget/widget.h"
 
 #include "reactive/simplesizehint.h"
 #include "reactive/sendvalue.h"

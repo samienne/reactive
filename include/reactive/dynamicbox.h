@@ -143,13 +143,12 @@ namespace reactive
                             hints
                             );
 
-                    return widget::makeWidget()
-                        | makeSharedInstanceSignalModifier(
-                            [](auto instance, auto hints, auto widgetObjects)
+                    return widget::makeWidgetWithSize(
+                            [](auto size, auto hints, auto widgetObjects)
                             {
-                                auto size = map(&widget::Instance::getSize, instance);
+                                //auto size = map(&widget::Instance::getSize, instance);
 
-                                return std::move(instance)
+                                return widget::makeWidget()
                                     | detail::doDynamicBox<dir>(
                                             std::move(size),
                                             std::move(widgetObjects),

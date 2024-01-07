@@ -225,7 +225,7 @@ namespace reactive::widget
                                     },
                                     std::forward<decltype(widget)>(widget),
                                     std::forward<decltype(func)>(func),
-                                    std::forward<Ts>(ts)...
+                                    std::forward<decltype(ts)>(ts)...
                                     );
                         },
                         std::forward<TFunc>(func),
@@ -369,6 +369,26 @@ namespace reactive::widget
             std::forward<TFunc>(func),
             std::forward<Ts>(ts)...
             );
+    }
+
+    template <typename T, typename U>
+    auto makeWidgetFromBuilder(Builder<T, U> builder)
+    {
+        return detail::makeWidgetUncheckedWithParams(
+                [](auto const& params, auto builder)
+                {
+                    return std::move(builder)
+                        .setBuildParams(params);
+                },
+                std::move(builder)
+                );
+    }
+
+    template <typename T>
+    auto makeWidgetFromElement(Element<T> element)
+    {
+        return makeWidgetFromBuilder(
+                makeBuilderFromElement(std::move(element)));
     }
 } // namespace reactive::widget
 

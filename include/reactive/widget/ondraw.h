@@ -2,6 +2,7 @@
 
 #include "instancemodifier.h"
 #include "provideanimation.h"
+#include "widget.h"
 
 #include <avg/animationoptions.h>
 #include <avg/rendertree.h>
@@ -16,11 +17,11 @@ namespace reactive::widget
 namespace detail
 {
     template <bool reverse, typename TFunc, typename T, typename... Ts>
-    auto onDrawCustom(TFunc&& f,
+    AnyWidgetModifier onDrawCustom(TFunc&& f,
             Signal<T, std::optional<avg::AnimationOptions>> animation,
             Ts&&... ts)
     {
-        return makeInstanceModifier([f=std::forward<TFunc>(f)]
+        return makeWidgetModifier(makeInstanceModifier([f=std::forward<TFunc>(f)]
             (Instance instance, auto&& animation, auto&&... ts) mutable
             {
                 auto shape = avg::makeShapeNode(
@@ -49,7 +50,7 @@ namespace detail
             },
             std::move(animation),
             std::forward<Ts>(ts)...
-            );
+            ));
     }
 } // namespace detail
 
@@ -66,9 +67,10 @@ template <typename TFunc, typename... Ts,
             >
         >
     >
-auto onDraw(TFunc&& func, Ts&&... ts)
+AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
 {
-    return makeElementModifier([](auto element, auto&& animation, auto&& func, auto&&... ts)
+    return detail::makeWidgetModifierUnchecked(
+            [](auto element, auto&& animation, auto&& func, auto&&... ts)
         {
             return std::move(element)
                 | detail::onDrawCustom<false>(
@@ -96,9 +98,10 @@ template <typename TFunc, typename... Ts,
             >
         >
     >
-auto onDrawBehind(TFunc&& func, Ts&&... ts)
+AnyWidgetModifier onDrawBehind(TFunc&& func, Ts&&... ts)
 {
-    return makeElementModifier([](auto element, auto&& animation, auto&& func, auto&&... ts)
+    return detail::makeWidgetModifierUnchecked(
+        [](auto element, auto&& animation, auto&& func, auto&&... ts)
         {
             return std::move(element)
                 | detail::onDrawCustom<true>(

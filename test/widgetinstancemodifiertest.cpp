@@ -5,6 +5,7 @@
 #include <reactive/widget/frame.h>
 #include <reactive/widget/instancemodifier.h>
 #include <reactive/widget/elementmodifier.h>
+#include <reactive/widget/provideparam.h>
 #include <reactive/widget/widget.h>
 
 #include <reactive/signal/signal.h>
