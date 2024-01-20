@@ -119,15 +119,12 @@ namespace reactive::widget
                         [](BuildParams const& params, auto&& func, auto&&... ts)
                         {
                             return std::invoke(
-                                    std::invoke(
-                                        std::forward<decltype(func)>(func),
-                                        invokeParamProvider(
-                                            std::forward<decltype(ts)>(ts),
-                                            params
-                                            )...
-                                        ),
-                                    params
-                                    );
+                                    std::forward<decltype(func)>(func),
+                                    invokeParamProvider(
+                                        std::forward<decltype(ts)>(ts),
+                                        params
+                                        )...
+                                    )(params);
                         },
                         std::forward<TFunc>(func),
                         std::forward<Ts>(ts)...
@@ -205,29 +202,39 @@ namespace reactive::widget
                     );
         }
 
+        struct MakeWidgetModifierUnchecked1
+        {
+            template <typename T, typename TFunc, typename... Ts>
+            auto operator()(BuildParams const& params, T&& widget,
+                    TFunc&& func, Ts&&... ts) const
+            {
+                return std::invoke(
+                        std::forward<TFunc>(func),
+                        std::forward<T>(widget),
+                        std::forward<Ts>(ts)...
+                        )(params);
+            }
+        };
+
+        struct MakeWidgetModifierUnchecked2
+        {
+            template <typename TWidget, typename TFunc, typename... Ts>
+            auto operator()(TWidget&& widget, TFunc&& func, Ts&&... ts) const
+            {
+                return makeWidgetUncheckedWithParams(
+                        MakeWidgetModifierUnchecked1(),
+                        std::forward<TWidget>(widget),
+                        std::forward<TFunc>(func),
+                        std::forward<Ts>(ts)...
+                        );
+            }
+        };
+
         template <typename TFunc, typename... Ts>
         auto makeWidgetModifierUnchecked(TFunc&& func, Ts&&... ts)
         {
             return makeWidgetModifierUnchecked(btl::bindArguments(
-                        [](auto widget, auto&& func, auto&&... ts)
-                        {
-                            return makeWidgetUncheckedWithParams(
-                                    [](BuildParams const& params, auto widget,
-                                        auto&& func, auto&&... ts)
-                                    {
-                                        return std::invoke(
-                                                std::invoke(
-                                                    std::forward<decltype(func)>(func),
-                                                    std::move(widget),
-                                                    std::forward<decltype(ts)>(ts)...
-                                                    ),
-                                                params);
-                                    },
-                                    std::forward<decltype(widget)>(widget),
-                                    std::forward<decltype(func)>(func),
-                                    std::forward<decltype(ts)>(ts)...
-                                    );
-                        },
+                        MakeWidgetModifierUnchecked2(),
                         std::forward<TFunc>(func),
                         std::forward<Ts>(ts)...
                         )
@@ -247,71 +254,109 @@ namespace reactive::widget
                 );
     }
 
+    namespace detail
+    {
+        struct MakeWidgetModifier1
+        {
+            template <typename T, typename U>
+            auto operator()(BuildParams params, T&& widget, U&& modifier) const
+            {
+                return std::forward<T>(widget)(std::move(params))
+                    | std::forward<U>(modifier)
+                    ;
+            }
+        };
+
+        struct MakeWidgetModifier2
+        {
+            template <typename T, typename U>
+            auto operator()(T&& widget, U&& modifier) const
+            {
+                return detail::makeWidgetUncheckedWithParams(
+                        MakeWidgetModifier1(),
+                        std::forward<T>(widget),
+                        std::forward<U>(modifier)
+                        );
+            }
+        };
+    } // namespace detail
+
     template <typename T>
     auto makeWidgetModifier(BuilderModifier<T> modifier)
     {
-        return detail::makeWidgetModifierUnchecked([](auto widget, auto modifier)
-                {
-                    return detail::makeWidgetUncheckedWithParams([
-                            ](BuildParams params, auto widget, auto modifier) mutable
-                            {
-                                return std::invoke(
-                                        std::move(widget),
-                                        std::move(params)
-                                        )
-                                    | std::move(modifier)
-                                    ;
-                            },
-                            std::move(widget),
-                            std::move(modifier)
-                            );
-                },
+        return detail::makeWidgetModifierUnchecked(
+                detail::MakeWidgetModifier2(),
                 std::move(modifier)
                 );
     }
+
+    namespace detail
+    {
+        struct MakeWidgetModifier3
+        {
+            template <typename T, typename U>
+            auto operator()(BuildParams params, T&& widget, U&& modifier) const
+            {
+                return std::forward<T>(widget)(std::move(params))
+                    | makeBuilderModifier(std::forward<U>(modifier))
+                    ;
+            }
+        };
+
+        struct MakeWidgetModifier4
+        {
+            template <typename T, typename U>
+            auto operator()(T&& widget, U&& modifier) const
+            {
+                return detail::makeWidgetUncheckedWithParams(
+                        detail::MakeWidgetModifier3(),
+                        std::forward<T>(widget),
+                        std::forward<U>(modifier)
+                        );
+            }
+        };
+    } // namespace detail
 
     template <typename T>
     auto makeWidgetModifier(ElementModifier<T> modifier)
     {
-        return detail::makeWidgetModifierUnchecked([](auto widget, auto modifier)
-                {
-                    return detail::makeWidgetUncheckedWithParams(
-                            [](BuildParams params, auto widget, auto modifier)
-                            {
-                                return std::invoke(
-                                        std::move(widget),
-                                        std::move(params)
-                                        )
-                                    | makeBuilderModifier(std::move(modifier))
-                                    ;
-                            },
-                            std::move(widget),
-                            std::move(modifier)
-                            );
-                },
+        return detail::makeWidgetModifierUnchecked(
+                detail::MakeWidgetModifier4(),
                 std::move(modifier)
                 );
     }
 
+    namespace detail
+    {
+        struct MakeWidgetModifier5
+        {
+            template <typename T, typename U>
+            auto operator()(BuildParams params, T&& widget, U&& modifier) const
+            {
+                return std::forward<T>(widget)(std::move(params))
+                    | makeBuilderModifier(std::forward<U>(modifier))
+                    ;
+            }
+        };
+
+        struct MakeWidgetModifier6
+        {
+            template <typename T, typename U>
+            auto operator()(T&& widget, U&& modifier)
+            {
+                return detail::makeWidgetUncheckedWithParams(
+                        MakeWidgetModifier5(),
+                        std::forward<T>(widget),
+                        std::forward<U>(modifier));
+            }
+        };
+    } // namespace detail
 
     template <typename T>
     auto makeWidgetModifier(InstanceModifier<T> modifier)
     {
-        return makeWidgetModifier([](auto widget, auto modifier)
-                {
-                    return detail::makeWidgetUncheckedWithParams([](BuildParams params,
-                                auto widget, auto modifier)
-                            {
-                                return std::invoke(
-                                        std::move(widget),
-                                        std::move(params)
-                                        )
-                                    | makeBuilderModifier(std::move(modifier))
-                                    ;
-                            },
-                            std::move(widget),
-                            std::move(modifier));
-                },
+        return makeWidgetModifier(
+                detail::MakeWidgetModifier6(),
                 std::move(modifier)
                 );
     }
@@ -340,21 +385,15 @@ namespace reactive::widget
             ;
     }
 
-    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnySignal<avg::Vector2f>,
-        ParamProviderTypeT<Ts>...>
-        >>
-    auto makeWidgetWithSize(TFunc&& func, Ts&&... ts)
+    namespace detail
     {
-        return makeWidget()
-            | detail::makeElementModifierUnchecked([](
-                        auto element,
-                        BuildParams const& params,
-                        auto&& func,
-                        auto&&... ts
-                        )
+        struct MakeWidgetWithSize1
+        {
+            template <typename T, typename TFunc, typename... Ts>
+            auto operator()(T&& element, BuildParams const& params, TFunc&& func,
+                    Ts&&... ts) const
             {
-                auto sharedElement = std::move(element).share();
+                auto sharedElement = std::forward<T>(element).share();
                 auto size = sharedElement.getSize();
 
                 auto widget = std::invoke(
@@ -364,12 +403,73 @@ namespace reactive::widget
                         );
 
                 return std::move(widget)(params)(size.clone());
-            },
-            provideBuildParams(),
-            std::forward<TFunc>(func),
-            std::forward<Ts>(ts)...
-            );
+            }
+        };
+    } // namespace detail
+
+    template <typename TFunc, typename... Ts, typename = std::enable_if_t<
+        std::is_invocable_r_v<AnyWidget, TFunc, AnySignal<avg::Vector2f>,
+        ParamProviderTypeT<Ts>...>
+        >>
+    auto makeWidgetWithSize(TFunc&& func, Ts&&... ts)
+    {
+        return makeWidget()
+            | detail::makeElementModifierUnchecked(
+                    detail::MakeWidgetWithSize1(),
+                    provideBuildParams(),
+                    std::forward<TFunc>(func),
+                    std::forward<Ts>(ts)...
+                    );
     }
+
+    namespace detail
+    {
+        struct MakeWidgetModifierWithSize1
+        {
+            template <typename U, typename TFunc, typename V, typename... Ts>
+            auto operator()(V&& size, U&& builder, TFunc&& func, Ts&&... ts) const
+            {
+                return std::invoke(
+                        std::forward<decltype(func)>(func),
+                        makeWidgetFromBuilder(std::forward<U>(builder)),
+                        std::forward<decltype(size)>(size),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+            }
+        };
+
+        struct MakeWidgetModifierWithSize2
+        {
+            template <typename T, typename U>
+            auto operator()(T&& builder, U&& sizeHint) const
+            {
+                return std::forward<T>(builder)
+                    .setSizeHint(std::forward<U>(sizeHint));
+            }
+        };
+
+        struct MakeWidgetModifierWithSize3
+        {
+            template <typename T, typename U, typename... Ts>
+            auto operator()(T&& widget, BuildParams const& params, U&& func, Ts&&... ts) const
+            {
+                auto builder = std::forward<T>(widget)(params);
+
+                auto sizeHint = builder.getSizeHint().clone();
+
+                return makeWidgetWithSize(
+                    detail::MakeWidgetModifierWithSize1(),
+                    std::move(builder),
+                    std::forward<decltype(func)>(func),
+                    std::forward<decltype(ts)>(ts)...
+                    )
+                    | makeWidgetModifier(makeBuilderModifier(
+                                detail::MakeWidgetModifierWithSize2(),
+                                std::move(sizeHint)))
+                    ;
+            }
+        };
+    } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, AnySignal<avg::Vector2f>,
@@ -377,56 +477,38 @@ namespace reactive::widget
         >>
     auto makeWidgetModifierWithSize(TFunc&& func, Ts&&... ts)
     {
-        return makeWidgetModifier([](auto widget, auto const& params, auto&& func, auto&&... ts)
-            {
-                auto builder = std::move(widget)(params);
-
-                auto sizeHint = builder.getSizeHint().clone();
-
-                return makeWidgetWithSize(
-                    [](auto&& size, auto builder, auto&& func, auto&&... ts)
-                    {
-                        return std::invoke(
-                                std::forward<decltype(func)>(func),
-                                std::move(makeWidgetFromBuilder(builder)),
-                                std::forward<decltype(size)>(size),
-                                std::forward<decltype(ts)>(ts)...
-                                );
-                    },
-                    std::move(builder),
-                    std::forward<decltype(func)>(func),
-                    std::forward<decltype(ts)>(ts)...
-                    )
-                    | makeWidgetModifier(makeBuilderModifier(
-                        [](auto builder, auto sizeHint)
-                        {
-                            return std::move(builder)
-                                .setSizeHint(std::move(sizeHint));
-                        },
-                        std::move(sizeHint)))
-                    ;
-            },
-            provideBuildParams(),
-            std::forward<TFunc>(func),
-            std::forward<Ts>(ts)...
-            );
+        return makeWidgetModifier(
+                detail::MakeWidgetModifierWithSize3(),
+                provideBuildParams(),
+                std::forward<TFunc>(func),
+                std::forward<Ts>(ts)...
+                );
     }
 
+    namespace detail
+    {
+        struct MakeWidgetFromBuilder1
+        {
+            template <typename T>
+            auto operator()(BuildParams const& params, T&& builder) const
+            {
+                return std::forward<T>(builder)
+                    .setBuildParams(params);
+            }
+        };
+    } // namespace detail
+
     template <typename T, typename U>
-    auto makeWidgetFromBuilder(Builder<T, U> builder)
+    AnyWidget makeWidgetFromBuilder(Builder<T, U> builder)
     {
         return detail::makeWidgetUncheckedWithParams(
-                [](auto const& params, auto builder)
-                {
-                    return std::move(builder)
-                        .setBuildParams(params);
-                },
+                detail::MakeWidgetFromBuilder1(),
                 std::move(builder)
                 );
     }
 
     template <typename T>
-    auto makeWidgetFromElement(Element<T> element)
+    AnyWidget makeWidgetFromElement(Element<T> element)
     {
         return makeWidgetFromBuilder(
                 makeBuilderFromElement(std::move(element)));

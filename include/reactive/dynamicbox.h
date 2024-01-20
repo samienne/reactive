@@ -57,8 +57,9 @@ namespace reactive
         }
     } // namespace detail
 
-    template <Axis dir, typename T>
-    auto dynamicBox(Signal<T, std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
+    template <Axis dir>
+    widget::AnyWidget dynamicBox(
+            AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
         return widget::makeWidget([](
                     reactive::widget::BuildParams const& params,

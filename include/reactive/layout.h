@@ -33,8 +33,5 @@ namespace reactive
 
     REACTIVE_EXPORT widget::AnyWidget layout(SizeHintMap sizeHintMap,
             ObbMap obbMap, std::vector<widget::AnyWidget> widgets);
-
-    REACTIVE_EXPORT widget::AnyWidget layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, std::vector<widget::AnyBuilder> builders);
 } // reactive
 

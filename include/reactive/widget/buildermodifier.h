@@ -62,23 +62,29 @@ namespace reactive::widget
                     );
         }
 
+        struct MakeBuilderModifierUnchecked1
+        {
+            template <typename T, typename TFunc, typename... Ts>
+            auto operator()(T&& builder, TFunc&& func, Ts&&... ts) const
+            {
+                auto params = builder.getBuildParams();
+
+                return std::invoke(
+                        std::forward<decltype(func)>(func),
+                        std::forward<T>(builder),
+                        invokeParamProvider(
+                            std::forward<decltype(ts)>(ts),
+                            params
+                            )...
+                        );
+            }
+        };
+
         template <typename TFunc, typename... Ts>
         auto makeBuilderModifierUnchecked(TFunc&& func, Ts&&... ts)
         {
             return makeBuilderModifierUnchecked(btl::bindArguments(
-                        [](auto builder, auto&& func, auto&&... ts)
-                        {
-                            auto params = builder.getBuildParams();
-
-                            return std::invoke(
-                                    std::forward<decltype(func)>(func),
-                                    std::move(builder),
-                                    invokeParamProvider(
-                                        std::forward<decltype(ts)>(ts),
-                                        params
-                                        )...
-                                    );
-                        },
+                        detail::MakeBuilderModifierUnchecked1(),
                         std::forward<TFunc>(func),
                         std::forward<Ts>(ts)...
                         )
@@ -101,18 +107,28 @@ namespace reactive::widget
                 );
     }
 
+    namespace detail
+    {
+        struct MakeBuilderModifier1
+        {
+            template <typename T, typename U>
+            auto operator()(T&& builder, U&& f) const
+            {
+                return std::forward<T>(builder)
+                    .map(std::forward<U>(f))
+                    ;
+            }
+        };
+    } // namespace detail
+
     template <typename TFunc>
     auto makeBuilderModifier(widget::ElementModifier<TFunc> f)
     //-> BuilderModifier
     {
-        return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
-            {
-                return std::move(builder)
-                    .map(std::move(f))
-                    ;
-            },
-            std::move(f)
-            );
+        return detail::makeBuilderModifierUnchecked(
+                detail::MakeBuilderModifier1(),
+                std::move(f)
+                );
     }
 
     template <typename TFunc>
@@ -122,19 +138,28 @@ namespace reactive::widget
         return makeBuilderModifier(makeElementModifier(std::move(f)));
     }
 
+    namespace detail
+    {
+        struct MakeBuilderPreModifier1
+        {
+            template <typename T, typename F>
+            auto operator()(T&& builder, F&& f) const
+            {
+                return std::forward<T>(builder)
+                    .preMap(std::forward<F>(f))
+                    ;
+            }
+        };
+    } // namespace detail
 
     template <typename TFunc>
     auto makeBuilderPreModifier(widget::ElementModifier<TFunc> f)
     //-> BuilderModifier
     {
-        return detail::makeBuilderModifierUnchecked([](auto builder, auto f)
-            {
-                return std::move(builder)
-                    .preMap(std::move(f))
-                    ;
-            },
-            std::move(f)
-            );
+        return detail::makeBuilderModifierUnchecked(
+                detail::MakeBuilderPreModifier1(),
+                std::move(f)
+                );
     }
 
     template <typename TFunc>

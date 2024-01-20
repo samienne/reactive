@@ -215,4 +215,3 @@ TEST(Widget, elementModifierParams)
     EXPECT_EQ("set value 2", tag2);
     EXPECT_EQ("default value", tag3);
 }
-

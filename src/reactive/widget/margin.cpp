@@ -44,35 +44,35 @@ AnyWidgetModifier margin(AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
-        auto a = signal::share(std::move(amount));
         auto aNeg = signal::map([](float f)
                 {
                     return -f;
-                }, a);
+                }, amount);
 
         auto t = signal::map([](float amount)
                 {
                     return avg::translate(amount, amount);
-                }, a);
+                }, amount);
 
-        auto builderGrowSizeHint = makeBuilderModifier([a](auto builder)
+        auto builderGrowSizeHint = makeBuilderModifier([](auto builder, auto amount)
                 {
                     auto hint = signal::map(BTL_FN(growSizeHint),
                             builder.getSizeHint(),
-                            a);
+                            amount);
 
                     return std::move(builder)
                         .setSizeHint(std::move(hint));
-                });
+                },
+                amount);
 
         return std::move(widget)
             | makeBuilderPreModifier(growSize(std::move(aNeg)))
             | transform(std::move(t))
-            | growSize(a)
+            | growSize(amount)
             | std::move(builderGrowSizeHint)
             ;
     },
-    std::move(amount)
+    signal::share(std::move(amount))
     );
 }
 } // namespace reactive::widget
