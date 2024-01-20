@@ -42,7 +42,7 @@ namespace
 
 AnyWidgetModifier margin(AnySignal<float> amount)
 {
-    return makeWidgetModifier(makeBuilderModifier([](auto builder, auto amount)
+    return makeWidgetModifier([](auto widget, auto amount)
     {
         auto a = signal::share(std::move(amount));
         auto aNeg = signal::map([](float f)
@@ -65,7 +65,7 @@ AnyWidgetModifier margin(AnySignal<float> amount)
                         .setSizeHint(std::move(hint));
                 });
 
-        return std::move(builder)
+        return std::move(widget)
             | makeBuilderPreModifier(growSize(std::move(aNeg)))
             | transform(std::move(t))
             | growSize(a)
@@ -73,7 +73,7 @@ AnyWidgetModifier margin(AnySignal<float> amount)
             ;
     },
     std::move(amount)
-    ));
+    );
 }
 } // namespace reactive::widget
 

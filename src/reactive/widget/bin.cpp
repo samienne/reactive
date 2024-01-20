@@ -9,46 +9,37 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier bin(AnyBuilder builder, AnySignal<avg::Vector2f> contentSize)
+AnyWidget bin(AnyWidget contentWidget, AnySignal<avg::Vector2f> contentSize)
 {
-    return makeWidgetModifier([](auto widget, auto contentSize, auto builder)
+    return makeWidgetWithSize(
+        [](auto viewSize, BuildParams const& params, auto contentSize, auto contentWidget)
         {
-            return std::move(widget)
-            | makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto builder)
-            {
-                auto viewSize = signal::map(&Instance::getSize, widget);
+            auto offset = signal::map([](avg::Vector2f viewSize,
+                        avg::Vector2f contentSize)
+                    {
+                        float offY = contentSize[1] - viewSize[1];
+                        return avg::translate(0.0f, -offY);
+                    },
+                    std::move(viewSize),
+                    contentSize
+                    );
 
-                auto t = signal::map([](avg::Vector2f viewSize,
-                            avg::Vector2f contentSize)
-                        {
-                            float offY = contentSize[1] - viewSize[1];
-                            return avg::translate(0.0f, -offY);
-                        },
-                        std::move(viewSize),
-                        contentSize
-                        );
+            auto transformedContent = std::move(contentWidget)
+                | transform(std::move(offset))
+                ;
 
-                auto newBuilder = std::move(builder)
-                        | transform(std::move(t))
-                        ;
-
-                auto newInstance = std::move(newBuilder)(std::move(contentSize))
-                    .getInstance();
-
-                return std::move(widget)
-                    | addWidget(std::move(newInstance))
-                    ;
-            },
-            share(std::move(contentSize)),
-            std::move(builder)
-            )
-            | clip()
-            ;
+            return makeWidget()
+                | addWidget(std::move(transformedContent)
+                        (params)
+                        (std::move(contentSize)).getInstance()
+                        )
+                | clip()
+                ;
         },
-        share(std::move(contentSize)),
-        std::move(builder)
+        provideBuildParams(),
+        signal::share(std::move(contentSize)),
+        std::move(contentWidget)
         );
-
 }
 
 } // namespace reactive::widget

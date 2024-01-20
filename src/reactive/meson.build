@@ -26,6 +26,7 @@ libreactivesrc = [
     'widget/textedit.cpp',
     'widget/theme.cpp',
     'widget/trackfocus.cpp',
+    'widget/transform.cpp',
     'widget/widget.cpp',
     'widget/widgetobject.cpp',
     'debug/drawkeyboardinputs.cpp',

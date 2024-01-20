@@ -47,7 +47,7 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                                 }, obbs);
 
                         auto builder = f.clone()
-                            | widget::transform(std::move(t));
+                            | widget::transformBuilder(std::move(t));
 
                         ++index;
 

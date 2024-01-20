@@ -70,12 +70,11 @@ AnyWidget scrollView(AnyWidget widget)
                             (1.0f - y) * (contentSize[1] - viewSize[1]));
                 }, x.signal, y.signal, contentSize, viewSize.signal);
 
-        auto builder2 = std::move(builder)
+        auto contentWidget = makeWidgetFromBuilder(std::move(builder))
             | transform(std::move(t))
             ;
 
-        auto view = makeWidget()
-            | bin(std::move(builder2), contentSize)
+        auto view = bin(std::move(contentWidget), contentSize)
             | setSizeHint(signal::constant(simpleSizeHint(
                 {{100, 400, 10000}},
                 {{100, 800, 10000}}
