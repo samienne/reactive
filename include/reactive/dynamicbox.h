@@ -92,7 +92,8 @@ namespace reactive
                                         result.emplace_back(
                                                 widget.first,
                                                 widget::WidgetObject(
-                                                    std::move(widget.second)(params)
+                                                    std::move(widget.second),
+                                                    params
                                                     )
                                                 );
                                     }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "builder.h"
+#include "widget.h"
 
 #include <reactive/signal/input.h>
 
@@ -13,7 +13,7 @@ namespace reactive::widget
     class REACTIVE_EXPORT WidgetObject
     {
     public:
-        WidgetObject(AnyBuilder builder);
+        WidgetObject(AnyWidget widget, BuildParams const& params);
         WidgetObject(WidgetObject const&) = default;
         WidgetObject(WidgetObject&&) noexcept = default;
 
@@ -32,14 +32,15 @@ namespace reactive::widget
     private:
         struct Impl
         {
-            Impl(AnyBuilder builder);
+            Impl(AnyWidget widget, BuildParams const& params);
 
             avg::UniqueId id_;
-            AnyBuilder builder_;
-            btl::CloneOnCopy<AnySignal<SizeHint>> sizeHint_;
             signal::Input<avg::Vector2f> sizeInput_;
             signal::Input<avg::Transform> transformInput_;
-            AnySignal<Instance> widget_;
+            std::pair<
+                AnySignal<Instance>,
+                btl::CloneOnCopy<AnySignal<SizeHint>>
+                > widget_;
         };
 
         btl::shared<Impl> impl_;
