@@ -1,12 +1,11 @@
-#include "reactive/widget/withparams.h"
 #include <reactive/widget/setparams.h>
 #include <reactive/widget/setparamsobject.h>
 #include <reactive/widget/modifyparamsobject.h>
-#include <reactive/widget/withparamsobject.h>
 #include <reactive/widget/margin.h>
 #include <reactive/widget/frame.h>
 #include <reactive/widget/instancemodifier.h>
 #include <reactive/widget/elementmodifier.h>
+#include <reactive/widget/provideparam.h>
 #include <reactive/widget/widget.h>
 
 #include <reactive/signal/signal.h>
@@ -50,27 +49,31 @@ TEST(Widget, widgetBuildParameters)
     std::string tag2;
 
     auto widget = makeWidget()
-        | withParamsObject([&](auto widget, BuildParams const& params)
+        | makeWidgetModifier([&](auto widget, BuildParams const& params)
             {
                 auto p = params.get<TestTag>();
 
                 tag1 = p ? p->evaluate() : "no p";
 
                 return widget;
-            })
+            },
+            provideBuildParams()
+            )
         | modifyParamsObject([](BuildParams params)
             {
                 params.set<TestTag>(share(signal::constant<std::string>("set value 1")));
                 return params;
             })
-        | withParamsObject([&](auto widget, BuildParams const& params)
+        | makeWidgetModifier([&](auto widget, BuildParams const& params)
             {
                 auto p = params.get<TestTag>();
 
                 tag2 = p ? p->evaluate() : "no p";
 
                 return widget;
-            })
+            },
+            provideBuildParams()
+            )
         | modifyParamsObject([](BuildParams params)
             {
                 params.set<TestTag>(share(signal::constant<std::string>("set value 2")));
@@ -111,11 +114,11 @@ TEST(Widget, withParams)
     std::string tag;
 
     auto widget = makeWidget()
-        | withParams([&](auto widget, auto str)
+        | makeWidgetModifier([&](auto widget, auto str)
             {
                 tag = str.evaluate();
                 return widget;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         ;
 
     auto builder = std::move(widget)(BuildParams());
@@ -130,11 +133,13 @@ TEST(Widget, setParams)
     std::string tag;
 
     auto widget = makeWidget()
-        | withParams<TestTag>([&](auto widget, auto str)
+        | makeWidgetModifier([&](auto widget, auto str)
             {
                 tag = str.evaluate();
                 return widget;
-            })
+            },
+            provideParam<TestTag>()
+            )
         | setParams<TestTag>("set value")
         ;
 
@@ -156,19 +161,19 @@ TEST(Widget, builderModifierTags)
             {
                 tag = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         | setParams<TestTag>("set value 1")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag2 = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         | setParams<TestTag>("set value 2")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
                 tag3 = tagValue.evaluate();
                 return builder;
-            }, getParam<TestTag>())
+            }, provideParam<TestTag>())
         ;
 
     std::move(widget)(BuildParams());
@@ -210,4 +215,3 @@ TEST(Widget, elementModifierParams)
     EXPECT_EQ("set value 2", tag2);
     EXPECT_EQ("default value", tag3);
 }
-

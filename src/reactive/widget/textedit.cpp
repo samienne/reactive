@@ -1,5 +1,7 @@
 #include "widget/textedit.h"
 
+#include "widget/providetheme.h"
+#include "widget/margin.h"
 #include "widget/ondraw.h"
 #include "widget/clip.h"
 #include "widget/label.h"
@@ -35,14 +37,16 @@
 namespace reactive::widget
 {
 
-TextEdit::operator AnyWidget() const
+namespace
 {
-    auto draw = [](avg::DrawContext const& drawContext, ase::Vector2f size,
-            TextEditState const& state, float percentage)
-        -> avg::Drawing
+    auto drawTextEdit(
+            avg::DrawContext const& drawContext,
+            ase::Vector2f size,
+            widget::Theme const& theme,
+            TextEditState const& state,
+            float percentage
+            )
     {
-        widget::Theme theme;
-
         auto height = theme.getTextHeight();
         auto const& font = theme.getFont();
         auto text = utf8::split(utf8::asUtf8(state.text),
@@ -96,16 +100,14 @@ TextEdit::operator AnyWidget() const
         }
 
         return texts;
-    };
+    }
 
     using Events = std::variant<KeyEvent, TextEvent, ClickEvent>;
 
-    auto update = [](TextEditState state, Events const& e,
+    auto updateTextEdit(TextEditState state, Events const& e,
+            widget::Theme const& theme,
             std::vector<std::function<void()>> const& onEnter)
-        -> TextEditState
     {
-        widget::Theme theme;
-
         if (std::holds_alternative<KeyEvent>(e))
         {
             auto& keyEvent = std::get<KeyEvent>(e);
@@ -156,52 +158,77 @@ TextEdit::operator AnyWidget() const
         }
 
         return state;
-    };
+    }
 
-    auto keyStream = stream::pipe<Events>();
+    auto makeTextEdit(
+            AnySharedSignal<widget::Theme> theme,
+            signal::InputHandle<TextEditState> handle,
+            std::vector<AnySharedSignal<std::function<void()>>> const& onEnter,
+            AnySharedSignal<TextEditState> oldState)
+    {
+        auto keyStream = stream::pipe<Events>();
 
-    auto requestFocus = stream::pipe<bool>();
+        auto requestFocus = stream::pipe<bool>();
 
-    auto focus = signal::input(false);
+        auto focus = signal::input(false);
 
-    auto focusPercentage = signal::map([](bool b) -> avg::Animated<float>
-            {
-                return b
-                    ? avg::infiniteAnimation(0.0f, 1.0f, avg::curve::linear, 0.5f,
-                            avg::RepeatMode::reverse)
-                    : avg::Animated<float>(0.0f)
-                    ;
-            },
-            std::move(focus.signal)
-            );
-
-    auto frameColor = signal::constant(Theme().getSecondary());
-
-    auto oldState = signal::share(btl::clone(state_));
-
-    auto newState = signal::tee(
-            stream::iterate(update, oldState, std::move(keyStream.stream),
-                signal::combine(onEnter_)),
-            handle_ );
-
-    return makeWidget()
-        | trackFocus(focus.handle)
-        | widget::onDraw(std::move(draw), std::move(newState), std::move(focusPercentage))
-        | widget::margin(signal::constant(5.0f))
-        | widget::clip()
-        | widget::frame(std::move(frameColor))
-        | focusOn(std::move(requestFocus.stream))
-        | onClick(1,
-                [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
-                (ClickEvent const& e)
+        auto focusPercentage = signal::map([](bool b) -> avg::Animated<float>
                 {
-                    requestHandle.push(true);
-                    keyHandle.push(e);
-                })
-        | widget::onKeyEvent(sendKeysTo(keyStream.handle))
-        | widget::onTextEvent(sendKeysTo(keyStream.handle))
-        | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
-        ;
+                    return b
+                        ? avg::infiniteAnimation(0.0f, 1.0f, avg::curve::linear, 0.5f,
+                                avg::RepeatMode::reverse)
+                        : avg::Animated<float>(0.0f)
+                        ;
+                },
+                std::move(focus.signal)
+                );
+
+        auto frameColor = theme.clone().map([](auto const& theme)
+                {
+                    return theme.getSecondary();
+                });
+
+        auto newState = signal::tee(
+                stream::iterate(updateTextEdit, oldState, std::move(keyStream.stream),
+                    theme, signal::combine(onEnter)),
+                handle);
+
+        return makeWidget()
+            | trackFocus(focus.handle)
+            | widget::onDraw(
+                    std::move(drawTextEdit),
+                    theme,
+                    std::move(newState),
+                    std::move(focusPercentage)
+                    )
+            | widget::margin(signal::constant(5.0f))
+            | widget::clip()
+            | widget::frame(std::move(frameColor))
+            | focusOn(std::move(requestFocus.stream))
+            | onClick(1,
+                    [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
+                    (ClickEvent const& e)
+                    {
+                        requestHandle.push(true);
+                        keyHandle.push(e);
+                    })
+            | widget::onKeyEvent(sendKeysTo(keyStream.handle))
+            | widget::onTextEvent(sendKeysTo(keyStream.handle))
+            | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
+            ;
+    }
+
+} // anonymous namespace
+
+TextEdit::operator AnyWidget() const
+{
+    return makeWidget(
+            makeTextEdit,
+            provideTheme(),
+            handle_,
+            onEnter_,
+            signal::share(btl::clone(state_))
+            );
 }
 
 TextEdit TextEdit::onEnter(AnySignal<std::function<void()>> cb) &&

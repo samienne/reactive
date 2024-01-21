@@ -9,6 +9,7 @@
 #include "widget/settheme.h"
 #include "widget/instancemodifier.h"
 #include "widget/setsizehint.h"
+#include "widget/providetheme.h"
 
 #include "reactive/shapes.h"
 #include "reactive/simplesizehint.h"
@@ -160,16 +161,12 @@ namespace
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
     {
-        return makeSharedElementModifier([](auto element, auto scrollHandle,
+        return makeWidgetWithSize([](auto size, auto theme, auto scrollHandle,
                     auto amount, auto handleSize)
         {
-            auto theme = element.getParams().template valueOrDefault<ThemeTag>();
-
             auto downOffset = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
             auto isDown = map([](auto v) { return v.has_value(); }, downOffset.signal);
             auto hover = signal::input(false);
-
-            auto size = element.getSize();
 
             auto sliderObb = signal::map([]
                     (avg::Vector2f size, float amount, float handleSize)
@@ -180,7 +177,7 @@ namespace
                                     handleSize));
                     }, size.clone(), amount, handleSize);
 
-            return std::move(element)
+            return makeWidget()
                 | onHover(std::move(sliderObb), hover.handle)
                 | onPointerDown(scrollPointerDown<IsHorizontal>(
                             downOffset.handle, size.clone(), amount, handleSize)
@@ -224,6 +221,7 @@ namespace
                         )
                 ;
         },
+        provideTheme(),
         scrollHandle,
         std::move(amount),
         std::move(handleSize)
@@ -237,8 +235,7 @@ AnyWidget scrollBar(
         AnySharedSignal<float> amount,
         AnySharedSignal<float> handleSize)
 {
-    return makeWidget()
-        | makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
+    return makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
         | widget::margin(signal::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;

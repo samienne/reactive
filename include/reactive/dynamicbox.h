@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widget/providebuildparams.h"
 #include "widget/addwidgets.h"
 #include "widget/widgetobject.h"
 #include "widget/instancemodifier.h"
@@ -56,8 +57,9 @@ namespace reactive
         }
     } // namespace detail
 
-    template <Axis dir, typename T>
-    auto dynamicBox(Signal<T, std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
+    template <Axis dir>
+    widget::AnyWidget dynamicBox(
+            AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
         return widget::makeWidget([](
                     reactive::widget::BuildParams const& params,
@@ -91,7 +93,8 @@ namespace reactive
                                         result.emplace_back(
                                                 widget.first,
                                                 widget::WidgetObject(
-                                                    std::move(widget.second)(params)
+                                                    std::move(widget.second),
+                                                    params
                                                     )
                                                 );
                                     }
@@ -142,13 +145,12 @@ namespace reactive
                             hints
                             );
 
-                    return widget::makeBuilder()
-                        | makeSharedInstanceSignalModifier(
-                            [](auto instance, auto hints, auto widgetObjects)
+                    return widget::makeWidgetWithSize(
+                            [](auto size, auto hints, auto widgetObjects)
                             {
-                                auto size = map(&widget::Instance::getSize, instance);
+                                //auto size = map(&widget::Instance::getSize, instance);
 
-                                return std::move(instance)
+                                return widget::makeWidget()
                                     | detail::doDynamicBox<dir>(
                                             std::move(size),
                                             std::move(widgetObjects),
@@ -162,6 +164,7 @@ namespace reactive
                         | widget::setSizeHint(std::move(resultHint))
                         ;
                 },
+                widget::provideBuildParams(),
                 share(std::move(widgets))
                 )
             ;

@@ -211,6 +211,27 @@ namespace reactive::widget
                 );
     }
 
+    template <typename T>
+    auto makeBuilderFromElement(Element<T> element)
+    {
+        auto size = element.getSize().clone();
+        auto buildParams = element.getParams();
+
+        return makeBuilder(
+                makeElementModifier([](auto, auto element)
+                    {
+                        return element;
+                    },
+                    std::move(element)
+                    ),
+                std::move(size).map([](auto size)
+                    {
+                        return simpleSizeHint(size[0], size[1]);
+                    }),
+                std::move(buildParams)
+                );
+    }
+
     template <typename TBuilder, typename = typename std::enable_if
         <
             IsBuilder<TBuilder>::value

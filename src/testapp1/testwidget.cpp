@@ -55,7 +55,7 @@ namespace
     };
 } // anonymous namespace
 
-widget::AnyBuilder makeTestWidget()
+widget::AnyWidget makeTestWidget()
 {
     using namespace reactive::widget;
 
@@ -79,7 +79,7 @@ widget::AnyBuilder makeTestWidget()
 
     auto focus = signal::input(false);
 
-    return widget::makeBuilder()
+    return widget::makeWidget()
         | onDraw(drawTestWidget, std::move(state), std::move(textState))
         | widget::onClick(1, send(1, p.handle))
         | widget::onClick(1, send(true, focus.handle))

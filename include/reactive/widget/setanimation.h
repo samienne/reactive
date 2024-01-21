@@ -1,7 +1,7 @@
 #pragma once
 
 #include "setparams.h"
-#include "withparams.h"
+#include "provideanimation.h"
 
 #include <reactive/signal/changed.h>
 
@@ -10,15 +10,6 @@
 
 namespace reactive::widget
 {
-    struct AnimationTag
-    {
-        using type = std::optional<avg::AnimationOptions>;
-        static AnySharedSignal<type> getDefaultValue()
-        {
-            return share(signal::constant<typename AnimationTag::type>(std::nullopt));
-        }
-    };
-
     template <typename T>
     auto setAnimation(Signal<T, std::optional<avg::AnimationOptions>> animationOptions)
     {
@@ -37,7 +28,7 @@ namespace reactive::widget
     template <typename T, typename U>
     auto setAnimation(avg::AnimationOptions options, Signal<T, U> signal)
     {
-        return withParams<AnimationTag>(
+        return makeWidgetModifier(
                 [](auto widget, auto animation, auto options, auto signal)
                 {
                     return std::move(widget)
@@ -55,6 +46,7 @@ namespace reactive::widget
                                 })
                             );
                 },
+                provideAnimation(),
                 std::move(options),
                 std::move(signal)
                 );

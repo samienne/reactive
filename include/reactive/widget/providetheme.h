@@ -1,13 +1,13 @@
 #pragma once
 
 #include "settheme.h"
-#include "getparam.h"
+#include "provideparam.h"
 
 namespace reactive::widget
 {
-    inline auto getTheme()
+    inline auto provideTheme()
     {
-        return getParam<ThemeTag>();
+        return provideParam<ThemeTag>();
     }
 } // namespace reactive::widget
 

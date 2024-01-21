@@ -9,13 +9,12 @@
 namespace reactive::widget
 {
 
-AnyInstanceModifier bin(AnyBuilder builder, AnySignal<avg::Vector2f> contentSize)
+AnyWidget bin(AnyWidget contentWidget, AnySignal<avg::Vector2f> contentSize)
 {
-    return makeSharedInstanceSignalModifier([](auto widget, auto contentSize, auto builder)
+    return makeWidgetWithSize(
+        [](auto viewSize, BuildParams const& params, auto contentSize, auto contentWidget)
         {
-            auto viewSize = signal::map(&Instance::getSize, widget);
-
-            auto t = signal::map([](avg::Vector2f viewSize,
+            auto offset = signal::map([](avg::Vector2f viewSize,
                         avg::Vector2f contentSize)
                     {
                         float offY = contentSize[1] - viewSize[1];
@@ -25,20 +24,21 @@ AnyInstanceModifier bin(AnyBuilder builder, AnySignal<avg::Vector2f> contentSize
                     contentSize
                     );
 
-            auto newBuilder = std::move(builder)
-                    | transform(std::move(t))
-                    ;
+            auto transformedContent = std::move(contentWidget)
+                | transform(std::move(offset))
+                ;
 
-            auto newInstance = std::move(newBuilder)(std::move(contentSize))
-                .getInstance();
-
-            return std::move(widget)
-                | addWidget(std::move(newInstance))
+            return makeWidget()
+                | addWidget(std::move(transformedContent)
+                        (params)
+                        (std::move(contentSize)).getInstance()
+                        )
                 | clip()
                 ;
         },
-        share(std::move(contentSize)),
-        std::move(builder)
+        provideBuildParams(),
+        signal::share(std::move(contentSize)),
+        std::move(contentWidget)
         );
 }
 

@@ -73,19 +73,25 @@ namespace reactive::widget
                     );
         }
 
+        struct MakeInstanceModifierUnchecked1
+        {
+            template <typename T, typename TFunc, typename... Ts>
+            auto operator()(T&& instance, TFunc&& func, Ts&&... ts) const
+            {
+                return std::invoke(
+                        std::forward<decltype(func)>(func),
+                        std::forward<decltype(instance)>(instance),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+            }
+        };
+
         template <typename TFunc, typename... Ts>
         auto makeInstanceSignalModifierUnchecked(TFunc&& f, Ts&&... ts)
         {
             return makeInstanceSignalModifierUnchecked(
                     btl::bindArguments(
-                        [](auto&& instance, auto&& func, auto&&... ts)
-                        {
-                            return std::invoke(
-                                    std::forward<decltype(func)>(func),
-                                    std::forward<decltype(instance)>(instance),
-                                    std::forward<decltype(ts)>(ts)...
-                                    );
-                        },
+                        detail::MakeInstanceModifierUnchecked1(),
                         std::forward<TFunc>(f),
                         std::forward<Ts>(ts)...
                         )
@@ -105,6 +111,22 @@ namespace reactive::widget
                 );
     }
 
+    namespace detail
+    {
+        struct MakeSharedInstanceSignalModifier1
+        {
+            template <typename T, typename TFunc, typename... Ts>
+            auto operator()(T&& instance, TFunc&& f, Ts&&... ts) const
+            {
+                return std::invoke(
+                        std::forward<decltype(f)>(f),
+                        share(std::forward<T>(instance)),
+                        std::forward<decltype(ts)>(ts)...
+                        );
+            }
+        };
+    } // namespace detail
+
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
@@ -113,18 +135,30 @@ namespace reactive::widget
     auto makeSharedInstanceSignalModifier(TFunc&& f, Ts&&... ts)
     {
         return detail::makeInstanceSignalModifierUnchecked(
-            [](auto instance, auto&& f, auto&&... ts)
+                detail::MakeSharedInstanceSignalModifier1(),
+                std::forward<TFunc>(f),
+                std::forward<Ts>(ts)...
+                );
+    }
+
+    namespace detail
+    {
+        template <typename TFunc>
+        struct MakeInstanceModifier1
+        {
+            template <typename T, typename... Ts>
+            auto operator()(T&& instance, Ts&&... ts)
             {
-                return std::invoke(
-                        std::forward<decltype(f)>(f),
-                        share(std::move(instance)),
+                return signal::map(
+                        func,
+                        std::forward<T>(instance),
                         std::forward<decltype(ts)>(ts)...
                         );
-            },
-            std::forward<TFunc>(f),
-            std::forward<Ts>(ts)...
-            );
-    }
+            }
+
+            TFunc func;
+        };
+    } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<Instance, TFunc, Instance, typename signal::SignalType<Ts>...>
@@ -132,25 +166,30 @@ namespace reactive::widget
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {
         return detail::makeInstanceSignalModifierUnchecked(
-            [func=std::forward<TFunc>(func)]
-            (auto instance, auto&&... ts) mutable
-            {
-                return signal::map(
-                        func,
-                        std::move(instance),
-                        std::forward<decltype(ts)>(ts)...
-                        );
-            },
-            std::forward<Ts>(ts)...
+                detail::MakeInstanceModifier1<std::decay_t<TFunc>>{
+                std::forward<TFunc>(func)
+                },
+                std::forward<Ts>(ts)...
             );
     }
 
+    namespace detail
+    {
+        struct MakeEmptyInstanceModifier
+        {
+            template <typename T>
+            auto operator()(T&& instance) const
+            {
+                return std::forward<T>(instance);
+            }
+        };
+    } // namespace detail
+
     inline auto makeEmptyInstanceModifier()
     {
-        return detail::makeInstanceSignalModifierUnchecked([](auto instance)
-                {
-                    return instance;
-                });
+        return detail::makeInstanceSignalModifierUnchecked(
+                detail::MakeEmptyInstanceModifier()
+                );
     }
 } // namespace reactive::widget
 

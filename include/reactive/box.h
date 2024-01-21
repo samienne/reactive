@@ -2,9 +2,6 @@
 
 #include "layout.h"
 
-#include "widget/builder.h"
-#include "widget/instance.h"
-
 #include "signal/combine.h"
 #include "signal/constant.h"
 #include "signal/signal.h"
@@ -246,23 +243,10 @@ namespace reactive
     }
 
     template <Axis dir>
-    auto box(std::vector<widget::AnyWidget> builders)  //-> AnyBuilder
+    widget::AnyWidget box(std::vector<widget::AnyWidget> widgets)
     {
         return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
-                std::move(builders));
-    }
-
-    template <Axis dir, typename... Ts>
-    auto box(std::tuple<Ts...> widgets) // -> AnyBuilder
-    {
-        return layout(
-                [](auto hints)
-                {
-                    return accumulateSizeHintsTuple<dir>(std::move(hints));
-                },
-                MapObbs<dir>(),
-                std::move(widgets)
-                );
+                std::move(widgets));
     }
 }
 

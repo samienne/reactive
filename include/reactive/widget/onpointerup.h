@@ -2,6 +2,7 @@
 
 #include "setinputareas.h"
 #include "instancemodifier.h"
+#include "widget.h"
 
 #include "reactive/signal/signal.h"
 
@@ -13,50 +14,12 @@
 
 namespace reactive::widget
 {
-    template <typename T, typename U, typename = std::enable_if_t<
-        std::is_invocable_r_v<EventResult, T, ase::PointerButtonEvent>
-        >>
-    inline auto onPointerUp(Signal<U, T> cb)
-            //std::function<void(ase::PointerButtonEvent const&)>> cb)
-    {
-        auto id = btl::makeUniqueId();
+    AnyWidgetModifier onPointerUp(
+            AnySignal<std::function<EventResult(ase::PointerButtonEvent const&)>> cb);
 
-        return makeInstanceModifier([id](Instance instance, auto cb)
-            {
-                auto areas = instance.getInputAreas();
+    AnyWidgetModifier onPointerUp(
+            std::function<EventResult(ase::PointerButtonEvent const&)> cb);
 
-                if (!areas.empty()
-                        && areas.back().getObbs().size() == 1
-                        && areas.back().getObbs().front() == instance.getObb())
-                {
-                    areas.back() = std::move(areas.back()).onUp(std::move(cb));
-                }
-                else
-                {
-                    areas.push_back(
-                            makeInputArea(id, instance.getObb()).onUp(std::move(cb))
-                            );
-                }
-
-                return std::move(instance)
-                    .setInputAreas(std::move(areas))
-                    ;
-            },
-            std::move(cb)
-            );
-    }
-
-    inline auto onPointerUp(
-            std::function<EventResult(ase::PointerButtonEvent const&)> cb)
-    {
-        return onPointerUp(signal::constant(std::move(cb)));
-    }
-
-    inline auto onPointerUp(std::function<EventResult()> cb)
-    {
-        std::function<EventResult(ase::PointerButtonEvent const& e)> f =
-            std::bind(std::move(cb));
-        return onPointerUp(f);
-    }
+    AnyWidgetModifier onPointerUp(std::function<EventResult()> cb);
 } // namespace reactive::widget
 

@@ -2,11 +2,12 @@
 
 #include "instancemodifier.h"
 #include "builder.h"
+#include "widget.h"
 
 #include "reactive/inputresult.h"
 
-#include "reactive/signal/convert.h"
-#include "reactive/signal/map.h"
+#include <reactive/signal/convert.h>
+#include <reactive/signal/map.h>
 #include <reactive/signal/signal.h>
 
 #include <ase/keyevent.h>
@@ -38,21 +39,17 @@ namespace reactive::widget
         {
             return onKeyEvent(signal::constant(std::move(handler)));
         }
-    }
+    } // namespace detail
 
-    class OnKeyEvent
+    class REACTIVE_EXPORT OnKeyEvent
     {
     public:
-        inline OnKeyEvent(
+        OnKeyEvent(
                 signal::Convert<std::function<bool(ase::KeyEvent const&)>> predicate,
-                signal::Convert<std::function<void(ase::KeyEvent const&)>> action) :
-            predicate_(std::move(predicate)),
-            action_(std::move(action))
-        {
-        }
+                signal::Convert<std::function<void(ase::KeyEvent const&)>> action);
 
         template <typename T>
-        inline auto operator()(Signal<T, Instance> instance) const
+        auto operator()(Signal<T, Instance> instance) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -73,75 +70,28 @@ namespace reactive::widget
                 ;
         }
 
-        inline OnKeyEvent acceptIf(
+        OnKeyEvent acceptIf(
                 signal::Convert<std::function<bool(ase::KeyEvent const&)>>
-                predicate) &&
-        {
-            *predicate_ = signal::mapFunction([](
-                    std::function<bool(ase::KeyEvent const&)> const& pred1,
-                    std::function<bool(ase::KeyEvent const&)> const& pred2,
-                    ase::KeyEvent const& e)
-                {
-                    return pred1(e) || pred2(e);
-                }, std::move(*predicate_), std::move(predicate));
+                predicate) &&;
 
-            return std::move(*this);
-        }
+        OnKeyEvent acceptIf(
+                std::function<bool(ase::KeyEvent const&)> pred) &&;
 
-        inline OnKeyEvent acceptIf(
-                std::function<bool(ase::KeyEvent const&)> pred) &&
-        {
-            return std::move(*this)
-                .acceptIf(signal::constant(std::move(pred)));
-        }
-
-        inline OnKeyEvent acceptIfNot(
+        OnKeyEvent acceptIfNot(
                 signal::Convert<std::function<bool(ase::KeyEvent const&)>>
-                predicate) &&
-        {
-            auto inverse = [](std::function<bool(KeyEvent const&)> pred,
-                    KeyEvent const& e)
-            {
-                return !pred(e);
-            };
+                predicate) &&;
 
-            return std::move(*this)
-                .acceptIf(signal::mapFunction(std::move(inverse),
-                            std::move(predicate)));
-        }
+        OnKeyEvent acceptIfNot(
+                std::function<bool(ase::KeyEvent const&)> pred) &&;
 
-        inline OnKeyEvent acceptIfNot(
-                std::function<bool(ase::KeyEvent const&)> pred) &&
-        {
-            return std::move(*this)
-                .acceptIf(signal::constant([pred](KeyEvent const& e)
-                            { return !pred(e); }));
-        }
+        OnKeyEvent action(
+                AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&;
 
-        inline OnKeyEvent action(
-                AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
-        {
-            *action_ = signal::mapFunction([](
-                        std::function<void(ase::KeyEvent const&)> action1,
-                        std::function<void(ase::KeyEvent const&)> action2,
-                        ase::KeyEvent const& e)
-                    {
-                        action1(e);
-                        action2(e);
-                    }, std::move(*action_), std::move(action));
-
-            return std::move(*this);
-        }
-
-        inline OnKeyEvent action(
-                std::function<void(ase::KeyEvent const&)> action) &&
-        {
-            return std::move(*this)
-                .action(signal::constant(std::move(action)));
-        }
+        OnKeyEvent action(
+                std::function<void(ase::KeyEvent const&)> action) &&;
 
         template <typename TStreamHandle>
-        inline auto send(TStreamHandle&& handle) &&
+        auto send(TStreamHandle&& handle) &&
             -> decltype(std::declval<OnKeyEvent>()
                     .action(send(std::forward<TStreamHandle>(handle))))
         {
@@ -159,37 +109,15 @@ namespace reactive::widget
             >> action_;
     };
 
-    inline OnKeyEvent onKeyEvent()
-    {
-        return {
-            signal::constant([](ase::KeyEvent const&) { return false; }),
-            signal::constant([](ase::KeyEvent const&) {})
-        };
-    }
+    REACTIVE_EXPORT OnKeyEvent onKeyEvent();
 
-    inline bool isNavigationKey(KeyEvent const& e)
-    {
-        if (!(e.getModifiers() & (uint32_t)ase::KeyModifier::Alt))
-            return false;
+    REACTIVE_EXPORT bool isNavigationKey(KeyEvent const& e);
 
-        if (e.getKey() == ase::KeyCode::j
-                || e.getKey() == ase::KeyCode::k
-                || e.getKey() == ase::KeyCode::h
-                || e.getKey() == ase::KeyCode::l)
-            return true;
+    REACTIVE_EXPORT AnyWidgetModifier onKeyEvent(
+            std::function<InputResult(ase::KeyEvent const&)> cb);
 
-        return false;
-    }
+    REACTIVE_EXPORT AnyWidgetModifier onKeyEvent(
+            AnySignal<std::function<InputResult(ase::KeyEvent const&)>> cb);
 
-    template <typename TAction>
-    auto onKeyEvent(TAction&& action)
-        -> decltype(makeInstanceSignalModifier(onKeyEvent().action(std::forward<TAction>(action))))
-    {
-        return makeInstanceSignalModifier(
-                onKeyEvent()
-                .acceptIfNot(&isNavigationKey)
-                .action(std::forward<TAction>(action))
-                );
-    }
 } // reactive::widget
 

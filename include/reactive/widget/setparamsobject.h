@@ -10,7 +10,7 @@ namespace reactive::widget
         return detail::makeWidgetModifierUnchecked(
             [](auto widget, auto&& newParams)
             {
-                return detail::makeWidgetUnchecked(
+                return detail::makeWidgetUncheckedWithParams(
                         [](BuildParams params, auto&& widget, auto&& newParams)
                         // -> AnyBuilder
                         {

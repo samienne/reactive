@@ -1,6 +1,6 @@
 #pragma once
 
-#include "instancemodifier.h"
+#include "widget.h"
 
 #include <reactive/signal/signal.h>
 
@@ -8,15 +8,7 @@
 
 namespace reactive::widget
 {
-    template <typename T>
-    inline auto transform(Signal<T, avg::Transform> t)
-    {
-        return makeInstanceModifier([](Instance instance, avg::Transform const& t)
-                {
-                    return std::move(instance).transform(t);
-                },
-                std::move(t)
-                );
-    }
+    REACTIVE_EXPORT AnyInstanceModifier transformBuilder(AnySignal<avg::Transform> t);
+    REACTIVE_EXPORT AnyWidgetModifier transform(AnySignal<avg::Transform> t);
 } // namespace reactive::widget
 

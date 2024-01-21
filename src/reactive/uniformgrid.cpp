@@ -1,9 +1,11 @@
 #include "uniformgrid.h"
 
+#include "widget/providebuildparams.h"
+#include "widget/setsizehint.h"
+
 #include "layout.h"
 #include "mapsizehint.h"
 #include "stacksizehint.h"
-#include "widget/setsizehint.h"
 
 #include "signal/combine.h"
 #include "signal/constant.h"
@@ -54,9 +56,6 @@ UniformGrid::operator widget::AnyWidget() &&
             for (auto&& widget : widgets)
                 builders.push_back(std::move(widget)(params));
 
-            std::vector<AnySignal<SizeHint>> hints;
-            hints.reserve(cells.size());
-
             size_t i = 0;
             for (auto const& cell : cells)
             {
@@ -65,8 +64,6 @@ UniformGrid::operator widget::AnyWidget() &&
                         signal::constant(1.0f / (float)cell.w),
                         signal::constant(1.0f / (float)cell.h)
                         );
-
-                hints.push_back(std::move(hi));
 
                 ++i;
             }
@@ -104,14 +101,6 @@ UniformGrid::operator widget::AnyWidget() &&
                 return obbs;
             };
 
-            i = 0;
-            for (auto&& builder : builders)
-            {
-                builder = std::move(builder)
-                    | widget::setSizeHint(std::move(hints[i++]))
-                    ;
-            }
-
             return layout(
                     std::move(mapHints),
                     std::move(mapObbs),
@@ -119,6 +108,7 @@ UniformGrid::operator widget::AnyWidget() &&
                     );
 
         },
+        widget::provideBuildParams(),
         std::move(widgets_),
         std::move(cells_),
         w_,

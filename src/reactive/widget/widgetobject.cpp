@@ -1,5 +1,7 @@
 #include "widget/widgetobject.h"
 
+#include "avg/transform.h"
+#include "btl/uniqueid.h"
 #include "widget/setid.h"
 #include "widget/transform.h"
 #include "widget/buildermodifier.h"
@@ -12,23 +14,46 @@ namespace reactive::widget
 static_assert(std::is_copy_constructible_v<WidgetObject>, "");
 static_assert(std::is_nothrow_move_assignable_v<WidgetObject>, "");
 
-WidgetObject::Impl::Impl(AnyBuilder builder) :
-    builder_(std::move(builder)),
-    sizeHint_(builder_.getSizeHint()),
+namespace
+{
+    template <typename T, typename U>
+    auto buildWidgetObject(AnyWidget widget, BuildParams const& params,
+            signal::Signal<T, avg::Vector2f> size,
+            signal::Signal<U, avg::Transform> t,
+            avg::UniqueId id)
+    {
+        auto builder = (std::move(widget)
+            | widget::setId(signal::constant(id))
+            | transform(std::move(t))
+            )(params)
+            ;
+
+        auto sizeHint = builder.getSizeHint();
+
+        return std::make_pair(
+                std::move(builder)(std::move(size)).getInstance(),
+                std::move(sizeHint)
+                );
+    }
+
+
+} // anonymous namespace
+
+WidgetObject::Impl::Impl(AnyWidget widget, BuildParams const& params) :
     sizeInput_(signal::input(avg::Vector2f(100, 100))),
     transformInput_(signal::input(avg::Transform())),
-    widget_((builder_
-            | widget::setId(signal::constant(id_))
-            | transform(transformInput_.signal.clone())
-            )
-            (sizeInput_.signal.clone())
-            .getInstance()
-            )
+    widget_(buildWidgetObject(
+                std::move(widget),
+                params,
+                sizeInput_.signal.clone(),
+                transformInput_.signal.clone(),
+                id_
+                ))
 {
 }
 
-WidgetObject::WidgetObject(AnyBuilder builder) :
-    impl_(std::make_shared<Impl>(std::move(builder)))
+WidgetObject::WidgetObject(AnyWidget widget, BuildParams const& params) :
+    impl_(std::make_shared<Impl>(std::move(widget), params))
 {
 }
 
@@ -50,7 +75,7 @@ void WidgetObject::setTransform(avg::Transform t)
 
 AnySignal<Instance> const& WidgetObject::getWidget()
 {
-    return impl_->widget_;
+    return impl_->widget_.first;
 }
 
 avg::UniqueId const& WidgetObject::getId() const
@@ -60,7 +85,7 @@ avg::UniqueId const& WidgetObject::getId() const
 
 AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
 {
-    return *impl_->sizeHint_;
+    return *impl_->widget_.second;
 }
 
 } // namespace reactive::widget

@@ -2,7 +2,6 @@
 
 #include "transform.h"
 #include "setrendertree.h"
-#include "withparamsobject.h"
 #include "widget.h"
 
 #include <avg/rendertree.h>
@@ -55,7 +54,7 @@ inline auto transitionLeft()
 template <typename T>
 auto transition(Transition<T> transition)
 {
-    return withParamsObject([](auto widget, BuildParams const& params,
+    return makeWidgetModifier([](auto widget, BuildParams const& params,
                 Transition<T> transition)
     {
         auto transitionedBuilder = std::move(transition.transitioned)(
@@ -95,6 +94,7 @@ auto transition(Transition<T> transition)
                 )
             ;
     },
+    provideBuildParams(),
     std::move(transition)
     );
 }
