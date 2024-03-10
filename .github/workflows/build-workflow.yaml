@@ -1,16 +1,39 @@
 name: build-workflow
 on: [push]
 jobs:
+    clang-format:
+        name: "Clang-format"
+        runs-on: "ubuntu-latest"
+        steps:
+        - uses: actions/checkout@v4
+          with:
+              fetch-depth: 1
+              ref: ${{ github.event.pull_request.head.sha }}
+        - run: git fetch origin master --depth=1
+
+        - name: Install clang-format-17 from llvm repositories
+          run: |
+            echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-17 main" | sudo tee /etc/apt/sources.list.d/llvm-17.list
+            wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+            sudo apt update
+            sudo apt install clang-format-17
+            sudo update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-17 20
+            sudo update-alternatives --set clang-format /usr/bin/clang-format-17
+
+        - name: Check with clang-format
+          run: |
+            git clang-format-17 origin/master --diffstat
+
     build-linux:
         name: "build-linux (${{ matrix.compiler.CC }})"
+        needs: clang-format
         strategy:
             matrix:
                 compiler: [
                     { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release" },
                     { "deps": "gcc-9 g++-9", "CC": "gcc-9", "CXX": "g++-9", "type": "release" },
                     { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release" },
-                    { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release" }
-                ]
+                    { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release" } ]
         runs-on: "ubuntu-20.04"
         steps:
         - uses: actions/checkout@v2
@@ -36,6 +59,7 @@ jobs:
             ./test/devtest --gtest_output=xml
 
     build-macos:
+        needs: clang-format
         runs-on: "macOS-latest"
         steps:
         - uses: actions/checkout@v2
@@ -62,6 +86,7 @@ jobs:
             ./test/devtest --gtest_output=xml
 
     build-win:
+        needs: clang-format
         runs-on: "windows-2019"
         steps:
         - uses: actions/checkout@v2
