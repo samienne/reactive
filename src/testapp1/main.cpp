@@ -1,4 +1,5 @@
 #include "adder.h"
+#include "reactive/widget/setsizehint.h"
 #include "spinner.h"
 #include "testwidget.h"
 #include "curvevisualizer.h"
@@ -18,8 +19,10 @@
 #include <reactive/widget/onpointerdown.h>
 #include <reactive/widget/onhover.h>
 #include <reactive/widget/builder.h>
+#include <reactive/widget/rectangle.h>
 
 #include <reactive/filler.h>
+#include <reactive/simplesizehint.h>
 #include <reactive/keyboardinput.h>
 #include <reactive/send.h>
 #include <reactive/window.h>
@@ -89,6 +92,8 @@ int main()
 
     auto widgets = hbox({
         vbox({
+            widget::rectangle()
+                | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0))),
             widget::label("Curves")
                 | widget::frame(),
             curveVisualizer(std::move(curve)),
