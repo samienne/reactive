@@ -7,13 +7,13 @@
 #include "vector.h"
 #include "rect.h"
 #include "avgvisibility.h"
+#include "polyline.h"
 
 #include <btl/buffer.h>
 
 #include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
-#include <vector>
 #include <memory>
 
 namespace avg
@@ -203,15 +203,17 @@ namespace avg
         ConstIterator end() const;
 
         Region fillRegion(pmr::memory_resource* memory, FillRule rule,
-                Vector2f pixelSize, float resPerPixel = 4.0f) const;
+                Vector2f pointSize) const;
         Region offsetRegion(pmr::memory_resource* memory, JoinType join,
-                EndType end, float width, Vector2f pixelSize,
-                float resPerPixel = 4.0f) const;
+                EndType end, float width, Vector2f pointSize) const;
 
         Rect getControlBb() const;
         Obb getControlObb() const;
 
         Path with_resource(pmr::memory_resource* memory) const;
+
+        pmr::vector<PolyLine> toPolyLines(pmr::memory_resource* memory,
+                Vector2f pointSize) const;
 
     private:
         friend class PathBuilder;

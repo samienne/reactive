@@ -31,13 +31,9 @@ public:
 namespace
 {
 
-Vector2i toIVec(Vector2f v, Vector2f pixelSize,
-        float resPerPixel)
+Vector2i toIVec(Vector2f v, Vector2f pointSize)
 {
-    float xRes = resPerPixel / pixelSize[0];
-    float yRes = resPerPixel / pixelSize[1];
-
-    return Vector2i((int)(xRes * v[0]), (int)(yRes * v[1]));
+    return Vector2i((int)(v[0] / pointSize[0]), (int)(v[1] / pointSize[1]));
 }
 
 float conicDerivative(float p1,
@@ -136,8 +132,8 @@ float getNextCubicT(Vector2f p1, Vector2f p2,
 pmr::vector<PolyLine> toPolyLines(
         pmr::memory_resource* memory,
         Path const& path,
-        Transform const& transform, Vector2f pixelSize,
-        float resPerPixel)
+        Transform const& transform,
+        Vector2f pointSize)
 
 {
     Vector2f cur(0.0f, 0.0f);
@@ -168,7 +164,7 @@ pmr::vector<PolyLine> toPolyLines(
                 }
 
                 cur = offset + rs * start.v;
-                vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
+                vertices.push_back(toIVec(cur, pointSize));
                 break;
             }
 
@@ -177,7 +173,7 @@ pmr::vector<PolyLine> toPolyLines(
                 auto const& line = i.getLine();
 
                 cur = offset + rs * line.v;
-                vertices.push_back(toIVec(cur, pixelSize, resPerPixel));
+                vertices.push_back(toIVec(cur, pointSize));
                 break;
             }
 
@@ -193,10 +189,10 @@ pmr::vector<PolyLine> toPolyLines(
                 while (t < 1.0f)
                 {
                     vertices.push_back(toIVec(conicValue(p1, p2, p3, t),
-                                pixelSize, resPerPixel));
-                    t = getNextConicT(p1, p2, p3, t, pixelSize);
+                                pointSize));
+                    t = getNextConicT(p1, p2, p3, t, pointSize);
                 }
-                vertices.push_back(toIVec(p3, pixelSize, resPerPixel));
+                vertices.push_back(toIVec(p3, pointSize));
 
                 break;
             }
@@ -214,10 +210,10 @@ pmr::vector<PolyLine> toPolyLines(
                 while (t < 1.0f)
                 {
                     vertices.push_back(toIVec(cubicValue(p1, p2, p3, p4, t),
-                                pixelSize, resPerPixel));
-                    t = getNextCubicT(p1, p2, p3, p4, t, pixelSize);
+                                pointSize));
+                    t = getNextCubicT(p1, p2, p3, p4, t, pointSize);
                 }
-                vertices.push_back(toIVec(p4, pixelSize, resPerPixel));
+                vertices.push_back(toIVec(p4, pointSize));
 
                 break;
             }
@@ -248,11 +244,7 @@ pmr::vector<PolyLine> toPolyLines(
                 {
                     cur = rotation * cur;
 
-                    vertices.push_back(toIVec(
-                                center + cur,
-                                pixelSize,
-                                resPerPixel
-                                ));
+                    vertices.push_back(toIVec(center + cur, pointSize));
                 }
 
                 break;
@@ -495,23 +487,20 @@ Path::ConstIterator Path::end() const
 }
 
 Region Path::fillRegion(pmr::memory_resource* memory,
-        FillRule rule, Vector2f pixelSize, float resPerPixel) const
+        FillRule rule, Vector2f pointSize) const
 {
-    pmr::vector<PolyLine> polygons = toPolyLines(memory, *this,
-            transform_, pixelSize, resPerPixel);
+    pmr::vector<PolyLine> polygons = toPolyLines(memory, pointSize);
 
-    return avg::Region(memory, std::move(polygons), rule, pixelSize,
-            resPerPixel);
+    return avg::Region(memory, std::move(polygons), rule, pointSize);
 }
 
 Region Path::offsetRegion(pmr::memory_resource* memory, JoinType join,
-        EndType end, float width, Vector2f pixelSize, float resPerPixel) const
+        EndType end, float width, Vector2f pointSize) const
 {
-    pmr::vector<PolyLine> polygons = toPolyLines(memory, *this,
-            transform_, pixelSize, resPerPixel);
+    pmr::vector<PolyLine> polygons = toPolyLines(memory, pointSize);
 
     return avg::Region(memory, std::move(polygons), join, end, width,
-            pixelSize, resPerPixel);
+            pointSize);
 }
 
 Rect Path::getControlBb() const
@@ -631,6 +620,12 @@ Path Path::with_resource(pmr::memory_resource* memory) const
     result.d()->controlBb_ = d()->controlBb_;
 
     return result;
+}
+
+pmr::vector<PolyLine> Path::toPolyLines(pmr::memory_resource* memory,
+                Vector2f pointSize) const
+{
+    return avg::toPolyLines(memory, *this, transform_, pointSize);
 }
 
 } // namespace avg

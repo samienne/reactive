@@ -21,11 +21,9 @@ namespace reactive::widget
             auto t = avg::Transform()
                 .translate(0.5f * size[0], 0.5f * size[1]);
 
-            return t * drawContext.drawing(makeShape(
-                        makeRect(drawContext.getResource(), size[0], size[1]),
-                        std::make_optional(brush),
-                        std::nullopt
-                        ));
+            return t * avg::Shape(
+                    makeRect(drawContext.getResource(), size[0], size[1]))
+                .fill(brush);
         }
     } // namespace detail
 

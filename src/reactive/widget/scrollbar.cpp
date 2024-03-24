@@ -76,9 +76,8 @@ namespace
                     getSliderRect<IsHorizontal>(size, amount, handleSize)
                     ));
 
-        return drawContext.drawing(
-            makeShape(std::move(slider), std::make_optional(brush), std::make_optional(pen))
-            );
+        return avg::Shape(std::move(slider))
+            .fillAndStroke(brush, pen);
     }
 
     template <bool IsHorizontal>
@@ -110,8 +109,7 @@ namespace
 
         avg::Pen pen(theme.getBackgroundHighlight(), 1.0f);
 
-        return drawContext.drawing()
-            + makeShape(std::move(line), std::nullopt, std::make_optional(pen))
+        return avg::Shape(std::move(line)).stroke(pen)
             + drawSlider<IsHorizontal>(drawContext, size, theme, amount,
                     handleSize, hover, isDown)
             ;

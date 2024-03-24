@@ -379,9 +379,7 @@ Drawing RectNode::drawRect(
         .conicTo(Vector2f(0.0f, 0.0f), Vector2f(radius, 0.0f))
         .build();
 
-    return context.drawing()
-        + Shape(path, brush, pen)
-        ;
+    return Shape(path).fillAndStroke(brush, pen);
 }
 
 TransitionNode::TransitionNode(

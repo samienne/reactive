@@ -85,14 +85,12 @@ namespace
             line += te1.advance;
 
             texts = std::move(texts)
-                + avg::Shape(drawContext.getResource())
-                .setPath(line)
-                .setPen(std::make_optional(
-                            avg::Pen(
-                                avg::Brush(theme.getEmphasized() * percentage),
-                                1.0f)
-                            )
-                        );
+                + avg::Shape(line)
+                .stroke(avg::Pen(
+                            avg::Brush(theme.getEmphasized() * percentage),
+                            1.0f)
+                       )
+                ;
         }
 
         return texts;

@@ -59,8 +59,8 @@ AnyWidgetModifier frame(
                             1.0f);
                     auto brush = avg::Brush(theme.getBackground());
 
-                    return context.drawing()
-                        + avg::Shape(path, std::make_optional(brush), std::make_optional(pen))
+                    return avg::Shape(std::move(path))
+                        .fillAndStroke(brush, pen)
                         ;
                 },
                 std::move(cr),

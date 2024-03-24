@@ -30,7 +30,7 @@ namespace
         float x2 = size[0] - 2.5f;
         float y2 = size[1] - 2.5f;
 
-        auto path = context.pathBuilder()
+        return context.pathBuilder()
             .start(Vector2f(radius, y1))
             .lineTo(x2 - radius, y1)
             .conicTo(Vector2f(x2, y1), Vector2f(x2, y1 + radius))
@@ -40,10 +40,7 @@ namespace
             .conicTo(Vector2f(x1, y2), Vector2f(x1, y2 - radius))
             .lineTo(x1, y1 + radius)
             .conicTo(Vector2f(x1, y1), Vector2f(x1 + radius, y1))
-            .build();
-
-        return context.drawing()
-            + avg::Shape(std::move(path), std::move(brush), std::move(pen))
+            .fillAndStroke(std::move(brush), std::move(pen))
             ;
     }
 
