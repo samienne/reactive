@@ -19,6 +19,33 @@ Rect::~Rect()
 {
 }
 
+Rect Rect::operator+(Rect const& rhs) const
+{
+    if (isEmpty())
+        return rhs;
+
+    if (rhs.isEmpty())
+        return *this;
+
+    auto bottomLeft = Vector2f(
+            std::min(getLeft(), rhs.getLeft()),
+            std::min(getBottom(), rhs.getBottom())
+            );
+
+    auto topRight = Vector2f(
+            std::max(getRight(), rhs.getRight()),
+            std::max(getTop(), rhs.getTop())
+            );
+
+    return Rect(bottomLeft, topRight - bottomLeft);
+}
+
+Rect& Rect::operator+=(Rect const& rhs)
+{
+    *this = *this + rhs;
+    return *this;
+}
+
 bool Rect::operator==(Rect const& rhs) const
 {
     if (isEmpty() == rhs.isEmpty())

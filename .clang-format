@@ -1,6 +1,6 @@
 ---
 Language:        Cpp
-# BasedOnStyle:  LLVM
+# BasedOnStyle:  WebKit
 AccessModifierOffset: -4
 AlignAfterOpenBracket: DontAlign
 AlignArrayOfStructures: None
@@ -10,7 +10,7 @@ AlignConsecutiveAssignments:
   AcrossComments:  false
   AlignCompound:   false
     #AlignFunctionPointers: false
-  PadOperators:    true
+  PadOperators:    false
 AlignConsecutiveBitFields:
   Enabled:         false
   AcrossEmptyLines: false
@@ -69,8 +69,8 @@ AllowShortLoopsOnASingleLine: false
 AlwaysBreakBeforeMultilineStrings: false
 AttributeMacros:
   - __capability
-BinPackArguments: true
-BinPackParameters: true
+BinPackArguments: false
+BinPackParameters: false
 BitFieldColonSpacing: Both
 BraceWrapping:
   AfterCaseLabel:  true

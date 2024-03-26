@@ -151,7 +151,6 @@ namespace reactive::signal
                     std::vector<WidgetState> newObjects;
                     newObjects.reserve(state.objects.size());
 
-                    int idx = 0;
                     for (auto&& item : refresh.values)
                     {
                         for (auto i = state.objects.begin();
@@ -168,8 +167,6 @@ namespace reactive::signal
                                 break;
                             }
                         }
-
-                        ++idx;
                     }
 
                     state.objects = std::move(newObjects);

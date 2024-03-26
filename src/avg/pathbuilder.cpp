@@ -3,8 +3,7 @@
 #include "pen.h"
 #include "brush.h"
 #include "shape.h"
-
-#include "debug.h"
+#include "drawing.h"
 
 #include <btl/cloneoncopy.h>
 
@@ -128,25 +127,21 @@ Path PathBuilder::build() const&
     return Path(btl::Buffer(data_));
 }
 
-Shape PathBuilder::buildShape() &&
+Drawing PathBuilder::stroke(Pen const& pen) &&
 {
-    return Shape(Path(std::move(data_)), std::nullopt, std::nullopt);
+    return Shape(build()).stroke(pen);
 }
 
-Shape PathBuilder::buildShape(avg::Brush brush) &&
+Drawing PathBuilder::fill(Brush const& brush) &&
 {
-    return Shape(Path(std::move(data_)), std::make_optional(std::move(brush)), std::nullopt);
+    return Shape(build()).fill(brush);
 }
 
-Shape PathBuilder::buildShape(avg::Brush brush, avg::Pen pen) &&
+Drawing PathBuilder::fillAndStroke(
+        std::optional<Brush> const& brush,
+        std::optional<Pen> const& pen) &&
 {
-    return Shape(Path(std::move(data_)), std::make_optional(std::move(brush)),
-            std::make_optional(std::move(pen)));
-}
-
-Shape PathBuilder::buildShape(avg::Pen pen) &&
-{
-    return Shape(Path(std::move(data_)), std::nullopt, std::make_optional(std::move(pen)));
+    return Shape(build()).fillAndStroke(brush, pen);
 }
 
 } // avg

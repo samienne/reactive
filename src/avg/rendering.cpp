@@ -111,57 +111,50 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
 }
 
 SoftMesh generateMeshForBrush(pmr::memory_resource* memory,
-        Path const& path, Brush const& brush,
-        ase::Vector2f pixelSize, float resPerPixel,
-        Rect const& r, bool clip)
+        Shape const& shape, Brush const& brush,
+        ase::Vector2f pointSize, Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
 
-    Region region = path.fillRegion(&mono, FILL_EVENODD,
-            pixelSize, resPerPixel);
+    Region region = shape.fillToRegion(&mono, pointSize);
 
     return generateMeshForRegion(memory, region, brush, r, clip);
 }
 
-SoftMesh generateMeshForPen(pmr::memory_resource* memory, Path const& path,
-        Pen const& pen, ase::Vector2f pixelSize, float resPerPixel,
-        Rect const& r, bool clip)
+SoftMesh generateMeshForPen(pmr::memory_resource* memory, Shape const& shape,
+        Pen const& pen, ase::Vector2f pointSize, Rect const& r, bool clip)
 {
     pmr::monotonic_buffer_resource mono(memory);
 
-    Region region = path.offsetRegion(&mono, pen.getJoinType(),
-            pen.getEndType(), pen.getWidth(), pixelSize, resPerPixel);
+    Region region = shape.strokeToRegion(&mono, pen, pointSize);
 
     return generateMeshForRegion(memory, region, pen.getBrush(), r, clip);
 }
 
-pmr::vector<SoftMesh> generateMeshesForShape(pmr::memory_resource* memory,
-        Shape const& shape, ase::Vector2f pixelSize, float resPerPixel,
-        Rect const& r, bool clip)
+pmr::vector<SoftMesh> generateMeshesForShapeElement(
+        pmr::memory_resource* memory, Drawing::ShapeElement const& element,
+        ase::Vector2f pointSize, Rect const& r, bool clip)
 {
-    auto const& path = shape.getPath();
-    auto const& brush = shape.getBrush();
-    auto const& pen = shape.getPen();
-
-    if (path.isEmpty())
-        return pmr::vector<SoftMesh>(memory);
+    auto const& shape = element.shape;
+    auto const& brush = element.brush;
+    auto const& pen = element.pen;
 
     pmr::vector<SoftMesh> result(memory);
 
     if (brush.has_value())
     {
-        bool needClip = !path.getControlBb().isFullyContainedIn(r);
-        result.push_back(generateMeshForBrush(memory, path, *brush, pixelSize,
-                    resPerPixel, r, clip && needClip));
+        bool needClip = !shape.getControlBb().isFullyContainedIn(r);
+        result.push_back(generateMeshForBrush(memory, shape, *brush, pointSize,
+                    r, clip && needClip));
     }
 
     if (pen.has_value())
     {
-        Rect penRect = path.getControlBb().enlarged(pen->getWidth());
+        Rect penRect = shape.getControlBb().enlarged(pen->getWidth());
         bool needClip = !penRect.isFullyContainedIn(r);
 
-        result.push_back(generateMeshForPen(memory, path, *pen, pixelSize,
-                    resPerPixel, r, clip && needClip));
+        result.push_back(generateMeshForPen(memory, shape, *pen, pointSize,
+                    r, clip && needClip));
     }
 
     return result;
@@ -170,9 +163,13 @@ pmr::vector<SoftMesh> generateMeshesForShape(pmr::memory_resource* memory,
 Rect getElementRect(Drawing::Element const& e)
 {
     return std::visit(Overloaded{
-            [](Shape const& shape) -> Rect
+            [](Drawing::ShapeElement const& shapeElement) -> Rect
             {
-                return shape.getControlBb();
+                auto bb = shapeElement.shape.getControlBb();
+                if (shapeElement.pen)
+                    bb = bb.enlarged(shapeElement.pen->getWidth() / 2.0f);
+
+                return bb;
             },
             [](TextEntry const& textEntry) -> Rect
             {
@@ -200,8 +197,7 @@ pmr::vector<SoftMesh> generateMeshesForElements(
         Painter const& painter,
         Transform const& transform,
         pmr::vector<Drawing::Element> const& elements,
-        Vector2f pixelSize,
-        float resPerPixel,
+        Vector2f pointSize,
         Rect const& rect,
         bool clip
         )
@@ -209,7 +205,7 @@ pmr::vector<SoftMesh> generateMeshesForElements(
     if (elements.empty())
         return pmr::vector<SoftMesh>(memory);
 
-    ase::Vector2f newPixelSize = pixelSize / transform.getScale();
+    ase::Vector2f newPointSize = pointSize / transform.getScale();
 
     pmr::vector<SoftMesh> meshes(memory);
     meshes.reserve(elements.size());
@@ -221,28 +217,29 @@ pmr::vector<SoftMesh> generateMeshesForElements(
             continue;
 
         pmr::vector<SoftMesh> elementMeshes = std::visit(Overloaded{
-                [&](Shape const& shape) -> pmr::vector<SoftMesh>
+                [&](Drawing::ShapeElement const& shapeElement)
+                -> pmr::vector<SoftMesh>
                 {
-                    return generateMeshesForShape(memory, shape, newPixelSize,
-                            resPerPixel, rect, clip);
+                    return generateMeshesForShapeElement(
+                            memory, shapeElement, newPointSize, rect, clip);
                 },
                 [&](TextEntry const& textEntry) -> pmr::vector<SoftMesh>
                 {
-                    auto shape = Shape(memory)
-                        .setPath(textEntry.getFont().textToPath(
-                                    memory,
-                                    utf8::asUtf8(textEntry.getText()),
-                                    1.0f,
-                                    ase::Vector2f(0.0f, 0.0f)
-                                    ))
-                        .setBrush(textEntry.getBrush())
-                        .setPen(textEntry.getPen());
+                    auto shape = Shape(textEntry.getFont().textToPath(
+                                memory,
+                                utf8::asUtf8(textEntry.getText()),
+                                1.0f,
+                                ase::Vector2f(0.0f, 0.0f)
+                                ));
 
-                    return generateMeshesForShape(
-                            memory,
-                            textEntry.getTransform() * shape,
-                            newPixelSize, resPerPixel, rect, clip
-                            );
+                    auto element = Drawing::ShapeElement {
+                        textEntry.getTransform() * std::move(shape),
+                        textEntry.getBrush(),
+                        textEntry.getPen()
+                        };
+
+                    return generateMeshesForShapeElement(memory, element,
+                            newPointSize, rect, clip);
                 },
                 [&](Drawing::ClipElement const& clipElement) -> pmr::vector<SoftMesh>
                 {
@@ -260,8 +257,7 @@ pmr::vector<SoftMesh> generateMeshesForElements(
                             painter,
                             clipElement.transform,
                             clipElement.subDrawing->elements,
-                            newPixelSize,
-                            resPerPixel,
+                            newPointSize,
                             clipElement.clipRect.intersected(rectInClipElementSpace),
                             true
                             );
@@ -398,13 +394,13 @@ void render(pmr::memory_resource* memory,
 {
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     float const resPerPixel = std::max(2.0f, 4.0f / scalingFactor);
+    auto const pointSize = pixelSize / resPerPixel;
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
     Rect rect(Vector2f(0.0f, 0.0f), sizef);
 
     pmr::vector<SoftMesh> meshes = generateMeshesForElements(memory, painter,
-            Transform(), drawing.getElements(), pixelSize,
-            resPerPixel, rect, false);
+            Transform(), drawing.getElements(), pointSize, rect, false);
 
     pmr::vector<Element> elements = generateElements(memory, painter, meshes);
 

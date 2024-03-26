@@ -6,6 +6,7 @@
 #include "widget/instance.h"
 #include "widget/builder.h"
 
+#include "reactive/animate.h"
 #include "reactive/shapes.h"
 
 #include "reactive/signal/constant.h"
@@ -18,15 +19,6 @@
 
 namespace reactive::widget
 {
-
-template <typename T, typename U>
-auto animate(Signal<T, U> sig)
-{
-    return std::move(sig).map([](auto value)
-            {
-                return avg::Animated<std::decay_t<decltype(value)>>(std::move(value));
-            });
-}
 
 AnyWidgetModifier frame(
         AnySignal<float> cornerRadius,
@@ -67,8 +59,8 @@ AnyWidgetModifier frame(
                             1.0f);
                     auto brush = avg::Brush(theme.getBackground());
 
-                    return context.drawing()
-                        + avg::Shape(path, std::make_optional(brush), std::make_optional(pen))
+                    return avg::Shape(std::move(path))
+                        .fillAndStroke(brush, pen)
                         ;
                 },
                 std::move(cr),

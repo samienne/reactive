@@ -32,14 +32,12 @@ namespace {
             float s = std::max(0.0f,
                     (-tt * tt + tt - 2.0f/9.0f)) * 200.0f + 10.0f;
 
-            auto shape = makeShape(
-                    makeCircle(context.getResource(),
-                        ase::Vector2f(0.0f, 0.0f), s/2.0f),
-                    std::make_optional(brush),
-                    std::nullopt);
+            auto shape = avg::Shape(makeCircle(context.getResource(),
+                        ase::Vector2f(0.0f, 0.0f), s/2.0f))
+                .fill(brush);
 
             float a = 6.28f / 10.0f * (float) i;
-            drawing += context.drawing(std::move(shape))
+            drawing += std::move(shape)
                 .transform(avg::translate(std::cos(a) * w, std::sin(a) * w));
         }
 

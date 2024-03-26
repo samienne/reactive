@@ -6,8 +6,6 @@
 #include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
-#include <vector>
-
 namespace avg
 {
     class AVG_EXPORT PolyLine

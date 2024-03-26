@@ -30,7 +30,15 @@ namespace avg
             Brush brush;
         };
 
-        using Element = std::variant<Shape, TextEntry, ClipElement, RegionFill>;
+        struct ShapeElement
+        {
+            Shape shape;
+            std::optional<Brush> brush;
+            std::optional<Pen> pen;
+        };
+
+        using Element = std::variant<ShapeElement, TextEntry, ClipElement,
+              RegionFill>;
 
         struct SubDrawing
         {

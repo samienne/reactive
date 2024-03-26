@@ -4,7 +4,6 @@
 #include "widget/margin.h"
 #include "widget/ondraw.h"
 #include "widget/clip.h"
-#include "widget/label.h"
 #include "widget/frame.h"
 #include "widget/trackfocus.h"
 #include "widget/focuson.h"
@@ -15,8 +14,6 @@
 
 #include "reactive/simplesizehint.h"
 
-#include "signal/tween.h"
-#include "signal/cache.h"
 #include "signal/combine.h"
 
 #include "stream/iterate.h"
@@ -25,7 +22,6 @@
 #include "clickevent.h"
 #include "send.h"
 
-#include "debug.h"
 
 #include <avg/curve/curves.h>
 #include <avg/textextents.h>
@@ -89,14 +85,12 @@ namespace
             line += te1.advance;
 
             texts = std::move(texts)
-                + avg::Shape(drawContext.getResource())
-                .setPath(line)
-                .setPen(std::make_optional(
-                            avg::Pen(
-                                avg::Brush(theme.getEmphasized() * percentage),
-                                1.0f)
-                            )
-                        );
+                + avg::Shape(line)
+                .stroke(avg::Pen(
+                            avg::Brush(theme.getEmphasized() * percentage),
+                            1.0f)
+                       )
+                ;
         }
 
         return texts;
