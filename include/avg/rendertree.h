@@ -1,11 +1,10 @@
 #pragma once
 
-#include "curve/curves.h"
-#include "curve.h"
 #include "animated.h"
 #include "drawing.h"
 #include "transform.h"
 #include "drawcontext.h"
+#include "shapefunction.h"
 #include "avgvisibility.h"
 
 #include <pmr/memory_resource.h>
@@ -18,8 +17,6 @@
 #include <chrono>
 #include <type_traits>
 #include <typeindex>
-#include <typeinfo>
-#include <unordered_map>
 #include <atomic>
 #include <utility>
 #include <iostream>
@@ -138,7 +135,7 @@ namespace avg
                 ) const override;
 
         std::pair<Drawing, bool> draw(DrawContext const& context,
-                avg::Obb const& obb,
+                avg::Obb const& parentObb,
                 std::chrono::milliseconds time) const override;
 
         std::type_index getType() const override;

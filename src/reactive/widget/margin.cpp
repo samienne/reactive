@@ -75,5 +75,11 @@ AnyWidgetModifier margin(AnySignal<float> amount)
     signal::share(std::move(amount))
     );
 }
+
+AnyWidgetModifier margin(float amount)
+{
+    return margin(signal::constant(amount));
+}
+
 } // namespace reactive::widget
 

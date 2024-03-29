@@ -89,6 +89,12 @@ namespace avg
             }
         };
 
+        Animated(Animated const& rhs) = default;
+        Animated(Animated&& rhs) = default;
+
+        Animated& operator=(Animated const& rhs) = default;
+        Animated& operator=(Animated&& rhs) noexcept = default;
+
         template <typename U, typename = std::enable_if_t<
             std::is_convertible_v<U, T>
             >>
@@ -221,7 +227,6 @@ namespace avg
         bool isAnimationRunning(std::chrono::milliseconds time) const
         {
             return beginTime_ < time && !hasAnimationEnded(time);
-            //time < (beginTime_ + getDuration());
         }
 
         bool isRedundantUpdate(Animated const& newValue) const

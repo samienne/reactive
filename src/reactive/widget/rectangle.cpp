@@ -1,8 +1,10 @@
 #include "widget/rectangle.h"
 
-#include "widget/ondraw.h"
+#include "shape/shape.h"
+
 #include "widget/providetheme.h"
 #include "widget/setsizehint.h"
+#include "widget/margin.h"
 
 #include "animate.h"
 
@@ -14,21 +16,19 @@ namespace reactive::widget
 
 namespace
 {
-    avg::Drawing drawRectangle(
+    avg::Shape drawRectangle(
             avg::DrawContext const& context,
             avg::Vector2f size,
-            float radius,
-            std::optional<avg::Brush> const& brush,
-            std::optional<avg::Pen> const& pen)
+            float radius)
     {
         radius = std::clamp(radius, 0.0f, std::min(size[0], size[1]) / 2.0f);
 
         using avg::Vector2f;
 
-        float x1 = 2.5f;
-        float y1 = 2.5f;
-        float x2 = size[0] - 2.5f;
-        float y2 = size[1] - 2.5f;
+        float x1 = 0;
+        float y1 = 0;
+        float x2 = size[0];
+        float y2 = size[1];
 
         return context.pathBuilder()
             .start(Vector2f(radius, y1))
@@ -40,20 +40,8 @@ namespace
             .conicTo(Vector2f(x1, y2), Vector2f(x1, y2 - radius))
             .lineTo(x1, y1 + radius)
             .conicTo(Vector2f(x1, y1), Vector2f(x1 + radius, y1))
-            .fillAndStroke(std::move(brush), std::move(pen))
+            .build()
             ;
-    }
-
-    template <typename T>
-    AnySignal<std::optional<T>> flipOptional(std::optional<AnySignal<T>> s)
-    {
-        if (!s)
-            return signal::constant<std::optional<T>>(std::nullopt);
-
-        return std::move(*s).map([](auto value)
-            {
-                return std::make_optional(std::move(value));
-            });
     }
 } // anonymous namespace
 
@@ -64,7 +52,6 @@ REACTIVE_EXPORT AnyWidget rectangle()
             auto brush = theme.clone().map([](Theme const& theme)
                 {
                     return avg::Brush(theme.getBackground());
-
                 });
 
             auto pen = theme.clone().map([](Theme const& theme)
@@ -88,12 +75,17 @@ REACTIVE_EXPORT AnyWidget rectangle(
         std::optional<AnySignal<avg::Pen>> pen
         )
 {
-    return makeWidget()
-        | onDraw(drawRectangle,
-                std::move(cornerRadius),
-                animate(flipOptional(std::move(brush))),
-                animate(flipOptional(std::move(pen)))
-                )
+    AnySignal<float> margin = signal::constant(0.0f);
+    if (pen) {
+        margin = pen->clone().map([](avg::Pen const& pen)
+                {
+                    return pen.getWidth() / 2.0f;
+                });
+    }
+
+    return shape::makeShape(drawRectangle, animate(std::move(cornerRadius)))
+        .fillAndStroke(std::move(brush), std::move(pen))
+        | widget::margin(2.5f)
         | setSizeHint(signal::constant(simpleSizeHint(1, 1)))
         ;
 }

@@ -12,6 +12,7 @@
 #include <reactive/widget/focusgroup.h>
 #include <reactive/widget/textedit.h>
 #include <reactive/widget/frame.h>
+#include <reactive/widget/margin.h>
 #include <reactive/widget/scrollbar.h>
 #include <reactive/widget/scrollview.h>
 #include <reactive/widget/clip.h>
@@ -20,6 +21,9 @@
 #include <reactive/widget/onhover.h>
 #include <reactive/widget/builder.h>
 #include <reactive/widget/rectangle.h>
+#include <reactive/widget/onclick.h>
+
+#include <reactive/shape/shape.h>
 
 #include <reactive/filler.h>
 #include <reactive/simplesizehint.h>
@@ -90,9 +94,26 @@ int main()
             curveSelection.signal
             );
 
+    auto m = signal::input<bool>(true);
+    auto margin = m.signal.clone().map([](bool b) { return b ? 10.0f : 50.0f; });
+
+#if 1
     auto widgets = hbox({
         vbox({
             widget::rectangle()
+                | widget::margin(std::move(margin))
+                | widget::onClick(0, signal::mapFunction([h=m.handle](bool b) mutable
+                            {
+                                app().withAnimation(
+                                    1.3f,
+                                    avg::curve::easeOutElastic,
+                                    [&]()
+                                    {
+                                        h.set(!b);
+                                    });
+                            },
+                            std::move(m.signal)
+                            ))
                 | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0))),
             widget::label("Curves")
                 | widget::frame(),
@@ -133,6 +154,13 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
     });
+
+#else
+    auto widgets = widget::rectangle()
+        | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0)))
+        | widget::margin(signal::constant(10.0f))
+        ;
+#endif
 
     return app()
         .windows({

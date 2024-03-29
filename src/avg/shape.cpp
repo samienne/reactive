@@ -372,6 +372,11 @@ Drawing Shape::fillAndStroke(std::optional<Brush> const& brush,
                 brush, pen });
 }
 
+Shape Shape::transform(Transform t) &&
+{
+    return t * std::move(*this);
+}
+
 Rect Shape::getControlBb() const
 {
     return avg::getControlBb(Transform(), root_);

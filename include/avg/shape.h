@@ -37,6 +37,8 @@ namespace avg
         Drawing fillAndStroke(std::optional<Brush> const& brush,
                 std::optional<Pen> const& pen) &&;
 
+        Shape transform(Transform t) &&;
+
         Rect getControlBb() const;
 
         Shape operator*(float scale) const &;

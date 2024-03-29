@@ -74,6 +74,7 @@ reactive::widget::AnyWidget adder()
         range.pushBack("test 1");
         range.pushBack("test 2");
         range.pushBack("test 3");
+        range.pushBack("test 4");
     }
 
     auto textInput = signal::input<std::string>("");
@@ -101,28 +102,40 @@ reactive::widget::AnyWidget adder()
                 ,
                 widget::button("T", signal::mapFunction([items, id]() mutable
                     {
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
+                        app().withAnimation(
+                                std::chrono::milliseconds(300),
+                                avg::curve::linear,
+                                [&]()
+                                {
+                                    auto range = items.rangeLock();
+                                    auto i = range.findId(id);
 
-                        range.move(i, range.begin());
+                                    range.move(i, range.begin());
+                                });
                     }))
                 ,
                 widget::button("S", signal::mapFunction(
                     [items, id, swapState]() mutable
                     {
-                        if (*swapState == 0)
-                        {
-                            *swapState = id;
-                        }
-                        else
-                        {
-                            auto range = items.rangeLock();
-                            auto i = range.findId(id);
-                            auto j = range.findId(*swapState);
+                        app().withAnimation(
+                                std::chrono::milliseconds(300),
+                                avg::curve::linear,
+                                [&]()
+                                {
+                                    if (*swapState == 0)
+                                    {
+                                        *swapState = id;
+                                    }
+                                    else
+                                    {
+                                        auto range = items.rangeLock();
+                                        auto i = range.findId(id);
+                                        auto j = range.findId(*swapState);
 
-                            range.swap(i, j);
-                            *swapState = 0;
-                        }
+                                        range.swap(i, j);
+                                        *swapState = 0;
+                                    }
+                                });
                     }))
                 ,
                 widget::label(std::move(value))
