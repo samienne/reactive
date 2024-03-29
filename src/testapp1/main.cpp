@@ -23,6 +23,7 @@
 #include <reactive/widget/rectangle.h>
 #include <reactive/widget/onclick.h>
 
+#include <reactive/shape/rectangle.h>
 #include <reactive/shape/shape.h>
 
 #include <reactive/filler.h>
@@ -96,24 +97,32 @@ int main()
 
     auto m = signal::input<bool>(true);
     auto margin = m.signal.clone().map([](bool b) { return b ? 10.0f : 50.0f; });
+    auto color = m.signal.clone().map([](bool b)
+            {
+                reactive::widget::Theme theme;
+                return b ? theme.getOrange() : theme.getGreen();
+            });
+    auto pen = color.clone().map([](auto color)
+            {
+                return avg::Pen(avg::Brush(color), 1.0f);
+            });
 
 #if 1
     auto widgets = hbox({
         vbox({
-            widget::rectangle()
+            shape::rectangle()
+                .stroke(std::move(pen))
                 | widget::margin(std::move(margin))
                 | widget::onClick(0, signal::mapFunction([h=m.handle](bool b) mutable
+                    {
+                        app().withAnimation(1.3f, avg::curve::easeOutBounce,
+                            [&]()
                             {
-                                app().withAnimation(
-                                    1.3f,
-                                    avg::curve::easeOutElastic,
-                                    [&]()
-                                    {
-                                        h.set(!b);
-                                    });
-                            },
-                            std::move(m.signal)
-                            ))
+                                h.set(!b);
+                            });
+                    },
+                    std::move(m.signal)
+                    ))
                 | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0))),
             widget::label("Curves")
                 | widget::frame(),

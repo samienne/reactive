@@ -1,9 +1,9 @@
 #include <avg/animated.h>
 
+#include <avg/curve/curves.h>
+
 #include <chrono>
 #include <gtest/gtest.h>
-
-#include <iostream>
 
 using namespace avg;
 

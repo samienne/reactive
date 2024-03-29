@@ -28,10 +28,10 @@ std::pair<Drawing, bool> DrawNode::draw(DrawContext const& context,
     auto obb = getObbAt(time);
 
     return std::make_pair(
-        shapeFunction_(context, obb.getSize(), time)
+        shapeFunction_(time, context, obb.getSize())
             .transform(parentObb.getTransform() * obb.getTransform())
             .fillAndStroke(brush_.getValue(time), pen_.getValue(time)),
-        shapeFunction_.isAnimationRunning(time)
+        !shapeFunction_.hasAnimationEnded(time)
         );
 }
 

@@ -1,12 +1,13 @@
 #pragma once
 
-#include "curve/curves.h"
 #include "curve.h"
 #include "lerp.h"
 #include "animationoptions.h"
 #include "avgvisibility.h"
 
 #include <btl/typetraits.h>
+#include <btl/tuplemap.h>
+#include <btl/tuplereduce.h>
 
 #include <optional>
 
@@ -30,6 +31,15 @@ namespace avg
         normal,
         reverse
     };
+
+    template <typename T>
+    auto getAnimatedValue(T&& t, std::chrono::milliseconds time);
+    template <typename T, typename U>
+    auto getUpdatedAnimation(T&& a, U&& b,
+            std::optional<AnimationOptions> const& options,
+            std::chrono::milliseconds time);
+    template <typename T>
+    bool hasAnimationEnded(T const& t, std::chrono::milliseconds time);
 
     template <typename T>
     class AVG_EXPORT_CLASS_TEMPLATE Animated
@@ -300,6 +310,118 @@ namespace avg
         std::vector<KeyFrame> keyFrames_;
     };
 
+
+    template <typename T>
+    struct AnimatedTraits
+    {
+        static auto getValue(T t, std::chrono::milliseconds)
+        {
+            return t;
+        }
+
+        static auto updated(T const&, T b,
+                std::optional<AnimationOptions> const&,
+                std::chrono::milliseconds)
+        {
+            return b;
+        }
+
+        static bool hasAnimationEnded(T const&, std::chrono::milliseconds)
+        {
+            return true;
+        }
+    };
+
+    template <typename T>
+    struct AnimatedTraits<Animated<T>>
+    {
+        static auto getValue(Animated<T> const& t, std::chrono::milliseconds time)
+        {
+            return t.getValue(time);
+        }
+
+        static auto updated(Animated<T> const& a, Animated<T> const& b,
+                std::optional<AnimationOptions> const& options,
+                std::chrono::milliseconds time)
+        {
+            return a.updated(b, options, time);
+        }
+
+        static bool hasAnimationEnded(Animated<T> const& t,
+                std::chrono::milliseconds time)
+        {
+            return t.hasAnimationEnded(time);
+        }
+    };
+
+    template <typename... Ts>
+    struct AnimatedTraits<std::tuple<Ts...>>
+    {
+        static auto getValue(std::tuple<Ts...> const& t,
+                std::chrono::milliseconds time)
+        {
+            return btl::tuple_map(t, [&](auto const& t)
+                {
+                    return getAnimatedValue(t, time);
+                });
+        }
+
+        static auto updated(std::tuple<Ts...> const& a, std::tuple<Ts...> b,
+                std::optional<AnimationOptions> const& options,
+                std::chrono::milliseconds time)
+        {
+            return updatedTuples(a, b, options, time,
+                    std::make_index_sequence<sizeof...(Ts)>()
+                    );
+        }
+
+        static bool hasAnimationEnded(std::tuple<Ts...> const& t,
+                std::chrono::milliseconds time)
+        {
+            return btl::tuple_reduce(true, t, [&](bool current, auto const& t)
+                {
+                    return current && avg::hasAnimationEnded(t, time);
+                });
+        }
+
+        template <size_t... S>
+        static auto updatedTuples(std::tuple<Ts...> const& a, std::tuple<Ts...> b,
+                std::optional<AnimationOptions> const& options,
+                std::chrono::milliseconds time,
+                std::index_sequence<S...>)
+        {
+            return std::make_tuple(
+                    std::tuple_element_t<S, std::tuple<Ts...>>(
+                        getUpdatedAnimation(std::get<S>(a), std::get<S>(b),
+                            options, time)
+                        )...
+                    );
+        }
+    };
+
+    template <typename T>
+    auto getAnimatedValue(T&& t, std::chrono::milliseconds time)
+    {
+        return AnimatedTraits<std::decay_t<T>>::getValue(
+                std::forward<T>(t), time);
+    }
+
+    template <typename T, typename U>
+    auto getUpdatedAnimation(T&& a, U&& b,
+            std::optional<AnimationOptions> const& options,
+            std::chrono::milliseconds time)
+    {
+        return AnimatedTraits<std::decay_t<T>>::updated(
+                std::forward<T>(a), std::forward<U>(b),
+                options, time);
+    }
+
+    template <typename T>
+    bool hasAnimationEnded(T const& t, std::chrono::milliseconds time)
+    {
+        return AnimatedTraits<std::decay_t<T>>::hasAnimationEnded(t, time);
+    }
+
     class Rect;
     class Transform;
     class Obb;
@@ -326,7 +448,9 @@ namespace avg
     template <typename T>
     struct AnimatedType
     {
-        using type = std::remove_reference_t<std::remove_cv_t<T>>;
+        using type = std::remove_reference_t<std::remove_cv_t<
+            decltype(getAnimatedValue(std::declval<T>(),
+                        std::chrono::milliseconds(0)))>>;
     };
 
     template <typename T>
@@ -352,5 +476,11 @@ namespace avg
                 });
     }
 
+    template <typename T, typename = std::enable_if_t<
+        IsEqualityComparable<T>::value>>
+    auto animate(T&& t)
+    {
+        return Animated<std::decay_t<T>>(std::forward<T>(t));
+    }
 } // namespace avg
 

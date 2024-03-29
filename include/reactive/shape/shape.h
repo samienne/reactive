@@ -1,5 +1,7 @@
 #pragma once
 
+#include <reactive/animate.h>
+
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/widget.h>
 
@@ -14,8 +16,6 @@
 #include <avg/shape.h>
 #include <avg/shapefunction.h>
 #include <avg/vector.h>
-
-#include <btl/bindarguments.h>
 
 #include <type_traits>
 
@@ -41,54 +41,22 @@ namespace reactive::shape
             Signal<V, std::optional<avg::Pen>> pen
             )
     {
-        return widget::makeWidgetModifier([](auto widget, auto animationOptions,
-                    auto func, auto brush, auto pen)
-            {
-                return std::move(widget)
-                | widget::makeInstanceModifier(
-                    [](widget::Instance instance,
-                        std::optional<avg::AnimationOptions> const& animationOptions,
-                        avg::ShapeFunction const& func,
+        return widget::onDraw([](avg::DrawContext const& context,
+                        avg::Vector2f size,
+                        auto func, 
                         std::optional<avg::Brush> const& brush,
-                        std::optional<avg::Pen> const& pen) -> widget::Instance
-                    {
-                        auto node = std::make_shared<avg::DrawNode>(
-                                instance.getObb(),
-                                func,
-                                brush,
-                                pen,
-                                animationOptions
+                        std::optional<avg::Pen> const& pen)
+                {
+                    return func(context, size)
+                        .fillAndStroke(
+                                std::move(brush),
+                                std::move(pen)
                                 );
-
-                        auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
-
-                        bool reverse = false;
-                        if (reverse)
-                        {
-                            container->addChild(std::move(node));
-                            container->addChild(instance.getRenderTree().getRoot());
-                        }
-                        else
-                        {
-                            container->addChild(instance.getRenderTree().getRoot());
-                            container->addChild(std::move(node));
-                        }
-
-                        return std::move(instance)
-                            .setRenderTree(avg::RenderTree(std::move(container)))
-                            ;
-                    },
-                    std::move(animationOptions),
-                    std::move(func),
-                    std::move(brush),
-                    std::move(pen)
-                    );
-            },
-            widget::provideAnimation(),
-            std::move(func),
-            std::move(brush),
-            std::move(pen)
-        );
+                },
+                std::move(func),
+                reactive::animate(std::move(brush)),
+                reactive::animate(std::move(pen))
+                );
     }
 
     template <typename T>

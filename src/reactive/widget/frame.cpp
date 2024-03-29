@@ -1,21 +1,18 @@
 #include "widget/frame.h"
 
 #include "widget/ondraw.h"
-#include "widget/margin.h"
 #include "widget/theme.h"
-#include "widget/instance.h"
-#include "widget/builder.h"
 
 #include "reactive/animate.h"
-#include "reactive/shapes.h"
 
 #include "reactive/signal/constant.h"
 #include "reactive/signal/signal.h"
 
+#include "reactive/animate.h"
+
 #include <avg/transform.h>
 #include <avg/rendertree.h>
 
-#include <chrono>
 
 namespace reactive::widget
 {

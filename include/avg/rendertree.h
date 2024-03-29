@@ -189,18 +189,7 @@ namespace avg
                 avg::Obb const& obb,
                 std::chrono::milliseconds time) const final
         {
-            bool cont = btl::tuple_reduce(false, data_,
-                    [&](bool cont, auto const& data)
-                    {
-                        if constexpr (IsAnimated<std::decay_t<decltype(data)>>::value)
-                        {
-                            return cont || !data.hasAnimationEnded(time);
-                        }
-                        else
-                        {
-                            return cont;
-                        }
-                    });
+            bool cont = !hasAnimationEnded(data_, time);
 
             return std::make_pair(
                     std::apply([&, this](auto&&... ts)
@@ -208,21 +197,9 @@ namespace avg
                         return drawFunction_(
                                 context,
                                 getObbAt(time).getSize(),
-                                [&](auto&& t) -> decltype(auto)
-                                {
-                                    if constexpr (IsAnimated<
-                                            std::decay_t<decltype(t)>
-                                            >::value)
-                                    {
-                                        return std::forward<decltype(t)>(t).getValue(time);
-                                    }
-                                    else
-                                    {
-                                        return std::forward<decltype(t)>(t);
-                                    }
-                                }(
-                                    std::forward<decltype(ts)>(ts)
-                                )...
+                                getAnimatedValue(
+                                    std::forward<decltype(ts)>(ts),
+                                    time)...
                                 )
                             .transform(obb.getTransform()
                                     * getObbAt(time).getTransform()
@@ -268,12 +245,11 @@ namespace avg
                             newAnimationOptions, time),
                         newShape.animationOptions_,
                         newShape.drawFunction_,
-                        updateTuples(
+                        getUpdatedAnimation(
                             oldShape.data_,
                             newShape.data_,
-                            time,
                             newAnimationOptions,
-                            std::make_index_sequence<sizeof...(Ts)>()
+                            time
                             )
                         ),
                     std::nullopt
@@ -306,44 +282,6 @@ namespace avg
         }
 
     private:
-        template <typename T>
-        static auto updateIfAnimated(
-                T const&,
-                T const& b,
-                std::chrono::milliseconds,
-                std::optional<AnimationOptions> const&)
-        {
-            return b;
-        }
-
-        template <typename T>
-        static auto updateIfAnimated(
-                Animated<T> const& a,
-                Animated<T> const& b,
-                std::chrono::milliseconds time,
-                std::optional<AnimationOptions> const& animationOptions)
-        {
-            return a.updated(b, animationOptions, time);
-        }
-
-        template <size_t... S>
-        static std::tuple<Ts...> updateTuples(
-                std::tuple<Ts...> const& a,
-                std::tuple<Ts...> const& b,
-                std::chrono::milliseconds time,
-                std::optional<AnimationOptions> const& animationOptions,
-                std::index_sequence<S...>
-                )
-        {
-            return std::make_tuple(
-                    std::tuple_element_t<S, std::tuple<Ts...>>(
-                        updateIfAnimated(std::get<S>(a), std::get<S>(b),
-                            time, animationOptions)
-                        )...
-                    );
-        }
-
-    private:
         DrawFunction drawFunction_;
         std::optional<AnimationOptions> animationOptions_;
         std::tuple<Ts...> data_;
@@ -352,8 +290,8 @@ namespace avg
     template <typename... Ts>
     auto makeShapeNode(avg::Obb const& obb,
             std::optional<AnimationOptions> animationOptions,
-            std::function<
-            Drawing(DrawContext const&, Vector2f size, AnimatedTypeT<std::decay_t<Ts>> const&...)
+            std::function<Drawing(DrawContext const&, Vector2f size,
+                AnimatedTypeT<std::decay_t<Ts>> const&...)
             > function, Ts&&... ts)
     {
         return std::make_shared<ShapeNode<std::decay_t<Ts>...>>(

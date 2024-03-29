@@ -19,11 +19,11 @@ namespace avg
             virtual ~ShapeFunctionImpl() = default;
 
             virtual Shape operator()(
+                    std::chrono::milliseconds time,
                     DrawContext const& drawContext,
-                    Vector2f size,
-                    std::chrono::milliseconds time) const = 0;
+                    Vector2f size) const = 0;
 
-            virtual bool isAnimationRunning(std::chrono::milliseconds time) const = 0;
+            virtual bool hasAnimationEnded(std::chrono::milliseconds time) const = 0;
 
             virtual std::shared_ptr<ShapeFunctionImpl> updated(
                     std::shared_ptr<ShapeFunctionImpl> const& old,
@@ -48,11 +48,11 @@ namespace avg
         }
 
         Shape operator()(
+                std::chrono::milliseconds time,
                 DrawContext const& drawContext,
-                Vector2f size,
-                std::chrono::milliseconds time) const
+                Vector2f size) const
         {
-            return (*impl_)(drawContext, size, time);
+            return (*impl_)(time, drawContext, size);
         }
 
         auto updated(ShapeFunction const& old,
@@ -63,9 +63,9 @@ namespace avg
                         time));
         }
 
-        bool isAnimationRunning(std::chrono::milliseconds time) const
+        bool hasAnimationEnded(std::chrono::milliseconds time) const
         {
-            return impl_->isAnimationRunning(time);
+            return impl_->hasAnimationEnded(time);
         }
 
     private:
@@ -85,33 +85,19 @@ namespace avg
             }
 
             Shape operator()(
+                    std::chrono::milliseconds time,
                     DrawContext const& drawContext,
-                    Vector2f size,
-                    std::chrono::milliseconds time) const override
+                    Vector2f size) const override
             {
-                auto getAnimatedValue = [&](auto&& value) -> decltype(auto)
-                {
-                    if constexpr(IsAnimated<
-                            std::decay_t<decltype(value)>
-                            >::value)
-                    {
-                        return std::forward<decltype(value)>(value).getValue(time);
-                    }
-                    else
-                    {
-                        return std::forward<decltype(value)>(value);
-                    }
-                };
-
                 return std::apply([&, this](auto&&... ts)
                     {
                         return func_(
                                 drawContext,
                                 size,
-                                getAnimatedValue(std::forward<decltype(ts)>(ts))...
+                                std::forward<decltype(ts)>(ts)...
                              );
                     },
-                    params_
+                    getAnimatedValue(params_, time)
                     );
             }
 
@@ -124,68 +110,14 @@ namespace avg
 
                 return std::make_shared<ShapeFunctionWithParams>(
                         newShape.func_,
-                        updateParams(newShape.params_, time, animationOptions,
-                            std::make_index_sequence<sizeof...(Ts)>()
-                        ));
+                        getUpdatedAnimation(params_, newShape.params_,
+                            animationOptions, time)
+                        );
             }
 
-            bool isAnimationRunning(std::chrono::milliseconds time) const override
+            bool hasAnimationEnded(std::chrono::milliseconds time) const override
             {
-                return btl::tuple_reduce(false, params_,
-                        [&](bool current, auto const& value)
-                        {
-                            // If Animated or a ShapeFunction
-                            if constexpr(
-                                    IsAnimated<std::decay_t<decltype(value)>>::value
-                                    || std::is_same_v<ShapeFunction,
-                                            std::decay_t<decltype(value)>>)
-                            {
-                                return current || value.isAnimationRunning(time);
-                            }
-                            else
-                            {
-                                return current;
-                            }
-                        });
-            }
-
-        private:
-            template <size_t... S>
-            auto updateParams(std::tuple<Ts...> const& newParams,
-                    std::chrono::milliseconds time,
-                    std::optional<AnimationOptions> animationOptions,
-                    std::index_sequence<S...>) const
-            {
-
-                return std::make_tuple(
-                        std::tuple_element_t<S, std::tuple<Ts...>>(
-                            updateParam(
-                                std::get<S>(params_),
-                                std::get<S>(newParams),
-                                animationOptions,
-                                time
-                                )
-                            )...
-                            );
-            }
-
-            template <typename T, typename U>
-            static auto updateParam(T&& oldValue, U&& newValue,
-                    std::optional<AnimationOptions> animationOptions,
-                    std::chrono::milliseconds time)
-            {
-                if constexpr (IsAnimated<std::decay_t<T>>::value)
-                {
-                    return oldValue.updated(newValue, animationOptions, time);
-                }
-                else if constexpr(std::is_same_v<ShapeFunction, std::decay_t<T>>)
-                {
-                    return oldValue.updated(newValue, animationOptions, time);
-                }
-                else
-                {
-                    return std::forward<U>(newValue);
-                }
+                return avg::hasAnimationEnded(params_, time);
             }
 
         private:
@@ -205,6 +137,32 @@ namespace avg
                             std::forward<Ts>(ts)...)));
         }
     } // namespace detail
+
+    template<>
+    struct AnimatedTraits<ShapeFunction>
+    {
+        static auto getValue(ShapeFunction const& f,
+                std::chrono::milliseconds time)
+        {
+            return [&f, time](DrawContext const& context, Vector2f size)
+            {
+                return f(time, context, size);
+            };
+        }
+
+        static auto updated(ShapeFunction const& a, ShapeFunction const&b,
+                std::optional<AnimationOptions> options,
+                std::chrono::milliseconds time)
+        {
+            return a.updated(b, options, time);
+        }
+
+        static bool hasAnimationEnded(ShapeFunction const& f,
+                std::chrono::milliseconds time)
+        {
+            return f.hasAnimationEnded(time);
+        }
+    };
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<
