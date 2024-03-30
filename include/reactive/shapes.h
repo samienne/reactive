@@ -19,10 +19,5 @@ namespace reactive
 
     REACTIVE_EXPORT avg::Path makeCircle(pmr::memory_resource* memory,
             ase::Vector2f center, float radius);
-
-    REACTIVE_EXPORT avg::Shape makeShape(
-            avg::Path path,
-            std::optional<avg::Brush> brush,
-            std::optional<avg::Pen> pen);
 } // namespace reactive
 

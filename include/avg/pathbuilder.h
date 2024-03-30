@@ -10,10 +10,9 @@
 #include <pmr/vector.h>
 #include <pmr/memory_resource.h>
 
-#include <vector>
-
 namespace avg
 {
+    class Drawing;
     class Shape;
     class Pen;
     class Brush;
@@ -44,10 +43,11 @@ namespace avg
         Path build() &&;
         Path build() const &;
 
-        Shape buildShape() &&;
-        Shape buildShape(avg::Brush brush) &&;
-        Shape buildShape(avg::Brush brush, avg::Pen pen) &&;
-        Shape buildShape(avg::Pen pen) &&;
+        Drawing stroke(Pen const& pen) &&;
+        Drawing fill(Brush const& brush) &&;
+        Drawing fillAndStroke(
+                std::optional<Brush> const& brush,
+                std::optional<Pen> const& pen) &&;
 
     private:
         friend class Path;

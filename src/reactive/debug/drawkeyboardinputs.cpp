@@ -3,11 +3,6 @@
 #include "widget/ondraw.h"
 #include "widget/providebuildparams.h"
 #include "widget/elementmodifier.h"
-#include "widget/builder.h"
-
-#include "shapes.h"
-
-#include "signal/map.h"
 
 #include <avg/pathbuilder.h>
 
@@ -21,15 +16,15 @@ namespace
         float w = obb.getSize().x();
         float h = obb.getSize().y();
 
-        return obb.getTransform() * drawContext.drawing(
-                drawContext.pathBuilder()
-                    .start(ase::Vector2f(.0f, .0f))
-                    .lineTo(ase::Vector2f(w, .0f))
-                    .lineTo(ase::Vector2f(w, h))
-                    .lineTo(ase::Vector2f(.0f, h))
-                    .close()
-                    .buildShape(avg::Pen())
-                    );
+        return obb.getTransform() *
+            drawContext.pathBuilder()
+                .start(ase::Vector2f(.0f, .0f))
+                .lineTo(ase::Vector2f(w, .0f))
+                .lineTo(ase::Vector2f(w, h))
+                .lineTo(ase::Vector2f(.0f, h))
+                .close()
+                .stroke(avg::Pen())
+                ;
     }
 } // anonymous namespace
 

@@ -1,14 +1,12 @@
 #include "widget/button.h"
 
 #include "widget/margin.h"
-#include "widget/frame.h"
 #include "widget/label.h"
 #include "widget/onpointerdown.h"
 #include "widget/onpointerup.h"
 #include "widget/onhover.h"
 #include "widget/onclick.h"
 #include "widget/providetheme.h"
-#include "widget/settheme.h"
 #include "widget/ondraw.h"
 
 #include "reactive/shapes.h"
@@ -36,20 +34,16 @@ namespace
             bgColor = theme.getBackgroundHighlight();
 
         auto size = obb.getSize();
-
         auto pen = avg::Pen(fgColor);
-
         auto brush = avg::Brush(bgColor);
+        auto path =  makeRoundedRect(drawContext.getResource(),
+                size[0] - 5.0f, size[1] - 5.0f, 10.0f);
 
-        auto shape =  makeShape(
-                makeRoundedRect(drawContext.getResource(),
-                    size[0] - 5.0f, size[1] - 5.0f, 10.0f),
-                std::make_optional(brush),
-                std::make_optional(pen));
+        auto transform = avg::Transform()
+            .translate(0.5f * size[0], 0.5f * size[1]);
 
-        return avg::Transform()
-            .translate(0.5f * size[0], 0.5f * size[1])
-            * drawContext.drawing(shape);
+        return transform * avg::Shape(std::move(path))
+            .fillAndStroke(brush, pen);
     }
 } // anonymous namespace
 

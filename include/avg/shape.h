@@ -4,59 +4,90 @@
 #include "brush.h"
 #include "path.h"
 #include "avgvisibility.h"
+#include "operationtype.h"
 
 #include <pmr/memory_resource.h>
+#include <pmr/heap.h>
 
-#include <optional>
+#include <variant>
 
 namespace avg
 {
+    class Drawing;
+    class Region;
+
     class AVG_EXPORT Shape final
     {
     public:
-        explicit Shape(pmr::memory_resource* memory);
-        Shape(Path path, std::optional<Brush> brush, std::optional<Pen> pen);
+        Shape(Path path);
         Shape(Shape const&) = default;
         Shape(Shape&&) noexcept = default;
-        ~Shape();
 
         pmr::memory_resource* getResource() const;
 
         Shape& operator=(Shape const&) = default;
         Shape& operator=(Shape&&) noexcept = default;
 
-        Shape setPath(Path const& path) &&;
-        Shape setBrush(std::optional<Brush> const& brush) &&;
-        Shape setPen(std::optional<Pen> const& pen) &&;
+        Shape intersect(Shape&& rhs) &&;
+        Shape add(Shape&& rhs) &&;
+        Shape subtract(Shape&& rhs) &&;
 
-        Path const& getPath() const;
-        std::optional<Pen> const& getPen() const;
-        std::optional<Brush> const& getBrush() const;
+        Drawing stroke(Pen const& pen) &&;
+        Drawing fill(Brush const& brush) &&;
+        Drawing fillAndStroke(std::optional<Brush> const& brush,
+                std::optional<Pen> const& pen) &&;
+
+        Shape strokeToShape(Pen const& pen) &&;
+
+        Shape transform(Transform t) &&;
+
         Rect getControlBb() const;
-        Obb getControlObb() const;
 
         Shape operator*(float scale) const &;
         Shape operator*(float scale) &&;
-        Shape operator+(Vector2f offset) const &;
-        Shape operator+(Vector2f offset) &&;
 
         Shape& operator*=(float scale);
-        Shape& operator+=(Vector2f offset);
+        Shape& operator+=(Shape&& rhs);
 
-        bool operator==(Shape const& rhs) const;
-        bool operator!=(Shape const& rhs) const;
+        friend Shape operator*(Transform const& t, Shape const& rhs);
 
-        inline friend Shape operator*(Transform const& t, Shape const& rhs)
+        Shape with_resource(pmr::memory_resource* memory) const&;
+        Shape with_resource(pmr::memory_resource* memory) &&;
+
+        Region strokeToRegion(pmr::memory_resource* memory,
+                Pen const& pen, Vector2f pointSize) const;
+        Region fillToRegion(pmr::memory_resource* memory,
+                Vector2f pointSize) const;
+
+    public:
+        struct SubElement;
+
+        struct Operation
         {
-            return Shape(t * rhs.path_, t * rhs.brush_, t * rhs.pen_);
-        }
+            OperationType type;
+            pmr::vector<SubElement> elements;
+        };
 
-        Shape with_resource(pmr::memory_resource*) const;
+        struct StrokeToShape
+        {
+            pmr::heap<SubElement> subElement;
+            Pen pen;
+        };
+
+        using Element = std::variant<Path, Operation, StrokeToShape>;
+
+        struct SubElement
+        {
+            Transform transform;
+            Element element;
+        };
+
+    public:
+        Shape(pmr::memory_resource* memory, SubElement&& root);
 
     private:
-        Path path_;
-        std::optional<Brush> brush_;
-        std::optional<Pen> pen_;
+        pmr::memory_resource* memory_ = nullptr;
+        SubElement root_;
     };
 }
 

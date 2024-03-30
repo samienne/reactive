@@ -3,11 +3,13 @@ incdir = include_directories('../../include', '../../include/reactive', '.')
 
 libreactivesrc = [
     'widget/addwidgets.cpp',
+    'widget/background.cpp',
     'widget/bin.cpp',
     'widget/button.cpp',
     'widget/clip.cpp',
     'widget/focusgroup.cpp',
     'widget/focuson.cpp',
+    'widget/foreground.cpp',
     'widget/frame.cpp',
     'widget/instance.cpp',
     'widget/label.cpp',
@@ -29,6 +31,7 @@ libreactivesrc = [
     'widget/transform.cpp',
     'widget/widget.cpp',
     'widget/widgetobject.cpp',
+    'shape/rectangle.cpp',
     'debug/drawkeyboardinputs.cpp',
     'shapes.cpp',
     'uniformgrid.cpp',
@@ -52,6 +55,7 @@ libreactivesrc = [
     'stacksizehint.cpp',
     'growsizehint.cpp',
     'sizehint.cpp',
+    'withanimation.cpp',
 ]
 
 reactivedep = [libbtldep, libasedep, libavgdep]

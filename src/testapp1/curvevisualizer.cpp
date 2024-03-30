@@ -41,31 +41,15 @@ namespace {
                 ;
         }
 
-        return context.drawing(
-                makeShape(
-                    std::move(path).build(),
-                    std::nullopt,
-                    std::make_optional(avg::Pen(avg::Brush(curveColor)))
-                    )
-                )
-            + makeShape(
-                    context.pathBuilder()
-                    .start(0.0f, margin)
-                    .lineTo(size[0], margin)
-                    .build()
-                    ,
-                    std::nullopt,
-                    std::make_optional(avg::Pen(avg::Brush(axisColor)))
-                    )
-            + makeShape(
-                    context.pathBuilder()
-                    .start(0.0f, margin + graphHeight)
-                    .lineTo(size[0], margin + graphHeight)
-                    .build()
-                    ,
-                    std::nullopt,
-                    std::make_optional(avg::Pen(avg::Brush(axisColor)))
-                    )
+        return std::move(path).stroke(avg::Pen(avg::Brush(curveColor)))
+            + context.pathBuilder()
+                .start(0.0f, margin)
+                .lineTo(size[0], margin)
+                .stroke(avg::Pen(avg::Brush(axisColor)))
+            + context.pathBuilder()
+                .start(0.0f, margin + graphHeight)
+                .lineTo(size[0], margin + graphHeight)
+                .stroke(avg::Pen(avg::Brush(axisColor)))
             ;
     }
 } // anonymous namespace

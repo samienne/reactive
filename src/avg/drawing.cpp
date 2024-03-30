@@ -41,9 +41,9 @@ namespace
     Rect getElementRect(Drawing::Element const& e)
     {
         return std::visit(Overloaded{
-                    [](Shape const& shape) -> Rect
+                    [](Drawing::ShapeElement const& shapeElement) -> Rect
                     {
-                        return shape.getControlBb();
+                        return shapeElement.shape.getControlBb();
                     },
                     [](TextEntry const& textEntry) -> Rect
                     {
@@ -90,9 +90,9 @@ namespace
     pmr::memory_resource* getElementResource(Drawing::Element const& e)
     {
         return std::visit(Overloaded{
-                    [](Shape const& shape) -> pmr::memory_resource*
+                    [](Drawing::ShapeElement const& shapeElement) -> pmr::memory_resource*
                     {
-                        return shape.getResource();
+                        return shapeElement.shape.getResource();
                     },
                     [](TextEntry const& /*textEntry*/) -> pmr::memory_resource*
                     {
@@ -137,9 +137,13 @@ namespace
             )
     {
         return std::visit(Overloaded{
-                    [&](Shape const& shape) -> Drawing::Element
+                    [&](Drawing::ShapeElement const& shapeElement) -> Drawing::Element
                     {
-                        return shape.with_resource(memory);
+                        return Drawing::ShapeElement {
+                            shapeElement.shape.with_resource(memory),
+                            shapeElement.brush,
+                            shapeElement.pen
+                        };
                     },
                     [&](TextEntry const& textEntry) -> Drawing::Element
                     {
@@ -272,9 +276,14 @@ Drawing Drawing::operator*(float scale) &&
     for (auto& e : elements_)
     {
         std::visit(Overloaded{
-                [&](Shape& shape)
+                [&](ShapeElement& shapeElement)
                 {
-                    shape = std::move(shape) * scale;
+                    shapeElement.shape = std::move(shapeElement.shape) * scale;
+                    if (shapeElement.pen)
+                        shapeElement.pen = *shapeElement.pen * scale;
+
+                    if (shapeElement.brush)
+                        shapeElement.brush = *shapeElement.brush * scale;
                 },
                 [&](TextEntry& textEntry)
                 {
@@ -356,9 +365,13 @@ Drawing Drawing::transform(Transform const& t) &&
     for (auto&& e : elements_)
     {
         std::visit(Overloaded{
-                [&](Shape& shape)
+                [&](ShapeElement& shapeElement)
                 {
-                    shape = t * std::move(shape);
+                    shapeElement.shape = t * std::move(shapeElement.shape);
+                    if (shapeElement.pen)
+                        shapeElement.pen = t * std::move(*shapeElement.pen);
+                    if (shapeElement.brush)
+                        shapeElement.brush = t * std::move(*shapeElement.brush);
                 },
                 [&](TextEntry& textEntry)
                 {
@@ -395,9 +408,13 @@ Drawing operator*(Transform const& t, Drawing&& drawing)
                     {
                         entry = t * std::move(entry);
                     },
-                    [&](Shape& shape)
+                    [&](Drawing::ShapeElement& shapeElement)
                     {
-                        shape = t * std::move(shape);
+                        shapeElement.shape = t * std::move(shapeElement.shape);
+                        if (shapeElement.pen)
+                            shapeElement.pen = t * std::move(*shapeElement.pen);
+                        if (shapeElement.brush)
+                            shapeElement.brush = t * std::move(*shapeElement.brush);
                     },
                     [&](Drawing::ClipElement& clipElement)
                     {

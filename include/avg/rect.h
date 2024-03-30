@@ -23,6 +23,8 @@ namespace avg
 
         Rect& operator=(Rect const&) = default;
         Rect& operator=(Rect&&) noexcept = default;
+        Rect operator+(Rect const& rhs) const;
+        Rect& operator+=(Rect const& rhs);
 
         bool operator==(Rect const& rhs) const;
 

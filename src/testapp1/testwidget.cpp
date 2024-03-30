@@ -44,13 +44,13 @@ namespace
 
         auto rect = makeRect(drawContext.getResource(),
                 size[0] - 50.0f, 200.0f);
-        auto shape = makeShape(rect, std::make_optional(brush), std::make_optional(pen));
+        auto shape = avg::Shape(rect).fillAndStroke(brush, pen);
 
         auto text = avg::TextEntry(theme.getFont(), avg::Transform(
                     avg::Vector2f(-70.0f, 0.0f), 20.0f),
                 str, std::make_optional(brush2), std::nullopt);
 
-        return (drawContext.drawing(std::move(shape)) + text)
+        return (std::move(shape) + text)
             .transform(avg::translate(0.5f*size[0], 116.0f));
     };
 } // anonymous namespace
