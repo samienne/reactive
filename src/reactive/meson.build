@@ -9,6 +9,7 @@ libreactivesrc = [
     'widget/clip.cpp',
     'widget/focusgroup.cpp',
     'widget/focuson.cpp',
+    'widget/foreground.cpp',
     'widget/frame.cpp',
     'widget/instance.cpp',
     'widget/label.cpp',
