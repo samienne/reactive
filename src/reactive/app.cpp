@@ -538,53 +538,37 @@ int App::run() &&
     return std::move(*this).run(running.signal);
 }
 
-void App::withAnimation(avg::AnimationOptions animationOptions,
-        std::function<void()> fn)
+AnimationGuard App::withAnimation(avg::AnimationOptions options)
 {
-    for (auto& glue : d()->windowGlues_)
+    return AnimationGuard(*d(), std::move(options));
+}
+
+AnimationGuard::AnimationGuard(AppDeferred& app,
+        std::optional<avg::AnimationOptions> options) :
+    app_(&app),
+    options_(options)
+{
+    for (auto& glue : app_->windowGlues_)
     {
         glue->makeTransaction(
                 std::chrono::milliseconds(0),
                 std::nullopt
                 );
     }
+}
 
-    fn();
+AnimationGuard::~AnimationGuard()
+{
+    if (!app_)
+        return;
 
-    for (auto& glue : d()->windowGlues_)
+    for (auto& glue : app_->windowGlues_)
     {
         glue->makeTransaction(
                 std::chrono::milliseconds(0),
-                animationOptions
+                options_
                 );
     }
-}
-
-void App::withAnimation(
-        std::chrono::milliseconds duration,
-        avg::Curve curve,
-        std::function<void()> callback
-        )
-{
-    withAnimation(
-            avg::AnimationOptions{ duration, std::move(curve) },
-            std::move(callback)
-            );
-}
-
-void App::withAnimation(
-        float seconds,
-        avg::Curve curve,
-        std::function<void()> callback
-        )
-{
-    withAnimation(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::duration<float>(seconds)
-                ),
-            std::move(curve),
-            std::move(callback)
-            );
 }
 
 App app()

@@ -5,13 +5,15 @@
 #include "window.h"
 #include "reactivevisibility.h"
 
+#include <avg/curve/curves.h>
+
 #include <btl/shared.h>
 #include <btl/visibility.h>
-#include <chrono>
 
 namespace reactive
 {
     class AppDeferred;
+    class AnimationGuard;
 
     class REACTIVE_EXPORT App
     {
@@ -23,20 +25,10 @@ namespace reactive
         int run(AnySignal<bool> running) &&;
         int run() &&;
 
-        void withAnimation(avg::AnimationOptions animationOptions,
-                std::function<void()> fn);
+        [[nodiscard]]
+        AnimationGuard withAnimation(avg::AnimationOptions options);
 
-        void withAnimation(
-                std::chrono::milliseconds duration,
-                avg::Curve curve,
-                std::function<void()> callback
-                );
-
-        void withAnimation(
-                float seconds,
-                avg::Curve curve,
-                std::function<void()> callback
-                );
+        friend class AnimationGuard;
 
     private:
         inline AppDeferred* d()
@@ -51,6 +43,23 @@ namespace reactive
 
     private:
         btl::shared<AppDeferred> deferred_;
+    };
+
+    class REACTIVE_EXPORT AnimationGuard
+    {
+    public:
+        AnimationGuard(AppDeferred& app, std::optional<avg::AnimationOptions> options);
+        AnimationGuard(AnimationGuard const& rhs) noexcept = delete;
+        AnimationGuard(AnimationGuard&& rhs) noexcept = delete;
+
+        ~AnimationGuard();
+
+        AnimationGuard& operator=(AnimationGuard const& rhs) noexcept = delete;
+        AnimationGuard& operator=(AnimationGuard&& rhs) noexcept = delete;
+
+    private:
+        AppDeferred* app_ = nullptr;
+        std::optional<avg::AnimationOptions> options_;
     };
 
     REACTIVE_EXPORT App app();

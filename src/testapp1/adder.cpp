@@ -16,7 +16,7 @@
 #include <reactive/filler.h>
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
-#include <reactive/app.h>
+#include <reactive/withanimation.h>
 
 #include <reactive/signal/databind.h>
 #include <reactive/signal/constant.h>
@@ -102,40 +102,30 @@ reactive::widget::AnyWidget adder()
                 ,
                 widget::button("T", signal::mapFunction([items, id]() mutable
                     {
-                        app().withAnimation(
-                                std::chrono::milliseconds(300),
-                                avg::curve::linear,
-                                [&]()
-                                {
-                                    auto range = items.rangeLock();
-                                    auto i = range.findId(id);
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        auto range = items.rangeLock();
+                        auto i = range.findId(id);
 
-                                    range.move(i, range.begin());
-                                });
-                    }))
+                        range.move(i, range.begin());
+                        }))
                 ,
                 widget::button("S", signal::mapFunction(
                     [items, id, swapState]() mutable
                     {
-                        app().withAnimation(
-                                std::chrono::milliseconds(300),
-                                avg::curve::linear,
-                                [&]()
-                                {
-                                    if (*swapState == 0)
-                                    {
-                                        *swapState = id;
-                                    }
-                                    else
-                                    {
-                                        auto range = items.rangeLock();
-                                        auto i = range.findId(id);
-                                        auto j = range.findId(*swapState);
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        if (*swapState == 0)
+                        {
+                            *swapState = id;
+                        }
+                        else
+                        {
+                            auto range = items.rangeLock();
+                            auto i = range.findId(id);
+                            auto j = range.findId(*swapState);
 
-                                        range.swap(i, j);
-                                        *swapState = 0;
-                                    }
-                                });
+                            range.swap(i, j);
+                            *swapState = 0;
+                        }
                     }))
                 ,
                 widget::label(std::move(value))
@@ -144,13 +134,8 @@ reactive::widget::AnyWidget adder()
                 ,
                 widget::button("x", signal::constant([id, items]() mutable
                     {
-                        app().withAnimation(
-                                std::chrono::milliseconds(300),
-                                avg::curve::linear,
-                                [id, items]() mutable
-                                {
-                                    items.rangeLock().eraseWithId(id);
-                                });
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        items.rangeLock().eraseWithId(id);
                     }))
                 })
                 | reactive::widget::transition(reactive::widget::transitionLeft())
@@ -189,23 +174,13 @@ reactive::widget::AnyWidget adder()
             vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
-                    app().withAnimation(
-                            std::chrono::milliseconds(500),
-                            avg::curve::easeInCubic,
-                            [&]()
-                            {
-                                items.rangeLock().pushFront(std::move(text));
-                            });
+                    auto a = withAnimation(0.3f, avg::curve::easeInCubic);
+                    items.rangeLock().pushFront(std::move(text));
                 },
                 [items]() mutable
                 {
-                    app().withAnimation(
-                            std::chrono::milliseconds(500),
-                            avg::curve::easeInOutCubic,
-                            [&]()
-                            {
-                                items.rangeLock().sort();
-                            });
+                    auto a = withAnimation(0.5f, avg::curve::easeInOutCubic);
+                    items.rangeLock().sort();
                 }
                 ),
                 hbox({
@@ -213,13 +188,8 @@ reactive::widget::AnyWidget adder()
                     widget::button(std::move(buttonTitle), signal::mapFunction(
                         [handle=fancy.handle](bool fancy) mutable
                         {
-                            app().withAnimation(
-                                    std::chrono::milliseconds(300),
-                                    avg::curve::linear,
-                                    [&]()
-                                    {
-                                        handle.set(!fancy);
-                                    });
+                            auto a = withAnimation(0.3f, avg::curve::linear);
+                            handle.set(!fancy);
                         },
                         fancy.signal
                         ))

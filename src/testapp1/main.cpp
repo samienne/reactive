@@ -32,6 +32,7 @@
 #include <reactive/uniformgrid.h>
 #include <reactive/hbox.h>
 #include <reactive/vbox.h>
+#include <reactive/withanimation.h>
 
 #include <reactive/signal/tostring.h>
 #include <reactive/signal/constant.h>
@@ -120,11 +121,8 @@ int main()
                 | widget::margin(std::move(margin))
                 | widget::onClick(0, signal::mapFunction([h=m.handle](bool b) mutable
                     {
-                        app().withAnimation(1.3f, avg::curve::easeOutBounce,
-                            [&]()
-                            {
-                                h.set(!b);
-                            });
+                        auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
+                        h.set(!b);
                     },
                     std::move(m.signal)
                     ))
