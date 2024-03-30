@@ -12,6 +12,13 @@ namespace
     Shape::Operation withResource(Shape::Operation&& operation,
             pmr::memory_resource* memory);
 
+    pmr::heap<Shape::SubElement> withResource(
+            pmr::heap<Shape::SubElement>&& heap,
+            pmr::memory_resource* memory);
+
+    Shape::StrokeToShape withResource(Shape::StrokeToShape&& stroke,
+            pmr::memory_resource* memory);
+
     Shape::Element withResource(Shape::Element&& element,
             pmr::memory_resource* memory)
     {
@@ -26,6 +33,13 @@ namespace
         {
             return withResource(
                     std::move(std::get<Shape::Operation>(element)),
+                    memory
+                    );
+        }
+        else if (std::holds_alternative<Shape::StrokeToShape>(element))
+        {
+            return withResource(
+                    std::move(std::get<Shape::StrokeToShape>(element)),
                     memory
                     );
         }
@@ -61,6 +75,28 @@ namespace
         }
 
         return { operation.type, std::move(elements) };
+    }
+
+    Shape::StrokeToShape withResource(Shape::StrokeToShape&& stroke,
+            pmr::memory_resource* memory)
+    {
+        return {
+            withResource(std::move(stroke.subElement), memory),
+            stroke.pen
+        };
+    }
+
+    pmr::heap<Shape::SubElement> withResource(
+            pmr::heap<Shape::SubElement>&& heap,
+            pmr::memory_resource* memory)
+    {
+        if (heap.resource() == memory)
+            return std::move(heap);
+
+        return pmr::make_heap<Shape::SubElement>(
+                memory,
+                withResource(std::move(*heap), memory)
+                );
     }
 
     Shape withOperation(
@@ -150,6 +186,13 @@ namespace
                 break;
             }
         }
+        else if (std::holds_alternative<Shape::StrokeToShape>(element))
+        {
+            return getControlBb(
+                    transform,
+                    *std::get<Shape::StrokeToShape>(element).subElement).enlarged(
+                    std::get<Shape::StrokeToShape>(element).pen.getWidth() / 2.0f);
+        }
 
         return result;
     }
@@ -159,6 +202,14 @@ namespace
             Vector2f pointSize,
             Transform transform,
             Shape::SubElement const& subElement);
+
+    Region strokeSubElementToRegion(
+            pmr::memory_resource* memory,
+            Vector2f pointSize,
+            Transform transform,
+            Pen const& pen,
+            Shape::SubElement const& subElement);
+
 
     Region fillOperationToRegion(
             pmr::memory_resource* memory,
@@ -213,6 +264,11 @@ namespace
         {
             return fillOperationToRegion(memory, pointSize, transform,
                     std::get<Shape::Operation>(element));
+        } else if (std::holds_alternative<Shape::StrokeToShape>(element))
+        {
+            auto const& stroke = std::get<Shape::StrokeToShape>(element);
+            return strokeSubElementToRegion(memory, pointSize,
+                    transform, stroke.pen, *stroke.subElement);
         }
 
         assert(false && "Unknown sub element type");
@@ -229,13 +285,6 @@ namespace
         return fillElementToRegion(memory, pointSize,
                 transform *  subElement.transform, subElement.element);
     }
-
-    Region strokeSubElementToRegion(
-            pmr::memory_resource* memory,
-            Vector2f pointSize,
-            Transform transform,
-            Pen const& pen,
-            Shape::SubElement const& subElement);
 
     Region strokeOperationToRegion(
             pmr::memory_resource* memory,
@@ -290,6 +339,17 @@ namespace
         {
             return strokeOperationToRegion(memory, pointSize, transform,
                     pen, std::get<Shape::Operation>(element));
+        }
+        else if (std::holds_alternative<Shape::StrokeToShape>(element))
+        {
+            return strokeSubElementToRegion(
+                    memory,
+                    pointSize,
+                    transform,
+                    pen,
+                    *std::get<Shape::StrokeToShape>(element).subElement)
+                .offset(pen.getJoinType(), pen.getEndType(), pen.getWidth())
+                ;
         }
 
         assert(false && "Unknown sub element type");
@@ -370,6 +430,22 @@ Drawing Shape::fillAndStroke(std::optional<Brush> const& brush,
 {
     return Drawing(memory_, Drawing::ShapeElement { std::move(*this),
                 brush, pen });
+}
+
+Shape Shape::strokeToShape(Pen const& pen) &&
+{
+    return Shape(
+            memory_,
+            Shape::SubElement {
+                Transform(),
+                StrokeToShape {
+                    pmr::make_heap<SubElement>(
+                            memory_,
+                            std::move(root_)
+                            ),
+                    pen
+                }
+            });
 }
 
 Shape Shape::transform(Transform t) &&

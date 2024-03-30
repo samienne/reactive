@@ -6,7 +6,6 @@ libavgsrc = [
     'animated.cpp',
     'lerp.cpp',
     'drawcontext.cpp',
-    'drawnode.cpp',
     'rendertree.cpp',
     'fontmanager.cpp',
     'fontimpl.cpp',

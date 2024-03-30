@@ -10,7 +10,6 @@
 #include <avg/animated.h>
 #include <avg/brush.h>
 #include <avg/drawcontext.h>
-#include <avg/drawnode.h>
 #include <avg/path.h>
 #include <avg/pen.h>
 #include <avg/shape.h>
@@ -25,8 +24,8 @@ namespace reactive::shape
 
     namespace detail
     {
-        template <typename T, typename TFunc>
-        auto makeShapeUnchecked(Signal<T, TFunc>&& func);
+        template <typename T>
+        auto makeShapeUncheckedFromSignal(Signal<T, avg::ShapeFunction> func);
     }
 
     template <typename T>
@@ -112,8 +111,25 @@ namespace reactive::shape
         }
 
         template <typename U>
-        auto strokeToShape(Signal<T, avg::Pen> pen) && // -> Shape
+        auto strokeToShape(Signal<U, avg::Pen> pen) && // -> Shape
         {
+            return detail::makeShapeUncheckedFromSignal(
+                    signal::group(std::move(func_), std::move(pen)).map(
+                        [](avg::ShapeFunction func, avg::Pen pen)
+                        {
+                            return makeShapeFunction(
+                                [](avg::DrawContext const& drawContext,
+                                    avg::Vector2f size,
+                                    auto func,
+                                    avg::Pen pen)
+                                {
+                                    return func(drawContext, size)
+                                        .strokeToShape(pen);
+                                },
+                                std::move(func),
+                                pen
+                                );
+                        }));
         }
 
         widget::AnyWidget fillAndStroke(std::optional<AnySignal<avg::Brush>> brush,
@@ -129,6 +145,23 @@ namespace reactive::shape
 
         auto clip(Shape clipShape) // -> Shape
         {
+            return detail::makeShapeUncheckedFromSignal(
+                    signal::group(std::move(func_), std::move(clipShape.func_))
+                    .map([](auto lhs, auto rhs)
+                        {
+                            return makeShapeFunction(
+                                [](avg::DrawContext const& drawContext,
+                                    avg::Vector2f size,
+                                    auto lhs,
+                                    auto rhs)
+                                {
+                                    return lhs(drawContext, size)
+                                        & rhs(drawContext, size);
+                                },
+                                std::move(lhs),
+                                std::move(rhs)
+                                );
+                        }));
         }
 
         operator AnyShape() const&

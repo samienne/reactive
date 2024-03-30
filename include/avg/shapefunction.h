@@ -133,7 +133,7 @@ namespace avg
                     std::decay_t<TFunc>,
                     std::decay_t<Ts>...
                     >>(std::forward<TFunc>(func),
-                        std::make_tuple<std::decay_t<Ts>...>(
+                        std::make_tuple(
                             std::forward<Ts>(ts)...)));
         }
     } // namespace detail

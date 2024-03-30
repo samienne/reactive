@@ -19,7 +19,6 @@ libreactivesrc = [
     'widget/onhover.cpp',
     'widget/onkeyevent.cpp',
     'widget/ontextevent.cpp',
-    'widget/rectangle.cpp',
     'widget/setid.cpp',
     'widget/setsizehint.cpp',
     'widget/scrollbar.cpp',

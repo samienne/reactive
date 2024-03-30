@@ -37,6 +37,8 @@ namespace avg
         Drawing fillAndStroke(std::optional<Brush> const& brush,
                 std::optional<Pen> const& pen) &&;
 
+        Shape strokeToShape(Pen const& pen) &&;
+
         Shape transform(Transform t) &&;
 
         Rect getControlBb() const;
@@ -66,7 +68,13 @@ namespace avg
             pmr::vector<SubElement> elements;
         };
 
-        using Element = std::variant<Path, Operation>;
+        struct StrokeToShape
+        {
+            pmr::heap<SubElement> subElement;
+            Pen pen;
+        };
+
+        using Element = std::variant<Path, Operation, StrokeToShape>;
 
         struct SubElement
         {

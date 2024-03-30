@@ -1,7 +1,6 @@
 #include "adder.h"
 #include "reactive/widget/setsizehint.h"
 #include "spinner.h"
-#include "testwidget.h"
 #include "curvevisualizer.h"
 
 #include <reactive/debug/drawkeyboardinputs.h>
@@ -20,11 +19,9 @@
 #include <reactive/widget/onpointerdown.h>
 #include <reactive/widget/onhover.h>
 #include <reactive/widget/builder.h>
-#include <reactive/widget/rectangle.h>
 #include <reactive/widget/onclick.h>
 
 #include <reactive/shape/rectangle.h>
-#include <reactive/shape/shape.h>
 
 #include <reactive/filler.h>
 #include <reactive/simplesizehint.h>
@@ -50,7 +47,6 @@
 #include <btl/future.h>
 
 #include <iostream>
-#include <chrono>
 
 using namespace reactive;
 
@@ -102,16 +98,25 @@ int main()
                 reactive::widget::Theme theme;
                 return b ? theme.getOrange() : theme.getGreen();
             });
+    auto color2 = m.signal.clone().map([](bool b)
+            {
+                reactive::widget::Theme theme;
+                return b ? theme.getYellow() : theme.getBlue();
+            });
     auto pen = color.clone().map([](auto color)
             {
                 return avg::Pen(avg::Brush(color), 1.0f);
             });
 
-#if 1
+    auto brush = color2.clone().map([](auto color)
+            {
+                return avg::Brush(color);
+            });
+
     auto widgets = hbox({
         vbox({
             shape::rectangle()
-                .stroke(std::move(pen))
+                .fillAndStroke(std::move(brush), std::move(pen))
                 | widget::margin(std::move(margin))
                 | widget::onClick(0, signal::mapFunction([h=m.handle](bool b) mutable
                     {
@@ -163,13 +168,6 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 signal::constant(0.5f))
     });
-
-#else
-    auto widgets = widget::rectangle()
-        | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0)))
-        | widget::margin(signal::constant(10.0f))
-        ;
-#endif
 
     return app()
         .windows({
