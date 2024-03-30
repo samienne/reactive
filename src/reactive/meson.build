@@ -3,6 +3,7 @@ incdir = include_directories('../../include', '../../include/reactive', '.')
 
 libreactivesrc = [
     'widget/addwidgets.cpp',
+    'widget/background.cpp',
     'widget/bin.cpp',
     'widget/button.cpp',
     'widget/clip.cpp',

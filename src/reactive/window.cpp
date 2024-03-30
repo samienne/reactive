@@ -1,8 +1,6 @@
 #include "window.h"
 
-#include "widget/drawbackground.h"
-#include "widget/builder.h"
-#include "widget/buildermodifier.h"
+#include "widget/background.h"
 
 namespace reactive
 {
