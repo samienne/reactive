@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <functional>
 #include <vector>
+#include <string>
 
 namespace ase
 {
@@ -15,7 +16,7 @@ namespace ase
     class ASE_EXPORT Dispatcher
     {
     public:
-        Dispatcher();
+        Dispatcher(std::string = "");
         Dispatcher(Dispatcher const& other) = delete;
         ~Dispatcher();
 
@@ -36,6 +37,7 @@ namespace ase
         // Mutable to allow const waiting
         mutable std::mutex mutex_;
         mutable std::condition_variable condition_;
+        std::string name_;
         std::thread thread_;
         std::vector<std::function<void()> > funcs_;
         std::optional<std::function<void()>> idleCallback_;

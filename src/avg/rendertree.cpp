@@ -4,6 +4,8 @@
 #include "pathbuilder.h"
 #include "transform.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <atomic>
 #include <chrono>
 #include <memory>
@@ -943,6 +945,8 @@ std::pair<Drawing, bool> RenderTree::draw(
         avg::Obb const& obb,
         std::chrono::milliseconds time) const
 {
+    ZoneScopedN("RenderTree::draw");
+
     if (!root_)
     {
         return std::make_pair(context.drawing(), false);

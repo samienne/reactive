@@ -2,10 +2,13 @@
 
 #include "debug.h"
 
+#include <tracy/Tracy.hpp>
+
 namespace ase
 {
 
-Dispatcher::Dispatcher() :
+Dispatcher::Dispatcher(std::string name) :
+    name_(name.empty() ? "Dispatcher" : std::move(name)),
     running_(true),
     idle_(true)
 {
@@ -59,6 +62,9 @@ bool Dispatcher::hasIdleFunc(Dispatched)
 
 void Dispatcher::runThread()
 {
+    ZoneScoped;
+    ZoneName(name_.c_str(), name_.length());
+
     auto predicate = [this]()
     {
         return !this->running_ || !this->funcs_.empty();

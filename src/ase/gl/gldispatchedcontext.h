@@ -3,10 +3,6 @@
 #include "glfunctions.h"
 #include "dispatcher.h"
 
-#include "asevisibility.h"
-
-#include <functional>
-
 namespace ase
 {
     class GlDispatchedContext

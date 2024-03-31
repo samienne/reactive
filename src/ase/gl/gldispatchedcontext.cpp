@@ -1,16 +1,21 @@
 #include "gldispatchedcontext.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <cassert>
 
 namespace ase
 {
 
-GlDispatchedContext::GlDispatchedContext()
+GlDispatchedContext::GlDispatchedContext() :
+    dispatcher_("GlDispatchedContext")
 {
 }
 
 void GlDispatchedContext::wait()
 {
+    ZoneScopedN("GlDispatchedContext::wait");
+
     dispatcher_.wait();
 }
 

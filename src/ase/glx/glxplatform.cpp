@@ -13,14 +13,13 @@
 
 #include <X11/extensions/sync.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <vector>
 #include <algorithm>
-#include <thread>
-#include <sstream>
 #include <stdexcept>
 #include <utility>
 #include <unordered_set>
-#include <optional>
 
 #include <cstdlib>
 
@@ -280,6 +279,8 @@ Window GlxPlatform::makeWindow(Vector2i size)
 
 void GlxPlatform::handleEvents()
 {
+    ZoneScoped;
+
     std::vector<XEvent> events;
     std::vector<std::shared_ptr<GlxWindow>> windows;
 
@@ -442,6 +443,7 @@ void GlxPlatform::makeGlxContextCurrent(GlxPlatform::Lock const& /*lock*/,
 
 void GlxPlatform::swapGlxBuffers(Lock const& /*lock*/, GLXDrawable drawable)
 {
+    ZoneScoped;
     glXSwapBuffers(d()->dpy_, drawable);
 }
 

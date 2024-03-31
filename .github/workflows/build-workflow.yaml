@@ -26,14 +26,15 @@ jobs:
             git clang-format-17 origin/master --diffstat
 
     build-linux:
-        name: "build-linux (${{ matrix.compiler.CC }})"
+        name: "build-linux (${{ matrix.compiler.CC }} ${{ matrix.compiler.config }})"
         strategy:
             matrix:
                 compiler: [
-                    { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release" },
-                    { "deps": "gcc-9 g++-9", "CC": "gcc-9", "CXX": "g++-9", "type": "release" },
-                    { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release" },
-                    { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release" } ]
+                  { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release", config: ""},
+                  { "deps": "gcc-9 g++-9", "CC": "gcc-9", "CXX": "g++-9", "type": "release", config: ""},
+                  { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release", config: ""},
+                  { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release", config: ""},
+                  { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release", config: "-Dtracy_enable=true"} ]
         runs-on: "ubuntu-20.04"
         steps:
         - uses: actions/checkout@v2
@@ -49,7 +50,7 @@ jobs:
           run: |
             mkdir -p build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
             cd build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
-            CC=${{ matrix.compiler.CC }} CXX=${{ matrix.compiler.CXX }} ../meson/meson.py --buildtype=${{ matrix.compiler.type }} --wrap-mode=forcefallback -Db_coverage=true ../..
+            CC=${{ matrix.compiler.CC }} CXX=${{ matrix.compiler.CXX }} ../meson/meson.py setup --buildtype=${{ matrix.compiler.type }} --wrap-mode=forcefallback -Db_coverage=true ${{ matrix.compiler.config }} ../..
             ninja
 
         - name: Tests
@@ -75,7 +76,7 @@ jobs:
             sudo xcode-select -s /Applications/Xcode.app
             mkdir -p build/release
             cd build/release
-            python3 ../meson/meson.py --buildtype=release --wrap-mode=forcefallback ../..
+            python3 ../meson/meson.py setup --buildtype=release --wrap-mode=forcefallback ../..
             ninja
 
         - name: Tests
@@ -143,7 +144,7 @@ jobs:
 
             md build\win-release
             echo 'Configuring...'
-            python build\meson\meson.py --buildtype=release --wrap-mode=forcefallback  . build/win-release
+            python build\meson\meson.py setup --buildtype=release --wrap-mode=forcefallback  . build/win-release
             #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
             echo 'Building...'
             ninja -C build/win-release

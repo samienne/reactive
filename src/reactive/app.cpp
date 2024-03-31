@@ -25,6 +25,8 @@
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <chrono>
 #include <unordered_map>
 
@@ -46,6 +48,11 @@ class WindowGlue;
 class REACTIVE_EXPORT AppDeferred
 {
 public:
+    AppDeferred()
+    {
+        TracyAppInfo("Reactive application", 20);
+    }
+
     std::vector<Window> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
 };
@@ -247,6 +254,8 @@ public:
             std::optional<avg::AnimationOptions> const& animationOptions
             )
     {
+        ZoneScoped;
+
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
         signal::FrameInfo frameInfo(getNextFrameId(), dt);
@@ -262,6 +271,8 @@ public:
 
         if (widgetInstanceSignal_.hasChanged())
         {
+            ZoneScopedN("Widget instance signal evaluation");
+
             widgetInstance_ = widgetInstanceSignal_.evaluate();
 
             // If there's an area with the same id -> update
@@ -313,6 +324,7 @@ public:
                 || (nextUpdate_ && *nextUpdate_ <= timer)
                 )
         {
+            ZoneScopedN("RenderTree update");
             auto [renderTree, nextUpdate] = std::move(renderTree_).update(
                     btl::clone(widgetInstance_.getRenderTree()),
                     animationOptions,
@@ -337,6 +349,8 @@ public:
 
     std::optional<signal::signal_time_t> frame(std::chrono::microseconds dt)
     {
+        ZoneScoped;
+
         pointerEventsOnThisFrame_ = 0;
 
         if (resized_)
@@ -368,7 +382,7 @@ public:
 
         painter_.clearWindow(aseWindow);
 
-        //if (redraw_)
+        if (redraw_)
         {
             painter_.paintToWindow(aseWindow, drawing_);
 
@@ -481,6 +495,9 @@ int App::run(AnySignal<bool> running) &&
 
     while (running.evaluate())
     {
+        FrameMark;
+        ZoneScopedN("mainLoop");
+
         auto thisFrame = clock.now();
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
@@ -507,7 +524,10 @@ int App::run(AnySignal<bool> running) &&
                 std::chrono::microseconds>(clock.now() - thisFrame);
             auto remaining = *timeToNext - frameTime;
             if (remaining.count() > 0)
+            {
+                ZoneScopedN("sleep");
                 std::this_thread::sleep_for(remaining);
+            }
         }
 
         lastFrame = thisFrame;

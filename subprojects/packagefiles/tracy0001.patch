@@ -1,0 +1,15 @@
+diff --git a/meson.build b/meson.build
+index b8112c0..65fb147 100644
+--- a/meson.build
++++ b/meson.build
+@@ -197,6 +197,10 @@ tracy_compile_args += tracy_common_args
+ 
+ tracy_deps = [dependency('threads')] + tracy_public_deps
+ 
++if target_machine.system() == 'linux'
++  tracy_deps += dependency('dl')
++endif
++
+ tracy = library('tracy', tracy_src, tracy_header_files,
+     dependencies        : tracy_deps,
+     include_directories : tracy_public_include_dirs,

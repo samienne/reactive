@@ -4,9 +4,9 @@
 #include "glxplatform.h"
 #include "glxdispatchedcontext.h"
 
-#include "debug.h"
-
 #include <GL/glx.h>
+
+#include <tracy/Tracy.hpp>
 
 namespace ase
 {
@@ -39,6 +39,7 @@ GlxRenderContext::~GlxRenderContext()
 
 void GlxRenderContext::present(Dispatched d, Window& window)
 {
+    ZoneScopedN("GlxRenderContext::present");
     GlxWindow& glxWindow = window.getImpl<GlxWindow>();
     glxWindow.present(d);
 }
