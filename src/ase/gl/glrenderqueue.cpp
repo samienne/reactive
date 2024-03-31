@@ -2,6 +2,8 @@
 
 #include "gldispatchedcontext.h"
 
+#include <tracy/Tracy.hpp>
+
 namespace ase
 {
 
@@ -33,6 +35,7 @@ GlDispatchedContext const& GlRenderQueue::getDispatcher() const
 
 void GlRenderQueue::flush()
 {
+    ZoneScoped;
     dispatcher_->wait();
 }
 

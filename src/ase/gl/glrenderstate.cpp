@@ -25,6 +25,8 @@
 
 #include <btl/async.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <algorithm>
 #include <variant>
 
@@ -199,6 +201,8 @@ void GlRenderState::endFrame()
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
+    ZoneScoped;
+
     if (vertexArrayObject_ == 0)
     {
         gl.glGenVertexArrays(1, &vertexArrayObject_);
@@ -212,6 +216,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
         if (std::holds_alternative<ClearCommand>(renderCommand))
         {
+            ZoneScopedN("Clear command");
+
             ClearCommand const& clearCommand = std::get<ClearCommand>(renderCommand);
 
             GlBaseFramebuffer const& framebuffer = clearCommand.target.getImpl<
@@ -238,6 +244,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
         else if (std::holds_alternative<PresentCommand>(renderCommand))
         {
+            ZoneScopedN("Present command");
             presentCallback_(d, const_cast<Window&>(
                         std::get<PresentCommand>(renderCommand).window)
                     );
@@ -247,6 +254,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
         else if (std::holds_alternative<FenceCommand>(renderCommand))
         {
+            ZoneScopedN("Fence command");
             auto&& fenceCommand = std::get<FenceCommand>(renderCommand);
             WaitingFence fence
             {
@@ -260,6 +268,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
         else if (std::holds_alternative<BufferUploadCommand>(renderCommand))
         {
+            ZoneScopedN("Buffer upload command");
             auto&& uploadCommand = std::get<BufferUploadCommand>(renderCommand);
 
             if (std::holds_alternative<VertexBuffer>(uploadCommand.target))
@@ -298,6 +307,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
         else if (std::holds_alternative<TextureUploadCommand>(renderCommand))
         {
+            ZoneScopedN("Texture upload command");
             auto&& uploadCommand = std::get<TextureUploadCommand>(renderCommand);
             auto&& glTexture = uploadCommand.target.getImpl<GlTexture>();
 
@@ -315,6 +325,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             continue;
         }
 
+        ZoneScopedN("Draw command");
         assert(std::holds_alternative<DrawCommand>(renderCommand));
 
         DrawCommand const& command = std::get<DrawCommand>(renderCommand);
@@ -463,18 +474,29 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
 
         if (ibo)
+        {
+            ZoneScopedN("glDrawElement");
             glDrawElements(mode, count, GL_UNSIGNED_INT, 0);
+        }
         else
+        {
+            ZoneScopedN("glDrawArarys");
             glDrawArrays(mode, 0, count);
+        }
     }
 
-    glFlush();
+    {
+        ZoneScopedN("glFlush");
+        glFlush();
+    }
 
     checkFences(d, gl);
 }
 
 void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
 {
+    ZoneScoped;
+
     auto i = fences_.begin();
     while (i != fences_.end())
     {
@@ -518,6 +540,8 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,
         VertexSpec const& spec, std::vector<GLint>& activeAttribs)
 {
+    ZoneScoped;
+
     size_t stride = spec.getStride();
     std::vector<VertexSpec::Spec> const& specs = spec.getSpecs();
     std::vector<GLint> attribs;

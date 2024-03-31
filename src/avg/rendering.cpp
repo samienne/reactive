@@ -27,6 +27,8 @@
 #include <pmr/monotonic_buffer_resource.h>
 #include <pmr/new_delete_resource.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <optional>
 
 namespace avg
@@ -69,6 +71,7 @@ Color premultiply(Color c)
 Vertices generateVertices(pmr::memory_resource* memory,
         SoftMesh const& mesh, float z)
 {
+    ZoneScoped;
     auto const& vertices = mesh.getVertices();
     Transform const& t = mesh.getTransform();
     std::array<float, 4> c = premultiply(mesh.getBrush().getColor())
@@ -95,6 +98,7 @@ SoftMesh generateMeshForRegion(pmr::memory_resource* memory,
         Region const& region, Brush const& brush,
         Rect const& r, bool clip)
 {
+    ZoneScoped;
     auto bufs = std::make_pair(
             pmr::vector<ase::Vector2f>(memory),
             pmr::vector<uint32_t>(memory)
@@ -114,6 +118,7 @@ SoftMesh generateMeshForBrush(pmr::memory_resource* memory,
         Shape const& shape, Brush const& brush,
         ase::Vector2f pointSize, Rect const& r, bool clip)
 {
+    ZoneScoped;
     pmr::monotonic_buffer_resource mono(memory);
 
     Region region = shape.fillToRegion(&mono, pointSize);
@@ -124,6 +129,7 @@ SoftMesh generateMeshForBrush(pmr::memory_resource* memory,
 SoftMesh generateMeshForPen(pmr::memory_resource* memory, Shape const& shape,
         Pen const& pen, ase::Vector2f pointSize, Rect const& r, bool clip)
 {
+    ZoneScoped;
     pmr::monotonic_buffer_resource mono(memory);
 
     Region region = shape.strokeToRegion(&mono, pen, pointSize);
@@ -135,6 +141,7 @@ pmr::vector<SoftMesh> generateMeshesForShapeElement(
         pmr::memory_resource* memory, Drawing::ShapeElement const& element,
         ase::Vector2f pointSize, Rect const& r, bool clip)
 {
+    ZoneScoped;
     auto const& shape = element.shape;
     auto const& brush = element.brush;
     auto const& pen = element.pen;
@@ -162,6 +169,7 @@ pmr::vector<SoftMesh> generateMeshesForShapeElement(
 
 Rect getElementRect(Drawing::Element const& e)
 {
+    ZoneScoped;
     return std::visit(Overloaded{
             [](Drawing::ShapeElement const& shapeElement) -> Rect
             {
@@ -202,6 +210,7 @@ pmr::vector<SoftMesh> generateMeshesForElements(
         bool clip
         )
 {
+    ZoneScoped;
     if (elements.empty())
         return pmr::vector<SoftMesh>(memory);
 
@@ -288,6 +297,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         ase::RenderContext& context, ase::Framebuffer& framebuffer,
         Painter const& painter, pmr::vector<Element>&& elements)
 {
+    ZoneScoped;
     auto compare = [](Element const& a, Element const& b)
     {
         return a.pipeline < b.pipeline;
@@ -364,6 +374,7 @@ void renderElements(ase::CommandBuffer& commandBuffer,
 pmr::vector<Element> generateElements(pmr::memory_resource* memory,
         Painter const& painter, pmr::vector<SoftMesh> const& meshes)
 {
+    ZoneScoped;
     float step = 0.5f / (float)(meshes.size() + 1u);
 
     pmr::vector<Element> elements(memory);
@@ -392,6 +403,8 @@ void render(pmr::memory_resource* memory,
         avg::Painter const& painter,
         avg::Drawing const& drawing)
 {
+    ZoneScoped;
+
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     float const resPerPixel = std::max(2.0f, 4.0f / scalingFactor);
     auto const pointSize = pixelSize / resPerPixel;

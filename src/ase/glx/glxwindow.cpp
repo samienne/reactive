@@ -2,13 +2,11 @@
 
 #include "glxwindow.h"
 
-#include "glerror.h"
-
 #include "debug.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <stdexcept>
-#include <algorithm>
-#include <fstream>
 
 namespace ase
 {
@@ -416,6 +414,8 @@ void GlxWindow::handleEvent(_XEvent const& e)
 
 void GlxWindow::present(Dispatched)
 {
+    ZoneScoped;
+
     ++frames_;
     auto lock = platform_.lockX();
     auto dpy = platform_.getDisplay();

@@ -14,6 +14,8 @@
 #include <ase/blendmode.h>
 #include <ase/renderqueue.h>
 
+#include <tracy/Tracy.hpp>
+
 static char const* simpleVsSource =
 "#version 330\n"
 "#extension GL_ARB_shading_language_420pack : require\n"
@@ -133,23 +135,28 @@ ase::Pipeline const& Painter::getPipeline(Pen const& pen) const
 
 void Painter::clearImage(TargetImage& target)
 {
+    ZoneScoped;
     commandBuffer_.pushClear(target.getFramebuffer());
 }
 
 void Painter::clearWindow(ase::Window& target)
 {
+    ZoneScoped;
     commandBuffer_.pushClear(target.getDefaultFramebuffer());
 }
 
 void Painter::paintToImage(TargetImage& target, float scalingFactor,
         Drawing const& drawing)
 {
+    ZoneScoped;
     render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
             target.getSize(), scalingFactor, *this, drawing);
 }
 
 void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
 {
+    ZoneScoped;
+
     render(memory_, commandBuffer_, renderContext_,
             target.getDefaultFramebuffer(), target.getSize(),
             target.getScalingFactor(), *this, drawing);
@@ -157,11 +164,15 @@ void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
 
 void Painter::presentWindow(ase::Window& target)
 {
+    ZoneScoped;
+
     commandBuffer_.pushPresent(target);
 }
 
 void Painter::flush()
 {
+    ZoneScoped;
+
     if (commandBuffer_.size() > 0)
     {
         renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));

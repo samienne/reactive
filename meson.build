@@ -4,14 +4,15 @@ if target_machine.system() == 'windows'
     add_global_arguments('/wd4251', '/bigobj', '/UNICODE', language : 'cpp')
 endif
 
-eigen = subproject('eigen')
-libeigendep = eigen.get_variable('eigen_dep')
+libeigendep = dependency('eigen3')
 
 freetype = subproject('freetype2', default_options: ['png=disabled', 'harfbuzz=disabled', 'zlib=disabled', 'tests=disabled', 'brotli=disabled'])
 libfreetypedep = freetype.get_variable('freetype_dep')
 
 mapbox = subproject('mapbox')
 mapboxdep = mapbox.get_variable('mapbox_dep')
+
+tracydep = dependency('tracy')
 
 subdir('src')
 subdir('test')
