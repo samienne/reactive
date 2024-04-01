@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tracy/Tracy.hpp>
+
 #include <GL/glx.h>
 #undef Success
 
@@ -18,7 +20,7 @@ namespace ase
     {
     public:
         typedef std::mutex Mutex;
-        typedef std::unique_lock<Mutex> Lock;
+        typedef std::unique_lock<LockableBase(Mutex)> Lock;
 
         GlxContext();
         GlxContext(GlxPlatform& platform);

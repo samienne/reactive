@@ -3,6 +3,8 @@
 #include "window.h"
 #include "drawcommand.h"
 
+#include <btl/future/promise.h>
+
 #include <variant>
 
 namespace ase
@@ -26,12 +28,7 @@ namespace ase
 
     struct FenceCommand
     {
-        struct Control
-        {
-            std::function<void()> completeCb;
-        };
-
-        std::shared_ptr<Control> control_;
+        btl::future::Promise<> promise;
     };
 
     struct BufferUploadCommand

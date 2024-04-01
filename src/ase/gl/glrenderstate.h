@@ -6,6 +6,8 @@
 
 #include "systemgl.h"
 
+#include <btl/future/promise.h>
+
 namespace ase
 {
     class Window;
@@ -48,7 +50,7 @@ namespace ase
         struct WaitingFence
         {
             GLsync sync;
-            std::function<void()> completeCb;
+            btl::future::Promise<> promise;
         };
 
         std::vector<WaitingFence> fences_;

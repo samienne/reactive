@@ -72,20 +72,28 @@ void Dispatcher::runThread()
 
     while (running_)
     {
+        ZoneScopedN("Dispatcher main loop");
         std::vector<std::function<void()> > funcs;
 
         {
+            ZoneScopedN("Dispatcher handle idle");
             std::unique_lock<std::mutex> lock(mutex_);
-            if (idleCallback_.has_value())
+            if (!predicate())
             {
-                if (!condition_.wait_for(lock, idlePeriod_, predicate))
+                if (idleCallback_.has_value())
                 {
-                    (*idleCallback_)();
+                    ZoneScopedN("Dispatcher idle wait");
+                    if (!condition_.wait_for(lock, idlePeriod_, predicate))
+                    {
+                        ZoneScopedN("Dispatcher idle callback");
+                        (*idleCallback_)();
+                    }
                 }
-            }
-            else
-            {
-                condition_.wait(lock, predicate);
+                else
+                {
+                    ZoneScopedN("Dispatcher wait");
+                    condition_.wait(lock, predicate);
+                }
             }
 
             funcs.swap(funcs_);
@@ -94,12 +102,16 @@ void Dispatcher::runThread()
 
         for (auto i = funcs.begin(); i != funcs.end(); ++i)
         {
+            ZoneScopedN("Dispatcher run task");
             (*i)();
         }
 
-        std::unique_lock<std::mutex> lock(mutex_);
-        idle_ = true;
-        condition_.notify_all();
+        {
+            ZoneScopedN("Dispatcher notify");
+            std::unique_lock<std::mutex> lock(mutex_);
+            idle_ = true;
+            condition_.notify_all();
+        }
     }
 }
 

@@ -288,6 +288,11 @@ namespace btl::future
             return { std::move(control) };
         }
 
+        void wait() const&
+        {
+            control_->waitForResult();
+        }
+
         void detach() &&
         {
             auto control = control_;

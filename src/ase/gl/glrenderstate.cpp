@@ -153,18 +153,21 @@ void GlRenderState::submit(CommandBuffer&& commands)
         auto b = commands.begin();
         auto e = b;
 
-        while (e != commands.end())
         {
-            while (b != commands.end() && !std::holds_alternative<DrawCommand>(*b))
-                ++b;
+            ZoneScopedN("Sort commands");
+            while (e != commands.end())
+            {
+                while (b != commands.end() && !std::holds_alternative<DrawCommand>(*b))
+                    ++b;
 
-            e = b;
+                e = b;
 
-            while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
-                ++e;
+                while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
+                    ++e;
 
-            std::sort(b, e, compareCommand);
-            b = e;
+                std::sort(b, e, compareCommand);
+                b = e;
+            }
         }
 
         dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
@@ -259,7 +262,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             WaitingFence fence
             {
                 gl.glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0),
-                std::move(fenceCommand.control_->completeCb)
+                std::move(fenceCommand.promise)
             };
 
             fences_.push_back(std::move(fence));
@@ -325,6 +328,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             continue;
         }
 
+        {
         ZoneScopedN("Draw command");
         assert(std::holds_alternative<DrawCommand>(renderCommand));
 
@@ -483,6 +487,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             ZoneScopedN("glDrawArarys");
             glDrawArrays(mode, 0, count);
         }
+        }
     }
 
     {
@@ -507,7 +512,7 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
         {
         case GL_ALREADY_SIGNALED:
         case GL_CONDITION_SATISFIED:
-            btl::asyncJob(std::move(fence.completeCb));
+            fence.promise.set();
 
             gl.glDeleteSync(fence.sync);
             i = fences_.erase(i);
