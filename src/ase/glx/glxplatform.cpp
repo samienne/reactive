@@ -89,7 +89,8 @@ private:
 
     GlxPlatform& platform_;
 
-    GlxPlatform::Mutex mutex_;
+    //GlxPlatform::Mutex mutex_;
+    TracyLockable(GlxPlatform::Mutex, mutex_);
 
     Atom wmDelete_ = 0;
     Atom wmProtocols_ = 0;
@@ -237,6 +238,7 @@ Display* GlxPlatform::getDisplay()
 
 GlxPlatform::Lock GlxPlatform::lockX()
 {
+    ZoneScoped;
     return GlxPlatform::Lock(d()->mutex_);
 }
 
@@ -295,7 +297,8 @@ void GlxPlatform::handleEvents()
             auto w = window.lock();
             if (w)
                 windows.push_back(window.lock());
-            else needClean = true;
+            else
+                needClean = true;
         }
 
         if (needClean)

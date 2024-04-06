@@ -53,12 +53,16 @@ void CommandBuffer::pushPresent(Window window)
 
 void CommandBuffer::pushFence(std::function<void()> completeCb)
 {
-    auto control = std::make_shared<FenceCommand::Control>();
-    control->completeCb = std::move(completeCb);
+    pushFence().then(std::move(completeCb)).detach();
+}
 
-    commands_.push_back(FenceCommand{
-            std::move(control)
-            });
+btl::future::Future<> CommandBuffer::pushFence()
+{
+    auto control = std::make_shared<btl::future::FutureControl<>>();
+
+    commands_.push_back(FenceCommand{ { control } });
+
+    return { std::move(control) };
 }
 
 void CommandBuffer::pushUpload(

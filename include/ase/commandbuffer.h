@@ -3,6 +3,8 @@
 #include "rendercommand.h"
 #include "asevisibility.h"
 
+#include <btl/future.h>
+
 #include <vector>
 #include <optional>
 
@@ -36,6 +38,7 @@ namespace ase
         void pushPresent(Window window);
 
         void pushFence(std::function<void()> completeCb);
+        btl::future::Future<> pushFence();
 
         void pushUpload(
                 std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,

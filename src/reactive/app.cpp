@@ -21,6 +21,10 @@
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
 
+#include <btl/future/promise.h>
+#include <btl/future/future.h>
+#include <btl/future/futurecontrol.h>
+
 #include <pmr/statistics_resource.h>
 #include <pmr/unsynchronized_pool_resource.h>
 #include <pmr/new_delete_resource.h>
@@ -29,6 +33,8 @@
 
 #include <chrono>
 #include <unordered_map>
+#include <memory>
+#include <queue>
 
 namespace reactive
 {
@@ -493,6 +499,8 @@ int App::run(AnySignal<bool> running) &&
 
     auto mainQueue = context.getMainRenderQueue();
 
+    std::queue<btl::future::Future<>> frameFutures;
+
     while (running.evaluate())
     {
         FrameMark;
@@ -516,13 +524,18 @@ int App::run(AnySignal<bool> running) &&
             timeToNext = reactive::signal::min(timeToNext, t);
         }
 
-        mainQueue.flush();
+        ase::CommandBuffer commandBuffer;
+        frameFutures.push(commandBuffer.pushFence());
+        mainQueue.submit(std::move(commandBuffer));
 
-        if (timeToNext.has_value())
+        //mainQueue.flush();
+
+        //if (timeToNext.has_value())
         {
             auto frameTime = std::chrono::duration_cast<
                 std::chrono::microseconds>(clock.now() - thisFrame);
-            auto remaining = *timeToNext - frameTime;
+            //auto remaining = *timeToNext - frameTime;
+            auto remaining = std::chrono::microseconds(16667) - frameTime;
             if (remaining.count() > 0)
             {
                 ZoneScopedN("sleep");
@@ -530,7 +543,20 @@ int App::run(AnySignal<bool> running) &&
             }
         }
 
+        if (frameFutures.size() > 2)
+        {
+            ZoneScopedN("Wait for frame to finish");
+            ZoneValue(frameFutures.size());
+            frameFutures.front().wait();
+            frameFutures.pop();
+        }
+
         lastFrame = thisFrame;
+    }
+
+    while (!frameFutures.empty()) {
+        frameFutures.front().wait();
+        frameFutures.pop();
     }
 
     DBG("Shutting down...");

@@ -4,6 +4,8 @@
 
 #include "asevisibility.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
@@ -20,7 +22,7 @@ namespace ase
     {
     public:
         typedef std::mutex Mutex;
-        typedef std::unique_lock<Mutex> Lock;
+        typedef std::unique_lock<LockableBase(Mutex)> Lock;
 
         GlxPlatform();
         GlxPlatform(GlxPlatform const& other) = delete;
