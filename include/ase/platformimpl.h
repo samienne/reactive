@@ -3,8 +3,6 @@
 #include "vector.h"
 #include "asevisibility.h"
 
-#include <memory>
-
 namespace ase
 {
     class RenderContext;
@@ -18,6 +16,7 @@ namespace ase
         virtual Window makeWindow(Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
+        virtual void run() = 0;
     };
 }
 

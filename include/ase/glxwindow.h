@@ -46,7 +46,49 @@ namespace ase
     class Framebuffer;
     struct Dispatched;
 
-    class ASE_EXPORT GlxWindow : public WindowImpl
+    class ASE_EXPORT DefaultGlWindow : public WindowImpl
+    {
+    public:
+        DefaultGlWindow(GlPlatform& platform, Vector2i const& size,
+                float scalingFactor);
+
+        DefaultGlWindow(DefaultGlWindow const&) = delete;
+        DefaultGlWindow(DefaultGlWindow&&) = delete;
+
+        DefaultGlWindow& operator=(DefaultGlWindow const&) = delete;
+        DefaultGlWindow& operator=(DefaultGlWindow&&) = delete;
+
+        void onFrame(FrameInfo const& frameInfo);
+
+        // From WindowImpl
+        void setTitle(std::string&& title) override;
+        std::string const& getTitle() const override;
+
+        Vector2i getSize() const override;
+        float getScalingFactor() const override;
+
+        void setOnFrameCallback(std::function<void(FrameInfo const&)> func) override;
+        void setCloseCallback(std::function<void()> func) override;
+        void setResizeCallback(std::function<void()> func) override;
+        void setRedrawCallback(std::function<void()> func) override;
+        void setButtonCallback(
+                std::function<void(PointerButtonEvent const&)> cb) override;
+        void setPointerCallback(
+                std::function<void(PointerMoveEvent const&)> cb) override;
+        void setDragCallback(
+                std::function<void(PointerDragEvent const&)> cb) override;
+        void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
+        void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
+        void setTextCallback(std::function<void(TextEvent const&)> cb) override;
+
+    private:
+        GlPlatform& platform_;
+
+    protected:
+        GenericWindow genericWindow_;
+    };
+
+    class ASE_EXPORT GlxWindow : public DefaultGlWindow
     {
     public:
         typedef std::mutex Mutex;
@@ -67,24 +109,8 @@ namespace ase
         bool isVisible() const override;
 
         void setTitle(std::string&& title) override;
-        std::string const& getTitle() const override;
 
-        Vector2i getSize() const override;
-        float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
-
-        void setCloseCallback(std::function<void()> func) override;
-        void setResizeCallback(std::function<void()> func) override;
-        void setRedrawCallback(std::function<void()> func) override;
-        void setButtonCallback(
-                std::function<void(PointerButtonEvent const&)> cb) override;
-        void setPointerCallback(
-                std::function<void(PointerMoveEvent const&)> cb) override;
-        void setDragCallback(
-                std::function<void(PointerDragEvent const&)> cb) override;
-        void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
-        void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
-        void setTextCallback(std::function<void(TextEvent const&)> cb) override;
 
         Vector2i getResolution() const;
 
@@ -108,7 +134,6 @@ namespace ase
         XID syncCounter_ = 0;
         int64_t counterValue_ = 0;
 
-        GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
 
         bool visible_ = false;

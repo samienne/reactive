@@ -15,11 +15,17 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <chrono>
 
 namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+
+    struct FrameInfo
+    {
+        std::chrono::milliseconds deltaTime;
+    };
 
     class ASE_EXPORT Window
     {
@@ -44,6 +50,7 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        void setOnFrameCallback(std::function<void(FrameInfo const&)> func);
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
         void setRedrawCallback(std::function<void()> func);

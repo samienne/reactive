@@ -20,6 +20,7 @@ namespace ase
         Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();
+        void run();
 
         template <typename T>
         T& getImpl()

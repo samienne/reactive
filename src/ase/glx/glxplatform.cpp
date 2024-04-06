@@ -171,6 +171,83 @@ void GlxPlatformDeferred::printGlInfo()
     DBG("GlxPlatform: Maximum vertex texture units: %1", textureUnits);
 }
 
+void DefaultGlPlatform::run()
+{
+    ZoneScoped;
+
+    auto mainQueue = context_.getMainRenderQueue();
+
+    std::queue<btl::future::Future<>> frameFutures;
+    std::chrono::steady_clock clock;
+    auto lastFrame = clock.now();
+
+    while (running.evaluate())
+    {
+        FrameMark;
+        ZoneScopedN("mainLoop");
+
+        auto thisFrame = clock.now();
+        auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(
+                thisFrame - lastFrame);
+
+        handleEvents();
+
+        //reactive::signal::FrameInfo frame{getNextFrameId(), dt};
+        //auto timeToNext = running.updateBegin(frame);
+        //auto timeToNext2 = running.updateEnd(frame);
+        //timeToNext = reactive::signal::min(timeToNext, timeToNext2);
+
+        for (auto& window : getWindows())
+        {
+            FrameInfo info { dt };
+            window.onFrame(info);
+        }
+
+        /*
+        for (auto& glue : d()->windowGlues_)
+        {
+            auto t = glue->frame(dt);
+
+            timeToNext = reactive::signal::min(timeToNext, t);
+        }
+        */
+
+        ase::CommandBuffer commandBuffer;
+        frameFutures.push(commandBuffer.pushFence());
+        mainQueue.submit(std::move(commandBuffer));
+
+        //mainQueue.flush();
+
+        //if (timeToNext.has_value())
+        {
+            auto frameTime = std::chrono::duration_cast<
+                std::chrono::microseconds>(clock.now() - thisFrame);
+            //auto remaining = *timeToNext - frameTime;
+            auto remaining = std::chrono::microseconds(16667) - frameTime;
+            if (remaining.count() > 0)
+            {
+                ZoneScopedN("sleep");
+                std::this_thread::sleep_for(remaining);
+            }
+        }
+
+        if (frameFutures.size() > 2)
+        {
+            ZoneScopedN("Wait for frame to finish");
+            ZoneValue(frameFutures.size());
+            frameFutures.front().wait();
+            frameFutures.pop();
+        }
+
+        lastFrame = thisFrame;
+    }
+
+    while (!frameFutures.empty()) {
+        frameFutures.front().wait();
+        frameFutures.pop();
+    }
+}
+
 GlxPlatform::GlxPlatform() :
     deferred_(new GlxPlatformDeferred(*this))
 {

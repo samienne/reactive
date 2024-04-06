@@ -71,6 +71,11 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
+void Window::setOnFrameCallback(std::function<void(FrameInfo const&)> func)
+{
+    d()->setOnFrameCallback(std::move(func));
+}
+
 void Window::setCloseCallback(std::function<void()> func)
 {
     d()->setCloseCallback(std::move(func));

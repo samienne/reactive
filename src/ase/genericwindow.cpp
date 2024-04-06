@@ -59,6 +59,12 @@ void GenericWindow::setTitle(std::string title)
     title_ = title;
 }
 
+void GenericWindow::notifyOnFrame(FrameInfo const& frameInfo)
+{
+    if (onFrameCallback_)
+        onFrameCallback_(frameInfo);
+}
+
 void GenericWindow::notifyClose()
 {
     if (closeCallback_)
@@ -158,6 +164,11 @@ void GenericWindow::injectTextEvent(std::string text)
         return;
 
     textCallback_(TextEvent(std::move(text)));
+}
+
+void GenericWindow::setOnFrameCallback(std::function<void(FrameInfo const&)> func)
+{
+    onFrameCallback_ = std::move(func);
 }
 
 void GenericWindow::setCloseCallback(std::function<void()> func)

@@ -13,6 +13,8 @@
 
 namespace ase
 {
+    struct FrameInfo;
+
     class GenericWindow
     {
     public:
@@ -27,6 +29,8 @@ namespace ase
 
         std::string const& getTitle() const;
         void setTitle(std::string title);
+
+        void notifyOnFrame(FrameInfo const& frameInfo);
 
         void notifyClose();
         void resize(Vector2i size);
@@ -45,6 +49,7 @@ namespace ase
                 uint32_t modifiers, std::string text);
         void injectTextEvent(std::string text);
 
+        void setOnFrameCallback(std::function<void(FrameInfo const&)> func);
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
         void setRedrawCallback(std::function<void()> func);
@@ -59,6 +64,7 @@ namespace ase
         void setTextCallback(std::function<void(TextEvent const&)> cb);
 
     private:
+        std::function<void(FrameInfo const&)> onFrameCallback_;
         std::function<void()> closeCallback_;
         std::function<void()> resizeCallback_;
         std::function<void()> redrawCallback_;

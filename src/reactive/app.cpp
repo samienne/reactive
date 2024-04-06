@@ -497,67 +497,7 @@ int App::run(AnySignal<bool> running) &&
 
     DBG("Reactive running...");
 
-    auto mainQueue = context.getMainRenderQueue();
-
-    std::queue<btl::future::Future<>> frameFutures;
-
-    while (running.evaluate())
-    {
-        FrameMark;
-        ZoneScopedN("mainLoop");
-
-        auto thisFrame = clock.now();
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        platform.handleEvents();
-
-        reactive::signal::FrameInfo frame{getNextFrameId(), dt};
-        auto timeToNext = running.updateBegin(frame);
-        auto timeToNext2 = running.updateEnd(frame);
-        timeToNext = reactive::signal::min(timeToNext, timeToNext2);
-
-        for (auto& glue : d()->windowGlues_)
-        {
-            auto t = glue->frame(dt);
-
-            timeToNext = reactive::signal::min(timeToNext, t);
-        }
-
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
-
-        //mainQueue.flush();
-
-        //if (timeToNext.has_value())
-        {
-            auto frameTime = std::chrono::duration_cast<
-                std::chrono::microseconds>(clock.now() - thisFrame);
-            //auto remaining = *timeToNext - frameTime;
-            auto remaining = std::chrono::microseconds(16667) - frameTime;
-            if (remaining.count() > 0)
-            {
-                ZoneScopedN("sleep");
-                std::this_thread::sleep_for(remaining);
-            }
-        }
-
-        if (frameFutures.size() > 2)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
-
-        lastFrame = thisFrame;
-    }
-
-    while (!frameFutures.empty()) {
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+    platform.run();
 
     DBG("Shutting down...");
 

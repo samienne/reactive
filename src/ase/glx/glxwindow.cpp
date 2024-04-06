@@ -61,10 +61,90 @@ namespace
     }
 }
 
-GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
+DefaultGlWindow::DefaultGlWindow(GlPlatform& platform, Vector2i const& size,
         float scalingFactor) :
     platform_(platform),
-    genericWindow_(size, scalingFactor),
+    genericWindow_(size, scalingFactor)
+{
+}
+
+void DefaultGlWindow::onFrame(FrameInfo const& frameInfo)
+{
+    genericWindow_.notifyOnFrame(frameInfo);
+}
+
+void DefaultGlWindow::setOnFrameCallback(std::function<void(FrameInfo const&)> func)
+{
+    genericWindow_.setOnFrameCallback(std::move(func));
+}
+
+void DefaultGlWindow::setCloseCallback(std::function<void()> func)
+{
+    genericWindow_.setCloseCallback(std::move(func));
+}
+
+void DefaultGlWindow::setResizeCallback(std::function<void()> func)
+{
+    genericWindow_.setResizeCallback(std::move(func));
+}
+
+void DefaultGlWindow::setRedrawCallback(std::function<void()> func)
+{
+    genericWindow_.setRedrawCallback(std::move(func));
+}
+
+void DefaultGlWindow::setButtonCallback(
+        std::function<void(PointerButtonEvent const& e)> cb)
+{
+    genericWindow_.setButtonCallback(std::move(cb));
+}
+
+void DefaultGlWindow::setPointerCallback(
+        std::function<void(PointerMoveEvent const&)> cb)
+{
+    genericWindow_.setPointerCallback(std::move(cb));
+}
+
+void DefaultGlWindow::setDragCallback(
+        std::function<void(PointerDragEvent const&)> cb)
+{
+    genericWindow_.setDragCallback(std::move(cb));
+}
+
+void DefaultGlWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
+{
+    genericWindow_.setKeyCallback(std::move(cb));
+}
+
+void DefaultGlWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
+{
+    genericWindow_.setHoverCallback(std::move(cb));
+}
+
+void DefaultGlWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
+{
+    genericWindow_.setTextCallback(std::move(cb));
+}
+
+std::string const& DefaultGlWindow::getTitle() const
+{
+    return genericWindow_.getTitle();
+}
+
+Vector2i DefaultGlWindow::getSize() const
+{
+    return genericWindow_.getSize();
+}
+
+float DefaultGlWindow::getScalingFactor() const
+{
+    return genericWindow_.getScalingFactor();
+}
+
+GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
+        float scalingFactor) :
+    DefaultGlWindow(platform, size, scalingFactor),
+    platform_(platform),
     defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, *this))
 {
     unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
@@ -203,54 +283,6 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 {
     for (auto const& e : events)
         handleEvent(e);
-}
-
-void GlxWindow::setCloseCallback(std::function<void()> func)
-{
-    genericWindow_.setCloseCallback(std::move(func));
-}
-
-void GlxWindow::setResizeCallback(std::function<void()> func)
-{
-    genericWindow_.setResizeCallback(std::move(func));
-}
-
-void GlxWindow::setRedrawCallback(std::function<void()> func)
-{
-    genericWindow_.setRedrawCallback(std::move(func));
-}
-
-void GlxWindow::setButtonCallback(
-        std::function<void(PointerButtonEvent const& e)> cb)
-{
-    genericWindow_.setButtonCallback(std::move(cb));
-}
-
-void GlxWindow::setPointerCallback(
-        std::function<void(PointerMoveEvent const&)> cb)
-{
-    genericWindow_.setPointerCallback(std::move(cb));
-}
-
-void GlxWindow::setDragCallback(
-        std::function<void(PointerDragEvent const&)> cb)
-{
-    genericWindow_.setDragCallback(std::move(cb));
-}
-
-void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
-{
-    genericWindow_.setKeyCallback(std::move(cb));
-}
-
-void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
-{
-    genericWindow_.setHoverCallback(std::move(cb));
-}
-
-void GlxWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
-{
-    genericWindow_.setTextCallback(std::move(cb));
 }
 
 void GlxWindow::handleEvent(_XEvent const& e)
@@ -471,21 +503,6 @@ void GlxWindow::setTitle(std::string&& title)
 
     Lock lock(platform_.lockX());
     XStoreName(platform_.getDisplay(), xWin_, genericWindow_.getTitle().c_str());
-}
-
-std::string const& GlxWindow::getTitle() const
-{
-    return genericWindow_.getTitle();
-}
-
-Vector2i GlxWindow::getSize() const
-{
-    return genericWindow_.getSize();
-}
-
-float GlxWindow::getScalingFactor() const
-{
-    return genericWindow_.getScalingFactor();
 }
 
 Framebuffer& GlxWindow::getDefaultFramebuffer()

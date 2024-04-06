@@ -9,7 +9,6 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
-#include <string>
 #include <mutex>
 
 namespace ase
@@ -18,7 +17,16 @@ namespace ase
     class GlxContext;
     class GlxPlatformDeferred;
 
-    class ASE_EXPORT GlxPlatform : public GlPlatform
+    class ASE_EXPORT DefaultGlPlatform : public GlPlatform
+    {
+    public:
+        virtual std::vector<DefaultGlWindow> getWindows() const = 0;
+        // From Platform
+        void run() override;
+    private:
+    };
+
+    class ASE_EXPORT GlxPlatform : public DefaultGlPlatform
     {
     public:
         typedef std::mutex Mutex;

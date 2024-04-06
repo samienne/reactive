@@ -31,5 +31,10 @@ RenderContext Platform::makeRenderContext()
     return d()->makeRenderContext();
 }
 
+void Platform::run()
+{
+    d()->run();
+}
+
 } // namespace platform
 

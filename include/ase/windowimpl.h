@@ -18,6 +18,7 @@
 namespace ase
 {
     class Framebuffer;
+    struct FrameInfo;
 
     class ASE_EXPORT WindowImpl
     {
@@ -34,6 +35,7 @@ namespace ase
         virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
+        virtual void setOnFrameCallback(std::function<void(FrameInfo const&)> func) = 0;
         virtual void setCloseCallback(std::function<void()> func) = 0;
         virtual void setResizeCallback(std::function<void()> func) = 0;
         virtual void setRedrawCallback(std::function<void()> func) = 0;
