@@ -3,13 +3,14 @@ gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
 devtest = executable('devtest',
-        'asynctest.cpp',
+        'signal2test.cpp',
         include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep]#, libasedep, libavgdep, libreactivedep]
         )
 
 unittest = executable('unittest',
+        'asynctest.cpp',
         'animatedtest.cpp',
         'widgetinstancemodifiertest.cpp',
         'grouptest.cpp',

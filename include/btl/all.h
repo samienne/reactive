@@ -21,13 +21,13 @@ namespace btl
             T
         > {};
 
-    inline bool all() noexcept
+    constexpr inline bool all() noexcept
     {
         return true;
     }
 
     template <typename T, typename... Ts>
-    bool all(T&& t, Ts&&... ts) noexcept
+    constexpr bool all(T&& t, Ts&&... ts) noexcept
     {
         return std::forward<T>(t) && all(std::forward<Ts>(ts)...);
     }
