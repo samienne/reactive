@@ -91,7 +91,7 @@ namespace reactive::signal2
             data.hasChanged = data.index < control_->index;
             data.index = control_->index;
 
-            return std::nullopt;
+            return { std::nullopt, data.hasChanged };
         }
 
         template <typename TCallback>

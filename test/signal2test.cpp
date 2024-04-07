@@ -21,7 +21,7 @@ TEST(Signal2, constant)
     FrameInfo frame(1, signal_time_t(10));
 
     auto r = s.update(data, frame);
-    EXPECT_EQ(r, std::nullopt);
+    EXPECT_EQ(r.nextUpdate, std::nullopt);
 }
 
 TEST(Signal2, signalContext)
@@ -30,7 +30,7 @@ TEST(Signal2, signalContext)
 
     UpdateResult r = c.update(FrameInfo(1, signal_time_t(0)));
 
-    EXPECT_EQ(std::nullopt, r);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
 
     static_assert(std::is_same_v<int const&, decltype(c.evaluate())>);
 
@@ -45,6 +45,8 @@ TEST(Signal2, signalInput)
 
     auto c = makeSignalContext(input.signal);
 
+    static_assert(std::is_same_v<SignalContext<int const&>, decltype(c)>);
+
     EXPECT_EQ(42, c.evaluate());
 
     input.handle.set(22);
@@ -52,7 +54,38 @@ TEST(Signal2, signalInput)
     EXPECT_EQ(42, c.evaluate());
 
     auto r = c.update(FrameInfo(1, {}));
-    EXPECT_EQ(std::nullopt, r);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
 
     EXPECT_EQ(22, c.evaluate());
+
+    static_assert(std::is_same_v<int const&, decltype(c.evaluate())>);
+}
+
+TEST(Signal2, map)
+{
+    auto input = makeInput(42);
+
+    auto s = input.signal.map([](int n)
+                {
+                    return n * 2;
+                });
+
+    auto c = makeSignalContext(std::move(s));
+
+    EXPECT_EQ(84, c.evaluate());
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
+
+    input.handle.set(12);
+
+    EXPECT_EQ(84, c.evaluate());
+
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_EQ(24, c.evaluate());
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
 }

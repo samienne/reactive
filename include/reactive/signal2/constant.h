@@ -49,7 +49,7 @@ namespace reactive::signal2
 
         UpdateResult update(DataType&, FrameInfo const&)
         {
-            return std::nullopt;
+            return { std::nullopt, false };
         }
 
         template <typename TCallback>

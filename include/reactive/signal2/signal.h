@@ -4,6 +4,7 @@
 #include "typed.h"
 #include "updateresult.h"
 #include "wrap.h"
+#include "map.h"
 
 #include <btl/future/future.h>
 #include <btl/async.h>
@@ -92,6 +93,20 @@ namespace reactive::signal2
         Signal clone() const
         {
             return *this;
+        }
+
+        template <typename TFunc>
+        auto map(TFunc&& func) const&
+        {
+            return clone().map(std::forward<TFunc>(func));
+        }
+
+        template <typename TFunc>
+        auto map(TFunc&& func) &&
+        {
+            return wrap(Map<std::decay_t<TFunc>, StorageType>(
+                        std::forward<TFunc>(func),
+                        std::move(sig_)));
         }
 
         template <typename... Us, typename = std::enable_if_t<

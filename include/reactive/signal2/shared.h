@@ -23,6 +23,7 @@ namespace reactive::signal2
         {
             btl::future::SharedFuture<Ts...> value;
             uint64_t lastFrame = 0;
+            bool didChange = false;
         };
 
         SharedImpl(TStorage sig) :
@@ -51,7 +52,7 @@ namespace reactive::signal2
             DataType data
             {
                 currentValue_,
-                lastFrame_,
+                updateCount_,
             };
 
             return data;
@@ -59,12 +60,7 @@ namespace reactive::signal2
 
         bool hasChanged(DataType& data) const
         {
-            std::unique_lock lock(mutex_);
-
-            bool changed = data.lastFrame < lastFrame_;
-            changed = changed || sig_.hasChanged(innerData_);
-
-            return changed;
+            return data.didChange;
         }
 
         SignalResult<Ts const&...> evaluate(DataType& data) const
@@ -75,6 +71,7 @@ namespace reactive::signal2
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             std::unique_lock lock(mutex_);
+
             if (lastFrame_ < frame.getFrameId())
             {
                 lastFrame_ = frame.getFrameId();
@@ -83,20 +80,31 @@ namespace reactive::signal2
 
                 time_ += frame.getDeltaTime();
                 updateTime_.reset();
-                if (innerResult)
-                    updateTime_ = time_ + *innerResult;
+                if (innerResult.nextUpdate)
+                    updateTime_ = time_ + *innerResult.nextUpdate;
+
+                if (innerResult.didChange)
+                    ++updateCount_;
             }
 
-            if (data.lastFrame < lastFrame_)
+            data.didChange = false;
+            if (data.lastUpdate < updateCount_)
             {
-                data.lastFrame = lastFrame_;
+                data.lastUpdate = updateCount_;
                 data.value = currentValue_;
+                data.didChange = true;
             }
 
             if (updateTime_)
-                return *updateTime_ - time_;
+                return {
+                    *updateTime_ - time_,
+                    data.didChange
+                };
 
-            return std::nullopt;
+            return {
+                std::nullopt,
+                data.didChange
+            };
         }
 
         template <typename TCallback>
@@ -120,6 +128,7 @@ namespace reactive::signal2
         typename TStorage::DataType innerData_;
         btl::future::SharedFuture<Ts...> currentValue_;
         uint64_t lastFrame_ = 0;
+        uint64_t updateCount_ = 0;
         signal_time_t time_ = signal_time_t(0);
         std::optional<signal_time_t> updateTime_;
     };
