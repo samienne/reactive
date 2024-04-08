@@ -91,7 +91,7 @@ namespace reactive::signal2
     using signal_value_t = typename SignalValueType<TSignal>::type;
 
     template <typename TSignal>
-    using SignalType = decltype(std::declval<std::decay_t<TSignal> const&>()
+    using SignalTypeT = decltype(std::declval<std::decay_t<TSignal> const&>()
             .evaluate(std::declval<SignalDataTypeT<TSignal> const&>())
             );
 
@@ -110,7 +110,7 @@ namespace reactive::signal2
 
 
     template <typename TSignal, typename... Ts>
-    using IsSignalType = detail::CheckSignalType<TSignal, SignalType<TSignal>, Ts...>;
+    using IsSignalType = detail::CheckSignalType<TSignal, SignalTypeT<TSignal>, Ts...>;
 
     template <typename T, typename TSignature>
     using IsFunction = std::is_convertible<

@@ -53,7 +53,7 @@ namespace reactive::signal2
     };
 
     template <typename TSignal>
-    using SignalToContext = typename ResultToContext<SignalType<TSignal>>::type;
+    using SignalToContext = typename ResultToContext<SignalTypeT<TSignal>>::type;
 
     template <typename TStorage, typename... Ts>
     SignalToContext<Signal<TStorage, Ts...>> makeSignalContext(

@@ -91,6 +91,25 @@ TEST(Signal2, map)
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 }
 
+TEST(Signal2, mapReferenceToTemp)
+{
+    auto input = makeInput(42);
+
+    auto s1 = input.signal.map([](int n) -> std::unique_ptr<int>
+            {
+                return std::make_unique<int>(n);
+            });
+
+    auto s2 = s1.map([](std::unique_ptr<int> const& n) -> int const&
+            {
+                return *n;
+            });
+
+    auto c = makeSignalContext(std::move(s2));
+
+    EXPECT_EQ(42, c.evaluate());
+}
+
 TEST(Signal2, merge)
 {
     auto input1 = makeInput(42);

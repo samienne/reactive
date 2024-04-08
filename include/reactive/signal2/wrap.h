@@ -27,7 +27,7 @@ namespace reactive::signal2
             IsSignal<TStorage>
         >::value
         >>
-    typename GetSignalTypeFromResult<TStorage, std::decay_t<SignalType<TStorage>>>::type
+    typename GetSignalTypeFromResult<TStorage, std::decay_t<SignalTypeT<TStorage>>>::type
     wrap(TStorage&& sig)
     {
         return { std::forward<TStorage>(sig) };

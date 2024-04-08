@@ -44,7 +44,7 @@ namespace reactive::signal2
             bool hasChanged = false;
         };
 
-        using ResultType = typename ConcatSignalResults<SignalType<Ts>...>::type;
+        using ResultType = typename ConcatSignalResults<SignalTypeT<Ts>...>::type;
 
         Merge(std::tuple<Ts...> signals) :
             sigs_(std::move(signals))

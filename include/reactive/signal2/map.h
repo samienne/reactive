@@ -10,6 +10,7 @@
 #include <btl/connection.h>
 
 #include <tuple>
+#include <type_traits>
 
 namespace reactive::signal2
 {
@@ -17,9 +18,17 @@ namespace reactive::signal2
     class Map
     {
     public:
+        using InnerResultType = std::optional<SignalTypeT<TSignal>>;
+
         struct DataType
         {
             typename TSignal::DataType signalData;
+
+            // Storage used to temporarily store the signal result before
+            // passing it to the map function. This will keep references
+            // to temporaries alive as long as DataType is kept in the context
+            // and no new calls to evaluate is made.
+            mutable InnerResultType innerResult;
         };
 
         Map(TFunc func, TSignal sig) :
@@ -30,7 +39,7 @@ namespace reactive::signal2
 
         DataType initialize() const
         {
-            return { sig_.initialize() };
+            return { sig_.initialize(), std::nullopt };
         }
 
         auto evaluate(DataType const& data) const
@@ -51,16 +60,24 @@ namespace reactive::signal2
             }
             else if constexpr (IsSignalResult<std::decay_t<ResultType>>::value)
             {
+                // Circumvent need for operator= by using copy/move constructor
+                data.innerResult.reset();
+                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+
                 return std::apply(
                         func_,
-                        sig_.evaluate(data.signalData).getTuple()
+                        std::move(*data.innerResult).getTuple()
                         );
             }
             else
             {
+                // Circumvent need for operator= by using copy/move constructor
+                data.innerResult.reset();
+                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+
                 return SignalResult<ResultType>(std::apply(
                             func_,
-                            sig_.evaluate(data.signalData).getTuple()
+                            std::move(*data.innerResult).getTuple()
                             ));
             }
         }
