@@ -123,7 +123,7 @@ namespace reactive::signal2
 
         bool hasChanged(DataType const& data) const
         {
-            return sig_->hasChanged(data->data);
+            return sig_->hasChanged(*data.data);
         }
 
         auto evaluate(DataType const& data) const
@@ -139,7 +139,7 @@ namespace reactive::signal2
         template <typename TCallback>
         btl::connection observe(DataType& data, TCallback&& callback)
         {
-            return sig_->observe(*data.data, callback);
+            return sig_->observe(*data.data, std::forward<TCallback>(callback));
         }
 
     private:

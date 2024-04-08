@@ -90,9 +90,9 @@ namespace reactive::signal2
             }
         }
 
-        Shared<StorageType, Ts...> share() const
+        Signal<Shared<StorageType, Ts...>, Ts...> share() const
         {
-            return Shared<StorageType, Ts...>(sig_);
+            return wrap(Shared<StorageType, Ts...>(sig_));
         }
 
         Signal clone() const
@@ -120,7 +120,7 @@ namespace reactive::signal2
         operator AnySignal<Us...>() const
         {
             return AnySignal<Us...>(SignalTypeless<Us...>(
-                        std::make_shared<SignalTyped<TStorage, Us...>>(sig_)
+                        std::make_shared<SignalTyped<StorageType, Us...>>(sig_)
                         ));
         }
 

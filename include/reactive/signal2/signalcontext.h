@@ -10,7 +10,8 @@ namespace reactive::signal2
     public:
         SignalContext(AnySignal<Ts...> sig) :
             sig_(std::move(sig)),
-            data_(sig_.initialize())
+            data_(sig_.initialize()),
+            result_(sig_.evaluate(data_))
         {
         };
 
@@ -19,14 +20,16 @@ namespace reactive::signal2
             if constexpr(sizeof...(Ts) == 0)
                 sig_.evaluate(data_);
             if constexpr (sizeof...(Ts) == 1)
-                return sig_.evaluate(data_).template get<0>();
+                return result_.template get<0>();
             else
-                return sig_.evaluate(data_);
+                return result_;
         }
 
         UpdateResult update(FrameInfo const& frame)
         {
-            return sig_.update(data_, frame);
+            auto r = sig_.update(data_, frame);
+            new(&result_) std::decay_t<SignalTypeT<AnySignal<Ts...>>>(sig_.evaluate(data_));
+            return r;
         }
 
         template <typename... Us, typename = std::enable_if_t<
@@ -34,11 +37,13 @@ namespace reactive::signal2
             >>
         operator SignalContext<Us...>() const
         {
+            return SignalContext<Us...>(sig_);
         }
 
     private:
         AnySignal<Ts...> sig_;
         typename AnySignal<Ts...>::DataType data_;
+        std::decay_t<SignalTypeT<AnySignal<Ts...>>> result_;
     };
 
     template <typename T>

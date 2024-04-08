@@ -3,6 +3,7 @@
 #include "signalresult.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "signaltraits.h"
 
 #include <btl/future/future.h>
 
@@ -17,35 +18,22 @@ namespace reactive::signal2
     {
     public:
         using StorageType = TStorage;
-        using ValueType = typename StorageType::ValueType;
 
         struct DataType
         {
-            btl::future::SharedFuture<Ts...> value;
-            uint64_t lastFrame = 0;
+            SignalResult<Ts...> value;
+            uint64_t lastUpdate = 0;
             bool didChange = false;
         };
 
         SharedImpl(TStorage sig) :
             sig_(std::move(sig)),
             innerData_(sig_.initialize()),
-            currentValue_(evaluateInner())
+            currentValue_(sig_.evaluate(innerData_))
         {
         }
 
-        ~SharedImpl()
-        {
-            currentValue_.cancel();
-            currentValue_.wait();
-        }
-
-        SharedImpl(SharedImpl const&) = default;
-        SharedImpl(SharedImpl&&) noexcept = default;
-
-        SharedImpl& operator=(SharedImpl const&) = default;
-        SharedImpl& operator=(SharedImpl&&) noexcept = default;
-
-        DataType initialize()
+        DataType initialize() const
         {
             std::unique_lock lock(mutex_);
 
@@ -58,14 +46,14 @@ namespace reactive::signal2
             return data;
         }
 
-        bool hasChanged(DataType& data) const
+        bool hasChanged(DataType const& data) const
         {
             return data.didChange;
         }
 
-        SignalResult<Ts const&...> evaluate(DataType& data) const
+        SignalResult<Ts const&...> evaluate(DataType const& data) const
         {
-            return makeSignalResultFromTuple(data.value.getTuple());
+            return data.value;
         }
 
         UpdateResult update(DataType& data, FrameInfo const& frame)
@@ -76,7 +64,8 @@ namespace reactive::signal2
             {
                 lastFrame_ = frame.getFrameId();
                 UpdateResult innerResult = sig_.update(innerData_, frame);
-                currentValue_ = evaluateInner();
+                if (innerResult.didChange)
+                    currentValue_ = sig_.evaluate(innerData_);
 
                 time_ += frame.getDeltaTime();
                 updateTime_.reset();
@@ -108,25 +97,17 @@ namespace reactive::signal2
         }
 
         template <typename TCallback>
-        btl::connection observe(DataType& data, TCallback&& callback)
+        btl::connection observe(DataType&, TCallback&& callback)
         {
-            return sig_.observe(data, callback);
-        }
-
-    private:
-        btl::future::SharedFuture<Ts...> evaluateInner() const
-        {
-            return btl::async([this]()
-                {
-                    return sig_.evaluate(innerData_);
-                });
+            std::unique_lock lock(mutex_);
+            return sig_.observe(innerData_, callback);
         }
 
     private:
         mutable std::mutex mutex_;
-        btl::shared<TStorage> sig_;
+        TStorage sig_;
         typename TStorage::DataType innerData_;
-        btl::future::SharedFuture<Ts...> currentValue_;
+        SignalResult<Ts...> currentValue_;
         uint64_t lastFrame_ = 0;
         uint64_t updateCount_ = 0;
         signal_time_t time_ = signal_time_t(0);
@@ -141,6 +122,11 @@ namespace reactive::signal2
 
         using DataType = typename Impl::DataType;
 
+        Shared(TStorage sig) :
+            Shared(std::make_shared<Impl>(std::move(sig)))
+        {
+        }
+
         Shared(btl::shared<Impl> impl) :
             impl_(std::move(impl))
         {
@@ -152,17 +138,17 @@ namespace reactive::signal2
         Shared& operator=(Shared const&) = default;
         Shared& operator=(Shared&&) noexcept = default;
 
-        DataType initialize()
+        DataType initialize() const
         {
             return impl_->initialize();
         }
 
-        bool hasChanged(DataType& data) const
+        bool hasChanged(DataType const& data) const
         {
             return impl_->hasChanged(data);
         }
 
-        SignalResult<Ts const&...> evaluate(DataType& data) const
+        SignalResult<Ts const&...> evaluate(DataType const& data) const
         {
             return impl_->evaluate(data);
         }
@@ -181,5 +167,8 @@ namespace reactive::signal2
     private:
         btl::shared<Impl> impl_;
     };
+
+    template <typename... Ts>
+    struct IsSignal<Shared<Ts...>> : std::true_type {};
 } // namespace reactive::signal2
 

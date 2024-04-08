@@ -135,3 +135,63 @@ TEST(Signal2, merge)
     EXPECT_EQ("test", c.evaluate().get<2>());
 }
 
+TEST(Signal2, share)
+{
+    auto input = makeInput<std::string>("hello");
+
+    auto s1 = input.signal.map([](std::string const& str)
+            {
+                return str + " world!";
+            });
+
+    auto s2 = s1.share();
+
+    std::vector<SignalContext<std::string>> contexts;
+    for (int i = 0; i < 1024; ++i)
+    {
+        contexts.emplace_back(makeSignalContext(s2));
+    }
+
+    std::vector<btl::future::Future<>> futures;
+    for (auto& context : contexts)
+    {
+        futures.push_back(btl::async([&context]() mutable
+            {
+
+                EXPECT_EQ("hello world!", context.evaluate());
+
+                auto r = context.update(FrameInfo(1, signal_time_t(16)));
+
+                EXPECT_FALSE(r.didChange);
+            }));
+    }
+
+    for (auto&& f : futures)
+    {
+        f.wait();
+    }
+
+    input.handle.set("bye");
+
+    for (size_t i = 0; i < contexts.size(); ++i)
+    {
+        auto& f = futures[i];
+        auto& context = contexts[i];
+
+        std::move(f).then([&]()
+            {
+                EXPECT_EQ("hello world!", context.evaluate());
+
+                auto r = context.update(FrameInfo(2, signal_time_t(16)));
+                EXPECT_TRUE(r.didChange);
+
+                EXPECT_EQ("bye world!", context.evaluate());
+            });
+    }
+
+    for (auto&& f : futures)
+    {
+        f.wait();
+    }
+}
+

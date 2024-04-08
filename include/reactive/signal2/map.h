@@ -18,7 +18,7 @@ namespace reactive::signal2
     class Map
     {
     public:
-        using InnerResultType = std::optional<SignalTypeT<TSignal>>;
+        using InnerResultType = std::optional<std::decay_t<SignalTypeT<TSignal>>>;
 
         struct DataType
         {
