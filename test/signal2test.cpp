@@ -2,6 +2,7 @@
 #include <reactive/signal2/constant.h>
 #include <reactive/signal2/signalcontext.h>
 #include <reactive/signal2/input.h>
+#include <reactive/signal2/merge.h>
 
 #include <gtest/gtest.h>
 
@@ -89,3 +90,29 @@ TEST(Signal2, map)
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 }
+
+TEST(Signal2, merge)
+{
+    auto input1 = makeInput(42);
+    auto input2 = makeInput<int, std::string>(20, "test");
+
+    auto s = merge(input1.signal, input2.signal);
+
+    static_assert(std::is_same_v<
+        Signal<Merge<InputSignal<int>, InputSignal<int, std::string>>, int,
+            int, std::string>,
+        decltype(s)
+        >);
+
+    auto c = makeSignalContext(std::move(s));
+
+    static_assert(std::is_same_v<
+            SignalResult<int const&, int const&, std::string const&>,
+            decltype(c.evaluate())
+            >);
+
+    EXPECT_EQ(42, c.evaluate().get<0>());
+    EXPECT_EQ(20, c.evaluate().get<1>());
+    EXPECT_EQ("test", c.evaluate().get<2>());
+}
+

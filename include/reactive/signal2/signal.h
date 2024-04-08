@@ -42,7 +42,7 @@ namespace reactive::signal2
         {
         }
 
-        DataType initialize()
+        DataType initialize() const
         {
             return sig_.initialize();
         }
@@ -71,6 +71,11 @@ namespace reactive::signal2
         StorageType unwrap() &&
         {
             return std::move(sig_);
+        }
+
+        StorageType const& unwrap() const&
+        {
+            return sig_;
         }
 
         Signal<void, Ts...> eraseType() const
@@ -122,5 +127,8 @@ namespace reactive::signal2
     private:
         StorageType sig_;
     };
+
+    template <typename... Ts>
+    struct IsSignal<Signal<Ts...>> : std::true_type {};
 } // namespace reactive::signal2
 

@@ -26,7 +26,7 @@ namespace reactive::signal2
 
         virtual ~SignalBase() = default;
 
-        virtual std::unique_ptr<DataBase> initialize() = 0;
+        virtual std::unique_ptr<DataBase> initialize() const = 0;
         virtual bool hasChanged(DataBase const& data) const = 0;
         virtual SignalResult<Ts...> evaluate(DataBase const& data) const = 0;
         virtual UpdateResult update(DataBase& data, FrameInfo const& frame) = 0;
@@ -56,7 +56,7 @@ namespace reactive::signal2
         {
         }
 
-        std::unique_ptr<BaseDataType> initialize() override
+        std::unique_ptr<BaseDataType> initialize() const override
         {
             return { std::make_unique<DataType>(sig_.initialize()) };
         }
@@ -116,7 +116,7 @@ namespace reactive::signal2
         SignalTypeless& operator=(SignalTypeless const&) = default;
         SignalTypeless& operator=(SignalTypeless&&) noexcept = default;
 
-        DataType initialize()
+        DataType initialize() const
         {
             return { sig_->initialize() };
         }

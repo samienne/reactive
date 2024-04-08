@@ -121,7 +121,7 @@ namespace reactive::signal2
     makeInput(Ts&&... ts)
     {
         auto control = std::make_shared<InputControl<std::decay_t<Ts>...>>(
-                std::forward<Ts>(ts)...);
+                std::make_tuple(std::forward<Ts>(ts)...));
 
         InputHandle<Ts...> handle(control);
         auto sig = wrap(InputSignal<std::decay_t<Ts>...>(std::move(control)));

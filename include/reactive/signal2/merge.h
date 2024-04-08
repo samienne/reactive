@@ -51,13 +51,20 @@ namespace reactive::signal2
         {
         }
 
+        Merge(Merge const&) = default;
+        Merge(Merge&&) noexcept = default;
+
+        Merge& operator=(Merge const&) = default;
+        Merge& operator=(Merge&&) = default;
+
         DataType initialize() const
         {
             return {
                 btl::tuple_map(sigs_, [](auto&& sig)
                     {
-                        return sig.initialize();
-                    })
+                        return std::forward<decltype(sig)>(sig).initialize();
+                    }),
+                    false
             };
         }
 
@@ -85,7 +92,7 @@ namespace reactive::signal2
 
     private:
         template <size_t... S>
-        auto doEvaluate(DataType const& data, std::index_sequence<S...>)
+        auto doEvaluate(DataType const& data, std::index_sequence<S...>) const
         {
             return makeSignalResultFromTuple(
                     std::tuple_cat(
@@ -97,7 +104,7 @@ namespace reactive::signal2
         }
 
         template <size_t... S>
-        bool doHasChanged(DataType const& data, std::index_sequence<S...>)
+        bool doHasChanged(DataType const& data, std::index_sequence<S...>) const
         {
             return (false || ... || std::get<S>(sigs_).hasChanged(
                         std::get<S>(data.sigData)));
@@ -125,9 +132,14 @@ namespace reactive::signal2
     template <typename... Ts, typename = std::enable_if_t<
         btl::all(IsSignal<std::decay_t<Ts>>::value...)>
         >
-    Merge<std::decay_t<Ts>...> merge(Ts&&... signals)
+    auto merge(Ts&&... signals)
     {
-        return { std::forward<Ts>(signals)... };
+        return wrap(Merge<typename std::decay_t<Ts>::StorageType...>(
+                    std::make_tuple(std::forward<Ts>(signals).unwrap()...)
+                    ));
     }
+
+    template <typename... Ts>
+    struct IsSignal<Merge<Ts...>> : std::true_type {};
 } // namespace reactive::signal2
 
