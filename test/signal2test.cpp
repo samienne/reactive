@@ -3,6 +3,7 @@
 #include <reactive/signal2/signalcontext.h>
 #include <reactive/signal2/input.h>
 #include <reactive/signal2/merge.h>
+#include <reactive/signal2/join.h>
 
 #include <btl/demangle.h>
 
@@ -244,5 +245,42 @@ TEST(Signal2, share)
     {
         f.wait();
     }
+}
+
+TEST(Signal2, join)
+{
+    auto input1 = makeInput<std::string>("hello");
+    auto input2 = makeInput<std::string>("world");
+    auto input3 = makeInput(42);
+    auto input4 = makeInput<std::string>("!");
+    auto input5 = makeInput(true);
+
+    auto s1 = merge(input1.signal, input3.signal);
+    auto s2 = merge(input2.signal, input3.signal);
+
+    auto s = merge(input5.signal, input4.signal).map([s1, s2](bool v, std::string str)
+        {
+            return makeSignalResult(v ? s1 : s2, std::move(str));
+        });
+
+    auto j = s.join();
+
+    auto c = makeSignalContext(j);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ("hello", r1.get<0>());
+    EXPECT_EQ(42, r1.get<1>());
+    EXPECT_EQ("!", r1.get<2>());
+
+    input5.handle.set(false);
+    input4.handle.set("?");
+
+    c.update(FrameInfo(1, {}));
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ("world", r2.get<0>());
+    EXPECT_EQ(42, r2.get<1>());
+    EXPECT_EQ("?", r1.get<2>());
 }
 

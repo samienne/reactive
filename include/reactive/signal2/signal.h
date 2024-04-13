@@ -1,5 +1,6 @@
 #pragma once
 
+#include "join.h"
 #include "shared.h"
 #include "typed.h"
 #include "updateresult.h"
@@ -93,6 +94,11 @@ namespace reactive::signal2
         Signal<Shared<StorageType, Ts...>, Ts...> share() const
         {
             return wrap(Shared<StorageType, Ts...>(sig_));
+        }
+
+        auto join() const
+        {
+            return wrap(Join<TStorage>(sig_));
         }
 
         Signal clone() const

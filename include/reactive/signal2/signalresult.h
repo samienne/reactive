@@ -116,6 +116,12 @@ namespace reactive::signal2
     }
 
     template <typename... Ts>
+    SignalResult<std::decay_t<Ts>...> makeSignalResult(Ts&&... ts)
+    {
+        return SignalResult<std::decay_t<Ts>...>{ std::forward<Ts>(ts)... };
+    }
+
+    template <typename... Ts>
     struct IsSignalResultType2 : std::false_type {};
 
     template <typename... Ts, typename... Us>
