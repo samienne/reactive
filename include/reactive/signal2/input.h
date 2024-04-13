@@ -30,6 +30,12 @@ namespace reactive::signal2
         {
         }
 
+        InputHandle(InputHandle const&) = default;
+        InputHandle(InputHandle&&) noexcept = default;
+
+        InputHandle& operator=(InputHandle const&) = default;
+        InputHandle& operator=(InputHandle&&) noexcept = default;
+
         template <typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Us, Ts>...)
             >>
@@ -123,7 +129,7 @@ namespace reactive::signal2
         auto control = std::make_shared<InputControl<std::decay_t<Ts>...>>(
                 std::make_tuple(std::forward<Ts>(ts)...));
 
-        InputHandle<Ts...> handle(control);
+        InputHandle<std::decay_t<Ts>...> handle(control);
         auto sig = wrap(InputSignal<std::decay_t<Ts>...>(std::move(control)));
 
         return {

@@ -31,7 +31,7 @@ namespace reactive::signal2
         virtual SignalResult<Ts...> evaluate(DataBase const& data) const = 0;
         virtual UpdateResult update(DataBase& data, FrameInfo const& frame) = 0;
         virtual btl::connection observe(DataBase& data,
-                std::function<void()>&& callback) = 0;
+                std::function<void()> callback) = 0;
     };
 
     template <typename TStorage, typename... Ts>
@@ -79,7 +79,7 @@ namespace reactive::signal2
         }
 
         btl::connection observe(BaseDataType& data,
-                std::function<void()>&& callback) override
+                std::function<void()> callback) override
         {
             return sig_.observe(getStorageData(data), std::move(callback));
         }

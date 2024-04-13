@@ -4,6 +4,7 @@
 #include <reactive/signal2/input.h>
 #include <reactive/signal2/merge.h>
 #include <reactive/signal2/join.h>
+#include <reactive/signal2/combine.h>
 
 #include <btl/demangle.h>
 
@@ -282,5 +283,41 @@ TEST(Signal2, join)
     EXPECT_EQ("world", r2.get<0>());
     EXPECT_EQ(42, r2.get<1>());
     EXPECT_EQ("?", r1.get<2>());
+}
+
+TEST(Signal2, combine)
+{
+    std::vector<int> v1 = { 10, 20, 30, 40, 50 };
+    std::vector<int> v2 = { 1, 2, 3, 4, 5 };
+
+    std::vector<Input<SignalResult<int>, SignalResult<int>>> inputs;
+    for (auto const& v : v1)
+        inputs.push_back(makeInput(v));
+
+    std::vector<AnySignal<int>> sigs;
+    for (auto const& i : inputs)
+        sigs.push_back(i.signal);
+
+    auto s = combine(sigs);
+
+    auto c = makeSignalContext(s);
+
+    auto r = c.evaluate();
+
+    EXPECT_EQ(v1, r);
+
+    for (size_t i = 0; i < inputs.size(); ++i)
+        inputs[i].handle.set(v2.at(i));
+
+    auto ur = c.update(FrameInfo(1, {}));
+
+    EXPECT_TRUE(ur.didChange);
+
+    r = c.evaluate();
+
+    EXPECT_EQ(v2, r);
+
+    ur = c.update(FrameInfo(1, {}));
+    EXPECT_FALSE(ur.didChange);
 }
 
