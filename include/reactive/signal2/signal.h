@@ -44,30 +44,9 @@ namespace reactive::signal2
         {
         }
 
-        DataType initialize() const
+        StorageType& unwrap() &
         {
-            return sig_.initialize();
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return sig_.hasChanged(data);
-        }
-
-        auto evaluate(DataType const& data) const
-        {
-            return sig_.evaluate(data);
-        }
-
-        UpdateResult update(DataType& data, FrameInfo const& frame)
-        {
-            return sig_.update(data, frame);
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataType& data, TCallback&& callback)
-        {
-            return sig_.observe(data, callback);
+            return sig_;
         }
 
         StorageType unwrap() &&

@@ -142,7 +142,7 @@ namespace reactive::signal2
             return sig_->observe(*data.data, std::forward<TCallback>(callback));
         }
 
-        template <typename... Us, std::enable_if<
+        template <typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Ts, Us>...)
             >>
         SignalTypeless<Us...> cast() const

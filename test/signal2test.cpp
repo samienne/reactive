@@ -70,15 +70,15 @@ TEST(Signal2, constant)
     auto s = constant(10);
     AnySignal<int> ss = s;
 
-    auto data = s.initialize();
+    auto c = makeSignalContext(s);
 
-    EXPECT_EQ(10, s.evaluate(data).get<0>());
+    EXPECT_EQ(10, c.evaluate());
 
-    EXPECT_EQ(Type<int const&>(), getType(s.evaluate(data).get<0>()));
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
 
     FrameInfo frame(1, signal_time_t(10));
 
-    auto r = s.update(data, frame);
+    auto r = c.update(frame);
     EXPECT_EQ(r.nextUpdate, std::nullopt);
 }
 

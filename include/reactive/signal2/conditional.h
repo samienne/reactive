@@ -26,8 +26,8 @@ namespace reactive::signal2
                     AnySignal<Ts...> const& falseSignal
                     ) :
                 conditionData(conditionSignal.initialize()),
-                trueData(trueSignal.initialize()),
-                falseData(falseSignal.initialize()),
+                trueData(trueSignal.unwrap().initialize()),
+                falseData(falseSignal.unwrap().initialize()),
                 condition(conditionSignal.evaluate(conditionData).template get<0>())
             {
             }
@@ -56,8 +56,8 @@ namespace reactive::signal2
         SignalResult<Ts...> evaluate(DataType const& data) const
         {
             return data.condition
-                ? trueSignal_.evaluate(data.trueData)
-                : falseSignal_.evaluate(data.falseData)
+                ? trueSignal_.unwrap().evaluate(data.trueData)
+                : falseSignal_.unwrap().evaluate(data.falseData)
                 ;
         }
 
@@ -73,9 +73,9 @@ namespace reactive::signal2
                 .template get<0>();
 
             if (data.condition)
-                r = r + trueSignal_.update(data.trueData, frame);
+                r = r + trueSignal_.unwrap().update(data.trueData, frame);
             else
-                r = r + falseSignal_.update(data.falseData, frame);
+                r = r + falseSignal_.unwrap().update(data.falseData, frame);
 
             data.hasChanged = r.didChange;
 
@@ -86,9 +86,9 @@ namespace reactive::signal2
         {
             auto c = conditionSignal_.observe(data.conditionData, callback);
             if (data.condition)
-                c += trueSignal_.observe(data.trueData, callback);
+                c += trueSignal_.unwrap().observe(data.trueData, callback);
             else
-                c += falseSignal_.observe(data.falseData, callback);
+                c += falseSignal_.unwrap().observe(data.falseData, callback);
 
             return c;
         }

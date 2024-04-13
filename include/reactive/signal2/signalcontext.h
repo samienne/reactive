@@ -8,19 +8,20 @@ namespace reactive::signal2
     class SignalContext
     {
     public:
-        using InnerResultType = std::optional<std::decay_t<SignalTypeT<AnySignal<Ts...>>>>;
+        //using InnerResultType = std::optional<std::decay_t<SignalTypeT<AnySignal<Ts...>>>>;
+        using InnerResultType = std::optional<SignalResult<Ts...>>;
 
         SignalContext(AnySignal<Ts...> sig) :
             sig_(std::move(sig)),
-            data_(sig_.initialize()),
-            result_(sig_.evaluate(data_))
+            data_(sig_.unwrap().initialize()),
+            result_(sig_.unwrap().evaluate(data_))
         {
         };
 
         auto evaluate() const -> decltype(auto)
         {
             if constexpr(sizeof...(Ts) == 0)
-                sig_.evaluate(data_);
+                sig_.unwrap().evaluate(data_);
             if constexpr (sizeof...(Ts) == 1)
                 return result_->template get<0>();
             else
@@ -29,9 +30,11 @@ namespace reactive::signal2
 
         UpdateResult update(FrameInfo const& frame)
         {
-            auto r = sig_.update(data_, frame);
+            auto r = sig_.unwrap().update(data_, frame);
             result_.reset();
-            new(&result_) std::decay_t<SignalTypeT<AnySignal<Ts...>>>(sig_.evaluate(data_));
+            new(&result_) SignalResult<Ts...>(
+                    sig_.unwrap().evaluate(data_)
+                    );
             return r;
         }
 
@@ -64,10 +67,12 @@ namespace reactive::signal2
     using SignalToContext = typename ResultToContext<SignalTypeT<TSignal>>::type;
 
     template <typename TStorage, typename... Ts>
-    SignalToContext<Signal<TStorage, Ts...>> makeSignalContext(
+    SignalToContext<typename Signal<TStorage, Ts...>::StorageType> makeSignalContext(
             Signal<TStorage, Ts...> sig)
     {
-        return SignalToContext<Signal<TStorage, Ts...>>(std::move(sig));
+        return SignalToContext<typename Signal<TStorage, Ts...>::StorageType>(
+                std::move(sig)
+                );
     }
 } // namespace reactive::signal2
 

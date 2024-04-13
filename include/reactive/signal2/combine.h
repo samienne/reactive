@@ -23,9 +23,9 @@ namespace reactive::signal2
 
         DataType initialize() const
         {
-            std::vector<typename AnySignal<T>::DataType> datas;
+            std::vector<SignalDataTypeT<AnySignal<T>>> datas;
             for (auto const& sig : sigs_)
-                datas.push_back(sig.initialize());
+                datas.push_back(sig.unwrap().initialize());
 
             return { std::move(datas), false };
         }
@@ -35,7 +35,8 @@ namespace reactive::signal2
             std::vector<T> result;
 
             for (size_t i = 0; i < sigs_.size(); ++i)
-                result.push_back(sigs_[i].evaluate(data.datas[i]).template get<0>());
+                result.push_back(sigs_[i].unwrap().evaluate(data.datas[i])
+                        .template get<0>());
 
             return SignalResult<std::vector<T>>{ std::move(result) };
         }
@@ -49,7 +50,7 @@ namespace reactive::signal2
         {
             UpdateResult r;
             for (size_t i = 0; i < sigs_.size(); ++i)
-                r = r + sigs_[i].update(data.datas[i], frame);
+                r = r + sigs_[i].unwrap().update(data.datas[i], frame);
 
             data.hasChanged = r.didChange;
 
@@ -61,7 +62,7 @@ namespace reactive::signal2
             Connection c;
 
             for (size_t i = 0; i < sigs_.size(); ++i)
-                c += sigs_[i].observe(data.datas[i], callback);
+                c += sigs_[i].unwrap().observe(data.datas[i], callback);
 
             return c;
         }

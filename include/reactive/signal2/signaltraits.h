@@ -61,19 +61,28 @@ namespace reactive::signal2
     template <typename T>
     struct IsSignal : CheckSignal<T> {};
 
-    template <typename T>
-    struct IsSharedSignal :
-        btl::All<
-            IsSignal<T>,
-            std::is_copy_constructible<T>
-        >{};
-
-    template <typename... Ts>
-    struct AreSignals : btl::All<IsSignal<Ts>...> {};
-
     template <typename TSignal>
     struct SignalDataType : std::decay<decltype(std::declval<TSignal>()
             .initialize())>
+    {
+    };
+
+    template <typename T, typename... Ts>
+    class Signal;
+
+    template <typename... Ts>
+    class AnySignal;
+
+    template <typename T, typename... Ts>
+    struct SignalDataType<Signal<T, Ts...>>
+    {
+        using type = std::decay_t<
+            decltype(std::declval<Signal<T, Ts...>>().unwrap().initialize())
+            >;
+    };
+
+    template <typename... Ts>
+    struct SignalDataType<AnySignal<Ts...>> : SignalDataType<Signal<void, Ts...>>
     {
     };
 
@@ -118,5 +127,4 @@ namespace reactive::signal2
             std::function<TSignature>
             >;
 }
-
 
