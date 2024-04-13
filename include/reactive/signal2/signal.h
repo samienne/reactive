@@ -6,6 +6,7 @@
 #include "updateresult.h"
 #include "wrap.h"
 #include "map.h"
+#include "conditional.h"
 
 #include <btl/future/future.h>
 #include <btl/async.h>
@@ -18,7 +19,7 @@ namespace reactive::signal2
     class Signal;
 
     template <typename... Ts>
-    using AnySignal = Signal<void, Ts...>;
+    class AnySignal;
 
     template <typename TStorage, typename... Ts>
     class Signal
@@ -79,7 +80,7 @@ namespace reactive::signal2
             return sig_;
         }
 
-        Signal<void, Ts...> eraseType() const
+        AnySignal<Ts...> eraseType() const
         {
             if constexpr (std::is_same_v<void, TStorage>)
             {
@@ -87,7 +88,7 @@ namespace reactive::signal2
             }
             else
             {
-                return wrap(SignalTypeless<Ts...>(makeTypedSignal(std::move(sig_))));
+                return wrap(makeTypelessSignal(*this));
             }
         }
 
@@ -120,18 +121,56 @@ namespace reactive::signal2
                         std::move(sig_)));
         }
 
-        template <typename... Us, typename = std::enable_if_t<
-            btl::all(std::is_convertible_v<Ts, Us>...)
-            >>
-        operator AnySignal<Us...>() const
+        template <typename T, typename U, typename... Us>
+        auto conditional(Signal<T, Us...> trueSignal, Signal<U, Us...> falseSignal) const
+            -> decltype(signal2::conditional(*this, std::move(trueSignal),
+                        std::move(falseSignal)))
         {
-            return AnySignal<Us...>(SignalTypeless<Us...>(
-                        std::make_shared<SignalTyped<StorageType, Us...>>(sig_)
-                        ));
+            return signal2::conditional(*this, std::move(trueSignal),
+                    std::move(falseSignal));
         }
 
-    private:
+    protected:
         StorageType sig_;
+    };
+
+    template <typename... Ts>
+    class AnySignal : public Signal<void, Ts...>
+    {
+    public:
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal(Signal<TStorage, Us...> const& rhs) :
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(rhs))
+        {
+        }
+
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal(Signal<TStorage, Us...>&& rhs) noexcept:
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(std::move(rhs)))
+        {
+        }
+
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal operator=(Signal<TStorage, Us...> const& rhs)
+        {
+            Signal<void, Ts...>::sig_ = makeTypelessSignal<Ts...>(rhs);
+            return *this;
+        }
+
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal operator=(Signal<TStorage, Us...>&& rhs) noexcept
+        {
+            Signal<void, Ts...>::sig_ = makeTypelessSignal<Ts...>(rhs);
+            return *this;
+        }
     };
 
     template <typename... Ts>

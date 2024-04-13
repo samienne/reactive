@@ -321,3 +321,29 @@ TEST(Signal2, combine)
     EXPECT_FALSE(ur.didChange);
 }
 
+TEST(Signal2, conditional)
+{
+    auto cond = makeInput(true);
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
+
+    auto s = cond.signal.conditional(input1.signal, input2.signal);
+
+    auto c = makeSignalContext(s);
+
+    auto r = c.evaluate();
+
+    EXPECT_EQ("hello", r.get<0>());
+    EXPECT_EQ(42, r.get<1>());
+
+    cond.handle.set(false);
+
+    auto ur = c.update(FrameInfo(1, {}));
+    r = c.evaluate();
+
+    EXPECT_TRUE(ur.didChange);
+
+    EXPECT_EQ("world", r.get<0>());
+    EXPECT_EQ(22, r.get<1>());
+}
+

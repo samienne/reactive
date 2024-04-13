@@ -142,6 +142,15 @@ namespace reactive::signal2
             return sig_->observe(*data.data, std::forward<TCallback>(callback));
         }
 
+        template <typename... Us, std::enable_if<
+            btl::all(std::is_convertible_v<Ts, Us>...)
+            >>
+        SignalTypeless<Us...> cast() const
+        {
+            return { std::make_shared<SignalTyped<SignalTypeless<Ts...>, Us...>>>(
+                    *this) };
+        }
+
     private:
         std::shared_ptr<SignalBase<Ts...>> sig_;
     };
@@ -149,10 +158,31 @@ namespace reactive::signal2
     template <typename TStorage, typename... Ts>
     class Signal;
 
-    template <typename TStorage, typename... Ts>
-    auto makeTypedSignal(Signal<TStorage, Ts...> sig)
+    template <typename... Ts, typename TStorage, typename... Us, typename =
+        std::enable_if_t<btl::all(std::is_convertible_v<Us, Ts>...)>
+        >
+    auto makeTypedSignal(Signal<TStorage, Us...> sig)
     {
-        std::make_shared<SignalTyped<TStorage, Ts...>>(std::move(sig).unwrap());
+        using StorageType = std::decay_t<decltype(sig.unwrap())>;
+        return std::make_shared<SignalTyped<StorageType, Ts...>>(sig.unwrap());
+    }
+
+    template <typename... Ts, typename TStorage, typename... Us, typename =
+        std::enable_if_t<btl::all(std::is_convertible_v<Us, Ts>...)>
+        >
+    auto makeTypelessSignal(Signal<TStorage, Us...> sig)
+    {
+        using StorageType = std::decay_t<decltype(sig.unwrap())>;
+        if constexpr (std::is_same_v<StorageType, SignalTypeless<Ts...>>)
+        {
+            return std::move(sig).unwrap();
+        }
+        else
+        {
+            return SignalTypeless<Ts...>(
+                    makeTypedSignal<Ts...>(std::move(sig))
+                    );
+        }
     }
 } // namespace reactive::signal2
 
