@@ -4,9 +4,64 @@
 #include <reactive/signal2/input.h>
 #include <reactive/signal2/merge.h>
 
+#include <btl/demangle.h>
+
 #include <gtest/gtest.h>
 
 using namespace reactive::signal2;
+
+template <typename T>
+class Type
+{
+public:
+    using type = T;
+
+    template <typename... Us>
+    auto construct(Us&&... us) const
+    {
+        return T(std::forward<Us>(us)...);
+    }
+
+    template <typename U>
+    constexpr bool operator==(Type<U> const&) const
+    {
+        return std::is_same_v<T, U>;
+    }
+
+    template <typename U>
+    constexpr bool operator!=(Type<U> const& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    std::string toString() const
+    {
+        return btl::demangle<Type<T>>();
+    }
+
+    friend std::ostream& operator<<(std::ostream& s, Type<T> const& t)
+    {
+        return s << t.toString();
+    }
+};
+
+template <typename T>
+constexpr Type<T> getType(T&&)
+{
+    return {};
+}
+
+template <typename T>
+constexpr Type<T&> getType(T&)
+{
+    return {};
+}
+
+template <typename T>
+constexpr Type<T const&> getType(T const&)
+{
+    return {};
+}
 
 TEST(Signal2, constant)
 {
@@ -17,7 +72,7 @@ TEST(Signal2, constant)
 
     EXPECT_EQ(10, s.evaluate(data).get<0>());
 
-    static_assert(std::is_same_v<int const&, decltype(s.evaluate(data).get<0>())>);
+    EXPECT_EQ(Type<int const&>(), getType(s.evaluate(data).get<0>()));
 
     FrameInfo frame(1, signal_time_t(10));
 
@@ -33,7 +88,7 @@ TEST(Signal2, signalContext)
 
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 
-    static_assert(std::is_same_v<int const&, decltype(c.evaluate())>);
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
 
     int v = c.evaluate();
 
@@ -46,7 +101,7 @@ TEST(Signal2, signalInput)
 
     auto c = makeSignalContext(input.signal);
 
-    static_assert(std::is_same_v<SignalContext<int const&>, decltype(c)>);
+    EXPECT_EQ(Type<SignalContext<int const&>>(), Type<decltype(c)>());
 
     EXPECT_EQ(42, c.evaluate());
 
@@ -59,7 +114,7 @@ TEST(Signal2, signalInput)
 
     EXPECT_EQ(22, c.evaluate());
 
-    static_assert(std::is_same_v<int const&, decltype(c.evaluate())>);
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
 }
 
 TEST(Signal2, map)
@@ -117,18 +172,14 @@ TEST(Signal2, merge)
 
     auto s = merge(input1.signal, input2.signal);
 
-    static_assert(std::is_same_v<
-        Signal<Merge<InputSignal<int>, InputSignal<int, std::string>>, int,
-            int, std::string>,
-        decltype(s)
-        >);
+    Type<Signal<Merge<InputSignal<int>, InputSignal<int, std::string>>,
+        int, int, std::string>> type;
+    EXPECT_EQ(type, Type<decltype(s)>());
 
     auto c = makeSignalContext(std::move(s));
 
-    static_assert(std::is_same_v<
-            SignalResult<int const&, int const&, std::string const&>,
-            decltype(c.evaluate())
-            >);
+    Type<SignalResult<int const&, int const&, std::string const&>> type2;
+    EXPECT_EQ(type2, getType(c.evaluate()));
 
     EXPECT_EQ(42, c.evaluate().get<0>());
     EXPECT_EQ(20, c.evaluate().get<1>());

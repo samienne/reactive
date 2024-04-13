@@ -8,6 +8,8 @@ namespace reactive::signal2
     class SignalContext
     {
     public:
+        using InnerResultType = std::optional<std::decay_t<SignalTypeT<AnySignal<Ts...>>>>;
+
         SignalContext(AnySignal<Ts...> sig) :
             sig_(std::move(sig)),
             data_(sig_.initialize()),
@@ -20,14 +22,15 @@ namespace reactive::signal2
             if constexpr(sizeof...(Ts) == 0)
                 sig_.evaluate(data_);
             if constexpr (sizeof...(Ts) == 1)
-                return result_.template get<0>();
+                return result_->template get<0>();
             else
-                return result_;
+                return SignalResult<Ts...>(*result_);
         }
 
         UpdateResult update(FrameInfo const& frame)
         {
             auto r = sig_.update(data_, frame);
+            result_.reset();
             new(&result_) std::decay_t<SignalTypeT<AnySignal<Ts...>>>(sig_.evaluate(data_));
             return r;
         }
@@ -43,7 +46,7 @@ namespace reactive::signal2
     private:
         AnySignal<Ts...> sig_;
         typename AnySignal<Ts...>::DataType data_;
-        std::decay_t<SignalTypeT<AnySignal<Ts...>>> result_;
+        InnerResultType result_;
     };
 
     template <typename T>
