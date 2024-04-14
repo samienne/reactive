@@ -32,7 +32,7 @@ namespace reactive::signal2
         {
             auto r = sig_.unwrap().update(data_, frame);
             result_.reset();
-            new(&result_) SignalResult<Ts...>(
+            new(&result_) std::optional<SignalResult<Ts...>>(
                     sig_.unwrap().evaluate(data_)
                     );
             return r;

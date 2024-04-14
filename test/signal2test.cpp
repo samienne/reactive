@@ -347,3 +347,31 @@ TEST(Signal2, conditional)
     EXPECT_EQ(22, r.get<1>());
 }
 
+TEST(Signal2, weak)
+{
+    auto input = makeInput(42);
+
+    auto s = input.signal.share();
+
+    auto w = s.weak();
+
+    auto c2 = makeSignalContext(w);
+
+    {
+        auto c1 = makeSignalContext(std::move(s));
+
+        EXPECT_EQ(42, c2.evaluate());
+
+        input.handle.set(22);
+        auto r = c2.update(FrameInfo(1, {}));
+
+        EXPECT_TRUE(r.didChange);
+        EXPECT_EQ(22, c2.evaluate());
+    }
+
+    input.handle.set(2);
+    auto r = c2.update(FrameInfo(2, {}));
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(22, c2.evaluate());
+}
+

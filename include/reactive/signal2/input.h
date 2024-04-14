@@ -1,5 +1,6 @@
 #pragma once
 
+#include "weak.h"
 #include "signal.h"
 #include "signalresult.h"
 

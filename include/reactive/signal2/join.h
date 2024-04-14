@@ -25,7 +25,7 @@ namespace reactive::signal2
         template <typename T, typename... Ts>
         Signal<T, Ts...> toSignal(Signal<T, Ts...> sig)
         {
-            return std::move(sig);
+            return sig;
         }
     } // anonymous namespace
 
