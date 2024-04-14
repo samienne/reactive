@@ -1,7 +1,6 @@
 #pragma once
 
 #include "weak.h"
-#include "signal.h"
 #include "signalresult.h"
 
 #include <mutex>
@@ -9,6 +8,9 @@
 
 namespace reactive::signal2
 {
+    template <typename TStorage, typename... Ts>
+    class Signal;
+
     template <typename... Ts>
     struct InputControl
     {
@@ -17,9 +19,14 @@ namespace reactive::signal2
         {
         }
 
-        std::mutex mutex;
+        std::recursive_mutex mutex;
+        std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
+        std::optional<Weak<Ts...>> sig;
+        std::optional<signal_time_t> updateTime;
+        signal_time_t time = signal_time_t(0);
         SignalResult<Ts...> value;
         uint64_t index = 0;
+        uint64_t frameId = 0;
     };
 
     template <typename... Ts>
@@ -44,8 +51,22 @@ namespace reactive::signal2
         {
             if (auto control = control_.lock())
             {
-                std::unique_lock<std::mutex>(control->mutex);
+                std::unique_lock lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
+                control->sig.reset();
+                control->sigData.reset();
+                ++control->index;
+            }
+        }
+
+        void set(Signal<Weak<Ts...>, Ts...> sig)
+        {
+            if (auto control = control_.lock())
+            {
+                std::unique_lock lock(control->mutex);
+                control->sig = std::move(sig).unwrap();
+                control->sigData = control->sig->initialize();
+                control->value = control->sig->evaluate(*control->sigData);
                 ++control->index;
             }
         }
@@ -72,7 +93,7 @@ namespace reactive::signal2
 
         DataType initialize() const
         {
-            std::unique_lock<std::mutex>(control_->mutex);
+            std::unique_lock lock(control_->mutex);
 
             return {
                 control_->value,
@@ -90,20 +111,60 @@ namespace reactive::signal2
             return data.hasChanged;
         }
 
-        UpdateResult update(DataType& data, FrameInfo const&)
+        UpdateResult update(DataType& data, FrameInfo const& frame)
         {
-            std::unique_lock<std::mutex>(control_->mutex);
+            std::unique_lock lock(control_->mutex);
 
-            data.value = control_->value;
-            data.hasChanged = data.index < control_->index;
-            data.index = control_->index;
+            bool newFrame = frame.getFrameId() > control_->frameId;
+            control_->frameId = frame.getFrameId();
+
+            if (newFrame)
+                control_->time += frame.getDeltaTime();
+
+            if (newFrame && control_->sig && control_->sigData)
+            {
+                auto r = control_->sig->update(*control_->sigData, frame);
+                if (r.didChange)
+                {
+                    control_->value = control_->sig->evaluate(*control_->sigData);
+                    ++control_->index;
+                }
+
+                control_->updateTime.reset();
+                if (r.nextUpdate)
+                    control_->updateTime = control_->time + *r.nextUpdate;
+            }
+
+            data.hasChanged = (data.index < control_->index);
+            if (data.hasChanged)
+            {
+                data.value = control_->value;
+                data.index = control_->index;
+            }
+
+            if (control_->updateTime)
+            {
+                return {
+                    *control_->updateTime - control_->time,
+                    data.hasChanged
+                };
+            }
 
             return { std::nullopt, data.hasChanged };
         }
 
         template <typename TCallback>
-        Connection observe(DataType&, TCallback&&)
+        Connection observe(DataType&, TCallback&& callback)
         {
+            std::unique_lock lock(control_->mutex);
+            if (control_->sig && control_->sigData)
+            {
+                return control_->sig->observe(
+                        *control_->sigData,
+                        std::forward<TCallback>(callback)
+                        );
+            }
+
             return {};
         }
 

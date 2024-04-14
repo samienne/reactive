@@ -375,3 +375,31 @@ TEST(Signal2, weak)
     EXPECT_EQ(22, c2.evaluate());
 }
 
+TEST(Signal2, tee)
+{
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
+
+    auto s1 = merge(input1.signal, input2.signal).map(
+            [](std::string const& s1, int i1, std::string const& s2, int i2)
+            {
+                return makeSignalResult(s1 + s2, i1 + i2);
+            });
+
+    auto s2 = s1.tee(input2.handle);
+
+    auto c = makeSignalContext(s2);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ("helloworld", r1.get<0>());
+    EXPECT_EQ(64, r1.get<1>());
+
+    c.update(FrameInfo(1, {}));
+
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ("hellohelloworld", r2.get<0>());
+    EXPECT_EQ(106, r2.get<1>());
+}
+

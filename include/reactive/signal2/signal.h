@@ -1,5 +1,6 @@
 #pragma once
 
+#include "input.h"
 #include "join.h"
 #include "shared.h"
 #include "typed.h"
@@ -183,6 +184,13 @@ namespace reactive::signal2
             return wrap(Map<std::decay_t<TFunc>, StorageType>(
                         std::forward<TFunc>(func),
                         std::move(Super::sig_)));
+        }
+
+        auto tee(InputHandle<Ts...> handle) const
+        {
+            auto shared = share();
+            handle.set(shared.weak());
+            return shared;
         }
     };
 

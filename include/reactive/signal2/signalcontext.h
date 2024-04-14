@@ -8,7 +8,6 @@ namespace reactive::signal2
     class SignalContext
     {
     public:
-        //using InnerResultType = std::optional<std::decay_t<SignalTypeT<AnySignal<Ts...>>>>;
         using InnerResultType = std::optional<SignalResult<Ts...>>;
 
         SignalContext(AnySignal<Ts...> sig) :
@@ -36,6 +35,11 @@ namespace reactive::signal2
                     sig_.unwrap().evaluate(data_)
                     );
             return r;
+        }
+
+        Connection observe(std::function<void()> callback)
+        {
+            return sig_.unwrap().observe(data_, std::move(callback));
         }
 
         template <typename... Us, typename = std::enable_if_t<

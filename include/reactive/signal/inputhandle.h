@@ -10,7 +10,6 @@
 
 #include <memory>
 #include <utility>
-#include <iostream>
 
 namespace reactive::signal
 {

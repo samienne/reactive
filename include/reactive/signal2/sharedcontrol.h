@@ -103,7 +103,7 @@ namespace reactive::signal2
         }
 
     private:
-        mutable std::mutex mutex_;
+        mutable std::recursive_mutex mutex_;
         StorageType sig_;
         typename StorageType::DataType innerData_;
         SignalResult<Ts...> currentValue_;
