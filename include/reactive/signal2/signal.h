@@ -192,6 +192,21 @@ namespace reactive::signal2
             handle.set(shared.weak());
             return shared;
         }
+
+        template <typename TFunc, typename... Us, typename = std::enable_if_t<
+            std::is_assignable_v<SignalResult<Us...>, std::invoke_result_t<TFunc, Ts...>>
+            >>
+        auto tee(InputHandle<Us...> handle, TFunc&& func) const
+        {
+            auto mapped = this->map(std::forward<TFunc>(func)).share();
+            handle.set(mapped.weak());
+
+            // Store a reference to mapped in the lambda capture
+            return mapped.map([mapped](auto&&... ts)
+                {
+                    return makeSignalResult(std::forward<decltype(ts)>(ts)...);
+                });
+        }
     };
 
     template <typename... Ts>
