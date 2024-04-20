@@ -5,6 +5,7 @@
 #include <reactive/signal2/merge.h>
 #include <reactive/signal2/join.h>
 #include <reactive/signal2/combine.h>
+#include <reactive/signal2/fromoptional.h>
 
 #include <btl/demangle.h>
 
@@ -481,4 +482,13 @@ TEST(Signal2, makeOptional)
     EXPECT_EQ(Type<std::optional<int> const&>(), getType(c.evaluate()));
 
     EXPECT_EQ(std::make_optional(42), c.evaluate());
+}
+
+TEST(Signal2, fromOptional)
+{
+    std::optional<AnySignal<int>> n = std::nullopt;
+
+    auto s = fromOptional(n);
+
+    EXPECT_EQ(Type<AnySignal<std::optional<int>>>(), Type<decltype(s)>());
 }
