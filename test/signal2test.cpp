@@ -469,3 +469,16 @@ TEST(Signal2, teeWithFunc)
     EXPECT_EQ("hellohelloworld", r2.get<0>());
     EXPECT_EQ(106, r2.get<1>());
 }
+
+TEST(Signal2, makeOptional)
+{
+    auto s = constant(42);
+
+    auto s2 = s.makeOptional();
+
+    auto c = makeSignalContext(s2);
+
+    EXPECT_EQ(Type<std::optional<int> const&>(), getType(c.evaluate()));
+
+    EXPECT_EQ(std::make_optional(42), c.evaluate());
+}

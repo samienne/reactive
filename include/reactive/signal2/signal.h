@@ -207,6 +207,27 @@ namespace reactive::signal2
                     return makeSignalResult(std::forward<decltype(ts)>(ts)...);
                 });
         }
+
+        auto makeOptional() const
+        {
+            if constexpr(sizeof...(Ts) == 1)
+            {
+                return this->map([](auto&& t)
+                    {
+                        return std::make_optional(std::forward<decltype(t)>(t));
+                    });
+            }
+            else
+            {
+                return this->map([](auto&&... ts)
+                    {
+                        return std::make_optional(
+                                std::make_tuple(
+                                std::forward<decltype(ts)>(ts)...
+                                ));;
+                    });
+            }
+        }
     };
 
     template <typename... Ts>
