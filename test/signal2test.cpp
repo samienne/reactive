@@ -492,3 +492,37 @@ TEST(Signal2, fromOptional)
 
     EXPECT_EQ(Type<AnySignal<std::optional<int>>>(), Type<decltype(s)>());
 }
+
+TEST(Signal2, cache)
+{
+    auto input = makeInput(42);
+
+    auto s1 = input.signal.map([](int i)
+        {
+            return std::to_string(i);
+        });
+
+    auto s2 = s1.cache();
+
+    int callCount = 0;
+    auto s3 = s2.map([&callCount](std::string const& s)
+        {
+            ++callCount;
+            return s + s;
+        });
+
+    auto c = makeSignalContext(s3);
+
+    EXPECT_EQ(1, callCount);
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(22);
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(2, callCount);
+}

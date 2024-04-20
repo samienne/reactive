@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cache.h"
 #include "input.h"
 #include "join.h"
 #include "shared.h"
@@ -227,6 +228,11 @@ namespace reactive::signal2
                                 ));;
                     });
             }
+        }
+
+        auto cache() const
+        {
+            return wrap(Cache<StorageType>(Super::sig_));
         }
     };
 
