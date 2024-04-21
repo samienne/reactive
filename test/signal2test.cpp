@@ -383,7 +383,7 @@ TEST(Signal2, tee)
 
     auto s1 = input1.signal.tee(input2.handle);
 
-    auto s2 = merge(input1.signal, s1).map([](std::string const& s1, int i1,
+    auto s2 = merge(s1, input2.signal).map([](std::string const& s1, int i1,
                 std::string const& s2, int i2)
         {
             return makeSignalResult(s1 + s2, i1 + i2);
@@ -522,6 +522,46 @@ TEST(Signal2, cache)
 
     input.handle.set(22);
     r = c.update(FrameInfo(2, {}));
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(2, callCount);
+}
+
+TEST(Signal2, check)
+{
+    auto input = makeInput(42);
+
+    auto s1 = input.signal.map([](int i)
+        {
+            return std::to_string(i);
+        });
+
+    auto s2 = s1.check();
+
+    int callCount = 0;
+    auto s3 = s2.map([&callCount](std::string const& s)
+        {
+            ++callCount;
+            return s + s;
+        });
+
+    auto c = makeSignalContext(s3);
+
+    EXPECT_EQ(1, callCount);
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(42);
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(22);
+    r = c.update(FrameInfo(3, {}));
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ(2, callCount);

@@ -13,19 +13,6 @@
 
 namespace avg
 {
-    template <typename T>
-    using CompareType = decltype(
-            std::declval<std::decay_t<T>>() == std::declval<std::decay_t<T>>()
-            );
-
-    template <typename T, typename = void>
-    struct IsEqualityComparable : std::false_type {};
-
-    template <typename T>
-    struct IsEqualityComparable<T, btl::void_t<
-        CompareType<T>
-        >> : std::true_type {};
-
     enum class RepeatMode
     {
         normal,
@@ -44,7 +31,7 @@ namespace avg
     template <typename T>
     class AVG_EXPORT_CLASS_TEMPLATE Animated
     {
-        static_assert(IsEqualityComparable<T>::value);
+        static_assert(btl::IsEqualityComparable<T>::value);
         static_assert(HasLerp<T>::value);
 
     public:
@@ -477,7 +464,7 @@ namespace avg
     }
 
     template <typename T, typename = std::enable_if_t<
-        IsEqualityComparable<T>::value>>
+        btl::IsEqualityComparable<T>::value>>
     auto animate(T&& t)
     {
         return Animated<std::decay_t<T>>(std::forward<T>(t));

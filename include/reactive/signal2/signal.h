@@ -1,5 +1,6 @@
 #pragma once
 
+#include "check.h"
 #include "cache.h"
 #include "input.h"
 #include "join.h"
@@ -100,6 +101,51 @@ namespace reactive::signal2
 
     };
 
+    template <bool withCheck, typename TStorage, typename... Ts>
+    class SignalWithCheckImpl : public SignalWithConditional<TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithConditional<TStorage, Ts...>;
+        using Super::Super;
+
+        auto tryCheck() const
+        {
+            return wrap(Signal<TStorage, Ts...>(Super::sig_));
+        }
+    };
+
+    template <typename TStorage, typename... Ts>
+    class SignalWithCheckImpl<true, TStorage, Ts...> : public SignalWithConditional<
+    TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithConditional<TStorage, Ts...>;
+        using Super::Super;
+
+        auto check() const
+        {
+            return wrap(Check<TStorage>(Super::sig_));
+        }
+
+        auto tryCheck() const
+        {
+            return check();
+        }
+    };
+
+    template <typename TStorage, typename... Ts>
+    class SignalWithCheck : public SignalWithCheckImpl<
+                            btl::IsEqualityComparable<SignalTypeT<TStorage>>::value,
+                            TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithCheckImpl<
+            btl::IsEqualityComparable<SignalTypeT<TStorage>>::value,
+            TStorage, Ts...>;
+        using Super::Super;
+    };
+
+
     template <typename TStorage, typename... Ts>
     using SignalStorageType = std::conditional_t<
             std::is_same_v<void, TStorage>,
@@ -108,7 +154,7 @@ namespace reactive::signal2
             >;
 
     template <typename TStorage, typename... Ts>
-    class Signal : public SignalWithConditional<SignalStorageType<TStorage, Ts...>, Ts...>
+    class Signal : public SignalWithCheck<SignalStorageType<TStorage, Ts...>, Ts...>
     {
     public:
         using StorageType = std::conditional_t<
@@ -117,7 +163,7 @@ namespace reactive::signal2
             TStorage
             >;
 
-        using Super = SignalWithConditional<SignalStorageType<TStorage, Ts...>, Ts...>;
+        using Super = SignalWithCheck<SignalStorageType<TStorage, Ts...>, Ts...>;
         using DataType = typename StorageType::DataType;
 
         Signal(Signal const&) = default;
@@ -189,7 +235,7 @@ namespace reactive::signal2
 
         auto tee(InputHandle<Ts...> handle) const
         {
-            auto shared = share();
+            auto shared = Super::tryCheck().share();
             handle.set(shared.weak());
             return shared;
         }
@@ -199,7 +245,7 @@ namespace reactive::signal2
             >>
         auto tee(InputHandle<Us...> handle, TFunc&& func) const
         {
-            auto mapped = this->map(std::forward<TFunc>(func)).share();
+            auto mapped = Super::tryCheck().map(std::forward<TFunc>(func)).share();
             handle.set(mapped.weak());
 
             // Store a reference to mapped in the lambda capture

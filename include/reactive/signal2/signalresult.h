@@ -43,6 +43,39 @@ namespace reactive::signal2
         {
         }
 
+        SignalResult(SignalResult const&) = default;
+        SignalResult(SignalResult&&) noexcept = default;
+
+        SignalResult& operator=(SignalResult const& rhs)
+        {
+            values_.~tuple();
+            new (&values_) std::tuple<Ts...>(rhs.values_);
+
+            return *this;
+        }
+
+        SignalResult& operator=(SignalResult&& rhs) noexcept
+        {
+            values_.~tuple();
+            new (&values_) std::tuple<Ts...>(std::move(rhs.values_));
+
+            return *this;
+        }
+
+        auto operator==(SignalResult const& rhs) const
+            -> decltype(std::declval<std::tuple<Ts...>>()
+                    == std::declval<std::tuple<Ts...>>())
+        {
+            return values_ == rhs.values_;
+        }
+
+        auto operator!=(SignalResult const& rhs) const
+            -> decltype(std::declval<std::tuple<Ts...>>()
+                    != std::declval<std::tuple<Ts...>>())
+        {
+            return values_ != rhs.values_;
+        }
+
         template <size_t Index>
         auto get() & -> decltype(auto)
         {
