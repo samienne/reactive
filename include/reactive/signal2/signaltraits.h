@@ -126,5 +126,20 @@ namespace reactive::signal2
             std::decay_t<T>,
             std::function<TSignature>
             >;
+
+    template <typename T>
+    struct DecaySignalResult
+    {
+    };
+
+    template <typename... Ts>
+    struct DecaySignalResult<SignalResult<Ts...>>
+    {
+        using type = SignalResult<std::decay_t<Ts>...>;
+    };
+
+    template <typename T>
+    using DecaySignalResultT = typename DecaySignalResult<T>::type;
+
 }
 

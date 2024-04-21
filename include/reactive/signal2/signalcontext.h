@@ -30,13 +30,8 @@ namespace reactive::signal2
         UpdateResult update(FrameInfo const& frame)
         {
             auto r = sig_.unwrap().update(data_, frame);
-            result_.reset();
             if (r.didChange)
-            {
-                new(&result_) std::optional<SignalResult<Ts...>>(
-                        sig_.unwrap().evaluate(data_)
-                        );
-            }
+                result_ = sig_.unwrap().evaluate(data_);
 
             return r;
         }
