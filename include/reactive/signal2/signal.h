@@ -280,6 +280,19 @@ namespace reactive::signal2
         {
             return wrap(Cache<StorageType>(Super::sig_));
         }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Ts, Us>...)
+            >>
+        auto cast() const
+        {
+            return map([](auto&&... ts)
+                {
+                    return makeSignalResult<Us...>(
+                            static_cast<Us>(std::forward<decltype(ts)>(ts))...
+                            );
+                });
+        }
     };
 
     template <typename... Ts>

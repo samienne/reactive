@@ -566,3 +566,21 @@ TEST(Signal2, check)
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ(2, callCount);
 }
+
+TEST(Signal2, cast)
+{
+    auto s1 = constant([](int i)
+            {
+                return std::to_string(i);
+            });
+
+    auto s2 = s1.cast<std::function<std::string(int)>>();
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate();
+
+    EXPECT_EQ(Type<std::function<std::string(int)>>(), Type<decltype(f)>());
+
+    EXPECT_EQ("20", f(20));
+}
