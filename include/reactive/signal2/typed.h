@@ -3,6 +3,7 @@
 #include "signalresult.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "signaltraits.h"
 
 #include <btl/connection.h>
 
@@ -154,6 +155,9 @@ namespace reactive::signal2
     private:
         std::shared_ptr<SignalBase<Ts...>> sig_;
     };
+
+    template <typename... Ts>
+    struct IsSignal<SignalTypeless<Ts...>> : std::true_type {};
 
     template <typename TStorage, typename... Ts>
     class Signal;

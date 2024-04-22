@@ -13,8 +13,7 @@
 
 #include <btl/future/future.h>
 #include <btl/async.h>
-
-#include <btl/connection.h>
+#include <btl/bindarguments.h>
 
 namespace reactive::signal2
 {
@@ -200,7 +199,7 @@ namespace reactive::signal2
             }
             else
             {
-                return wrap(makeTypelessSignal(*this));
+                return wrap(makeTypelessSignal<Ts...>(*this));
             }
         }
 
@@ -300,6 +299,25 @@ namespace reactive::signal2
         auto merge(Us&&... signals) const
         {
             return signal2::merge(*this, std::forward<Us>(signals)...);
+        }
+
+        template <typename TFunc>
+        auto bindToFunction(TFunc&& func) const
+        {
+            return map([func=std::forward<TFunc>(func)](auto&&... ts)
+                {
+                    return [func,
+                    params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
+                    (auto&&... us)
+                    {
+                        return std::apply([&](auto&&... ts)
+                                {
+                                    return func(std::forward<decltype(ts)>(ts)...,
+                                            std::forward<decltype(us)>(us)...);
+                                },
+                                params);
+                    };
+                });
         }
     };
 

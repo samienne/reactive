@@ -584,3 +584,22 @@ TEST(Signal2, cast)
 
     EXPECT_EQ("20", f(20));
 }
+
+TEST(Signal2, bindToFunction)
+{
+    auto input1 = makeInput(42, std::string("hello"));
+
+    auto s1 = input1.signal.bindToFunction([](int i, std::string const& s1,
+                std::string const& s2)
+            {
+                return std::to_string(i) + s1 + ", " + s2;
+            });
+
+    auto s2 = s1.cast<std::function<std::string(std::string)>>().eraseType();
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate();
+
+    EXPECT_EQ("42hello, world", f("world"));
+}
