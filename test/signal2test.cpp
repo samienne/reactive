@@ -383,7 +383,7 @@ TEST(Signal2, tee)
 
     auto s1 = input1.signal.tee(input2.handle);
 
-    auto s2 = merge(s1, input2.signal).map([](std::string const& s1, int i1,
+    auto s2 = s1.merge(input2.signal).map([](std::string const& s1, int i1,
                 std::string const& s2, int i2)
         {
             return makeSignalResult(s1 + s2, i1 + i2);

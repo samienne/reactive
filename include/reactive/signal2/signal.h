@@ -293,6 +293,14 @@ namespace reactive::signal2
                             );
                 });
         }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(IsSignal<std::decay_t<Us>>::value...)
+            >>
+        auto merge(Us&&... signals) const
+        {
+            return signal2::merge(*this, std::forward<Us>(signals)...);
+        }
     };
 
     template <typename... Ts>
