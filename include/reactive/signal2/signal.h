@@ -327,9 +327,19 @@ namespace reactive::signal2
             return wrap(WithChanged<TStorage>(Super::sig_));
         }
 
-        auto withPrevious() const
+        template <typename TFunc, typename... Us, typename = std::enable_if_t<
+            std::is_convertible_v<
+                ToSignalResultT<std::invoke_result_t<TFunc, Us..., Ts...>>,
+                SignalResult<Us...>
+            >>>
+        auto withPrevious(TFunc&& func, Us&&... initial) const
         {
-            return wrap(WithPrevious<TStorage>(Super::sig_));
+            return wrap(WithPrevious<TStorage, std::decay_t<TFunc>,
+                    std::decay_t<Us>...>(
+                        std::forward<TFunc>(func),
+                        makeSignalResult(std::forward<Us>(initial)...),
+                        Super::sig_
+                        ));
         }
     };
 

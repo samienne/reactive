@@ -653,43 +653,78 @@ TEST(Signal2, withChanged)
 
 TEST(Signal2, withPrevious)
 {
-    auto input = makeInput(42, std::string("hello"));
+    auto input = makeInput(std::string("world"));
 
-    auto s = input.signal.withPrevious();
+    auto s = input.signal.withPrevious(
+            [](std::string prevS, std::string s)
+            {
+                return prevS + s;
+            },
+            std::string("hello"));
 
     auto c = makeSignalContext(s);
 
     auto v = c.evaluate();
 
-    using ExpectedType = Type<SignalContext<
-            std::optional<int> const&,
-            std::optional<std::string> const&,
-            int const&,
-            std::string const&
-            >>;
-    EXPECT_EQ(ExpectedType(), Type<decltype(c)>());
+    EXPECT_EQ("helloworld", v);
 
-    EXPECT_EQ(std::nullopt, v.get<0>());
-    EXPECT_EQ(std::nullopt, v.get<1>());
-    EXPECT_EQ(42, v.get<2>());
-    EXPECT_EQ("hello", v.get<3>());
-
-    input.handle.set(22, "world");
     auto r = c.update(FrameInfo(1, {}));
     v = c.evaluate();
 
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworld", v);
+
+    input.handle.set("bye");
+    r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
     EXPECT_TRUE(r.didChange);
-    EXPECT_EQ(42, v.get<0>().value_or(0));
-    EXPECT_EQ("hello", v.get<1>().value_or(""));
-    EXPECT_EQ(22, v.get<2>());
-    EXPECT_EQ("world", v.get<3>());
+    EXPECT_EQ("helloworldbye", v);
 
     r = c.update(FrameInfo(2, {}));
     v = c.evaluate();
 
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworldbye", v);
+}
+
+TEST(Signal2, withPreviousMulti)
+{
+    auto input = makeInput(42, std::string("hello"));
+
+    auto s = input.signal.withPrevious(
+            [](std::string prevS, int prevI, int i, std::string s)
+            {
+                return makeSignalResult(s + prevS, i + prevI);
+            },
+            std::string("world"), 22);
+
+    auto c = makeSignalContext(s);
+
+    auto v = c.evaluate();
+
+    EXPECT_EQ("helloworld", v.get<0>());
+    EXPECT_EQ(64, v.get<1>());
+
+    auto r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworld", v.get<0>());
+    EXPECT_EQ(64, v.get<1>());
+
+    input.handle.set(33, "bye");
+    r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
     EXPECT_TRUE(r.didChange);
-    EXPECT_EQ(std::nullopt, v.get<0>());
-    EXPECT_EQ(std::nullopt, v.get<1>());
-    EXPECT_EQ(22, v.get<2>());
-    EXPECT_EQ("world", v.get<3>());
+    EXPECT_EQ("byehelloworld", v.get<0>());
+    EXPECT_EQ(97, v.get<1>());
+
+    r = c.update(FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byehelloworld", v.get<0>());
+    EXPECT_EQ(97, v.get<1>());
 }

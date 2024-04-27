@@ -155,6 +155,12 @@ namespace reactive::signal2
     }
 
     template <typename... Ts>
+    SignalResult<Ts...> makeSignalResult(SignalResult<Ts...> result)
+    {
+        return result;
+    }
+
+    template <typename... Ts>
     struct IsSignalResultType2 : std::false_type {};
 
     template <typename... Ts, typename... Us>
@@ -185,5 +191,20 @@ namespace reactive::signal2
         return makeSignalResultFromTuple(std::tuple_cat(std::forward<Ts>(ts)
                     .getTuple()...));
     }
+
+    template <typename... Ts>
+    struct ToSignalResult
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename... Ts>
+    struct ToSignalResult<SignalResult<Ts...>>
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename... Ts>
+    using ToSignalResultT = typename ToSignalResult<Ts...>::type;
 } // reactive::signal2
 

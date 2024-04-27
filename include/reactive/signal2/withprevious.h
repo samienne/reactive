@@ -10,21 +10,6 @@
 namespace reactive::signal2
 {
     template <typename T>
-    struct SignalResultWrapEachToOptional
-    {
-    };
-
-    template <typename... Ts>
-    struct SignalResultWrapEachToOptional<SignalResult<Ts...>>
-    {
-        using type = SignalResult<std::optional<Ts>...>;
-    };
-
-    template <typename T>
-    using SignalResultWrapEachToOptionalT =
-    typename SignalResultWrapEachToOptional<T>::type;
-
-    template <typename T>
     struct SignalResultToConstRef
     {
     };
@@ -38,81 +23,73 @@ namespace reactive::signal2
     template <typename T>
     using SignalResultToConstRefT = typename SignalResultToConstRef<T>::type;
 
-    template <typename T>
-    struct MakeNullOptSignalResult
-    {
-    };
-
-    template <typename... Ts>
-    struct MakeNullOptSignalResult<SignalResult<Ts...>>
-    {
-        static auto make()
-        {
-            return make(std::make_index_sequence<sizeof...(Ts)>());
-        }
-
-        template <size_t... S>
-        static auto make(std::index_sequence<S...>)
-        {
-            return SignalResult<Ts...>(decltype(
-                        std::declval<SignalResult<Ts...>>().template get<S>()
-                        )(std::nullopt)...
-                    );
-        }
-    };
-
-    template <typename T>
-    auto makeEmptySignalResult()
-    {
-        return MakeNullOptSignalResult<T>::make();
-    }
-
-    template <typename TStorage>
+    template <typename TStorage, typename TFunc, typename... Ts>
     class WithPrevious
     {
     public:
-        using InnerResultType = DecaySignalResultT<SignalTypeT<TStorage>>;
+        using FuncReturnType = SignalResult<Ts...>;
 
-        using PreviousResultType =
-            SignalResultWrapEachToOptionalT<InnerResultType>;
+        using InnerResultType = SignalTypeT<TStorage>;
 
-        using ResultType = ConcatSignalResultsT<
-            SignalResultToConstRefT<PreviousResultType>,
-            SignalResultToConstRefT<SignalTypeT<TStorage>>
-            >;
+        static FuncReturnType evaluateFunc(TFunc const& func,
+                FuncReturnType const& current,
+                InnerResultType inner)
+        {
+            return makeSignalResult(std::apply([&](auto&&... ts)
+                {
+                    using R = decltype(func(std::forward<decltype(ts)>(ts)...));
+                    if constexpr(std::is_same_v<void, R>)
+                    {
+                        func(std::forward<decltype(ts)>(ts)...);
+                    }
+                    else
+                    {
+                        return func(std::forward<decltype(ts)>(ts)...);
+                    }
+                },
+                std::tuple_cat(
+                    current.getTuple(),
+                    std::move(inner).getTuple()
+                )));
+        }
 
         struct DataType
         {
-            DataType(TStorage const& sig) :
+            DataType(TFunc const& func, FuncReturnType const& initial,
+                    TStorage const& sig) :
                 innerData(sig.initialize()),
-                previousResult(makeEmptySignalResult<PreviousResultType>()),
-                currentResult(sig.evaluate(innerData))
+                innerResult(sig.evaluate(innerData)),
+                currentResult(evaluateFunc(
+                            func,
+                            initial,
+                            innerResult
+                            ))
             {
             }
 
             SignalDataTypeT<TStorage> innerData;
-            PreviousResultType previousResult;
-            InnerResultType currentResult;
+            InnerResultType innerResult;
+            FuncReturnType currentResult;
             bool hasPrevious = false;
             bool didChange = false;
         };
 
-        WithPrevious(TStorage sig) :
+        WithPrevious(TFunc func, FuncReturnType initial, TStorage sig) :
+            func_(std::move(func)),
+            initial_(std::make_shared<FuncReturnType>(std::move(initial))),
             sig_(std::move(sig))
         {
         }
 
         DataType initialize() const
         {
-            return DataType(sig_);
+            return DataType(func_, *initial_, sig_);
         }
 
-        ResultType evaluate(DataType const& data) const
+        SignalResultToConstRefT<FuncReturnType> evaluate(
+                DataType const& data) const
         {
-            return concatSignalResults(
-                    SignalResultToConstRefT<PreviousResultType>(data.previousResult),
-                    SignalResultToConstRefT<SignalTypeT<TStorage>>(data.currentResult)
-                    );
+            return data.currentResult;
         }
 
         bool hasChanged(DataType const& data) const
@@ -126,16 +103,9 @@ namespace reactive::signal2
 
             if (r.didChange)
             {
-                data.previousResult = std::move(data.currentResult);
-                data.currentResult = sig_.evaluate(data.innerData);
-                data.hasPrevious = true;
-            }
-            else
-            {
-                data.previousResult = makeEmptySignalResult<PreviousResultType>();
-                if (data.hasPrevious)
-                    r.didChange = true;
-                data.hasPrevious = false;
+                data.innerResult = sig_.evaluate(data.innerData);
+                data.currentResult = evaluateFunc(func_,
+                        data.currentResult, data.innerResult);
             }
 
             data.didChange = r.didChange;
@@ -149,10 +119,12 @@ namespace reactive::signal2
         }
 
     private:
+        TFunc func_;
+        std::shared_ptr<FuncReturnType> initial_;
         TStorage sig_;
     };
 
-    template <typename T>
-    struct IsSignal<WithPrevious<T>> : std::true_type {};
+    template <typename TStorage, typename TFunc, typename... Ts>
+    struct IsSignal<WithPrevious<TStorage, TFunc, Ts...>> : std::true_type {};
 } // namespace reactive::signal2
 
