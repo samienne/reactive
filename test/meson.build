@@ -4,6 +4,7 @@ gtestdep = gtest.get_variable('gtest_main_dep')
 
 devtest = executable('devtest',
         'signal2test.cpp',
+        'streamtest.cpp',
         include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep]#, libasedep, libavgdep, libreactivedep]
@@ -42,7 +43,6 @@ unittest = executable('unittest',
         'countsignaltest.cpp',
         'timesignaltest.cpp',
         'signaltypereductiontest.cpp',
-        'streamtest.cpp',
         'signalthreadedtest.cpp',
         'droprepeatssignaltest.cpp',
         'hashtest.cpp',

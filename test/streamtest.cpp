@@ -7,6 +7,8 @@
 
 #include <reactive/signal/update.h>
 
+#include <reactive/signal2/signalcontext.h>
+
 #include <gtest/gtest.h>
 
 #include <iostream>
@@ -143,6 +145,26 @@ TEST(Stream, collect)
     signal::update(s, signal::FrameInfo(1, us(1000000)));
 
     auto r1 = s.evaluate();
+    EXPECT_EQ(1, r1.size());
+    EXPECT_EQ("test1", r1.at(0));
+}
+
+TEST(Stream, collect2)
+{
+    auto p = pipe<std::string>();
+
+    auto s = collect2(std::move(p.stream));
+
+    auto c = signal2::makeSignalContext(s);
+
+    EXPECT_EQ(std::vector<std::string>(), c.evaluate());
+
+    p.handle.push("test1");
+
+    auto r = c.update(signal2::FrameInfo(1, {}));
+    EXPECT_TRUE(r.didChange);
+
+    auto r1 = c.evaluate();
     EXPECT_EQ(1, r1.size());
     EXPECT_EQ("test1", r1.at(0));
 }

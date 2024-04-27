@@ -2,6 +2,11 @@
 
 #include "stream.h"
 
+#include <reactive/signal2/signalresult.h>
+#include <reactive/signal2/updateresult.h>
+#include <reactive/signal2/frameinfo.h>
+#include <reactive/signal2/signal.h>
+
 #include <reactive/signal/signal.h>
 #include <reactive/signal/signaltraits.h>
 
@@ -151,5 +156,118 @@ namespace reactive::stream
     {
         return signal::wrap(Collect<T>(std::move(stream)));
     }
+
+    template <typename T>
+    class Collect2
+    {
+    public:
+        struct Control
+        {
+            std::mutex mutex;
+            std::vector<T> newValues;
+            std::vector<T> values;
+            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
+            uint64_t nextId = 1;
+        };
+
+        struct DataType
+        {
+            std::shared_ptr<Control> control;
+            Stream<bool> stream;
+        };
+
+        Collect2(Stream<T> stream) :
+            stream_(std::move(stream).share())
+        {
+        }
+
+        DataType initialize() const
+        {
+            auto control = std::make_shared<Control>();
+            return {
+                control,
+                stream_.fmap([control](auto value)
+                    {
+                        decltype(control->callbacks) callbacks;
+
+                        {
+                            std::unique_lock lock(control->mutex);
+                            control->newValues.push_back(std::move(value));
+                            std::swap(callbacks, control->callbacks);
+                        }
+
+                        for (auto&& cb : callbacks)
+                            std::move(cb.second)();
+
+                        return true;
+                    })
+            };
+        }
+
+        signal2::SignalResult<std::vector<T> const&> evaluate(
+                DataType const& data) const
+        {
+            return signal2::SignalResult<std::vector<T> const&>(
+                    data.control->values
+                    );
+        }
+
+        bool hasChanged(DataType const& data) const
+        {
+            return !data.control->values.empty();
+        }
+
+        signal2::UpdateResult update(DataType& data, signal2::FrameInfo const&)
+        {
+            std::unique_lock lock(data.control->mutex);
+
+            data.control->values.clear();
+            std::swap(data.control->values, data.control->newValues);
+
+            return { {}, !data.control->values.empty() };
+        }
+
+        Connection observe(DataType& data, std::function<void()> callback)
+        {
+            std::unique_lock lock(data.control->mutex);
+            auto id = data.control->nextId++;
+
+            data.control->callbacks.emplace_back(id, callback);
+
+            std::weak_ptr<Control> weakControl = data.control;
+
+            return Connection::on_disconnect([id, weakControl]()
+                {
+                    if (auto control = weakControl.lock())
+                    {
+                        for (auto i = control->callbacks.begin();
+                                i != control->callbacks.end(); ++i)
+                        {
+                            if (id == i->first)
+                            {
+                                control->callbacks.erase(i);
+                                break;
+                            }
+                        }
+                    }
+                });
+        }
+
+    private:
+        SharedStream<T> stream_;
+    };
+
+    template <typename T>
+    signal2::Signal<Collect2<T>, std::vector<T>> collect2(Stream<T> stream)
+    {
+        return signal2::wrap(Collect2<T>(std::move(stream)));
+    }
 } // reactive::stream
+
+namespace reactive::signal2
+{
+    template <typename T>
+    struct IsSignal<stream::Collect2<T>> : std::true_type {};
+} // namespace reactive::signal2
+
 
