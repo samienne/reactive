@@ -141,5 +141,25 @@ namespace reactive::signal2
     template <typename T>
     using DecaySignalResultT = typename DecaySignalResult<T>::type;
 
+    template <typename... Ts>
+    struct ConcatSignalResults
+    {
+    };
+
+    template <typename... Ts>
+    struct ConcatSignalResults<SignalResult<Ts...>>
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename... Ts, typename... Us, typename... Vs>
+    struct ConcatSignalResults<SignalResult<Ts...>, SignalResult<Us...>, Vs...>
+    {
+        using type = typename ConcatSignalResults<
+            SignalResult<Ts..., Us...>, Vs...>::type;
+    };
+
+    template <typename... Ts>
+    using ConcatSignalResultsT = typename ConcatSignalResults<Ts...>::type;
 }
 

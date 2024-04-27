@@ -178,5 +178,12 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignalResult<SignalResult<Ts...>> : std::true_type {};
+
+    template <typename... Ts>
+    auto concatSignalResults(Ts&&... ts)
+    {
+        return makeSignalResultFromTuple(std::tuple_cat(std::forward<Ts>(ts)
+                    .getTuple()...));
+    }
 } // reactive::signal2
 

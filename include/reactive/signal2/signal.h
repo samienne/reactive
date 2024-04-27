@@ -10,6 +10,7 @@
 #include "map.h"
 #include "conditional.h"
 #include "weak.h"
+#include "withchanged.h"
 
 #include <btl/future/future.h>
 #include <btl/async.h>
@@ -318,6 +319,11 @@ namespace reactive::signal2
                                 params);
                     };
                 });
+        }
+
+        auto withChanged() const
+        {
+            return wrap(WithChanged<TStorage>(Super::sig_));
         }
     };
 

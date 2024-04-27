@@ -13,6 +13,11 @@
 
 using namespace reactive::signal2;
 
+static_assert(std::is_same_v<
+        ConcatSignalResults<SignalResult<int, char>, SignalResult<int const&, std::string&>>::type,
+        SignalResult<int, char, int const&, std::string&>
+        >);
+
 template <typename T>
 class Type
 {
@@ -602,4 +607,46 @@ TEST(Signal2, bindToFunction)
     auto f = c.evaluate();
 
     EXPECT_EQ("42hello, world", f("world"));
+}
+
+TEST(Signal2, withChanged)
+{
+    auto input = makeInput(42, std::string("hello"));
+
+    auto s1 = input.signal.withChanged();
+
+    auto c = makeSignalContext(s1);
+
+    auto v = c.evaluate();
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(42, v.get<1>());
+    EXPECT_EQ("hello", v.get<2>());
+
+    auto r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(42, v.get<1>());
+    EXPECT_EQ("hello", v.get<2>());
+
+    input.handle.set(22, "world");
+
+    r = c.update(FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_TRUE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
+
+    r = c.update(FrameInfo(3, {}));
+    v = c.evaluate();
+
+    // Inner value did not change but our own first value changed from true to
+    // false
+    EXPECT_TRUE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
 }
