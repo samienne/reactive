@@ -30,8 +30,9 @@ namespace reactive::signal2
             bool innerDidChange = false;
         };
 
-        WithChanged(TStorage sig) :
-            sig_(std::move(sig))
+        WithChanged(TStorage sig, bool ignoreChange) :
+            sig_(std::move(sig)),
+            ignoreChange_(ignoreChange)
         {
         }
 
@@ -57,8 +58,13 @@ namespace reactive::signal2
         {
             auto r = sig_.update(data.innerData, frame);
 
+            bool changedStatusChanged = ignoreChange_
+                ? false
+                : data.innerDidChange != r.didChange
+                ;
+
+            data.didChange = changedStatusChanged || r.didChange;
             data.innerDidChange = r.didChange;
-            data.didChange = data.didChange != r.didChange || r.didChange;
 
             return {
                 r.nextUpdate,
@@ -73,6 +79,7 @@ namespace reactive::signal2
 
     private:
         TStorage sig_;
+        bool ignoreChange_ = false;
     };
 
     template <typename TStorage>

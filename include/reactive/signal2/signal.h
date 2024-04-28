@@ -322,12 +322,13 @@ namespace reactive::signal2
                 });
         }
 
-        auto withChanged() const
+        auto withChanged(bool ignoreChangedStatusChange = false) const
         {
-            return wrap(WithChanged<TStorage>(Super::sig_));
+            return wrap(WithChanged<TStorage>(Super::sig_,
+                        ignoreChangedStatusChange));
         }
 
-        template <typename TFunc, typename... Us, typename = std::enable_if_t<
+        template <typename... Us, typename TFunc, typename = std::enable_if_t<
             std::is_convertible_v<
                 ToSignalResultT<std::invoke_result_t<TFunc, Us..., Ts...>>,
                 SignalResult<Us...>

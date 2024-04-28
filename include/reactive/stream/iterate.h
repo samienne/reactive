@@ -329,5 +329,46 @@ namespace reactive::stream
                 std::move(signals)...
             ));
     }
+
+    template <typename TFunc, typename T, typename U, typename V, typename... TSignals>
+    auto iterate2(TFunc&& func, signal2::Signal<U, V> initial,
+            Stream<T> stream, TSignals&&... sigs)
+    {
+        return merge(initial.withChanged(true),
+                collect2(std::move(stream)),
+                std::forward<TSignals>(sigs)...)
+            .template withPrevious<std::optional<V>>(
+                    [func=std::forward<TFunc>(func)](
+                        std::optional<V> const& previous,
+                        bool initialChanged,
+                        V const& initial,
+                        std::vector<T> const& streamValues,
+                        auto&&... values) -> std::optional<V>
+                {
+                    V current = (initialChanged || !previous) ?
+                        initial : *previous;
+
+                    for (auto&& v : streamValues)
+                        current = func(std::move(current), v, values...);
+
+                    return current;
+                },
+                std::nullopt
+                )
+            .map([](std::optional<V> const& value)
+                {
+                    return *value;
+                });
+
+    }
+
+    template <typename TFunc, typename T, typename U, typename... TSignals>
+    auto iterate2(TFunc&& func, U&& initial, Stream<T> stream, TSignals&&... sigs)
+    {
+        return iterate2(std::forward<TFunc>(func),
+                signal::constant(std::forward<U>(initial),
+                std::move(stream),
+                std::forward<TSignals>(sigs)...));
+    }
 } // namespace reactive::stream
 

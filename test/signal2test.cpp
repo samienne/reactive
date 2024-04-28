@@ -649,6 +649,14 @@ TEST(Signal2, withChanged)
     EXPECT_FALSE(v.get<0>());
     EXPECT_EQ(22, v.get<1>());
     EXPECT_EQ("world", v.get<2>());
+
+    r = c.update(FrameInfo(4, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
 }
 
 TEST(Signal2, withPrevious)

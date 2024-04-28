@@ -169,6 +169,74 @@ TEST(Stream, collect2)
     EXPECT_EQ("test1", r1.at(0));
 }
 
+TEST(Stream, iterate)
+{
+    auto values = pipe<std::string>();
+    auto initial = signal2::makeInput<std::string>("hello");
+
+    auto s = iterate2([](std::string current, std::string event)
+            {
+                return current + event;
+            },
+            initial.signal,
+            values.stream
+            );
+
+    auto c = signal2::makeSignalContext(s);
+    auto v = c.evaluate();
+
+    EXPECT_EQ("hello", v);
+
+    auto r = c.update(signal2::FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("hello", v);
+
+    values.handle.push("world");
+
+    r = c.update(signal2::FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ("helloworld", v);
+
+    initial.handle.set("");
+    r = c.update(signal2::FrameInfo(3, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ("", v);
+
+    initial.handle.set("");
+    values.handle.push("bye");
+    values.handle.push("world");
+
+    r = c.update(signal2::FrameInfo(3, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ("byeworld", v);
+
+    r = c.update(signal2::FrameInfo(4, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byeworld", v);
+
+    r = c.update(signal2::FrameInfo(5, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byeworld", v);
+
+    r = c.update(signal2::FrameInfo(6, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byeworld", v);
+}
+
 #if 0
 TEST(Stream, stream)
 {
