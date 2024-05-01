@@ -24,6 +24,7 @@ using namespace reactive::stream;
 using us = std::chrono::microseconds;
 using ms = std::chrono::milliseconds;
 
+/*
 static_assert(signal::CheckSignal<Hold<int>>::value, "");
 
 static_assert(std::is_same<std::vector<int>,
@@ -31,6 +32,7 @@ static_assert(std::is_same<std::vector<int>,
             Collect<int>
             >
         >::value, "");
+*/
 
 TEST(Stream, stream)
 {
@@ -132,6 +134,7 @@ TEST(Stream, hold)
     EXPECT_EQ("test2", s.evaluate());
 }
 
+/*
 TEST(Stream, collect)
 {
     auto p = pipe<std::string>();
@@ -148,6 +151,7 @@ TEST(Stream, collect)
     EXPECT_EQ(1, r1.size());
     EXPECT_EQ("test1", r1.at(0));
 }
+*/
 
 TEST(Stream, collect2)
 {

@@ -1,14 +1,12 @@
 #pragma once
 
 #include "stream.h"
+#include "sharedstream.h"
 
 #include <reactive/signal2/signalresult.h>
 #include <reactive/signal2/updateresult.h>
 #include <reactive/signal2/frameinfo.h>
 #include <reactive/signal2/signal.h>
-
-#include <reactive/signal/signal.h>
-#include <reactive/signal/signaltraits.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
@@ -16,6 +14,7 @@
 
 #include <mutex>
 
+/*
 namespace reactive
 {
     namespace stream
@@ -27,9 +26,11 @@ namespace reactive
     template <typename T>
     struct signal::IsSignal<stream::Collect<T>> : std::true_type {};
 }
+*/
 
 namespace reactive::stream
 {
+    /*
     template <typename T>
     class Collect
     {
@@ -156,6 +157,7 @@ namespace reactive::stream
     {
         return signal::wrap(Collect<T>(std::move(stream)));
     }
+    */
 
     template <typename T>
     class Collect2

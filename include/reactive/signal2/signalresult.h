@@ -1,6 +1,7 @@
 #pragma once
 
 #include <btl/all.h>
+#include <btl/not.h>
 
 #include <cstddef>
 #include <type_traits>
@@ -8,6 +9,15 @@
 
 namespace reactive::signal2
 {
+    template <typename... Ts>
+    class SignalResult;
+
+    template <typename T>
+    struct IsSignalResult : std::false_type {};
+
+    template <typename... Ts>
+    struct IsSignalResult<SignalResult<Ts...>> : std::true_type {};
+
     template <typename... Ts>
     class SignalResult
     {
@@ -59,6 +69,19 @@ namespace reactive::signal2
             values_.~tuple();
             new (&values_) std::tuple<Ts...>(std::move(rhs.values_));
 
+            return *this;
+        }
+
+        template <typename T, typename = std::enable_if_t<
+            btl::All<
+                btl::Not<IsSignalResult<std::decay_t<T>>>,
+                std::is_constructible<std::tuple<Ts...>, std::tuple<T>>
+            >::value
+            >>
+        SignalResult& operator=(T&& t)
+        {
+            values_.~tuple();
+            new (&values_) std::tuple<Ts...>(std::forward<T>(t));
             return *this;
         }
 
@@ -178,12 +201,6 @@ namespace reactive::signal2
             std::integral_constant<bool, sizeof...(Ts) == sizeof...(Us)>,
             IsSignalResultType2<SignalResult<Us...>, Ts...>
         >{};
-
-    template <typename T>
-    struct IsSignalResult : std::false_type {};
-
-    template <typename... Ts>
-    struct IsSignalResult<SignalResult<Ts...>> : std::true_type {};
 
     template <typename... Ts>
     auto concatSignalResults(Ts&&... ts)

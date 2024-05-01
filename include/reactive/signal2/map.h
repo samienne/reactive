@@ -100,7 +100,7 @@ namespace reactive::signal2
         }
 
     private:
-        TFunc func_;
+        mutable TFunc func_;
         TSignal sig_;
     };
 

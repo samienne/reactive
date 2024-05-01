@@ -600,7 +600,7 @@ TEST(Signal2, bindToFunction)
                 return std::to_string(i) + s1 + ", " + s2;
             });
 
-    auto s2 = s1.cast<std::function<std::string(std::string)>>().eraseType();
+    AnySignal<std::function<std::string(std::string)>> s2 = s1;
 
     auto c = makeSignalContext(s2);
 

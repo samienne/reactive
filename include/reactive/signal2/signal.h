@@ -168,10 +168,10 @@ namespace reactive::signal2
         using DataType = typename StorageType::DataType;
 
         Signal(Signal const&) = default;
-        Signal(Signal&&) noexcept = default;
+        Signal(Signal&&) /*noexcept*/ = default;
 
         Signal& operator=(Signal const&) = default;
-        Signal& operator=(Signal&&) noexcept = default;
+        Signal& operator=(Signal&&) /*noexcept*/ = default;
 
         Signal(StorageType sig) :
             Super(std::move(sig))
@@ -306,11 +306,11 @@ namespace reactive::signal2
         template <typename TFunc>
         auto bindToFunction(TFunc&& func) const
         {
-            return map([func=std::forward<TFunc>(func)](auto&&... ts)
+            return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
                 {
                     return [func,
                     params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
-                    (auto&&... us)
+                    (auto&&... us) mutable
                     {
                         return std::apply([&](auto&&... ts)
                                 {
@@ -341,6 +341,16 @@ namespace reactive::signal2
                         makeSignalResult(std::forward<Us>(initial)...),
                         Super::sig_
                         ));
+        }
+
+        auto toString() const
+        {
+            return map([](auto&&... ts)
+                {
+                    return makeSignalResult(
+                            std::to_string(std::forward<decltype(ts)>(ts))...
+                            );
+                });
         }
     };
 
@@ -385,5 +395,8 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignal<Signal<Ts...>> : std::true_type {};
+
+    template <typename... Ts>
+    struct IsSignal<AnySignal<Ts...>> : std::true_type {};
 } // namespace reactive::signal2
 

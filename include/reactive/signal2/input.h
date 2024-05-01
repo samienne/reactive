@@ -44,6 +44,16 @@ namespace reactive::signal2
         InputHandle& operator=(InputHandle const&) = default;
         InputHandle& operator=(InputHandle&&) noexcept = default;
 
+        bool operator==(InputHandle const& rhs) const
+        {
+            return control_.lock() == rhs.control_.lock();
+        }
+
+        bool operator!=(InputHandle const& rhs) const
+        {
+            return control_.lock() != rhs.control_.lock();
+        }
+
         template <typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Us, Ts>...)
             >>

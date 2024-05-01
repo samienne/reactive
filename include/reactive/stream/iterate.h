@@ -3,11 +3,13 @@
 #include "collect.h"
 #include "stream.h"
 
+/*
 #include "reactive/signal/tee.h"
 #include "reactive/signal/input.h"
 #include "reactive/signal/droprepeats.h"
 #include "reactive/signal/blip.h"
 #include "reactive/signal/signaltraits.h"
+*/
 
 #include <btl/tuplemap.h>
 #include <btl/tupleforeach.h>
@@ -27,6 +29,7 @@ namespace reactive
         class IterateStatic;
     }
 
+    /*
     namespace signal
     {
         template <typename TFunc, typename TInitial, typename T, typename... TSignals>
@@ -37,10 +40,12 @@ namespace reactive
         struct IsSignal<stream::IterateStatic<TFunc, TInitial, T, TSignals...>>
         : std::true_type {};
     }
+    */
 }
 
 namespace reactive::stream
 {
+    /*
     namespace detail
     {
         struct Evaluate
@@ -329,6 +334,7 @@ namespace reactive::stream
                 std::move(signals)...
             ));
     }
+    */
 
     template <typename TFunc, typename T, typename U, typename V, typename... TSignals>
     auto iterate2(TFunc&& func, signal2::Signal<U, V> initial,

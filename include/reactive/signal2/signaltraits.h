@@ -104,6 +104,20 @@ namespace reactive::signal2
             .evaluate(std::declval<SignalDataTypeT<TSignal> const&>())
             );
 
+    template <typename T>
+    struct SingleSignalType
+    {
+    };
+
+    template <typename T, typename U>
+    struct SingleSignalType<Signal<T, U>>
+    {
+        using type = U;
+    };
+
+    template <typename T>
+    using SingleSignalTypeT = typename SingleSignalType<T>::type;
+
     namespace detail
     {
         template <typename TSignal, typename TRet, typename... Ts>
