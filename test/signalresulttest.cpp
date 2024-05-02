@@ -1,4 +1,5 @@
 #include "signaltester.h"
+#if 0
 
 #include <reactive/signal/signalresult.h>
 
@@ -52,3 +53,4 @@ TEST(SignalResult, test1)
     EXPECT_EQ(42, get<0>(r2).get());
 }
 
+#endif

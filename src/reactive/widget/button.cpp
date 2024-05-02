@@ -47,23 +47,21 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidget button(AnySignal<std::string> label,
-        AnySignal<std::function<void()>> onClick)
+AnyWidget button(signal2::AnySignal<std::string> label,
+        signal2::AnySignal<std::function<void()>> onClick)
 {
-    auto down = signal::input<bool>(false);
-    auto hover = signal::input<bool>(false);
+    auto down = signal2::makeInput<bool>(false);
+    auto hover = signal2::makeInput<bool>(false);
 
     return widget::label(std::move(label))
-        | margin(signal::constant(5.0f))
+        | margin(signal2::constant(5.0f))
         | widget::makeWidgetModifier(
             [](auto widget, auto theme, auto downSignal, auto hoverSignal)
             {
-                auto secondary = signal::map([](Theme const& theme)
+                auto secondary = theme.map([](Theme const& theme)
                         {
                             return avg::Animated<avg::Color>(theme.getSecondary());
-                        },
-                        theme.clone()
-                        );
+                        });
 
                 return std::move(widget)
                     | onDrawBehind(drawButton, std::move(theme), std::move(secondary),
@@ -92,9 +90,9 @@ AnyWidget button(AnySignal<std::string> label,
         ;
 }
 
-AnyWidget button(std::string label, AnySignal<std::function<void()>> onClick)
+AnyWidget button(std::string label, signal2::AnySignal<std::function<void()>> onClick)
 {
-    return button(signal::constant(std::move(label)), std::move(onClick));
+    return button(signal2::constant(std::move(label)), std::move(onClick));
 }
 
 } // namespace reactive::widget

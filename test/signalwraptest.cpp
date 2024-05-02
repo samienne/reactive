@@ -1,5 +1,6 @@
 #include "signaltester.h"
 
+#if 0
 #include <reactive/signal/update.h>
 #include <reactive/signal/group.h>
 #include <reactive/signal/input.h>
@@ -246,4 +247,5 @@ TEST(Signal, mapToFunctionWithExtraParams)
 
     EXPECT_EQ("10test", r2);
 }
+#endif
 

@@ -2,14 +2,12 @@
 
 #include "inputresult.h"
 
-#include "signal/inputhandle.h"
+#include "signal2/input.h"
 #include "stream/handle.h"
 
 #include <ase/pointerbuttonevent.h>
 #include <ase/textevent.h>
 #include <ase/keyevent.h>
-
-#include <functional>
 
 namespace reactive
 {
@@ -22,7 +20,7 @@ namespace reactive
         }
 
         template <typename T, typename T2>
-        void push(signal::InputHandle<T> h, T2&& t)
+        void push(signal2::InputHandle<T> h, T2&& t)
         {
             h.set(std::forward<T2>(t));
         }
@@ -80,21 +78,21 @@ namespace reactive
     template <typename T, typename U, typename = std::enable_if_t<
         std::is_convertible_v<U, T>
         >>
-    auto send(U&& u, signal::InputHandle<T> const& handle)
+    auto send(U&& u, signal2::InputHandle<T> const& handle)
         -> detail::Send<
-            signal::InputHandle<std::decay_t<T>> const&, U
+            signal2::InputHandle<std::decay_t<T>> const&, U
         >
     {
         return detail::Send<
-            signal::InputHandle<std::decay_t<T>> const&,
+            signal2::InputHandle<std::decay_t<T>> const&,
             U>(handle, std::forward<U>(u));
     }
 
     template <typename T>
-    auto send(signal::InputHandle<T> const& handle)
-        -> detail::Forward<signal::InputHandle<T> const&>
+    auto send(signal2::InputHandle<T> const& handle)
+        -> detail::Forward<signal2::InputHandle<T> const&>
     {
-        return detail::Forward<signal::InputHandle<T> const&>(handle);
+        return detail::Forward<signal2::InputHandle<T> const&>(handle);
     }
 
     template <typename T>

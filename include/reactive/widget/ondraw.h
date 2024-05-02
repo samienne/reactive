@@ -18,7 +18,7 @@ namespace detail
 {
     template <bool reverse, typename TFunc, typename T, typename... Ts>
     AnyWidgetModifier onDrawCustom(TFunc&& f,
-            Signal<T, std::optional<avg::AnimationOptions>> animation,
+            signal2::Signal<T, std::optional<avg::AnimationOptions>> animation,
             Ts&&... ts)
     {
         return makeWidgetModifier(makeInstanceModifier([f=std::forward<TFunc>(f)]
@@ -56,15 +56,16 @@ namespace detail
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
+            true/*
             std::is_invocable_r_v<
                 avg::Drawing,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
                 avg::AnimatedTypeT<std::decay_t<
-                    signal::SignalType<ParamProviderTypeT<std::decay_t<Ts>>>
+                    signal2::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
                     >>...
-            >
+            >*/
         >
     >
 AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
@@ -87,15 +88,16 @@ AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
+            true/*
             std::is_invocable_r_v<
                 avg::Drawing,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
                 avg::AnimatedTypeT<std::decay_t<
-                    signal::SignalType<ParamProviderTypeT<std::decay_t<Ts>>>
+                    signal2::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
                     >>...
-            >
+            >*/
         >
     >
 AnyWidgetModifier onDrawBehind(TFunc&& func, Ts&&... ts)

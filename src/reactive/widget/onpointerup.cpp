@@ -4,7 +4,7 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include "reactive/signal/signal.h"
+#include "reactive/signal2/signal.h"
 
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/eventresult.h"
@@ -15,8 +15,9 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerUp(
-        AnySignal<std::function<EventResult(ase::PointerButtonEvent const&)>> cb)
+AnyWidgetModifier onPointerUp(signal2::AnySignal<
+        std::function<EventResult(ase::PointerButtonEvent const&)>
+        > cb)
 {
     auto id = btl::makeUniqueId();
 
@@ -48,7 +49,7 @@ AnyWidgetModifier onPointerUp(
 AnyWidgetModifier onPointerUp(
         std::function<EventResult(ase::PointerButtonEvent const&)> cb)
 {
-    return onPointerUp(signal::constant(std::move(cb)));
+    return onPointerUp(signal2::constant(std::move(cb)));
 }
 
 AnyWidgetModifier onPointerUp(std::function<EventResult()> cb)

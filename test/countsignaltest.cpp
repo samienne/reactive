@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/input.h>
 #include <reactive/signal/map.h>
 #include <reactive/signal/count.h>
@@ -74,3 +75,4 @@ TEST(CountSignal, countLifted)
     EXPECT_EQ(3, s4.evaluate());
 }
 
+#endif

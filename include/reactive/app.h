@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal/signal.h"
+#include "signal2/signal.h"
 
 #include "window.h"
 #include "reactivevisibility.h"
@@ -22,7 +22,7 @@ namespace reactive
 
         App windows(std::initializer_list<Window> windows) &&;
 
-        int run(AnySignal<bool> running) &&;
+        int run(signal2::AnySignal<bool> running) &&;
         int run() &&;
 
         [[nodiscard]]

@@ -2,8 +2,8 @@
 
 #include "stream.h"
 
-#include <reactive/signal/input.h>
-#include <reactive/signal/signaltraits.h>
+#include <reactive/signal2/input.h>
+#include <reactive/signal2/signaltraits.h>
 
 #include "reactive/connection.h"
 
@@ -15,7 +15,7 @@ namespace reactive
         class Hold;
     }
 
-    namespace signal
+    namespace signal2
     {
         template <typename T>
         struct IsSignal<stream::Hold<T>> : std::true_type {};
@@ -29,7 +29,7 @@ namespace reactive::stream
     {
         struct Setter
         {
-            Setter(signal::InputHandle<T> handle) :
+            Setter(signal2::InputHandle<T> handle) :
                 handle(std::move(handle))
             {
             }
@@ -40,12 +40,12 @@ namespace reactive::stream
                 return true;
             }
 
-            mutable signal::InputHandle<T> handle;
+            mutable signal2::InputHandle<T> handle;
         };
 
     public:
         Hold(Stream<T>&& stream, T&& initial) :
-            input_(signal::input(std::move(initial))),
+            input_(signal2::makeInput(std::move(initial))),
             stream_(std::move(stream)
                     .fmap(Setter(std::move(input_.handle))))
         {
@@ -66,12 +66,12 @@ namespace reactive::stream
             return input_.signal.hasChanged();
         }
 
-        signal::UpdateResult updateBegin(signal::FrameInfo const& frame)
+        signal2::UpdateResult updateBegin(signal2::FrameInfo const& frame)
         {
             return input_.signal.updateBegin(frame);
         }
 
-        signal::UpdateResult updateEnd(signal::FrameInfo const& frame)
+        signal2::UpdateResult updateEnd(signal2::FrameInfo const& frame)
         {
             return input_.signal.updateEnd(frame);
         }
@@ -82,15 +82,17 @@ namespace reactive::stream
             return input_.signal.observe(std::forward<TCallback>(callback));
         }
 
+        /*
         Annotation annotate() const
         {
             Annotation a;
             a.addNode(this, "hold()");
             return a;
         }
+        */
 
     private:
-        signal::Input<T> input_;
+        signal2::Input<signal2::SignalResult<T>, signal2::SignalResult<T>> input_;
         Stream<bool> stream_;
     };
 

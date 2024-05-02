@@ -5,7 +5,6 @@
 #include "reactive/widget/instancemodifier.h"
 #include "reactive/widget/instance.h"
 
-#include "reactive/signal/foldp.h"
 #include "reactive/stream/pipe.h"
 #include "reactive/stream/collect.h"
 
@@ -49,7 +48,7 @@ std::optional<size_t> getClosestInDirection(
 
     bool h1 = dir == Direction::right || dir == Direction::up;
     bool h2 = dir == Direction::right || dir == Direction::down;
-    const float sqrt2 = std::sqrt(2.0);
+    const float sqrt2 = std::sqrt(2.0f);
 
     const ase::Vector2f n1(sqrt2, sqrt2);
     const ase::Vector2f n2(sqrt2, -sqrt2);
@@ -278,23 +277,29 @@ AnyInstanceModifier focusGroup()
 {
     return makeSharedInstanceSignalModifier([](auto widget)
         {
-            auto inputs = signal::map(&Instance::getKeyboardInputs, widget);
-            auto obb = signal::map(&Instance::getObb, widget);
+            auto inputs = widget.map(&Instance::getKeyboardInputs);
+            auto obb = widget.map(&Instance::getObb);
 
             auto keyStream = stream::pipe<KeyEvent>();
 
+            auto state = merge(
+                    std::move(inputs),
+                    stream::collect2(std::move(keyStream.stream))
+                    ).withPrevious(&step, FocusGroupState());
+
+            /*
             auto state = signal::foldp(&step,
                     FocusGroupState(),
                     std::move(inputs),
                     stream::collect(std::move(keyStream.stream))
                     );
+            */
 
-            auto newInputs = signal::map(
-                    mapStateToInputs,
+            auto newInputs = merge(
                     std::move(state),
-                    signal::constant(keyStream.handle),
+                    signal2::constant(keyStream.handle),
                     std::move(obb)
-                    );
+                    ).map(mapStateToInputs);
 
             return std::move(widget)
                 | setKeyboardInputs(std::move(newInputs))

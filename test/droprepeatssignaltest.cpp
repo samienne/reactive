@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/droprepeats.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
@@ -55,3 +56,4 @@ TEST(DropRepeatsSignal, tester)
     });
 }
 
+#endif

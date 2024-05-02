@@ -1,6 +1,6 @@
 #pragma once
 
-#include "inputhandle.h"
+#include "signal2/input.h"
 
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
@@ -10,26 +10,26 @@
 
 #include <reactive/datasource.h>
 
-#include <reactive/signal/signal.h>
+#include <reactive/signal2/signal.h>
 
 #include <variant>
 #include <vector>
 #include <variant>
 
-namespace reactive::signal
+namespace reactive
 {
     template <typename T>
-    AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
+    signal2::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
             DataSource<T> source,
-            std::function<widget::AnyWidget(AnySignal<T> value, size_t id)> delegate
+            std::function<widget::AnyWidget(signal2::AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;
 
         struct WidgetState
         {
-            AnyWidget widget;
-            InputHandle<T> valueHandle;
+            widget::AnyWidget widget;
+            signal2::InputHandle<T> valueHandle;
             size_t id;
         };
 
@@ -42,21 +42,20 @@ namespace reactive::signal
 
         auto state = stream::iterate(
             // connection is put into the lambda just to keep it alive
-            [delegate, connection=std::move(source.connection)]
+            [delegate, connection=std::make_shared<Connection>(
+                std::move(source.connection))]
             (State state, typename DataSource<T>::Event event)
             {
                 if (std::holds_alternative<typename DataSource<T>::Insert>(event))
                 {
                     auto& insert = std::get<typename DataSource<T>::Insert>(event);
 
-                    auto valueInput = signal::input<T>(std::move(insert.value));
+                    auto valueInput = signal2::makeInput<T>(std::move(insert.value));
 
                     state.objects.insert(
                             state.objects.begin() + insert.index,
                             WidgetState{
-                                //WidgetObject(
-                                    delegate(std::move(valueInput.signal), insert.id)
-                                ,//),
+                                delegate(std::move(valueInput.signal), insert.id),
                                 std::move(valueInput.handle),
                                 insert.id
                                 });
@@ -184,8 +183,7 @@ namespace reactive::signal
 
         source.initialize();
 
-        auto widgetObjects = signal::map(
-            [](State const& state)
+        auto widgetObjects = std::move(state).map([](State const& state)
             {
                 std::vector<std::pair<size_t, AnyWidget>> widgetObjects;
 
@@ -195,11 +193,9 @@ namespace reactive::signal
                 }
 
                 return widgetObjects;
-            },
-            std::move(state)
-            );
+            });
 
         return widgetObjects;
     }
-} // namespace reactive::signal
+} // namespace reactive
 

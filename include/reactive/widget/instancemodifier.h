@@ -12,7 +12,7 @@ namespace reactive::widget
     class InstanceModifier;
 
     using AnyInstanceModifier = InstanceModifier<
-        std::function<AnySignal<Instance>(AnySignal<Instance>)>
+        std::function<signal2::AnySignal<Instance>(signal2::AnySignal<Instance>)>
         >;
 
     template <typename T>
@@ -39,7 +39,7 @@ namespace reactive::widget
         InstanceModifier& operator=(InstanceModifier&&) = default;
 
         template <typename U>
-        auto operator()(Signal<U, Instance> instance)
+        auto operator()(signal2::Signal<U, Instance> instance)
         {
             return func_(std::move(instance));
         }
@@ -57,7 +57,7 @@ namespace reactive::widget
     };
 
     template <typename T, typename U>
-    auto operator|(Signal<T, Instance> w, InstanceModifier<U> t)
+    auto operator|(signal2::Signal<T, Instance> w, InstanceModifier<U> t)
     {
         return std::move(std::move(t)(std::move(w)));
     }
@@ -101,7 +101,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename... Ts,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 AnySignal<Instance>, TFunc, AnySignal<Instance>, Ts&&...
+                 signal2::AnySignal<Instance>, TFunc, signal2::AnySignal<Instance>, Ts&&...
                  > > >
     auto makeInstanceSignalModifier(TFunc&& func, Ts&&... ts)
     {
@@ -120,7 +120,7 @@ namespace reactive::widget
             {
                 return std::invoke(
                         std::forward<decltype(f)>(f),
-                        share(std::forward<T>(instance)),
+                        std::forward<T>(instance).share(),
                         std::forward<decltype(ts)>(ts)...
                         );
             }
@@ -130,7 +130,7 @@ namespace reactive::widget
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
-            std::function<AnySignal<Instance>(AnySharedSignal<Instance>, Ts...)>>
+            std::function<signal2::AnySignal<Instance>(signal2::AnySignal<Instance>, Ts...)>>
         >>
     auto makeSharedInstanceSignalModifier(TFunc&& f, Ts&&... ts)
     {
@@ -149,11 +149,9 @@ namespace reactive::widget
             template <typename T, typename... Ts>
             auto operator()(T&& instance, Ts&&... ts)
             {
-                return signal::map(
-                        func,
-                        std::forward<T>(instance),
+                return merge(std::forward<T>(instance),
                         std::forward<decltype(ts)>(ts)...
-                        );
+                        ).map(func);
             }
 
             TFunc func;
@@ -161,7 +159,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<Instance, TFunc, Instance, typename signal::SignalType<Ts>...>
+        true//std::is_invocable_r_v<Instance, TFunc, Instance, signal2::SignalTypeT<Ts>...>
         >>
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {

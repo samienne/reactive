@@ -4,8 +4,7 @@
 #include "widget/setkeyboardinputs.h"
 #include "widget/instance.h"
 
-#include <reactive/signal/tee.h>
-#include <reactive/signal/inputhandle.h>
+#include <reactive/signal2/signal.h>
 
 namespace reactive::widget
 {
@@ -22,15 +21,15 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier trackFocus(signal::InputHandle<bool> const& handle)
+AnyWidgetModifier trackFocus(signal2::InputHandle<bool> const& handle)
 {
     return makeWidgetModifier(
             makeSharedInstanceSignalModifier([](auto instance, auto handle)
             {
-                auto input = signal::tee(
-                        signal::map(&Instance::getKeyboardInputs, instance),
-                        anyHasFocus,
-                        std::move(handle)
+                auto input = instance.map(&Instance::getKeyboardInputs)
+                    .tee(
+                        std::move(handle),
+                        anyHasFocus
                         );
 
                 return std::move(instance)

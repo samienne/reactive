@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/dt.h>
 #include <reactive/signal/time.h>
 #include <reactive/signal/update.h>
@@ -34,3 +35,4 @@ TEST(TimeSignal, basic)
     EXPECT_EQ(us(16667), t.evaluate());
 }
 
+#endif

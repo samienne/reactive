@@ -18,6 +18,32 @@ namespace reactive::signal2
     template <typename... Ts>
     struct IsSignalResult<SignalResult<Ts...>> : std::true_type {};
 
+    template <typename... Ts, typename TTuple, size_t... S>
+    auto doConvertTuple(TTuple&& t, std::index_sequence<S...>)
+    {
+        return std::tuple<Ts...>(
+                static_cast<Ts>(std::get<S>(std::forward<TTuple>(t)))...
+                );
+    }
+
+    template <typename... Ts, typename... Us>
+    auto convertTuple(std::tuple<Us...> const& t)
+    {
+        return doConvertTuple<Ts...>(t, std::make_index_sequence<sizeof...(Ts)>());
+    }
+
+    template <typename... Ts, typename... Us>
+    auto convertTuple(std::tuple<Us...>& t)
+    {
+        return doConvertTuple<Ts...>(t, std::make_index_sequence<sizeof...(Ts)>());
+    }
+
+    template <typename... Ts, typename... Us>
+    auto convertTuple(std::tuple<Us...>&& t)
+    {
+        return doConvertTuple<Ts...>(std::move(t), std::make_index_sequence<sizeof...(Ts)>());
+    }
+
     template <typename... Ts>
     class SignalResult
     {
@@ -40,7 +66,7 @@ namespace reactive::signal2
                 std::is_convertible<Us, Ts>...
             >::value>>
         SignalResult(SignalResult<Us...>&& other) :
-            values_(std::move(other.values_))
+            values_(convertTuple<Ts...>(std::move(other.values_)))
         {
         }
 
@@ -49,7 +75,7 @@ namespace reactive::signal2
                 std::is_convertible<Us, Ts>...
             >::value>>
         SignalResult(SignalResult<Us...> const& other) :
-            values_(other.values_)
+            values_(convertTuple<Ts...>(other.values_))
         {
         }
 
@@ -72,6 +98,7 @@ namespace reactive::signal2
             return *this;
         }
 
+        /*
         template <typename T, typename = std::enable_if_t<
             btl::All<
                 btl::Not<IsSignalResult<std::decay_t<T>>>,
@@ -84,6 +111,7 @@ namespace reactive::signal2
             new (&values_) std::tuple<Ts...>(std::forward<T>(t));
             return *this;
         }
+        */
 
         auto operator==(SignalResult const& rhs) const
             -> decltype(std::declval<std::tuple<Ts...>>()

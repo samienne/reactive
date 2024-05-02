@@ -12,10 +12,10 @@ namespace reactive::widget
     template <typename TInstance>
     class Element;
 
-    using AnyElement = Element<AnySignal<Instance>>;
+    using AnyElement = Element<signal2::AnySignal<Instance>>;
 
     template <typename TInstance>
-    auto makeElement(Signal<TInstance, Instance> instance, BuildParams params);
+    auto makeElement(signal2::Signal<TInstance, Instance> instance, BuildParams params);
 
     template <typename TInstance>
     class Element
@@ -53,7 +53,7 @@ namespace reactive::widget
         auto share() &&
         {
             return makeElement(
-                    signal::share(std::move(*instance_)),
+                    std::move(*instance_).share(),
                     std::move(params_)
                     );
         }
@@ -89,19 +89,19 @@ namespace reactive::widget
     };
 
     extern template class REACTIVE_EXPORT_TEMPLATE
-        Element<AnySignal<Instance>>;
+        Element<signal2::AnySignal<Instance>>;
 
     template <typename TInstance>
-    auto makeElement(Signal<TInstance, Instance> instance, BuildParams params)
+    auto makeElement(signal2::Signal<TInstance, Instance> instance, BuildParams params)
     {
-        return Element<Signal<TInstance, Instance>>(
+        return Element<signal2::Signal<TInstance, Instance>>(
                 std::move(instance),
                 std::move(params)
                 );
     }
 
     template <typename T>
-    auto makeElement(Signal<T, avg::Vector2f> size)
+    auto makeElement(signal2::Signal<T, avg::Vector2f> size)
     {
         return makeElement(
                 makeInstance(std::move(size)),

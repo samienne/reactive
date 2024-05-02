@@ -3,26 +3,22 @@
 #include "widget/addwidgets.h"
 #include "widget/clip.h"
 #include "widget/transform.h"
-#include "widget/instancemodifier.h"
-#include "widget/buildermodifier.h"
 
 namespace reactive::widget
 {
 
-AnyWidget bin(AnyWidget contentWidget, AnySignal<avg::Vector2f> contentSize)
+AnyWidget bin(AnyWidget contentWidget,
+        signal2::AnySignal<avg::Vector2f> contentSize)
 {
     return makeWidgetWithSize(
         [](auto viewSize, BuildParams const& params, auto contentSize, auto contentWidget)
         {
-            auto offset = signal::map([](avg::Vector2f viewSize,
-                        avg::Vector2f contentSize)
+            auto offset = merge(viewSize, contentSize).map(
+                    [](avg::Vector2f viewSize, avg::Vector2f contentSize)
                     {
                         float offY = contentSize[1] - viewSize[1];
                         return avg::translate(0.0f, -offY);
-                    },
-                    std::move(viewSize),
-                    contentSize
-                    );
+                    });
 
             auto transformedContent = std::move(contentWidget)
                 | transform(std::move(offset))
@@ -37,7 +33,7 @@ AnyWidget bin(AnyWidget contentWidget, AnySignal<avg::Vector2f> contentSize)
                 ;
         },
         provideBuildParams(),
-        signal::share(std::move(contentSize)),
+        contentSize.share(),
         std::move(contentWidget)
         );
 }

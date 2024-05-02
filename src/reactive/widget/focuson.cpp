@@ -5,7 +5,7 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include <reactive/signal/map.h>
+#include <reactive/signal2/signal.h>
 
 #include <reactive/stream/collect.h>
 #include <reactive/stream/stream.h>
@@ -23,16 +23,13 @@ namespace
 
 AnyWidgetModifier focusOn(stream::Stream<bool> stream)
 {
-    auto focusRequest = signal::map(
-            hasValues,
-            stream::collect(std::move(stream))
-            );
+    auto focusRequest = stream::collect2(std::move(stream)).map(hasValues);
 
     return makeWidgetModifier(makeInstanceSignalModifier(
         [](auto instance, auto focusRequest)
         {
             return std::move(instance)
-                | setFocusable(signal::constant(true))
+                | setFocusable(signal2::constant(true))
                 | requestFocus(std::move(focusRequest))
                 ;
         },

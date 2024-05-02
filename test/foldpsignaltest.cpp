@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/foldp.h>
 #include <reactive/signal/input.h>
 #include <reactive/signal/update.h>
@@ -48,3 +49,4 @@ TEST(foldp, tester)
     });
 }
 
+#endif

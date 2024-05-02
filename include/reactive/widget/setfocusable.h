@@ -2,12 +2,12 @@
 
 #include "instancemodifier.h"
 
-#include <reactive/signal/signal.h>
+#include <reactive/signal2/signal.h>
 
 namespace reactive::widget
 {
     template <typename T>
-    auto setFocusable(Signal<T, bool> focusable)
+    auto setFocusable(signal2::Signal<T, bool> focusable)
     {
         return makeInstanceModifier([](Instance instance, bool focusable)
             {
@@ -22,6 +22,5 @@ namespace reactive::widget
             std::move(focusable)
             );
     }
-
 } // namespace reactice::widget
 

@@ -12,7 +12,7 @@ widget::AnyWidget hbox(std::vector<widget::AnyWidget> widgets)
 }
 
 widget::AnyWidget hbox(
-        AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
+        signal2::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
 {
     return dynamicBox<Axis::x>(std::move(widgets));
 }

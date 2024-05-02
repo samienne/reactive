@@ -8,7 +8,7 @@
 namespace reactive::widget
 {
     template <typename... TTags, typename... Ts>
-    auto setParams(signal::SharedSignal<Ts, typename TTags::type>... values)
+    auto setParams(signal2::Signal<Ts, typename TTags::type>... values)
     {
         if constexpr (sizeof...(TTags) == 0)
         {
@@ -32,16 +32,18 @@ namespace reactive::widget
         }
     }
 
+    /*
     template <typename... TTags, typename... Ts>
-    auto setParams(signal::Signal<Ts, typename TTags::type>... values)
+    auto setParams(signal2::Signal<Ts, typename TTags::type>... values)
     {
         return setParams<TTags...>(share(std::move(values)...));
     }
+    */
 
     template <typename... TTags>
     auto setParams(typename TTags::type... values)
     {
-        return setParams<TTags...>(share(signal::constant(std::move(values)...)));
+        return setParams<TTags...>(signal2::constant(std::move(values)...));
     }
 } // namespace reactive::widget
 

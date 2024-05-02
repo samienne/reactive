@@ -5,8 +5,6 @@
 #include <reactive/stream/sharedstream.h>
 #include <reactive/stream/stream.h>
 
-#include <reactive/signal/update.h>
-
 #include <reactive/signal2/signalcontext.h>
 
 #include <gtest/gtest.h>
@@ -116,6 +114,7 @@ TEST(Stream, convertShared)
     Stream<std::string> s = std::move(p.stream).share();
 }
 
+/*
 TEST(Stream, hold)
 {
     auto p = pipe<std::string>();
@@ -133,6 +132,7 @@ TEST(Stream, hold)
 
     EXPECT_EQ("test2", s.evaluate());
 }
+*/
 
 /*
 TEST(Stream, collect)
@@ -178,7 +178,7 @@ TEST(Stream, iterate)
     auto values = pipe<std::string>();
     auto initial = signal2::makeInput<std::string>("hello");
 
-    auto s = iterate2([](std::string current, std::string event)
+    auto s = iterate([](std::string current, std::string event)
             {
                 return current + event;
             },

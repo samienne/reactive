@@ -4,7 +4,7 @@
 
 #include "reactive/keyboardinput.h"
 
-#include "reactive/signal/signal.h"
+#include "reactive/signal2/signal.h"
 
 #include <btl/cloneoncopy.h>
 
@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setKeyboardInputs(Signal<T, std::vector<KeyboardInput>> inputs)
+    auto setKeyboardInputs(signal2::Signal<T, std::vector<KeyboardInput>> inputs)
     {
         return makeInstanceModifier([](Instance instance, std::vector<KeyboardInput> inputs)
                 {

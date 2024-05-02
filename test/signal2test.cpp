@@ -465,15 +465,15 @@ TEST(Signal2, teeWithFunc)
 
     auto r1 = c.evaluate();
 
-    EXPECT_EQ("helloworld", r1.get<0>());
-    EXPECT_EQ(64, r1.get<1>());
+    EXPECT_EQ(106, r1.get<0>());
+    EXPECT_EQ("hellohelloworld", r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 
     auto r2 = c.evaluate();
 
-    EXPECT_EQ("hellohelloworld", r2.get<0>());
-    EXPECT_EQ(106, r2.get<1>());
+    EXPECT_EQ(148, r2.get<0>());
+    EXPECT_EQ("hellohellohelloworld", r2.get<1>());
 }
 
 TEST(Signal2, makeOptional)

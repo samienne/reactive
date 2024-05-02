@@ -14,7 +14,7 @@
 
 #include "reactive/simplesizehint.h"
 
-#include "signal/combine.h"
+#include "reactive/signal2/combine.h"
 
 #include "stream/iterate.h"
 #include "stream/pipe.h"
@@ -155,37 +155,39 @@ namespace
     }
 
     auto makeTextEdit(
-            AnySharedSignal<widget::Theme> theme,
-            signal::InputHandle<TextEditState> handle,
-            std::vector<AnySharedSignal<std::function<void()>>> const& onEnter,
-            AnySharedSignal<TextEditState> oldState)
+            signal2::AnySignal<widget::Theme> theme,
+            signal2::InputHandle<TextEditState> handle,
+            std::vector<signal2::AnySignal<std::function<void()>>> const& onEnter,
+            signal2::AnySignal<TextEditState> oldState)
     {
         auto keyStream = stream::pipe<Events>();
 
         auto requestFocus = stream::pipe<bool>();
 
-        auto focus = signal::input(false);
+        auto focus = signal2::makeInput(false);
 
-        auto focusPercentage = signal::map([](bool b) -> avg::Animated<float>
+        auto focusPercentage = std::move(focus.signal)
+            .map([](bool b) -> avg::Animated<float>
                 {
                     return b
                         ? avg::infiniteAnimation(0.0f, 1.0f, avg::curve::linear, 0.5f,
                                 avg::RepeatMode::reverse)
                         : avg::Animated<float>(0.0f)
                         ;
-                },
-                std::move(focus.signal)
-                );
+                });
 
-        auto frameColor = theme.clone().map([](auto const& theme)
+        auto frameColor = theme.map([](auto const& theme)
                 {
                     return theme.getSecondary();
                 });
 
-        auto newState = signal::tee(
-                stream::iterate(updateTextEdit, oldState, std::move(keyStream.stream),
-                    theme, signal::combine(onEnter)),
-                handle);
+        auto newState = stream::iterate(
+                updateTextEdit,
+                oldState,
+                std::move(keyStream.stream),
+                theme,
+                signal2::combine(onEnter)
+                ).tee(handle);
 
         return makeWidget()
             | trackFocus(focus.handle)
@@ -195,7 +197,7 @@ namespace
                     std::move(newState),
                     std::move(focusPercentage)
                     )
-            | widget::margin(signal::constant(5.0f))
+            | widget::margin(signal2::constant(5.0f))
             | widget::clip()
             | widget::frame(std::move(frameColor))
             | focusOn(std::move(requestFocus.stream))
@@ -208,7 +210,7 @@ namespace
                     })
             | widget::onKeyEvent(sendKeysTo(keyStream.handle))
             | widget::onTextEvent(sendKeysTo(keyStream.handle))
-            | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
+            | setSizeHint(signal2::constant(simpleSizeHint(250.0f, 40.0f)))
             ;
     }
 
@@ -221,19 +223,19 @@ TextEdit::operator AnyWidget() const
             provideTheme(),
             handle_,
             onEnter_,
-            signal::share(btl::clone(state_))
+            state_.share()
             );
 }
 
-TextEdit TextEdit::onEnter(AnySignal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(signal2::AnySignal<std::function<void()>> cb) &&
 {
-    onEnter_.push_back(signal::share(std::move(cb)));
+    onEnter_.push_back(std::move(cb).share());
     return std::move(*this);
 }
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
+    return std::move(*this).onEnter(signal2::constant(std::move(cb)));
 }
 
 AnyWidget TextEdit::build() &&
@@ -241,8 +243,8 @@ AnyWidget TextEdit::build() &&
     return *this;
 }
 
-TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-        AnySignal<TextEditState> state)
+TextEdit textEdit(signal2::InputHandle<TextEditState> handle,
+        signal2::AnySignal<TextEditState> state)
 {
     return TextEdit{std::move(handle), std::move(state), {}};
 }

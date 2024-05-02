@@ -49,7 +49,7 @@ namespace {
 
 reactive::widget::AnyWidget spinner()
 {
-    auto state = signal::constant(avg::infiniteAnimation(
+    auto state = signal2::constant(avg::infiniteAnimation(
                 0.0f, 1.0f, avg::curve::linear, 2.0f
                 ));
 

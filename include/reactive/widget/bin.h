@@ -5,6 +5,6 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidget bin(AnyWidget f,
-            AnySignal<avg::Vector2f> contentSize);
+            signal2::AnySignal<avg::Vector2f> contentSize);
 } // reactive::widget
 

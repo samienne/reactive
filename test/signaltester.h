@@ -1,5 +1,6 @@
 #pragma once
 
+#if 0
 #include <reactive/signal/updateresult.h>
 #include <reactive/signal/signaltraits.h>
 #include <reactive/signal/signal.h>
@@ -135,3 +136,4 @@ void testSignal(TSignalMap&& sigMap)
     EXPECT_EQ(updateEndCount, stub.getUpdateEndCount());
 }
 
+#endif

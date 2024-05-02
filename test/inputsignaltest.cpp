@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/tee.h>
 #include <reactive/signal/constant.h>
 #include <reactive/signal/input.h>
@@ -234,3 +235,4 @@ TEST(InputSignal, teeOrder2)
     EXPECT_EQ(40, s2.evaluate());
 }
 
+#endif

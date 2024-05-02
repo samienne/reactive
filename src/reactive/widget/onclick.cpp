@@ -3,12 +3,10 @@
 #include "widget/onpointerup.h"
 #include "widget/onpointerdown.h"
 
-#include "reactive/signal/map.h"
-
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/clickevent.h"
 
-#include "reactive/signal/signal.h"
+#include "reactive/signal2/signal.h"
 
 #include <functional>
 #include <type_traits>
@@ -17,7 +15,7 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onClick(unsigned int button,
-        AnySignal<std::function<void(ClickEvent const&)>> cb)
+        signal2::AnySignal<std::function<void(ClickEvent const&)>> cb)
 {
     auto f = [button](
             std::function<void(ClickEvent const&)> const& cb,
@@ -38,27 +36,30 @@ AnyWidgetModifier onClick(unsigned int button,
         {
             return std::move(widget)
                 | onPointerUp(
-                        signal::mapFunction(std::move(f), std::move(cb), std::move(size))
-                        );
+                        merge(std::move(cb), std::move(size))
+                        .bindToFunction(std::move(f)))
+                ;
         },
         std::move(f),
-        signal::share(std::move(cb))
+        std::move(cb).share()
         );
 }
 
-AnyWidgetModifier onClick(unsigned int button, AnySignal<std::function<void()>> cb)
+AnyWidgetModifier onClick(unsigned int button,
+        signal2::AnySignal<std::function<void()>> cb)
 {
     auto f = [](std::function<void()> cb, ClickEvent const&)
     {
         cb();
     };
 
-    return onClick(button, signal::mapFunction(std::move(f), std::move(cb)));
+    auto c = std::move(cb).bindToFunction(std::move(f));
+    return onClick(button, c.template cast<std::function<void(ClickEvent const&)>>());
 }
 
 AnyWidgetModifier onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
 {
-    return onClick(button, signal::constant(std::move(f)));
+    return onClick(button, signal2::constant(std::move(f)));
 }
 
 } // namespace reactive

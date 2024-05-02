@@ -66,13 +66,13 @@ auto transition(Transition<T> transition)
             | makeSharedInstanceSignalModifier(
                 [](auto instance, auto transitionedBuilder)
                 {
-                    auto size = share(map(&Instance::getSize, instance));
+                    auto size = instance.map(&Instance::getSize).share();
                     auto transitionedInstance = std::move(transitionedBuilder)
                         (size)
                         .getInstance()
                         ;
 
-                    auto newRenderTree = group(instance, std::move(transitionedInstance))
+                    auto newRenderTree = merge(instance, std::move(transitionedInstance))
                             .map([=](auto const& activeInstance,
                                         auto const& transitionedInstance)
                             {

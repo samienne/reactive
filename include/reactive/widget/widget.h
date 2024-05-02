@@ -4,8 +4,7 @@
 #include "buildparams.h"
 #include "buildermodifier.h"
 
-#include "reactive/signal/constant.h"
-#include "reactive/signal/signal.h"
+#include "reactive/signal2/signal.h"
 
 #include <avg/vector.h>
 
@@ -408,7 +407,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnySignal<avg::Vector2f>,
+        std::is_invocable_r_v<AnyWidget, TFunc, signal2::AnySignal<avg::Vector2f>,
         ParamProviderTypeT<Ts>...>
         >>
     auto makeWidgetWithSize(TFunc&& func, Ts&&... ts)
@@ -472,7 +471,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, AnySignal<avg::Vector2f>,
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, signal2::AnySignal<avg::Vector2f>,
         ParamProviderTypeT<Ts>...>
         >>
     auto makeWidgetModifierWithSize(TFunc&& func, Ts&&... ts)

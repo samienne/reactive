@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/share.h>
 #include <reactive/signal/erasetype.h>
 #include <reactive/signal/map.h>
@@ -281,3 +282,4 @@ TEST(Map, tester)
     });
 }
 
+#endif

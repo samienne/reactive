@@ -2,14 +2,13 @@
 
 #include "widget.h"
 
-#include "reactive/signal/signal.h"
+#include "reactive/signal2/signal.h"
 
-#include "reactive/pointermoveevent.h"
 #include "reactive/eventresult.h"
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyWidgetModifier onPointerMove(AnySignal<
+    REACTIVE_EXPORT AnyWidgetModifier onPointerMove(signal2::AnySignal<
             std::function<EventResult(ase::PointerMoveEvent const&)>
             > cb);
 

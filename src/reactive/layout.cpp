@@ -4,9 +4,7 @@
 #include "widget/setsizehint.h"
 #include "widget/transform.h"
 #include "widget/addwidgets.h"
-#include "widget/instancemodifier.h"
 
-#include "avg/rendertree.h"
 #include "widget/widget.h"
 
 namespace reactive
@@ -23,30 +21,28 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                 return builder.getSizeHint();
             });
 
-    auto hintsSignal = share(
-            signal::combine(std::move(hints))
-            );
+    auto hintsSignal = signal2::combine(std::move(hints)).share();
 
     auto widget = widget::makeWidgetWithSize(
             [](auto size, auto obbMap, auto hintsSignal, auto builders)
             {
-                auto obbs = share(signal::map(obbMap, std::move(size), hintsSignal));
+                auto obbs = merge(std::move(size), hintsSignal).map(obbMap).share();
 
                 size_t index = 0;
                 auto widgets = btl::fmap(builders, [&index, &obbs](auto&& f)
-                        -> AnySignal<widget::Instance>
+                        -> signal2::AnySignal<widget::Instance>
                     {
-                        auto t = signal::map([index](
+                        auto t = obbs.map([index](
                                     std::vector<avg::Obb> const& obbs)
                                 {
                                     return obbs.at(index).getTransform();
-                                }, obbs);
+                                });
 
-                        auto size = signal::map([index](
+                        auto size = obbs.map([index](
                                     std::vector<avg::Obb> const& obbs)
                                 {
                                     return obbs.at(index).getSize();
-                                }, obbs);
+                                });
 
                         auto builder = f.clone()
                             | widget::transformBuilder(std::move(t));
@@ -67,7 +63,8 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
             );
 
     return std::move(widget)
-        | widget::setSizeHint(signal::map(std::move(sizeHintMap), hintsSignal));
+        | widget::setSizeHint(hintsSignal.map(std::move(sizeHintMap)))
+        ;
 }
 
 } // anonymous namespace

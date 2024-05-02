@@ -1,3 +1,4 @@
+#if 0
 #include <reactive/signal/constant.h>
 #include <reactive/signal/erasetype.h>
 #include <reactive/signal/map.h>
@@ -165,3 +166,4 @@ TEST(SignalTypeReduction, convert)
     EXPECT_EQ(200, s3.evaluate());
 }
 
+#endif

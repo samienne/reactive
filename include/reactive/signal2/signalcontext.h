@@ -33,7 +33,14 @@ namespace reactive::signal2
             if (r.didChange)
                 result_ = sig_.unwrap().evaluate(data_);
 
+            didChange_ = r.didChange;
+
             return r;
+        }
+
+        bool didChange() const
+        {
+            return didChange_;
         }
 
         Connection observe(std::function<void()> callback)
@@ -53,6 +60,7 @@ namespace reactive::signal2
         AnySignal<Ts...> sig_;
         typename AnySignal<Ts...>::DataType data_;
         InnerResultType result_;
+        bool didChange_ = false;
     };
 
     template <typename T>

@@ -2,14 +2,14 @@
 
 #include "widget/instancemodifier.h"
 
-#include <reactive/signal/signal.h>
+#include <reactive/signal2/signal.h>
 
 #include <avg/transform.h>
 
 namespace reactive::widget
 {
 
-AnyInstanceModifier transformBuilder(AnySignal<avg::Transform> t)
+AnyInstanceModifier transformBuilder(signal2::AnySignal<avg::Transform> t)
 {
     return makeInstanceModifier([](Instance instance, avg::Transform const& t)
             {
@@ -19,7 +19,7 @@ AnyInstanceModifier transformBuilder(AnySignal<avg::Transform> t)
             );
 }
 
-AnyWidgetModifier transform(AnySignal<avg::Transform> t)
+AnyWidgetModifier transform(signal2::AnySignal<avg::Transform> t)
 {
     return makeWidgetModifier(transformBuilder(std::move(t)));
 }

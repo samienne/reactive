@@ -6,6 +6,7 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyWidgetModifier setSizeHint(AnySignal<SizeHint>sizeHint);
+    REACTIVE_EXPORT AnyWidgetModifier setSizeHint(
+            signal2::AnySignal<SizeHint>sizeHint);
 } // namespace reactive::widget
 

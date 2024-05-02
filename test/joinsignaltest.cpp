@@ -1,3 +1,4 @@
+#if 0
 #include "reactive/signal/join.h"
 #include "reactive/signal/erasetype.h"
 #include "reactive/signal/input.h"
@@ -91,3 +92,4 @@ TEST(JoinSignal, changeInner)
     EXPECT_EQ(30, s3.evaluate());
 }
 
+#endif

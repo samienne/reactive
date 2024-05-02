@@ -117,15 +117,18 @@ namespace
 
     template <bool IsHorizontal, typename T, typename U, typename V>
     auto scrollPointerDown(
-            signal::InputHandle<std::optional<avg::Vector2f>> downHandle,
-            Signal<T, avg::Vector2f> sizeSignal,
-            SharedSignal<U, float> amountSignal,
-            Signal<V, float> handleSizeSignal)
+            signal2::InputHandle<std::optional<avg::Vector2f>> downHandle,
+            signal2::Signal<T, avg::Vector2f> sizeSignal,
+            signal2::Signal<U, float> amountSignal,
+            signal2::Signal<V, float> handleSizeSignal)
     {
-        return signal::mapFunction(
-            [downHandle=std::move(downHandle)]
+        return merge(
+                std::move(sizeSignal),
+                amountSignal,
+                std::move(handleSizeSignal)
+            ).bindToFunction([downHandle=std::move(downHandle)]
             (avg::Vector2f size, float amount, float handleSize,
-                PointerButtonEvent e) mutable
+             PointerButtonEvent e) mutable
             {
                 auto r = getSliderRect<IsHorizontal>(size, amount,
                         handleSize);
@@ -134,11 +137,7 @@ namespace
                     downHandle.set(e.pos-r.getCenter());
 
                 return EventResult::possible;
-            },
-            std::move(sizeSignal),
-            amountSignal,
-            std::move(handleSizeSignal)
-            );
+            });
     }
 
     template <bool IsHorizontal>
@@ -148,32 +147,32 @@ namespace
         std::array<float, 3> aux{{25, 25, 25}};
 
         if (IsHorizontal)
-            return signal::constant(simpleSizeHint(main, aux));
+            return signal2::constant(simpleSizeHint(main, aux));
         else
-            return signal::constant(simpleSizeHint(aux, main));
+            return signal2::constant(simpleSizeHint(aux, main));
     }
 
     template <bool IsHorizontal>
     auto makeScrollBar(
-        signal::InputHandle<float> scrollHandle,
-        AnySharedSignal<float> amount,
-        AnySharedSignal<float> handleSize)
+        signal2::InputHandle<float> scrollHandle,
+        signal2::AnySignal<float> amount,
+        signal2::AnySignal<float> handleSize)
     {
         return makeWidgetWithSize([](auto size, auto theme, auto scrollHandle,
                     auto amount, auto handleSize)
         {
-            auto downOffset = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
-            auto isDown = map([](auto v) { return v.has_value(); }, downOffset.signal);
-            auto hover = signal::input(false);
+            auto downOffset = signal2::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
+            auto isDown = downOffset.signal.map([](auto v) { return v.has_value(); });
+            auto hover = signal2::makeInput(false);
 
-            auto sliderObb = signal::map([]
+            auto sliderObb = merge(size.clone(), amount, handleSize).map([]
                     (avg::Vector2f size, float amount, float handleSize)
                     {
                         return avg::Obb(getSliderRect<IsHorizontal>(
                                     size,
                                     amount,
                                     handleSize));
-                    }, size.clone(), amount, handleSize);
+                    });
 
             return makeWidget()
                 | onHover(std::move(sliderObb), hover.handle)
@@ -185,8 +184,8 @@ namespace
                         handle.set(std::nullopt);
                         return EventResult::accept;
                     })
-                | onPointerMove(signal::mapFunction(
-                    [scrollHandle]
+                | onPointerMove(merge(downOffset.signal, size.clone(), handleSize)
+                    .bindToFunction([scrollHandle]
                     (std::optional<avg::Vector2f> downOffset,
                         avg::Vector2f size, float handleSize,
                         PointerMoveEvent const& e) mutable -> EventResult
@@ -208,7 +207,7 @@ namespace
 
                         scrollHandle.set(std::max(0.0f, std::min(len, 1.0f)));
                         return EventResult::accept;
-                    }, downOffset.signal, size.clone(), handleSize))
+                    }))
                 | onDraw(
                         drawScrollBar<IsHorizontal>,
                         std::move(theme),
@@ -229,38 +228,38 @@ namespace
 
 template <bool IsHorizontal>
 AnyWidget scrollBar(
-        signal::InputHandle<float> scrollHandle,
-        AnySharedSignal<float> amount,
-        AnySharedSignal<float> handleSize)
+        signal2::InputHandle<float> scrollHandle,
+        signal2::AnySignal<float> amount,
+        signal2::AnySignal<float> handleSize)
 {
     return makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
-        | widget::margin(signal::constant(5.0f))
+        | widget::margin(signal2::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;
 }
 
 AnyWidget hScrollBar(
-        signal::InputHandle<float> handle,
-        AnySignal<float> amount,
-        AnySignal<float> handleSize)
+        signal2::InputHandle<float> handle,
+        signal2::AnySignal<float> amount,
+        signal2::AnySignal<float> handleSize)
 {
-    return scrollBar<true>(std::move(handle), signal::share(std::move(amount)),
-            signal::share(signal::map([](float v)
+    return scrollBar<true>(std::move(handle), std::move(amount).share(),
+            std::move(handleSize).map([](float v)
                     {
                         return std::min(1.0f, v);
-                    }, std::move(handleSize))));
+                    }).share());
 }
 
 AnyWidget vScrollBar(
-        signal::InputHandle<float> handle,
-        AnySignal<float> amount,
-        AnySignal<float> handleSize)
+        signal2::InputHandle<float> handle,
+        signal2::AnySignal<float> amount,
+        signal2::AnySignal<float> handleSize)
 {
-    return scrollBar<false>(std::move(handle), signal::share(std::move(amount)),
-            signal::share(signal::map([](float v)
+    return scrollBar<false>(std::move(handle), std::move(amount).share(),
+            std::move(handleSize).map([](float v)
                     {
                         return std::min(1.0f, v);
-                    }, std::move(handleSize))));
+                    }).share());
 }
 
 } // namespace reactive::widget

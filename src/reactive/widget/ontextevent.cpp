@@ -5,7 +5,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onTextEvent(AnySignal<KeyboardInput::TextHandler> handler)
+AnyWidgetModifier onTextEvent(signal2::AnySignal<KeyboardInput::TextHandler> handler)
 {
     return makeWidgetModifier(
         makeInstanceModifier([](Instance instance, auto handler)
@@ -27,7 +27,7 @@ AnyWidgetModifier onTextEvent(AnySignal<KeyboardInput::TextHandler> handler)
 
 AnyWidgetModifier onTextEvent(KeyboardInput::TextHandler handler)
 {
-    return onTextEvent(signal::constant(std::move(handler)));
+    return onTextEvent(signal2::constant(std::move(handler)));
 }
 
 } // namespace reactive::widget

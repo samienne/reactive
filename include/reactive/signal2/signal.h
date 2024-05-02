@@ -17,6 +17,8 @@
 #include <btl/async.h>
 #include <btl/bindarguments.h>
 
+#include <string>
+
 namespace reactive::signal2
 {
     template <typename TStorage, typename... Ts>
@@ -111,7 +113,7 @@ namespace reactive::signal2
 
         auto tryCheck() const
         {
-            return wrap(Signal<TStorage, Ts...>(Super::sig_));
+            return Signal<TStorage, Ts...>(Super::sig_);
         }
     };
 
@@ -242,15 +244,18 @@ namespace reactive::signal2
         }
 
         template <typename TFunc, typename... Us, typename = std::enable_if_t<
-            std::is_assignable_v<SignalResult<Us...>, std::invoke_result_t<TFunc, Ts...>>
+            std::is_assignable_v<
+                SignalResult<Us...>,
+                ToSignalResultT<std::invoke_result_t<TFunc, Ts...>>
+            >
             >>
         auto tee(InputHandle<Us...> handle, TFunc&& func) const
         {
-            auto mapped = Super::tryCheck().map(std::forward<TFunc>(func)).share();
+            auto mapped = map(std::forward<TFunc>(func)).tryCheck().share();
             handle.set(mapped.weak());
 
             // Store a reference to mapped in the lambda capture
-            return mapped.map([mapped](auto&&... ts)
+            return map([mapped](auto&&... ts)
                 {
                     return makeSignalResult(std::forward<decltype(ts)>(ts)...);
                 });
@@ -312,7 +317,7 @@ namespace reactive::signal2
                     params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
                     (auto&&... us) mutable
                     {
-                        return std::apply([&](auto&&... ts)
+                        return std::apply([&](auto&&... ts) mutable
                                 {
                                     return func(std::forward<decltype(ts)>(ts)...,
                                             std::forward<decltype(us)>(us)...);
@@ -324,8 +329,16 @@ namespace reactive::signal2
 
         auto withChanged(bool ignoreChangedStatusChange = false) const
         {
-            return wrap(WithChanged<TStorage>(Super::sig_,
+            return wrap(WithChanged<StorageType>(Super::sig_,
                         ignoreChangedStatusChange));
+        }
+
+        auto changed() const
+        {
+            return withChanged().map([](bool changed, auto&&...)
+                {
+                    return changed;
+                });
         }
 
         template <typename... Us, typename TFunc, typename = std::enable_if_t<
@@ -335,7 +348,7 @@ namespace reactive::signal2
             >>>
         auto withPrevious(TFunc&& func, Us&&... initial) const
         {
-            return wrap(WithPrevious<TStorage, std::decay_t<TFunc>,
+            return wrap(WithPrevious<StorageType, std::decay_t<TFunc>,
                     std::decay_t<Us>...>(
                         std::forward<TFunc>(func),
                         makeSignalResult(std::forward<Us>(initial)...),
@@ -389,6 +402,11 @@ namespace reactive::signal2
         AnySignal operator=(Signal<TStorage, Us...>&& rhs) noexcept
         {
             Signal<void, Ts...>::sig_ = makeTypelessSignal<Ts...>(rhs);
+            return *this;
+        }
+
+        AnySignal clone() const
+        {
             return *this;
         }
     };

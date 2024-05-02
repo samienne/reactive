@@ -17,10 +17,10 @@ namespace reactive::signal2
         };
 
         Constant(Constant<T> const&) = default;
-        Constant(Constant<T>&&) noexcept = default;
+        Constant(Constant<T>&&) = default;
 
         Constant<T>& operator=(Constant<T> const&) = default;
-        Constant<T>& operator=(Constant<T>&&) noexcept = default;
+        Constant<T>& operator=(Constant<T>&&) = default;
 
         Constant(T&& initial) :
             constant_(std::move(initial))

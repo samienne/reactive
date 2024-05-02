@@ -1,11 +1,12 @@
 #include "app.h"
 
-#include "signal/updateresult.h"
 #include "window.h"
 #include "send.h"
 #include "debug.h"
 
-#include "reactive/signal/input.h"
+#include "signal2/input.h"
+#include "signal2/updateresult.h"
+#include "signal2/signalcontext.h"
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>
@@ -75,12 +76,12 @@ public:
         context_(context),
         window_(std::move(window)),
         painter_(memory_, context_),
-        size_(signal::input(ase::Vector2f(800, 600))),
+        size_(signal2::makeInput(ase::Vector2f(800, 600))),
         widgetInstanceSignal_(window_.getWidget()(
                     widget::BuildParams{}
                     )(std::move(size_.signal)).getInstance()),
         widgetInstance_(widgetInstanceSignal_.evaluate()),
-        titleSignal_(window_.getTitle().clone()),
+        titleSignal_(window_.getTitle()),
         drawing_(memory_)
     {
         aseWindow.setVisible(true);
@@ -111,7 +112,7 @@ public:
                         a.emitButtonEvent(e);
                         areas_[e.button].push_back(a);
 
-                        makeTransaction(signal::signal_time_t(0), std::nullopt);
+                        makeTransaction(signal2::signal_time_t(0), std::nullopt);
                     }
                 }
             }
@@ -124,7 +125,7 @@ public:
 
                 areas_[e.button].clear();
 
-                makeTransaction(signal::signal_time_t(0), std::nullopt);
+                makeTransaction(signal2::signal_time_t(0), std::nullopt);
             }
 
         });
@@ -204,7 +205,7 @@ public:
                 (*currentKeyHandler_)(e);
                 keys_[e.getKey()] = *currentKeyHandler_;
 
-                makeTransaction(signal::signal_time_t(0), std::nullopt);
+                makeTransaction(signal2::signal_time_t(0), std::nullopt);
             }
             else
             {
@@ -216,7 +217,7 @@ public:
 
                 f(e);
 
-                makeTransaction(signal::signal_time_t(0), std::nullopt);
+                makeTransaction(signal2::signal_time_t(0), std::nullopt);
             }
         });
 
@@ -226,7 +227,7 @@ public:
             {
                 (*currentTextHandler_)(e);
 
-                makeTransaction(signal::signal_time_t(0), std::nullopt);
+                makeTransaction(signal2::signal_time_t(0), std::nullopt);
             }
         });
 
@@ -239,7 +240,7 @@ public:
                     currentHoverArea_->emitHoverEvent(e);
                     currentHoverArea_ = std::nullopt;
 
-                    makeTransaction(signal::signal_time_t(0), std::nullopt);
+                    makeTransaction(signal2::signal_time_t(0), std::nullopt);
                 }
             }
         });
@@ -255,7 +256,7 @@ public:
             << std::endl;
     }
 
-    std::optional<signal::signal_time_t> makeTransaction(
+    std::optional<signal2::signal_time_t> makeTransaction(
             std::chrono::microseconds dt,
             std::optional<avg::AnimationOptions> const& animationOptions
             )
@@ -264,18 +265,16 @@ public:
 
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
-        signal::FrameInfo frameInfo(getNextFrameId(), dt);
+        signal2::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        auto timeToNext = widgetInstanceSignal_.updateBegin(frameInfo);
-        timeToNext = signal::min(timeToNext, titleSignal_.updateBegin(frameInfo));
+        auto updateResult = widgetInstanceSignal_.update(frameInfo);
+        updateResult = updateResult + titleSignal_.update(frameInfo);
 
-        timeToNext = signal::min(timeToNext, widgetInstanceSignal_.updateEnd(frameInfo));
-        timeToNext = signal::min(timeToNext, titleSignal_.updateEnd(frameInfo));
 
-        if (titleSignal_.hasChanged())
+        if (titleSignal_.didChange())
             aseWindow.setTitle(titleSignal_.evaluate());
 
-        if (widgetInstanceSignal_.hasChanged())
+        if (widgetInstanceSignal_.didChange())
         {
             ZoneScopedN("Widget instance signal evaluation");
 
@@ -326,7 +325,7 @@ public:
             }
         }
 
-        if (widgetInstanceSignal_.hasChanged()
+        if (widgetInstanceSignal_.didChange()
                 || (nextUpdate_ && *nextUpdate_ <= timer)
                 )
         {
@@ -350,10 +349,10 @@ public:
             animating_ = true;
         }
 
-        return timeToNext;
+        return updateResult.nextUpdate;
     }
 
-    std::optional<signal::signal_time_t> frame(std::chrono::microseconds dt)
+    std::optional<signal2::signal_time_t> frame(std::chrono::microseconds dt)
     {
         ZoneScoped;
 
@@ -403,7 +402,7 @@ public:
         }
 
         if (animating_)
-            return signal::signal_time_t(0);
+            return signal2::signal_time_t(0);
 
         return timeToNext;
     }
@@ -415,13 +414,15 @@ public:
 
     std::string getTitle() const
     {
-        return window_.getTitle().evaluate();
+        return titleSignal_.evaluate();
     }
 
-    AnySignal<widget::Instance> const& getWidgetInstanceSignal() const
+    /*
+    signal2::AnySignal<widget::Instance> const& getWidgetInstanceSignal() const
     {
         return widgetInstanceSignal_;
     }
+    */
 
     widget::Instance const& getWidgetInstance() const
     {
@@ -436,17 +437,18 @@ private:
     ase::RenderContext& context_;
     Window window_;
     avg::Painter painter_;
-    signal::Input<ase::Vector2f> size_;
-    AnySignal<widget::Instance> widgetInstanceSignal_;
+    signal2::Input<signal2::SignalResult<ase::Vector2f>,
+        signal2::SignalResult<ase::Vector2f>> size_;
+    signal2::SignalContext<widget::Instance> widgetInstanceSignal_;
     widget::Instance widgetInstance_;
-    AnySignal<std::string> titleSignal_;
+    signal2::SignalContext<std::string> titleSignal_;
     //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
-    std::optional<signal::InputHandle<bool>> currentHandle_;
+    std::optional<signal2::InputHandle<bool>> currentHandle_;
     std::optional<KeyboardInput::KeyHandler> currentKeyHandler_;
     std::optional<KeyboardInput::TextHandler> currentTextHandler_;
     uint64_t frames_ = 0;
@@ -477,7 +479,7 @@ App App::windows(std::initializer_list<Window> windows) &&
     return std::move(*this);
 }
 
-int App::run(AnySignal<bool> running) &&
+int App::run(signal2::AnySignal<bool> runningSignal) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
@@ -501,6 +503,7 @@ int App::run(AnySignal<bool> running) &&
 
     std::queue<btl::future::Future<>> frameFutures;
 
+    auto running = signal2::makeSignalContext(runningSignal);
     while (running.evaluate())
     {
         FrameMark;
@@ -512,16 +515,14 @@ int App::run(AnySignal<bool> running) &&
 
         platform.handleEvents();
 
-        reactive::signal::FrameInfo frame{getNextFrameId(), dt};
-        auto timeToNext = running.updateBegin(frame);
-        auto timeToNext2 = running.updateEnd(frame);
-        timeToNext = reactive::signal::min(timeToNext, timeToNext2);
+        reactive::signal2::FrameInfo frame{getNextFrameId(), dt};
+        auto [timeToNext, didChange] = running.update(frame);
 
         for (auto& glue : d()->windowGlues_)
         {
             auto t = glue->frame(dt);
 
-            timeToNext = reactive::signal::min(timeToNext, t);
+            timeToNext = reactive::signal2::min(timeToNext, t);
         }
 
         ase::CommandBuffer commandBuffer;
@@ -577,7 +578,7 @@ int App::run(AnySignal<bool> running) &&
 
 int App::run() &&
 {
-    auto running = signal::input(true);
+    auto running = signal2::makeInput(true);
     for (auto&& w : d()->windows_)
         w = std::move(w).onClose(send(false, running.handle));
 

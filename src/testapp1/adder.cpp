@@ -17,9 +17,9 @@
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
 #include <reactive/withanimation.h>
+#include <reactive/databind.h>
 
-#include <reactive/signal/databind.h>
-#include <reactive/signal/constant.h>
+#include <reactive/signal2/signal.h>
 
 #include <avg/rendertree.h>
 
@@ -30,36 +30,34 @@ using namespace reactive;
 namespace
 {
     widget::AnyWidget itemEntry(
-            signal::InputHandle<std::string> outHandle,
+            signal2::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
             std::function<void()> onSort
             )
     {
-        auto textState = signal::input(widget::TextEditState(""));
+        auto textState = signal2::makeInput(widget::TextEditState(""));
         auto handle = textState.handle;
 
-        auto onEnterSignal = signal::share(signal::mapFunction(
+        auto onEnterSignal = textState.signal.bindToFunction(
                 [onEnter, handle]
                 (widget::TextEditState const& state) mutable
                 {
                     handle.set(widget::TextEditState(""));
                     onEnter(state.text);
-                },
-                textState.signal
-                ));
+                }).share();
 
-        auto state = signal::tee(textState.signal,
+        auto state = textState.signal.tee(
+                outHandle,
                 [](widget::TextEditState const& state)
                 {
                     return state.text;
-                },
-                outHandle);
+                });
 
         return hbox({
                 textEdit(handle, std::move(state))
                     .onEnter(onEnterSignal),
                 widget::button("Add", onEnterSignal),
-                widget::button("Sort", signal::constant(std::move(onSort)))
+                widget::button("Sort", signal2::constant(std::move(onSort)))
             });
     }
 } // anonymous namespace
@@ -77,18 +75,19 @@ reactive::widget::AnyWidget adder()
         range.pushBack("test 4");
     }
 
-    auto textInput = signal::input<std::string>("");
+    auto textInput = signal2::makeInput<std::string>("");
 
     auto swapState = std::make_shared<size_t>();
 
-    auto widgets = signal::dataBind<std::string>(
+    auto widgets = dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (signal2::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
                 return hbox({
-                widget::button("U", signal::mapFunction([items, id]
-                    (std::string str) mutable
+                widget::button("U",
+                    textInputSignal.bindToFunction(
+                    [items, id] (std::string str) mutable
                     {
                         auto range = items.rangeLock();
                         auto i = range.findId(id);
@@ -96,11 +95,8 @@ reactive::widget::AnyWidget adder()
                         {
                             range.update(i, std::move(str));
                         }
-                    },
-                    textInputSignal.clone()
-                    ))
-                ,
-                widget::button("T", signal::mapFunction([items, id]() mutable
+                    })),
+                widget::button("T", signal2::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto range = items.rangeLock();
@@ -109,7 +105,7 @@ reactive::widget::AnyWidget adder()
                         range.move(i, range.begin());
                         }))
                 ,
-                widget::button("S", signal::mapFunction(
+                widget::button("S", signal2::constant(
                     [items, id, swapState]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
@@ -132,7 +128,7 @@ reactive::widget::AnyWidget adder()
                 ,
                 hfiller()
                 ,
-                widget::button("x", signal::constant([id, items]() mutable
+                widget::button("x", signal2::constant([id, items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         items.rangeLock().eraseWithId(id);
@@ -143,9 +139,9 @@ reactive::widget::AnyWidget adder()
             ;
             });
 
-    auto fancy = signal::input(false);
+    auto fancy = signal2::makeInput(false);
 
-    auto theme = signal::map([](bool fancy)
+    auto theme = fancy.signal.map([](bool fancy)
             {
                 if (fancy)
                 {
@@ -156,19 +152,15 @@ reactive::widget::AnyWidget adder()
 
                 return widget::Theme();
 
-            },
-            fancy.signal
-            );
+            });
 
-    auto buttonTitle = signal::map([](bool fancy) -> std::string
+    auto buttonTitle = fancy.signal.map([](bool fancy) -> std::string
             {
                 if (fancy)
                     return "Fancy";
 
                 return "Normal";
-            },
-            fancy.signal
-            );
+            });
 
     return vbox({
             vbox(std::move(widgets)),
@@ -185,14 +177,12 @@ reactive::widget::AnyWidget adder()
                 ),
                 hbox({
                     widget::label("Theme:"),
-                    widget::button(std::move(buttonTitle), signal::mapFunction(
+                    widget::button(std::move(buttonTitle), fancy.signal.bindToFunction(
                         [handle=fancy.handle](bool fancy) mutable
                         {
                             auto a = withAnimation(0.3f, avg::curve::linear);
                             handle.set(!fancy);
-                        },
-                        fancy.signal
-                        ))
+                        }))
                     })
             }
         )

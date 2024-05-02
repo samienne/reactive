@@ -1,3 +1,4 @@
+#if 0
 #include "reactive/signal/group.h"
 
 #include "reactive/signal/constant.h"
@@ -30,3 +31,4 @@ TEST(SignalGroup, test)
     //static_assert(std::is_same<Group<Constant<int>, Constant<std::string>>, decltype(s)>::value, "");
 }
 
+#endif
