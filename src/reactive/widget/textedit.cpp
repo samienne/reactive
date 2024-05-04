@@ -191,6 +191,7 @@ namespace
 
         return makeWidget()
             | trackFocus(focus.handle)
+            | focusOn(std::move(requestFocus.stream))
             | widget::onDraw(
                     std::move(drawTextEdit),
                     theme,
@@ -200,7 +201,6 @@ namespace
             | widget::margin(signal2::constant(5.0f))
             | widget::clip()
             | widget::frame(std::move(frameColor))
-            | focusOn(std::move(requestFocus.stream))
             | onClick(1,
                     [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
                     (ClickEvent const& e)

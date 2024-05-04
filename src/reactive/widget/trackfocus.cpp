@@ -27,10 +27,7 @@ AnyWidgetModifier trackFocus(signal2::InputHandle<bool> const& handle)
             makeSharedInstanceSignalModifier([](auto instance, auto handle)
             {
                 auto input = instance.map(&Instance::getKeyboardInputs)
-                    .tee(
-                        std::move(handle),
-                        anyHasFocus
-                        );
+                    .tee(std::move(handle), anyHasFocus);
 
                 return std::move(instance)
                     | setKeyboardInputs(std::move(input))
