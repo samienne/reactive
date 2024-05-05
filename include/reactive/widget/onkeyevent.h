@@ -1,7 +1,6 @@
 #pragma once
 
 #include "instancemodifier.h"
-#include "builder.h"
 #include "widget.h"
 
 #include "reactive/inputresult.h"

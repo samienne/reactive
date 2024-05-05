@@ -100,7 +100,7 @@ namespace
 
     auto updateTextEdit(TextEditState state, Events const& e,
             widget::Theme const& theme,
-            std::vector<std::function<void()>> const& onEnter)
+            std::vector<std::function<void()>> const& /*onEnter*/)
     {
         if (std::holds_alternative<KeyEvent>(e))
         {
@@ -118,8 +118,7 @@ namespace
                 state.pos = (++utf8::floor(state.text, state.pos)).index();
             else if (keyEvent.getKey() == ase::KeyCode::returnKey)
             {
-                for (auto&& f : onEnter)
-                    f();
+                // already handled outside
             }
             else if (keyEvent.hasSymbol()
                     && keyEvent.getKey() != ase::KeyCode::backSpace)
@@ -208,7 +207,27 @@ namespace
                         requestHandle.push(true);
                         keyHandle.push(e);
                     })
-            | widget::onKeyEvent(sendKeysTo(keyStream.handle))
+            //| widget::onKeyEvent(sendKeysTo(keyStream.handle))
+            | widget::onKeyEvent(signal2::combine(onEnter).bindToFunction(
+                        [handle=keyStream.handle](
+                            std::vector<std::function<void()>> onEnter,
+                            KeyEvent const& keyEvent)
+                        {
+                            if (keyEvent.getKey() == ase::KeyCode::returnKey)
+                            {
+                                if (keyEvent.isDown())
+                                {
+                                    for (auto& cb : onEnter)
+                                        cb();
+                                }
+                            }
+                            else
+                            {
+                                handle.push(keyEvent);
+                            }
+
+                            return InputResult::handled;
+                        }))
             | widget::onTextEvent(sendKeysTo(keyStream.handle))
             | setSizeHint(signal2::constant(simpleSizeHint(250.0f, 40.0f)))
             ;
@@ -223,7 +242,7 @@ TextEdit::operator AnyWidget() const
             provideTheme(),
             handle_,
             onEnter_,
-            state_.share()
+            state_
             );
 }
 

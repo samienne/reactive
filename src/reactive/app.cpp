@@ -302,15 +302,22 @@ public:
             {
                 auto handle = input.getFocusHandle();
 
-                if (input.getRequestFocus() && handle.has_value())
+                bool focus = input.getRequestFocus() || input.hasFocus();
+                if (focus && handle.has_value())
                 {
-                    if (currentHandle_.has_value())
-                        currentHandle_->set(false);
-                    handle->set(true);
+                    if (input.getRequestFocus())
+                    {
+                        if (currentHandle_.has_value())
+                            currentHandle_->set(false);
+                        handle->set(true);
+                    }
+
                     currentHandle_ = handle;
                     currentKeyHandler_ = input.getKeyHandler();
                     currentTextHandler_ = input.getTextHandler();
-                    break;
+
+                    if (input.getRequestFocus())
+                        break;
                 }
             }
 

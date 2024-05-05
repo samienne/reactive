@@ -38,20 +38,18 @@ namespace
         auto textState = signal2::makeInput(widget::TextEditState(""));
         auto handle = textState.handle;
 
-        auto onEnterSignal = textState.signal.bindToFunction(
+        auto onEnterSignal = textState.signal
+            .bindToFunction(
                 [onEnter, handle]
-                (widget::TextEditState const& state) mutable
+                (auto const state) mutable
                 {
                     handle.set(widget::TextEditState(""));
                     onEnter(state.text);
-                }).share();
+                });
 
         auto state = textState.signal.tee(
                 outHandle,
-                [](widget::TextEditState const& state)
-                {
-                    return state.text;
-                });
+                &widget::TextEditState::text);
 
         return hbox({
                 textEdit(handle, std::move(state))

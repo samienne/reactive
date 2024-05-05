@@ -251,11 +251,12 @@ namespace reactive::signal2
             >>
         auto tee(InputHandle<Us...> handle, TFunc&& func) const
         {
-            auto mapped = map(std::forward<TFunc>(func)).tryCheck().share();
+            auto shared = share();
+            auto mapped = shared.map(std::forward<TFunc>(func)).tryCheck().share();
             handle.set(mapped.weak());
 
             // Store a reference to mapped in the lambda capture
-            return map([mapped](auto&&... ts)
+            return shared.map([mapped](auto&&... ts)
                 {
                     return makeSignalResult(std::forward<decltype(ts)>(ts)...);
                 });

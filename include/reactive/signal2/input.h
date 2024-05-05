@@ -63,8 +63,6 @@ namespace reactive::signal2
             {
                 std::unique_lock lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
-                control->sig.reset();
-                control->sigData.reset();
                 ++control->index;
             }
         }

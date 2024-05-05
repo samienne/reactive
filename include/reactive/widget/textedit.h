@@ -47,16 +47,6 @@ namespace reactive::widget
         TextEdit onEnter(signal2::AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
-        template <typename T, typename U>
-        TextEdit onEnter(signal2::Signal<T, U> cb) &&
-        {
-            return std::move(*this)
-                .onEnter(std::move(cb)
-                        .template cast<std::function<void()>>()
-                        .eraseType()
-                        );
-        }
-
         AnyWidget build() &&;
 
         signal2::InputHandle<TextEditState> handle_;

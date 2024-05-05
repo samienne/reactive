@@ -3,17 +3,6 @@
 #include "collect.h"
 #include "stream.h"
 
-/*
-#include "reactive/signal/tee.h"
-#include "reactive/signal/input.h"
-#include "reactive/signal/droprepeats.h"
-#include "reactive/signal/blip.h"
-#include "reactive/signal/signaltraits.h"
-*/
-
-#include <btl/tuplemap.h>
-#include <btl/tupleforeach.h>
-
 #include <type_traits>
 
 namespace reactive

@@ -32,13 +32,12 @@ namespace reactive::signal2
         using InnerData = typename TSharedControl::DataType;
         struct DataType : DataTypeBase
         {
-            DataType(SignalResult<Ts...> value, uint64_t lastUpdate) :
-                value(std::move(value)), lastUpdate(lastUpdate)
+            DataType(SignalResult<Ts...> value) :
+                value(std::move(value))
             {
             }
 
             SignalResult<Ts...> value;
-            uint64_t lastUpdate = 0;
             bool didChange = false;
         };
 
@@ -55,7 +54,7 @@ namespace reactive::signal2
         {
             std::unique_lock lock(mutex_);
 
-            return std::make_unique<DataType>(currentValue_, updateCount_);
+            return std::make_unique<DataType>(currentValue_);
         }
 
         bool hasChanged(DataTypeBase const& data) const override
@@ -79,40 +78,12 @@ namespace reactive::signal2
 
             auto& data = getData(baseData);
 
-            if (lastFrame_ < frame.getFrameId())
-            {
-                lastFrame_ = frame.getFrameId();
-                UpdateResult innerResult = control->update(innerData_, frame);
-                if (innerResult.didChange)
-                    currentValue_ = control->evaluate(innerData_);
+            auto r = control->update(innerData_, frame);
 
-                time_ += frame.getDeltaTime();
-                updateTime_.reset();
-                if (innerResult.nextUpdate)
-                    updateTime_ = time_ + *innerResult.nextUpdate;
+            if (r.didChange)
+                data.value = control->evaluate(innerData_);
 
-                if (innerResult.didChange)
-                    ++updateCount_;
-            }
-
-            data.didChange = false;
-            if (data.lastUpdate < updateCount_)
-            {
-                data.lastUpdate = updateCount_;
-                data.value = currentValue_;
-                data.didChange = true;
-            }
-
-            if (updateTime_)
-                return {
-                    *updateTime_ - time_,
-                    data.didChange
-                };
-
-            return {
-                std::nullopt,
-                data.didChange
-            };
+            return r;
         }
 
         btl::connection observe(DataTypeBase&,
@@ -141,10 +112,6 @@ namespace reactive::signal2
         std::weak_ptr<TSharedControl> control_;
         typename TSharedControl::DataType innerData_;
         SignalResult<Ts...> currentValue_;
-        uint64_t lastFrame_ = 0;
-        uint64_t updateCount_ = 0;
-        signal_time_t time_ = signal_time_t(0);
-        std::optional<signal_time_t> updateTime_;
     };
 
     template <typename... Ts>
