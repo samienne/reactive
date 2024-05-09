@@ -22,7 +22,6 @@ namespace reactive::signal
         {
             SignalResult<Ts...> value;
             uint64_t lastUpdate = 0;
-            bool didChange = false;
         };
 
         SharedControl(StorageType sig) :
@@ -43,11 +42,6 @@ namespace reactive::signal
             };
 
             return data;
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return data.didChange;
         }
 
         SignalResult<Ts const&...> evaluate(DataType const& data) const
@@ -75,23 +69,23 @@ namespace reactive::signal
                     ++updateCount_;
             }
 
-            data.didChange = false;
+            bool didChange = false;
             if (data.lastUpdate < updateCount_)
             {
                 data.lastUpdate = updateCount_;
                 data.value = currentValue_;
-                data.didChange = true;
+                didChange = true;
             }
 
             if (updateTime_)
                 return {
                     *updateTime_ - time_,
-                    data.didChange
+                    didChange
                 };
 
             return {
                 std::nullopt,
-                data.didChange
+                didChange
             };
         }
 

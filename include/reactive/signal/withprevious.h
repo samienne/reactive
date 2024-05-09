@@ -73,7 +73,6 @@ namespace reactive::signal
             InnerResultType innerResult;
             FuncReturnType currentResult;
             bool hasPrevious = false;
-            bool didChange = false;
         };
 
         WithPrevious(TFunc func, FuncReturnType initial, TStorage sig) :
@@ -94,11 +93,6 @@ namespace reactive::signal
             return data.currentResult;
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.didChange;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
@@ -109,8 +103,6 @@ namespace reactive::signal
                 data.currentResult = evaluateFunc(*func_,
                         data.currentResult, data.innerResult);
             }
-
-            data.didChange = r.didChange;
 
             return r;
         }

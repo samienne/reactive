@@ -13,7 +13,6 @@ namespace reactive::signal
         struct DataType
         {
             std::vector<SignalDataTypeT<AnySignal<T>>> datas;
-            bool hasChanged = false;
         };
 
         Combine(std::vector<AnySignal<T>> sigs) :
@@ -27,7 +26,7 @@ namespace reactive::signal
             for (auto const& sig : sigs_)
                 datas.push_back(sig.unwrap().initialize());
 
-            return { std::move(datas), false };
+            return { std::move(datas) };
         }
 
         SignalResult<std::vector<T>> evaluate(DataType const& data) const
@@ -41,18 +40,11 @@ namespace reactive::signal
             return SignalResult<std::vector<T>>{ std::move(result) };
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             UpdateResult r;
             for (size_t i = 0; i < sigs_.size(); ++i)
                 r = r + sigs_[i].unwrap().update(data.datas[i], frame);
-
-            data.hasChanged = r.didChange;
 
             return r;
         }

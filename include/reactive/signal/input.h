@@ -91,7 +91,6 @@ namespace reactive::signal
         {
             SignalResult<Ts...> value;
             uint64_t index = 0;
-            bool hasChanged = false;
         };
 
         InputSignal(std::shared_ptr<InputControl<Ts...>> control) :
@@ -112,11 +111,6 @@ namespace reactive::signal
         SignalResult<Ts const&...> evaluate(DataType const& data) const
         {
             return data.value;
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
         }
 
         UpdateResult update(DataType& data, FrameInfo const& frame)
@@ -143,8 +137,8 @@ namespace reactive::signal
                     control_->updateTime = control_->time + *r.nextUpdate;
             }
 
-            data.hasChanged = (data.index < control_->index);
-            if (data.hasChanged)
+            bool hasChanged = (data.index < control_->index);
+            if (hasChanged)
             {
                 data.value = control_->value;
                 data.index = control_->index;
@@ -154,11 +148,11 @@ namespace reactive::signal
             {
                 return {
                     *control_->updateTime - control_->time,
-                    data.hasChanged
+                    hasChanged
                 };
             }
 
-            return { std::nullopt, data.hasChanged };
+            return { std::nullopt, hasChanged };
         }
 
         template <typename TCallback>

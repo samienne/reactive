@@ -33,11 +33,6 @@ namespace reactive::signal
             return data.result;
         }
 
-        bool hasChanged(DataType const&) const
-        {
-            return false;
-        }
-
         UpdateResult update(DataType&, FrameInfo const&)
         {
             return {};

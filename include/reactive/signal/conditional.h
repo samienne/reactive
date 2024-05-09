@@ -37,7 +37,6 @@ namespace reactive::signal
             SignalDataTypeT<Signal<void, Ts...>> falseData;
 
             bool condition = false;
-            bool hasChanged = false;
         };
 
         Conditional(TCondition conditionSignal, AnySignal<Ts...> trueSignal,
@@ -61,11 +60,6 @@ namespace reactive::signal
                 ;
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             UpdateResult r = conditionSignal_.update(data.conditionData, frame);
@@ -76,8 +70,6 @@ namespace reactive::signal
                 r = r + trueSignal_.unwrap().update(data.trueData, frame);
             else
                 r = r + falseSignal_.unwrap().update(data.falseData, frame);
-
-            data.hasChanged = r.didChange;
 
             return r;
         }

@@ -44,11 +44,6 @@ namespace reactive::signal
             return impl_->initialize();
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return impl_->hasChanged(data);
-        }
-
         SignalResult<Ts const&...> evaluate(DataType const& data) const
         {
             return impl_->evaluate(data);

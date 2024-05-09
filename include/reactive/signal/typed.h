@@ -28,7 +28,6 @@ namespace reactive::signal
         virtual ~SignalBase() = default;
 
         virtual std::unique_ptr<DataBase> initialize() const = 0;
-        virtual bool hasChanged(DataBase const& data) const = 0;
         virtual SignalResult<Ts...> evaluate(DataBase const& data) const = 0;
         virtual UpdateResult update(DataBase& data, FrameInfo const& frame) = 0;
         virtual btl::connection observe(DataBase& data,
@@ -60,11 +59,6 @@ namespace reactive::signal
         std::unique_ptr<BaseDataType> initialize() const override
         {
             return { std::make_unique<DataType>(sig_.initialize()) };
-        }
-
-        virtual bool hasChanged(BaseDataType const& baseData) const override
-        {
-            return sig_.hasChanged(getStorageData(baseData));
         }
 
         SignalResult<Ts...> evaluate(
@@ -120,11 +114,6 @@ namespace reactive::signal
         DataType initialize() const
         {
             return { sig_->initialize() };
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return sig_->hasChanged(*data.data);
         }
 
         auto evaluate(DataType const& data) const

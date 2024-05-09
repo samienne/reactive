@@ -44,11 +44,6 @@ namespace reactive::signal
             return SignalResult<T const&>(*constant_);
         }
 
-        bool hasChanged(DataType const&) const
-        {
-            return false;
-        }
-
         UpdateResult update(DataType&, FrameInfo const&)
         {
             return { std::nullopt, false };

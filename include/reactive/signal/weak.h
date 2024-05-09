@@ -19,7 +19,6 @@ namespace reactive::signal
         };
 
         virtual std::unique_ptr<DataTypeBase> initialize() const = 0;
-        virtual bool hasChanged(DataTypeBase const& data) const = 0;
         virtual SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const = 0;
         virtual UpdateResult update(DataTypeBase& data, FrameInfo const& frame) = 0;
         virtual btl::connection observe(DataTypeBase&, std::function<void()> callback) = 0;
@@ -38,7 +37,6 @@ namespace reactive::signal
             }
 
             SignalResult<Ts...> value;
-            bool didChange = false;
         };
 
         WeakControl(std::shared_ptr<TSharedControl> control) :
@@ -55,11 +53,6 @@ namespace reactive::signal
             std::unique_lock lock(mutex_);
 
             return std::make_unique<DataType>(currentValue_);
-        }
-
-        bool hasChanged(DataTypeBase const& data) const override
-        {
-            return getData(data).didChange;
         }
 
         SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const override
@@ -135,11 +128,6 @@ namespace reactive::signal
         DataType initialize() const
         {
             return { impl_->initialize() };
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return impl_->hasChanged(*data.data);
         }
 
         SignalResult<Ts const&...> evaluate(DataType const& data) const

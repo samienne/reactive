@@ -65,7 +65,6 @@ namespace reactive::signal
             OuterData outerData;
             InnerSignal innerSignal;
             InnerData innerData;
-            bool hasChanged = false;
         };
 
         Join(T sig) :
@@ -83,11 +82,6 @@ namespace reactive::signal
             return data.innerSignal.evaluate(data.innerData);
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             auto r = sig_.update(data.outerData, frame);
@@ -98,8 +92,6 @@ namespace reactive::signal
             }
 
             r = r + data.innerSignal.update(data.innerData, frame);
-
-            data.hasChanged = r.didChange;
 
             return r;
         }

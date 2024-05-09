@@ -23,7 +23,6 @@ namespace reactive::signal
 
             SignalDataTypeT<TSignal> innerData;
             ResultType value;
-            bool hasChanged = false;
         };
 
         Cache(TSignal sig) :
@@ -41,16 +40,11 @@ namespace reactive::signal
             return data.value;
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
-            data.value = sig_.evaluate(data.innerData);
-            data.hasChanged = r.didChange;
+            if (r.didChange)
+                data.value = sig_.evaluate(data.innerData);
 
             return r;
         }

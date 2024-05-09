@@ -83,11 +83,6 @@ namespace reactive::signal
             }
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return sig_.hasChanged(data.signalData);
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             return sig_.update(data.signalData, frame);

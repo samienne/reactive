@@ -22,7 +22,6 @@ namespace reactive::signal
 
             SignalDataTypeT<TSignal> innerData;
             DecaySignalResultT<SignalTypeT<TSignal>> value;
-            bool hasChanged = false;
         };
 
         Check(TSignal sig) :
@@ -40,11 +39,6 @@ namespace reactive::signal
             return data.value;
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.hasChanged;
-        }
-
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
@@ -58,8 +52,6 @@ namespace reactive::signal
                 if (didReallyChange)
                     data.value = std::move(value);
             }
-
-            data.hasChanged = didReallyChange;
 
             return { r.nextUpdate, didReallyChange };
         }

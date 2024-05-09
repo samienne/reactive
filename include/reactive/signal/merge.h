@@ -13,7 +13,6 @@ namespace reactive::signal
         struct DataType
         {
             std::tuple<typename Ts::DataType...> sigData;
-            bool hasChanged = false;
         };
 
         using ResultType = typename ConcatSignalResults<SignalTypeT<Ts>...>::type;
@@ -37,11 +36,6 @@ namespace reactive::signal
         ResultType evaluate(DataType const& data) const
         {
             return doEvaluate(data, std::make_index_sequence<sizeof...(Ts)>());
-        }
-
-        bool hasChanged(DataType const& data) const
-        {
-            return doHasChanged(data, std::make_index_sequence<sizeof...(Ts)>());
         }
 
         UpdateResult update(DataType& data, FrameInfo const& frame)
@@ -75,13 +69,6 @@ namespace reactive::signal
                             ).getTuple()...
                         )
                     );
-        }
-
-        template <size_t... S>
-        bool doHasChanged(DataType const& data, std::index_sequence<S...>) const
-        {
-            return (false || ... || std::get<S>(sigs_).hasChanged(
-                        std::get<S>(data.sigData)));
         }
 
         template <size_t... S>

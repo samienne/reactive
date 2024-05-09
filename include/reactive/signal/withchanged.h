@@ -26,7 +26,6 @@ namespace reactive::signal
             }
 
             SignalDataTypeT<TStorage> innerData;
-            bool didChange = false;
             bool innerDidChange = false;
         };
 
@@ -49,11 +48,6 @@ namespace reactive::signal
                     );
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return data.didChange;
-        }
-
         UpdateResult update(DataType& data, signal::FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
@@ -63,12 +57,12 @@ namespace reactive::signal
                 : data.innerDidChange != r.didChange
                 ;
 
-            data.didChange = changedStatusChanged || r.didChange;
+            bool didChange = changedStatusChanged || r.didChange;
             data.innerDidChange = r.didChange;
 
             return {
                 r.nextUpdate,
-                data.didChange
+                didChange
             };
         }
 

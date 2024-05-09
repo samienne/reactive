@@ -71,11 +71,6 @@ namespace reactive::stream
                     );
         }
 
-        bool hasChanged(DataType const& data) const
-        {
-            return !data.control->values.empty();
-        }
-
         signal::UpdateResult update(DataType& data, signal::FrameInfo const&)
         {
             std::unique_lock lock(data.control->mutex);
