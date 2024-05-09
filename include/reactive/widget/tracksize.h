@@ -2,13 +2,13 @@
 
 #include "instancemodifier.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/vector.h>
 
 namespace reactive::widget
 {
-    inline auto trackSize(signal2::InputHandle<ase::Vector2f> handle)
+    inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
         //-> BuiderModifier
     {
         return makeSharedInstanceSignalModifier(

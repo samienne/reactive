@@ -4,7 +4,7 @@
 #include <reactive/stream/sharedstream.h>
 #include <reactive/stream/stream.h>
 
-#include <reactive/signal2/signalcontext.h>
+#include <reactive/signal/signalcontext.h>
 
 #include <gtest/gtest.h>
 
@@ -106,15 +106,15 @@ TEST(Stream, collect)
 
     auto s = collect(std::move(p.stream));
 
-    static_assert(signal2::checkSignal<decltype(s.unwrap())>());
+    static_assert(signal::checkSignal<decltype(s.unwrap())>());
 
-    auto c = signal2::makeSignalContext(s);
+    auto c = signal::makeSignalContext(s);
 
     EXPECT_EQ(std::vector<std::string>(), c.evaluate());
 
     p.handle.push("test1");
 
-    auto r = c.update(signal2::FrameInfo(1, {}));
+    auto r = c.update(signal::FrameInfo(1, {}));
     EXPECT_TRUE(r.didChange);
 
     auto r1 = c.evaluate();
@@ -125,7 +125,7 @@ TEST(Stream, collect)
 TEST(Stream, iterate)
 {
     auto values = pipe<std::string>();
-    auto initial = signal2::makeInput<std::string>("hello");
+    auto initial = signal::makeInput<std::string>("hello");
 
     auto s = iterate([](std::string current, std::string event)
             {
@@ -135,14 +135,14 @@ TEST(Stream, iterate)
             values.stream
             );
 
-    static_assert(signal2::checkSignal<decltype(s.unwrap())>());
+    static_assert(signal::checkSignal<decltype(s.unwrap())>());
 
-    auto c = signal2::makeSignalContext(s);
+    auto c = signal::makeSignalContext(s);
     auto v = c.evaluate();
 
     EXPECT_EQ("hello", v);
 
-    auto r = c.update(signal2::FrameInfo(1, {}));
+    auto r = c.update(signal::FrameInfo(1, {}));
     v = c.evaluate();
 
     EXPECT_FALSE(r.didChange);
@@ -150,14 +150,14 @@ TEST(Stream, iterate)
 
     values.handle.push("world");
 
-    r = c.update(signal2::FrameInfo(2, {}));
+    r = c.update(signal::FrameInfo(2, {}));
     v = c.evaluate();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("helloworld", v);
 
     initial.handle.set("");
-    r = c.update(signal2::FrameInfo(3, {}));
+    r = c.update(signal::FrameInfo(3, {}));
     v = c.evaluate();
 
     EXPECT_TRUE(r.didChange);
@@ -167,25 +167,25 @@ TEST(Stream, iterate)
     values.handle.push("bye");
     values.handle.push("world");
 
-    r = c.update(signal2::FrameInfo(3, {}));
+    r = c.update(signal::FrameInfo(3, {}));
     v = c.evaluate();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
-    r = c.update(signal2::FrameInfo(4, {}));
+    r = c.update(signal::FrameInfo(4, {}));
     v = c.evaluate();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
-    r = c.update(signal2::FrameInfo(5, {}));
+    r = c.update(signal::FrameInfo(5, {}));
     v = c.evaluate();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
-    r = c.update(signal2::FrameInfo(6, {}));
+    r = c.update(signal::FrameInfo(6, {}));
     v = c.evaluate();
 
     EXPECT_FALSE(r.didChange);

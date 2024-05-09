@@ -5,7 +5,7 @@
 #include "reactive/keyboardinput.h"
 #include "reactive/inputarea.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
 #include <avg/obb.h>
@@ -49,9 +49,9 @@ namespace reactive::widget
     };
 
     template <typename T>
-    auto makeInstance(signal2::Signal<T, avg::Vector2f> size)
+    auto makeInstance(signal::Signal<T, avg::Vector2f> size)
     {
-        auto focus = signal2::makeInput(false);
+        auto focus = signal::makeInput(false);
 
         return merge(std::move(size), std::move(focus.signal))
             .map([focusHandle=std::move(focus.handle)]

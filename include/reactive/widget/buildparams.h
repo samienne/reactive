@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <any>
 #include <typeindex>
@@ -20,17 +20,17 @@ namespace reactive::widget
         BuildParams& operator=(BuildParams&&) noexcept = default;
 
         template <typename Tag>
-        std::optional<signal2::AnySignal<typename Tag::type>> get() const
+        std::optional<signal::AnySignal<typename Tag::type>> get() const
         {
             auto r = params_.find(typeid(Tag));
             if (r == params_.end())
                 return std::nullopt;
 
-            return std::any_cast<signal2::AnySignal<typename Tag::type>>(r->second);
+            return std::any_cast<signal::AnySignal<typename Tag::type>>(r->second);
         }
 
         template <typename Tag>
-        signal2::AnySignal<typename Tag::type> valueOrDefault() const
+        signal::AnySignal<typename Tag::type> valueOrDefault() const
         {
             auto value = get<Tag>();
             if (!value)
@@ -40,18 +40,18 @@ namespace reactive::widget
         }
 
         template <typename Tag, typename T>
-        void set(signal2::Signal<T, typename Tag::type> value)
+        void set(signal::Signal<T, typename Tag::type> value)
         {
             params_.insert_or_assign(
                     typeid(Tag),
-                    signal2::AnySignal<typename Tag::type>(std::move(value))
+                    signal::AnySignal<typename Tag::type>(std::move(value))
                     );
         }
 
         template <typename Tag>
         void set(typename Tag::type value)
         {
-            set(share(signal2::constant<typename Tag::type>(std::move(value))));
+            set(share(signal::constant<typename Tag::type>(std::move(value))));
         }
 
     private:

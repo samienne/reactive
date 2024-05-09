@@ -5,7 +5,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setParamsObject(signal2::Signal<T, BuildParams> newParams)
+    auto setParamsObject(signal::Signal<T, BuildParams> newParams)
     {
         return detail::makeWidgetModifierUnchecked(
             [](auto widget, auto&& newParams)

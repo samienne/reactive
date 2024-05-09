@@ -4,7 +4,7 @@
 
 #include "reactive/connection.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T>
     class Combine
@@ -79,4 +79,4 @@ namespace reactive::signal2
     {
         return wrap(Combine<T>(std::move(sigs)));
     }
-} // namespace reactive2::signal2
+} // namespace reactive2::signal

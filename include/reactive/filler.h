@@ -10,21 +10,21 @@ namespace reactive
     inline auto hwfiller() -> widget::AnyWidget
     {
         return widget::makeWidget()
-            | widget::setSizeHint(signal2::constant(
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 100000}}, {{0, 0, 100000}})));
     }
 
     inline auto hfiller() -> widget::AnyWidget
     {
         return widget::makeWidget()
-            | widget::setSizeHint(signal2::constant(
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 100000}}, {{0, 0, 0}})));
     }
 
     inline auto vfiller() -> widget::AnyWidget
     {
         return widget::makeWidget()
-            | widget::setSizeHint(signal2::constant(
+            | widget::setSizeHint(signal::constant(
                         simpleSizeHint({{0, 0, 0}}, {{0, 0, 100000}})));
     }
 }

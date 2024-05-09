@@ -9,7 +9,7 @@
 
 #include <iostream>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TStorage>
     class WithChanged
@@ -54,7 +54,7 @@ namespace reactive::signal2
             return data.didChange;
         }
 
-        UpdateResult update(DataType& data, signal2::FrameInfo const& frame)
+        UpdateResult update(DataType& data, signal::FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
 
@@ -84,5 +84,5 @@ namespace reactive::signal2
 
     template <typename TStorage>
     struct IsSignal<WithChanged<TStorage>> : std::true_type {};
-} // reactive::signal2
+} // reactive::signal
 

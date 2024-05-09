@@ -6,7 +6,7 @@
 #include "reactive/pointerbuttonevent.h"
 #include "reactive/clickevent.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <functional>
 #include <type_traits>
@@ -15,7 +15,7 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onClick(unsigned int button,
-        signal2::AnySignal<std::function<void(ClickEvent const&)>> cb)
+        signal::AnySignal<std::function<void(ClickEvent const&)>> cb)
 {
     auto f = [button](
             std::function<void(ClickEvent const&)> const& cb,
@@ -46,7 +46,7 @@ AnyWidgetModifier onClick(unsigned int button,
 }
 
 AnyWidgetModifier onClick(unsigned int button,
-        signal2::AnySignal<std::function<void()>> cb)
+        signal::AnySignal<std::function<void()>> cb)
 {
     auto f = [](std::function<void()> cb, ClickEvent const&)
     {
@@ -59,7 +59,7 @@ AnyWidgetModifier onClick(unsigned int button,
 
 AnyWidgetModifier onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
 {
-    return onClick(button, signal2::constant(std::move(f)));
+    return onClick(button, signal::constant(std::move(f)));
 }
 
 } // namespace reactive

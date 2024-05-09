@@ -34,7 +34,7 @@
 #include <reactive/vbox.h>
 #include <reactive/withanimation.h>
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <avg/curve/curves.h>
 
@@ -67,12 +67,12 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
 
 int main()
 {
-    auto textState = signal2::makeInput(widget::TextEditState{"Test123"});
+    auto textState = signal::makeInput(widget::TextEditState{"Test123"});
 
-    auto hScrollState = signal2::makeInput(0.5f);
-    auto vScrollState = signal2::makeInput(0.5f);
+    auto hScrollState = signal::makeInput(0.5f);
+    auto vScrollState = signal::makeInput(0.5f);
 
-    auto curveSelection = signal2::makeInput(0);
+    auto curveSelection = signal::makeInput(0);
     auto curve = curveSelection.signal.map([](int i)
             {
                 return curves.at(i).second;
@@ -83,7 +83,7 @@ int main()
                 return curves.at(i).first;
             });
 
-    auto m = signal2::makeInput<bool>(true);
+    auto m = signal::makeInput<bool>(true);
     auto margin = m.signal.clone().map([](bool b) { return b ? 10.0f : 50.0f; });
     auto color = m.signal.clone().map([](bool b)
             {
@@ -115,7 +115,7 @@ int main()
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
                     }).cast<std::function<void()>>())
-                | widget::setSizeHint(signal2::constant(simpleSizeHint(100.0f, 200.0))),
+                | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0))),
             widget::label("Curves")
                 | widget::frame(),
             curveVisualizer(std::move(curve)),
@@ -139,7 +139,7 @@ int main()
                         textState.signal.cast<widget::TextEditState>())
                 , reactive::vfiller()
                 , widget::hScrollBar(hScrollState.handle, hScrollState.signal,
-                        signal2::constant(0.0f))
+                        signal::constant(0.0f))
                 , widget::label(hScrollState.signal.toString())
                 , widget::label(vScrollState.signal.toString())
                 })
@@ -150,13 +150,13 @@ int main()
                         std::cout << "Hover: " << e.hover << std::endl;
                     })
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
-                signal2::constant(0.5f))
+                signal::constant(0.5f))
     });
 
     return app()
         .windows({
                 window(
-                    signal2::constant<std::string>("Test program"),
+                    signal::constant<std::string>("Test program"),
                     std::move(widgets)
                     //| debug::drawKeyboardInputs()
                     | widget::focusGroup()

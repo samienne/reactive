@@ -9,7 +9,7 @@
 #include <btl/any.h>
 #include <btl/connection.h>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T, typename... Ts>
     class Signal;
@@ -131,4 +131,4 @@ namespace reactive::signal2
             return sig;
         }
     }
-} // namespace reactive::signal2
+} // namespace reactive::signal

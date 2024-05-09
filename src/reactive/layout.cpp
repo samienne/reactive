@@ -21,7 +21,7 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                 return builder.getSizeHint();
             });
 
-    auto hintsSignal = signal2::combine(std::move(hints)).share();
+    auto hintsSignal = signal::combine(std::move(hints)).share();
 
     auto widget = widget::makeWidgetWithSize(
             [](auto size, auto obbMap, auto hintsSignal, auto builders)
@@ -30,7 +30,7 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 
                 size_t index = 0;
                 auto widgets = btl::fmap(builders, [&index, &obbs](auto&& f)
-                        -> signal2::AnySignal<widget::Instance>
+                        -> signal::AnySignal<widget::Instance>
                     {
                         auto t = obbs.map([index](
                                     std::vector<avg::Obb> const& obbs)

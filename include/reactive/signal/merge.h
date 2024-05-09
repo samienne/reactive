@@ -4,7 +4,7 @@
 
 #include <btl/all.h>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename... Ts>
     class Merge
@@ -115,5 +115,5 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignal<Merge<Ts...>> : std::true_type {};
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

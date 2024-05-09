@@ -3,10 +3,10 @@
 #include "stream.h"
 #include "sharedstream.h"
 
-#include <reactive/signal2/signalresult.h>
-#include <reactive/signal2/updateresult.h>
-#include <reactive/signal2/frameinfo.h>
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signalresult.h>
+#include <reactive/signal/updateresult.h>
+#include <reactive/signal/frameinfo.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
@@ -63,10 +63,10 @@ namespace reactive::stream
             };
         }
 
-        signal2::SignalResult<std::vector<T> const&> evaluate(
+        signal::SignalResult<std::vector<T> const&> evaluate(
                 DataType const& data) const
         {
-            return signal2::SignalResult<std::vector<T> const&>(
+            return signal::SignalResult<std::vector<T> const&>(
                     data.control->values
                     );
         }
@@ -76,7 +76,7 @@ namespace reactive::stream
             return !data.control->values.empty();
         }
 
-        signal2::UpdateResult update(DataType& data, signal2::FrameInfo const&)
+        signal::UpdateResult update(DataType& data, signal::FrameInfo const&)
         {
             std::unique_lock lock(data.control->mutex);
 
@@ -117,15 +117,15 @@ namespace reactive::stream
     };
 
     template <typename T>
-    signal2::Signal<Collect<T>, std::vector<T>> collect(Stream<T> stream)
+    signal::Signal<Collect<T>, std::vector<T>> collect(Stream<T> stream)
     {
-        return signal2::wrap(Collect<T>(std::move(stream)));
+        return signal::wrap(Collect<T>(std::move(stream)));
     }
 } // reactive::stream
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T>
     struct IsSignal<stream::Collect<T>> : std::true_type {};
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

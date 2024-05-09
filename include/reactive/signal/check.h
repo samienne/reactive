@@ -1,18 +1,17 @@
 #pragma once
 
-#include "signaltraits.h"
-#include "updateresult.h"
 #include "frameinfo.h"
+#include "updateresult.h"
+#include "signaltraits.h"
+
 #include "reactive/connection.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TSignal>
-    class Cache
+    class Check
     {
     public:
-        using ResultType = SignalTypeT<TSignal>;
-
         struct DataType
         {
             DataType(TSignal const& sig) :
@@ -22,11 +21,11 @@ namespace reactive::signal2
             }
 
             SignalDataTypeT<TSignal> innerData;
-            ResultType value;
+            DecaySignalResultT<SignalTypeT<TSignal>> value;
             bool hasChanged = false;
         };
 
-        Cache(TSignal sig) :
+        Check(TSignal sig) :
             sig_(std::move(sig))
         {
         }
@@ -49,10 +48,20 @@ namespace reactive::signal2
         UpdateResult update(DataType& data, FrameInfo const& frame)
         {
             auto r = sig_.update(data.innerData, frame);
-            data.value = sig_.evaluate(data.innerData);
-            data.hasChanged = r.didChange;
 
-            return r;
+            auto didReallyChange = false;
+            if (r.didChange)
+            {
+                auto value = sig_.evaluate(data.innerData);
+                didReallyChange = !(value == data.value);
+
+                if (didReallyChange)
+                    data.value = std::move(value);
+            }
+
+            data.hasChanged = didReallyChange;
+
+            return { r.nextUpdate, didReallyChange };
         }
 
         template <typename TCallback>
@@ -66,6 +75,6 @@ namespace reactive::signal2
     };
 
     template <typename T>
-    struct IsSignal<Cache<T>> : std::true_type {};
-} // namespace reactive::signal2
+    struct IsSignal<Check<T>> : std::true_type {};
+} // namespace reactive::signal
 

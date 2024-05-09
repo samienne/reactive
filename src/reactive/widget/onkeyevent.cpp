@@ -6,7 +6,7 @@
 
 #include "reactive/inputresult.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/keyevent.h>
 
@@ -14,15 +14,15 @@ namespace reactive::widget
 {
 
 OnKeyEvent::OnKeyEvent(
-        signal2::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
-        signal2::AnySignal<std::function<void(ase::KeyEvent const&)>> action) :
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
+        signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) :
     predicate_(std::move(predicate)),
     action_(std::move(action))
 {
 }
 
 OnKeyEvent OnKeyEvent::acceptIf(
-        signal2::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
         predicate) &&
 {
     predicate_ = merge(std::move(predicate_), std::move(predicate))
@@ -41,11 +41,11 @@ OnKeyEvent OnKeyEvent::acceptIf(
         std::function<bool(ase::KeyEvent const&)> pred) &&
 {
     return std::move(*this)
-        .acceptIf(signal2::constant(std::move(pred)));
+        .acceptIf(signal::constant(std::move(pred)));
 }
 
 OnKeyEvent OnKeyEvent::acceptIfNot(
-        signal2::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
         predicate) &&
 {
     auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -62,12 +62,12 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
         std::function<bool(ase::KeyEvent const&)> pred) &&
 {
     return std::move(*this)
-        .acceptIf(signal2::constant([pred](KeyEvent const& e)
+        .acceptIf(signal::constant([pred](KeyEvent const& e)
                     { return !pred(e); }));
 }
 
 OnKeyEvent OnKeyEvent::action(
-        signal2::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
+        signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
 {
     action_ = merge(std::move(action_), std::move(action))
         .bindToFunction([](
@@ -86,15 +86,15 @@ OnKeyEvent OnKeyEvent::action(
         std::function<void(ase::KeyEvent const&)> action) &&
 {
     return std::move(*this)
-        .action(signal2::constant(std::move(action)));
+        .action(signal::constant(std::move(action)));
 }
 
 
 OnKeyEvent onKeyEvent()
 {
     return {
-        signal2::constant([](ase::KeyEvent const&) { return false; }),
-        signal2::constant([](ase::KeyEvent const&) {})
+        signal::constant([](ase::KeyEvent const&) { return false; }),
+        signal::constant([](ase::KeyEvent const&) {})
     };
 }
 
@@ -121,7 +121,7 @@ AnyWidgetModifier onKeyEvent(std::function<InputResult(ase::KeyEvent const&)> cb
             ));
 }
 
-AnyWidgetModifier onKeyEvent(signal2::AnySignal<std::function<InputResult(
+AnyWidgetModifier onKeyEvent(signal::AnySignal<std::function<InputResult(
             ase::KeyEvent const&)>> cb)
 {
     return makeWidgetModifier(makeInstanceSignalModifier(

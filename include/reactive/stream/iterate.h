@@ -22,7 +22,7 @@ namespace reactive
 namespace reactive::stream
 {
     template <typename TFunc, typename T, typename U, typename V, typename... TSignals>
-    auto iterate(TFunc&& func, signal2::Signal<U, V> initial,
+    auto iterate(TFunc&& func, signal::Signal<U, V> initial,
             Stream<T> stream, TSignals&&... sigs)
     {
         return merge(
@@ -56,12 +56,12 @@ namespace reactive::stream
 
     template <typename TFunc, typename T, typename U, typename... TSignals,
              typename = std::enable_if_t<
-                 !signal2::IsSignal<std::decay_t<U>>::value
+                 !signal::IsSignal<std::decay_t<U>>::value
              >>
     auto iterate(TFunc&& func, U&& initial, Stream<T> stream, TSignals&&... sigs)
     {
         return iterate(std::forward<TFunc>(func),
-                signal2::constant(std::forward<U>(initial)),
+                signal::constant(std::forward<U>(initial)),
                 std::move(stream),
                 std::forward<TSignals>(sigs)...);
     }

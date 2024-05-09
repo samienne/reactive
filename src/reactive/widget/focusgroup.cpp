@@ -287,17 +287,9 @@ AnyInstanceModifier focusGroup()
                     stream::collect(std::move(keyStream.stream))
                     ).withPrevious(&step, FocusGroupState());
 
-            /*
-            auto state = signal::foldp(&step,
-                    FocusGroupState(),
-                    std::move(inputs),
-                    stream::collect(std::move(keyStream.stream))
-                    );
-            */
-
             auto newInputs = merge(
                     std::move(state),
-                    signal2::constant(keyStream.handle),
+                    signal::constant(keyStream.handle),
                     std::move(obb)
                     ).map(mapStateToInputs);
 

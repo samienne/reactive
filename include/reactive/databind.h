@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal2/input.h"
+#include "signal/input.h"
 
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
@@ -10,8 +10,8 @@
 
 #include <reactive/datasource.h>
 
-#include <reactive/signal2/evaluateoninit.h>
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/evaluateoninit.h>
+#include <reactive/signal/signal.h>
 
 #include <variant>
 #include <vector>
@@ -20,9 +20,9 @@
 namespace reactive
 {
     template <typename T>
-    signal2::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
+    signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
             DataSource<T> source,
-            std::function<widget::AnyWidget(signal2::AnySignal<T> value, size_t id)> delegate
+            std::function<widget::AnyWidget(signal::AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;
@@ -30,7 +30,7 @@ namespace reactive
         struct WidgetState
         {
             widget::AnyWidget widget;
-            signal2::InputHandle<T> valueHandle;
+            signal::InputHandle<T> valueHandle;
             size_t id;
         };
 
@@ -39,14 +39,14 @@ namespace reactive
             std::vector<WidgetState> objects;
         };
 
-        auto initial = signal2::evaluateOnInit(
+        auto initial = signal::evaluateOnInit(
                 [eval=std::move(source.evaluate), delegate]()
                 {
                     State state;
 
                     for (auto&& item : eval())
                     {
-                        auto input = signal2::makeInput<T>(std::move(item.second));
+                        auto input = signal::makeInput<T>(std::move(item.second));
                         state.objects.push_back(WidgetState{
                                 delegate(input.signal, item.first),
                                 input.handle,
@@ -67,7 +67,7 @@ namespace reactive
                 {
                     auto& insert = std::get<typename DataSource<T>::Insert>(event);
 
-                    auto valueInput = signal2::makeInput<T>(std::move(insert.value));
+                    auto valueInput = signal::makeInput<T>(std::move(insert.value));
 
                     state.objects.insert(
                             state.objects.begin() + insert.index,

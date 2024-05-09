@@ -7,7 +7,7 @@
 
 #include "reactive/connection.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -111,4 +111,4 @@ namespace reactive::signal2
                     std::move(falseSignal)
                     ));
     }
-} // namespace reactive::signal2
+} // namespace reactive::signal

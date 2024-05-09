@@ -7,8 +7,8 @@
 #include "mapsizehint.h"
 #include "stacksizehint.h"
 
-#include "signal2/combine.h"
-#include "signal2/signal.h"
+#include "signal/combine.h"
+#include "signal/signal.h"
 
 namespace reactive
 {
@@ -61,8 +61,8 @@ UniformGrid::operator widget::AnyWidget() &&
             {
                 auto hi = merge(
                         builders[i].getSizeHint(),
-                        signal2::constant(1.0f / (float)cell.w),
-                        signal2::constant(1.0f / (float)cell.h)
+                        signal::constant(1.0f / (float)cell.w),
+                        signal::constant(1.0f / (float)cell.h)
                         ).map(multiplySizeHint);
 
                 ++i;

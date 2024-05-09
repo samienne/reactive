@@ -4,7 +4,7 @@
 
 #include "reactive/reactivevisibility.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/font.h>
 
@@ -44,17 +44,17 @@ namespace reactive::widget
     struct REACTIVE_EXPORT TextEdit
     {
         operator AnyWidget() const;
-        TextEdit onEnter(signal2::AnySignal<std::function<void()>> cb) &&;
+        TextEdit onEnter(signal::AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
         AnyWidget build() &&;
 
-        signal2::InputHandle<TextEditState> handle_;
-        signal2::AnySignal<TextEditState> state_;
-        std::vector<signal2::AnySignal<std::function<void()>>> onEnter_;
+        signal::InputHandle<TextEditState> handle_;
+        signal::AnySignal<TextEditState> state_;
+        std::vector<signal::AnySignal<std::function<void()>>> onEnter_;
     };
 
-    REACTIVE_EXPORT TextEdit textEdit(signal2::InputHandle<TextEditState> handle,
-            signal2::AnySignal<TextEditState> state);
+    REACTIVE_EXPORT TextEdit textEdit(signal::InputHandle<TextEditState> handle,
+            signal::AnySignal<TextEditState> state);
 } // namespace reactive::widget
 

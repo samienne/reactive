@@ -5,7 +5,7 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <reactive/stream/collect.h>
 #include <reactive/stream/stream.h>
@@ -29,7 +29,7 @@ AnyWidgetModifier focusOn(stream::Stream<bool> stream)
         [](auto instance, auto focusRequest)
         {
             return std::move(instance)
-                | setFocusable(signal2::constant(true))
+                | setFocusable(signal::constant(true))
                 | requestFocus(std::move(focusRequest))
                 ;
         },

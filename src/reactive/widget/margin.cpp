@@ -9,8 +9,8 @@
 
 #include <reactive/growsizehint.h>
 
-#include <reactive/signal2/signal.h>
-#include <reactive/signal2/merge.h>
+#include <reactive/signal/signal.h>
+#include <reactive/signal/merge.h>
 
 #include <avg/transform.h>
 
@@ -41,7 +41,7 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier margin(signal2::AnySignal<float> amount)
+AnyWidgetModifier margin(signal::AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
@@ -78,7 +78,7 @@ AnyWidgetModifier margin(signal2::AnySignal<float> amount)
 
 AnyWidgetModifier margin(float amount)
 {
-    return margin(signal2::constant(amount));
+    return margin(signal::constant(amount));
 }
 
 } // namespace reactive::widget

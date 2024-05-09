@@ -12,7 +12,7 @@
 #include <tuple>
 #include <type_traits>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TFunc, typename TSignal>
     class Map

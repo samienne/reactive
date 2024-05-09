@@ -2,7 +2,7 @@
 
 #include "inputresult.h"
 
-#include "signal2/input.h"
+#include "signal/input.h"
 #include "stream/handle.h"
 #include "reactivevisibility.h"
 
@@ -32,7 +32,7 @@ namespace reactive
     class REACTIVE_EXPORT KeyboardInput
     {
     public:
-        using FocusHandle = signal2::InputHandle<bool>;
+        using FocusHandle = signal::InputHandle<bool>;
         using KeyHandler = btl::Function<InputResult(KeyEvent const& e)>;
         using TextHandler = btl::Function<InputResult(TextEvent const& e)>;
 

@@ -3,7 +3,7 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/hoverevent.h>
 
@@ -11,8 +11,8 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onHover(
-        signal2::AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
-        signal2::AnySignal<avg::Obb> area)
+        signal::AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
+        signal::AnySignal<avg::Obb> area)
 {
     auto id = btl::makeUniqueId();
 
@@ -43,7 +43,7 @@ AnyWidgetModifier onHover(
             ));
 }
 
-AnyWidgetModifier onHover(signal2::AnySignal<
+AnyWidgetModifier onHover(signal::AnySignal<
         std::function<void(reactive::HoverEvent const&)>
         > cb)
 {
@@ -77,10 +77,10 @@ AnyWidgetModifier onHover(
         std::function<void(reactive::HoverEvent const&)> cb
         )
 {
-    return onHover(signal2::constant(std::move(cb)));
+    return onHover(signal::constant(std::move(cb)));
 }
 
-AnyWidgetModifier onHover(signal2::InputHandle<bool> handle)
+AnyWidgetModifier onHover(signal::InputHandle<bool> handle)
 {
     return makeWidgetModifier([](auto widget, auto handle)
             {
@@ -94,13 +94,13 @@ AnyWidgetModifier onHover(signal2::InputHandle<bool> handle)
             );
 }
 
-AnyWidgetModifier onHover(signal2::AnySignal<avg::Obb> obb,
-        signal2::InputHandle<bool> handle)
+AnyWidgetModifier onHover(signal::AnySignal<avg::Obb> obb,
+        signal::InputHandle<bool> handle)
 {
     return makeWidgetModifier([](auto widget, auto obb, auto handle)
         {
             return std::move(widget)
-                | onHover(signal2::constant([handle=std::move(handle)]
+                | onHover(signal::constant([handle=std::move(handle)]
                     (HoverEvent const& e) mutable
                     {
                         handle.set(e.hover);

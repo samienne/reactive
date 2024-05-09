@@ -2,17 +2,17 @@
 
 #include "widget.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <ase/hoverevent.h>
 
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier onHover(
-            signal2::AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
-            signal2::AnySignal<avg::Obb> area);
+            signal::AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
+            signal::AnySignal<avg::Obb> area);
 
-    REACTIVE_EXPORT AnyWidgetModifier onHover(signal2::AnySignal<
+    REACTIVE_EXPORT AnyWidgetModifier onHover(signal::AnySignal<
             std::function<void(reactive::HoverEvent const&)>
             > cb);
 
@@ -20,10 +20,10 @@ namespace reactive::widget
             std::function<void(reactive::HoverEvent const&)> cb
             );
 
-    REACTIVE_EXPORT AnyWidgetModifier onHover(signal2::InputHandle<bool> handle);
+    REACTIVE_EXPORT AnyWidgetModifier onHover(signal::InputHandle<bool> handle);
 
 
-    REACTIVE_EXPORT AnyWidgetModifier onHover(signal2::AnySignal<avg::Obb> obb,
-            signal2::InputHandle<bool> handle);
+    REACTIVE_EXPORT AnyWidgetModifier onHover(signal::AnySignal<avg::Obb> obb,
+            signal::InputHandle<bool> handle);
 } // namespace reactive::widget
 

@@ -6,7 +6,7 @@
 #include <mutex>
 #include <memory>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;

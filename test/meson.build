@@ -3,7 +3,7 @@ gtest = subproject('gtest')
 gtestdep = gtest.get_variable('gtest_main_dep')
 
 devtest = executable('devtest',
-        'signal2test.cpp',
+        'signaltest.cpp',
         'streamtest.cpp',
         include_directories : incdir,
         link_with : [],

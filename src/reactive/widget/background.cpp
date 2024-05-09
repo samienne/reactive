@@ -6,13 +6,13 @@
 
 #include "shape/rectangle.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/brush.h>
 
 namespace reactive::widget
 {
-    AnyWidgetModifier background(signal2::AnySignal<avg::Brush> brush)
+    AnyWidgetModifier background(signal::AnySignal<avg::Brush> brush)
     {
         return background(shape::rectangle().fill(std::move(brush)));
     }

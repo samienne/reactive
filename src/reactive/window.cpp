@@ -6,7 +6,7 @@ namespace reactive
 {
 
 Window::Window(widget::AnyWidget widget,
-        signal2::AnySignal<std::string> const& title) :
+        signal::AnySignal<std::string> const& title) :
     widget_(std::move(widget)),
     title_(title.share())
 {
@@ -25,7 +25,7 @@ widget::AnyWidget Window::getWidget() const
         ;
 }
 
-signal2::AnySignal<std::string> const& Window::getTitle() const
+signal::AnySignal<std::string> const& Window::getTitle() const
 {
     return title_;
 }
@@ -37,7 +37,7 @@ void Window::invokeOnClose() const
         cb();
 }
 
-auto window(signal2::AnySignal<std::string> const& title, widget::AnyWidget widget)
+auto window(signal::AnySignal<std::string> const& title, widget::AnyWidget widget)
     -> Window
 {
     return Window(std::move(widget), title);

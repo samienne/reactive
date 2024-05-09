@@ -2,7 +2,7 @@
 
 #include "layout.h"
 
-#include "signal2/signal.h"
+#include "signal/signal.h"
 
 #include <avg/drawing.h>
 

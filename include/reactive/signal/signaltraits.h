@@ -13,7 +13,7 @@
 #include <functional>
 #include <type_traits>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T>
     using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize());
@@ -199,5 +199,5 @@ namespace reactive::signal2
 
     template <typename... Ts>
     using ConcatSignalResultsT = typename ConcatSignalResults<Ts...>::type;
-}
+} // namespace reactive::signal
 

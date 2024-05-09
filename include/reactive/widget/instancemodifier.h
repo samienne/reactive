@@ -12,7 +12,7 @@ namespace reactive::widget
     class InstanceModifier;
 
     using AnyInstanceModifier = InstanceModifier<
-        std::function<signal2::AnySignal<Instance>(signal2::AnySignal<Instance>)>
+        std::function<signal::AnySignal<Instance>(signal::AnySignal<Instance>)>
         >;
 
     template <typename T>
@@ -39,7 +39,7 @@ namespace reactive::widget
         InstanceModifier& operator=(InstanceModifier&&) = default;
 
         template <typename U>
-        auto operator()(signal2::Signal<U, Instance> instance)
+        auto operator()(signal::Signal<U, Instance> instance)
         {
             return func_(std::move(instance));
         }
@@ -57,7 +57,7 @@ namespace reactive::widget
     };
 
     template <typename T, typename U>
-    auto operator|(signal2::Signal<T, Instance> w, InstanceModifier<U> t)
+    auto operator|(signal::Signal<T, Instance> w, InstanceModifier<U> t)
     {
         return std::move(std::move(t)(std::move(w)));
     }
@@ -101,7 +101,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename... Ts,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 signal2::AnySignal<Instance>, TFunc, signal2::AnySignal<Instance>, Ts&&...
+                 signal::AnySignal<Instance>, TFunc, signal::AnySignal<Instance>, Ts&&...
                  > > >
     auto makeInstanceSignalModifier(TFunc&& func, Ts&&... ts)
     {
@@ -130,7 +130,7 @@ namespace reactive::widget
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
-            std::function<signal2::AnySignal<Instance>(signal2::AnySignal<Instance>, Ts...)>>
+            std::function<signal::AnySignal<Instance>(signal::AnySignal<Instance>, Ts...)>>
         >>
     auto makeSharedInstanceSignalModifier(TFunc&& f, Ts&&... ts)
     {
@@ -159,7 +159,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        true//std::is_invocable_r_v<Instance, TFunc, Instance, signal2::SignalTypeT<Ts>...>
+        true//std::is_invocable_r_v<Instance, TFunc, Instance, signal::SignalTypeT<Ts>...>
         >>
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {

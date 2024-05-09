@@ -2,7 +2,7 @@
 
 #include "widget/instancemodifier.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
 
@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier setId(signal2::AnySignal<avg::UniqueId> id)
+AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
 {
     return makeWidgetModifier(makeInstanceModifier(
         [](Instance instance, avg::UniqueId const& id)

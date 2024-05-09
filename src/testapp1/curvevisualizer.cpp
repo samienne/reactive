@@ -55,7 +55,7 @@ namespace {
 } // anonymous namespace
 
 reactive::widget::AnyWidget curveVisualizer(
-        reactive::signal2::AnySignal<avg::Curve> curve
+        reactive::signal::AnySignal<avg::Curve> curve
         )
 {
     auto c = curve.clone().map([](auto curve)
@@ -66,9 +66,9 @@ reactive::widget::AnyWidget curveVisualizer(
     return widget::makeWidget()
         | widget::onDraw(drawGraph, std::move(c))
         | widget::setAnimation(0.9f, avg::curve::easeInOutCubic, std::move(curve))
-        | widget::margin(signal2::constant(7.0f))
+        | widget::margin(signal::constant(7.0f))
         | widget::frame()
-        | widget::setSizeHint(signal2::constant(simpleSizeHint(300.0f, 300.0f)))
+        | widget::setSizeHint(signal::constant(simpleSizeHint(300.0f, 300.0f)))
         ;
 }
 

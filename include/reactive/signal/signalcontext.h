@@ -2,7 +2,7 @@
 
 #include "signal.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename... Ts>
     class SignalContext
@@ -85,5 +85,5 @@ namespace reactive::signal2
                 std::move(sig)
                 );
     }
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

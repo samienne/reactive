@@ -2,7 +2,7 @@
 
 #include "instance.h"
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <type_traits>
 
@@ -11,7 +11,7 @@ namespace reactive::widget
     template <typename TSignalWidget, typename = typename
         std::enable_if
         <
-            signal2::IsSignalType<TSignalWidget, Instance>::value
+            signal::IsSignalType<TSignalWidget, Instance>::value
         >::type>
     auto reduce(TSignalWidget w2)
     {

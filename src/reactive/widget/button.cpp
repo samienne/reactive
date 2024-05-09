@@ -47,14 +47,14 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidget button(signal2::AnySignal<std::string> label,
-        signal2::AnySignal<std::function<void()>> onClick)
+AnyWidget button(signal::AnySignal<std::string> label,
+        signal::AnySignal<std::function<void()>> onClick)
 {
-    auto down = signal2::makeInput<bool>(false);
-    auto hover = signal2::makeInput<bool>(false);
+    auto down = signal::makeInput<bool>(false);
+    auto hover = signal::makeInput<bool>(false);
 
     return widget::label(std::move(label))
-        | margin(signal2::constant(5.0f))
+        | margin(signal::constant(5.0f))
         | widget::makeWidgetModifier(
             [](auto widget, auto theme, auto downSignal, auto hoverSignal)
             {
@@ -90,9 +90,9 @@ AnyWidget button(signal2::AnySignal<std::string> label,
         ;
 }
 
-AnyWidget button(std::string label, signal2::AnySignal<std::function<void()>> onClick)
+AnyWidget button(std::string label, signal::AnySignal<std::function<void()>> onClick)
 {
-    return button(signal2::constant(std::move(label)), std::move(onClick));
+    return button(signal::constant(std::move(label)), std::move(onClick));
 }
 
 } // namespace reactive::widget

@@ -2,7 +2,7 @@
 
 #include "signaltraits.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     struct DataTypeBase
     {
@@ -164,5 +164,5 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignal<Weak<Ts...>> : std::true_type {};
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

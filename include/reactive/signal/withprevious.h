@@ -7,7 +7,7 @@
 
 #include "reactive/connection.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T>
     struct SignalResultToConstRef
@@ -126,5 +126,5 @@ namespace reactive::signal2
 
     template <typename TStorage, typename TFunc, typename... Ts>
     struct IsSignal<WithPrevious<TStorage, TFunc, Ts...>> : std::true_type {};
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

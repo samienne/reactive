@@ -4,7 +4,7 @@
 
 #include "reactive/inputarea.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <btl/cloneoncopy.h>
 
@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setInputAreas(signal2::Signal<T, std::vector<InputArea>> areas)
+    auto setInputAreas(signal::Signal<T, std::vector<InputArea>> areas)
     {
         return makeInstanceModifier([](Instance instance, auto areas)
                 {

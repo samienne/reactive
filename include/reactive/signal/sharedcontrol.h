@@ -10,7 +10,7 @@
 #include <mutex>
 
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TStorage, typename... Ts>
     class SharedControl
@@ -112,5 +112,5 @@ namespace reactive::signal2
         signal_time_t time_ = signal_time_t(0);
         std::optional<signal_time_t> updateTime_;
     };
-} // namespcae reactive::signal2
+} // namespcae reactive::signal
 

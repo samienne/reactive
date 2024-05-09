@@ -7,14 +7,14 @@
 #include "eventresult.h"
 #include "pointerbuttonevent.h"
 
-#include "reactive/signal2/signal.h"
+#include "reactive/signal/signal.h"
 
 #include <functional>
 
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerDown(signal2::AnySignal<
+AnyWidgetModifier onPointerDown(signal::AnySignal<
         std::function<EventResult(ase::PointerButtonEvent const&)>
         > cb)
 {
@@ -50,7 +50,7 @@ AnyWidgetModifier onPointerDown(
         std::function<EventResult(ase::PointerButtonEvent const&)> cb
         )
 {
-    return onPointerDown(signal2::constant(std::move(cb)));
+    return onPointerDown(signal::constant(std::move(cb)));
 }
 } // namespace reactive::widget
 

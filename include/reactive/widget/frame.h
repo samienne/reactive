@@ -7,13 +7,13 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier frame(
-            signal2::AnySignal<float> cornerRadius,
-            signal2::AnySignal<avg::Color> color
+            signal::AnySignal<float> cornerRadius,
+            signal::AnySignal<avg::Color> color
             );
 
-    REACTIVE_EXPORT AnyWidgetModifier frame(signal2::AnySignal<avg::Color> color);
+    REACTIVE_EXPORT AnyWidgetModifier frame(signal::AnySignal<avg::Color> color);
 
-    REACTIVE_EXPORT AnyWidgetModifier frame(signal2::AnySignal<float> cornerRadius);
+    REACTIVE_EXPORT AnyWidgetModifier frame(signal::AnySignal<float> cornerRadius);
 
     REACTIVE_EXPORT AnyWidgetModifier frame();
 } // namespace reactive::widget

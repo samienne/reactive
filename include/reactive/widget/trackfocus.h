@@ -2,11 +2,11 @@
 
 #include "widget.h"
 
-#include <reactive/signal2/input.h>
+#include <reactive/signal/input.h>
 
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier trackFocus(
-            signal2::InputHandle<bool> const& handle);
+            signal::InputHandle<bool> const& handle);
 } // namespace reactive::widget
 

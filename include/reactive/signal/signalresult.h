@@ -7,7 +7,7 @@
 #include <type_traits>
 #include <tuple>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename... Ts>
     class SignalResult;
@@ -251,5 +251,5 @@ namespace reactive::signal2
 
     template <typename... Ts>
     using ToSignalResultT = typename ToSignalResult<Ts...>::type;
-} // reactive::signal2
+} // reactive::signal
 

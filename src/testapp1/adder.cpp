@@ -19,7 +19,7 @@
 #include <reactive/withanimation.h>
 #include <reactive/databind.h>
 
-#include <reactive/signal2/signal.h>
+#include <reactive/signal/signal.h>
 
 #include <avg/rendertree.h>
 
@@ -30,12 +30,12 @@ using namespace reactive;
 namespace
 {
     widget::AnyWidget itemEntry(
-            signal2::InputHandle<std::string> outHandle,
+            signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
             std::function<void()> onSort
             )
     {
-        auto textState = signal2::makeInput(widget::TextEditState(""));
+        auto textState = signal::makeInput(widget::TextEditState(""));
         auto handle = textState.handle;
 
         auto onEnterSignal = textState.signal
@@ -55,7 +55,7 @@ namespace
                 textEdit(handle, std::move(state))
                     .onEnter(onEnterSignal),
                 widget::button("Add", onEnterSignal),
-                widget::button("Sort", signal2::constant(std::move(onSort)))
+                widget::button("Sort", signal::constant(std::move(onSort)))
             });
     }
 } // anonymous namespace
@@ -73,14 +73,14 @@ reactive::widget::AnyWidget adder()
         range.pushBack("test 4");
     }
 
-    auto textInput = signal2::makeInput<std::string>("");
+    auto textInput = signal::makeInput<std::string>("");
 
     auto swapState = std::make_shared<size_t>();
 
     auto widgets = dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (signal2::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
                 return hbox({
                 widget::button("U",
@@ -94,7 +94,7 @@ reactive::widget::AnyWidget adder()
                             range.update(i, std::move(str));
                         }
                     })),
-                widget::button("T", signal2::constant([items, id]() mutable
+                widget::button("T", signal::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto range = items.rangeLock();
@@ -103,7 +103,7 @@ reactive::widget::AnyWidget adder()
                         range.move(i, range.begin());
                         }))
                 ,
-                widget::button("S", signal2::constant(
+                widget::button("S", signal::constant(
                     [items, id, swapState]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
@@ -126,7 +126,7 @@ reactive::widget::AnyWidget adder()
                 ,
                 hfiller()
                 ,
-                widget::button("x", signal2::constant([id, items]() mutable
+                widget::button("x", signal::constant([id, items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         items.rangeLock().eraseWithId(id);
@@ -137,7 +137,7 @@ reactive::widget::AnyWidget adder()
             ;
             });
 
-    auto fancy = signal2::makeInput(false);
+    auto fancy = signal::makeInput(false);
 
     auto theme = fancy.signal.map([](bool fancy)
             {

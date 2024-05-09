@@ -4,7 +4,7 @@
 
 #include <optional>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T, typename U>
     AnySignal<std::optional<T>> fromOptional(std::optional<Signal<U, T>> sig)
@@ -27,5 +27,5 @@ namespace reactive::signal2
             return constant<std::optional<T>>(std::nullopt);
         }
     }
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

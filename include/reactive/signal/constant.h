@@ -6,7 +6,7 @@
 #include "signaltraits.h"
 #include "signalresult.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename T>
     class Constant
@@ -79,4 +79,4 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignal<Constant<Ts...>> : std::true_type {};
-} // reactive::signal2
+} // reactive::signal

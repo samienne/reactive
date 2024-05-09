@@ -19,7 +19,7 @@
 
 #include <string>
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -306,7 +306,7 @@ namespace reactive::signal2
             >>
         auto merge(Us&&... signals) const
         {
-            return signal2::merge(*this, std::forward<Us>(signals)...);
+            return signal::merge(*this, std::forward<Us>(signals)...);
         }
 
         template <typename TFunc>
@@ -417,5 +417,5 @@ namespace reactive::signal2
 
     template <typename... Ts>
     struct IsSignal<AnySignal<Ts...>> : std::true_type {};
-} // namespace reactive::signal2
+} // namespace reactive::signal
 

@@ -8,8 +8,8 @@
 #include <reactive/widget/provideparam.h>
 #include <reactive/widget/widget.h>
 
-#include <reactive/signal2/signal.h>
-#include <reactive/signal2/signalcontext.h>
+#include <reactive/signal/signal.h>
+#include <reactive/signal/signalcontext.h>
 
 #include <pmr/new_delete_resource.h>
 
@@ -20,15 +20,15 @@ using namespace reactive::widget;
 
 auto makeEmptyInstance()
 {
-    return makeInstance(signal2::constant(avg::Vector2f(0.0f, 0.0f)));
+    return makeInstance(signal::constant(avg::Vector2f(0.0f, 0.0f)));
 }
 
 struct TestTag
 {
     using type = std::string;
-    static signal2::AnySignal<type> getDefaultValue()
+    static signal::AnySignal<type> getDefaultValue()
     {
-        return signal2::constant<std::string>("default value");
+        return signal::constant<std::string>("default value");
     }
 };
 
@@ -41,7 +41,7 @@ TEST(WidgetInstanceModifier, typeErasure)
     auto w = makeEmptyInstance()
         | std::move(t2);
 
-    //static_assert(reactive::signal2::IsSignalType<decltype(w), Instance>::value);
+    //static_assert(reactive::signal::IsSignalType<decltype(w), Instance>::value);
 }
 
 TEST(Widget, widgetBuildParameters)
@@ -54,7 +54,7 @@ TEST(Widget, widgetBuildParameters)
             {
                 auto p = params.get<TestTag>();
 
-                tag1 = p ? reactive::signal2::makeSignalContext(*p).evaluate() : "no p";
+                tag1 = p ? reactive::signal::makeSignalContext(*p).evaluate() : "no p";
 
                 return widget;
             },
@@ -62,14 +62,14 @@ TEST(Widget, widgetBuildParameters)
             )
         | modifyParamsObject([](BuildParams params)
             {
-                params.set<TestTag>(signal2::constant<std::string>("set value 1"));
+                params.set<TestTag>(signal::constant<std::string>("set value 1"));
                 return params;
             })
         | makeWidgetModifier([&](auto widget, BuildParams const& params)
             {
                 auto p = params.get<TestTag>();
 
-                tag2 = p ? reactive::signal2::makeSignalContext(*p).evaluate() : "no p";
+                tag2 = p ? reactive::signal::makeSignalContext(*p).evaluate() : "no p";
 
                 return widget;
             },
@@ -77,7 +77,7 @@ TEST(Widget, widgetBuildParameters)
             )
         | modifyParamsObject([](BuildParams params)
             {
-                params.set<TestTag>(signal2::constant<std::string>("set value 2"));
+                params.set<TestTag>(signal::constant<std::string>("set value 2"));
                 return params;
             })
         ;
@@ -85,7 +85,7 @@ TEST(Widget, widgetBuildParameters)
     BuildParams params;
     auto builder = std::move(widget)(std::move(params));
 
-    std::move(builder)(signal2::constant(avg::Vector2f(400.0f, 300.0f)));
+    std::move(builder)(signal::constant(avg::Vector2f(400.0f, 300.0f)));
 
     EXPECT_EQ("set value 1", tag1);
     EXPECT_EQ("set value 2", tag2);
@@ -95,14 +95,14 @@ TEST(Widget, differentModifiers)
 {
     auto widget = makeWidget()
         | frame()
-        | margin(signal2::constant(10.0f))
+        | margin(signal::constant(10.0f))
         ;
 
     BuildParams params;
     auto builder = std::move(widget)(std::move(params));
 
     auto instanceSignal = std::move(builder)(
-            signal2::constant(avg::Vector2f(200.0f, 400.0f))
+            signal::constant(avg::Vector2f(200.0f, 400.0f))
             ).getInstance();
 
     auto context = makeSignalContext(instanceSignal);
@@ -118,14 +118,14 @@ TEST(Widget, withParams)
     auto widget = makeWidget()
         | makeWidgetModifier([&](auto widget, auto str)
             {
-                tag = signal2::makeSignalContext(str).evaluate();
+                tag = signal::makeSignalContext(str).evaluate();
                 return widget;
             }, provideParam<TestTag>())
         ;
 
     auto builder = std::move(widget)(BuildParams());
 
-    std::move(builder)(signal2::constant(avg::Vector2f(200.0f, 400.0f)));
+    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
 
     EXPECT_EQ("default value", tag);
 }
@@ -137,7 +137,7 @@ TEST(Widget, setParams)
     auto widget = makeWidget()
         | makeWidgetModifier([&](auto widget, auto str)
             {
-                tag = signal2::makeSignalContext(str).evaluate();
+                tag = signal::makeSignalContext(str).evaluate();
                 return widget;
             },
             provideParam<TestTag>()
@@ -147,7 +147,7 @@ TEST(Widget, setParams)
 
     auto builder = std::move(widget)(BuildParams());
 
-    std::move(builder)(signal2::constant(avg::Vector2f(200.0f, 400.0f)));
+    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
 
     EXPECT_EQ("set value", tag);
 }
@@ -161,19 +161,19 @@ TEST(Widget, builderModifierTags)
     auto widget = makeWidget()
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
-                tag = signal2::makeSignalContext(tagValue).evaluate();
+                tag = signal::makeSignalContext(tagValue).evaluate();
                 return builder;
             }, provideParam<TestTag>())
         | setParams<TestTag>("set value 1")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
-                tag2 = signal2::makeSignalContext(tagValue).evaluate();
+                tag2 = signal::makeSignalContext(tagValue).evaluate();
                 return builder;
             }, provideParam<TestTag>())
         | setParams<TestTag>("set value 2")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
-                tag3 = signal2::makeSignalContext(tagValue).evaluate();
+                tag3 = signal::makeSignalContext(tagValue).evaluate();
                 return builder;
             }, provideParam<TestTag>())
         ;
@@ -194,7 +194,7 @@ TEST(Widget, elementModifierParams)
     auto widget = makeWidget()
         | makeElementModifier([&](auto element)
             {
-                tag = signal2::makeSignalContext(
+                tag = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
                         ).evaluate();
                 return element;
@@ -202,7 +202,7 @@ TEST(Widget, elementModifierParams)
         | setParams<TestTag>("set value 1")
         | makeElementModifier([&](auto element)
             {
-                tag2 = signal2::makeSignalContext(
+                tag2 = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
                         ).evaluate();
                 return element;
@@ -210,14 +210,14 @@ TEST(Widget, elementModifierParams)
         | setParams<TestTag>("set value 2")
         | makeElementModifier([&](auto element)
             {
-                tag3 = signal2::makeSignalContext(
+                tag3 = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
                         ).evaluate();
                 return element;
             })
         ;
 
-    std::move(widget)(BuildParams())(signal2::constant(avg::Vector2f(100.0f, 200.0f)));
+    std::move(widget)(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
 
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);

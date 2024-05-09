@@ -6,7 +6,7 @@
 
 #include "reactive/connection.h"
 
-namespace reactive::signal2
+namespace reactive::signal
 {
     template <typename TFunc>
     class EvaluateOnInit
@@ -61,5 +61,5 @@ namespace reactive::signal2
         return wrap(EvaluateOnInit<std::decay_t<TFunc>>(std::forward<
                 TFunc>(func)));
     }
-} // reactive::signal2
+} // reactive::signal
 

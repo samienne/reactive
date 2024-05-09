@@ -1,18 +1,18 @@
-#include <reactive/signal2/signal.h>
-#include <reactive/signal2/constant.h>
-#include <reactive/signal2/signalcontext.h>
-#include <reactive/signal2/input.h>
-#include <reactive/signal2/merge.h>
-#include <reactive/signal2/join.h>
-#include <reactive/signal2/combine.h>
-#include <reactive/signal2/fromoptional.h>
-#include <reactive/signal2/evaluateoninit.h>
+#include <reactive/signal/signal.h>
+#include <reactive/signal/constant.h>
+#include <reactive/signal/signalcontext.h>
+#include <reactive/signal/input.h>
+#include <reactive/signal/merge.h>
+#include <reactive/signal/join.h>
+#include <reactive/signal/combine.h>
+#include <reactive/signal/fromoptional.h>
+#include <reactive/signal/evaluateoninit.h>
 
 #include <btl/demangle.h>
 
 #include <gtest/gtest.h>
 
-using namespace reactive::signal2;
+using namespace reactive::signal;
 
 static_assert(std::is_same_v<
         ConcatSignalResults<SignalResult<int, char>, SignalResult<int const&, std::string&>>::type,
@@ -84,7 +84,7 @@ constexpr Type<T const&> getType(T const&)
     return {};
 }
 
-TEST(Signal2, constant)
+TEST(signal, constant)
 {
     auto s = constant(10);
 
@@ -102,7 +102,7 @@ TEST(Signal2, constant)
     EXPECT_EQ(r.nextUpdate, std::nullopt);
 }
 
-TEST(Signal2, signalContext)
+TEST(signal, signalContext)
 {
     auto c = makeSignalContext(constant(42));
 
@@ -117,7 +117,7 @@ TEST(Signal2, signalContext)
     EXPECT_EQ(42, v);
 }
 
-TEST(Signal2, signalInput)
+TEST(signal, signalInput)
 {
     auto input = makeInput(42);
 
@@ -141,7 +141,7 @@ TEST(Signal2, signalInput)
     EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
 }
 
-TEST(Signal2, map)
+TEST(signal, map)
 {
     auto input = makeInput(42);
 
@@ -172,7 +172,7 @@ TEST(Signal2, map)
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 }
 
-TEST(Signal2, mapReferenceToTemp)
+TEST(signal, mapReferenceToTemp)
 {
     auto input = makeInput(42);
 
@@ -194,7 +194,7 @@ TEST(Signal2, mapReferenceToTemp)
     EXPECT_EQ(42, c.evaluate());
 }
 
-TEST(Signal2, merge)
+TEST(signal, merge)
 {
     auto input1 = makeInput(42);
     auto input2 = makeInput<int, std::string>(20, "test");
@@ -217,7 +217,7 @@ TEST(Signal2, merge)
     EXPECT_EQ("test", c.evaluate().get<2>());
 }
 
-TEST(Signal2, share)
+TEST(signal, share)
 {
     auto input = makeInput<std::string>("hello");
 
@@ -279,7 +279,7 @@ TEST(Signal2, share)
     }
 }
 
-TEST(Signal2, join)
+TEST(signal, join)
 {
     auto input1 = makeInput<std::string>("hello");
     auto input2 = makeInput<std::string>("world");
@@ -318,7 +318,7 @@ TEST(Signal2, join)
     EXPECT_EQ("?", r1.get<2>());
 }
 
-TEST(Signal2, combine)
+TEST(signal, combine)
 {
     std::vector<int> v1 = { 10, 20, 30, 40, 50 };
     std::vector<int> v2 = { 1, 2, 3, 4, 5 };
@@ -356,7 +356,7 @@ TEST(Signal2, combine)
     EXPECT_FALSE(ur.didChange);
 }
 
-TEST(Signal2, conditional)
+TEST(signal, conditional)
 {
     auto cond = makeInput(true);
     auto input1 = makeInput<std::string, int>("hello", 42);
@@ -384,7 +384,7 @@ TEST(Signal2, conditional)
     EXPECT_EQ(22, r.get<1>());
 }
 
-TEST(Signal2, weak)
+TEST(signal, weak)
 {
     auto input = makeInput(42);
 
@@ -414,7 +414,7 @@ TEST(Signal2, weak)
     EXPECT_EQ(22, c2.evaluate());
 }
 
-TEST(Signal2, tee)
+TEST(signal, tee)
 {
     auto input1 = makeInput<std::string, int>("hello", 42);
     auto input2 = makeInput<std::string, int>("world", 22);
@@ -452,7 +452,7 @@ TEST(Signal2, tee)
     EXPECT_EQ(44, r3.get<1>());
 }
 
-TEST(Signal2, teeCircular)
+TEST(signal, teeCircular)
 {
     auto input1 = makeInput<std::string, int>("hello", 42);
     auto input2 = makeInput<std::string, int>("world", 22);
@@ -482,7 +482,7 @@ TEST(Signal2, teeCircular)
     EXPECT_EQ(106, r2.get<1>());
 }
 
-TEST(Signal2, teeWithFunc)
+TEST(signal, teeWithFunc)
 {
     auto input1 = makeInput<std::string, int>("hello", 42);
     auto input2 = makeInput<std::string, int>("world", 22);
@@ -515,7 +515,7 @@ TEST(Signal2, teeWithFunc)
     EXPECT_EQ("hellohelloworld", r2.get<1>());
 }
 
-TEST(Signal2, makeOptional)
+TEST(signal, makeOptional)
 {
     auto s = constant(42);
 
@@ -528,7 +528,7 @@ TEST(Signal2, makeOptional)
     EXPECT_EQ(std::make_optional(42), c.evaluate());
 }
 
-TEST(Signal2, fromOptional)
+TEST(signal, fromOptional)
 {
     std::optional<AnySignal<int>> n = std::nullopt;
 
@@ -537,7 +537,7 @@ TEST(Signal2, fromOptional)
     EXPECT_EQ(Type<AnySignal<std::optional<int>>>(), Type<decltype(s)>());
 }
 
-TEST(Signal2, cache)
+TEST(signal, cache)
 {
     auto input = makeInput(42);
 
@@ -573,7 +573,7 @@ TEST(Signal2, cache)
     EXPECT_EQ(2, callCount);
 }
 
-TEST(Signal2, check)
+TEST(signal, check)
 {
     auto input = makeInput(42);
 
@@ -615,7 +615,7 @@ TEST(Signal2, check)
     EXPECT_EQ(2, callCount);
 }
 
-TEST(Signal2, cast)
+TEST(signal, cast)
 {
     auto s1 = constant([](int i)
             {
@@ -635,7 +635,7 @@ TEST(Signal2, cast)
     EXPECT_EQ("20", f(20));
 }
 
-TEST(Signal2, bindToFunction)
+TEST(signal, bindToFunction)
 {
     auto input1 = makeInput(42, std::string("hello"));
 
@@ -658,7 +658,7 @@ TEST(Signal2, bindToFunction)
     EXPECT_EQ("42hello, world", f("world"));
 }
 
-TEST(Signal2, withChanged)
+TEST(signal, withChanged)
 {
     auto input = makeInput(42, std::string("hello"));
 
@@ -710,7 +710,7 @@ TEST(Signal2, withChanged)
     EXPECT_EQ("world", v.get<2>());
 }
 
-TEST(Signal2, withPrevious)
+TEST(signal, withPrevious)
 {
     auto input = makeInput(std::string("world"));
 
@@ -749,7 +749,7 @@ TEST(Signal2, withPrevious)
     EXPECT_EQ("helloworldbye", v);
 }
 
-TEST(Signal2, withPreviousMulti)
+TEST(signal, withPreviousMulti)
 {
     auto input = makeInput(42, std::string("hello"));
 
