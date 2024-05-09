@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stream/pipe.h"
 #include "stream/stream.h"
-#include "collection.h"
+
+#include "connection.h"
 
 #include <variant>
 
@@ -53,7 +53,7 @@ namespace reactive
         using Event = std::variant<Insert, Update, Erase, Swap, Move, Refresh>;
 
         stream::Stream<Event> input;
-        std::function<void()> initialize;
+        std::function<std::vector<std::pair<std::size_t, T>>()> evaluate;
         Connection connection;
     };
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "stream/pipe.h"
+
 #include "collection.h"
 #include "datasource.h"
 
@@ -60,15 +62,15 @@ namespace reactive
                             });
                 });
 
-        result.initialize = [collection, handle=eventPipe.handle]()
+        result.evaluate = [collection]()
         {
             auto range = collection.rangeLock();
-            int index = 0;
+            std::vector<std::pair<size_t, T>> result;
 
             for (auto i = range.begin(); i != range.end(); ++i)
-            {
-                handle.push(typename DataSource<T>::Insert{*i, index++, i.getId()});
-            }
+                result.emplace_back(i.getId(), *i);
+
+            return result;
         };
 
         return result;

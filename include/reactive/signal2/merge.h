@@ -31,13 +31,7 @@ namespace reactive::signal2
 
         DataType initialize() const
         {
-            return {
-                btl::tuple_map(sigs_, [](auto&& sig)
-                    {
-                        return std::forward<decltype(sig)>(sig).initialize();
-                    }),
-                    false
-            };
+            return doInitialize(std::make_index_sequence<sizeof...(Ts)>());
         }
 
         ResultType evaluate(DataType const& data) const
@@ -63,6 +57,14 @@ namespace reactive::signal2
         }
 
     private:
+        template <size_t... S>
+        DataType doInitialize(std::index_sequence<S...>) const
+        {
+            return { std::tuple<typename Ts::DataType...>{
+                std::get<S>(sigs_).initialize()...
+            }};
+        }
+
         template <size_t... S>
         auto doEvaluate(DataType const& data, std::index_sequence<S...>) const
         {

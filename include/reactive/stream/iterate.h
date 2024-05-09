@@ -25,15 +25,16 @@ namespace reactive::stream
     auto iterate(TFunc&& func, signal2::Signal<U, V> initial,
             Stream<T> stream, TSignals&&... sigs)
     {
-        return merge(initial.withChanged(true),
+        return merge(
                 collect2(std::move(stream)),
+                initial.withChanged(true),
                 std::forward<TSignals>(sigs)...)
             .template withPrevious<std::optional<V>>(
                     [func=std::forward<TFunc>(func)](
                         std::optional<V> const& previous,
+                        std::vector<T> const& streamValues,
                         bool initialChanged,
                         V const& initial,
-                        std::vector<T> const& streamValues,
                         auto&&... values) -> std::optional<V>
                 {
                     V current = (initialChanged || !previous) ?

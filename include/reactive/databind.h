@@ -10,6 +10,7 @@
 
 #include <reactive/datasource.h>
 
+#include <reactive/signal2/evaluateoninit.h>
 #include <reactive/signal2/signal.h>
 
 #include <variant>
@@ -38,7 +39,23 @@ namespace reactive
             std::vector<WidgetState> objects;
         };
 
-        State initial {{}};
+        auto initial = signal2::evaluateOnInit(
+                [eval=std::move(source.evaluate), delegate]()
+                {
+                    State state;
+
+                    for (auto&& item : eval())
+                    {
+                        auto input = signal2::makeInput<T>(std::move(item.second));
+                        state.objects.push_back(WidgetState{
+                                delegate(input.signal, item.first),
+                                input.handle,
+                                item.first
+                                });
+                    }
+
+                    return state;
+                });
 
         auto state = stream::iterate(
             // connection is put into the lambda just to keep it alive
@@ -180,8 +197,6 @@ namespace reactive
             std::move(initial),
             std::move(source.input)
             );
-
-        source.initialize();
 
         auto widgetObjects = std::move(state).map([](State const& state)
             {
