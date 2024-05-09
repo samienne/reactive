@@ -56,16 +56,15 @@ namespace detail
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
-            true/*
             std::is_invocable_r_v<
                 avg::Drawing,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
                 avg::AnimatedTypeT<std::decay_t<
-                    signal2::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
+                    signal2::SingleSignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
                     >>...
-            >*/
+            >
         >
     >
 AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
@@ -88,16 +87,15 @@ AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
-            true/*
             std::is_invocable_r_v<
                 avg::Drawing,
                 TFunc,
                 avg::DrawContext const&,
                 avg::Vector2f,
                 avg::AnimatedTypeT<std::decay_t<
-                    signal2::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
+                    signal2::SingleSignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
                     >>...
-            >*/
+            >
         >
     >
 AnyWidgetModifier onDrawBehind(TFunc&& func, Ts&&... ts)

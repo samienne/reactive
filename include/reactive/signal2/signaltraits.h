@@ -134,6 +134,12 @@ namespace reactive::signal2
     };
 
     template <typename T>
+    struct SingleSignalType<AnySignal<T>>
+    {
+        using type = T;
+    };
+
+    template <typename T>
     using SingleSignalTypeT = typename SingleSignalType<T>::type;
 
     namespace detail
