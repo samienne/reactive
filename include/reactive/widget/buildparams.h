@@ -1,6 +1,5 @@
 #pragma once
 
-#include "reactive/signal/sharedsignal.h"
 #include "reactive/signal/signal.h"
 
 #include <any>
@@ -21,17 +20,17 @@ namespace reactive::widget
         BuildParams& operator=(BuildParams&&) noexcept = default;
 
         template <typename Tag>
-        std::optional<AnySharedSignal<typename Tag::type>> get() const
+        std::optional<signal::AnySignal<typename Tag::type>> get() const
         {
             auto r = params_.find(typeid(Tag));
             if (r == params_.end())
                 return std::nullopt;
 
-            return std::any_cast<AnySharedSignal<typename Tag::type>>(r->second);
+            return std::any_cast<signal::AnySignal<typename Tag::type>>(r->second);
         }
 
         template <typename Tag>
-        AnySharedSignal<typename Tag::type> valueOrDefault() const
+        signal::AnySignal<typename Tag::type> valueOrDefault() const
         {
             auto value = get<Tag>();
             if (!value)
@@ -41,18 +40,12 @@ namespace reactive::widget
         }
 
         template <typename Tag, typename T>
-        void set(SharedSignal<T, typename Tag::type> value)
+        void set(signal::Signal<T, typename Tag::type> value)
         {
             params_.insert_or_assign(
                     typeid(Tag),
-                    AnySharedSignal<typename Tag::type>(std::move(value))
+                    signal::AnySignal<typename Tag::type>(std::move(value))
                     );
-        }
-
-        template <typename Tag, typename T>
-        void set(Signal<T, typename Tag::type> value)
-        {
-            set(share(std::move(value)));
         }
 
         template <typename Tag>

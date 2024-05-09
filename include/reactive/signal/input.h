@@ -1,155 +1,208 @@
 #pragma once
 
-#include "inputhandle.h"
-#include "signalbase.h"
-#include "inputdeferredvalue.h"
-#include "sharedsignal.h"
-#include "signal.h"
+#include "weak.h"
+#include "signalresult.h"
 
-#include <reactive/connection.h>
-#include <reactive/observable.h>
-#include <reactive/reactivevisibility.h>
-
-#include <btl/dummylock.h>
-#include <btl/demangle.h>
-#include <btl/hidden.h>
-
-#include <functional>
-#include <list>
+#include <mutex>
 #include <memory>
 
 namespace reactive::signal
 {
-    template <typename T, typename TLock = btl::DummyLock>
-    class InputSignal;
+    template <typename TStorage, typename... Ts>
+    class Signal;
 
-    template <typename T, typename TLock>
-    struct IsSignal<InputSignal<T, TLock>> : std::true_type {};
+    template <typename... Ts>
+    struct InputControl
+    {
+        InputControl(std::tuple<Ts...> value) :
+            value(std::move(value))
+        {
+        }
 
-    template <typename T, typename TLock = btl::DummyLock>
-    struct Input;
+        std::recursive_mutex mutex;
+        std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
+        std::optional<Weak<Ts...>> sig;
+        std::optional<signal_time_t> updateTime;
+        signal_time_t time = signal_time_t(0);
+        SignalResult<Ts...> value;
+        uint64_t index = 0;
+        uint64_t frameId = 0;
+    };
 
-    template <typename T, typename TLock>
-    class InputSignal
+    template <typename... Ts>
+    class InputHandle
     {
     public:
-        using Callback = Observable::Callback;
-
-        static_assert(btl::IsClonable<T>::value, "T is not clonable");
-
-        InputSignal(std::shared_ptr<InputDeferredValue<T, TLock>> const& value) :
-            deferred_(value),
-            tag_(value->getTag(value->lock()))
+        InputHandle(std::weak_ptr<InputControl<Ts...>> control) :
+            control_(std::move(control))
         {
         }
 
-    public:
-        InputSignal(InputSignal const&) = default;
-        InputSignal& operator=(InputSignal const&) = default;
+        InputHandle(InputHandle const&) = default;
+        InputHandle(InputHandle&&) noexcept = default;
 
-    public:
-        InputSignal(InputSignal&&) noexcept = default;
-        InputSignal& operator=(InputSignal&&) noexcept = default;
+        InputHandle& operator=(InputHandle const&) = default;
+        InputHandle& operator=(InputHandle&&) noexcept = default;
 
-        T const& evaluate() const
+        bool operator==(InputHandle const& rhs) const
         {
-            if (!value_.has_value())
+            return control_.lock() == rhs.control_.lock();
+        }
+
+        bool operator!=(InputHandle const& rhs) const
+        {
+            return control_.lock() != rhs.control_.lock();
+        }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        void set(Us&&... us)
+        {
+            if (auto control = control_.lock())
             {
-                auto lock = deferred_->lock();
-                value_ = btl::clone(deferred_->evaluate(lock));
+                std::unique_lock lock(control->mutex);
+                control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
+                ++control->index;
             }
-
-            return *value_;
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        void set(Signal<Weak<Ts...>, Ts...> sig)
         {
-            if (frameId_ == frame.getFrameId())
-                return std::nullopt;
-
-            frameId_ = frame.getFrameId();
-
-            auto lock = deferred_->lock();
-            return deferred_->updateBegin(lock, frame);
-        }
-
-        UpdateResult updateEnd(FrameInfo const& frame)
-        {
-            auto lock = deferred_->lock();
-            auto r = deferred_->updateEnd(lock, frame);
-
-            changed_ = deferred_->hasChanged(lock, tag_);
-
-            if (changed_ || !value_.has_value())
-                value_ = btl::clone(deferred_->evaluate(lock));
-            tag_ = deferred_->getTag(lock);
-
-            return r;
-        }
-
-        bool hasChanged() const
-        {
-            return changed_;
-        };
-
-        Connection observe(Callback const& callback)
-        {
-            return deferred_->observe(callback);
-        }
-
-        Annotation annotate() const
-        {
-            Annotation a;
-            auto&& n = a.addNode("input<" + btl::demangle<T>() + "> changed: "
-                    + std::to_string(hasChanged()));
-            a.addShared(deferred_.get(), n, deferred_->annotate());
-            return a;
-        }
-
-        InputSignal clone() const
-        {
-            return *this;
+            if (auto control = control_.lock())
+            {
+                std::unique_lock lock(control->mutex);
+                control->sig = std::move(sig).unwrap();
+                control->sigData = control->sig->initialize();
+                control->value = control->sig->evaluate(*control->sigData);
+                ++control->index;
+            }
         }
 
     private:
-        friend struct Input<T, TLock>;
-
-        std::shared_ptr<InputDeferredValue<T, TLock>> deferred_;
-        uint64_t frameId_ = 0;
-        uint32_t tag_ = 0;
-        mutable std::optional<T> value_;
-        bool changed_ = false;
+        std::weak_ptr<InputControl<Ts...>> control_;
     };
 
-    template <typename T, typename TLock>
-    struct Input final
+    template <typename... Ts>
+    class InputSignal
     {
-        Input(InputSignal<T, TLock> sig) :
-            handle(sig.deferred_),
-            signal(share(wrap(std::move(sig))))
+    public:
+        struct DataType
+        {
+            SignalResult<Ts...> value;
+            uint64_t index = 0;
+        };
+
+        InputSignal(std::shared_ptr<InputControl<Ts...>> control) :
+            control_(std::move(control))
         {
         }
 
-        Input(Input const&) = default;
-        Input(Input&&) noexcept = default;
+        DataType initialize() const
+        {
+            std::unique_lock lock(control_->mutex);
 
-        Input& operator=(Input const&) = default;
-        Input& operator=(Input&&) noexcept = default;
+            return {
+                control_->value,
+                control_->index
+            };
+        }
 
-        InputHandle<T, TLock> handle;
-        SharedSignal<InputSignal<T, TLock>, T> signal;
+        SignalResult<Ts const&...> evaluate(DataType const& data) const
+        {
+            return data.value;
+        }
+
+        UpdateResult update(DataType& data, FrameInfo const& frame)
+        {
+            std::unique_lock lock(control_->mutex);
+
+            bool newFrame = frame.getFrameId() > control_->frameId;
+            control_->frameId = frame.getFrameId();
+
+            if (newFrame)
+                control_->time += frame.getDeltaTime();
+
+            if (newFrame && control_->sig && control_->sigData)
+            {
+                auto r = control_->sig->update(*control_->sigData, frame);
+                if (r.didChange)
+                {
+                    control_->value = control_->sig->evaluate(*control_->sigData);
+                    ++control_->index;
+                }
+
+                control_->updateTime.reset();
+                if (r.nextUpdate)
+                    control_->updateTime = control_->time + *r.nextUpdate;
+            }
+
+            bool hasChanged = (data.index < control_->index);
+            if (hasChanged)
+            {
+                data.value = control_->value;
+                data.index = control_->index;
+            }
+
+            if (control_->updateTime)
+            {
+                return {
+                    *control_->updateTime - control_->time,
+                    hasChanged
+                };
+            }
+
+            return { std::nullopt, hasChanged };
+        }
+
+        template <typename TCallback>
+        Connection observe(DataType&, TCallback&& callback)
+        {
+            std::unique_lock lock(control_->mutex);
+            if (control_->sig && control_->sigData)
+            {
+                return control_->sig->observe(
+                        *control_->sigData,
+                        std::forward<TCallback>(callback)
+                        );
+            }
+
+            return {};
+        }
+
+    private:
+        std::shared_ptr<InputControl<Ts...>> control_;
     };
 
-    template <typename T, typename TLock = btl::DummyLock>
-    constexpr Input<T, TLock> input(T initial)
+    template <typename TSignal, typename THandle>
+    struct Input
     {
-        auto sig = InputSignal<T, TLock>(
-                    std::make_shared<InputDeferredValue<T, TLock>>(
-                        std::move(initial)
-                    ));
+    };
 
-        return Input<T, TLock>(std::move(sig));
+    template <typename... Ts, typename... Us>
+    struct Input<SignalResult<Ts...>, SignalResult<Us...>>
+    {
+        Signal<InputSignal<Ts...>, Ts...> signal;
+        InputHandle<Us...> handle;
+    };
+
+    template <typename... Ts>
+    Input<SignalResult<std::decay_t<Ts>...>, SignalResult<std::decay_t<Ts>...>>
+    makeInput(Ts&&... ts)
+    {
+        auto control = std::make_shared<InputControl<std::decay_t<Ts>...>>(
+                std::make_tuple(std::forward<Ts>(ts)...));
+
+        InputHandle<std::decay_t<Ts>...> handle(control);
+        auto sig = wrap(InputSignal<std::decay_t<Ts>...>(std::move(control)));
+
+        return {
+            std::move(sig),
+            std::move(handle)
+        };
     }
 
-} // reactive::signal
+    template <typename... Ts>
+    struct IsSignal<InputSignal<Ts...>> : std::true_type {};
+} // namespace reactive::signal
 

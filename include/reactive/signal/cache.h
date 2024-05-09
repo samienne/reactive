@@ -1,122 +1,65 @@
 #pragma once
 
-#include "constant.h"
 #include "signaltraits.h"
-#include "signal.h"
-
-#include <btl/spinlock.h>
-#include <btl/hidden.h>
+#include "updateresult.h"
+#include "frameinfo.h"
+#include "reactive/connection.h"
 
 namespace reactive::signal
 {
-    template <typename TStorage>
-    class Cache;
-
-    template <typename TStorage>
-    struct IsSignal<Cache<TStorage>> : std::true_type {};
-
-    template <typename TStorage>
+    template <typename TSignal>
     class Cache
     {
     public:
-        using ValueType = std::decay_t<SignalType<TStorage>>;
-        using Lock = std::lock_guard<btl::SpinLock>;
+        using ResultType = SignalTypeT<TSignal>;
 
-        Cache(TStorage sig) :
+        struct DataType
+        {
+            DataType(TSignal const& sig) :
+                innerData(sig.initialize()),
+                value(sig.evaluate(innerData))
+            {
+            }
+
+            SignalDataTypeT<TSignal> innerData;
+            ResultType value;
+        };
+
+        Cache(TSignal sig) :
             sig_(std::move(sig))
         {
         }
 
-    private:
-        Cache(Cache const&) = default;
-        Cache& operator=(Cache const&) = default;
-
-    public:
-        Cache(Cache&&) noexcept = default;
-        Cache& operator=(Cache&&) noexcept = default;
-
-        ValueType const& evaluate() const
+        DataType initialize() const
         {
-            if (!value_.has_value())
-                value_ = btl::clone(sig_->evaluate());
-
-            return *value_;
+            return { sig_ };
         }
 
-        bool hasChanged() const
+        auto evaluate(DataType const& data) const
         {
-            return changed_;
+            return data.value;
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        UpdateResult update(DataType& data, FrameInfo const& frame)
         {
-            return sig_->updateBegin(frame);
-        }
-
-        UpdateResult updateEnd(FrameInfo const& frame)
-        {
-            auto r = sig_->updateEnd(frame);
-
-            changed_ = sig_->hasChanged();
-            if (changed_)
-                value_ = std::nullopt;
+            auto r = sig_.update(data.innerData, frame);
+            if (r.didChange)
+                data.value = sig_.evaluate(data.innerData);
 
             return r;
         }
 
-        template <typename TFunc>
-        Connection observe(TFunc&& callback)
+        template <typename TCallback>
+        Connection observe(DataType& data, TCallback&& callback)
         {
-            return sig_->observe(std::forward<TFunc>(callback));
-        }
-
-        Annotation annotate() const
-        {
-            Annotation a;
-            auto&& n = a.addNode("cache() changed: "
-                    + std::to_string(hasChanged()));
-            a.addTree(n, sig_->annotate());
-            return a;
-        }
-
-        Cache clone() const
-        {
-            return *this;
+            return sig_.observe(data.innerData, std::forward<TCallback>(callback));
         }
 
     private:
-        btl::CloneOnCopy<std::decay_t<TStorage>> sig_;
-        mutable std::optional<ValueType> value_;
-        bool changed_ = false;
+        TSignal sig_;
     };
 
-    template <typename T, typename U, std::enable_if_t<
-        std::is_reference<SignalType<U>>::value
-        , int> = 0>
-    auto cache(Signal<U, T>&& sig)
-    {
-        return std::move(sig);
-    }
-
-    template <typename T, typename U, std::enable_if_t<
-        !std::is_reference<SignalType<U>>::value
-        , int> = 0>
-    auto cache(Signal<U, T>&& sig)
-    {
-        return wrap(Cache<U>(std::move(sig).storage()));
-    }
-
     template <typename T>
-    auto cache(Signal<void, T>&& sig) -> AnySignal<T>
-    {
-        if (sig.isCached())
-            return std::move(sig);
-        else
-        {
-            return wrap(Cache<AnySignal<T>>(
-                        std::move(sig))
-                    );
-        }
-    }
+    struct IsSignal<Cache<T>> : std::true_type {};
 } // namespace reactive::signal
 

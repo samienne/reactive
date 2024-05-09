@@ -4,7 +4,6 @@
 #include "widget/widget.h"
 
 #include <reactive/signal/signal.h>
-#include <reactive/signal/inputhandle.h>
 
 #include <ase/hoverevent.h>
 
@@ -12,8 +11,8 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onHover(
-        AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
-        AnySignal<avg::Obb> area)
+        signal::AnySignal<std::function<void(reactive::HoverEvent const&)>> cb,
+        signal::AnySignal<avg::Obb> area)
 {
     auto id = btl::makeUniqueId();
 
@@ -44,7 +43,7 @@ AnyWidgetModifier onHover(
             ));
 }
 
-AnyWidgetModifier onHover(AnySignal<
+AnyWidgetModifier onHover(signal::AnySignal<
         std::function<void(reactive::HoverEvent const&)>
         > cb)
 {
@@ -95,7 +94,8 @@ AnyWidgetModifier onHover(signal::InputHandle<bool> handle)
             );
 }
 
-AnyWidgetModifier onHover(AnySignal<avg::Obb> obb, signal::InputHandle<bool> handle)
+AnyWidgetModifier onHover(signal::AnySignal<avg::Obb> obb,
+        signal::InputHandle<bool> handle)
 {
     return makeWidgetModifier([](auto widget, auto obb, auto handle)
         {

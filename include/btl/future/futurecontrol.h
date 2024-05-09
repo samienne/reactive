@@ -183,8 +183,6 @@ namespace btl::future
 
             LockType lock(mutex_);
 
-            ready_.load(std::memory_order_acquire);
-
             // Check if the value was set between calling ready() and
             // locking the mutex..
             if (!std::holds_alternative<std::monostate>(value_))

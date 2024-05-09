@@ -4,7 +4,6 @@
 #include "updateresult.h"
 #include "signalresult.h"
 
-#include "reactive/annotation.h"
 #include "reactive/connection.h"
 
 #include <btl/cloneoncopy.h>
@@ -13,101 +12,127 @@
 
 #include <functional>
 #include <type_traits>
-#include <chrono>
-#include <optional>
 
 namespace reactive::signal
 {
     template <typename T>
-    using decay_t = typename std::decay<T>::type;
+    using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize());
 
     template <typename T>
-    using evaluate_t = decltype(std::declval<decay_t<T> const&>().evaluate());
+    using evaluate_t = decltype(std::declval<std::decay_t<T> const&>().evaluate(
+                std::declval<std::decay_t<initialize_t<T>>&>()
+                ));
 
     template <typename T>
-    using updateBegin_t = decltype(
-            std::declval<decay_t<T>>().updateBegin(
-                std::declval<signal::FrameInfo const>())
-            );
-
-    template <typename T>
-    using updateEnd_t = decltype(
-            std::declval<decay_t<T>>().updateEnd(
-                std::declval<signal::FrameInfo const>())
-            );
-
-    template <typename T>
-    using hasChanged_t = decltype(
-            std::declval<const decay_t<T>&>().hasChanged()
+    using update_t = decltype(
+            std::declval<std::decay_t<T>>().update(
+                std::declval<std::decay_t<initialize_t<T>>&>(),
+                std::declval<FrameInfo const>())
             );
 
     template <typename T>
     using observe_t = decltype(
-            std::declval<decay_t<T>>().observe(std::function<void()>())
+            std::declval<std::decay_t<T>>().observe(
+                std::declval<std::decay_t<initialize_t<T>>&>(),
+                std::function<void()>()
+                )
             );
-
-    template <typename T>
-    using annotate_t = decltype(std::declval<const decay_t<T>&>().annotate());
 
     template <typename T, typename = void>
     struct CheckSignal : std::false_type {};
 
-    /**
-     * updateBegin can only call updateBegin.
-     * updateBegin can be called multiple times without calling updateEnd.
-     * Only updateEnd can be called after updateBegin.
-     * Other functions can be called after updateEnd.
-     * frame parameter in updateEnd must match previously called updateBegin.
-     */
     template <typename T>
     struct CheckSignal<T, btl::void_t<
+        initialize_t<T>,
         evaluate_t<T>,
-        updateBegin_t<T>,
-        updateEnd_t<T>,
-        hasChanged_t<T>,
+        update_t<T>,
         observe_t<T>
         >> : btl::All<
-            std::is_same<bool, hasChanged_t<T>>,
-            std::is_same<signal::UpdateResult, updateBegin_t<T>>,
-            std::is_same<signal::UpdateResult, updateEnd_t<T>>,
+            std::is_same<UpdateResult, update_t<T>>,
             std::is_same<Connection, observe_t<T>>,
-            std::is_same<Annotation, annotate_t<T>>,
             std::is_nothrow_move_constructible<std::decay_t<T>>,
-            //std::is_nothrow_move_assignable<std::decay_t<T>>,
-            btl::IsClonable<std::decay_t<T>>
+            std::is_copy_constructible<std::decay_t<T>>,
+            std::is_copy_assignable<std::decay_t<T>>
         > {};
 
     template <typename T>
-    /*struct IsSignal : std::conditional_t<
-        std::is_reference<T>::value,
-        IsSignal<std::decay_t<T>>,
-        std::false_type> {};*/
-    struct IsSignal : CheckSignal<T> {};
+    constexpr bool checkSignal()
+    {
+        static_assert(IsSignalResult<std::decay_t<evaluate_t<T>>>::value);
+        static_assert(std::is_same_v<UpdateResult, update_t<T>>);
+        static_assert(std::is_same_v<Connection, observe_t<T>>);
+        static_assert(std::is_nothrow_move_constructible_v<std::decay_t<T>>);
+        static_assert(std::is_copy_constructible_v<std::decay_t<T>>);
+        static_assert(std::is_copy_assignable_v<std::decay_t<T>>);
+
+        return CheckSignal<T>::value;
+    }
 
     template <typename T>
-    struct IsSharedSignal :
-        btl::All<
-            IsSignal<T>,
-            std::is_copy_constructible<T>
-        >{};
+    struct IsSignal : CheckSignal<T> {};
+
+    template <typename TSignal>
+    struct SignalDataType : std::decay<decltype(std::declval<TSignal>()
+            .initialize())>
+    {
+    };
+
+    template <typename T, typename... Ts>
+    class Signal;
 
     template <typename... Ts>
-    struct AreSignals : btl::All<IsSignal<Ts>...> {};
+    class AnySignal;
 
-    template <typename TSignal, typename = typename std::enable_if
-        <
-            IsSignal<TSignal>::value
-        >::type>
+    template <typename T, typename... Ts>
+    struct SignalDataType<Signal<T, Ts...>>
+    {
+        using type = std::decay_t<
+            decltype(std::declval<Signal<T, Ts...>>().unwrap().initialize())
+            >;
+    };
+
+    template <typename... Ts>
+    struct SignalDataType<AnySignal<Ts...>> : SignalDataType<Signal<void, Ts...>>
+    {
+    };
+
+    template <typename TSignal>
+    using SignalDataTypeT = typename SignalDataType<TSignal>::type;
+
+    template <typename TSignal>
     struct SignalValueType
     {
-        using type = decay_t<decltype(std::declval<std::decay_t<TSignal>>().evaluate())>;
+        using type = std::decay_t<decltype(std::declval<std::decay_t<TSignal>>()
+                .evaluate(std::declval<SignalDataTypeT<TSignal>>))>;
     };
 
     template <typename TSignal>
     using signal_value_t = typename SignalValueType<TSignal>::type;
 
     template <typename TSignal>
-    using SignalType = decltype(std::declval<std::decay_t<TSignal>>().evaluate());
+    using SignalTypeT = decltype(std::declval<std::decay_t<TSignal> const&>()
+            .evaluate(std::declval<SignalDataTypeT<TSignal> const&>())
+            );
+
+    template <typename T>
+    struct SingleSignalType
+    {
+    };
+
+    template <typename T, typename U>
+    struct SingleSignalType<Signal<T, U>>
+    {
+        using type = U;
+    };
+
+    template <typename T>
+    struct SingleSignalType<AnySignal<T>>
+    {
+        using type = T;
+    };
+
+    template <typename T>
+    using SingleSignalTypeT = typename SingleSignalType<T>::type;
 
     namespace detail
     {
@@ -124,12 +149,47 @@ namespace reactive::signal
 
 
     template <typename TSignal, typename... Ts>
-    using IsSignalType = detail::CheckSignalType<TSignal, SignalType<TSignal>, Ts...>;
+    using IsSignalType = detail::CheckSignalType<TSignal, SignalTypeT<TSignal>, Ts...>;
 
     template <typename T, typename TSignature>
     using IsFunction = std::is_convertible<
             std::decay_t<T>,
             std::function<TSignature>
             >;
-}
+
+    template <typename T>
+    struct DecaySignalResult
+    {
+    };
+
+    template <typename... Ts>
+    struct DecaySignalResult<SignalResult<Ts...>>
+    {
+        using type = SignalResult<std::decay_t<Ts>...>;
+    };
+
+    template <typename T>
+    using DecaySignalResultT = typename DecaySignalResult<T>::type;
+
+    template <typename... Ts>
+    struct ConcatSignalResults
+    {
+    };
+
+    template <typename... Ts>
+    struct ConcatSignalResults<SignalResult<Ts...>>
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename... Ts, typename... Us, typename... Vs>
+    struct ConcatSignalResults<SignalResult<Ts...>, SignalResult<Us...>, Vs...>
+    {
+        using type = typename ConcatSignalResults<
+            SignalResult<Ts..., Us...>, Vs...>::type;
+    };
+
+    template <typename... Ts>
+    using ConcatSignalResultsT = typename ConcatSignalResults<Ts...>::type;
+} // namespace reactive::signal
 

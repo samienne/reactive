@@ -8,7 +8,9 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyInstanceModifier transformBuilder(AnySignal<avg::Transform> t);
-    REACTIVE_EXPORT AnyWidgetModifier transform(AnySignal<avg::Transform> t);
+    REACTIVE_EXPORT AnyInstanceModifier transformBuilder(
+            signal::AnySignal<avg::Transform> t);
+    REACTIVE_EXPORT AnyWidgetModifier transform(
+            signal::AnySignal<avg::Transform> t);
 } // namespace reactive::widget
 

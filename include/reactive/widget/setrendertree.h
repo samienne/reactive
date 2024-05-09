@@ -2,7 +2,6 @@
 
 #include "instancemodifier.h"
 
-#include "reactive/signal/group.h"
 #include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
@@ -12,7 +11,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setRenderTree(Signal<T, avg::RenderTree> renderTree)
+    auto setRenderTree(signal::Signal<T, avg::RenderTree> renderTree)
     {
         return makeInstanceModifier([](Instance instance, avg::RenderTree renderTree)
                 -> Instance

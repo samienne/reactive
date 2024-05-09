@@ -6,8 +6,6 @@
 
 #include "reactive/inputresult.h"
 
-#include <reactive/signal/convert.h>
-#include <reactive/signal/map.h>
 #include <reactive/signal/signal.h>
 
 #include <ase/keyevent.h>
@@ -16,24 +14,25 @@ namespace reactive::widget
 {
 
 OnKeyEvent::OnKeyEvent(
-        signal::Convert<std::function<bool(ase::KeyEvent const&)>> predicate,
-        signal::Convert<std::function<void(ase::KeyEvent const&)>> action) :
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
+        signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) :
     predicate_(std::move(predicate)),
     action_(std::move(action))
 {
 }
 
 OnKeyEvent OnKeyEvent::acceptIf(
-        signal::Convert<std::function<bool(ase::KeyEvent const&)>>
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
         predicate) &&
 {
-    *predicate_ = signal::mapFunction([](
+    predicate_ = merge(std::move(predicate_), std::move(predicate))
+        .bindToFunction([](
             std::function<bool(ase::KeyEvent const&)> const& pred1,
             std::function<bool(ase::KeyEvent const&)> const& pred2,
             ase::KeyEvent const& e)
         {
             return pred1(e) || pred2(e);
-        }, std::move(*predicate_), std::move(predicate));
+        });
 
     return std::move(*this);
 }
@@ -46,7 +45,7 @@ OnKeyEvent OnKeyEvent::acceptIf(
 }
 
 OnKeyEvent OnKeyEvent::acceptIfNot(
-        signal::Convert<std::function<bool(ase::KeyEvent const&)>>
+        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
         predicate) &&
 {
     auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -56,8 +55,7 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
     };
 
     return std::move(*this)
-        .acceptIf(signal::mapFunction(std::move(inverse),
-                    std::move(predicate)));
+        .acceptIf(std::move(predicate).bindToFunction(std::move(inverse)));
 }
 
 OnKeyEvent OnKeyEvent::acceptIfNot(
@@ -69,16 +67,17 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
 }
 
 OnKeyEvent OnKeyEvent::action(
-        AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
+        signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
 {
-    *action_ = signal::mapFunction([](
+    action_ = merge(std::move(action_), std::move(action))
+        .bindToFunction([](
                 std::function<void(ase::KeyEvent const&)> action1,
                 std::function<void(ase::KeyEvent const&)> action2,
                 ase::KeyEvent const& e)
             {
                 action1(e);
                 action2(e);
-            }, std::move(*action_), std::move(action));
+            });
 
     return std::move(*this);
 }
@@ -122,7 +121,7 @@ AnyWidgetModifier onKeyEvent(std::function<InputResult(ase::KeyEvent const&)> cb
             ));
 }
 
-AnyWidgetModifier onKeyEvent(AnySignal<std::function<InputResult(
+AnyWidgetModifier onKeyEvent(signal::AnySignal<std::function<InputResult(
             ase::KeyEvent const&)>> cb)
 {
     return makeWidgetModifier(makeInstanceSignalModifier(

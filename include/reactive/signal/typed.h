@@ -1,199 +1,181 @@
 #pragma once
 
-#include "signalbase.h"
+#include "signalresult.h"
+#include "updateresult.h"
+#include "frameinfo.h"
+#include "signaltraits.h"
 
-#include <iostream>
+#include <btl/connection.h>
+
+#include <memory>
 
 namespace reactive::signal
 {
-    template <typename TSignal, typename... Ts>
-    class Signal;
-
-    template <typename TSignal, typename... Ts>
-    struct IsSignal<Signal<TSignal, Ts...>> : std::true_type {};
-
-    template <typename TDeferred, typename... Ts>
-    class Share;
-
-    template <typename TSignal, typename... Ts>
-    class Typed;
-
-    template <typename TDeferred, typename T>
-    struct IsSignal<Share<TDeferred, T>> : std::true_type {};
-
-    template <typename TSignal, typename T>
-    struct IsSignal<Typed<TSignal, T>> : std::true_type {};
-
-    template <typename TDeferred, typename... Ts>
-    class Share
+    template <typename... Ts>
+    class SignalBase
     {
     public:
-        Share(std::shared_ptr<TDeferred> deferred) :
-            control_(std::move(deferred))
+        struct DataBase
         {
-        }
+            virtual ~DataBase() = default;
+        };
 
-        Share(Share const&) = default;
-        Share& operator=(Share const&) = default;
-        Share(Share&&) noexcept = default;
-        Share& operator=(Share&&) noexcept = default;
-
-        auto evaluate() const -> decltype(auto)
+        struct DataType
         {
-            return control_->evaluate();
-        }
+            std::unique_ptr<DataBase> data;
+        };
 
-        bool hasChanged() const
-        {
-            return control_->hasChanged();
-        }
+        virtual ~SignalBase() = default;
 
-        UpdateResult updateBegin(FrameInfo const& frame)
-        {
-            return control_->updateBegin(frame);
-        }
-
-        UpdateResult updateEnd(FrameInfo const& frame)
-        {
-            return control_->updateEnd(frame);
-        }
-
-        template <typename TFunc>
-        Connection observe(TFunc&& callback)
-        {
-            return control_->observe(std::forward<TFunc>(callback));
-        }
-
-        Annotation annotate() const
-        {
-            Annotation a;
-            return a;
-        }
-
-        Share clone() const
-        {
-            return *this;
-        }
-
-        using ValueType = decltype(std::declval<TDeferred>().evaluate());
-
-        std::weak_ptr<SignalBase<ValueType>> weak() const
-        {
-            return control_.ptr();
-        }
-
-        std::shared_ptr<SignalBase<ValueType>> ptr() const &
-        {
-            return control_.ptr();
-        }
-
-        std::shared_ptr<SignalBase<ValueType>> ptr() &&
-        {
-            return std::move(control_.ptr());
-        }
-
-    private:
-        btl::shared<TDeferred> control_;
+        virtual std::unique_ptr<DataBase> initialize() const = 0;
+        virtual SignalResult<Ts...> evaluate(DataBase const& data) const = 0;
+        virtual UpdateResult update(DataBase& data, FrameInfo const& frame) = 0;
+        virtual btl::connection observe(DataBase& data,
+                std::function<void()> callback) = 0;
     };
 
-    template <typename TSignal, typename... Ts>
-    class Typed final : public SignalBase<Ts...>
+    template <typename TStorage, typename... Ts>
+    class SignalTyped : public SignalBase<Ts...>
     {
     public:
-        using Lock = std::lock_guard<btl::SpinLock>;
+        using BaseDataType = typename SignalBase<Ts...>::DataBase;
+        using StorageDataType = typename TStorage::DataType;
 
-        /*
-        static_assert(
-                !std::is_reference<T>::value
-                || ( std::is_reference<T>::value
-                    && std::is_reference<SignalType<TSignal>>::value),
-                "");
-                */
+        struct DataType : BaseDataType
+        {
+            DataType(typename TStorage::DataType data) :
+                data(std::move(data))
+            {
+            }
 
-        Typed(TSignal&& sig) :
+            StorageDataType data;
+        };
+
+        SignalTyped(TStorage sig) :
             sig_(std::move(sig))
         {
         }
 
-        ~Typed()
+        std::unique_ptr<BaseDataType> initialize() const override
         {
+            return { std::make_unique<DataType>(sig_.initialize()) };
         }
 
-        typename detail::SignalBaseResult<Ts...>::type evaluate() const override final
+        SignalResult<Ts...> evaluate(
+                BaseDataType const& baseData) const override
         {
-            return sig_.evaluate();
+            return sig_.evaluate(getStorageData(baseData));
         }
 
-        bool hasChanged() const override final
+        UpdateResult update(BaseDataType& baseData,
+                FrameInfo const& frame) override
         {
-            return sig_.hasChanged();
+            return sig_.update(getStorageData(baseData), frame);
         }
 
-        std::optional<signal_time_t> updateBegin(FrameInfo const& frame)
-            override final
+        btl::connection observe(BaseDataType& data,
+                std::function<void()> callback) override
         {
-            if (frameId_ == frame.getFrameId())
-                return std::nullopt;
-
-            frameId_ = frame.getFrameId();
-            return sig_.updateBegin(frame);
-        }
-
-        std::optional<signal_time_t> updateEnd(FrameInfo const& frame)
-            override final
-        {
-            std::optional<signal_time_t> r = std::nullopt;
-            if(frameId_ != frame.getFrameId())
-                r = sig_.updateBegin(frame);
-
-            if (frameId2_ == frame.getFrameId())
-                return std::nullopt;
-
-            frameId2_ = frame.getFrameId();
-            auto r2 = sig_.updateEnd(frame);
-
-            if (!r2.has_value())
-                return r;
-            else if(!r.has_value())
-                return r2;
-            else
-                return std::min(r2, r);
-        }
-
-        btl::connection observe(
-                std::function<void()> const& callback) override final
-        {
-            return sig_.observe(callback);
-        }
-
-        Annotation annotate() const override final
-        {
-            return Annotation();
-        }
-
-        bool isCached() const override
-        {
-            return std::is_reference<SignalType<TSignal>>::value;
+            return sig_.observe(getStorageData(data), std::move(callback));
         }
 
     private:
-        TSignal sig_;
-        uint64_t frameId_ = 0;
-        uint64_t frameId2_ = 0;
+        static StorageDataType& getStorageData(BaseDataType& data)
+        {
+            return static_cast<DataType&>(data).data;
+        }
+
+        static StorageDataType const& getStorageData(BaseDataType const& data)
+        {
+            return static_cast<DataType const&>(data).data;
+        }
+
+    private:
+        TStorage sig_;
     };
 
-    template <typename... Ts, typename U, typename... Vs>
-    auto typed(Signal<U, Vs...> sig)
+    template <typename... Ts>
+    class SignalTypeless
     {
-        return Share<SignalBase<Ts...>, Ts...>(
-                    std::make_shared<Typed<Signal<U, Vs...>, Ts...>>(std::move(sig))
-                    );
-    }
+    public:
+        using DataType = typename SignalBase<Ts...>::DataType;
+
+        SignalTypeless(std::shared_ptr<SignalBase<Ts...>> sig) :
+            sig_(std::move(sig))
+        {
+        }
+
+        SignalTypeless(SignalTypeless const&) = default;
+        SignalTypeless(SignalTypeless&&) noexcept = default;
+
+        SignalTypeless& operator=(SignalTypeless const&) = default;
+        SignalTypeless& operator=(SignalTypeless&&) noexcept = default;
+
+        DataType initialize() const
+        {
+            return { sig_->initialize() };
+        }
+
+        auto evaluate(DataType const& data) const
+        {
+            return sig_->evaluate(*data.data);
+        }
+
+        UpdateResult update(DataType& data, FrameInfo const& frame)
+        {
+            return sig_->update(*data.data, frame);
+        }
+
+        template <typename TCallback>
+        btl::connection observe(DataType& data, TCallback&& callback)
+        {
+            return sig_->observe(*data.data, std::forward<TCallback>(callback));
+        }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Ts, Us>...)
+            >>
+        SignalTypeless<Us...> cast() const
+        {
+            return { std::make_shared<SignalTyped<SignalTypeless<Ts...>, Us...>>>(
+                    *this) };
+        }
+
+    private:
+        std::shared_ptr<SignalBase<Ts...>> sig_;
+    };
 
     template <typename... Ts>
-    auto typed(Signal<void, Ts...> sig)
+    struct IsSignal<SignalTypeless<Ts...>> : std::true_type {};
+
+    template <typename TStorage, typename... Ts>
+    class Signal;
+
+    template <typename... Ts, typename TStorage, typename... Us, typename =
+        std::enable_if_t<btl::all(std::is_convertible_v<Us, Ts>...)>
+        >
+    auto makeTypedSignal(Signal<TStorage, Us...> sig)
     {
-        return sig.storage();
+        using StorageType = std::decay_t<decltype(sig.unwrap())>;
+        return std::make_shared<SignalTyped<StorageType, Ts...>>(sig.unwrap());
     }
-} // reactive::signal
+
+    template <typename... Ts, typename TStorage, typename... Us, typename =
+        std::enable_if_t<btl::all(std::is_convertible_v<Us, Ts>...)>
+        >
+    auto makeTypelessSignal(Signal<TStorage, Us...> sig)
+    {
+        using StorageType = std::decay_t<decltype(sig.unwrap())>;
+        if constexpr (std::is_same_v<StorageType, SignalTypeless<Ts...>>)
+        {
+            return std::move(sig).unwrap();
+        }
+        else
+        {
+            return SignalTypeless<Ts...>(
+                    makeTypedSignal<Ts...>(std::move(sig))
+                    );
+        }
+    }
+} // namespace reactive::signal
 

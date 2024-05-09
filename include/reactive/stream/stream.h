@@ -63,6 +63,8 @@ namespace reactive
                         }
                     };
 
+                newControl->upstream = std::move(control_);
+
                 return SharedStream<T>(std::move(newControl));
             }
 

@@ -34,12 +34,7 @@
 #include <reactive/vbox.h>
 #include <reactive/withanimation.h>
 
-#include <reactive/signal/tostring.h>
-#include <reactive/signal/constant.h>
-#include <reactive/signal/input.h>
 #include <reactive/signal/signal.h>
-
-#include <reactive/signal/map.h>
 
 #include <avg/curve/curves.h>
 
@@ -72,27 +67,23 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
 
 int main()
 {
-    auto textState = signal::input(widget::TextEditState{"Test123"});
+    auto textState = signal::makeInput(widget::TextEditState{"Test123"});
 
-    auto hScrollState = signal::input(0.5f);
-    auto vScrollState = signal::input(0.5f);
+    auto hScrollState = signal::makeInput(0.5f);
+    auto vScrollState = signal::makeInput(0.5f);
 
-    auto curveSelection = signal::input(0);
-    auto curve = signal::map([](int i)
+    auto curveSelection = signal::makeInput(0);
+    auto curve = curveSelection.signal.map([](int i)
             {
                 return curves.at(i).second;
-            },
-            curveSelection.signal
-            );
+            });
 
-    auto curveName = signal::map([](int i) -> std::string
+    auto curveName = curveSelection.signal.map([](int i) -> std::string
             {
                 return curves.at(i).first;
-            },
-            curveSelection.signal
-            );
+            });
 
-    auto m = signal::input<bool>(true);
+    auto m = signal::makeInput<bool>(true);
     auto margin = m.signal.clone().map([](bool b) { return b ? 10.0f : 50.0f; });
     auto color = m.signal.clone().map([](bool b)
             {
@@ -119,25 +110,20 @@ int main()
             shape::rectangle()
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | widget::margin(std::move(margin))
-                | widget::onClick(0, signal::mapFunction([h=m.handle](bool b) mutable
+                | widget::onClick(0, m.signal.bindToFunction([h=m.handle](bool b) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
-                    },
-                    std::move(m.signal)
-                    ))
+                    }).cast<std::function<void()>>())
                 | widget::setSizeHint(signal::constant(simpleSizeHint(100.0f, 200.0))),
             widget::label("Curves")
                 | widget::frame(),
             curveVisualizer(std::move(curve)),
-            widget::button(std::move(curveName), signal::mapFunction(
+            widget::button(std::move(curveName), curveSelection.signal.bindToFunction(
                         [handle=curveSelection.handle](int i) mutable
                         {
                             handle.set((i+1) % curves.size());
-                        },
-                        std::move(curveSelection.signal)
-                        )
-                    ),
+                        })),
             vfiller()
         })
         , vbox({
@@ -150,12 +136,12 @@ int main()
                 , widget::label("AbcTest")
                     | widget::frame()
                 , widget::textEdit(textState.handle,
-                        signal::cast<widget::TextEditState>(textState.signal))
+                        textState.signal.cast<widget::TextEditState>())
                 , reactive::vfiller()
                 , widget::hScrollBar(hScrollState.handle, hScrollState.signal,
                         signal::constant(0.0f))
-                , widget::label(toString(hScrollState.signal))
-                , widget::label(toString(vScrollState.signal))
+                , widget::label(hScrollState.signal.toString())
+                , widget::label(vScrollState.signal.toString())
                 })
         , adder()
             | widget::frame()

@@ -7,7 +7,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto requestFocus(Signal<T, bool> requestFocus)
+    auto requestFocus(signal::Signal<T, bool> requestFocus)
     {
         return makeInstanceModifier([](Instance instance, bool requestFocus)
             {

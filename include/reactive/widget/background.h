@@ -10,7 +10,8 @@ namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier background(AnyWidget bgWidget);
 
-    REACTIVE_EXPORT AnyWidgetModifier background(AnySignal<avg::Brush> brush);
+    REACTIVE_EXPORT AnyWidgetModifier background(
+            signal::AnySignal<avg::Brush> brush);
 
     REACTIVE_EXPORT AnyWidgetModifier background();
 } // namespace reactive::widget

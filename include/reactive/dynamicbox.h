@@ -12,7 +12,7 @@
 #include "box.h"
 
 #include "signal/combine.h"
-#include "signal/foldp.h"
+#include "signal/signal.h"
 
 #include <avg/rendertree.h>
 
@@ -22,19 +22,19 @@ namespace reactive
     {
         template <Axis dir, typename T, typename U, typename V>
         auto doDynamicBox(
-                Signal<T, avg::Vector2f> size,
-                Signal<U, std::vector<widget::WidgetObject>> widgets,
-                SharedSignal<V, std::vector<SizeHint>> hints
+                signal::Signal<T, avg::Vector2f> size,
+                signal::Signal<U, std::vector<widget::WidgetObject>> widgets,
+                signal::Signal<V, std::vector<SizeHint>> hints
                 )
         {
-            auto obbs = signal::map(&mapObbs<dir>, std::move(size), hints);
+            auto obbs = merge(std::move(size), hints).map(&mapObbs<dir>);
 
-            auto resultWidgets = join(map(
-                    [](std::vector<widget::WidgetObject> const& widgets,
+            auto resultWidgets = merge(widgets, obbs)
+                .map([](std::vector<widget::WidgetObject> const& widgets,
                         std::vector<avg::Obb> const& obbs)
                     {
                         assert(widgets.size() == obbs.size());
-                        std::vector<AnySignal<widget::Instance>> result;
+                        std::vector<signal::AnySignal<widget::Instance>> result;
 
                         auto i = obbs.begin();
                         for (auto& w : widgets)
@@ -48,10 +48,8 @@ namespace reactive
                         }
 
                         return combine(std::move(result));
-                    },
-                    std::move(widgets),
-                    std::move(obbs)
-                    ));
+                    })
+                .join();
 
             return widget::addWidgets(std::move(resultWidgets));
         }
@@ -59,14 +57,15 @@ namespace reactive
 
     template <Axis dir>
     widget::AnyWidget dynamicBox(
-            AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
+            signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
         return widget::makeWidget([](
                     reactive::widget::BuildParams const& params,
                     auto widgets
                     )
                 {
-                    auto widgetObjectsWithId = foldp([params](
+                    auto widgetObjectsWithId = std::move(widgets)
+                    .withPrevious([params](
                                 std::vector<std::pair<size_t, widget::WidgetObject>> initial,
                                 std::vector<std::pair<size_t, widget::AnyWidget>> widgets
                                 )
@@ -102,12 +101,11 @@ namespace reactive
 
                                 return result;
                             },
-                            std::vector<std::pair<size_t, widget::WidgetObject>>(),
-                            std::move(widgets)
+                            std::vector<std::pair<size_t, widget::WidgetObject>>()
                             );
 
-                    auto widgetObjects = share(map(
-                            [](std::vector<std::pair<size_t,
+                    auto widgetObjects = std::move(widgetObjectsWithId)
+                        .map([](std::vector<std::pair<size_t,
                                 widget::WidgetObject>> const& widgetObjects)
                             {
                                 std::vector<widget::WidgetObject> result;
@@ -115,15 +113,14 @@ namespace reactive
                                     result.push_back(widgetObject.second);
 
                                 return result;
-                            },
-                            std::move(widgetObjectsWithId)
-                            ));
+                            })
+                        .share();
 
                     // Signal<std::vector<SizeHint>>
-                    auto hints = signal::share(signal::join(signal::map(
+                    auto hints = widgetObjects.map(
                             [](std::vector<widget::WidgetObject> const& widgets)
                             {
-                                std::vector<AnySignal<SizeHint>> hints;
+                                std::vector<signal::AnySignal<SizeHint>> hints;
 
                                 for (auto const& w : widgets)
                                 {
@@ -132,24 +129,18 @@ namespace reactive
 
                                 // Signal<std::vector<SizeHint>>
                                 return signal::combine(std::move(hints));
-                            },
-                            widgetObjects
-                            )));
+                            }).join().share();
 
                     //Signal<SizeHint>
-                    auto resultHint = signal::map(
+                    auto resultHint = hints.map(
                             [](std::vector<SizeHint> hints) -> SizeHint
                             {
                                 return accumulateSizeHints<dir>(std::move(hints));
-                            },
-                            hints
-                            );
+                            });
 
                     return widget::makeWidgetWithSize(
                             [](auto size, auto hints, auto widgetObjects)
                             {
-                                //auto size = map(&widget::Instance::getSize, instance);
-
                                 return widget::makeWidget()
                                     | detail::doDynamicBox<dir>(
                                             std::move(size),
@@ -165,7 +156,7 @@ namespace reactive
                         ;
                 },
                 widget::provideBuildParams(),
-                share(std::move(widgets))
+                std::move(widgets).share()
                 )
             ;
     }

@@ -17,9 +17,9 @@
 #include <reactive/vbox.h>
 #include <reactive/hbox.h>
 #include <reactive/withanimation.h>
+#include <reactive/databind.h>
 
-#include <reactive/signal/databind.h>
-#include <reactive/signal/constant.h>
+#include <reactive/signal/signal.h>
 
 #include <avg/rendertree.h>
 
@@ -35,25 +35,21 @@ namespace
             std::function<void()> onSort
             )
     {
-        auto textState = signal::input(widget::TextEditState(""));
+        auto textState = signal::makeInput(widget::TextEditState(""));
         auto handle = textState.handle;
 
-        auto onEnterSignal = signal::share(signal::mapFunction(
+        auto onEnterSignal = textState.signal
+            .bindToFunction(
                 [onEnter, handle]
-                (widget::TextEditState const& state) mutable
+                (auto const state) mutable
                 {
                     handle.set(widget::TextEditState(""));
                     onEnter(state.text);
-                },
-                textState.signal
-                ));
+                });
 
-        auto state = signal::tee(textState.signal,
-                [](widget::TextEditState const& state)
-                {
-                    return state.text;
-                },
-                outHandle);
+        auto state = textState.signal.tee(
+                outHandle,
+                &widget::TextEditState::text);
 
         return hbox({
                 textEdit(handle, std::move(state))
@@ -77,18 +73,19 @@ reactive::widget::AnyWidget adder()
         range.pushBack("test 4");
     }
 
-    auto textInput = signal::input<std::string>("");
+    auto textInput = signal::makeInput<std::string>("");
 
     auto swapState = std::make_shared<size_t>();
 
-    auto widgets = signal::dataBind<std::string>(
+    auto widgets = dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
                 return hbox({
-                widget::button("U", signal::mapFunction([items, id]
-                    (std::string str) mutable
+                widget::button("U",
+                    textInputSignal.bindToFunction(
+                    [items, id] (std::string str) mutable
                     {
                         auto range = items.rangeLock();
                         auto i = range.findId(id);
@@ -96,11 +93,8 @@ reactive::widget::AnyWidget adder()
                         {
                             range.update(i, std::move(str));
                         }
-                    },
-                    textInputSignal.clone()
-                    ))
-                ,
-                widget::button("T", signal::mapFunction([items, id]() mutable
+                    })),
+                widget::button("T", signal::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto range = items.rangeLock();
@@ -109,7 +103,7 @@ reactive::widget::AnyWidget adder()
                         range.move(i, range.begin());
                         }))
                 ,
-                widget::button("S", signal::mapFunction(
+                widget::button("S", signal::constant(
                     [items, id, swapState]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
@@ -143,9 +137,9 @@ reactive::widget::AnyWidget adder()
             ;
             });
 
-    auto fancy = signal::input(false);
+    auto fancy = signal::makeInput(false);
 
-    auto theme = signal::map([](bool fancy)
+    auto theme = fancy.signal.map([](bool fancy)
             {
                 if (fancy)
                 {
@@ -156,19 +150,15 @@ reactive::widget::AnyWidget adder()
 
                 return widget::Theme();
 
-            },
-            fancy.signal
-            );
+            });
 
-    auto buttonTitle = signal::map([](bool fancy) -> std::string
+    auto buttonTitle = fancy.signal.map([](bool fancy) -> std::string
             {
                 if (fancy)
                     return "Fancy";
 
                 return "Normal";
-            },
-            fancy.signal
-            );
+            });
 
     return vbox({
             vbox(std::move(widgets)),
@@ -185,14 +175,12 @@ reactive::widget::AnyWidget adder()
                 ),
                 hbox({
                     widget::label("Theme:"),
-                    widget::button(std::move(buttonTitle), signal::mapFunction(
+                    widget::button(std::move(buttonTitle), fancy.signal.bindToFunction(
                         [handle=fancy.handle](bool fancy) mutable
                         {
                             auto a = withAnimation(0.3f, avg::curve::linear);
                             handle.set(!fancy);
-                        },
-                        fancy.signal
-                        ))
+                        }))
                     })
             }
         )

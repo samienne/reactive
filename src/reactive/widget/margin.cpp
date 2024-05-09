@@ -10,6 +10,7 @@
 #include <reactive/growsizehint.h>
 
 #include <reactive/signal/signal.h>
+#include <reactive/signal/merge.h>
 
 #include <avg/transform.h>
 
@@ -40,25 +41,24 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier margin(AnySignal<float> amount)
+AnyWidgetModifier margin(signal::AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
-        auto aNeg = signal::map([](float f)
+        auto aNeg = amount.map([](float f)
                 {
                     return -f;
-                }, amount);
+                });
 
-        auto t = signal::map([](float amount)
+        auto t = amount.map([](float amount)
                 {
                     return avg::translate(amount, amount);
-                }, amount);
+                });
 
         auto builderGrowSizeHint = makeBuilderModifier([](auto builder, auto amount)
                 {
-                    auto hint = signal::map(BTL_FN(growSizeHint),
-                            builder.getSizeHint(),
-                            amount);
+                    auto hint = merge(builder.getSizeHint(), amount)
+                        .map(BTL_FN(growSizeHint));
 
                     return std::move(builder)
                         .setSizeHint(std::move(hint));
@@ -72,7 +72,7 @@ AnyWidgetModifier margin(AnySignal<float> amount)
             | std::move(builderGrowSizeHint)
             ;
     },
-    signal::share(std::move(amount))
+    std::move(amount).share()
     );
 }
 

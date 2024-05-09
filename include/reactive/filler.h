@@ -4,7 +4,6 @@
 #include "widget/widget.h"
 
 #include "simplesizehint.h"
-#include "sizehint.h"
 
 namespace reactive
 {

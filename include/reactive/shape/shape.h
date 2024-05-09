@@ -5,7 +5,7 @@
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/widget.h>
 
-#include <reactive/signal/flipoptional.h>
+#include <reactive/signal/fromoptional.h>
 
 #include <avg/animated.h>
 #include <avg/brush.h>
@@ -25,19 +25,19 @@ namespace reactive::shape
     namespace detail
     {
         template <typename T>
-        auto makeShapeUncheckedFromSignal(Signal<T, avg::ShapeFunction> func);
+        auto makeShapeUncheckedFromSignal(signal::Signal<T, avg::ShapeFunction> func);
     }
 
     template <typename T>
     class Shape;
 
-    using AnyShape = Shape<AnySignal<avg::ShapeFunction>>;
+    using AnyShape = Shape<signal::AnySignal<avg::ShapeFunction>>;
 
     template <typename T, typename U, typename V>
     auto makeDrawModifier(
-            Signal<T, avg::ShapeFunction> func,
-            Signal<U, std::optional<avg::Brush>> brush,
-            Signal<V, std::optional<avg::Pen>> pen
+            signal::Signal<T, avg::ShapeFunction> func,
+            signal::Signal<U, std::optional<avg::Brush>> brush,
+            signal::Signal<V, std::optional<avg::Pen>> pen
             )
     {
         return widget::onDraw([](avg::DrawContext const& context,
@@ -68,7 +68,7 @@ namespace reactive::shape
         }
 
         template <typename U>
-        auto stroke(Signal<U, avg::Pen> pen) && // -> Widget
+        auto stroke(signal::Signal<U, avg::Pen> pen) && // -> Widget
         {
             return widget::makeWidget()
                 | makeDrawModifier(
@@ -87,7 +87,7 @@ namespace reactive::shape
         }
 
         template <typename U>
-        auto fill(Signal<U, avg::Brush> brush) && // -> Widget
+        auto fill(signal::Signal<U, avg::Brush> brush) && // -> Widget
         {
             return widget::makeWidget()
                 | makeDrawModifier(func_.clone(),
@@ -111,10 +111,10 @@ namespace reactive::shape
         }
 
         template <typename U>
-        auto strokeToShape(Signal<U, avg::Pen> pen) && // -> Shape
+        auto strokeToShape(signal::Signal<U, avg::Pen> pen) && // -> Shape
         {
             return detail::makeShapeUncheckedFromSignal(
-                    signal::group(std::move(func_), std::move(pen)).map(
+                    merge(std::move(func_), std::move(pen)).map(
                         [](avg::ShapeFunction func, avg::Pen pen)
                         {
                             return makeShapeFunction(
@@ -132,21 +132,22 @@ namespace reactive::shape
                         }));
         }
 
-        widget::AnyWidget fillAndStroke(std::optional<AnySignal<avg::Brush>> brush,
-            std::optional<AnySignal<avg::Pen>> pen) && // -> Widget
+        widget::AnyWidget fillAndStroke(
+                std::optional<signal::AnySignal<avg::Brush>> brush,
+                std::optional<signal::AnySignal<avg::Pen>> pen) && // -> Widget
         {
             return widget::makeWidget()
                 | makeDrawModifier(
                         func_.clone(),
-                        signal::flipOptional(std::move(brush)),
-                        signal::flipOptional(std::move(pen)))
+                        signal::fromOptional(std::move(brush)),
+                        signal::fromOptional(std::move(pen)))
                 ;
         }
 
         auto clip(Shape clipShape) // -> Shape
         {
             return detail::makeShapeUncheckedFromSignal(
-                    signal::group(std::move(func_), std::move(clipShape.func_))
+                    merge(std::move(func_), std::move(clipShape.func_))
                     .map([](auto lhs, auto rhs)
                         {
                             return makeShapeFunction(
@@ -181,9 +182,10 @@ namespace reactive::shape
     namespace detail
     {
         template <typename T>
-        auto makeShapeUncheckedFromSignal(Signal<T, avg::ShapeFunction> func)
+        auto makeShapeUncheckedFromSignal(
+                signal::Signal<T, avg::ShapeFunction> func)
         {
-            return Shape<Signal<T, avg::ShapeFunction>>(
+            return Shape<signal::Signal<T, avg::ShapeFunction>>(
                     ShapeBuildTag{},
                     std::move(func));
         }
@@ -192,7 +194,7 @@ namespace reactive::shape
         auto makeShapeUnchecked(TFunc&& func, Ts&&... ts)
         {
             return makeShapeUncheckedFromSignal(
-                signal::group(std::forward<Ts>(ts)...).map(
+                merge(std::forward<Ts>(ts)...).map(
                         [func=std::forward<TFunc>(func)](auto&&... values) mutable
                         {
                             return makeShapeFunction(
@@ -211,7 +213,7 @@ namespace reactive::shape
             avg::DrawContext const&,
             avg::Vector2f,
             avg::AnimatedTypeT<std::decay_t<
-                signal::SignalType<widget::ParamProviderTypeT<std::decay_t<Ts>>>
+                signal::SingleSignalTypeT<widget::ParamProviderTypeT<std::decay_t<Ts>>>
             >>...
         >>>
     auto makeShape(TFunc&& func, Ts&&... ts)

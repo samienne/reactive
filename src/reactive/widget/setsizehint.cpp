@@ -6,7 +6,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier setSizeHint(AnySignal<SizeHint>sizeHint)
+AnyWidgetModifier setSizeHint(signal::AnySignal<SizeHint>sizeHint)
 {
     return makeWidgetModifier(makeBuilderModifier([](auto builder, auto sizeHint)
     {

@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerMove(AnySignal<
+AnyWidgetModifier onPointerMove(signal::AnySignal<
         std::function<EventResult(ase::PointerMoveEvent const&)>
         > cb)
 {

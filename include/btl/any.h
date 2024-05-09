@@ -1,6 +1,7 @@
 #pragma once
 
 #include <type_traits>
+#include <utility>
 
 namespace btl
 {
@@ -17,5 +18,16 @@ namespace btl
             T,
             Any<Ts...>
         > {};
+
+    constexpr inline bool any() noexcept
+    {
+        return false;
+    }
+
+    template <typename T, typename... Ts>
+    constexpr bool any(T&& t, Ts&&... ts) noexcept
+    {
+        return std::forward<T>(t) || any(std::forward<Ts>(ts)...);
+    }
 } // btl
 

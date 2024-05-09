@@ -1,122 +1,156 @@
 #pragma once
 
-#include "signal.h"
 #include "signaltraits.h"
-
-#include <btl/hidden.h>
 
 namespace reactive::signal
 {
-    template <typename T>
-    class Weak;
+    struct DataTypeBase
+    {
+        virtual ~DataTypeBase() = default;
+    };
 
-    template <typename T>
-    struct IsSignal<Weak<T>> : std::true_type {};
-
-    template <typename T>
-    class Weak
+    template <typename... Ts>
+    class WeakControlBase
     {
     public:
-        Weak()
+        struct DataType
         {
-        }
+            std::unique_ptr<DataTypeBase> data;
+        };
 
-        Weak(std::weak_ptr<SignalBase<T>> sig) :
-            deferred_(std::move(sig))
+        virtual std::unique_ptr<DataTypeBase> initialize() const = 0;
+        virtual SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const = 0;
+        virtual UpdateResult update(DataTypeBase& data, FrameInfo const& frame) = 0;
+        virtual btl::connection observe(DataTypeBase&, std::function<void()> callback) = 0;
+    };
+
+    template <typename TSharedControl, typename... Ts>
+    class WeakControl : public WeakControlBase<Ts...>
+    {
+    public:
+        using InnerData = typename TSharedControl::DataType;
+        struct DataType : DataTypeBase
         {
-        }
-
-        template <typename U>
-        Weak(SharedSignal<U, T> const& sig) :
-            deferred_(sig.storage().weak())
-        {
-        }
-
-        auto evaluate() const
-            -> decltype(std::declval<SignalBase<T>>().evaluate())
-        {
-            auto p = deferred_.lock();
-            assert(p);
-
-            return p->evaluate();
-        }
-
-        bool hasChanged() const
-        {
-            if (auto p = deferred_.lock())
-                return p->hasChanged();
-            else
-                return false;
-        }
-
-        UpdateResult updateBegin(FrameInfo const& frame)
-        {
-            if (auto p = deferred_.lock())
-                return p->updateBegin(frame);
-            else
-                return std::nullopt;
-        }
-
-        UpdateResult updateEnd(FrameInfo const& frame)
-        {
-            if (auto p = deferred_.lock())
-                return p->updateEnd(frame);
-            else
-                return std::nullopt;
-        }
-
-        template <typename TCallback>
-        Connection observe(TCallback&& callback)
-        {
-            if (auto p = deferred_.lock())
-                return p->observe(std::forward<TCallback>(callback));
-            else
-                return Connection();
-        }
-
-        Annotation annotate() const
-        {
-            if (auto p = deferred_.lock())
+            DataType(SignalResult<Ts...> value) :
+                value(std::move(value))
             {
-                Annotation a;
-                auto&& n = a.addNode("weak()");
-                a.addShared(p.get(), n, p->annotate());
-                return a;
             }
 
-            Annotation a;
-            a.addNode("weak(disconnected)");
-            return a;
+            SignalResult<Ts...> value;
+        };
+
+        WeakControl(std::shared_ptr<TSharedControl> control) :
+            control_(control),
+            innerData_(control->initialize()),
+            currentValue_(control->evaluate(innerData_))
+        {
         }
 
-        Weak clone() const
+        virtual ~WeakControl() = default;
+
+        std::unique_ptr<DataTypeBase> initialize() const override
         {
-            return *this;
+            std::unique_lock lock(mutex_);
+
+            return std::make_unique<DataType>(currentValue_);
         }
 
-        bool operator==(Weak const& rhs) const
+        SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const override
         {
-            return deferred_.lock().get() == rhs.deferred_.lock().get();
+            return getData(data).value;
         }
 
-        bool operator!=(Weak const& rhs) const
+        UpdateResult update(DataTypeBase& baseData, FrameInfo const& frame) override
         {
-            return !(*this == rhs);
+            std::unique_lock lock(mutex_);
+
+            auto control = control_.lock();
+
+            if (!control)
+                return {};
+
+            auto& data = getData(baseData);
+
+            auto r = control->update(innerData_, frame);
+
+            if (r.didChange)
+                data.value = control->evaluate(innerData_);
+
+            return r;
         }
 
-        bool isValid() const
+        btl::connection observe(DataTypeBase&,
+                std::function<void()> callback) override
         {
-            return !deferred_.expired();
+            std::unique_lock lock(mutex_);
+            if (auto control = control_.lock())
+                return control->observe(innerData_, callback);
+
+            return {};
         }
 
     private:
-        std::weak_ptr<SignalBase<T>> deferred_;
+        static DataType const& getData(DataTypeBase const& data)
+        {
+            return static_cast<DataType const&>(data);
+        }
+
+        static DataType& getData(DataTypeBase& data)
+        {
+            return static_cast<DataType&>(data);
+        }
+
+    private:
+        mutable std::mutex mutex_;
+        std::weak_ptr<TSharedControl> control_;
+        typename TSharedControl::DataType innerData_;
+        SignalResult<Ts...> currentValue_;
     };
 
-    template <typename T, typename U>
-    auto weak(SharedSignal<U, T> const& sig) // -> Weak<T>
+    template <typename... Ts>
+    class Weak
     {
-        return wrap(Weak<T>(sig));
-    }
+    public:
+        using Control = WeakControlBase<Ts...>;
+        using DataType = typename Control::DataType;
+
+        Weak(btl::shared<WeakControlBase<Ts...>> impl) :
+            impl_(std::move(impl.ptr()))
+        {
+        }
+
+        Weak(Weak const&) = default;
+        Weak(Weak&&) noexcept = default;
+
+        Weak& operator=(Weak const&) = default;
+        Weak& operator=(Weak&&) noexcept = default;
+
+        DataType initialize() const
+        {
+            return { impl_->initialize() };
+        }
+
+        SignalResult<Ts const&...> evaluate(DataType const& data) const
+        {
+            return impl_->evaluate(*data.data);
+        }
+
+        UpdateResult update(DataType& data, FrameInfo const& frame)
+        {
+            return impl_->update(*data.data, frame);
+        }
+
+        template <typename TCallback>
+        btl::connection observe(DataType& data, TCallback&& callback)
+        {
+            return impl_->observe(*data.data, callback);
+        }
+
+    private:
+        btl::shared<Control> impl_;
+    };
+
+    template <typename... Ts>
+    struct IsSignal<Weak<Ts...>> : std::true_type {};
 } // namespace reactive::signal
 

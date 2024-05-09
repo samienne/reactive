@@ -2,8 +2,6 @@
 
 #include "layout.h"
 
-#include "signal/combine.h"
-#include "signal/constant.h"
 #include "signal/signal.h"
 
 #include <avg/drawing.h>

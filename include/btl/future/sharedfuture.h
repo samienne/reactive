@@ -91,6 +91,16 @@ namespace btl::future
             return std::move(*this);
         }
 
+        void wait() const&
+        {
+            control_->waitForResult();
+        }
+
+        void cancel() &&
+        {
+            control_.reset();
+        }
+
     private:
         template <typename... Us>
         friend class Future;

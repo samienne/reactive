@@ -2,8 +2,7 @@
 
 #include "instance.h"
 
-#include <reactive/signal/mbind.h>
-#include <reactive/signal/signaltraits.h>
+#include <reactive/signal/signal.h>
 
 #include <type_traits>
 
@@ -16,21 +15,21 @@ namespace reactive::widget
         >::type>
     auto reduce(TSignalWidget w2)
     {
-        auto w = signal::share(std::move(w2));
+        auto w = std::move(w2).share();
 
-        auto renderTree = signal::mbind([](auto && w)
+        auto renderTree = w.map([](auto && w)
                 {
                     return w.getRenderTree();
-                }, w);
+                }).join();
 
-        auto areas = signal::mbind([](auto&& w) { return w.getInputAreas().clone(); }, w);
-        auto obb = signal::mbind([](auto&& w) { return w.getObb().clone(); }, w);
+        auto areas = w.map([](auto&& w) { return w.getInputAreas().clone(); }).join();
+        auto obb = w.map([](auto&& w) { return w.getObb().clone(); }).join();
 
-        auto keyboardInputs = signal::mbind([](auto&& w) {
+        auto keyboardInputs = w.map([](auto&& w) {
                 return w.getKeyboardInputs().clone();
-                }, w);
+                }).join();
 
-        auto theme = signal::mbind([](auto&& w) { return w.getTheme().clone(); }, w);
+        auto theme = w.map([](auto&& w) { return w.getTheme().clone(); }).join();
 
         return makeInstance(
                 std::move(renderTree),

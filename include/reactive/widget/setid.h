@@ -4,6 +4,7 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyWidgetModifier setId(AnySignal<avg::UniqueId> id);
+    REACTIVE_EXPORT AnyWidgetModifier setId(
+            signal::AnySignal<avg::UniqueId> id);
 } // namespace reactive::widget
 

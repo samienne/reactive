@@ -12,7 +12,9 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier onPointerDown(
-            AnySignal<std::function<EventResult(ase::PointerButtonEvent const&)>> cb);
+            signal::AnySignal<std::function<EventResult(
+                ase::PointerButtonEvent const&)
+            >> cb);
 
     REACTIVE_EXPORT AnyWidgetModifier onPointerDown(
             std::function<EventResult(ase::PointerButtonEvent const&)> cb

@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier setId(AnySignal<avg::UniqueId> id)
+AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
 {
     return makeWidgetModifier(makeInstanceModifier(
         [](Instance instance, avg::UniqueId const& id)

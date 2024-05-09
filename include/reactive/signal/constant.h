@@ -1,13 +1,12 @@
 #pragma once
 
-#include "signal.h"
-
+#include "wrap.h"
+#include "frameinfo.h"
+#include "updateresult.h"
 #include "signaltraits.h"
-#include "reactive/connection.h"
+#include "signalresult.h"
 
-#include <btl/demangle.h>
-
-#include <memory>
+#include <btl/copywrapper.h>
 
 namespace reactive::signal
 {
@@ -15,6 +14,16 @@ namespace reactive::signal
     class Constant
     {
     public:
+        struct DataType
+        {
+        };
+
+        Constant(Constant<T> const&) = default;
+        Constant(Constant<T>&&) = default;
+
+        Constant<T>& operator=(Constant<T> const&) = default;
+        Constant<T>& operator=(Constant<T>&&) = default;
+
         Constant(T&& initial) :
             constant_(std::move(initial))
         {
@@ -25,61 +34,30 @@ namespace reactive::signal
         {
         }
 
-        Constant(Constant<T>&& rhs) noexcept(true) :
-            constant_(std::move(rhs.constant_))
+        DataType initialize() const
         {
+            return {};
         }
 
-        Constant<T>& operator=(Constant<T>&& rhs) noexcept(true)
+        SignalResult<T const&> evaluate(DataType const&) const
         {
-            constant_ = std::move(rhs.constant_);
-            return *this;
+            return SignalResult<T const&>(*constant_);
         }
 
-        T const& evaluate() const
+        UpdateResult update(DataType&, FrameInfo const&)
         {
-            return constant_;
-        }
-
-        bool hasChanged() const
-        {
-            return false;
-        }
-
-        UpdateResult updateBegin(FrameInfo const&)
-        {
-            return std::nullopt; }
-
-        UpdateResult updateEnd(FrameInfo const&)
-        {
-            return std::nullopt;
+            return { std::nullopt, false };
         }
 
         template <typename TCallback>
-        Connection observe(TCallback&&)
+        Connection observe(DataType&, TCallback&&)
         {
             // nothing to observe
             return Connection();
         }
 
-        Annotation annotate() const
-        {
-            Annotation a;
-            a.addNode("constant<" + btl::demangle<T>() + ">");
-            return a;
-        }
-
-        Constant clone() const
-        {
-            return *this;
-        }
-
     private:
-        Constant(Constant<T> const&) = default;
-        Constant<T>& operator=(Constant<T> const&) = default;
-
-    private:
-        T constant_;
+        btl::CopyWrapper<T> constant_;
     };
 
     template <typename T>
@@ -96,7 +74,6 @@ namespace reactive::signal
         return constant(std::vector<std::decay_t<T>>(v));
     }
 
-    template <typename T>
-    struct IsSignal<Constant<T>> : std::true_type {};
+    template <typename... Ts>
+    struct IsSignal<Constant<Ts...>> : std::true_type {};
 } // reactive::signal
-

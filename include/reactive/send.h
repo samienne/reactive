@@ -2,14 +2,12 @@
 
 #include "inputresult.h"
 
-#include "signal/inputhandle.h"
+#include "signal/input.h"
 #include "stream/handle.h"
 
 #include <ase/pointerbuttonevent.h>
 #include <ase/textevent.h>
 #include <ase/keyevent.h>
-
-#include <functional>
 
 namespace reactive
 {

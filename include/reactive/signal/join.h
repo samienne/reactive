@@ -1,139 +1,126 @@
 #pragma once
 
-#include "signal.h"
+#include "merge.h"
+#include "constant.h"
+#include "frameinfo.h"
 #include "signaltraits.h"
+#include "updateresult.h"
 
-#include <optional>
+#include <btl/any.h>
+#include <btl/connection.h>
 
 namespace reactive::signal
 {
-    template <typename TSignal>
-    class Join;
+    template <typename T, typename... Ts>
+    class Signal;
 
-    template <typename TSignal>
-    struct IsSignal<Join<TSignal>> : std::true_type {};
+    namespace detail
+    {
+        template <typename T>
+        auto toSignal(T&& t)
+        {
+            return constant(std::forward<T>(t));
+        }
 
-    template <typename TSignal>
+        template <typename T, typename... Ts>
+        Signal<T, Ts...> toSignal(Signal<T, Ts...> sig)
+        {
+            return sig;
+        }
+    } // anonymous namespace
+
+    template <typename T>
     class Join
     {
     public:
-        using OuterSig = typename std::decay<TSignal>::type;
-        using InnerSig = decltype(std::declval<OuterSig>().evaluate());
-        using SignalType = decltype(std::declval<InnerSig>().evaluate());
+        using OuterSignal = T;
+        using OuterData = SignalDataTypeT<OuterSignal>;
 
-        Join(TSignal sig) :
-            outer_(std::move(sig))
+    private:
+        static auto makeInnerSignal(SignalTypeT<OuterSignal> outerResult)
+        {
+            return std::apply([](auto&&... ts)
+                {
+                    return merge(detail::toSignal(ts)...).unwrap();
+                },
+                std::move(outerResult).getTuple()
+                );
+        }
+    public:
+
+        using InnerSignal = std::decay_t<decltype(makeInnerSignal(std::declval<
+                    SignalTypeT<OuterSignal>>()))>;
+
+        using InnerData = SignalDataTypeT<InnerSignal>;
+
+        struct DataType
+        {
+            DataType(T const& sig) :
+                outerData(sig.initialize()),
+                innerSignal(makeInnerSignal(sig.evaluate(outerData))),
+                innerData(innerSignal.initialize())
+            {
+            }
+
+            OuterData outerData;
+            InnerSignal innerSignal;
+            InnerData innerData;
+        };
+
+        Join(T sig) :
+            sig_(std::move(sig))
         {
         }
 
-    private:
-        Join(Join const&) = default;
-        Join& operator=(Join const&) = default;
-
-    public:
-        Join(Join&&) noexcept = default;
-        Join& operator=(Join&&) noexcept = default;
-
-        std::optional<signal_time_t> updateBegin(FrameInfo const& frame)
+        DataType initialize() const
         {
-            changed_ = false;
-            auto r = outer_->updateBegin(frame);
-            if (inner_)
+            return { sig_ };
+        }
+
+        auto evaluate(DataType const& data) const -> decltype(auto)
+        {
+            return data.innerSignal.evaluate(data.innerData);
+        }
+
+        UpdateResult update(DataType& data, FrameInfo const& frame)
+        {
+            auto r = sig_.update(data.outerData, frame);
+            if (r.didChange)
             {
-                auto r2 = (*inner_)->updateBegin(frame);
-                r = min(r, r2);
+                data.innerSignal = makeInnerSignal(sig_.evaluate(data.outerData));
+                data.innerData = data.innerSignal.initialize();
             }
+
+            r = r + data.innerSignal.update(data.innerData, frame);
 
             return r;
         }
 
-        std::optional<signal_time_t> updateEnd(FrameInfo const& frame)
+        Connection observe(DataType& data, std::function<void()> callback)
         {
-            auto r1 = outer_->updateEnd(frame);
-
-            std::optional<signal_time_t> r2 = std::nullopt;
-            if (!inner_ || outer_->hasChanged())
-            {
-                inner_ = btl::cloneOnCopy(
-                            btl::clone(outer_->evaluate())
-                            );
-
-                r2 = (*inner_)->updateBegin(frame);
-                auto r3 = (*inner_)->updateEnd(frame);
-                r2 = min(r2, r3),
-
-                changed_ = true;
-            }
-            else
-            {
-                r2 = (*inner_)->updateEnd(frame);
-                changed_ = (*inner_)->hasChanged();
-            }
-
-            return min(r1, r2);
-        }
-
-        SignalType evaluate() const
-        {
-            if (!inner_)
-            {
-                inner_ = btl::cloneOnCopy(
-                            btl::clone(outer_->evaluate())
-                            );
-            }
-
-            return (*inner_)->evaluate();
-        }
-
-        bool hasChanged() const
-        {
-            //return outer_.hasChanged() || inner_.hasChanged();
-            return changed_;
-        }
-
-        template <typename TCallback>
-        Connection observe(TCallback const& cb)
-        {
-            if (!inner_)
-            {
-                inner_ = btl::cloneOnCopy(
-                            btl::clone(outer_->evaluate())
-                            );
-            }
-
-            auto c = outer_->observe(cb);
-            c += (*inner_)->observe(cb);
+            auto c = sig_.observe(data.outerData, callback);
+            c += data.innerSignal.observe(data.innerData, std::move(callback));
 
             return c;
         }
 
-        Annotation annotate() const
-        {
-            Annotation a;
-            auto n = a.addNode("join() changed: "
-                    + std::to_string(hasChanged()));
-            a.addTree(n, outer_->annotate());
-            a.addTree(n, (*inner_)->annotate());
-            return a;
-        }
-
-        Join clone() const
-        {
-            return *this;
-        }
-
     private:
-        btl::CloneOnCopy<OuterSig> outer_;
-        mutable std::optional<btl::CloneOnCopy<std::decay_t<InnerSig>>> inner_;
-        bool changed_ = false;
+        T sig_;
     };
 
-    template <typename T, typename U, typename = std::enable_if_t<
-        IsSignal<T>::value
-        >>
-    auto join(Signal<U, T> sig)
+    template <typename T>
+    struct IsSignal<Join<T>> : std::true_type {};
+
+    template <typename T, typename... Ts>
+    auto join(Signal<T, Ts...> sig)
     {
-        return wrap(Join<U>(std::move(sig).storage()));
+        if constexpr (btl::any(IsSignal<Ts>::value...))
+        {
+            return wrap(Join<T>(std::move(sig).unwrap()));
+        }
+        else
+        {
+            return sig;
+        }
     }
 } // namespace reactive::signal
-

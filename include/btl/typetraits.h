@@ -73,5 +73,19 @@ namespace btl
             All<std::is_reference<TFrom>, std::is_reference<TTo>>,
             Not<std::is_reference<TTo>>
         >>;
+    template <typename T>
+
+    using CompareType = decltype(
+            std::declval<std::decay_t<T>>() == std::declval<std::decay_t<T>>()
+            );
+
+    template <typename T, typename = void>
+    struct IsEqualityComparable : std::false_type {};
+
+    template <typename T>
+    struct IsEqualityComparable<T, btl::void_t<
+        CompareType<T>
+        >> : std::true_type {};
+
 }
 

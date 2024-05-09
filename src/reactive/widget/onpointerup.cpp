@@ -15,8 +15,9 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerUp(
-        AnySignal<std::function<EventResult(ase::PointerButtonEvent const&)>> cb)
+AnyWidgetModifier onPointerUp(signal::AnySignal<
+        std::function<EventResult(ase::PointerButtonEvent const&)>
+        > cb)
 {
     auto id = btl::makeUniqueId();
 

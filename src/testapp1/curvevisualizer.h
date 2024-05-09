@@ -3,5 +3,5 @@
 #include <reactive/widget/widget.h>
 
 reactive::widget::AnyWidget curveVisualizer(
-        reactive::AnySignal<avg::Curve> curve
+        reactive::signal::AnySignal<avg::Curve> curve
         );

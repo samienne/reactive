@@ -7,10 +7,6 @@
 #include "reactive/simplesizehint.h"
 #include "reactive/sizehint.h"
 
-#include "reactive/signal/cast.h"
-#include "reactive/signal/share.h"
-#include "reactive/signal/tee.h"
-#include "reactive/signal/constant.h"
 #include "reactive/signal/signal.h"
 
 #include <avg/transform.h>
@@ -28,7 +24,7 @@ namespace reactive::widget
     struct AnyBuilder;
 
     using BuilderBase = Builder<
-        widget::AnyElementModifier, AnySignal<SizeHint>
+        widget::AnyElementModifier, signal::AnySignal<SizeHint>
         >;
 
     template <typename T>
@@ -70,7 +66,7 @@ namespace reactive::widget
         Builder& operator=(Builder&&) noexcept = default;
 
         template <typename T>
-        auto operator()(Signal<T, avg::Vector2f> size) &&
+        auto operator()(signal::Signal<T, avg::Vector2f> size) &&
         {
             return makeElement(std::move(size))
                 | std::move(*modifier_)
@@ -171,7 +167,7 @@ namespace reactive::widget
         BuildParams buildParams_;
     };
 
-    struct AnyBuilder : Builder<AnyElementModifier, AnySignal<SizeHint>>
+    struct AnyBuilder : Builder<AnyElementModifier, signal::AnySignal<SizeHint>>
     {
         template <typename TModifier, typename TSizeHint>
         static auto castBuilder(Builder<TModifier, TSizeHint> base)
@@ -179,7 +175,7 @@ namespace reactive::widget
             auto sizeHint = base.getSizeHint();
 
             return std::move(base)
-                .setSizeHint(signal::cast<SizeHint>(std::move(sizeHint)))
+                .setSizeHint(std::move(sizeHint).template cast<SizeHint>())
                 ;
         }
 
@@ -240,5 +236,5 @@ namespace reactive::widget
     {
         return { std::forward<TBuilder>(builder) };
     }
-}
+} // namespace reactive::widget
 

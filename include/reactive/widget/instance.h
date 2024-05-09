@@ -5,8 +5,6 @@
 #include "reactive/keyboardinput.h"
 #include "reactive/inputarea.h"
 
-#include "reactive/signal/map.h"
-#include "reactive/signal/share.h"
 #include "reactive/signal/signal.h"
 
 #include <avg/rendertree.h>
@@ -14,8 +12,6 @@
 #include <avg/transform.h>
 
 #include <btl/tupleforeach.h>
-
-#include <optional>
 
 namespace reactive::widget
 {
@@ -53,11 +49,12 @@ namespace reactive::widget
     };
 
     template <typename T>
-    auto makeInstance(Signal<T, avg::Vector2f> size)
+    auto makeInstance(signal::Signal<T, avg::Vector2f> size)
     {
-        auto focus = signal::input(false);
+        auto focus = signal::makeInput(false);
 
-        return signal::map([focusHandle=std::move(focus.handle)]
+        return merge(std::move(size), std::move(focus.signal))
+            .map([focusHandle=std::move(focus.handle)]
                 (avg::Vector2f size, bool focused)
                 {
                     return Instance(
@@ -71,10 +68,7 @@ namespace reactive::widget
                             },
                             Theme()
                             );
-                },
-                std::move(size),
-                std::move(focus.signal)
-                );
+                });
     }
 
 } // reactive::widget

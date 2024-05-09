@@ -40,8 +40,8 @@ namespace
 } // anonymous namespace
 
 WidgetObject::Impl::Impl(AnyWidget widget, BuildParams const& params) :
-    sizeInput_(signal::input(avg::Vector2f(100, 100))),
-    transformInput_(signal::input(avg::Transform())),
+    sizeInput_(signal::makeInput(avg::Vector2f(100, 100))),
+    transformInput_(signal::makeInput(avg::Transform())),
     widget_(buildWidgetObject(
                 std::move(widget),
                 params,
@@ -73,7 +73,7 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-AnySignal<Instance> const& WidgetObject::getWidget()
+signal::AnySignal<Instance> const& WidgetObject::getWidget()
 {
     return impl_->widget_.first;
 }
@@ -83,7 +83,7 @@ avg::UniqueId const& WidgetObject::getId() const
     return impl_->id_;
 }
 
-AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
+signal::AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
 {
     return *impl_->widget_.second;
 }

@@ -8,13 +8,9 @@
 
 #include "reactive/simplesizehint.h"
 
-#include <reactive/signal/constant.h>
-
 #include <avg/textextents.h>
 
 #include <utf8/utf8.h>
-
-#include <iostream>
 
 namespace reactive::widget
 {
@@ -54,18 +50,19 @@ SizeHint makeLabelSizeHint(std::string const& text, widget::Theme const& theme)
     return simpleSizeHint(extents.size[0], extents.size[1]);
 }
 
-auto makeLabel(AnySignal<widget::Theme> theme, AnySharedSignal<std::string> text)
+auto makeLabel(signal::AnySignal<widget::Theme> theme,
+        signal::AnySignal<std::string> text)
 {
     return makeWidget()
         | onDraw(drawLabel, text)
-        | setSizeHint(signal::map(makeLabelSizeHint, text, std::move(theme)))
+        | setSizeHint(merge(text, std::move(theme)).map(makeLabelSizeHint))
         | margin(signal::constant(5.0f))
         ;
 }
 
 } // anonymous namespace
 
-AnyWidget label(AnySharedSignal<std::string> text)
+AnyWidget label(signal::AnySignal<std::string> text)
 {
     return makeWidget(makeLabel, provideTheme(), std::move(text));
 }

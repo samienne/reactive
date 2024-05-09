@@ -7,7 +7,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setFocusable(Signal<T, bool> focusable)
+    auto setFocusable(signal::Signal<T, bool> focusable)
     {
         return makeInstanceModifier([](Instance instance, bool focusable)
             {
@@ -22,6 +22,5 @@ namespace reactive::widget
             std::move(focusable)
             );
     }
-
 } // namespace reactice::widget
 

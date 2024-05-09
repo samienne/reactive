@@ -27,48 +27,46 @@ AnyWidget scrollView(AnyWidget widget)
     {
         auto builder = std::move(widget)(std::move(params));
 
-        auto viewSize = signal::input(avg::Vector2f(10.0f, 200.0f));
-        auto x = signal::input(0.5f);
-        auto y = signal::input(0.5f);
+        auto viewSize = signal::makeInput(avg::Vector2f(10.0f, 200.0f));
+        auto x = signal::makeInput(0.5f);
+        auto y = signal::makeInput(0.5f);
 
-        auto contentSize = signal::share(signal::map([](auto hint)
+        auto contentSize = builder.getSizeHint().map([](auto hint)
                 {
                     float w = hint.getWidth()[1];
                     float h = hint.getHeightForWidth(w)[1];
 
                     return avg::Vector2f(w, h);
-                },
-                builder.getSizeHint()
-                ));
+                }).share();
 
-        auto hHandleSize = signal::map([](avg::Vector2f contentSize,
-                    avg::Vector2f viewSize)
+        auto hHandleSize = merge(contentSize, viewSize.signal)
+            .map([](avg::Vector2f contentSize, avg::Vector2f viewSize)
                 {
                     if (contentSize[0] < 0.0001f)
                         return 1.0f;
 
                     return viewSize[0] / contentSize[0];
-                }, contentSize, viewSize.signal);
+                });
 
-        auto vHandleSize = signal::map([](avg::Vector2f contentSize,
-                    avg::Vector2f viewSize)
+        auto vHandleSize = merge(contentSize, viewSize.signal)
+            .map([](avg::Vector2f contentSize, avg::Vector2f viewSize)
                 {
                     if (contentSize[1] < 0.0001f)
                         return 1.0f;
 
                     return viewSize[1] / contentSize[1];
-                }, contentSize, viewSize.signal);
+                });
 
-        auto dragOffset = signal::input(avg::Vector2f());
-        auto scrollPos = signal::input<std::optional<avg::Vector2f>>(std::nullopt);
+        auto dragOffset = signal::makeInput(avg::Vector2f());
+        auto scrollPos = signal::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
 
-        auto t = signal::map([](float x, float y,
-                    avg::Vector2f contentSize, avg::Vector2f viewSize)
+        auto t = merge(x.signal, y.signal, contentSize, viewSize.signal)
+            .map([](float x, float y, avg::Vector2f contentSize, avg::Vector2f viewSize)
                 {
                     return avg::translate(
                             x * -(contentSize[0] - viewSize[0]),
                             (1.0f - y) * (contentSize[1] - viewSize[1]));
-                }, x.signal, y.signal, contentSize, viewSize.signal);
+                });
 
         auto contentWidget = makeWidgetFromBuilder(std::move(builder))
             | transform(std::move(t))
@@ -80,7 +78,7 @@ AnyWidget scrollView(AnyWidget widget)
                 {{100, 800, 10000}}
                 )))
             | trackSize(viewSize.handle)
-            | onPointerDown(signal::mapFunction(
+            | onPointerDown(merge(x.signal, y.signal).bindToFunction(
                     [dragOffsetHandle=dragOffset.handle,
                     scrollPosHandle=scrollPos.handle
                     ]
@@ -94,8 +92,10 @@ AnyWidget scrollView(AnyWidget widget)
                         }
 
                         return EventResult::possible;
-                    }, x.signal, y.signal))
-            | onPointerMove(signal::mapFunction(
+                    })
+                    )
+            | onPointerMove(merge(dragOffset.signal, viewSize.signal, contentSize,
+                    scrollPos.signal).bindToFunction(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,
@@ -115,8 +115,7 @@ AnyWidget scrollView(AnyWidget widget)
                         yHandle.set(std::max(0.0f, std::min(y, 1.0f)));
 
                         return EventResult::accept;
-                    }, dragOffset.signal, viewSize.signal, contentSize,
-                    scrollPos.signal))
+                    }))
             | onPointerUp([scrollPosHandle=scrollPos.handle]
                     (PointerButtonEvent const&) mutable
                     {

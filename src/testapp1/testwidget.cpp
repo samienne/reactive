@@ -11,8 +11,7 @@
 
 #include <reactive/simplesizehint.h>
 
-#include <reactive/signal/droprepeats.h>
-#include <reactive/signal/constant.h>
+#include <reactive/signal/signal.h>
 
 #include <reactive/stream/iterate.h>
 #include <reactive/stream/pipe.h>
@@ -77,7 +76,7 @@ widget::AnyWidget makeTestWidget()
             },
             std::string(), std::move(p2.stream));
 
-    auto focus = signal::input(false);
+    auto focus = signal::makeInput(false);
 
     return widget::makeWidget()
         | onDraw(drawTestWidget, std::move(state), std::move(textState))

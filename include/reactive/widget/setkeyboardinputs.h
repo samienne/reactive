@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setKeyboardInputs(Signal<T, std::vector<KeyboardInput>> inputs)
+    auto setKeyboardInputs(signal::Signal<T, std::vector<KeyboardInput>> inputs)
     {
         return makeInstanceModifier([](Instance instance, std::vector<KeyboardInput> inputs)
                 {

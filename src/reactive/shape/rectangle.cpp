@@ -46,7 +46,7 @@ REACTIVE_EXPORT AnyShape rectangle()
     return rectangle(signal::constant(5.0f));
 }
 
-REACTIVE_EXPORT AnyShape rectangle(AnySignal<float> cornerRadius)
+REACTIVE_EXPORT AnyShape rectangle(signal::AnySignal<float> cornerRadius)
 {
     return shape::makeShape(makeRectangle, animate(std::move(cornerRadius)));
 }

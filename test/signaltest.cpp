@@ -1,313 +1,793 @@
-#include <reactive/signal/blip.h>
-#include <reactive/signal/conditional.h>
-#include <reactive/signal/count.h>
-#include <reactive/signal/delay.h>
-#include <reactive/signal/changed.h>
-#include <reactive/signal/droprepeats.h>
-#include <reactive/signal/dt.h>
-#include <reactive/signal/updateifjust.h>
-#include <reactive/signal/onchange.h>
-#include <reactive/signal/every.h>
-#include <reactive/signal/combine.h>
-#include <reactive/signal/join.h>
-#include <reactive/signal/cache.h>
-#include <reactive/signal/convert.h>
-#include <reactive/signal/weak.h>
-#include <reactive/signal/split.h>
-#include <reactive/signal/combine.h>
-#include <reactive/signal/waitfor.h>
-#include <reactive/signal/constant.h>
-#include <reactive/signal/update.h>
-#include <reactive/signal/removereference.h>
-#include <reactive/signal/sharedsignal.h>
 #include <reactive/signal/signal.h>
+#include <reactive/signal/constant.h>
+#include <reactive/signal/signalcontext.h>
+#include <reactive/signal/input.h>
+#include <reactive/signal/merge.h>
+#include <reactive/signal/join.h>
+#include <reactive/signal/combine.h>
+#include <reactive/signal/fromoptional.h>
+#include <reactive/signal/evaluateoninit.h>
 
-#include <btl/delayed.h>
-#include <btl/always.h>
+#include <btl/demangle.h>
 
-#include "signaltester.h"
 #include <gtest/gtest.h>
-
-#include <iostream>
-#include <string>
 
 using namespace reactive::signal;
 
-template <typename TSignal>
-struct TestSignal : std::conditional_t<
-                    CheckSignal<TSignal>::value == IsSignal<TSignal>::value,
-                    std::true_type,
-                    std::false_type>
+static_assert(std::is_same_v<
+        ConcatSignalResults<SignalResult<int, char>, SignalResult<int const&, std::string&>>::type,
+        SignalResult<int, char, int const&, std::string&>
+        >);
+
+static_assert(checkSignal<Constant<int>>());
+static_assert(checkSignal<Combine<int>>());
+static_assert(checkSignal<Conditional<Constant<bool>, int>>());
+static_assert(checkSignal<EvaluateOnInit<std::function<int()>>>());
+static_assert(checkSignal<InputSignal<int>>());
+static_assert(checkSignal<Join<Constant<Constant<int>>>>());
+static_assert(checkSignal<Map<std::function<int(int)>, Constant<int>>>());
+static_assert(checkSignal<Merge<Constant<int>>>());
+static_assert(checkSignal<Shared<Constant<int>, int>>());
+static_assert(checkSignal<WithChanged<Constant<int>>>());
+static_assert(checkSignal<WithPrevious<Constant<int>, std::function<int(int, int)>>>());
+
+template <typename T>
+class Type
 {
+public:
+    using type = T;
+
+    template <typename... Us>
+    auto construct(Us&&... us) const
+    {
+        return T(std::forward<Us>(us)...);
+    }
+
+    template <typename U>
+    constexpr bool operator==(Type<U> const&) const
+    {
+        return std::is_same_v<T, U>;
+    }
+
+    template <typename U>
+    constexpr bool operator!=(Type<U> const& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+    std::string toString() const
+    {
+        return btl::demangle<Type<T>>();
+    }
+
+    friend std::ostream& operator<<(std::ostream& s, Type<T> const& t)
+    {
+        return s << t.toString();
+    }
 };
 
 template <typename T>
-struct RequireSignal : TestSignal<T>
+constexpr Type<T> getType(T&&)
 {
-    static_assert(IsSignal<T>::value, "");
-    static_assert(CheckSignal<T>::value, "");
-    static_assert(std::is_same<bool, hasChanged_t<T>>::value, "");
-    static_assert(std::is_same<UpdateResult, updateBegin_t<T>>::value, "");
-    static_assert(std::is_same<UpdateResult, updateEnd_t<T>>::value, "");
-    static_assert(std::is_same<reactive::Connection, observe_t<T>>::value, "");
-    static_assert(std::is_same<reactive::Annotation, annotate_t<T>>::value, "");
-    static_assert(std::is_nothrow_move_constructible<std::decay_t<T>>::value, "");
-    static_assert(btl::IsClonable<std::decay_t<T>>::value, "");
-};
-
-int add(int a, int b)
-{
-    return a + b;
+    return {};
 }
 
-static_assert(RequireSignal<Constant<int>>::value, "");
-static_assert(RequireSignal<decltype(
-            map(add, constant(10), constant(20))
-            )>::value, "");
-static_assert(RequireSignal<Join<Constant<Constant<int>>>>::value,
-        "");
-static_assert(RequireSignal<Combine<std::vector<AnySignal<int>>>>::value,
-        "");
-static_assert(RequireSignal<Cache<Constant<int>>>::value, "");
-static_assert(RequireSignal<InputSignal<int, btl::DummyLock>>::value,
-    "InputSignal is not a signal");
-static_assert(RequireSignal<Every>::value, "Every is not a signal");
-static_assert(RequireSignal<
-        OnChange<Constant<int>, btl::Function<void()>>>::value, "");
-static_assert(RequireSignal<UpdateIfJust<Constant<std::optional<int>>>>::value, "");
-static_assert(RequireSignal<Changed<Constant<int>>>::value,
-        "Changed is not a signal");
-static_assert(RequireSignal<Blip<Constant<int>>>::value, "");
-static_assert(RequireSignal<AnySharedSignal<int>>::value, "");
-static_assert(IsSignal<Delay<int const&, Constant<int>>>::value, "");
-static_assert(IsSignal<Conditional<Constant<bool>, Constant<int>,
-        Constant<int>>>::value, "");
-static_assert(IsSignal<CountSignal<Constant<int>>>::value,
-        "Count is not a signal");
-static_assert(IsSignal<DropRepeats<Constant<int>>>::value,
-        "DropRepeatsSignal is not a signal");
-static_assert(IsSignal<DtSignal>::value, "DtSignal is not a signal");
-
-TEST(signal, cacheTest)
+template <typename T>
+constexpr Type<T&> getType(T&)
 {
-    AnySignal<std::string> s = constant<std::string>("test");
-
-    auto s2 = cache(std::move(s));
+    return {};
 }
 
-TEST(signal, construct)
+template <typename T>
+constexpr Type<T const&> getType(T const&)
 {
-    auto s1 = wrap(constant<std::string>("test"));
-    AnySignal<std::string> s2 = std::move(s1);
-    AnySignal<std::string> s3 = std::move(s2);
+    return {};
+}
 
-    EXPECT_EQ("test", s3.evaluate());
+TEST(signal, constant)
+{
+    auto s = constant(10);
 
-    auto s4 = s3.clone();
+    static_assert(checkSignal<decltype(s.unwrap())>());
 
-    auto s5 = wrap(constant(true));
+    auto c = makeSignalContext(s);
 
-    static_assert(IsSignal<decltype(s1)>::value, "");
-    static_assert(IsSignal<decltype(s2)>::value, "");
-    static_assert(IsSignal<decltype(s3)>::value, "");
-    static_assert(IsSignal<decltype(s4)>::value, "");
-    static_assert(IsSignal<decltype(s5)>::value, "");
+    EXPECT_EQ(10, c.evaluate());
+
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+
+    FrameInfo frame(1, signal_time_t(10));
+
+    auto r = c.update(frame);
+    EXPECT_EQ(r.nextUpdate, std::nullopt);
+}
+
+TEST(signal, signalContext)
+{
+    auto c = makeSignalContext(constant(42));
+
+    UpdateResult r = c.update(FrameInfo(1, signal_time_t(0)));
+
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
+
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+
+    int v = c.evaluate();
+
+    EXPECT_EQ(42, v);
+}
+
+TEST(signal, signalInput)
+{
+    auto input = makeInput(42);
+
+    static_assert(checkSignal<decltype(input.signal.unwrap())>());
+
+    auto c = makeSignalContext(input.signal);
+
+    EXPECT_EQ(Type<SignalContext<int const&>>(), Type<decltype(c)>());
+
+    EXPECT_EQ(42, c.evaluate());
+
+    input.handle.set(22);
+
+    EXPECT_EQ(42, c.evaluate());
+
+    auto r = c.update(FrameInfo(1, {}));
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
+
+    EXPECT_EQ(22, c.evaluate());
+
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+}
+
+TEST(signal, map)
+{
+    auto input = makeInput(42);
+
+    auto s = input.signal.map([](int n)
+                {
+                    return n * 2;
+                });
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    auto c = makeSignalContext(std::move(s));
+
+    EXPECT_EQ(84, c.evaluate());
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
+
+    input.handle.set(12);
+
+    EXPECT_EQ(84, c.evaluate());
+
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_EQ(24, c.evaluate());
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(std::nullopt, r.nextUpdate);
+}
+
+TEST(signal, mapReferenceToTemp)
+{
+    auto input = makeInput(42);
+
+    auto s1 = input.signal.map([](int n) -> std::unique_ptr<int>
+            {
+                return std::make_unique<int>(n);
+            });
+
+    auto s2 = s1.map([](std::unique_ptr<int> const& n) -> int const&
+            {
+                return *n;
+            });
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(std::move(s2));
+
+    EXPECT_EQ(42, c.evaluate());
+}
+
+TEST(signal, merge)
+{
+    auto input1 = makeInput(42);
+    auto input2 = makeInput<int, std::string>(20, "test");
+
+    auto s = merge(input1.signal, input2.signal);
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    Type<Signal<Merge<InputSignal<int>, InputSignal<int, std::string>>,
+        int, int, std::string>> type;
+    EXPECT_EQ(type, Type<decltype(s)>());
+
+    auto c = makeSignalContext(std::move(s));
+
+    Type<SignalResult<int const&, int const&, std::string const&>> type2;
+    EXPECT_EQ(type2, getType(c.evaluate()));
+
+    EXPECT_EQ(42, c.evaluate().get<0>());
+    EXPECT_EQ(20, c.evaluate().get<1>());
+    EXPECT_EQ("test", c.evaluate().get<2>());
+}
+
+TEST(signal, share)
+{
+    auto input = makeInput<std::string>("hello");
+
+    auto s1 = input.signal.map([](std::string const& str)
+            {
+                return str + " world!";
+            });
+
+    auto s2 = s1.share();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    std::vector<SignalContext<std::string>> contexts;
+    for (int i = 0; i < 1024; ++i)
+    {
+        contexts.emplace_back(makeSignalContext(s2));
+    }
+
+    std::vector<btl::future::Future<>> futures;
+    for (auto& context : contexts)
+    {
+        futures.push_back(btl::async([&context]() mutable
+            {
+
+                EXPECT_EQ("hello world!", context.evaluate());
+
+                auto r = context.update(FrameInfo(1, signal_time_t(16)));
+
+                EXPECT_FALSE(r.didChange);
+            }));
+    }
+
+    for (auto&& f : futures)
+    {
+        f.wait();
+    }
+
+    input.handle.set("bye");
+
+    for (size_t i = 0; i < contexts.size(); ++i)
+    {
+        auto& f = futures[i];
+        auto& context = contexts[i];
+
+        std::move(f).then([&]()
+            {
+                EXPECT_EQ("hello world!", context.evaluate());
+
+                auto r = context.update(FrameInfo(2, signal_time_t(16)));
+                EXPECT_TRUE(r.didChange);
+
+                EXPECT_EQ("bye world!", context.evaluate());
+            });
+    }
+
+    for (auto&& f : futures)
+    {
+        f.wait();
+    }
+}
+
+TEST(signal, join)
+{
+    auto input1 = makeInput<std::string>("hello");
+    auto input2 = makeInput<std::string>("world");
+    auto input3 = makeInput(42);
+    auto input4 = makeInput<std::string>("!");
+    auto input5 = makeInput(true);
+
+    auto s1 = merge(input1.signal, input3.signal);
+    auto s2 = merge(input2.signal, input3.signal);
+
+    auto s = merge(input5.signal, input4.signal).map([s1, s2](bool v, std::string str)
+        {
+            return makeSignalResult(v ? s1 : s2, std::move(str));
+        });
+
+    auto j = s.join();
+
+    static_assert(checkSignal<decltype(j.unwrap())>());
+
+    auto c = makeSignalContext(j);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ("hello", r1.get<0>());
+    EXPECT_EQ(42, r1.get<1>());
+    EXPECT_EQ("!", r1.get<2>());
+
+    input5.handle.set(false);
+    input4.handle.set("?");
+
+    c.update(FrameInfo(1, {}));
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ("world", r2.get<0>());
+    EXPECT_EQ(42, r2.get<1>());
+    EXPECT_EQ("?", r1.get<2>());
 }
 
 TEST(signal, combine)
 {
-    static_assert(IsSignal<
-            Combine<std::vector<AnySharedSignal<const int&>>>
-            >::value, "CombineSignal is not a signal");
+    std::vector<int> v1 = { 10, 20, 30, 40, 50 };
+    std::vector<int> v2 = { 1, 2, 3, 4, 5 };
 
-    static_assert(IsSignal<
-            Combine<std::tuple<AnySharedSignal<int>>>
-            >::value, "CombineSignal is not a signal");
+    std::vector<Input<SignalResult<int>, SignalResult<int>>> inputs;
+    for (auto const& v : v1)
+        inputs.push_back(makeInput(v));
+
+    std::vector<AnySignal<int>> sigs;
+    for (auto const& i : inputs)
+        sigs.push_back(i.signal);
+
+    auto s = combine(sigs);
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    auto c = makeSignalContext(s);
+
+    auto r = c.evaluate();
+
+    EXPECT_EQ(v1, r);
+
+    for (size_t i = 0; i < inputs.size(); ++i)
+        inputs[i].handle.set(v2.at(i));
+
+    auto ur = c.update(FrameInfo(1, {}));
+
+    EXPECT_TRUE(ur.didChange);
+
+    r = c.evaluate();
+
+    EXPECT_EQ(v2, r);
+
+    ur = c.update(FrameInfo(1, {}));
+    EXPECT_FALSE(ur.didChange);
 }
 
-TEST(signal, clone)
+TEST(signal, conditional)
 {
-    auto s1 = wrap(constant<std::string>("test"));
-    AnySignal<std::string> s2 = s1.clone();
-    auto s3 = s2.clone();
+    auto cond = makeInput(true);
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
 
-    auto s4 = wrap(s3.clone());
+    auto s = cond.signal.conditional(input1.signal, input2.signal);
 
-    EXPECT_EQ("test", s3.evaluate());
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    auto c = makeSignalContext(s);
+
+    auto r = c.evaluate();
+
+    EXPECT_EQ("hello", r.get<0>());
+    EXPECT_EQ(42, r.get<1>());
+
+    cond.handle.set(false);
+
+    auto ur = c.update(FrameInfo(1, {}));
+    r = c.evaluate();
+
+    EXPECT_TRUE(ur.didChange);
+
+    EXPECT_EQ("world", r.get<0>());
+    EXPECT_EQ(22, r.get<1>());
 }
 
-TEST(signal, sharedCopy)
+TEST(signal, weak)
 {
-    auto s1 = wrap(constant<std::string>("test"));
-    auto s2 = share(std::move(s1));
-    auto s3 = s2;
-    AnySignal<std::string> s4 = s3;
+    auto input = makeInput(42);
 
-    auto s5 = share(s3);
+    auto s = input.signal.share();
 
-    static_assert(std::is_same<decltype(s2), decltype(s3)>::value, "");
-    static_assert(std::is_same<decltype(s2), decltype(s5)>::value, "");
+    auto w = s.weak();
 
-    static_assert(IsSignal<decltype(s2)>::value, "");
-    static_assert(IsSignal<decltype(s2)>::value, "");
-    static_assert(IsSignal<decltype(s3)>::value, "");
-    static_assert(IsSignal<decltype(s4)>::value, "");
-    static_assert(IsSignal<decltype(s5)>::value, "");
+    static_assert(checkSignal<decltype(w.unwrap())>());
 
-    EXPECT_EQ("test", s5.evaluate());
-}
+    auto c2 = makeSignalContext(w);
 
-TEST(signal, waitFor)
-{
-    auto f = btl::delayed(std::chrono::seconds(1), btl::always(1));
-    auto s = waitFor(10, std::move(f));
-
-    EXPECT_EQ(10, s.evaluate());
-
-    std::this_thread::sleep_for(std::chrono::seconds(2));
-
-    update(s, FrameInfo(1u, std::chrono::seconds(2)));
-
-    EXPECT_TRUE(s.hasChanged());
-    EXPECT_EQ(1, s.evaluate());
-}
-
-TEST(signal, split)
-{
-    auto s = constant(std::make_tuple(10, std::string("20")));
-
-    auto tuple = split(std::move(s));
-
-    auto s1 = std::move(std::get<0>(tuple));
-    auto s2 = std::move(std::get<1>(tuple));
-
-    EXPECT_EQ(10, s1.evaluate());
-    EXPECT_EQ(std::string("20"), s2.evaluate());
-
-    AnySignal<int> s3 = std::move(s1);
-    AnySignal<std::string> s4 = std::move(s2);
-
-    EXPECT_EQ(10, s3.evaluate());
-    EXPECT_EQ(std::string("20"), s4.evaluate());
-}
-
-TEST(signal, cacheOptimizations)
-{
-    auto make = []()
     {
-        return cache(removeReference(
-                    constant(std::string("test"))
-                    ));
-    };
+        auto c1 = makeSignalContext(std::move(s));
 
-    auto s1 = cache(make());
+        EXPECT_EQ(42, c2.evaluate());
 
-    auto s2 = cache(std::move(s1));
+        input.handle.set(22);
+        auto r = c2.update(FrameInfo(1, {}));
 
-    static_assert(std::is_same<decltype(s1), decltype(s2)>::value, "");
+        EXPECT_TRUE(r.didChange);
+        EXPECT_EQ(22, c2.evaluate());
+    }
+
+    input.handle.set(2);
+    auto r = c2.update(FrameInfo(2, {}));
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(22, c2.evaluate());
 }
 
-TEST(signal, cacheOptimizations2)
+TEST(signal, tee)
 {
-    auto s1 = cache(constant<std::string>("test"));
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
 
-    static_assert(std::is_same<
-            std::decay_t<decltype(s1.storage())>,
-            Constant<std::string>>::value,
-            "");
+    auto s1 = input1.signal.tee(input2.handle);
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+
+    auto s2 = s1.merge(input2.signal).map([](std::string const& s1, int i1,
+                std::string const& s2, int i2)
+        {
+            return makeSignalResult(s1 + s2, i1 + i2);
+        });
+
+    auto c = makeSignalContext(s2);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ("hellohello", r1.get<0>());
+    EXPECT_EQ(84, r1.get<1>());
+
+    c.update(FrameInfo(1, {}));
+
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ("hellohello", r2.get<0>());
+    EXPECT_EQ(84, r2.get<1>());
+
+    input1.handle.set("world", 22);
+    c.update(FrameInfo(2, {}));
+
+    auto r3 = c.evaluate();
+
+    EXPECT_EQ("worldworld", r3.get<0>());
+    EXPECT_EQ(44, r3.get<1>());
 }
 
-TEST(signal, shareOptimizations)
+TEST(signal, teeCircular)
 {
-    auto make = []()
-    {
-        return share(constant(std::string("test")));
-    };
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
 
-    auto s = make();
+    auto s1 = merge(input1.signal, input2.signal).map(
+            [](std::string const& s1, int i1, std::string const& s2, int i2)
+            {
+                return makeSignalResult(s1 + s2, i1 + i2);
+            });
 
-    auto s1 = share(make());
+    auto s2 = s1.tee(input2.handle);
 
-    auto s2 = share(s1);
+    static_assert(checkSignal<decltype(s2.unwrap())>());
 
-    static_assert(std::is_same<decltype(s1), decltype(s1)>::value, "");
+    auto c = makeSignalContext(s2);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ("helloworld", r1.get<0>());
+    EXPECT_EQ(64, r1.get<1>());
+
+    c.update(FrameInfo(1, {}));
+
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ("hellohelloworld", r2.get<0>());
+    EXPECT_EQ(106, r2.get<1>());
 }
 
-template <typename T, typename U>
-auto asdf(Signal<T, U> s)
+TEST(signal, teeWithFunc)
 {
-    return s;
+    auto input1 = makeInput<std::string, int>("hello", 42);
+    auto input2 = makeInput<std::string, int>("world", 22);
+
+    auto s1 = merge(input1.signal, input2.signal).map(
+            [](std::string const& s1, int i1, std::string const& s2, int i2)
+            {
+                return makeSignalResult(i1 + i2, s1 + s2);
+            });
+
+    auto s2 = s1.tee(input2.handle, [](int i, std::string s)
+            {
+                return makeSignalResult(s, i);
+            });
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto r1 = c.evaluate();
+
+    EXPECT_EQ(64, r1.get<0>());
+    EXPECT_EQ("helloworld", r1.get<1>());
+
+    c.update(FrameInfo(1, {}));
+
+    auto r2 = c.evaluate();
+
+    EXPECT_EQ(106, r2.get<0>());
+    EXPECT_EQ("hellohelloworld", r2.get<1>());
 }
 
-template <typename T>
-auto asdf2(AnySignal<T> s)
+TEST(signal, makeOptional)
 {
-    return s;
+    auto s = constant(42);
+
+    auto s2 = s.makeOptional();
+
+    auto c = makeSignalContext(s2);
+
+    EXPECT_EQ(Type<std::optional<int> const&>(), getType(c.evaluate()));
+
+    EXPECT_EQ(std::make_optional(42), c.evaluate());
 }
 
-TEST(signal, typedSharedSignalIsASignal)
+TEST(signal, fromOptional)
 {
-    //SharedSignal<int const&, signal::Cache<signal::Constant<int>>>
-    auto s1 = share(constant(10));
-    auto s2 = asdf(s1);
+    std::optional<AnySignal<int>> n = std::nullopt;
 
-    auto s3 = asdf2<int>(s1);
+    auto s = fromOptional(n);
 
-    //Signal<int const&, signal::Constant<int>> s3 = s1;
-
-    s2.evaluate();
+    EXPECT_EQ(Type<AnySignal<std::optional<int>>>(), Type<decltype(s)>());
 }
 
-TEST(signal, sharedSignalTypeReduction)
+TEST(signal, cache)
 {
-    auto s1 = share(constant(10));
-    AnySharedSignal<int> s2 = s1;
+    auto input = makeInput(42);
 
-    s2.evaluate();
+    auto s1 = input.signal.map([](int i)
+        {
+            return std::to_string(i);
+        });
+
+    auto s2 = s1.cache();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    int callCount = 0;
+    auto s3 = s2.map([&callCount](std::string const& s)
+        {
+            ++callCount;
+            return s + s;
+        });
+
+    auto c = makeSignalContext(s3);
+
+    EXPECT_EQ(1, callCount);
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(22);
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(2, callCount);
 }
 
-TEST(signal, sharedSignalTypeReductionToSignal)
+TEST(signal, check)
 {
-    auto s1 = share(constant(10));
-    AnySignal<int> s2 = s1;
+    auto input = makeInput(42);
 
-    s2.evaluate();
+    auto s1 = input.signal.map([](int i)
+        {
+            return std::to_string(i);
+        });
+
+    auto s2 = s1.check();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    int callCount = 0;
+    auto s3 = s2.map([&callCount](std::string const& s)
+        {
+            ++callCount;
+            return s + s;
+        });
+
+    auto c = makeSignalContext(s3);
+
+    EXPECT_EQ(1, callCount);
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(42);
+    r = c.update(FrameInfo(2, {}));
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ(1, callCount);
+
+    input.handle.set(22);
+    r = c.update(FrameInfo(3, {}));
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ(2, callCount);
 }
 
-TEST(signal, sharedSignalIsASignal)
+TEST(signal, cast)
 {
-    auto s1 = share(constant(10));
-    AnySignal<int> s2 = s1;
+    auto s1 = constant([](int i)
+            {
+                return std::to_string(i);
+            });
 
-    s2.evaluate();
+    auto s2 = s1.cast<std::function<std::string(int)>>();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate();
+
+    EXPECT_EQ(Type<std::function<std::string(int)>>(), Type<decltype(f)>());
+
+    EXPECT_EQ("20", f(20));
 }
 
-TEST(signal, weakConstruct)
+TEST(signal, bindToFunction)
 {
-    AnySharedSignal<int> s1 = share(constant(10));
-    auto s2 = weak(s1);
+    auto input1 = makeInput(42, std::string("hello"));
 
-    s2.evaluate();
+    auto s1 = input1.signal.bindToFunction([](int i, std::string const& s1,
+                std::string const& s2)
+            {
+                return std::to_string(i) + s1 + ", " + s2;
+            });
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+
+    AnySignal<std::function<std::string(std::string)>> s2 = s1;
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate();
+
+    EXPECT_EQ("42hello, world", f("world"));
 }
 
-TEST(signal, Convert)
+TEST(signal, withChanged)
 {
-    auto s1 = constant([](){});
-    Convert<std::function<void()>> s2(std::move(s1));
+    auto input = makeInput(42, std::string("hello"));
 
-    s2.evaluate();
+    auto s1 = input.signal.withChanged();
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+
+    auto c = makeSignalContext(s1);
+
+    auto v = c.evaluate();
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(42, v.get<1>());
+    EXPECT_EQ("hello", v.get<2>());
+
+    auto r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(42, v.get<1>());
+    EXPECT_EQ("hello", v.get<2>());
+
+    input.handle.set(22, "world");
+
+    r = c.update(FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_TRUE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
+
+    r = c.update(FrameInfo(3, {}));
+    v = c.evaluate();
+
+    // Inner value did not change but our own first value changed from true to
+    // false
+    EXPECT_TRUE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
+
+    r = c.update(FrameInfo(4, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_FALSE(v.get<0>());
+    EXPECT_EQ(22, v.get<1>());
+    EXPECT_EQ("world", v.get<2>());
 }
 
-TEST(signal, tester)
+TEST(signal, withPrevious)
 {
-    testSignal([](auto s)
-    {
-        return cache(std::move(s));
-    });
+    auto input = makeInput(std::string("world"));
 
-    testSignal([](auto s)
-    {
-        return share(std::move(s));
-    });
+    auto s = input.signal.withPrevious(
+            [](std::string prevS, std::string s)
+            {
+                return prevS + s;
+            },
+            std::string("hello"));
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    auto c = makeSignalContext(s);
+
+    auto v = c.evaluate();
+
+    EXPECT_EQ("helloworld", v);
+
+    auto r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworld", v);
+
+    input.handle.set("bye");
+    r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ("helloworldbye", v);
+
+    r = c.update(FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworldbye", v);
 }
 
+TEST(signal, withPreviousMulti)
+{
+    auto input = makeInput(42, std::string("hello"));
+
+    auto s = input.signal.withPrevious(
+            [](std::string prevS, int prevI, int i, std::string s)
+            {
+                return makeSignalResult(s + prevS, i + prevI);
+            },
+            std::string("world"), 22);
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
+    auto c = makeSignalContext(s);
+
+    auto v = c.evaluate();
+
+    EXPECT_EQ("helloworld", v.get<0>());
+    EXPECT_EQ(64, v.get<1>());
+
+    auto r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("helloworld", v.get<0>());
+    EXPECT_EQ(64, v.get<1>());
+
+    input.handle.set(33, "bye");
+    r = c.update(FrameInfo(1, {}));
+    v = c.evaluate();
+
+    EXPECT_TRUE(r.didChange);
+    EXPECT_EQ("byehelloworld", v.get<0>());
+    EXPECT_EQ(97, v.get<1>());
+
+    r = c.update(FrameInfo(2, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byehelloworld", v.get<0>());
+    EXPECT_EQ(97, v.get<1>());
+}

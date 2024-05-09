@@ -1,287 +1,220 @@
 #pragma once
 
-#include "frameinfo.h"
+#include "check.h"
+#include "cache.h"
+#include "input.h"
+#include "join.h"
+#include "shared.h"
 #include "typed.h"
-#include "signalbase.h"
-#include "signaltraits.h"
-#include "signalresult.h"
+#include "wrap.h"
+#include "map.h"
+#include "conditional.h"
+#include "weak.h"
+#include "withchanged.h"
+#include "withprevious.h"
 
-#include <btl/cloneoncopy.h>
-#include <btl/shared.h>
-#include <btl/spinlock.h>
-#include <btl/demangle.h>
-#include <btl/not.h>
-#include <btl/all.h>
-#include <btl/any.h>
-#include "btl/forcenoexcept.h"
-#include "btl/typelist.h"
-#include "btl/partial.h"
+#include <btl/future/future.h>
+#include <btl/async.h>
+#include <btl/bindarguments.h>
 
-#include <tuple>
-#include <mutex>
-#include <utility>
-#include <type_traits>
-
-#include <cstddef>
+#include <string>
 
 namespace reactive::signal
 {
-    template <typename T2> class Weak;
+    template <typename TStorage, typename... Ts>
+    class Signal;
+
+    template <typename... Ts>
+    class AnySignal;
 
     template <typename TStorage, typename... Ts>
-    class SharedSignal;
-
-    namespace detail
-    {
-        template <typename T>
-        struct GetSignalResultTypesHelper
-        {
-            using type = btl::TypeList<T>;
-        };
-
-        template <typename... Ts>
-        struct GetSignalResultTypesHelper<SignalResult<Ts...>>
-        {
-            using type = btl::TypeList<Ts...>;
-        };
-
-        template <template <typename> class TPredicate, typename T>
-        struct AreAll : btl::All<TPredicate<T>>
-        {
-        };
-
-        template <template <typename> class TPredicate, typename... Ts>
-        struct AreAll<TPredicate, btl::TypeList<Ts...>> :
-            btl::All<TPredicate<Ts>...>
-        {
-        };
-
-        template <template <typename> class TPredicate, typename T>
-        struct IsAny : btl::All<TPredicate<T>>
-        {
-        };
-
-        template <template <typename> class TPredicate, typename... Ts>
-        struct IsAny<TPredicate, btl::TypeList<Ts...>> :
-            btl::Any<TPredicate<Ts>...>
-        {
-        };
-    }
-
-    template <typename T>
-    struct GetSignalResultTypes
-    {
-        using type = detail::GetSignalResultTypesHelper<SignalType<T>>;
-    };
-
-    template <typename TFunc, typename TStorage>
-    class Map
+    class SignalWithStorage
     {
     public:
-        Map(TFunc func, TStorage storage) :
-            func_(std::move(func)),
-            storage_(std::move(storage))
-        {
-        }
-
-        Map(Map&& other) noexcept = default;
-
-        Map& operator=(Map&&) noexcept = default;
-
-        auto evaluate() const -> decltype(auto)
-        {
-            if constexpr(IsSignalResult<decltype(storage_->evaluate())>::value)
-            {
-                using ReturnType = decltype(
-                        std::apply(*func_, storage_->evaluate().getTuple())
-                        );
-                using ReturnTypes = typename detail::GetSignalResultTypesHelper<
-                    ReturnType>::type;
-
-                if constexpr(!detail::AreAll<
-                        std::is_reference, typename GetSignalResultTypes<TStorage>::type
-                        >::value && detail::IsAny<std::is_reference, ReturnTypes>::value)
-                {
-                    return btl::clone(std::apply(*func_, storage_->evaluate().getTuple()));
-                }
-                else
-                {
-                    return std::apply(*func_, storage_->evaluate().getTuple());
-                }
-            }
-            else
-            {
-                using ReturnType = decltype(std::invoke(*func_, storage_->evaluate()));
-
-                if constexpr(!std::is_reference_v<SignalType<TStorage>> &&
-                        std::is_reference_v<ReturnType>
-                        )
-                {
-                    return btl::clone(std::invoke(*func_, storage_->evaluate()));
-                }
-                else
-                {
-                    return std::invoke(*func_, storage_->evaluate());
-                }
-            }
-        }
-
-        enum class ChangedState
-        {
-            unknown,
-            changed,
-            unchanged
-        };
-
-        bool hasChanged() const
-        {
-            if (changed_ == ChangedState::unknown)
-            {
-                changed_ = storage_->hasChanged()
-                    ? ChangedState::changed
-                    : ChangedState::unchanged;
-            }
-
-            return storage_->hasChanged();
-        }
-
-        UpdateResult updateBegin(FrameInfo const& frame)
-        {
-            changed_ = ChangedState::unknown;
-            return storage_->updateBegin(frame);
-        }
-
-        UpdateResult updateEnd(FrameInfo const& frame)
-        {
-            return storage_->updateEnd(frame);
-        }
-
-        template <typename TCallback>
-        btl::connection observe(TCallback&& callback)
-        {
-            return storage_->observe(std::forward<TCallback>(callback));
-        }
-
-        Annotation annotate() const
-        {
-            Annotation a;
-            //auto&& n = a.addNode("Signal<" + btl::demangle<T>()
-                    //+ "> changed: " + std::to_string(hasChanged()));
-            //a.addShared(sig_.raw_ptr(), n, deferred_->annotate());
-            return a;
-        }
-
-        Map clone() const
-        {
-            return *this;
-        }
-
-    private:
-        Map(Map const&) = default;
-        Map& operator=(Map const&) = default;
-
-        mutable btl::ForceNoexcept<TFunc> func_;
-        btl::CloneOnCopy<TStorage> storage_;
-        mutable ChangedState changed_ = ChangedState::unknown;
-    };
-
-    template <typename TStorage, typename... Ts> // defined in typed.h
-    class Signal
-    {
-    public:
-        template <typename U, typename... Vs> friend class Signal;
-
-        using NestedSignalType = TStorage;
-        using StorageType = std::conditional_t<std::is_same_v<void, TStorage>,
-              Share<SignalBase<Ts...>, Ts...>,
-              TStorage
-            >;
-
-        Signal(StorageType sig) :
+        SignalWithStorage(TStorage sig) :
             sig_(std::move(sig))
         {
         }
 
-        Signal(SharedSignal<TStorage, Ts...>&& other) noexcept:
-            sig_(std::move(other).storage())
-        {
-        }
+    protected:
+        TStorage sig_;
+    };
 
-        Signal(SharedSignal<TStorage, Ts...>& other) :
-            sig_(btl::clone(other.storage()))
-        {
-        }
-
-        Signal(SharedSignal<TStorage, Ts...> const& other) :
-            sig_(btl::clone(other.storage()))
-        {
-        }
-
-        template <typename UStorage, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<UStorage, Ts...>>::value
-            >>
-        Signal(SharedSignal<UStorage, Ts...> const& other) :
-            sig_(btl::clone(other.storage()))
-        {
-        }
-
-        template <typename UStorage, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<UStorage, Ts...>>::value
-            >>
-        Signal(SharedSignal<UStorage, Ts...>&& other) :
-            sig_(std::move(other).storage())
-        {
-        }
-
-        template <typename UStorage, typename = std::enable_if_t<
-            std::is_base_of<Signal, SharedSignal<UStorage, Ts...>>::value
-            >>
-        Signal(SharedSignal<UStorage, Ts...>& other) :
-            sig_(other.storage())
+    template <typename... Ts>
+    class SignalWithStorage<void, Ts...>
+    {
+    public:
+        SignalWithStorage(SignalTypeless<Ts...> sig) :
+            sig_(std::move(sig))
         {
         }
 
     protected:
-        Signal(Signal const&) = default;
-        Signal& operator=(Signal const&) = default;
+        SignalTypeless<Ts...> sig_;
+    };
 
+
+    template <typename TStorage, typename... Ts>
+    class SignalWithWeak : public SignalWithStorage<TStorage, Ts...>
+    {
     public:
-        Signal(Signal&&) noexcept = default;
-        Signal& operator=(Signal&&) noexcept = default;
+        using Super = SignalWithStorage<TStorage, Ts...>;
+        using Super::Super;
+    };
 
-        auto evaluate() const -> decltype(auto)
+    template <typename T, typename... Ts>
+    class SignalWithWeak<Shared<T, Ts...>, Ts...> : public SignalWithStorage<Shared<T, Ts...>, Ts...>
+    {
+    public:
+        using Super = SignalWithStorage<Shared<T, Ts...>, Ts...>;
+        using Super::Super;
+
+        Signal<Weak<Ts...>, Ts...> weak() const
         {
-            return sig_->evaluate();
+            return Super::sig_.weak();
+        }
+    };
+
+    template <typename T, typename... Ts>
+    class SignalWithConditional : public SignalWithWeak<T, Ts...>
+    {
+    public:
+        using Super = SignalWithWeak<T, Ts...>;
+        using Super::Super;
+    };
+
+    template <typename T>
+    class SignalWithConditional<T, bool> : public SignalWithWeak<T, bool>
+    {
+    public:
+        using Super = SignalWithWeak<T, bool>;
+        using Super::Super;
+
+        template <typename U, typename V, typename... Us>
+        Signal<Conditional<T, Us...>, Us...> conditional(
+                Signal<U, Us...> trueSignal,
+                Signal<V, Us...> falseSignal) const
+        {
+            return wrap(Conditional<T, Us...>(
+                        Super::sig_,
+                        std::move(trueSignal),
+                        std::move(falseSignal)
+                        ));
         }
 
-        bool hasChanged() const
+    };
+
+    template <bool withCheck, typename TStorage, typename... Ts>
+    class SignalWithCheckImpl : public SignalWithConditional<TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithConditional<TStorage, Ts...>;
+        using Super::Super;
+
+        auto tryCheck() const
         {
-            return sig_->hasChanged();
+            return Signal<TStorage, Ts...>(Super::sig_);
+        }
+    };
+
+    template <typename TStorage, typename... Ts>
+    class SignalWithCheckImpl<true, TStorage, Ts...> : public SignalWithConditional<
+    TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithConditional<TStorage, Ts...>;
+        using Super::Super;
+
+        auto check() const
+        {
+            return wrap(Check<TStorage>(Super::sig_));
         }
 
-        UpdateResult updateBegin(FrameInfo const& frame)
+        auto tryCheck() const
         {
-            return sig_->updateBegin(frame);
+            return check();
+        }
+    };
+
+    template <typename TStorage, typename... Ts>
+    class SignalWithCheck : public SignalWithCheckImpl<
+                            btl::IsEqualityComparable<SignalTypeT<TStorage>>::value,
+                            TStorage, Ts...>
+    {
+    public:
+        using Super = SignalWithCheckImpl<
+            btl::IsEqualityComparable<SignalTypeT<TStorage>>::value,
+            TStorage, Ts...>;
+        using Super::Super;
+    };
+
+
+    template <typename TStorage, typename... Ts>
+    using SignalStorageType = std::conditional_t<
+            std::is_same_v<void, TStorage>,
+            SignalTypeless<Ts...>,
+            TStorage
+            >;
+
+    template <typename TStorage, typename... Ts>
+    class Signal : public SignalWithCheck<SignalStorageType<TStorage, Ts...>, Ts...>
+    {
+    public:
+        using StorageType = std::conditional_t<
+            std::is_same_v<void, TStorage>,
+            SignalTypeless<Ts...>,
+            TStorage
+            >;
+
+        using Super = SignalWithCheck<SignalStorageType<TStorage, Ts...>, Ts...>;
+        using DataType = typename StorageType::DataType;
+
+        Signal(Signal const&) = default;
+        Signal(Signal&&) /*noexcept*/ = default;
+
+        Signal& operator=(Signal const&) = default;
+        Signal& operator=(Signal&&) /*noexcept*/ = default;
+
+        Signal(StorageType sig) :
+            Super(std::move(sig))
+        {
         }
 
-        UpdateResult updateEnd(FrameInfo const& frame)
+        StorageType& unwrap() &
         {
-            return sig_->updateEnd(frame);
+            return Super::sig_;
         }
 
-        template <typename TCallback>
-        btl::connection observe(TCallback&& callback)
+        StorageType unwrap() &&
         {
-            return sig_->observe(std::forward<TCallback>(callback));
+            return std::move(Super::sig_);
         }
 
-        Annotation annotate() const
+        StorageType const& unwrap() const&
         {
-            Annotation a;
-            //auto&& n = a.addNode("Signal<" + btl::demangle<T>()
-                    //+ "> changed: " + std::to_string(hasChanged()));
-            //a.addShared(sig_.raw_ptr(), n, deferred_->annotate());
-            return a;
+            return Super::sig_;
+        }
+
+        AnySignal<Ts...> eraseType() const
+        {
+            if constexpr (std::is_same_v<void, TStorage>)
+            {
+                return *this;
+            }
+            else
+            {
+                return wrap(makeTypelessSignal<Ts...>(*this));
+            }
+        }
+
+        Signal<Shared<StorageType, Ts...>, Ts...> share() const
+        {
+            return wrap(Shared<StorageType, Ts...>(Super::sig_));
+        }
+
+        auto join() const
+        {
+            return wrap(Join<TStorage>(Super::sig_));
         }
 
         Signal clone() const
@@ -289,159 +222,200 @@ namespace reactive::signal
             return *this;
         }
 
-        StorageType const& storage() const &
+        template <typename TFunc>
+        auto map(TFunc&& func) const&
         {
-            return *sig_;
+            return clone().map(std::forward<TFunc>(func));
         }
 
-        StorageType&& storage() &&
+        template <typename TFunc>
+        auto map(TFunc&& func) &&
         {
-            return std::move(*sig_);
+            return wrap(Map<std::decay_t<TFunc>, StorageType>(
+                        std::forward<TFunc>(func),
+                        std::move(Super::sig_)));
         }
 
-        bool isCached() const
+        auto tee(InputHandle<Ts...> handle) const
         {
-            if constexpr(std::is_same_v<void, TStorage>)
+            auto shared = Super::tryCheck().share();
+            handle.set(shared.weak());
+            return shared;
+        }
+
+        template <typename TFunc, typename... Us, typename = std::enable_if_t<
+            std::is_assignable_v<
+                SignalResult<Us...>,
+                ToSignalResultT<std::invoke_result_t<TFunc, Ts...>>
+            >
+            >>
+        auto tee(InputHandle<Us...> handle, TFunc&& func) const
+        {
+            auto shared = share();
+            auto mapped = shared.map(std::forward<TFunc>(func)).tryCheck().share();
+            handle.set(mapped.weak());
+
+            // Store a reference to mapped in the lambda capture
+            return shared.map([mapped](auto&&... ts)
+                {
+                    return makeSignalResult(std::forward<decltype(ts)>(ts)...);
+                });
+        }
+
+        auto makeOptional() const
+        {
+            if constexpr(sizeof...(Ts) == 1)
             {
-                return Signal<void, Ts...>::storage().ptr()->isCached();
+                return this->map([](auto&& t)
+                    {
+                        return std::make_optional(std::forward<decltype(t)>(t));
+                    });
             }
             else
             {
-                return std::is_reference_v<typename SignalType<StorageType>::type>;
+                return this->map([](auto&&... ts)
+                    {
+                        return std::make_optional(
+                                std::make_tuple(
+                                std::forward<decltype(ts)>(ts)...
+                                ));;
+                    });
             }
         }
 
-        template <typename TFunc>
-        auto map(TFunc&& f) &&
+        auto cache() const
         {
-            return wrap(Map<std::decay_t<TFunc>, StorageType>(
-                    std::forward<TFunc>(f),
-                    std::move(*sig_)
-                    ));
+            return wrap(Cache<StorageType>(Super::sig_));
+        }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Ts, Us>...)
+            >>
+        auto cast() const
+        {
+            return map([](auto&&... ts)
+                {
+                    return makeSignalResult<Us...>(
+                            static_cast<Us>(std::forward<decltype(ts)>(ts))...
+                            );
+                });
+        }
+
+        template <typename... Us, typename = std::enable_if_t<
+            btl::all(IsSignal<std::decay_t<Us>>::value...)
+            >>
+        auto merge(Us&&... signals) const
+        {
+            return signal::merge(*this, std::forward<Us>(signals)...);
         }
 
         template <typename TFunc>
-        auto mapToFunction(TFunc&& f) &&
+        auto bindToFunction(TFunc&& func) const
         {
-            return std::move(*this).map([f=std::forward<TFunc>(f)](auto&&... ts) mutable
+            return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
+                {
+                    return [func,
+                    params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
+                    (auto&&... us) mutable
                     {
-                        return btl::applyPartialFunction(
-                                f,
-                                std::forward<decltype(ts)>(ts)...
-                                );
-                    });
+                        return std::apply([&](auto&&... ts) mutable
+                                {
+                                    return func(std::forward<decltype(ts)>(ts)...,
+                                            std::forward<decltype(us)>(us)...);
+                                },
+                                params);
+                    };
+                });
         }
 
-    private:
-        template <typename T2> friend class Weak;
-        btl::CloneOnCopy<StorageType> sig_;
+        auto withChanged(bool ignoreChangedStatusChange = false) const
+        {
+            return wrap(WithChanged<StorageType>(Super::sig_,
+                        ignoreChangedStatusChange));
+        }
+
+        auto changed() const
+        {
+            return withChanged().map([](bool changed, auto&&...)
+                {
+                    return changed;
+                });
+        }
+
+        template <typename... Us, typename TFunc, typename = std::enable_if_t<
+            std::is_convertible_v<
+                ToSignalResultT<std::invoke_result_t<TFunc, Us..., Ts...>>,
+                SignalResult<Us...>
+            >>>
+        auto withPrevious(TFunc&& func, Us&&... initial) const
+        {
+            return wrap(WithPrevious<StorageType, std::decay_t<TFunc>,
+                    std::decay_t<Us>...>(
+                        std::forward<TFunc>(func),
+                        makeSignalResult(std::forward<Us>(initial)...),
+                        Super::sig_
+                        ));
+        }
+
+        auto toString() const
+        {
+            return map([](auto&&... ts)
+                {
+                    return makeSignalResult(
+                            std::to_string(std::forward<decltype(ts)>(ts))...
+                            );
+                });
+        }
     };
-
-    template <typename TStorage, typename TResult>
-    struct GetSignalTypeFromResult
-    {
-        using type = Signal<TStorage, std::decay_t<TResult>>;
-    };
-
-    template <typename TStorage, typename... Ts>
-    struct GetSignalTypeFromResult<TStorage, SignalResult<Ts...>>
-    {
-        using type = Signal<TStorage, std::decay_t<Ts>...>;
-    };
-
-    template <typename TStorage, typename = std::enable_if_t<
-        btl::All<
-            std::is_convertible<TStorage, std::decay_t<TStorage>>,
-            IsSignal<TStorage>
-        >::value
-        >>
-    //Signal<std::decay_t<TStorage>, std::decay_t<SignalType<TStorage>>>
-    typename GetSignalTypeFromResult<TStorage, std::decay_t<SignalType<TStorage>>>::type
-    wrap(TStorage&& sig)
-    {
-        return { std::forward<TStorage>(sig) };
-    }
-
-    template <typename... Ts, typename TStorage, typename = std::enable_if_t<
-        IsSignal<TStorage>::value
-        >>
-    auto wrap(Signal<TStorage, Ts...>&& sig)
-    {
-        return std::move(sig);
-    }
 
     template <typename... Ts>
     class AnySignal : public Signal<void, Ts...>
     {
     public:
-        template <typename U, typename... Vs> friend class Signal;
-
-        using NestedSignalType = void;
-
-        template <typename... Us, typename TStorage, typename =
-            std::enable_if_t<
-                btl::All<
-                    std::is_convertible<std::decay_t<Us>, std::decay_t<Ts>>...,
-                    btl::Any<
-                        btl::Not<std::is_reference<Ts>>,
-                        btl::All<std::is_reference<Ts>, std::is_reference<Us>>
-                    >...
-                >::value
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
             >>
-        AnySignal(Signal<TStorage, Us...>&& other) :
-            Signal<void, Ts...>(typed<Ts...>(std::move(other)))
+        AnySignal(Signal<TStorage, Us...> const& rhs) :
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(rhs))
         {
         }
 
-        template <typename UStorage>
-        AnySignal(SharedSignal<UStorage, Ts...> other) :
-            Signal<void, Ts...>(std::move(other).storage().ptr())
-        {
-        }
-
-        template <typename... Us, typename UStorage, typename =
-            std::enable_if_t<
-                btl::All<
-                    std::is_convertible<std::decay_t<Us>, std::decay_t<Ts>>...,
-                    btl::Any<
-                        btl::Not<std::is_reference<Ts>>,
-                        btl::All<std::is_reference<Ts>, std::is_reference<Us>>
-                    >...
-                >::value
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
             >>
-        AnySignal(SharedSignal<UStorage, Us...> other) :
-            Signal<void, Ts...>(typed<Ts...>(std::move(other)))
+        AnySignal(Signal<TStorage, Us...>&& rhs) noexcept:
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(std::move(rhs)))
         {
         }
 
-    protected:
-        AnySignal(AnySignal const&) = default;
-        AnySignal<Ts...>& operator=(AnySignal const&) = default;
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal operator=(Signal<TStorage, Us...> const& rhs)
+        {
+            Signal<void, Ts...>::sig_ = makeTypelessSignal<Ts...>(rhs);
+            return *this;
+        }
 
-    public:
-        AnySignal(AnySignal&&) noexcept = default;
-        AnySignal<Ts...>& operator=(AnySignal&&) noexcept = default;
+        template <typename TStorage, typename... Us, typename = std::enable_if_t<
+            btl::all(std::is_convertible_v<Us, Ts>...)
+            >>
+        AnySignal operator=(Signal<TStorage, Us...>&& rhs) noexcept
+        {
+            Signal<void, Ts...>::sig_ = makeTypelessSignal<Ts...>(rhs);
+            return *this;
+        }
 
         AnySignal clone() const
         {
             return *this;
         }
-
-    private:
-        template <typename T2> friend class Weak;
     };
 
+    template <typename... Ts>
+    struct IsSignal<Signal<Ts...>> : std::true_type {};
+
+    template <typename... Ts>
+    struct IsSignal<AnySignal<Ts...>> : std::true_type {};
 } // namespace reactive::signal
-
-namespace reactive
-{
-    template <typename T, typename U>
-    using Signal = signal::Signal<T, U>;
-
-    template <typename T, typename U>
-    using SharedSignal = signal::SharedSignal<T, U>;
-
-    template <typename T>
-    using AnySignal = signal::AnySignal<T>;
-} // namespace reactive
 

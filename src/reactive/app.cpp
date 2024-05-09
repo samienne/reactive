@@ -1,11 +1,12 @@
 #include "app.h"
 
-#include "signal/updateresult.h"
 #include "window.h"
 #include "send.h"
 #include "debug.h"
 
-#include "reactive/signal/input.h"
+#include "signal/input.h"
+#include "signal/updateresult.h"
+#include "signal/signalcontext.h"
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>
@@ -75,12 +76,12 @@ public:
         context_(context),
         window_(std::move(window)),
         painter_(memory_, context_),
-        size_(signal::input(ase::Vector2f(800, 600))),
+        size_(signal::makeInput(ase::Vector2f(800, 600))),
         widgetInstanceSignal_(window_.getWidget()(
                     widget::BuildParams{}
                     )(std::move(size_.signal)).getInstance()),
         widgetInstance_(widgetInstanceSignal_.evaluate()),
-        titleSignal_(window_.getTitle().clone()),
+        titleSignal_(window_.getTitle()),
         drawing_(memory_)
     {
         aseWindow.setVisible(true);
@@ -266,16 +267,14 @@ public:
 
         signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        auto timeToNext = widgetInstanceSignal_.updateBegin(frameInfo);
-        timeToNext = signal::min(timeToNext, titleSignal_.updateBegin(frameInfo));
+        auto updateResult = widgetInstanceSignal_.update(frameInfo);
+        updateResult = updateResult + titleSignal_.update(frameInfo);
 
-        timeToNext = signal::min(timeToNext, widgetInstanceSignal_.updateEnd(frameInfo));
-        timeToNext = signal::min(timeToNext, titleSignal_.updateEnd(frameInfo));
 
-        if (titleSignal_.hasChanged())
+        if (titleSignal_.didChange())
             aseWindow.setTitle(titleSignal_.evaluate());
 
-        if (widgetInstanceSignal_.hasChanged())
+        if (widgetInstanceSignal_.didChange())
         {
             ZoneScopedN("Widget instance signal evaluation");
 
@@ -303,15 +302,22 @@ public:
             {
                 auto handle = input.getFocusHandle();
 
-                if (input.getRequestFocus() && handle.has_value())
+                bool focus = input.getRequestFocus() || input.hasFocus();
+                if (focus && handle.has_value())
                 {
-                    if (currentHandle_.has_value())
-                        currentHandle_->set(false);
-                    handle->set(true);
+                    if (input.getRequestFocus())
+                    {
+                        if (currentHandle_.has_value())
+                            currentHandle_->set(false);
+                        handle->set(true);
+                    }
+
                     currentHandle_ = handle;
                     currentKeyHandler_ = input.getKeyHandler();
                     currentTextHandler_ = input.getTextHandler();
-                    break;
+
+                    if (input.getRequestFocus())
+                        break;
                 }
             }
 
@@ -326,7 +332,7 @@ public:
             }
         }
 
-        if (widgetInstanceSignal_.hasChanged()
+        if (widgetInstanceSignal_.didChange()
                 || (nextUpdate_ && *nextUpdate_ <= timer)
                 )
         {
@@ -350,7 +356,7 @@ public:
             animating_ = true;
         }
 
-        return timeToNext;
+        return updateResult.nextUpdate;
     }
 
     std::optional<signal::signal_time_t> frame(std::chrono::microseconds dt)
@@ -415,13 +421,15 @@ public:
 
     std::string getTitle() const
     {
-        return window_.getTitle().evaluate();
+        return titleSignal_.evaluate();
     }
 
-    AnySignal<widget::Instance> const& getWidgetInstanceSignal() const
+    /*
+    signal::AnySignal<widget::Instance> const& getWidgetInstanceSignal() const
     {
         return widgetInstanceSignal_;
     }
+    */
 
     widget::Instance const& getWidgetInstance() const
     {
@@ -436,10 +444,11 @@ private:
     ase::RenderContext& context_;
     Window window_;
     avg::Painter painter_;
-    signal::Input<ase::Vector2f> size_;
-    AnySignal<widget::Instance> widgetInstanceSignal_;
+    signal::Input<signal::SignalResult<ase::Vector2f>,
+        signal::SignalResult<ase::Vector2f>> size_;
+    signal::SignalContext<widget::Instance> widgetInstanceSignal_;
     widget::Instance widgetInstance_;
-    AnySignal<std::string> titleSignal_;
+    signal::SignalContext<std::string> titleSignal_;
     //RenderCache cache_;
     bool resized_ = true;
     bool redraw_ = true;
@@ -477,7 +486,7 @@ App App::windows(std::initializer_list<Window> windows) &&
     return std::move(*this);
 }
 
-int App::run(AnySignal<bool> running) &&
+int App::run(signal::AnySignal<bool> runningSignal) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
@@ -501,6 +510,7 @@ int App::run(AnySignal<bool> running) &&
 
     std::queue<btl::future::Future<>> frameFutures;
 
+    auto running = signal::makeSignalContext(runningSignal);
     while (running.evaluate())
     {
         FrameMark;
@@ -513,9 +523,7 @@ int App::run(AnySignal<bool> running) &&
         platform.handleEvents();
 
         reactive::signal::FrameInfo frame{getNextFrameId(), dt};
-        auto timeToNext = running.updateBegin(frame);
-        auto timeToNext2 = running.updateEnd(frame);
-        timeToNext = reactive::signal::min(timeToNext, timeToNext2);
+        auto [timeToNext, didChange] = running.update(frame);
 
         for (auto& glue : d()->windowGlues_)
         {
@@ -577,7 +585,7 @@ int App::run(AnySignal<bool> running) &&
 
 int App::run() &&
 {
-    auto running = signal::input(true);
+    auto running = signal::makeInput(true);
     for (auto&& w : d()->windows_)
         w = std::move(w).onClose(send(false, running.handle));
 

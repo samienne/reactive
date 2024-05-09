@@ -18,11 +18,11 @@ namespace reactive::widget
             return makeWidgetWithSize([](auto size, BuildParams const& params,
                         auto builder, auto fgWidget)
             {
-                auto s = signal::share(std::move(size));
+                auto s = std::move(size).share();
                 auto bgElement = std::move(builder)(s);
                 auto fgElement = std::move(fgWidget)(params)(s);
 
-                auto newInstance = signal::group(
+                auto newInstance = merge(
                         std::move(fgElement).getInstance(),
                         std::move(bgElement).getInstance()).map(
                         [](auto fgInstance, auto bgInstance)

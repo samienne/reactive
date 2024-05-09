@@ -14,7 +14,7 @@
 
 #include "reactive/simplesizehint.h"
 
-#include "signal/combine.h"
+#include "reactive/signal/combine.h"
 
 #include "stream/iterate.h"
 #include "stream/pipe.h"
@@ -100,7 +100,7 @@ namespace
 
     auto updateTextEdit(TextEditState state, Events const& e,
             widget::Theme const& theme,
-            std::vector<std::function<void()>> const& onEnter)
+            std::vector<std::function<void()>> const& /*onEnter*/)
     {
         if (std::holds_alternative<KeyEvent>(e))
         {
@@ -118,8 +118,7 @@ namespace
                 state.pos = (++utf8::floor(state.text, state.pos)).index();
             else if (keyEvent.getKey() == ase::KeyCode::returnKey)
             {
-                for (auto&& f : onEnter)
-                    f();
+                // already handled outside
             }
             else if (keyEvent.hasSymbol()
                     && keyEvent.getKey() != ase::KeyCode::backSpace)
@@ -155,40 +154,43 @@ namespace
     }
 
     auto makeTextEdit(
-            AnySharedSignal<widget::Theme> theme,
+            signal::AnySignal<widget::Theme> theme,
             signal::InputHandle<TextEditState> handle,
-            std::vector<AnySharedSignal<std::function<void()>>> const& onEnter,
-            AnySharedSignal<TextEditState> oldState)
+            std::vector<signal::AnySignal<std::function<void()>>> const& onEnter,
+            signal::AnySignal<TextEditState> oldState)
     {
         auto keyStream = stream::pipe<Events>();
 
         auto requestFocus = stream::pipe<bool>();
 
-        auto focus = signal::input(false);
+        auto focus = signal::makeInput(false);
 
-        auto focusPercentage = signal::map([](bool b) -> avg::Animated<float>
+        auto focusPercentage = std::move(focus.signal)
+            .map([](bool b) -> avg::Animated<float>
                 {
                     return b
                         ? avg::infiniteAnimation(0.0f, 1.0f, avg::curve::linear, 0.5f,
                                 avg::RepeatMode::reverse)
                         : avg::Animated<float>(0.0f)
                         ;
-                },
-                std::move(focus.signal)
-                );
+                });
 
-        auto frameColor = theme.clone().map([](auto const& theme)
+        auto frameColor = theme.map([](auto const& theme)
                 {
                     return theme.getSecondary();
                 });
 
-        auto newState = signal::tee(
-                stream::iterate(updateTextEdit, oldState, std::move(keyStream.stream),
-                    theme, signal::combine(onEnter)),
-                handle);
+        auto newState = stream::iterate(
+                updateTextEdit,
+                oldState,
+                std::move(keyStream.stream),
+                theme,
+                signal::combine(onEnter)
+                ).tee(handle);
 
         return makeWidget()
             | trackFocus(focus.handle)
+            | focusOn(std::move(requestFocus.stream))
             | widget::onDraw(
                     std::move(drawTextEdit),
                     theme,
@@ -198,7 +200,6 @@ namespace
             | widget::margin(signal::constant(5.0f))
             | widget::clip()
             | widget::frame(std::move(frameColor))
-            | focusOn(std::move(requestFocus.stream))
             | onClick(1,
                     [requestHandle=requestFocus.handle, keyHandle=keyStream.handle]
                     (ClickEvent const& e)
@@ -206,7 +207,27 @@ namespace
                         requestHandle.push(true);
                         keyHandle.push(e);
                     })
-            | widget::onKeyEvent(sendKeysTo(keyStream.handle))
+            //| widget::onKeyEvent(sendKeysTo(keyStream.handle))
+            | widget::onKeyEvent(signal::combine(onEnter).bindToFunction(
+                        [handle=keyStream.handle](
+                            std::vector<std::function<void()>> onEnter,
+                            KeyEvent const& keyEvent)
+                        {
+                            if (keyEvent.getKey() == ase::KeyCode::returnKey)
+                            {
+                                if (keyEvent.isDown())
+                                {
+                                    for (auto& cb : onEnter)
+                                        cb();
+                                }
+                            }
+                            else
+                            {
+                                handle.push(keyEvent);
+                            }
+
+                            return InputResult::handled;
+                        }))
             | widget::onTextEvent(sendKeysTo(keyStream.handle))
             | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
             ;
@@ -221,19 +242,19 @@ TextEdit::operator AnyWidget() const
             provideTheme(),
             handle_,
             onEnter_,
-            signal::share(btl::clone(state_))
+            state_
             );
 }
 
-TextEdit TextEdit::onEnter(AnySignal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(signal::AnySignal<std::function<void()>> cb) &&
 {
-    onEnter_.push_back(signal::share(std::move(cb)));
+    onEnter_.push_back(std::move(cb).share());
     return std::move(*this);
 }
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::share(signal::constant(std::move(cb))));
+    return std::move(*this).onEnter(signal::constant(std::move(cb)));
 }
 
 AnyWidget TextEdit::build() &&
@@ -242,7 +263,7 @@ AnyWidget TextEdit::build() &&
 }
 
 TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-        AnySignal<TextEditState> state)
+        signal::AnySignal<TextEditState> state)
 {
     return TextEdit{std::move(handle), std::move(state), {}};
 }

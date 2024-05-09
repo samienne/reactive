@@ -2,11 +2,9 @@
 
 #include "widget.h"
 
-#include <reactive/signal/input.h>
+#include <reactive/signal/signal.h>
 
 #include <btl/shared.h>
-
-#include <optional>
 
 namespace reactive::widget
 {
@@ -24,10 +22,10 @@ namespace reactive::widget
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        AnySignal<Instance> const& getWidget();
+        signal::AnySignal<Instance> const& getWidget();
         avg::UniqueId const& getId() const;
 
-        AnySignal<SizeHint> const& getSizeHint() const;
+        signal::AnySignal<SizeHint> const& getSizeHint() const;
 
     private:
         struct Impl
@@ -35,11 +33,13 @@ namespace reactive::widget
             Impl(AnyWidget widget, BuildParams const& params);
 
             avg::UniqueId id_;
-            signal::Input<avg::Vector2f> sizeInput_;
-            signal::Input<avg::Transform> transformInput_;
+            signal::Input<signal::SignalResult<avg::Vector2f>,
+                signal::SignalResult<avg::Vector2f>> sizeInput_;
+            signal::Input<signal::SignalResult<avg::Transform>,
+                signal::SignalResult<avg::Transform>> transformInput_;
             std::pair<
-                AnySignal<Instance>,
-                btl::CloneOnCopy<AnySignal<SizeHint>>
+                signal::AnySignal<Instance>,
+                btl::CloneOnCopy<signal::AnySignal<SizeHint>>
                 > widget_;
         };
 

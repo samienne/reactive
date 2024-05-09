@@ -1,41 +1,106 @@
 #pragma once
 
-#include "signal.h"
+#include "frameinfo.h"
+#include "updateresult.h"
+#include "signalresult.h"
 #include "signaltraits.h"
-#include "group.h"
+
+#include "reactive/connection.h"
+
+#include <btl/copywrapper.h>
+#include <btl/connection.h>
+
+#include <tuple>
+#include <type_traits>
 
 namespace reactive::signal
 {
-    template <typename TFunc, typename... Ts, typename... Us>
-    auto map(TFunc&& func, Signal<Us, Ts>... s) -> decltype(auto)
+    template <typename TFunc, typename TSignal>
+    class Map
     {
-        return group(std::move(s)...).map(std::forward<TFunc>(func));
-    }
+    public:
+        using InnerResultType = std::optional<std::decay_t<SignalTypeT<TSignal>>>;
 
-    template <typename TFunc, typename... TSigs,
-             typename = typename
-        std::enable_if
-        <
-            btl::All<
-                std::is_copy_constructible<std::decay_t<TFunc>>,
-                IsSignal<TSigs>...
-            >::value
-        >::type>
-    constexpr auto mapFunction(TFunc&& func, TSigs... sigs)
-    {
-        return group(std::move(sigs)...).mapToFunction(std::forward<TFunc>(func));
-    }
-} // reactive::signal
+        struct DataType
+        {
+            typename TSignal::DataType signalData;
 
-namespace btl
-{
-    template <typename... Ts>
-    auto fmap(Ts&&... ts)
-    -> decltype(
-            reactive::signal::map(std::forward<Ts>(ts)...)
-        )
-    {
-        return reactive::signal::map(std::forward<Ts>(ts)...);
-    }
-} // btl
+            // Storage used to temporarily store the signal result before
+            // passing it to the map function. This will keep references
+            // to temporaries alive as long as DataType is kept in the context
+            // and no new calls to evaluate is made.
+            mutable InnerResultType innerResult;
+        };
+
+        Map(TFunc func, TSignal sig) :
+            func_(std::move(func)),
+            sig_(std::move(sig))
+        {
+        }
+
+        DataType initialize() const
+        {
+            return { sig_.initialize(), std::nullopt };
+        }
+
+        auto evaluate(DataType const& data) const
+        {
+            using ResultType = decltype(std::apply(
+                        *func_,
+                        sig_.evaluate(data.signalData).getTuple()
+                        ));
+
+            if constexpr (std::is_same_v<void, ResultType>)
+            {
+                std::apply(
+                        *func_,
+                        sig_.evaluate(data.signalData).getTuple()
+                        );
+
+                return SignalResult<>();
+            }
+            else if constexpr (IsSignalResult<std::decay_t<ResultType>>::value)
+            {
+                // Circumvent need for operator= by using copy/move constructor
+                data.innerResult.reset();
+                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+
+                return std::apply(
+                        *func_,
+                        std::move(*data.innerResult).getTuple()
+                        );
+            }
+            else
+            {
+                // Circumvent need for operator= by using copy/move constructor
+                data.innerResult.reset();
+                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+
+                return SignalResult<ResultType>(std::apply(
+                            *func_,
+                            std::move(*data.innerResult).getTuple()
+                            ));
+            }
+        }
+
+        UpdateResult update(DataType& data, FrameInfo const& frame)
+        {
+            return sig_.update(data.signalData, frame);
+        }
+
+        template <typename TCallback>
+        Connection observe(DataType& data, TCallback&& callback)
+        {
+            return sig_.observe(data.signalData, std::forward<TCallback>(
+                        callback));
+        }
+
+    private:
+        mutable btl::CopyWrapper<TFunc> func_;
+        TSignal sig_;
+    };
+
+    template <typename TFunc, typename TSignal>
+    struct IsSignal<Map<TFunc, TSignal>> : std::true_type {};
+} // namespace reactive::signal
 

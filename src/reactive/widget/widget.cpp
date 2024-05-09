@@ -8,7 +8,7 @@ namespace reactive::widget
     template class Widget<std::function<AnyBuilder(BuildParams)>>;
     template class WidgetModifier<std::function<AnyWidget(AnyWidget)>>;
     template class BuilderModifier<std::function<AnyBuilder(AnyBuilder)>>;
-    template class Element<AnySignal<Instance>>;
+    template class Element<signal::AnySignal<Instance>>;
     template class ElementModifier<std::function<AnyElement(AnyElement)>>;
 } // namespace reactive::widget
 

@@ -55,7 +55,7 @@ namespace {
 } // anonymous namespace
 
 reactive::widget::AnyWidget curveVisualizer(
-        reactive::AnySignal<avg::Curve> curve
+        reactive::signal::AnySignal<avg::Curve> curve
         )
 {
     auto c = curve.clone().map([](auto curve)
