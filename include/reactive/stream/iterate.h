@@ -26,7 +26,7 @@ namespace reactive::stream
             Stream<T> stream, TSignals&&... sigs)
     {
         return merge(
-                collect2(std::move(stream)),
+                collect(std::move(stream)),
                 initial.withChanged(true),
                 std::forward<TSignals>(sigs)...)
             .template withPrevious<std::optional<V>>(

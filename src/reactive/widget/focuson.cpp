@@ -23,7 +23,7 @@ namespace
 
 AnyWidgetModifier focusOn(stream::Stream<bool> stream)
 {
-    auto focusRequest = stream::collect2(std::move(stream)).map(hasValues);
+    auto focusRequest = stream::collect(std::move(stream)).map(hasValues);
 
     return makeWidgetModifier(makeInstanceSignalModifier(
         [](auto instance, auto focusRequest)

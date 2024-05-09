@@ -284,7 +284,7 @@ AnyInstanceModifier focusGroup()
 
             auto state = merge(
                     std::move(inputs),
-                    stream::collect2(std::move(keyStream.stream))
+                    stream::collect(std::move(keyStream.stream))
                     ).withPrevious(&step, FocusGroupState());
 
             /*
