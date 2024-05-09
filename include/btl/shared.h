@@ -12,20 +12,6 @@ namespace btl
     class shared
     {
     public:
-        /*template <typename... TArgs, typename T2 = T, typename = typename
-            std::enable_if
-            <
-                !std::is_abstract<T2>::value
-            >::type,
-            typename = void_t
-            <
-                decltype(T2(std::declval<TArgs>()...))
-            >>
-        shared(TArgs&&... args) :
-            data_(std::make_shared<T>(std::forward<TArgs>(args)...))
-        {
-        }*/
-
         template <typename T2, typename T3 = T, typename = typename
             std::enable_if
             <

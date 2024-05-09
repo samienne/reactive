@@ -3,6 +3,8 @@
 #include "collect.h"
 #include "stream.h"
 
+#include <btl/copywrapper.h>
+
 #include <type_traits>
 
 namespace reactive
@@ -30,7 +32,7 @@ namespace reactive::stream
                 initial.withChanged(true),
                 std::forward<TSignals>(sigs)...)
             .template withPrevious<std::optional<V>>(
-                    [func=std::forward<TFunc>(func)](
+                    [func=btl::copyWrap(std::forward<TFunc>(func))](
                         std::optional<V> const& previous,
                         std::vector<T> const& streamValues,
                         bool initialChanged,
@@ -41,7 +43,7 @@ namespace reactive::stream
                         initial : *previous;
 
                     for (auto&& v : streamValues)
-                        current = func(std::move(current), v, values...);
+                        current = (*func)(std::move(current), v, values...);
 
                     return current;
                 },

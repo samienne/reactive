@@ -7,6 +7,7 @@
 
 #include "reactive/connection.h"
 
+#include <btl/copywrapper.h>
 #include <btl/connection.h>
 
 #include <tuple>
@@ -45,14 +46,14 @@ namespace reactive::signal
         auto evaluate(DataType const& data) const
         {
             using ResultType = decltype(std::apply(
-                        func_,
+                        *func_,
                         sig_.evaluate(data.signalData).getTuple()
                         ));
 
             if constexpr (std::is_same_v<void, ResultType>)
             {
                 std::apply(
-                        func_,
+                        *func_,
                         sig_.evaluate(data.signalData).getTuple()
                         );
 
@@ -65,7 +66,7 @@ namespace reactive::signal
                 new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
 
                 return std::apply(
-                        func_,
+                        *func_,
                         std::move(*data.innerResult).getTuple()
                         );
             }
@@ -76,7 +77,7 @@ namespace reactive::signal
                 new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
 
                 return SignalResult<ResultType>(std::apply(
-                            func_,
+                            *func_,
                             std::move(*data.innerResult).getTuple()
                             ));
             }
@@ -100,7 +101,7 @@ namespace reactive::signal
         }
 
     private:
-        mutable TFunc func_;
+        mutable btl::CopyWrapper<TFunc> func_;
         TSignal sig_;
     };
 

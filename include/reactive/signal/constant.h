@@ -6,6 +6,8 @@
 #include "signaltraits.h"
 #include "signalresult.h"
 
+#include <btl/copywrapper.h>
+
 namespace reactive::signal
 {
     template <typename T>
@@ -39,7 +41,7 @@ namespace reactive::signal
 
         SignalResult<T const&> evaluate(DataType const&) const
         {
-            return SignalResult<T const&>(constant_);
+            return SignalResult<T const&>(*constant_);
         }
 
         bool hasChanged(DataType const&) const
@@ -60,7 +62,7 @@ namespace reactive::signal
         }
 
     private:
-        T constant_;
+        btl::CopyWrapper<T> constant_;
     };
 
     template <typename T>

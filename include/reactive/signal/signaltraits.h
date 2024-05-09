@@ -60,7 +60,8 @@ namespace reactive::signal
             std::is_same<UpdateResult, update_t<T>>,
             std::is_same<Connection, observe_t<T>>,
             std::is_nothrow_move_constructible<std::decay_t<T>>,
-            std::is_copy_constructible<std::decay_t<T>>
+            std::is_copy_constructible<std::decay_t<T>>,
+            std::is_copy_assignable<std::decay_t<T>>
         > {};
 
     template <typename T>
@@ -72,6 +73,7 @@ namespace reactive::signal
         static_assert(std::is_same_v<Connection, observe_t<T>>);
         static_assert(std::is_nothrow_move_constructible_v<std::decay_t<T>>);
         static_assert(std::is_copy_constructible_v<std::decay_t<T>>);
+        static_assert(std::is_copy_assignable_v<std::decay_t<T>>);
 
         return CheckSignal<T>::value;
     }

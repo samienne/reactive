@@ -7,6 +7,8 @@
 
 #include "reactive/connection.h"
 
+#include <btl/copywrapper.h>
+
 namespace reactive::signal
 {
     template <typename T>
@@ -83,7 +85,7 @@ namespace reactive::signal
 
         DataType initialize() const
         {
-            return DataType(func_, *initial_, sig_);
+            return DataType(*func_, *initial_, sig_);
         }
 
         SignalResultToConstRefT<FuncReturnType> evaluate(
@@ -104,7 +106,7 @@ namespace reactive::signal
             if (r.didChange)
             {
                 data.innerResult = sig_.evaluate(data.innerData);
-                data.currentResult = evaluateFunc(func_,
+                data.currentResult = evaluateFunc(*func_,
                         data.currentResult, data.innerResult);
             }
 
@@ -119,7 +121,7 @@ namespace reactive::signal
         }
 
     private:
-        TFunc func_;
+        btl::CopyWrapper<TFunc> func_;
         std::shared_ptr<FuncReturnType> initial_;
         TStorage sig_;
     };
