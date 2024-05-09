@@ -106,6 +106,8 @@ TEST(Stream, collect)
 
     auto s = collect(std::move(p.stream));
 
+    static_assert(signal2::checkSignal<decltype(s.unwrap())>());
+
     auto c = signal2::makeSignalContext(s);
 
     EXPECT_EQ(std::vector<std::string>(), c.evaluate());
@@ -132,6 +134,8 @@ TEST(Stream, iterate)
             initial.signal,
             values.stream
             );
+
+    static_assert(signal2::checkSignal<decltype(s.unwrap())>());
 
     auto c = signal2::makeSignalContext(s);
     auto v = c.evaluate();

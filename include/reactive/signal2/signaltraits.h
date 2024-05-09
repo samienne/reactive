@@ -19,12 +19,14 @@ namespace reactive::signal2
     using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize());
 
     template <typename T>
-    using evaluate_t = decltype(std::declval<std::decay_t<T> const&>().evaluate());
+    using evaluate_t = decltype(std::declval<std::decay_t<T> const&>().evaluate(
+                std::declval<std::decay_t<initialize_t<T>>&>()
+                ));
 
     template <typename T>
     using update_t = decltype(
             std::declval<std::decay_t<T>>().update(
-                std::declval<std::decay_t<initialize_t<T>>>(),
+                std::declval<std::decay_t<initialize_t<T>>&>(),
                 std::declval<FrameInfo const>())
             );
 
@@ -37,7 +39,10 @@ namespace reactive::signal2
 
     template <typename T>
     using observe_t = decltype(
-            std::declval<std::decay_t<T>>().observe(std::function<void()>())
+            std::declval<std::decay_t<T>>().observe(
+                std::declval<std::decay_t<initialize_t<T>>&>(),
+                std::function<void()>()
+                )
             );
 
     template <typename T, typename = void>
@@ -55,8 +60,21 @@ namespace reactive::signal2
             std::is_same<UpdateResult, update_t<T>>,
             std::is_same<Connection, observe_t<T>>,
             std::is_nothrow_move_constructible<std::decay_t<T>>,
-            btl::IsClonable<std::decay_t<T>>
+            std::is_copy_constructible<std::decay_t<T>>
         > {};
+
+    template <typename T>
+    constexpr bool checkSignal()
+    {
+        static_assert(IsSignalResult<std::decay_t<evaluate_t<T>>>::value);
+        static_assert(std::is_same_v<bool, hasChanged_t<T>>);
+        static_assert(std::is_same_v<UpdateResult, update_t<T>>);
+        static_assert(std::is_same_v<Connection, observe_t<T>>);
+        static_assert(std::is_nothrow_move_constructible_v<std::decay_t<T>>);
+        static_assert(std::is_copy_constructible_v<std::decay_t<T>>);
+
+        return CheckSignal<T>::value;
+    }
 
     template <typename T>
     struct IsSignal : CheckSignal<T> {};

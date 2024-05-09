@@ -6,6 +6,7 @@
 #include <reactive/signal2/join.h>
 #include <reactive/signal2/combine.h>
 #include <reactive/signal2/fromoptional.h>
+#include <reactive/signal2/evaluateoninit.h>
 
 #include <btl/demangle.h>
 
@@ -17,6 +18,18 @@ static_assert(std::is_same_v<
         ConcatSignalResults<SignalResult<int, char>, SignalResult<int const&, std::string&>>::type,
         SignalResult<int, char, int const&, std::string&>
         >);
+
+static_assert(checkSignal<Constant<int>>());
+static_assert(checkSignal<Combine<int>>());
+static_assert(checkSignal<Conditional<Constant<bool>, int>>());
+static_assert(checkSignal<EvaluateOnInit<std::function<int()>>>());
+static_assert(checkSignal<InputSignal<int>>());
+static_assert(checkSignal<Join<Constant<Constant<int>>>>());
+static_assert(checkSignal<Map<std::function<int(int)>, Constant<int>>>());
+static_assert(checkSignal<Merge<Constant<int>>>());
+static_assert(checkSignal<Shared<Constant<int>, int>>());
+static_assert(checkSignal<WithChanged<Constant<int>>>());
+static_assert(checkSignal<WithPrevious<Constant<int>, std::function<int(int, int)>>>());
 
 template <typename T>
 class Type
@@ -74,7 +87,8 @@ constexpr Type<T const&> getType(T const&)
 TEST(Signal2, constant)
 {
     auto s = constant(10);
-    AnySignal<int> ss = s;
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
 
     auto c = makeSignalContext(s);
 
@@ -107,6 +121,8 @@ TEST(Signal2, signalInput)
 {
     auto input = makeInput(42);
 
+    static_assert(checkSignal<decltype(input.signal.unwrap())>());
+
     auto c = makeSignalContext(input.signal);
 
     EXPECT_EQ(Type<SignalContext<int const&>>(), Type<decltype(c)>());
@@ -133,6 +149,8 @@ TEST(Signal2, map)
                 {
                     return n * 2;
                 });
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
 
     auto c = makeSignalContext(std::move(s));
 
@@ -168,6 +186,9 @@ TEST(Signal2, mapReferenceToTemp)
                 return *n;
             });
 
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
     auto c = makeSignalContext(std::move(s2));
 
     EXPECT_EQ(42, c.evaluate());
@@ -179,6 +200,8 @@ TEST(Signal2, merge)
     auto input2 = makeInput<int, std::string>(20, "test");
 
     auto s = merge(input1.signal, input2.signal);
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
 
     Type<Signal<Merge<InputSignal<int>, InputSignal<int, std::string>>,
         int, int, std::string>> type;
@@ -204,6 +227,8 @@ TEST(Signal2, share)
             });
 
     auto s2 = s1.share();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
 
     std::vector<SignalContext<std::string>> contexts;
     for (int i = 0; i < 1024; ++i)
@@ -272,6 +297,8 @@ TEST(Signal2, join)
 
     auto j = s.join();
 
+    static_assert(checkSignal<decltype(j.unwrap())>());
+
     auto c = makeSignalContext(j);
 
     auto r1 = c.evaluate();
@@ -306,6 +333,8 @@ TEST(Signal2, combine)
 
     auto s = combine(sigs);
 
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
     auto c = makeSignalContext(s);
 
     auto r = c.evaluate();
@@ -335,6 +364,8 @@ TEST(Signal2, conditional)
 
     auto s = cond.signal.conditional(input1.signal, input2.signal);
 
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
     auto c = makeSignalContext(s);
 
     auto r = c.evaluate();
@@ -360,6 +391,8 @@ TEST(Signal2, weak)
     auto s = input.signal.share();
 
     auto w = s.weak();
+
+    static_assert(checkSignal<decltype(w.unwrap())>());
 
     auto c2 = makeSignalContext(w);
 
@@ -387,6 +420,8 @@ TEST(Signal2, tee)
     auto input2 = makeInput<std::string, int>("world", 22);
 
     auto s1 = input1.signal.tee(input2.handle);
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
 
     auto s2 = s1.merge(input2.signal).map([](std::string const& s1, int i1,
                 std::string const& s2, int i2)
@@ -430,6 +465,8 @@ TEST(Signal2, teeCircular)
 
     auto s2 = s1.tee(input2.handle);
 
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
     auto c = makeSignalContext(s2);
 
     auto r1 = c.evaluate();
@@ -460,6 +497,8 @@ TEST(Signal2, teeWithFunc)
             {
                 return makeSignalResult(s, i);
             });
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
 
     auto c = makeSignalContext(s2);
 
@@ -509,6 +548,8 @@ TEST(Signal2, cache)
 
     auto s2 = s1.cache();
 
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
     int callCount = 0;
     auto s3 = s2.map([&callCount](std::string const& s)
         {
@@ -542,6 +583,8 @@ TEST(Signal2, check)
         });
 
     auto s2 = s1.check();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
 
     int callCount = 0;
     auto s3 = s2.map([&callCount](std::string const& s)
@@ -581,6 +624,8 @@ TEST(Signal2, cast)
 
     auto s2 = s1.cast<std::function<std::string(int)>>();
 
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
     auto c = makeSignalContext(s2);
 
     auto f = c.evaluate();
@@ -600,7 +645,11 @@ TEST(Signal2, bindToFunction)
                 return std::to_string(i) + s1 + ", " + s2;
             });
 
+    static_assert(checkSignal<decltype(s1.unwrap())>());
+
     AnySignal<std::function<std::string(std::string)>> s2 = s1;
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
 
     auto c = makeSignalContext(s2);
 
@@ -614,6 +663,8 @@ TEST(Signal2, withChanged)
     auto input = makeInput(42, std::string("hello"));
 
     auto s1 = input.signal.withChanged();
+
+    static_assert(checkSignal<decltype(s1.unwrap())>());
 
     auto c = makeSignalContext(s1);
 
@@ -670,6 +721,8 @@ TEST(Signal2, withPrevious)
             },
             std::string("hello"));
 
+    static_assert(checkSignal<decltype(s.unwrap())>());
+
     auto c = makeSignalContext(s);
 
     auto v = c.evaluate();
@@ -706,6 +759,8 @@ TEST(Signal2, withPreviousMulti)
                 return makeSignalResult(s + prevS, i + prevI);
             },
             std::string("world"), 22);
+
+    static_assert(checkSignal<decltype(s.unwrap())>());
 
     auto c = makeSignalContext(s);
 
