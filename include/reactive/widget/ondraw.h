@@ -56,17 +56,22 @@ namespace detail
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
-            std::is_invocable_r_v<
-                avg::Drawing,
-                TFunc,
-                avg::DrawContext const&,
-                avg::Vector2f,
-                avg::AnimatedTypeT<std::decay_t<
-                    signal::SingleSignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
-                    >>...
-            >
+         btl::isInvocableRV<
+            avg::Drawing,
+            TFunc,
+            avg::DrawContext const&,
+            avg::Vector2f,
+            btl::ParamPackMapT<
+                avg::AnimatedTypeT,
+                signal::UnpackSignalResultT<
+                    signal::DecaySignalResultT<
+                        signal::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
+                    >
+                >
+            >...
         >
     >
+>
 AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
 {
     return detail::makeWidgetModifierUnchecked(
@@ -87,17 +92,22 @@ AnyWidgetModifier onDraw(TFunc&& func, Ts&&... ts)
 
 template <typename TFunc, typename... Ts,
          typename = std::enable_if_t<
-            std::is_invocable_r_v<
-                avg::Drawing,
-                TFunc,
-                avg::DrawContext const&,
-                avg::Vector2f,
-                avg::AnimatedTypeT<std::decay_t<
-                    signal::SingleSignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
-                    >>...
-            >
+         btl::isInvocableRV<
+            avg::Drawing,
+            TFunc,
+            avg::DrawContext const&,
+            avg::Vector2f,
+            btl::ParamPackMapT<
+                avg::AnimatedTypeT,
+                signal::UnpackSignalResultT<
+                    signal::DecaySignalResultT<
+                        signal::SignalTypeT<ParamProviderTypeT<std::decay_t<Ts>>>
+                    >
+                >
+            >...
         >
     >
+>
 AnyWidgetModifier onDrawBehind(TFunc&& func, Ts&&... ts)
 {
     return detail::makeWidgetModifierUnchecked(

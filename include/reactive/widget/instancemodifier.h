@@ -159,8 +159,12 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        true//std::is_invocable_r_v<Instance, TFunc, Instance, signal::SignalTypeT<Ts>...>
-        >>
+        btl::isInvocableRV<
+            Instance,
+            TFunc,
+            Instance,
+            signal::UnpackSignalResultT<signal::SignalTypeT<Ts>>...
+        >>>
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {
         return detail::makeInstanceSignalModifierUnchecked(
