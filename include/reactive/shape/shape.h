@@ -42,7 +42,7 @@ namespace reactive::shape
     {
         return widget::onDraw([](avg::DrawContext const& context,
                         avg::Vector2f size,
-                        auto func, 
+                        auto func,
                         std::optional<avg::Brush> const& brush,
                         std::optional<avg::Pen> const& pen)
                 {

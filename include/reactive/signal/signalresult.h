@@ -1,5 +1,6 @@
 #pragma once
 
+#include <btl/invoke.h>
 #include <btl/all.h>
 #include <btl/not.h>
 
@@ -251,5 +252,19 @@ namespace reactive::signal
 
     template <typename... Ts>
     using ToSignalResultT = typename ToSignalResult<Ts...>::type;
+
+    template <typename T>
+    struct UnpackSignalResult
+    {
+    };
+
+    template <typename... Ts>
+    struct UnpackSignalResult<SignalResult<Ts...>>
+    {
+        using type = btl::ParamPack<Ts...>;
+    };
+
+    template <typename T>
+    using UnpackSignalResultT = typename UnpackSignalResult<T>::type;
 } // reactive::signal
 

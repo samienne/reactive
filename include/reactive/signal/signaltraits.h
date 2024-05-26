@@ -107,12 +107,27 @@ namespace reactive::signal
     };
 
     template <typename TSignal>
-    using signal_value_t = typename SignalValueType<TSignal>::type;
-
-    template <typename TSignal>
-    using SignalTypeT = decltype(std::declval<std::decay_t<TSignal> const&>()
+    struct SignalType
+    {
+        using type = decltype(std::declval<std::decay_t<TSignal> const&>()
             .evaluate(std::declval<SignalDataTypeT<TSignal> const&>())
             );
+    };
+
+    template <typename TStorage, typename... Ts>
+    struct SignalType<Signal<TStorage, Ts...>>
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename... Ts>
+    struct SignalType<AnySignal<Ts...>>
+    {
+        using type = SignalResult<Ts...>;
+    };
+
+    template <typename TSignal>
+    using SignalTypeT = typename SignalType<TSignal>::type;
 
     template <typename T>
     struct SingleSignalType
