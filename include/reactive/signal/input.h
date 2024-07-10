@@ -2,6 +2,7 @@
 
 #include "weak.h"
 #include "signalresult.h"
+#include "datacontext.h"
 
 #include <mutex>
 #include <memory>
@@ -15,18 +16,17 @@ namespace reactive::signal
     struct InputControl
     {
         InputControl(std::tuple<Ts...> value) :
+            id_(makeUniqueId()),
             value(std::move(value))
         {
         }
 
         std::recursive_mutex mutex;
-        std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
-        std::optional<Weak<Ts...>> sig;
-        std::optional<signal_time_t> updateTime;
-        signal_time_t time = signal_time_t(0);
+        btl::UniqueId id_;
         SignalResult<Ts...> value;
-        uint64_t index = 0;
-        uint64_t frameId = 0;
+        std::optional<Weak<Ts...>> sig;
+        uint64_t valueIndex = 0;
+        uint64_t signalIndex = 0;
     };
 
     template <typename... Ts>
@@ -63,19 +63,25 @@ namespace reactive::signal
             {
                 std::unique_lock lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
-                ++control->index;
+                control->valueIndex = std::max(control->valueIndex,
+                        control->signalIndex) + 1;
             }
         }
 
-        void set(Signal<Weak<Ts...>, Ts...> sig)
+        void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
         {
             if (auto control = control_.lock())
             {
                 std::unique_lock lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
-                control->sigData = control->sig->initialize();
-                control->value = control->sig->evaluate(*control->sigData);
+                control->signalIndex = std::max(control->valueIndex,
+                        control->signalIndex) + 1;
+                /*
+                control->sigData = control->sig->initialize(control->context);
+                control->value = control->sig->evaluate(control->context,
+                        *control->sigData);
                 ++control->index;
+                */
             }
         }
 
@@ -87,10 +93,25 @@ namespace reactive::signal
     class InputSignal
     {
     public:
+        struct ContextDataType
+        {
+            ContextDataType(SignalResult<Ts...> value) :
+                value(std::move(value))
+            {
+            }
+
+            std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
+            SignalResult<Ts...> value;
+            std::optional<signal_time_t> updateTime;
+            signal_time_t time = signal_time_t(0);
+            uint64_t frameId = 0;
+            uint64_t index = 0;
+            bool didChange = false;
+        };
+
         struct DataType
         {
-            SignalResult<Ts...> value;
-            uint64_t index = 0;
+            std::shared_ptr<ContextDataType> contextData;
         };
 
         InputSignal(std::shared_ptr<InputControl<Ts...>> control) :
@@ -98,71 +119,137 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
             std::unique_lock lock(control_->mutex);
 
-            return {
-                control_->value,
-                control_->index
-            };
-        }
-
-        SignalResult<Ts const&...> evaluate(DataType const& data) const
-        {
-            return data.value;
-        }
-
-        UpdateResult update(DataType& data, FrameInfo const& frame)
-        {
-            std::unique_lock lock(control_->mutex);
-
-            bool newFrame = frame.getFrameId() > control_->frameId;
-            control_->frameId = frame.getFrameId();
-
-            if (newFrame)
-                control_->time += frame.getDeltaTime();
-
-            if (newFrame && control_->sig && control_->sigData)
+            std::shared_ptr<ContextDataType> contextData =
+                context.findData<ContextDataType>(control_->id_);
+            if (!contextData)
             {
-                auto r = control_->sig->update(*control_->sigData, frame);
-                if (r.didChange)
+                contextData = context.initializeData<ContextDataType>(
+                        control_->id_, control_->value);
+            }
+
+            /*
+            if (!contextData->index)
+                contextData->index = control_->valueIndex;
+
+            if (control_->sig && !contextData->index)
+            {
+                contextData->index = control_->signalIndex;
+                assert(contextData->index);
+                contextData->sigData = control_->sig->initialize(context);
+                if (auto value = control_->sig->evaluate(context,
+                        *contextData->sigData))
                 {
-                    control_->value = control_->sig->evaluate(*control_->sigData);
-                    ++control_->index;
+                    contextData->value = std::move(*value);
+                }
+            }
+            */
+
+            contextData->index = control_->valueIndex;
+
+            return { contextData };
+        }
+
+        SignalResult<Ts const&...> evaluate(DataContext&, DataType const& data) const
+        {
+            return data.contextData->value;
+        }
+
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
+        {
+            std::unique_lock lock(control_->mutex);
+
+            ContextDataType& contextData = *data.contextData;
+
+            bool newFrame = frame.getFrameId() > contextData.frameId;
+
+            if (!newFrame)
+            {
+                if (contextData.updateTime)
+                {
+                    return {
+                        *contextData.updateTime - contextData.time,
+                            contextData.didChange
+                    };
                 }
 
-                control_->updateTime.reset();
-                if (r.nextUpdate)
-                    control_->updateTime = control_->time + *r.nextUpdate;
+                return { std::nullopt, contextData.didChange };
             }
 
-            bool hasChanged = (data.index < control_->index);
-            if (hasChanged)
+            contextData.frameId = frame.getFrameId();
+            contextData.time += frame.getDeltaTime();
+
+            bool didChange = false;
+            bool const newSignal = contextData.index < control_->signalIndex;
+
+            if (newSignal && control_->sig)
             {
-                data.value = control_->value;
-                data.index = control_->index;
+                contextData.sigData = control_->sig->initialize(context);
+                auto value = control_->sig->evaluate(context,
+                        *contextData.sigData);
+
+                if (value)
+                {
+                    contextData.value = std::move(*value);
+                    contextData.index = control_->signalIndex;
+                    didChange = true;
+                }
             }
 
-            if (control_->updateTime)
+            if ((newFrame || newSignal) && control_->sig && contextData.sigData)
+            {
+                auto r = control_->sig->update(context, *contextData.sigData,
+                        frame);
+                if (r.didChange)
+                {
+                    contextData.value = *control_->sig->evaluate(
+                            context, *contextData.sigData);
+                }
+
+                didChange = didChange || r.didChange;
+
+                contextData.updateTime.reset();
+                if (r.nextUpdate)
+                    contextData.updateTime = contextData.time + *r.nextUpdate;
+            }
+
+            bool const newValue = (contextData.index < control_->valueIndex);
+            if (newValue)
+            {
+                contextData.value = control_->value;
+                contextData.index = control_->valueIndex;
+                didChange = true;
+            }
+
+            contextData.didChange = didChange;
+
+            if (contextData.updateTime)
             {
                 return {
-                    *control_->updateTime - control_->time,
-                    hasChanged
+                    *contextData.updateTime - contextData.time,
+                    didChange
                 };
             }
 
-            return { std::nullopt, hasChanged };
+            return { std::nullopt, didChange };
         }
 
         template <typename TCallback>
-        Connection observe(DataType&, TCallback&& callback)
+        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
             std::unique_lock lock(control_->mutex);
-            if (control_->sig && control_->sigData)
+
+            ContextDataType& contextData = *data.contextData;
+
+            if (control_->sig && contextData.sigData)
             {
                 return control_->sig->observe(
-                        *control_->sigData,
+                        context,
+                        *contextData.sigData,
                         std::forward<TCallback>(callback)
                         );
             }

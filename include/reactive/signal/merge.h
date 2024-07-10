@@ -1,6 +1,7 @@
 #pragma once
 
 #include "signaltraits.h"
+#include "datacontext.h"
 
 #include <btl/all.h>
 
@@ -28,43 +29,46 @@ namespace reactive::signal
         Merge& operator=(Merge const&) = default;
         Merge& operator=(Merge&&) = default;
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
-            return doInitialize(std::make_index_sequence<sizeof...(Ts)>());
+            return doInitialize(context, std::make_index_sequence<sizeof...(Ts)>());
         }
 
-        ResultType evaluate(DataType const& data) const
+        ResultType evaluate(DataContext& context, DataType const& data) const
         {
-            return doEvaluate(data, std::make_index_sequence<sizeof...(Ts)>());
+            return doEvaluate(context, data, std::make_index_sequence<sizeof...(Ts)>());
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
-            return doUpdate(data, frame, std::make_index_sequence<sizeof...(Ts)>());
+            return doUpdate(context, data, frame,
+                    std::make_index_sequence<sizeof...(Ts)>());
         }
 
         template <typename TCallback>
-        Connection observe(DataType& data, TCallback&& callback)
+        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
-            return doObserve(data, std::forward<TCallback>(callback),
+            return doObserve(context, data, std::forward<TCallback>(callback),
                     std::make_index_sequence<sizeof...(Ts)>());
         }
 
     private:
         template <size_t... S>
-        DataType doInitialize(std::index_sequence<S...>) const
+        DataType doInitialize(DataContext& context, std::index_sequence<S...>) const
         {
             return { std::tuple<typename Ts::DataType...>{
-                std::get<S>(sigs_).initialize()...
+                std::get<S>(sigs_).initialize(context)...
             }};
         }
 
         template <size_t... S>
-        auto doEvaluate(DataType const& data, std::index_sequence<S...>) const
+        auto doEvaluate(DataContext& context, DataType const& data,
+                std::index_sequence<S...>) const
         {
             return makeSignalResultFromTuple(
                     std::tuple_cat(
                         std::get<S>(sigs_).evaluate(
+                            context,
                             std::get<S>(data.sigData)
                             ).getTuple()...
                         )
@@ -72,18 +76,19 @@ namespace reactive::signal
         }
 
         template <size_t... S>
-        auto doUpdate(DataType& data, FrameInfo const& frame,
+        auto doUpdate(DataContext& context, DataType& data, FrameInfo const& frame,
                 std::index_sequence<S...>)
         {
             return (UpdateResult {} + ... + std::get<S>(sigs_).update(
-                    std::get<S>(data.sigData), frame));
+                        context, std::get<S>(data.sigData), frame));
         }
 
         template <typename TCallback, size_t... S>
-        auto doObserve(DataType& data, TCallback&& callback, std::index_sequence<S...>)
+        auto doObserve(DataContext& context, DataType& data,
+                TCallback&& callback, std::index_sequence<S...>)
         {
             return (Connection() + ... + std::get<S>(sigs_).observe(
-                        std::get<S>(data.sigData), callback));
+                        context, std::get<S>(data.sigData), callback));
         }
 
     private:

@@ -69,7 +69,7 @@ namespace reactive::signal
         using Super = SignalWithStorage<Shared<T, Ts...>, Ts...>;
         using Super::Super;
 
-        Signal<Weak<Ts...>, Ts...> weak() const
+        Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> weak() const
         {
             return Super::sig_.weak();
         }

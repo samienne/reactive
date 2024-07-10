@@ -55,10 +55,10 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(T const& sig) :
-                outerData(sig.initialize()),
-                innerSignal(makeInnerSignal(sig.evaluate(outerData))),
-                innerData(innerSignal.initialize())
+            DataType(DataContext& context, T const& sig) :
+                outerData(sig.initialize(context)),
+                innerSignal(makeInnerSignal(sig.evaluate(context, outerData))),
+                innerData(innerSignal.initialize(context))
             {
             }
 
@@ -72,34 +72,35 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
-            return { sig_ };
+            return { context, sig_ };
         }
 
-        auto evaluate(DataType const& data) const -> decltype(auto)
+        auto evaluate(DataContext& context, DataType const& data) const -> decltype(auto)
         {
-            return data.innerSignal.evaluate(data.innerData);
+            return data.innerSignal.evaluate(context, data.innerData);
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
-            auto r = sig_.update(data.outerData, frame);
+            auto r = sig_.update(context, data.outerData, frame);
             if (r.didChange)
             {
-                data.innerSignal = makeInnerSignal(sig_.evaluate(data.outerData));
-                data.innerData = data.innerSignal.initialize();
+                data.innerSignal = makeInnerSignal(sig_.evaluate(context, data.outerData));
+                data.innerData = data.innerSignal.initialize(context);
             }
 
-            r = r + data.innerSignal.update(data.innerData, frame);
+            r = r + data.innerSignal.update(context, data.innerData, frame);
 
             return r;
         }
 
-        Connection observe(DataType& data, std::function<void()> callback)
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> callback)
         {
-            auto c = sig_.observe(data.outerData, callback);
-            c += data.innerSignal.observe(data.innerData, std::move(callback));
+            auto c = sig_.observe(context, data.outerData, callback);
+            c += data.innerSignal.observe(context, data.innerData, std::move(callback));
 
             return c;
         }

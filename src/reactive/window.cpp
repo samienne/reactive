@@ -20,7 +20,7 @@ Window Window::onClose(std::function<void()> const& cb) &&
 
 widget::AnyWidget Window::getWidget() const
 {
-    return widget_->clone()
+    return widget_.clone()
         | widget::background()
         ;
 }

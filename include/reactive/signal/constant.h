@@ -5,6 +5,7 @@
 #include "updateresult.h"
 #include "signaltraits.h"
 #include "signalresult.h"
+#include "datacontext.h"
 
 #include <btl/copywrapper.h>
 
@@ -34,23 +35,23 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext&) const
         {
             return {};
         }
 
-        SignalResult<T const&> evaluate(DataType const&) const
+        SignalResult<T const&> evaluate(DataContext&, DataType const&) const
         {
             return SignalResult<T const&>(*constant_);
         }
 
-        UpdateResult update(DataType&, FrameInfo const&)
+        UpdateResult update(DataContext&, DataType&, FrameInfo const&)
         {
             return { std::nullopt, false };
         }
 
         template <typename TCallback>
-        Connection observe(DataType&, TCallback&&)
+        Connection observe(DataContext&, DataType&, TCallback&&)
         {
             // nothing to observe
             return Connection();

@@ -4,6 +4,7 @@
 #include "signalresult.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -20,8 +21,8 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(TStorage const& sig) :
-                innerData(sig.initialize())
+            DataType(DataContext& context, TStorage const& sig) :
+                innerData(sig.initialize(context))
             {
             }
 
@@ -35,22 +36,23 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
-            return DataType(sig_);
+            return DataType(context, sig_);
         }
 
-        ResultType evaluate(DataType const& data) const
+        ResultType evaluate(DataContext& context, DataType const& data) const
         {
             return concatSignalResults(
                     SignalResult<bool>(data.innerDidChange),
-                    sig_.evaluate(data.innerData)
+                    sig_.evaluate(context, data.innerData)
                     );
         }
 
-        UpdateResult update(DataType& data, signal::FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data,
+                signal::FrameInfo const& frame)
         {
-            auto r = sig_.update(data.innerData, frame);
+            auto r = sig_.update(context, data.innerData, frame);
 
             bool changedStatusChanged = ignoreChange_
                 ? false
@@ -66,9 +68,10 @@ namespace reactive::signal
             };
         }
 
-        Connection observe(DataType& data, std::function<void()> callback)
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> callback)
         {
-            return sig_.observe(data.innerData, std::move(callback));
+            return sig_.observe(context, data.innerData, std::move(callback));
         }
 
     private:

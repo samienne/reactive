@@ -3,6 +3,8 @@
 #include "signaltraits.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "datacontext.h"
+
 #include "reactive/connection.h"
 
 namespace reactive::signal
@@ -15,9 +17,9 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(TSignal const& sig) :
-                innerData(sig.initialize()),
-                value(sig.evaluate(innerData))
+            DataType(DataContext& context, TSignal const& sig) :
+                innerData(sig.initialize(context)),
+                value(sig.evaluate(context, innerData))
             {
             }
 
@@ -30,29 +32,31 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
-            return { sig_ };
+            return { context, sig_ };
         }
 
-        auto evaluate(DataType const& data) const
+        auto evaluate(DataContext&, DataType const& data) const
         {
             return data.value;
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
-            auto r = sig_.update(data.innerData, frame);
+            auto r = sig_.update(context, data.innerData, frame);
             if (r.didChange)
-                data.value = sig_.evaluate(data.innerData);
+                data.value = sig_.evaluate(context, data.innerData);
 
             return r;
         }
 
         template <typename TCallback>
-        Connection observe(DataType& data, TCallback&& callback)
+        Connection observe(DataContext& context, DataType& data,
+                TCallback&& callback)
         {
-            return sig_.observe(data.innerData, std::forward<TCallback>(callback));
+            return sig_.observe(context, data.innerData,
+                    std::forward<TCallback>(callback));
         }
 
     private:

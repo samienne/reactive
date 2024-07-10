@@ -76,7 +76,7 @@ struct hash<btl::UniqueId>
     using argument_type = btl::UniqueId;
     using result_type = size_t;
 
-    size_t operator()(btl::UniqueId const& id) noexcept
+    size_t operator()(btl::UniqueId const& id) const noexcept
     {
         return id.hash();
     }

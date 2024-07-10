@@ -7,6 +7,7 @@
 #include <reactive/signal/updateresult.h>
 #include <reactive/signal/frameinfo.h>
 #include <reactive/signal/signal.h>
+#include <reactive/signal/datacontext.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
@@ -40,7 +41,7 @@ namespace reactive::stream
         {
         }
 
-        DataType initialize() const
+        DataType initialize(signal::DataContext&) const
         {
             auto control = std::make_shared<Control>();
             return {
@@ -64,14 +65,15 @@ namespace reactive::stream
         }
 
         signal::SignalResult<std::vector<T> const&> evaluate(
-                DataType const& data) const
+                signal::DataContext&, DataType const& data) const
         {
             return signal::SignalResult<std::vector<T> const&>(
                     data.control->values
                     );
         }
 
-        signal::UpdateResult update(DataType& data, signal::FrameInfo const&)
+        signal::UpdateResult update(signal::DataContext&,
+                DataType& data, signal::FrameInfo const&)
         {
             std::unique_lock lock(data.control->mutex);
 
@@ -81,7 +83,8 @@ namespace reactive::stream
             return { {}, !data.control->values.empty() };
         }
 
-        Connection observe(DataType& data, std::function<void()> callback)
+        Connection observe(signal::DataContext&, DataType& data,
+                std::function<void()> callback)
         {
             std::unique_lock lock(data.control->mutex);
             auto id = data.control->nextId++;

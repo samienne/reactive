@@ -32,6 +32,7 @@ libreactivesrc = [
     'widget/widget.cpp',
     'widget/widgetobject.cpp',
     'shape/rectangle.cpp',
+    'signal/datacontext.cpp',
     'debug/drawkeyboardinputs.cpp',
     'shapes.cpp',
     'uniformgrid.cpp',

@@ -4,6 +4,7 @@
 #include "updateresult.h"
 #include "signalresult.h"
 #include "signaltraits.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -38,23 +39,23 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context) const
         {
-            return { sig_.initialize(), std::nullopt };
+            return { sig_.initialize(context), std::nullopt };
         }
 
-        auto evaluate(DataType const& data) const
+        auto evaluate(DataContext& context, DataType const& data) const
         {
             using ResultType = decltype(std::apply(
                         *func_,
-                        sig_.evaluate(data.signalData).getTuple()
+                        sig_.evaluate(context, data.signalData).getTuple()
                         ));
 
             if constexpr (std::is_same_v<void, ResultType>)
             {
                 std::apply(
                         *func_,
-                        sig_.evaluate(data.signalData).getTuple()
+                        sig_.evaluate(context, data.signalData).getTuple()
                         );
 
                 return SignalResult<>();
@@ -63,7 +64,8 @@ namespace reactive::signal
             {
                 // Circumvent need for operator= by using copy/move constructor
                 data.innerResult.reset();
-                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+                new(&data.innerResult) InnerResultType(sig_.evaluate(
+                            context, data.signalData));
 
                 return std::apply(
                         *func_,
@@ -74,7 +76,8 @@ namespace reactive::signal
             {
                 // Circumvent need for operator= by using copy/move constructor
                 data.innerResult.reset();
-                new(&data.innerResult) InnerResultType(sig_.evaluate(data.signalData));
+                new(&data.innerResult) InnerResultType(sig_.evaluate(
+                            context, data.signalData));
 
                 return SignalResult<ResultType>(std::apply(
                             *func_,
@@ -83,15 +86,15 @@ namespace reactive::signal
             }
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
-            return sig_.update(data.signalData, frame);
+            return sig_.update(context, data.signalData, frame);
         }
 
         template <typename TCallback>
-        Connection observe(DataType& data, TCallback&& callback)
+        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
-            return sig_.observe(data.signalData, std::forward<TCallback>(
+            return sig_.observe(context, data.signalData, std::forward<TCallback>(
                         callback));
         }
 
