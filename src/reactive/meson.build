@@ -67,7 +67,7 @@ libreactive = library(
         include_directories: incdir,
         dependencies: reactivedep,
         cpp_args: ['-DREACTIVE_EXPORT_SYMBOLS'],
-        gnu_symbol_visibility: 'hidden'
+        #gnu_symbol_visibility: 'hidden'
         )
 
 libreactivedep = declare_dependency(

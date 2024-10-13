@@ -129,26 +129,9 @@ namespace reactive::signal
             {
                 contextData = context.initializeData<ContextDataType>(
                         control_->id_, control_->value);
-            }
 
-            /*
-            if (!contextData->index)
                 contextData->index = control_->valueIndex;
-
-            if (control_->sig && !contextData->index)
-            {
-                contextData->index = control_->signalIndex;
-                assert(contextData->index);
-                contextData->sigData = control_->sig->initialize(context);
-                if (auto value = control_->sig->evaluate(context,
-                        *contextData->sigData))
-                {
-                    contextData->value = std::move(*value);
-                }
             }
-            */
-
-            contextData->index = control_->valueIndex;
 
             return { contextData };
         }

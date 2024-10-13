@@ -16,6 +16,7 @@ namespace reactive::signal
             data_(sig_.unwrap().initialize(dataContext_)),
             result_(sig_.unwrap().evaluate(dataContext_, data_))
         {
+            dataContext_.swapFrameData();
         };
 
         auto evaluate() const -> decltype(auto)
@@ -33,6 +34,7 @@ namespace reactive::signal
             auto r = sig_.unwrap().update(dataContext_, data_, frame);
             if (r.didChange)
                 result_ = sig_.unwrap().evaluate(dataContext_, data_);
+            dataContext_.swapFrameData();
 
             didChange_ = r.didChange;
 

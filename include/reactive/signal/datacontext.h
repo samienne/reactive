@@ -99,9 +99,24 @@ namespace reactive::signal
             return nullptr;
         }
 
+        template <typename T>
+        void storeFrameData(T&& data)
+        {
+            auto ptr = std::make_shared<Data<std::decay_t<T>>>(std::forward<T>(data));
+            frameData_.push_back(ptr);
+        }
+
+        void swapFrameData()
+        {
+            prevFrameData_ = std::move(frameData_);
+            frameData_.clear();
+        }
+
     private:
         btl::UniqueId id_;
         std::unordered_map<DataId, std::weak_ptr<Base>> data_;
+        std::vector<std::shared_ptr<Base>> frameData_;
+        std::vector<std::shared_ptr<Base>> prevFrameData_;
     };
 } // namespace reactive::signal
 

@@ -94,6 +94,14 @@ namespace reactive::signal
                 return *this;
             }
 
+            void storeData(DataContext& context)
+            {
+                if (contextData)
+                    context.storeFrameData(contextData);
+                else if (auto cd = contextDataWeak.lock())
+                    context.storeFrameData(cd);
+            }
+
             SignalResult<Ts...> value;
             uint64_t lastUpdate = 0;
 
@@ -105,7 +113,10 @@ namespace reactive::signal
         std::shared_ptr<typename Super::BaseDataType> baseInitialize(
                 DataContext& context) override
         {
-            return std::make_shared<DataType>(initialize(context).makeWeak());
+            auto data = std::make_shared<DataType>(initialize(context));
+            data->storeData(context);
+            data->makeWeak();
+            return data;
         }
 
         SignalResult<Ts const&...> baseEvaluate(DataContext& context,
@@ -118,6 +129,7 @@ namespace reactive::signal
                 typename Super::BaseDataType& data,
                 FrameInfo const& frame) override
         {
+            static_cast<DataType&>(data).storeData(context);
             return update(context, static_cast<DataType&>(data), frame);
         }
 
