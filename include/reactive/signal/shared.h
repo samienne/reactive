@@ -40,9 +40,9 @@ namespace reactive::signal
         Shared& operator=(Shared const&) = default;
         Shared& operator=(Shared&&) noexcept = default;
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return impl_->initialize(context);
+            return impl_->initialize(context, frame);
         }
 
         SignalResult<Ts const&...> evaluate(DataContext& context,

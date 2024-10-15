@@ -28,7 +28,8 @@ namespace reactive::signal
 
         virtual ~SignalBase() = default;
 
-        virtual std::unique_ptr<DataBase> initialize(DataContext& context) const = 0;
+        virtual std::unique_ptr<DataBase> initialize(DataContext& context,
+                FrameInfo const& frame) const = 0;
         virtual SignalResult<Ts...> evaluate(DataContext& context,
                 DataBase const& data) const = 0;
         virtual UpdateResult update(DataContext& context, DataBase& data,
@@ -59,9 +60,10 @@ namespace reactive::signal
         {
         }
 
-        std::unique_ptr<BaseDataType> initialize(DataContext& context) const override
+        std::unique_ptr<BaseDataType> initialize(DataContext& context,
+                FrameInfo const& frame) const override
         {
-            return { std::make_unique<DataType>(sig_.initialize(context)) };
+            return { std::make_unique<DataType>(sig_.initialize(context, frame)) };
         }
 
         SignalResult<Ts...> evaluate(DataContext& context,
@@ -114,9 +116,9 @@ namespace reactive::signal
         SignalTypeless& operator=(SignalTypeless const&) = default;
         SignalTypeless& operator=(SignalTypeless&&) noexcept = default;
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { sig_->initialize(context) };
+            return { sig_->initialize(context, frame) };
         }
 
         auto evaluate(DataContext& context, DataType const& data) const

@@ -29,9 +29,10 @@ namespace reactive::signal
         Merge& operator=(Merge const&) = default;
         Merge& operator=(Merge&&) = default;
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return doInitialize(context, std::make_index_sequence<sizeof...(Ts)>());
+            return doInitialize(context, frame,
+                    std::make_index_sequence<sizeof...(Ts)>());
         }
 
         ResultType evaluate(DataContext& context, DataType const& data) const
@@ -54,10 +55,11 @@ namespace reactive::signal
 
     private:
         template <size_t... S>
-        DataType doInitialize(DataContext& context, std::index_sequence<S...>) const
+        DataType doInitialize(DataContext& context, FrameInfo const& frame,
+                std::index_sequence<S...>) const
         {
             return { std::tuple<typename Ts::DataType...>{
-                std::get<S>(sigs_).initialize(context)...
+                std::get<S>(sigs_).initialize(context, frame)...
             }};
         }
 

@@ -13,7 +13,7 @@ namespace reactive::signal
 
         SignalContext(AnySignal<Ts...> sig) :
             sig_(std::move(sig)),
-            data_(sig_.unwrap().initialize(dataContext_)),
+            data_(sig_.unwrap().initialize(dataContext_, FrameInfo(0, {}))),
             result_(sig_.unwrap().evaluate(dataContext_, data_))
         {
             dataContext_.swapFrameData();

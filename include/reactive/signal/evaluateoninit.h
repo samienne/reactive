@@ -24,7 +24,7 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext&) const
+        DataType initialize(DataContext&, FrameInfo const&) const
         {
             return { ResultType{ func_() } };
         }

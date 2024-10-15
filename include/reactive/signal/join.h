@@ -55,10 +55,10 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(DataContext& context, T const& sig) :
-                outerData(sig.initialize(context)),
+            DataType(DataContext& context, T const& sig, FrameInfo const& frame) :
+                outerData(sig.initialize(context, frame)),
                 innerSignal(makeInnerSignal(sig.evaluate(context, outerData))),
-                innerData(innerSignal.initialize(context))
+                innerData(innerSignal.initialize(context, frame))
             {
             }
 
@@ -72,9 +72,9 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { context, sig_ };
+            return { context, sig_, frame };
         }
 
         auto evaluate(DataContext& context, DataType const& data) const -> decltype(auto)
@@ -88,7 +88,7 @@ namespace reactive::signal
             if (r.didChange)
             {
                 data.innerSignal = makeInnerSignal(sig_.evaluate(context, data.outerData));
-                data.innerData = data.innerSignal.initialize(context);
+                data.innerData = data.innerSignal.initialize(context, frame);
             }
 
             r = r + data.innerSignal.update(context, data.innerData, frame);

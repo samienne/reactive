@@ -39,9 +39,9 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { sig_.initialize(context), std::nullopt };
+            return { sig_.initialize(context, frame), std::nullopt };
         }
 
         auto evaluate(DataContext& context, DataType const& data) const

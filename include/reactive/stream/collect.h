@@ -41,7 +41,7 @@ namespace reactive::stream
         {
         }
 
-        DataType initialize(signal::DataContext&) const
+        DataType initialize(signal::DataContext&, signal::FrameInfo const&) const
         {
             auto control = std::make_shared<Control>();
             return {

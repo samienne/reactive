@@ -23,7 +23,8 @@ namespace reactive::signal
         };
 
         virtual ~SharedControlBase() = default;
-        virtual std::shared_ptr<BaseDataType> baseInitialize(DataContext& context) = 0;
+        virtual std::shared_ptr<BaseDataType> baseInitialize(
+                DataContext& context, FrameInfo const& frame) = 0;
         virtual SignalResult<Ts const&...> baseEvaluate(DataContext& context,
                 BaseDataType const& data) = 0;
         virtual UpdateResult baseUpdate(DataContext& context, BaseDataType& data,
@@ -41,30 +42,28 @@ namespace reactive::signal
 
         struct ContextDataType
         {
-            ContextDataType(DataContext& context, StorageType const& sig) :
-                innerData(sig.initialize(context)),
+            ContextDataType(DataContext& context, StorageType const& sig,
+                    FrameInfo const& frame) :
+                innerData(sig.initialize(context, frame)),
                 currentValue(sig.evaluate(context, innerData))
             {
             }
 
-            ContextDataType(ContextDataType const&) = default;
-            ContextDataType(ContextDataType&&) noexcept = default;
+            //ContextDataType(ContextDataType const&) = default;
+            //ContextDataType(ContextDataType&&) noexcept = default;
 
+            mutable std::recursive_mutex mutex_;
             typename StorageType::DataType innerData;
             SignalResult<Ts...> currentValue;
             uint64_t lastFrame = 0;
-            uint64_t updateCount = 0;
-            signal_time_t time = signal_time_t(0);
-            std::optional<signal_time_t> updateTime;
+            UpdateResult updateResult;
         };
 
         struct DataType : Super::BaseDataType
         {
             DataType(SignalResult<Ts...> value,
-                    uint64_t lastUpdate,
                     std::shared_ptr<ContextDataType> contextData) :
                 value(std::move(value)),
-                lastUpdate(lastUpdate),
                 contextData(std::move(contextData))
             {
             }
@@ -103,7 +102,6 @@ namespace reactive::signal
             }
 
             SignalResult<Ts...> value;
-            uint64_t lastUpdate = 0;
 
         private:
             std::shared_ptr<ContextDataType> contextData;
@@ -111,9 +109,9 @@ namespace reactive::signal
         };
 
         std::shared_ptr<typename Super::BaseDataType> baseInitialize(
-                DataContext& context) override
+                DataContext& context, FrameInfo const& frame) override
         {
-            auto data = std::make_shared<DataType>(initialize(context));
+            auto data = std::make_shared<DataType>(initialize(context, frame));
             data->storeData(context);
             data->makeWeak();
             return data;
@@ -147,24 +145,23 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            std::unique_lock lock(mutex_);
-
             std::shared_ptr<ContextDataType> contextData =
                 context.findData<ContextDataType>(id_);
             if (!contextData)
             {
                 contextData = context.initializeData<ContextDataType>(id_,
-                        context, sig_);
+                        context, sig_, frame);
             }
 
             DataType data
             {
-                sig_.evaluate(context, contextData->innerData),
-                contextData->updateCount,
+                contextData->currentValue,
                 std::move(contextData),
             };
+
+            const_cast<SharedControl&>(*this).update(context, data, frame);
 
             return data;
         }
@@ -178,64 +175,43 @@ namespace reactive::signal
         UpdateResult update(DataContext& context, DataType& data,
                 FrameInfo const& frame)
         {
-            std::unique_lock lock(mutex_);
-
             ContextDataType* contextData = data.lock();
+            assert(contextData);
             if (!contextData)
                 return {};
+
+            std::unique_lock lock(contextData->mutex_);
 
             if (contextData->lastFrame < frame.getFrameId())
             {
                 contextData->lastFrame = frame.getFrameId();
-                UpdateResult innerResult = sig_.update(context,
+                contextData->updateResult= sig_.update(context,
                         contextData->innerData, frame);
 
-                if (innerResult.didChange)
+                if (contextData->updateResult.didChange)
                     contextData->currentValue = sig_.evaluate(context,
                             contextData->innerData);
-
-                contextData->time += frame.getDeltaTime();
-                contextData->updateTime.reset();
-                if (innerResult.nextUpdate)
-                    contextData->updateTime = contextData->time
-                        + *innerResult.nextUpdate;
-
-                if (innerResult.didChange)
-                    ++contextData->updateCount;
             }
 
-            bool didChange = false;
-            if (data.lastUpdate < contextData->updateCount)
-            {
-                data.lastUpdate = contextData->updateCount;
+            if (contextData->updateResult.didChange)
                 data.value = contextData->currentValue;
-                didChange = true;
-            }
 
-            if (contextData->updateTime)
-                return {
-                    *contextData->updateTime - contextData->time,
-                    didChange
-                };
-
-            return {
-                std::nullopt,
-                didChange
-            };
+            return contextData->updateResult;
         }
 
         template <typename TCallback>
         Connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
-            std::unique_lock lock(mutex_);
             if (ContextDataType* contextData = data.lock())
+            {
+                std::unique_lock lock(contextData->mutex_);
                 return sig_.observe(context, contextData->innerData, callback);
+            }
 
             return {};
         }
 
     private:
-        mutable std::recursive_mutex mutex_;
         btl::UniqueId id_;
         StorageType sig_;
     };

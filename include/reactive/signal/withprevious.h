@@ -59,8 +59,9 @@ namespace reactive::signal
         struct DataType
         {
             DataType(DataContext& context, TFunc const& func,
-                    FuncReturnType const& initial, TStorage const& sig) :
-                innerData(sig.initialize(context)),
+                    FuncReturnType const& initial, TStorage const& sig,
+                    FrameInfo const& frame) :
+                innerData(sig.initialize(context, frame)),
                 innerResult(sig.evaluate(context, innerData)),
                 currentResult(evaluateFunc(
                             func,
@@ -83,9 +84,9 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return DataType(context, *func_, *initial_, sig_);
+            return DataType(context, *func_, *initial_, sig_, frame);
         }
 
         SignalResultToConstRefT<FuncReturnType> evaluate(

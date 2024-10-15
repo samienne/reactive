@@ -15,8 +15,9 @@ namespace reactive::signal
         struct ContextDataType
         {
             ContextDataType(DataContext& context,
-                    SharedControlBase<Ts...>& control) :
-                innerData(control.baseInitialize(context)),
+                    SharedControlBase<Ts...>& control,
+                    FrameInfo const& frame) :
+                innerData(control.baseInitialize(context, frame)),
                 value(control.baseEvaluate(context, *innerData))
             {
             }
@@ -39,7 +40,7 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
             if (auto control = control_.lock())
             {
@@ -48,7 +49,7 @@ namespace reactive::signal
                 if (!contextData)
                 {
                     contextData = context.initializeData<ContextDataType>(
-                            id_, context, *control);
+                            id_, context, *control, frame);
                 }
 
                 return { std::move(contextData) };

@@ -135,10 +135,11 @@ namespace reactive
                                                     return obb.second;
                                             }
 
-                                            //assert(false);
+                                            assert(false);
                                             return avg::Obb();
                                         })
-                                        .check();
+                                        .check()
+                                        .share();
 
                                     auto size = obb.map(&avg::Obb::getSize);
                                     auto transform = obb.map(&avg::Obb::getTransform);

@@ -25,21 +25,22 @@ namespace reactive::signal
             DataType(DataContext& context,
                     TCondition const& conditionSignal,
                     AnySignal<Ts...> const& trueSignal,
-                    AnySignal<Ts...> const& falseSignal
+                    AnySignal<Ts...> const& falseSignal,
+                    FrameInfo const& frame
                     ) :
-                conditionData(conditionSignal.initialize(context)),
-                trueData(trueSignal.unwrap().initialize(context)),
-                falseData(falseSignal.unwrap().initialize(context)),
+                conditionData(conditionSignal.initialize(context, frame)),
                 condition(conditionSignal.evaluate(context, conditionData)
-                        .template get<0>())
+                        .template get<0>()),
+                signalData(condition
+                        ? trueSignal.unwrap().initialize(context, frame)
+                        : falseSignal.unwrap().initialize(context, frame))
             {
             }
 
             SignalDataTypeT<TCondition> conditionData;
-            SignalDataTypeT<Signal<void, Ts...>> trueData;
-            SignalDataTypeT<Signal<void, Ts...>> falseData;
-
             bool condition = false;
+            SignalDataTypeT<Signal<void, Ts...>> signalData;
+
         };
 
         Conditional(TCondition conditionSignal, AnySignal<Ts...> trueSignal,
@@ -50,17 +51,17 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { context, conditionSignal_, trueSignal_, falseSignal_ };
+            return { context, conditionSignal_, trueSignal_, falseSignal_, frame };
         }
 
         SignalResult<Ts...> evaluate(DataContext& context,
                 DataType const& data) const
         {
             return data.condition
-                ? trueSignal_.unwrap().evaluate(context, data.trueData)
-                : falseSignal_.unwrap().evaluate(context, data.falseData)
+                ? trueSignal_.unwrap().evaluate(context, data.signalData)
+                : falseSignal_.unwrap().evaluate(context, data.signalData)
                 ;
         }
 
@@ -69,15 +70,27 @@ namespace reactive::signal
         {
             UpdateResult r = conditionSignal_.update(context,
                     data.conditionData, frame);
-            data.condition = conditionSignal_.evaluate(context,
+            bool condition = conditionSignal_.evaluate(context,
                     data.conditionData).template get<0>();
 
-            if (data.condition)
-                r = r + trueSignal_.unwrap().update(context, data.trueData,
-                        frame);
+            if (condition != data.condition)
+            {
+                data.signalData = condition
+                    ? trueSignal_.unwrap().initialize(context, frame)
+                    : falseSignal_.unwrap().initialize(context, frame)
+                    ;
+            }
             else
-                r = r + falseSignal_.unwrap().update(context, data.falseData,
-                        frame);
+            {
+                if (condition)
+                    r = r + trueSignal_.unwrap().update(context,
+                            data.signalData, frame);
+                else
+                    r = r + falseSignal_.unwrap().update(context,
+                            data.signalData, frame);
+            }
+
+            data.condition = condition;
 
             return r;
         }
@@ -88,10 +101,10 @@ namespace reactive::signal
             auto c = conditionSignal_.observe(context, data.conditionData,
                     callback);
             if (data.condition)
-                c += trueSignal_.unwrap().observe(context, data.trueData,
+                c += trueSignal_.unwrap().observe(context, data.signalData,
                         callback);
             else
-                c += falseSignal_.unwrap().observe(context, data.falseData,
+                c += falseSignal_.unwrap().observe(context, data.signalData,
                         callback);
 
             return c;

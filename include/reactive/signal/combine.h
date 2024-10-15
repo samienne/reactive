@@ -21,11 +21,11 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
             std::vector<SignalDataTypeT<AnySignal<T>>> datas;
             for (auto const& sig : sigs_)
-                datas.push_back(sig.unwrap().initialize(context));
+                datas.push_back(sig.unwrap().initialize(context, frame));
 
             return { std::move(datas) };
         }

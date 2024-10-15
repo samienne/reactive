@@ -17,8 +17,9 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(DataContext& context, TSignal const& sig) :
-                innerData(sig.initialize(context)),
+            DataType(DataContext& context, TSignal const& sig,
+                    FrameInfo const& frame) :
+                innerData(sig.initialize(context, frame)),
                 value(sig.evaluate(context, innerData))
             {
             }
@@ -32,9 +33,9 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { context, sig_ };
+            return { context, sig_, frame };
         }
 
         auto evaluate(DataContext&, DataType const& data) const

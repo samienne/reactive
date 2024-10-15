@@ -473,8 +473,8 @@ TEST(signal, teeCircular)
 
     auto r1 = c.evaluate();
 
-    EXPECT_EQ("helloworld", r1.get<0>());
-    EXPECT_EQ(64, r1.get<1>());
+    EXPECT_EQ("hellohelloworld", r1.get<0>());
+    EXPECT_EQ(106, r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 
@@ -506,8 +506,8 @@ TEST(signal, teeWithFunc)
 
     auto r1 = c.evaluate();
 
-    EXPECT_EQ(64, r1.get<0>());
-    EXPECT_EQ("helloworld", r1.get<1>());
+    EXPECT_EQ(106, r1.get<0>());
+    EXPECT_EQ("hellohelloworld", r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 

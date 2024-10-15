@@ -119,7 +119,7 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize(DataContext& context) const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
             std::unique_lock lock(control_->mutex);
 
@@ -131,6 +131,18 @@ namespace reactive::signal
                         control_->id_, control_->value);
 
                 contextData->index = control_->valueIndex;
+
+                if (control_->sig)
+                {
+                    contextData->sigData = control_->sig->initialize(context, frame);
+                    auto value = control_->sig->evaluate(context,
+                            *contextData->sigData);
+                    if (value)
+                    {
+                        contextData->value = std::move(*value);
+                        contextData->index = control_->signalIndex;
+                    }
+                }
             }
 
             return { contextData };
@@ -171,7 +183,7 @@ namespace reactive::signal
 
             if (newSignal && control_->sig)
             {
-                contextData.sigData = control_->sig->initialize(context);
+                contextData.sigData = control_->sig->initialize(context, frame);
                 auto value = control_->sig->evaluate(context,
                         *contextData.sigData);
 
