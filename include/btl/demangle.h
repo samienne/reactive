@@ -33,7 +33,7 @@ namespace btl
         return "Unknown";
     }
 
-    inline std::string demangle(char const* typeName)
+    inline std::string demangle(char const*)
     {
         return "Unknown";
     }

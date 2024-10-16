@@ -158,7 +158,7 @@ namespace reactive::signal
             DataType data
             {
                 contextData->currentValue,
-                std::move(contextData),
+                contextData,
             };
 
             const_cast<SharedControl&>(*this).update(context, data, frame);
@@ -176,9 +176,12 @@ namespace reactive::signal
                 FrameInfo const& frame)
         {
             ContextDataType* contextData = data.lock();
-            assert(contextData);
             if (!contextData)
+            {
+                std::cout << "SharedControl: No context data" << std::endl;
+                assert(contextData);
                 return {};
+            }
 
             std::unique_lock lock(contextData->mutex_);
 

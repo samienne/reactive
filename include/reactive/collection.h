@@ -387,7 +387,7 @@ namespace reactive
                 assert(from != end());
 
                 size_t id = from.getId();
-                int newIndex = std::distance(begin(), to);
+                auto newIndex = std::distance(begin(), to);
 
                 if (to.iter_ < from.iter_)
                 {

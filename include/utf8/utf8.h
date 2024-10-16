@@ -89,9 +89,9 @@ namespace utf8
                 bytes = 6;
 
             if (ptr_ + bytes > end_)
-                return end_ - ptr_;
+                return (uint8_t)(end_ - ptr_);
 
-            return bytes;
+            return (uint8_t)bytes;
         }
 
         inline uint32_t operator*()
@@ -128,6 +128,8 @@ namespace utf8
                    + ((uint32_t)(ptr_[3] & 0x3f) << 12)
                    + ((uint32_t)(ptr_[4] & 0x3f) << 6)
                    + (uint32_t)(ptr_[5] & 0x3f);
+            default:
+               return 0;
             }
 
             return 0;
