@@ -424,13 +424,6 @@ public:
         return titleSignal_.evaluate();
     }
 
-    /*
-    signal::AnySignal<widget::Instance> const& getWidgetInstanceSignal() const
-    {
-        return widgetInstanceSignal_;
-    }
-    */
-
     widget::Instance const& getWidgetInstance() const
     {
         return widgetInstance_;

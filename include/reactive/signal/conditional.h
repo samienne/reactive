@@ -4,6 +4,7 @@
 #include "signalresult.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -21,22 +22,25 @@ namespace reactive::signal
     public:
         struct DataType
         {
-            DataType(TCondition const& conditionSignal,
+            DataType(DataContext& context,
+                    TCondition const& conditionSignal,
                     AnySignal<Ts...> const& trueSignal,
-                    AnySignal<Ts...> const& falseSignal
+                    AnySignal<Ts...> const& falseSignal,
+                    FrameInfo const& frame
                     ) :
-                conditionData(conditionSignal.initialize()),
-                trueData(trueSignal.unwrap().initialize()),
-                falseData(falseSignal.unwrap().initialize()),
-                condition(conditionSignal.evaluate(conditionData).template get<0>())
+                conditionData(conditionSignal.initialize(context, frame)),
+                condition(conditionSignal.evaluate(context, conditionData)
+                        .template get<0>()),
+                signalData(condition
+                        ? trueSignal.unwrap().initialize(context, frame)
+                        : falseSignal.unwrap().initialize(context, frame))
             {
             }
 
             SignalDataTypeT<TCondition> conditionData;
-            SignalDataTypeT<Signal<void, Ts...>> trueData;
-            SignalDataTypeT<Signal<void, Ts...>> falseData;
-
             bool condition = false;
+            SignalDataTypeT<Signal<void, Ts...>> signalData;
+
         };
 
         Conditional(TCondition conditionSignal, AnySignal<Ts...> trueSignal,
@@ -47,40 +51,61 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { conditionSignal_, trueSignal_, falseSignal_ };
+            return { context, conditionSignal_, trueSignal_, falseSignal_, frame };
         }
 
-        SignalResult<Ts...> evaluate(DataType const& data) const
+        SignalResult<Ts...> evaluate(DataContext& context,
+                DataType const& data) const
         {
             return data.condition
-                ? trueSignal_.unwrap().evaluate(data.trueData)
-                : falseSignal_.unwrap().evaluate(data.falseData)
+                ? trueSignal_.unwrap().evaluate(context, data.signalData)
+                : falseSignal_.unwrap().evaluate(context, data.signalData)
                 ;
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
         {
-            UpdateResult r = conditionSignal_.update(data.conditionData, frame);
-            data.condition = conditionSignal_.evaluate(data.conditionData)
-                .template get<0>();
+            UpdateResult r = conditionSignal_.update(context,
+                    data.conditionData, frame);
+            bool condition = conditionSignal_.evaluate(context,
+                    data.conditionData).template get<0>();
 
-            if (data.condition)
-                r = r + trueSignal_.unwrap().update(data.trueData, frame);
+            if (condition != data.condition)
+            {
+                data.signalData = condition
+                    ? trueSignal_.unwrap().initialize(context, frame)
+                    : falseSignal_.unwrap().initialize(context, frame)
+                    ;
+            }
             else
-                r = r + falseSignal_.unwrap().update(data.falseData, frame);
+            {
+                if (condition)
+                    r = r + trueSignal_.unwrap().update(context,
+                            data.signalData, frame);
+                else
+                    r = r + falseSignal_.unwrap().update(context,
+                            data.signalData, frame);
+            }
+
+            data.condition = condition;
 
             return r;
         }
 
-        Connection observe(DataType& data, std::function<void()> const& callback)
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> const& callback)
         {
-            auto c = conditionSignal_.observe(data.conditionData, callback);
+            auto c = conditionSignal_.observe(context, data.conditionData,
+                    callback);
             if (data.condition)
-                c += trueSignal_.unwrap().observe(data.trueData, callback);
+                c += trueSignal_.unwrap().observe(context, data.signalData,
+                        callback);
             else
-                c += falseSignal_.unwrap().observe(data.falseData, callback);
+                c += falseSignal_.unwrap().observe(context, data.signalData,
+                        callback);
 
             return c;
         }

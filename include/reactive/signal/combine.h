@@ -1,6 +1,7 @@
 #pragma once
 
 #include "signal.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -20,41 +21,43 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
             std::vector<SignalDataTypeT<AnySignal<T>>> datas;
             for (auto const& sig : sigs_)
-                datas.push_back(sig.unwrap().initialize());
+                datas.push_back(sig.unwrap().initialize(context, frame));
 
             return { std::move(datas) };
         }
 
-        SignalResult<std::vector<T>> evaluate(DataType const& data) const
+        SignalResult<std::vector<T>> evaluate(DataContext& context,
+                DataType const& data) const
         {
             std::vector<T> result;
 
             for (size_t i = 0; i < sigs_.size(); ++i)
-                result.push_back(sigs_[i].unwrap().evaluate(data.datas[i])
-                        .template get<0>());
+                result.push_back(sigs_[i].unwrap().evaluate(context,
+                            data.datas[i]).template get<0>());
 
             return SignalResult<std::vector<T>>{ std::move(result) };
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
             UpdateResult r;
             for (size_t i = 0; i < sigs_.size(); ++i)
-                r = r + sigs_[i].unwrap().update(data.datas[i], frame);
+                r = r + sigs_[i].unwrap().update(context, data.datas[i], frame);
 
             return r;
         }
 
-        Connection observe(DataType& data, std::function<void()> callback)
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> callback)
         {
             Connection c;
 
             for (size_t i = 0; i < sigs_.size(); ++i)
-                c += sigs_[i].unwrap().observe(data.datas[i], callback);
+                c += sigs_[i].unwrap().observe(context, data.datas[i], callback);
 
             return c;
         }

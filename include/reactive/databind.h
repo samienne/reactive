@@ -94,7 +94,6 @@ namespace reactive
                 else if (std::holds_alternative<typename DataSource<T>::Erase>(event))
                 {
                     auto& erase = std::get<typename DataSource<T>::Erase>(event);
-
                     for (auto i = state.objects.begin();
                             i != state.objects.end(); ++i)
                     {

@@ -7,7 +7,7 @@ devtest = executable('devtest',
         'streamtest.cpp',
         include_directories : incdir,
         link_with : [],
-        dependencies : [gtestdep]#, libasedep, libavgdep, libreactivedep]
+        dependencies : [gtestdep, libreactivedep]
         )
 
 unittest = executable('unittest',
@@ -35,6 +35,7 @@ unittest = executable('unittest',
         'colortest.cpp',
         'pentest.cpp',
         'typelisttest.cpp',
+        'invoketest.cpp',
         include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])

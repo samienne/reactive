@@ -2,12 +2,12 @@
 
 #include "widget/providebuildparams.h"
 #include "widget/addwidgets.h"
-#include "widget/widgetobject.h"
 #include "widget/instancemodifier.h"
 #include "widget/builder.h"
 #include "widget/widget.h"
-#include "widget/widgetobject.h"
 #include "widget/setsizehint.h"
+#include "widget/transform.h"
+#include "widget/setid.h"
 
 #include "box.h"
 
@@ -18,43 +18,6 @@
 
 namespace reactive
 {
-    namespace detail
-    {
-        template <Axis dir, typename T, typename U, typename V>
-        auto doDynamicBox(
-                signal::Signal<T, avg::Vector2f> size,
-                signal::Signal<U, std::vector<widget::WidgetObject>> widgets,
-                signal::Signal<V, std::vector<SizeHint>> hints
-                )
-        {
-            auto obbs = merge(std::move(size), hints).map(&mapObbs<dir>);
-
-            auto resultWidgets = merge(widgets, obbs)
-                .map([](std::vector<widget::WidgetObject> const& widgets,
-                        std::vector<avg::Obb> const& obbs)
-                    {
-                        assert(widgets.size() == obbs.size());
-                        std::vector<signal::AnySignal<widget::Instance>> result;
-
-                        auto i = obbs.begin();
-                        for (auto& w : widgets)
-                        {
-                            widget::WidgetObject& widgetObject =
-                                const_cast<widget::WidgetObject&>(w);
-
-                            widgetObject.setObb(*i);
-                            result.push_back(widgetObject.getWidget().clone());
-                            ++i;
-                        }
-
-                        return combine(std::move(result));
-                    })
-                .join();
-
-            return widget::addWidgets(std::move(resultWidgets));
-        }
-    } // namespace detail
-
     template <Axis dir>
     widget::AnyWidget dynamicBox(
             signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
@@ -63,98 +26,165 @@ namespace reactive
                     reactive::widget::BuildParams const& params,
                     auto widgets
                     )
-                {
-                    auto widgetObjectsWithId = std::move(widgets)
-                    .withPrevious([params](
-                                std::vector<std::pair<size_t, widget::WidgetObject>> initial,
-                                std::vector<std::pair<size_t, widget::AnyWidget>> widgets
-                                )
-                            -> std::vector<std::pair<size_t, widget::WidgetObject>>
+            {
+                auto builders = widgets.map([params]
+                        (std::vector<std::pair<size_t, widget::AnyWidget>> widgets)
+                        {
+                            std::vector<std::pair<size_t, widget::AnyBuilder>> result;
+
+                            for (auto&& widget : widgets)
                             {
-                                std::vector<std::pair<size_t, widget::WidgetObject>> result;
+                                auto builder = std::move(widget.second)(params);
+                                result.push_back({widget.first, std::move(builder)});
+                            }
 
-                                for (auto&& widget : widgets)
+                            return result;
+                        }).share();
+
+                auto hintsWithoutId = builders.map([]
+                        (std::vector<std::pair<size_t, widget::AnyBuilder>> const& builders)
+                    {
+                            std::vector<signal::AnySignal<SizeHint>>
+                            hintSignals;
+                            for (auto const& builder : builders)
+                            {
+                                hintSignals.push_back(builder.second.getSizeHint());
+                            }
+
+                            return combine(std::move(hintSignals));
+                    }).join().share();
+
+                auto hints = builders.map([]
+                        (std::vector<std::pair<size_t, widget::AnyBuilder>> const& builders)
+                    {
+                            std::vector<signal::AnySignal<std::pair<size_t, SizeHint>>>
+                            hintSignals;
+                            for (auto const& builder : builders)
+                            {
+                                hintSignals.push_back(
+                                        builder.second.getSizeHint()
+                                            .map([id=builder.first](SizeHint hint)
+                                                {
+                                                    return std::make_pair(id, hint);
+                                                })
+                                        );
+                            }
+
+                            return combine(std::move(hintSignals));
+                    }).join().share();
+
+                auto resultHint = hintsWithoutId.map(
+                        [](std::vector<SizeHint> const& hints) -> SizeHint
+                        {
+                            return accumulateSizeHints<dir>(hints);
+                        });
+
+                return makeWidgetWithSize([](auto size, auto hintsWithoutId, auto builders)
+                    {
+                        auto obbs = merge(std::move(size), hintsWithoutId)
+                            .map(&mapObbs<dir>)
+                            .merge(builders)
+                            .map([](std::vector<avg::Obb> const& obbs,
+                                std::vector<std::pair<size_t,
+                                    widget::AnyBuilder>> const& builders)
                                 {
+                                    assert(obbs.size() == builders.size());
+
+                                    std::vector<std::pair<size_t, avg::Obb>> result;
+                                    for (size_t i = 0; i < builders.size(); ++i)
+                                    {
+                                        size_t id = builders[i].first;
+                                        auto const& obb = obbs[i];
+
+                                        result.push_back({ id, obb });
+                                    }
+
+                                    return result;
+                                })
+                            .share();
+
+                        auto elements = builders.withPrevious(
+                            [obbs](auto previous, auto builders)
+                            {
+                                std::vector<std::pair<size_t, widget::AnyElement>> result;
+
+                                for (auto&& builder : builders)
+                                {
+                                    size_t id = builder.first;
+
                                     bool found = false;
-                                    for (auto&& builder : initial)
+                                    for (auto&& prev : previous)
                                     {
-                                        if (builder.first == widget.first)
+                                        if (prev.first == id)
                                         {
+                                            result.push_back(std::move(prev));
                                             found = true;
-                                            result.push_back(std::move(builder));
-                                            break;
                                         }
-
                                     }
 
-                                    if (!found)
-                                    {
-                                        result.emplace_back(
-                                                widget.first,
-                                                widget::WidgetObject(
-                                                    std::move(widget.second),
-                                                    params
+                                    if (found)
+                                        continue;
+
+                                    auto obb = obbs.map(
+                                        [id](std::vector<std::pair<size_t,
+                                            avg::Obb>> const& obbs)
+                                        {
+                                            for (auto const& obb : obbs)
+                                            {
+                                                if (obb.first == id)
+                                                    return obb.second;
+                                            }
+
+                                            assert(false);
+                                            return avg::Obb();
+                                        })
+                                        .check()
+                                        .share();
+
+                                    auto size = obb.map(&avg::Obb::getSize);
+                                    auto transform = obb.map(&avg::Obb::getTransform);
+
+                                    auto element = std::move(builder.second)
+                                            (std::move(size))
+                                            | widget::setElementId(
+                                                    signal::constant(avg::UniqueId())
                                                     )
-                                                );
-                                    }
+                                            | transformBuilder(transform)
+                                            ;
+
+                                    result.push_back({ id, std::move(element) });
                                 }
 
                                 return result;
                             },
-                            std::vector<std::pair<size_t, widget::WidgetObject>>()
+                            std::vector<std::pair<size_t, widget::AnyElement>>()
                             );
 
-                    auto widgetObjects = std::move(widgetObjectsWithId)
-                        .map([](std::vector<std::pair<size_t,
-                                widget::WidgetObject>> const& widgetObjects)
+                        auto instances = std::move(elements).map(
+                            [](std::vector<std::pair<size_t, widget::AnyElement>>
+                                elements)
                             {
-                                std::vector<widget::WidgetObject> result;
-                                for (auto const& widgetObject : widgetObjects)
-                                    result.push_back(widgetObject.second);
+                                std::vector<signal::AnySignal<widget::Instance>> result;
 
-                                return result;
-                            })
-                        .share();
-
-                    // Signal<std::vector<SizeHint>>
-                    auto hints = widgetObjects.map(
-                            [](std::vector<widget::WidgetObject> const& widgets)
-                            {
-                                std::vector<signal::AnySignal<SizeHint>> hints;
-
-                                for (auto const& w : widgets)
+                                for (auto&& element : elements)
                                 {
-                                    hints.push_back(w.getSizeHint().clone());
+                                    result.push_back(
+                                            std::move(element.second).getInstance());
                                 }
 
-                                // Signal<std::vector<SizeHint>>
-                                return signal::combine(std::move(hints));
-                            }).join().share();
+                                return combine(result);
+                            }).join();
 
-                    //Signal<SizeHint>
-                    auto resultHint = hints.map(
-                            [](std::vector<SizeHint> hints) -> SizeHint
-                            {
-                                return accumulateSizeHints<dir>(std::move(hints));
-                            });
-
-                    return widget::makeWidgetWithSize(
-                            [](auto size, auto hints, auto widgetObjects)
-                            {
-                                return widget::makeWidget()
-                                    | detail::doDynamicBox<dir>(
-                                            std::move(size),
-                                            std::move(widgetObjects),
-                                            std::move(hints)
-                                            )
-                                    ;
-                            },
-                            std::move(hints),
-                            std::move(widgetObjects)
-                            )
-                        | widget::setSizeHint(std::move(resultHint))
-                        ;
-                },
+                        return widget::makeWidget()
+                            | addWidgets(std::move(instances))
+                            ;
+                    },
+                    hintsWithoutId,
+                    builders
+                    )
+                    | widget::setSizeHint(std::move(resultHint))
+                    ;
+            },
                 widget::provideBuildParams(),
                 std::move(widgets).share()
                 )

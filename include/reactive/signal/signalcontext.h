@@ -1,6 +1,7 @@
 #pragma once
 
 #include "signal.h"
+#include "datacontext.h"
 
 namespace reactive::signal
 {
@@ -12,15 +13,16 @@ namespace reactive::signal
 
         SignalContext(AnySignal<Ts...> sig) :
             sig_(std::move(sig)),
-            data_(sig_.unwrap().initialize()),
-            result_(sig_.unwrap().evaluate(data_))
+            data_(sig_.unwrap().initialize(dataContext_, FrameInfo(0, {}))),
+            result_(sig_.unwrap().evaluate(dataContext_, data_))
         {
+            dataContext_.swapFrameData();
         };
 
         auto evaluate() const -> decltype(auto)
         {
             if constexpr(sizeof...(Ts) == 0)
-                sig_.unwrap().evaluate(data_);
+                sig_.unwrap().evaluate(dataContext_, data_);
             if constexpr (sizeof...(Ts) == 1)
                 return result_->template get<0>();
             else
@@ -29,9 +31,10 @@ namespace reactive::signal
 
         UpdateResult update(FrameInfo const& frame)
         {
-            auto r = sig_.unwrap().update(data_, frame);
+            auto r = sig_.unwrap().update(dataContext_, data_, frame);
             if (r.didChange)
-                result_ = sig_.unwrap().evaluate(data_);
+                result_ = sig_.unwrap().evaluate(dataContext_, data_);
+            dataContext_.swapFrameData();
 
             didChange_ = r.didChange;
 
@@ -45,7 +48,8 @@ namespace reactive::signal
 
         Connection observe(std::function<void()> callback)
         {
-            return sig_.unwrap().observe(data_, std::move(callback));
+            return sig_.unwrap().observe(dataContext_, data_,
+                    std::move(callback));
         }
 
         template <typename... Us, typename = std::enable_if_t<
@@ -58,6 +62,7 @@ namespace reactive::signal
 
     private:
         AnySignal<Ts...> sig_;
+        DataContext dataContext_;
         typename AnySignal<Ts...>::DataType data_;
         InnerResultType result_;
         bool didChange_ = false;

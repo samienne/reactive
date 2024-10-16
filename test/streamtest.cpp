@@ -167,16 +167,10 @@ TEST(Stream, iterate)
     values.handle.push("bye");
     values.handle.push("world");
 
-    r = c.update(signal::FrameInfo(3, {}));
-    v = c.evaluate();
-
-    EXPECT_TRUE(r.didChange);
-    EXPECT_EQ("byeworld", v);
-
     r = c.update(signal::FrameInfo(4, {}));
     v = c.evaluate();
 
-    EXPECT_FALSE(r.didChange);
+    EXPECT_TRUE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
     r = c.update(signal::FrameInfo(5, {}));
@@ -186,6 +180,12 @@ TEST(Stream, iterate)
     EXPECT_EQ("byeworld", v);
 
     r = c.update(signal::FrameInfo(6, {}));
+    v = c.evaluate();
+
+    EXPECT_FALSE(r.didChange);
+    EXPECT_EQ("byeworld", v);
+
+    r = c.update(signal::FrameInfo(7, {}));
     v = c.evaluate();
 
     EXPECT_FALSE(r.didChange);

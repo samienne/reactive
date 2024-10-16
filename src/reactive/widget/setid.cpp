@@ -11,9 +11,9 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
+AnyElementModifier setElementId(signal::AnySignal<avg::UniqueId> id)
 {
-    return makeWidgetModifier(makeInstanceModifier(
+    return makeElementModifier(makeInstanceModifier(
         [](Instance instance, avg::UniqueId const& id)
         {
             auto container = std::make_shared<avg::IdNode>(
@@ -28,6 +28,11 @@ AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
         },
         std::move(id)
         ));
+}
+
+AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
+{
+    return makeWidgetModifier(setElementId(std::move(id)));
 }
 
 } // namespace reactive::widget
