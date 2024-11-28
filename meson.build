@@ -1,4 +1,4 @@
-project('reactive', 'cpp', default_options: ['cpp_std=c++17', 'warning_level=3'])
+project('reactive', 'cpp', default_options: ['cpp_std=c++20', 'warning_level=3'])
 
 if target_machine.system() == 'windows'
     add_global_arguments('/wd4251', '/bigobj', '/UNICODE', language : 'cpp')
