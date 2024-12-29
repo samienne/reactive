@@ -3,6 +3,7 @@
 #include "updateresult.h"
 #include "frameinfo.h"
 #include "signaltraits.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -23,22 +24,22 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext&, FrameInfo const&) const
         {
             return { ResultType{ func_() } };
         }
 
-        ResultType evaluate(DataType const& data) const
+        ResultType evaluate(DataContext&, DataType const& data) const
         {
             return data.result;
         }
 
-        UpdateResult update(DataType&, FrameInfo const&)
+        UpdateResult update(DataContext&, DataType&, FrameInfo const&)
         {
             return {};
         }
 
-        Connection observe(DataType&, std::function<void()>)
+        Connection observe(DataContext&, DataType&, std::function<void()>)
         {
             return {};
         }

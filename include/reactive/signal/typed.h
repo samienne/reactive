@@ -4,6 +4,7 @@
 #include "updateresult.h"
 #include "frameinfo.h"
 #include "signaltraits.h"
+#include "datacontext.h"
 
 #include <btl/connection.h>
 
@@ -27,10 +28,13 @@ namespace reactive::signal
 
         virtual ~SignalBase() = default;
 
-        virtual std::unique_ptr<DataBase> initialize() const = 0;
-        virtual SignalResult<Ts...> evaluate(DataBase const& data) const = 0;
-        virtual UpdateResult update(DataBase& data, FrameInfo const& frame) = 0;
-        virtual btl::connection observe(DataBase& data,
+        virtual std::unique_ptr<DataBase> initialize(DataContext& context,
+                FrameInfo const& frame) const = 0;
+        virtual SignalResult<Ts...> evaluate(DataContext& context,
+                DataBase const& data) const = 0;
+        virtual UpdateResult update(DataContext& context, DataBase& data,
+                FrameInfo const& frame) = 0;
+        virtual btl::connection observe(DataContext& context, DataBase& data,
                 std::function<void()> callback) = 0;
     };
 
@@ -56,27 +60,28 @@ namespace reactive::signal
         {
         }
 
-        std::unique_ptr<BaseDataType> initialize() const override
+        std::unique_ptr<BaseDataType> initialize(DataContext& context,
+                FrameInfo const& frame) const override
         {
-            return { std::make_unique<DataType>(sig_.initialize()) };
+            return { std::make_unique<DataType>(sig_.initialize(context, frame)) };
         }
 
-        SignalResult<Ts...> evaluate(
+        SignalResult<Ts...> evaluate(DataContext& context,
                 BaseDataType const& baseData) const override
         {
-            return sig_.evaluate(getStorageData(baseData));
+            return sig_.evaluate(context, getStorageData(baseData));
         }
 
-        UpdateResult update(BaseDataType& baseData,
+        UpdateResult update(DataContext& context, BaseDataType& baseData,
                 FrameInfo const& frame) override
         {
-            return sig_.update(getStorageData(baseData), frame);
+            return sig_.update(context, getStorageData(baseData), frame);
         }
 
-        btl::connection observe(BaseDataType& data,
+        btl::connection observe(DataContext& context, BaseDataType& data,
                 std::function<void()> callback) override
         {
-            return sig_.observe(getStorageData(data), std::move(callback));
+            return sig_.observe(context, getStorageData(data), std::move(callback));
         }
 
     private:
@@ -111,25 +116,27 @@ namespace reactive::signal
         SignalTypeless& operator=(SignalTypeless const&) = default;
         SignalTypeless& operator=(SignalTypeless&&) noexcept = default;
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return { sig_->initialize() };
+            return { sig_->initialize(context, frame) };
         }
 
-        auto evaluate(DataType const& data) const
+        auto evaluate(DataContext& context, DataType const& data) const
         {
-            return sig_->evaluate(*data.data);
+            return sig_->evaluate(context, *data.data);
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
         {
-            return sig_->update(*data.data, frame);
+            return sig_->update(context, *data.data, frame);
         }
 
         template <typename TCallback>
-        btl::connection observe(DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data,
+                TCallback&& callback)
         {
-            return sig_->observe(*data.data, std::forward<TCallback>(callback));
+            return sig_->observe(context, *data.data, std::forward<TCallback>(callback));
         }
 
         template <typename... Us, typename = std::enable_if_t<

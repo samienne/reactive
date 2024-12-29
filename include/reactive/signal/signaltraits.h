@@ -3,6 +3,7 @@
 #include "frameinfo.h"
 #include "updateresult.h"
 #include "signalresult.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -16,16 +17,21 @@
 namespace reactive::signal
 {
     template <typename T>
-    using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize());
+    using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize(
+                std::declval<DataContext&>(),
+                std::declval<FrameInfo const>()
+                ));
 
     template <typename T>
     using evaluate_t = decltype(std::declval<std::decay_t<T> const&>().evaluate(
+                std::declval<DataContext&>(),
                 std::declval<std::decay_t<initialize_t<T>>&>()
                 ));
 
     template <typename T>
     using update_t = decltype(
             std::declval<std::decay_t<T>>().update(
+                std::declval<DataContext&>(),
                 std::declval<std::decay_t<initialize_t<T>>&>(),
                 std::declval<FrameInfo const>())
             );
@@ -33,6 +39,7 @@ namespace reactive::signal
     template <typename T>
     using observe_t = decltype(
             std::declval<std::decay_t<T>>().observe(
+                std::declval<DataContext&>(),
                 std::declval<std::decay_t<initialize_t<T>>&>(),
                 std::function<void()>()
                 )
@@ -73,7 +80,7 @@ namespace reactive::signal
 
     template <typename TSignal>
     struct SignalDataType : std::decay<decltype(std::declval<TSignal>()
-            .initialize())>
+            .initialize(std::declval<DataContext&>(), std::declval<FrameInfo const&>()))>
     {
     };
 
@@ -87,7 +94,10 @@ namespace reactive::signal
     struct SignalDataType<Signal<T, Ts...>>
     {
         using type = std::decay_t<
-            decltype(std::declval<Signal<T, Ts...>>().unwrap().initialize())
+            decltype(std::declval<Signal<T, Ts...>>().unwrap().initialize(
+                        std::declval<DataContext&>(),
+                        std::declval<FrameInfo const&>()
+                        ))
             >;
     };
 
@@ -103,14 +113,20 @@ namespace reactive::signal
     struct SignalValueType
     {
         using type = std::decay_t<decltype(std::declval<std::decay_t<TSignal>>()
-                .evaluate(std::declval<SignalDataTypeT<TSignal>>))>;
+                .evaluate(
+                    std::declval<DataContext&>(),
+                    std::declval<SignalDataTypeT<TSignal>>
+                    ))>;
     };
 
     template <typename TSignal>
     struct SignalType
     {
         using type = decltype(std::declval<std::decay_t<TSignal> const&>()
-            .evaluate(std::declval<SignalDataTypeT<TSignal> const&>())
+            .evaluate(
+                std::declval<DataContext&>(),
+                std::declval<SignalDataTypeT<TSignal> const&>()
+                )
             );
     };
 

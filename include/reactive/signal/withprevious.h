@@ -4,6 +4,7 @@
 #include "signalresult.h"
 #include "frameinfo.h"
 #include "signaltraits.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -57,10 +58,11 @@ namespace reactive::signal
 
         struct DataType
         {
-            DataType(TFunc const& func, FuncReturnType const& initial,
-                    TStorage const& sig) :
-                innerData(sig.initialize()),
-                innerResult(sig.evaluate(innerData)),
+            DataType(DataContext& context, TFunc const& func,
+                    FuncReturnType const& initial, TStorage const& sig,
+                    FrameInfo const& frame) :
+                innerData(sig.initialize(context, frame)),
+                innerResult(sig.evaluate(context, innerData)),
                 currentResult(evaluateFunc(
                             func,
                             initial,
@@ -82,24 +84,25 @@ namespace reactive::signal
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return DataType(*func_, *initial_, sig_);
+            return DataType(context, *func_, *initial_, sig_, frame);
         }
 
         SignalResultToConstRefT<FuncReturnType> evaluate(
-                DataType const& data) const
+                DataContext&, DataType const& data) const
         {
             return data.currentResult;
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
         {
-            auto r = sig_.update(data.innerData, frame);
+            auto r = sig_.update(context, data.innerData, frame);
 
             if (r.didChange)
             {
-                data.innerResult = sig_.evaluate(data.innerData);
+                data.innerResult = sig_.evaluate(context, data.innerData);
                 data.currentResult = evaluateFunc(*func_,
                         data.currentResult, data.innerResult);
             }
@@ -107,9 +110,10 @@ namespace reactive::signal
             return r;
         }
 
-        Connection observe(DataType& data, std::function<void()> callback)
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> callback)
         {
-            return sig_.observe(data.innerData, std::move(callback));
+            return sig_.observe(context, data.innerData, std::move(callback));
         }
 
     private:

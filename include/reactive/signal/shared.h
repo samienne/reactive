@@ -6,6 +6,7 @@
 #include "signaltraits.h"
 #include "sharedcontrol.h"
 #include "weak.h"
+#include "datacontext.h"
 
 #include <btl/future/future.h>
 
@@ -39,32 +40,37 @@ namespace reactive::signal
         Shared& operator=(Shared const&) = default;
         Shared& operator=(Shared&&) noexcept = default;
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            return impl_->initialize();
+            return impl_->initialize(context, frame);
         }
 
-        SignalResult<Ts const&...> evaluate(DataType const& data) const
+        SignalResult<Ts const&...> evaluate(DataContext& context,
+                DataType const& data) const
         {
-            return impl_->evaluate(data);
+            return impl_->evaluate(context, data);
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data, FrameInfo const& frame)
         {
-            return impl_->update(data, frame);
+            return impl_->update(context, data, frame);
         }
 
         template <typename TCallback>
-        btl::connection observe(DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data,
+                TCallback&& callback)
         {
-            return impl_->observe(data, callback);
+            return impl_->observe(context, data, callback);
         }
 
-        Signal<Weak<Ts...>, Ts...> weak() const
+        Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> weak() const
         {
+            /*
             return wrap(Weak<Ts...>(std::make_shared<
                         WeakControl<Impl, Ts...>
                         >(impl_.ptr())));
+            */
+            return wrap(Weak<Ts...>(impl_.ptr()));
         }
 
     private:

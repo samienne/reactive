@@ -44,14 +44,14 @@ namespace btl
         {
         }
 
-        CopyWrapper operator=(CopyWrapper const& rhs)
+        CopyWrapper& operator=(CopyWrapper const& rhs)
         {
             value_.~T();
             new (&value_) T(rhs.value_);
             return *this;
         }
 
-        CopyWrapper operator=(CopyWrapper&& rhs) noexcept
+        CopyWrapper& operator=(CopyWrapper&& rhs) noexcept
         {
             value_.~T();
             new (&value_) T(std::move(rhs.value_));
@@ -61,7 +61,7 @@ namespace btl
         template <typename U, typename = std::enable_if_t<
             std::is_constructible_v<T, U&&>
             >>
-        CopyWrapper operator=(U&& rhs)
+        CopyWrapper& operator=(U&& rhs)
         {
             value_.~T();
             new (&value_) T(std::forward<U>(rhs));

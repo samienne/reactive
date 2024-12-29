@@ -1,153 +1,112 @@
 #pragma once
 
+#include "sharedcontrol.h"
 #include "signaltraits.h"
+#include "datacontext.h"
 
 namespace reactive::signal
 {
-    struct DataTypeBase
-    {
-        virtual ~DataTypeBase() = default;
-    };
-
     template <typename... Ts>
-    class WeakControlBase
+    class Weak
     {
     public:
-        struct DataType
-        {
-            std::unique_ptr<DataTypeBase> data;
-        };
+        struct DataType;
 
-        virtual std::unique_ptr<DataTypeBase> initialize() const = 0;
-        virtual SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const = 0;
-        virtual UpdateResult update(DataTypeBase& data, FrameInfo const& frame) = 0;
-        virtual btl::connection observe(DataTypeBase&, std::function<void()> callback) = 0;
-    };
-
-    template <typename TSharedControl, typename... Ts>
-    class WeakControl : public WeakControlBase<Ts...>
-    {
-    public:
-        using InnerData = typename TSharedControl::DataType;
-        struct DataType : DataTypeBase
+        struct ContextDataType
         {
-            DataType(SignalResult<Ts...> value) :
-                value(std::move(value))
+            ContextDataType(DataContext& context,
+                    SharedControlBase<Ts...>& control,
+                    FrameInfo const& frame) :
+                innerData(control.baseInitialize(context, frame)),
+                value(control.baseEvaluate(context, *innerData))
             {
             }
 
+            std::shared_ptr<typename SharedControlBase<Ts...>::BaseDataType> innerData;
             SignalResult<Ts...> value;
+            uint64_t frameId = 0;
+            bool didChange = false;
+            std::optional<signal_time_t> nextUpdate;
         };
 
-        WeakControl(std::shared_ptr<TSharedControl> control) :
-            control_(control),
-            innerData_(control->initialize()),
-            currentValue_(control->evaluate(innerData_))
+        struct DataType
+        {
+            std::shared_ptr<ContextDataType> contextData;
+        };
+
+        Weak(std::shared_ptr<SharedControlBase<Ts...>> control) :
+            id_(makeUniqueId()),
+            control_(std::move(control))
         {
         }
 
-        virtual ~WeakControl() = default;
-
-        std::unique_ptr<DataTypeBase> initialize() const override
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            std::unique_lock lock(mutex_);
-
-            return std::make_unique<DataType>(currentValue_);
-        }
-
-        SignalResult<Ts const&...> evaluate(DataTypeBase const& data) const override
-        {
-            return getData(data).value;
-        }
-
-        UpdateResult update(DataTypeBase& baseData, FrameInfo const& frame) override
-        {
-            std::unique_lock lock(mutex_);
-
-            auto control = control_.lock();
-
-            if (!control)
-                return {};
-
-            auto& data = getData(baseData);
-
-            auto r = control->update(innerData_, frame);
-
-            if (r.didChange)
-                data.value = control->evaluate(innerData_);
-
-            return r;
-        }
-
-        btl::connection observe(DataTypeBase&,
-                std::function<void()> callback) override
-        {
-            std::unique_lock lock(mutex_);
             if (auto control = control_.lock())
-                return control->observe(innerData_, callback);
+            {
+                std::shared_ptr<ContextDataType> contextData =
+                    context.findData<ContextDataType>(id_);
+                if (!contextData)
+                {
+                    contextData = context.initializeData<ContextDataType>(
+                            id_, context, *control, frame);
+                }
+
+                return { std::move(contextData) };
+            }
+
+            return {};
+        }
+
+        std::optional<SignalResult<Ts const&...>> evaluate(
+                DataContext&, DataType const& data) const
+        {
+            if (data.contextData)
+                return data.contextData->value;
+
+            return {};
+        }
+
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
+        {
+            if (data.contextData->frameId < frame.getFrameId())
+            {
+                if (auto control = control_.lock())
+                {
+                    UpdateResult result = control->baseUpdate(context,
+                            *data.contextData->innerData, frame);
+                    data.contextData->value = control->baseEvaluate(context,
+                            *data.contextData->innerData);
+                    data.contextData->nextUpdate = result.nextUpdate;
+                    data.contextData->didChange = result.didChange;
+                    return result;
+                }
+                else
+                {
+                    data.contextData->nextUpdate = std::nullopt;
+                    data.contextData->didChange = false;
+                }
+
+                data.contextData->frameId = frame.getFrameId();
+            }
+
+            return { data.contextData->nextUpdate, data.contextData->didChange };
+        }
+
+        Connection observe(DataContext& context, DataType& data,
+                std::function<void()> callback)
+        {
+            if (auto control = control_.lock())
+                return control->baseObserve(context,
+                        *data.contextData->innerData, std::move(callback));
 
             return {};
         }
 
     private:
-        static DataType const& getData(DataTypeBase const& data)
-        {
-            return static_cast<DataType const&>(data);
-        }
-
-        static DataType& getData(DataTypeBase& data)
-        {
-            return static_cast<DataType&>(data);
-        }
-
-    private:
-        mutable std::mutex mutex_;
-        std::weak_ptr<TSharedControl> control_;
-        typename TSharedControl::DataType innerData_;
-        SignalResult<Ts...> currentValue_;
-    };
-
-    template <typename... Ts>
-    class Weak
-    {
-    public:
-        using Control = WeakControlBase<Ts...>;
-        using DataType = typename Control::DataType;
-
-        Weak(btl::shared<WeakControlBase<Ts...>> impl) :
-            impl_(std::move(impl.ptr()))
-        {
-        }
-
-        Weak(Weak const&) = default;
-        Weak(Weak&&) noexcept = default;
-
-        Weak& operator=(Weak const&) = default;
-        Weak& operator=(Weak&&) noexcept = default;
-
-        DataType initialize() const
-        {
-            return { impl_->initialize() };
-        }
-
-        SignalResult<Ts const&...> evaluate(DataType const& data) const
-        {
-            return impl_->evaluate(*data.data);
-        }
-
-        UpdateResult update(DataType& data, FrameInfo const& frame)
-        {
-            return impl_->update(*data.data, frame);
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataType& data, TCallback&& callback)
-        {
-            return impl_->observe(*data.data, callback);
-        }
-
-    private:
-        btl::shared<Control> impl_;
+        btl::UniqueId id_;
+        std::weak_ptr<SharedControlBase<Ts...>> control_;
     };
 
     template <typename... Ts>

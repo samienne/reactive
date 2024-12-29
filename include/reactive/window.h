@@ -35,7 +35,7 @@ namespace reactive
         }
 
     private:
-        btl::CloneOnCopy<widget::AnyWidget> widget_;
+        widget::AnyWidget widget_;
         signal::AnySignal<std::string> title_;
         std::vector<std::function<void()>> closeCallbacks_;
     };

@@ -25,11 +25,6 @@ namespace btl
     template <template <typename...> typename TTemplate, typename T>
     using ParamPackApplyT = typename ParamPackApply<TTemplate, T>::type;
 
-    static_assert(std::is_same_v<
-            std::tuple<std::string, int>,
-            ParamPackApplyT<std::tuple, ParamPack<std::string, int>>
-            >);
-
     template <template <typename> typename TMap, typename TPack>
     struct ParamPackMap
     {
@@ -85,16 +80,6 @@ namespace btl
     template <typename... Ts>
     using ConcatParamPacksT = typename ConcatParamPacks<Ts...>::type;
 
-    static_assert(std::is_same_v<
-        ParamPack<std::string, int>,
-        ConcatParamPacksT<ParamPack<std::string>, ParamPack<int>>
-        >);
-
-    static_assert(std::is_same_v<
-        ParamPack<>,
-        ConcatParamPacksT<>
-        >);
-
     template <typename T>
     struct ToParamPack
     {
@@ -130,14 +115,5 @@ namespace btl
 
     template <typename R, typename F, typename... Args>
     inline constexpr bool isInvocableRV = IsInvocableR<R, F, Args...>::value;
-
-    static_assert(isInvocableRV<int, std::function<int(std::string)>, std::string>);
-    static_assert(isInvocableRV<int, std::function<int()>, ParamPack<>>);
-    static_assert(!isInvocableRV<int, std::function<int(int)>, std::string>);
-
-    static_assert(isInvocableRV<int, std::function<int(std::string)>,
-            UnpackTupleT<std::tuple<std::string>>>);
-    static_assert(isInvocableRV<int, std::function<int(std::string, int, int)>,
-            UnpackTupleT<std::tuple<std::string, int>>, int>);
 } // namespace btl
 

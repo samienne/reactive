@@ -3,6 +3,7 @@
 #include "signalresult.h"
 #include "updateresult.h"
 #include "frameinfo.h"
+#include "datacontext.h"
 
 #include "reactive/connection.h"
 
@@ -12,99 +13,210 @@
 
 namespace reactive::signal
 {
-    template <typename TStorage, typename... Ts>
-    class SharedControl
+    template <typename... Ts>
+    class SharedControlBase
     {
     public:
-        using StorageType = TStorage;
-
-        struct DataType
+        struct BaseDataType
         {
-            SignalResult<Ts...> value;
-            uint64_t lastUpdate = 0;
+            virtual ~BaseDataType() = default;
         };
 
+        virtual ~SharedControlBase() = default;
+        virtual std::shared_ptr<BaseDataType> baseInitialize(
+                DataContext& context, FrameInfo const& frame) = 0;
+        virtual SignalResult<Ts const&...> baseEvaluate(DataContext& context,
+                BaseDataType const& data) = 0;
+        virtual UpdateResult baseUpdate(DataContext& context, BaseDataType& data,
+                FrameInfo const& frame) = 0;
+        virtual Connection baseObserve(DataContext& context, BaseDataType& data,
+                std::function<void()> callback) = 0;
+    };
+
+    template <typename TStorage, typename... Ts>
+    class SharedControl : public SharedControlBase<Ts...>
+    {
+    public:
+        using Super = SharedControlBase<Ts...>;
+        using StorageType = TStorage;
+
+        struct ContextDataType
+        {
+            ContextDataType(DataContext& context, StorageType const& sig,
+                    FrameInfo const& frame) :
+                innerData(sig.initialize(context, frame)),
+                currentValue(sig.evaluate(context, innerData))
+            {
+            }
+
+            //ContextDataType(ContextDataType const&) = default;
+            //ContextDataType(ContextDataType&&) noexcept = default;
+
+            mutable std::recursive_mutex mutex_;
+            typename StorageType::DataType innerData;
+            SignalResult<Ts...> currentValue;
+            uint64_t lastFrame = 0;
+            UpdateResult updateResult;
+        };
+
+        struct DataType : Super::BaseDataType
+        {
+            DataType(SignalResult<Ts...> value,
+                    std::shared_ptr<ContextDataType> contextData) :
+                value(std::move(value)),
+                contextData(std::move(contextData))
+            {
+            }
+
+            DataType(DataType const&) = default;
+            DataType(DataType&&) noexcept = default;
+
+            ContextDataType* lock()
+            {
+                if (contextData)
+                    return contextData.get();
+
+                if (auto cd = contextDataWeak.lock())
+                    return cd.get();
+
+                return nullptr;
+            }
+
+            DataType& makeWeak()
+            {
+                if (contextData)
+                {
+                    contextDataWeak = contextData;
+                    contextData.reset();
+                }
+
+                return *this;
+            }
+
+            void storeData(DataContext& context)
+            {
+                if (contextData)
+                    context.storeFrameData(contextData);
+                else if (auto cd = contextDataWeak.lock())
+                    context.storeFrameData(cd);
+            }
+
+            SignalResult<Ts...> value;
+
+        private:
+            std::shared_ptr<ContextDataType> contextData;
+            std::weak_ptr<ContextDataType> contextDataWeak;
+        };
+
+        std::shared_ptr<typename Super::BaseDataType> baseInitialize(
+                DataContext& context, FrameInfo const& frame) override
+        {
+            auto data = std::make_shared<DataType>(initialize(context, frame));
+            data->storeData(context);
+            data->makeWeak();
+            return data;
+        }
+
+        SignalResult<Ts const&...> baseEvaluate(DataContext& context,
+                typename Super::BaseDataType const& data) override
+        {
+            return evaluate(context, static_cast<DataType const&>(data));
+        }
+
+        UpdateResult baseUpdate(DataContext& context,
+                typename Super::BaseDataType& data,
+                FrameInfo const& frame) override
+        {
+            static_cast<DataType&>(data).storeData(context);
+            return update(context, static_cast<DataType&>(data), frame);
+        }
+
+        Connection baseObserve(DataContext& context,
+                typename Super::BaseDataType& data,
+                std::function<void()> callback) override
+        {
+            return observe(context, static_cast<DataType&>(data),
+                    std::move(callback));
+        }
+
         SharedControl(StorageType sig) :
-            sig_(std::move(sig)),
-            innerData_(sig_.initialize()),
-            currentValue_(sig_.evaluate(innerData_))
+            id_(makeUniqueId()),
+            sig_(std::move(sig))
         {
         }
 
-        DataType initialize() const
+        DataType initialize(DataContext& context, FrameInfo const& frame) const
         {
-            std::unique_lock lock(mutex_);
+            std::shared_ptr<ContextDataType> contextData =
+                context.findData<ContextDataType>(id_);
+            if (!contextData)
+            {
+                contextData = context.initializeData<ContextDataType>(id_,
+                        context, sig_, frame);
+            }
 
             DataType data
             {
-                currentValue_,
-                updateCount_,
+                contextData->currentValue,
+                contextData,
             };
+
+            const_cast<SharedControl&>(*this).update(context, data, frame);
 
             return data;
         }
 
-        SignalResult<Ts const&...> evaluate(DataType const& data) const
+        SignalResult<Ts const&...> evaluate(DataContext&,
+                DataType const& data) const
         {
             return data.value;
         }
 
-        UpdateResult update(DataType& data, FrameInfo const& frame)
+        UpdateResult update(DataContext& context, DataType& data,
+                FrameInfo const& frame)
         {
-            std::unique_lock lock(mutex_);
-
-            if (lastFrame_ < frame.getFrameId())
+            ContextDataType* contextData = data.lock();
+            if (!contextData)
             {
-                lastFrame_ = frame.getFrameId();
-                UpdateResult innerResult = sig_.update(innerData_, frame);
-                if (innerResult.didChange)
-                    currentValue_ = sig_.evaluate(innerData_);
-
-                time_ += frame.getDeltaTime();
-                updateTime_.reset();
-                if (innerResult.nextUpdate)
-                    updateTime_ = time_ + *innerResult.nextUpdate;
-
-                if (innerResult.didChange)
-                    ++updateCount_;
+                std::cout << "SharedControl: No context data" << std::endl;
+                assert(contextData);
+                return {};
             }
 
-            bool didChange = false;
-            if (data.lastUpdate < updateCount_)
+            std::unique_lock lock(contextData->mutex_);
+
+            if (contextData->lastFrame < frame.getFrameId())
             {
-                data.lastUpdate = updateCount_;
-                data.value = currentValue_;
-                didChange = true;
+                contextData->lastFrame = frame.getFrameId();
+                contextData->updateResult= sig_.update(context,
+                        contextData->innerData, frame);
+
+                if (contextData->updateResult.didChange)
+                    contextData->currentValue = sig_.evaluate(context,
+                            contextData->innerData);
             }
 
-            if (updateTime_)
-                return {
-                    *updateTime_ - time_,
-                    didChange
-                };
+            if (contextData->updateResult.didChange)
+                data.value = contextData->currentValue;
 
-            return {
-                std::nullopt,
-                didChange
-            };
+            return contextData->updateResult;
         }
 
         template <typename TCallback>
-        Connection observe(DataType&, TCallback&& callback)
+        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
-            std::unique_lock lock(mutex_);
-            return sig_.observe(innerData_, callback);
+            if (ContextDataType* contextData = data.lock())
+            {
+                std::unique_lock lock(contextData->mutex_);
+                return sig_.observe(context, contextData->innerData, callback);
+            }
+
+            return {};
         }
 
     private:
-        mutable std::recursive_mutex mutex_;
+        btl::UniqueId id_;
         StorageType sig_;
-        typename StorageType::DataType innerData_;
-        SignalResult<Ts...> currentValue_;
-        uint64_t lastFrame_ = 0;
-        uint64_t updateCount_ = 0;
-        signal_time_t time_ = signal_time_t(0);
-        std::optional<signal_time_t> updateTime_;
     };
 } // namespcae reactive::signal
 
