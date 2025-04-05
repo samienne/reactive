@@ -71,6 +71,12 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
+void Window::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)> func)
+{
+    d()->setFrameCallback(std::move(func));
+}
+
 void Window::setCloseCallback(std::function<void()> func)
 {
     d()->setCloseCallback(std::move(func));

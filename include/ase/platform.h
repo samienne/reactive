@@ -3,6 +3,7 @@
 #include "vector.h"
 #include "asevisibility.h"
 
+#include <chrono>
 #include <memory>
 
 namespace ase
@@ -10,6 +11,7 @@ namespace ase
     class Window;
     class RenderContext;
     class PlatformImpl;
+    struct Frame;
 
     class ASE_EXPORT Platform
     {
@@ -17,9 +19,13 @@ namespace ase
         Platform(std::shared_ptr<PlatformImpl> impl);
         virtual ~Platform();
 
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
         Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();
+        void run(RenderContext& renderContext,
+                std::function<bool(Frame const&)> frameCallback);
+        void requestFrame();
 
         template <typename T>
         T& getImpl()

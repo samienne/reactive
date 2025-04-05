@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <chrono>
 #include <string>
 #include <memory>
 #include <functional>
@@ -20,6 +21,12 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+
+    struct Frame
+    {
+        std::chrono::microseconds time;
+        std::chrono::microseconds dt;
+    };
 
     class ASE_EXPORT Window
     {
@@ -44,6 +51,8 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(Frame const&)> func);
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
         void setRedrawCallback(std::function<void()> func);

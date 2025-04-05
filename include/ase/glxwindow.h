@@ -60,6 +60,7 @@ namespace ase
         GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
         void handleEvents(std::vector<_XEvent> const& events);
 
         // From WindowImpl
@@ -73,6 +74,9 @@ namespace ase
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(Frame const&)>)
+            override;
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
         void setRedrawCallback(std::function<void()> func) override;
@@ -110,6 +114,8 @@ namespace ase
 
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
+
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)> frameCallback_;
 
         bool visible_ = false;
 

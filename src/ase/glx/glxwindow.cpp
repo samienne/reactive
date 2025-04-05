@@ -199,10 +199,27 @@ void GlxWindow::destroy()
     }
 }
 
+std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
+{
+    if (frameCallback_)
+    {
+        return frameCallback_(frame);
+    }
+
+    return std::nullopt;
+}
+
 void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 {
     for (auto const& e : events)
         handleEvent(e);
+}
+
+void GlxWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
+        callback)
+{
+    frameCallback_ = std::move(callback);
 }
 
 void GlxWindow::setCloseCallback(std::function<void()> func)

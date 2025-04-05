@@ -87,6 +87,10 @@ public:
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate());
 
+        aseWindow.setFrameCallback([this](ase::Frame const& frame) {
+                return onFrame(frame);
+                });
+
         aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
         aseWindow.setResizeCallback([this]()
                 {
@@ -363,7 +367,14 @@ public:
     {
         ZoneScoped;
 
-        pointerEventsOnThisFrame_ = 0;
+        return onFrame( { timer_, dt });
+    }
+
+    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
+    {
+        ZoneScoped;
+
+        timer_ = frame.time;
 
         if (resized_)
         {
@@ -372,11 +383,10 @@ public:
             resized_ = false;
         }
 
-        timer_ += dt;
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
+                timer_);
 
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
-
-        auto timeToNext = makeTransaction(dt, std::nullopt);
+        auto timeToNext = makeTransaction(frame.dt, std::nullopt);
 
         if (animating_)
         {
@@ -398,7 +408,6 @@ public:
         {
             painter_.paintToWindow(aseWindow, drawing_);
 
-
             painter_.presentWindow(aseWindow);
 
             painter_.flush();
@@ -409,7 +418,7 @@ public:
         }
 
         if (animating_)
-            return signal::signal_time_t(0);
+            return std::chrono::microseconds(0);
 
         return timeToNext;
     }
@@ -443,8 +452,6 @@ private:
     widget::Instance widgetInstance_;
     signal::SignalContext<std::string> titleSignal_;
     //RenderCache cache_;
-    bool resized_ = true;
-    bool redraw_ = true;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;
@@ -452,7 +459,6 @@ private:
     std::optional<KeyboardInput::KeyHandler> currentKeyHandler_;
     std::optional<KeyboardInput::TextHandler> currentTextHandler_;
     uint64_t frames_ = 0;
-    uint32_t pointerEventsOnThisFrame_ = 0;
     std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
@@ -463,6 +469,8 @@ private:
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     bool animating_ = true;
+    bool resized_ = true;
+    bool redraw_ = true;
 };
 
 
@@ -495,70 +503,17 @@ int App::run(signal::AnySignal<bool> runningSignal) &&
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
-    auto lastFrame = startTime;
 
     DBG("Reactive running...");
 
-    auto mainQueue = context.getMainRenderQueue();
-
-    std::queue<btl::future::Future<>> frameFutures;
-
     auto running = signal::makeSignalContext(runningSignal);
-    while (running.evaluate())
-    {
-        FrameMark;
-        ZoneScopedN("mainLoop");
-
-        auto thisFrame = clock.now();
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        platform.handleEvents();
-
-        reactive::signal::FrameInfo frame{getNextFrameId(), dt};
-        auto [timeToNext, didChange] = running.update(frame);
-
-        for (auto& glue : d()->windowGlues_)
+    platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
-            auto t = glue->frame(dt);
+            reactive::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+            auto [timeToNext, didChange] = running.update(frame);
 
-            timeToNext = reactive::signal::min(timeToNext, t);
-        }
-
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
-
-        //mainQueue.flush();
-
-        //if (timeToNext.has_value())
-        {
-            auto frameTime = std::chrono::duration_cast<
-                std::chrono::microseconds>(clock.now() - thisFrame);
-            //auto remaining = *timeToNext - frameTime;
-            auto remaining = std::chrono::microseconds(16667) - frameTime;
-            if (remaining.count() > 0)
-            {
-                ZoneScopedN("sleep");
-                std::this_thread::sleep_for(remaining);
-            }
-        }
-
-        if (frameFutures.size() > 2)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
-
-        lastFrame = thisFrame;
-    }
-
-    while (!frameFutures.empty()) {
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+            return running.evaluate();
+        });
 
     DBG("Shutting down...");
 

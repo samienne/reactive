@@ -14,10 +14,12 @@
 
 #include <string>
 #include <functional>
+#include <chrono>
 
 namespace ase
 {
     class Framebuffer;
+    struct Frame;
 
     class ASE_EXPORT WindowImpl
     {
@@ -34,6 +36,8 @@ namespace ase
         virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
+        virtual void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(Frame const&)>) = 0;
         virtual void setCloseCallback(std::function<void()> func) = 0;
         virtual void setResizeCallback(std::function<void()> func) = 0;
         virtual void setRedrawCallback(std::function<void()> func) = 0;

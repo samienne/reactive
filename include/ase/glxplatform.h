@@ -39,9 +39,13 @@ namespace ase
         float getScalingFactor() const;
 
         // From Platform
+        std::optional<std::chrono::microseconds> frame(Frame const& frame) override;
         Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
+        void run(RenderContext& renderContext,
+                std::function<bool(Frame const&)> frameCallback) override;
+        void requestFrame() override;
 
     private:
         friend class GlxRenderContext;
@@ -56,8 +60,6 @@ namespace ase
 
         friend class GlxWindow;
         friend class GlxWindowDeferred;
-        void registerWindow(Lock const&, GlxWindow& window);
-        void unregisterWindow(Lock const&, GlxWindow& window);
         GLXFBConfig getGlxFbConfig() const;
 
     private:
