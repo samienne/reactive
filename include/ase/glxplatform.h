@@ -39,7 +39,6 @@ namespace ase
         float getScalingFactor() const;
 
         // From Platform
-        std::optional<std::chrono::microseconds> frame(Frame const& frame) override;
         Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;

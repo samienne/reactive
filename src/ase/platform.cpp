@@ -16,11 +16,6 @@ Platform::~Platform()
 {
 }
 
-std::optional<std::chrono::microseconds> Platform::frame(Frame const& frame)
-{
-    return d()->frame(frame);
-}
-
 Window Platform::makeWindow(Vector2i size)
 {
     return d()->makeWindow(size);

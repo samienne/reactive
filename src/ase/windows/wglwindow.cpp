@@ -484,6 +484,29 @@ Framebuffer& WglWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
+void WglWindow::requestFrame()
+{
+    genericWindow_.requestFrame();
+    platform_.requestFrame();
+}
+
+std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
+{
+    return genericWindow_.frame(frame);
+}
+
+bool WglWindow::needsRedraw() const
+{
+    return genericWindow_.needsRedraw();
+}
+
+void WglWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
+        callback)
+{
+    genericWindow_.setFrameCallback(std::move(callback));
+}
+
 void WglWindow::setCloseCallback(std::function<void()> func)
 {
     genericWindow_.setCloseCallback(std::move(func));
@@ -492,11 +515,6 @@ void WglWindow::setCloseCallback(std::function<void()> func)
 void WglWindow::setResizeCallback(std::function<void()> func)
 {
     genericWindow_.setResizeCallback(std::move(func));
-}
-
-void WglWindow::setRedrawCallback(std::function<void()> func)
-{
-    genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void WglWindow::setButtonCallback(

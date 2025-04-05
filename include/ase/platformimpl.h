@@ -4,6 +4,7 @@
 #include "asevisibility.h"
 
 #include <chrono>
+#include <optional>
 
 namespace ase
 {
@@ -16,7 +17,6 @@ namespace ase
     public:
         virtual ~PlatformImpl() = default;
 
-        virtual std::optional<std::chrono::microseconds> frame(Frame const& frame) = 0;
         virtual Window makeWindow(Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;

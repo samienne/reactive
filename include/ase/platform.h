@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <memory>
+#include <optional>
 
 namespace ase
 {
@@ -19,7 +20,6 @@ namespace ase
         Platform(std::shared_ptr<PlatformImpl> impl);
         virtual ~Platform();
 
-        std::optional<std::chrono::microseconds> frame(Frame const& frame);
         Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();

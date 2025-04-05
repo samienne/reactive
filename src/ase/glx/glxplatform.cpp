@@ -282,20 +282,6 @@ inline std::optional<std::chrono::microseconds> minTime(
         return l;
 }
 
-std::optional<std::chrono::microseconds> GlxPlatform::frame(Frame const& frame)
-{
-    std::optional<std::chrono::microseconds> result;
-    for (auto& window : d()->windows_)
-    {
-        if (auto w = window.lock())
-        {
-            result = minTime(result, w->frame(frame));
-        }
-    }
-
-    return result;
-}
-
 Window GlxPlatform::makeWindow(Vector2i size)
 {
     auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());

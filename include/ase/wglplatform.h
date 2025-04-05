@@ -26,11 +26,13 @@ namespace ase
 
         static std::string getLastErrorString();
 
-    private:
         // From PlatformImpl
         Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
+        void run(RenderContext& renderContext,
+                std::function<bool(Frame const&)> frameCallback) override;
+        void requestFrame() override;
 
     private:
         HWND dummyWindow_ = nullptr;
