@@ -201,12 +201,7 @@ void GlxWindow::destroy()
 
 std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
 {
-    if (frameCallback_)
-    {
-        return frameCallback_(frame);
-    }
-
-    return std::nullopt;
+    return genericWindow_.frame(frame);
 }
 
 void GlxWindow::handleEvents(std::vector<XEvent> const& events)
@@ -215,11 +210,16 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
         handleEvent(e);
 }
 
+bool GlxWindow::needsRedraw() const
+{
+    return genericWindow_.needsRedraw();
+}
+
 void GlxWindow::setFrameCallback(
         std::function<std::optional<std::chrono::microseconds>(Frame const&)>
         callback)
 {
-    frameCallback_ = std::move(callback);
+    genericWindow_.setFrameCallback(std::move(callback));
 }
 
 void GlxWindow::setCloseCallback(std::function<void()> func)
@@ -508,6 +508,12 @@ float GlxWindow::getScalingFactor() const
 Framebuffer& GlxWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;
+}
+
+void GlxWindow::requestFrame()
+{
+    genericWindow_.requestFrame();
+    platform_.requestFrame();
 }
 
 void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const

@@ -6,10 +6,12 @@
 #include "pointermoveevent.h"
 #include "keyevent.h"
 #include "hoverevent.h"
+#include "window.h"
 
 #include <functional>
 #include <string>
 #include <optional>
+#include <chrono>
 
 namespace ase
 {
@@ -31,6 +33,15 @@ namespace ase
         void notifyClose();
         void resize(Vector2i size);
         void notifyRedraw();
+
+        bool needsRedraw() const;
+        void requestFrame();
+
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(
+                    Frame const&)> callback);
+
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
 
         void injectPointerButtonEvent(
                 unsigned int pointerIndex,
@@ -59,6 +70,8 @@ namespace ase
         void setTextCallback(std::function<void(TextEvent const&)> cb);
 
     private:
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
+            frameCallback_;
         std::function<void()> closeCallback_;
         std::function<void()> resizeCallback_;
         std::function<void()> redrawCallback_;
@@ -73,6 +86,7 @@ namespace ase
         float scalingFactor_;
 
         std::optional<Vector2f> pointerPos_;
+        bool needsRedraw_ = true;
         bool hover_ = false;
 
         std::array<bool, 15> buttonPressedState_ = { {

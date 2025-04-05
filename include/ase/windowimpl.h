@@ -36,6 +36,8 @@ namespace ase
         virtual float getScalingFactor() const = 0;
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
+        virtual void requestFrame() = 0;
+
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>) = 0;
         virtual void setCloseCallback(std::function<void()> func) = 0;

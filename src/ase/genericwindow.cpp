@@ -79,6 +79,35 @@ void GenericWindow::notifyRedraw()
         redrawCallback_();
 }
 
+bool GenericWindow::needsRedraw() const
+{
+    return needsRedraw_;
+}
+
+void GenericWindow::requestFrame()
+{
+    needsRedraw_ = true;
+}
+
+void GenericWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(
+            Frame const&)> callback)
+{
+    frameCallback_ = std::move(callback);
+}
+
+std::optional<std::chrono::microseconds> GenericWindow::frame(
+        Frame const& frame)
+{
+    if (frameCallback_)
+    {
+        auto t = frameCallback_(frame);
+        needsRedraw_ = t != std::nullopt;
+    }
+
+    return std::nullopt;
+}
+
 void GenericWindow::injectPointerButtonEvent(
         unsigned int pointerIndex,
         unsigned int buttonIndex,

@@ -383,7 +383,8 @@ void GlxPlatform::run(RenderContext& renderContext,
         {
             if (auto window = weakWindow.lock())
             {
-                window->frame(frame);
+                if (window->needsRedraw())
+                    window->frame(frame);
             }
         }
 

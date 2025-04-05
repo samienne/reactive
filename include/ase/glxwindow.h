@@ -63,6 +63,8 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(Frame const& frame);
         void handleEvents(std::vector<_XEvent> const& events);
 
+        bool needsRedraw() const;
+
         // From WindowImpl
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -73,6 +75,8 @@ namespace ase
         Vector2i getSize() const override;
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
+
+        void requestFrame() override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>)
@@ -104,6 +108,7 @@ namespace ase
         friend class GlxFramebuffer;
         void makeCurrent(Lock const& lock, GlxContext const& context) const;
 
+    private:
         GlxPlatform& platform_;
         ::Window xWin_ = 0;
         ::GLXWindow glxWin_ = 0;
@@ -114,8 +119,6 @@ namespace ase
 
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
-
-        std::function<std::optional<std::chrono::microseconds>(Frame const&)> frameCallback_;
 
         bool visible_ = false;
 
