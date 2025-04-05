@@ -10,6 +10,12 @@
 namespace ase
 {
 
+std::optional<std::chrono::microseconds> DummyPlatform::frame(
+        Frame const&)
+{
+    return std::nullopt;
+}
+
 Platform makeDefaultPlatform()
 {
     return Platform(std::make_shared<DummyPlatform>());
@@ -27,6 +33,18 @@ void DummyPlatform::handleEvents()
 RenderContext DummyPlatform::makeRenderContext()
 {
     return RenderContext(std::make_shared<DummyRenderContext>());
+}
+
+void DummyPlatform::run(RenderContext&,
+        std::function<bool(Frame const&)> frameCallback)
+{
+    Frame frame{};
+    while (frameCallback(frame)) {
+    }
+}
+
+void DummyPlatform::requestFrame()
+{
 }
 
 } // namespace ase

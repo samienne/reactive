@@ -39,7 +39,8 @@ namespace ase
         virtual void requestFrame() = 0;
 
         virtual void setFrameCallback(
-                std::function<std::optional<std::chrono::microseconds>(Frame const&)>) = 0;
+                std::function<std::optional<std::chrono::microseconds>(
+                    Frame const&)>) = 0;
         virtual void setCloseCallback(std::function<void()> func) = 0;
         virtual void setResizeCallback(std::function<void()> func) = 0;
         virtual void setButtonCallback(

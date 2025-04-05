@@ -20,9 +20,13 @@ namespace ase
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
+        void requestFrame() override;
+
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(
+                    Frame const&)>) override;
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
-        void setRedrawCallback(std::function<void()> func) override;
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb) override;
         void setPointerCallback(

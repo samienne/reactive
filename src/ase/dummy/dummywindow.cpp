@@ -47,15 +47,21 @@ Framebuffer& DummyWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
+void DummyWindow::requestFrame()
+{
+}
+
+void DummyWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(
+            Frame const&)>)
+{
+}
+
 void DummyWindow::setCloseCallback(std::function<void()> /*func*/)
 {
 }
 
 void DummyWindow::setResizeCallback(std::function<void()> /*func*/)
-{
-}
-
-void DummyWindow::setRedrawCallback(std::function<void()> /*func*/)
 {
 }
 
