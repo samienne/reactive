@@ -32,7 +32,6 @@ namespace ase
 
         void notifyClose();
         void resize(Vector2i size);
-        void notifyRedraw();
 
         bool needsRedraw() const;
         void requestFrame();
@@ -58,7 +57,6 @@ namespace ase
 
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
-        void setRedrawCallback(std::function<void()> func);
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb);
         void setPointerCallback(

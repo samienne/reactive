@@ -232,11 +232,6 @@ void GlxWindow::setResizeCallback(std::function<void()> func)
     genericWindow_.setResizeCallback(std::move(func));
 }
 
-void GlxWindow::setRedrawCallback(std::function<void()> func)
-{
-    genericWindow_.setRedrawCallback(std::move(func));
-}
-
 void GlxWindow::setButtonCallback(
         std::function<void(PointerButtonEvent const& e)> cb)
 {
@@ -285,7 +280,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
     {
     case Expose:
         if (event.xexpose.count == 0)
-            genericWindow_.notifyRedraw();
+        {
+            genericWindow_.requestFrame();
+            platform_.requestFrame();
+        }
         break;
     case ConfigureNotify:
         genericWindow_.resize(

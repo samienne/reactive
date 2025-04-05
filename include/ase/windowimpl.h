@@ -42,7 +42,6 @@ namespace ase
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>) = 0;
         virtual void setCloseCallback(std::function<void()> func) = 0;
         virtual void setResizeCallback(std::function<void()> func) = 0;
-        virtual void setRedrawCallback(std::function<void()> func) = 0;
         virtual void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb) = 0;
         virtual void setPointerCallback(

@@ -51,11 +51,13 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        void requestFrame();
+
         void setFrameCallback(
-                std::function<std::optional<std::chrono::microseconds>(Frame const&)> func);
+                std::function<std::optional<std::chrono::microseconds>(
+                    Frame const&)> func);
         void setCloseCallback(std::function<void()> func);
         void setResizeCallback(std::function<void()> func);
-        void setRedrawCallback(std::function<void()> func);
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb);
         void setPointerCallback(

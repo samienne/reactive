@@ -73,12 +73,6 @@ void GenericWindow::resize(Vector2i size)
         resizeCallback_();
 }
 
-void GenericWindow::notifyRedraw()
-{
-    if (redrawCallback_)
-        redrawCallback_();
-}
-
 bool GenericWindow::needsRedraw() const
 {
     return needsRedraw_;
@@ -197,11 +191,6 @@ void GenericWindow::setCloseCallback(std::function<void()> func)
 void GenericWindow::setResizeCallback(std::function<void()> func)
 {
     resizeCallback_ = std::move(func);
-}
-
-void GenericWindow::setRedrawCallback(std::function<void()> func)
-{
-    redrawCallback_ = std::move(func);
 }
 
 void GenericWindow::setButtonCallback(

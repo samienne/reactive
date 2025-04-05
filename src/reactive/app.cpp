@@ -98,12 +98,6 @@ public:
                     animating_ = true;
                 });
 
-        aseWindow.setRedrawCallback([this]()
-                {
-                    redraw_ = true;
-                    animating_ = true;
-                });
-
         aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e)
         {
             if (e.state == ase::ButtonState::down)
@@ -358,6 +352,8 @@ public:
             renderTree_ = std::move(renderTree);
 
             animating_ = true;
+
+            aseWindow.requestFrame();
         }
 
         return updateResult.nextUpdate;
@@ -390,7 +386,6 @@ public:
 
         if (animating_)
         {
-
             auto [drawing, cont] = renderTree_.draw(
                     avg::DrawContext(&painter_),
                     avg::Obb(aseWindow.getSize().cast<float>()),
@@ -399,23 +394,14 @@ public:
 
             drawing_ = std::move(drawing);
             animating_ = cont;
-            redraw_ = true;
         }
 
         painter_.clearWindow(aseWindow);
+        painter_.paintToWindow(aseWindow, drawing_);
+        painter_.presentWindow(aseWindow);
+        painter_.flush();
 
-        if (redraw_)
-        {
-            painter_.paintToWindow(aseWindow, drawing_);
-
-            painter_.presentWindow(aseWindow);
-
-            painter_.flush();
-
-            redraw_ = false;
-
-            ++frames_;
-        }
+        ++frames_;
 
         if (animating_)
             return std::chrono::microseconds(0);
@@ -462,15 +448,12 @@ private:
     std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
-    avg::UniqueId containerId_;
-    avg::UniqueId rectId_;
     avg::RenderTree renderTree_;
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
     bool animating_ = true;
     bool resized_ = true;
-    bool redraw_ = true;
 };
 
 

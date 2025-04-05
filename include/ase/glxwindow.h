@@ -83,7 +83,6 @@ namespace ase
             override;
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
-        void setRedrawCallback(std::function<void()> func) override;
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb) override;
         void setPointerCallback(
