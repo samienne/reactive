@@ -10,12 +10,6 @@
 namespace ase
 {
 
-std::optional<std::chrono::microseconds> DummyPlatform::frame(
-        Frame const&)
-{
-    return std::nullopt;
-}
-
 Platform makeDefaultPlatform()
 {
     return Platform(std::make_shared<DummyPlatform>());

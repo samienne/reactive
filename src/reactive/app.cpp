@@ -35,7 +35,6 @@
 #include <chrono>
 #include <unordered_map>
 #include <memory>
-#include <queue>
 #include <optional>
 
 namespace reactive
