@@ -122,7 +122,7 @@ int main()
             widget::button(std::move(curveName), curveSelection.signal.bindToFunction(
                         [handle=curveSelection.handle](int i) mutable
                         {
-                            handle.set((i+1) % curves.size());
+                            handle.set(static_cast<int>((i+1) % curves.size()));
                         })),
             vfiller()
         })

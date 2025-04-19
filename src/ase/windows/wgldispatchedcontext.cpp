@@ -1,6 +1,9 @@
 #include "wgldispatchedcontext.h"
 
 #include "wglplatform.h"
+#include "wglwindow.h"
+
+#include <GL/wglext.h>
 
 #include <iostream>
 #include <cassert>
@@ -137,6 +140,8 @@ namespace
             getProcAddress("glClientWaitSync");
         gl.glDeleteSync = (PFNGLDELETESYNCPROC)
             getProcAddress("glDeleteSync");
+        gl.glGetStringi = (PFNGLGETSTRINGIPROC)
+            getProcAddress("glGetStringi");
 
         return gl;
     }
@@ -146,7 +151,8 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
         HGLRC context) :
     GlDispatchedContext(),
     platform_(platform),
-    context_(context)
+    context_(context),
+    hdc_(platform_.getDummyDc())
 {
     if (!context_)
         return;
@@ -155,6 +161,9 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
     {
         wglMakeCurrent(platform_.getDummyDc(), context_);
         setGlFunctions(getGlFunctionPointers());
+
+        wglSwapInterval_ = (PFNWGLSWAPINTERVALEXTPROC)getProcAddress(
+                "wglSwapIntervalEXT");
     });
 
     dispatcher_.wait();
@@ -163,6 +172,17 @@ WglDispatchedContext::WglDispatchedContext(WglPlatform& platform,
 HGLRC WglDispatchedContext::getWglContext() const
 {
     return context_;
+}
+
+void WglDispatchedContext::makeCurrent(Dispatched, WglWindow const& window)
+{
+    if (hdc_ != window.getDc())
+    {
+        hdc_ = window.getDc();
+        wglMakeCurrent(window.getDc(), context_);
+
+        wglSwapInterval_(-1);
+    }
 }
 
 } // namespace ase

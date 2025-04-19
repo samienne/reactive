@@ -319,13 +319,13 @@ namespace reactive
                 auto i = collection_.control_->data.insert(position.iter_,
                         CollectionValue<T>(std::move(value)));
 
-                int index = std::distance(collection_.control_->data.begin(), i);
+                auto index = std::distance(collection_.control_->data.begin(), i);
 
                 for (auto const& cb : collection_.control_->insertCallbacks)
                 {
                     cb.second(
                             reinterpret_cast<size_t>(i->ptr()),
-                            index,
+                            static_cast<int>(index),
                             **i
                             );
                 }
@@ -344,8 +344,9 @@ namespace reactive
                 {
                     cb.second(
                             reinterpret_cast<size_t>(i->ptr()),
-                            std::distance(collection_.control_->data.begin(),
-                                i),
+                            static_cast<int>(
+                                std::distance(collection_.control_->data.begin(),
+                                    i)),
                             **i
                             );
                 }
@@ -371,8 +372,8 @@ namespace reactive
 
                 size_t id1 = a.getId();
                 size_t id2 = b.getId();
-                int index1 = std::distance(begin(), a);
-                int index2 = std::distance(begin(), b);
+                int index1 = static_cast<int>(std::distance(begin(), a));
+                int index2 = static_cast<int>(std::distance(begin(), b));
 
                 std::swap(*a.iter_, *b.iter_);
 
@@ -407,7 +408,7 @@ namespace reactive
 
                 for (auto const& cb : collection_.control_->moveCallbacks)
                 {
-                    cb.second(id, newIndex);
+                    cb.second(id, static_cast<int>(newIndex));
                 }
             }
 

@@ -61,6 +61,7 @@ namespace ase
     private:
         WglPlatform& platform_;
         HWND hwnd_;
+        HDC hdc_;
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;

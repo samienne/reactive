@@ -133,7 +133,7 @@ namespace reactive
         std::vector<ase::Vector2f> result;
         result.reserve(hints.size());
 
-        if (dir == Axis::x)
+        if constexpr(dir == Axis::x)
         {
             auto xHintResults = btl::fmap(hints,
                     [&](auto const& hint)
@@ -219,22 +219,22 @@ namespace reactive
         std::vector<avg::Obb> obbs;
         obbs.reserve(hints.size());
         float acc = dir == Axis::x ? 0.0f : size[1];
-        for (auto const& size : sizes)
+        for (auto const& s : sizes)
         {
             ase::Vector2f offset;
-            if (dir == Axis::x)
+            if constexpr(dir == Axis::x)
             {
                 offset = ase::Vector2f(acc, 0.0f);
-                acc += size[0];
+                acc += s[0];
             }
             else
             {
-                acc -= size[1];
+                acc -= s[1];
                 offset = ase::Vector2f(0.0f, acc);
             }
 
             obbs.push_back(avg::Transform().translate(offset) *
-                    avg::Obb(size));
+                    avg::Obb(s));
         }
 
         return obbs;

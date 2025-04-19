@@ -399,6 +399,14 @@ void GlxPlatform::run(RenderContext& renderContext,
         lastFrame = thisFrame;
     }
 
+    while (!frameFutures.empty())
+    {
+        ZoneScopedN("Wait for frame to finish");
+        ZoneValue(frameFutures.size());
+        frameFutures.front().wait();
+        frameFutures.pop();
+    }
+
     DBG("Shutting down GlxPlatform..");
 }
 

@@ -158,6 +158,11 @@ Platform makeDefaultPlatform()
     return Platform(std::make_shared<WglPlatform>());
 }
 
+bool WglPlatform::isBackgroundQueueEnabled() const
+{
+    return false;
+}
+
 HGLRC WglPlatform::createRawContext(int minor, int major)
 {
     static const int attribs[] = {
@@ -283,6 +288,7 @@ void WglPlatform::run(RenderContext& renderContext,
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
     auto lastFrame = startTime;
+    auto nextFrame = startTime + std::chrono::microseconds(16667);
 
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
@@ -315,17 +321,27 @@ void WglPlatform::run(RenderContext& renderContext,
         frameFutures.push(commandBuffer.pushFence());
         mainQueue.submit(std::move(commandBuffer));
 
+        auto now = clock.now();
+        nextFrame += std::chrono::microseconds(16667);
+        while (nextFrame < now)
+        {
+            nextFrame += std::chrono::microseconds(16667);
+        }
+
+        /*
         auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(clock.now() - thisFrame);
-        //auto remaining = *timeToNext - frameTime;
-        auto remaining = std::chrono::microseconds(16667) - frameTime;
+            std::chrono::microseconds>(now - thisFrame);
+        auto remaining = nextFrame - now;
         if (remaining.count() > 0)
         {
             ZoneScopedN("sleep");
+            timeBeginPeriod(1);
             std::this_thread::sleep_for(remaining);
+            timeEndPeriod(1);
         }
+        */
 
-        if (frameFutures.size() > 2)
+        if (frameFutures.size() > 1)
         {
             ZoneScopedN("Wait for frame to finish");
             ZoneValue(frameFutures.size());
@@ -334,6 +350,14 @@ void WglPlatform::run(RenderContext& renderContext,
         }
 
         lastFrame = thisFrame;
+    }
+
+    while (!frameFutures.empty())
+    {
+        ZoneScopedN("Wait for frame to finish");
+        ZoneValue(frameFutures.size());
+        frameFutures.front().wait();
+        frameFutures.pop();
     }
 
     DBG("Shutting down WglPlatform...");

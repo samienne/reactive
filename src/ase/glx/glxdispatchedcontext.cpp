@@ -121,6 +121,8 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glClientWaitSync");
         gl.glDeleteSync = (PFNGLDELETESYNCPROC)
             glXGetProcAddressARB((GLubyte const*)"glDeleteSync");
+        gl.glGetStringi = (PFNGLGETSTRINGIPROC)
+            glXGetProcAddressARB((GLubyte const*)"glGetStringi");
 
         return gl;
     }

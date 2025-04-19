@@ -143,7 +143,7 @@ namespace btl::future
 
             using DataType = std::pair<FutureConnection, std::decay_t<TFunc>>;
 
-            using ControlType = std::conditional_t<
+            using FutureControlType = std::conditional_t<
                 IsFutureResult<std::decay_t<ValueType>>::value,
                 ApplyParamsFromT<ValueType, detail::ControlWithData, DataType>,
                 std::conditional_t<
@@ -161,10 +161,10 @@ namespace btl::future
                     Future<ValueType>
                 >>;
 
-            auto control = std::make_shared<ControlType>(
+            auto control = std::make_shared<FutureControlType>(
                     std::make_pair(connect(), std::forward<TFunc>(func))
                     );
-            std::weak_ptr<ControlType> weakControl = control;
+            std::weak_ptr<FutureControlType> weakControl = control;
 
             control_->addCallback(
                 [newControl=std::move(weakControl)](auto& control) mutable
@@ -259,20 +259,20 @@ namespace btl::future
             >>
         operator Future<Us...>() &&
         {
-            if (control_.unique())
+            if (control_.use_count() == 1)
                 return { std::move(control_) };
 
-            using ControlType =
+            using FutureControlType =
                     detail::ControlWithData
                     <
                         std::shared_ptr<FutureControl<std::decay_t<Ts>...>>,
                         std::decay_t<Us>...
                     >;
 
-            auto control = std::make_shared<ControlType>(
+            auto control = std::make_shared<FutureControlType>(
                     std::move(control_));
 
-            std::weak_ptr<ControlType> weakControl = control;
+            std::weak_ptr<FutureControlType> weakControl = control;
 
             control->data->addCallback([weakControl=weakControl](auto& control) mutable
                 {

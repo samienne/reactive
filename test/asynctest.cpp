@@ -325,8 +325,6 @@ TEST(async, sharedFutureMemberMbindMultiArg)
 
 TEST(async, perf)
 {
-    std::uniform_int_distribution<int> dist(1, 12);
-
     size_t const count = 100000;
     size_t const steps = 32;
 
@@ -360,7 +358,7 @@ TEST(async, perf)
 
         auto acc = merge(std::move(accs)).then([](std::vector<uint64_t> const& accs)
             {
-                return btl::reduce(0ul, accs, btl::Plus());
+                return btl::reduce(0ull, accs, btl::Plus());
             });
 
         std::cout << std::move(acc).get() << std::endl;

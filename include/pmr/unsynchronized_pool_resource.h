@@ -61,7 +61,7 @@ namespace pmr
             std::size_t const smallest = 256;
 
             int i = log2(size - 1) - (log2(smallest) - 2);
-            i = pools_.size() - std::max(1, i);
+            i = static_cast<int>(pools_.size()) - std::max(1, i);
             i = std::max(0, std::min(i, static_cast<int>(pools_.size() - 1)));
 
             return pools_[i]->allocate(size, alignment);

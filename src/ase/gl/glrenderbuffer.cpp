@@ -29,8 +29,8 @@ void GlRenderbuffer::makeCurrent(Dispatched&, GlFunctions const& gl)
     gl.glRenderbufferStorage(
             GL_RENDERBUFFER,
             GL_DEPTH_COMPONENT16,
-            size_[0],
-            size_[1]);
+            static_cast<GLsizei>(size_[0]),
+            static_cast<GLsizei>(size_[1]));
 }
 
 Format GlRenderbuffer::getFormat() const

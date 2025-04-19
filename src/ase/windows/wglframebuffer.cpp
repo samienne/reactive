@@ -24,10 +24,10 @@ void WglFramebuffer::makeCurrent(Dispatched dispatched,
         GlDispatchedContext& context, GlRenderState& renderState,
         GlFunctions const& /*gl*/) const
 {
-    auto const& wglContext = reinterpret_cast<WglDispatchedContext const&>(
+    auto& wglContext = reinterpret_cast<WglDispatchedContext&>(
             context);
 
-    wglMakeCurrent(window_.getDc(), wglContext.getWglContext());
+    wglContext.makeCurrent(dispatched, window_);
 
     Vector2i size(
             (float)(window_.getSize()[0]) * window_.getScalingFactor(),

@@ -36,5 +36,10 @@ GlPlatform::~GlPlatform()
 {
 }
 
+bool GlPlatform::isBackgroundQueueEnabled() const
+{
+    return true;
+}
+
 } // namespace ase
 

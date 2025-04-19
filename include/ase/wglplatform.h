@@ -20,6 +20,8 @@ namespace ase
         WglPlatform(WglPlatform const&) = delete;
         WglPlatform& operator=(WglPlatform const&) = delete;
 
+        bool isBackgroundQueueEnabled() const override;
+
         HGLRC createRawContext(int minor, int major);
         HDC getDummyDc() const;
         PIXELFORMATDESCRIPTOR getPixelFormatDescriptor() const;
