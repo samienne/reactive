@@ -26,7 +26,7 @@ void GlxFramebuffer::makeCurrent(
 {
     auto& glxContext = reinterpret_cast<GlxDispatchedContext&>(context);
 
-    window_.makeCurrent(platform_.lockX(), glxContext.getGlxContext());
+    glxContext.makeCurrent(dispatched, window_);
 
     Vector2i size(
             window_.getSize()[0] * window_.getScalingFactor(),

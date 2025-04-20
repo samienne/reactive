@@ -145,7 +145,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
         glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress(
                 (unsigned char const*) "glXSwapIntervalEXT");
         if (glXSwapIntervalEXT)
-            glXSwapIntervalEXT(dpy, glxWin_, 1);
+            glXSwapIntervalEXT(dpy, glxWin_, -1);
 
         XFree(vInfo);
         vInfo = 0;
@@ -436,6 +436,7 @@ void GlxWindow::present(Dispatched)
     auto dpy = platform_.getDisplay();
 
     platform_.swapGlxBuffers(lock, glxWin_);
+    FrameMark;
 
     /*GLenum err = glGetError();
     if (err != GL_NO_ERROR)
@@ -448,6 +449,11 @@ void GlxWindow::present(Dispatched)
 GlxWindow::Lock GlxWindow::lockX() const
 {
     return platform_.lockX();
+}
+
+::GLXWindow GlxWindow::getGlxWindowId() const
+{
+    return glxWin_;
 }
 
 void GlxWindow::setVisible(bool value)
@@ -512,11 +518,6 @@ void GlxWindow::requestFrame()
 {
     genericWindow_.requestFrame();
     platform_.requestFrame();
-}
-
-void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const
-{
-    context.makeCurrent(lock, glxWin_);
 }
 
 } // namespace

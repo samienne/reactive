@@ -1,6 +1,7 @@
 #include "glxdispatchedcontext.h"
 
 #include "glxplatform.h"
+#include "glxwindow.h"
 
 #include <cassert>
 
@@ -131,7 +132,8 @@ namespace
 GlxDispatchedContext::GlxDispatchedContext(GlxPlatform& platform) :
     GlDispatchedContext(),
     platform_(platform),
-    context_(platform)
+    context_(platform),
+    currentWindow_(0)
 {
     dispatcher_.run([this]()
     {
@@ -150,6 +152,15 @@ GlxContext const& GlxDispatchedContext::getGlxContext() const
 GlxContext& GlxDispatchedContext::getGlxContext()
 {
     return context_;
+}
+
+void GlxDispatchedContext::makeCurrent(Dispatched, GlxWindow const& window)
+{
+    if (currentWindow_ != window.getGlxWindowId())
+    {
+        currentWindow_ = window.getGlxWindowId();
+        context_.makeCurrent(platform_.lockX(), currentWindow_);
+    }
 }
 
 } // namespace ase

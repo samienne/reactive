@@ -103,9 +103,8 @@ namespace ase
         void present(Dispatched);
         Lock lockX() const;
 
-        friend class GlxContext;
-        friend class GlxFramebuffer;
-        void makeCurrent(Lock const& lock, GlxContext const& context) const;
+        friend class GlxDispatchedContext;
+        ::GLXWindow getGlxWindowId() const;
 
     private:
         GlxPlatform& platform_;

@@ -346,6 +346,7 @@ void GlxPlatform::run(RenderContext& renderContext,
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
     auto lastFrame = startTime;
+    auto nextFrame = startTime + std::chrono::microseconds(16667);
 
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
@@ -378,15 +379,23 @@ void GlxPlatform::run(RenderContext& renderContext,
         frameFutures.push(commandBuffer.pushFence());
         mainQueue.submit(std::move(commandBuffer));
 
+        auto now = clock.now();
+        nextFrame += std::chrono::microseconds(16667);
+        while (nextFrame < now)
+        {
+            nextFrame += std::chrono::microseconds(16667);
+        }
+
+        /*
         auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(clock.now() - thisFrame);
-        //auto remaining = *timeToNext - frameTime;
-        auto remaining = std::chrono::microseconds(16667) - frameTime;
+            std::chrono::microseconds>(now - thisFrame);
+        auto remaining = nextFrame - now;
         if (remaining.count() > 0)
         {
             ZoneScopedN("sleep");
             std::this_thread::sleep_for(remaining);
         }
+        */
 
         if (frameFutures.size() > 2)
         {
@@ -529,6 +538,7 @@ void GlxPlatform::destroyGlxContext(GlxPlatform::Lock const& /*lock*/,
 void GlxPlatform::makeGlxContextCurrent(GlxPlatform::Lock const& /*lock*/,
         GLXContext context, GLXDrawable drawable)
 {
+    ZoneScoped;
     if (!drawable && context)
         drawable = d()->dummyBuffer_;
 

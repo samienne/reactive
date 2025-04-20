@@ -122,7 +122,11 @@ GlRenderState::GlRenderState(
 
             glEnable(GL_FRAMEBUFFER_SRGB_EXT);
             err = glGetError();
-            if (err != GL_NO_ERROR)
+            if (err == GL_NO_ERROR)
+            {
+                srgbEnabled = 1;
+            }
+            else
             {
                 DBG("GlRenderContext: Unable to enable sRGB support: %1",
                         glErrorToString(err));
