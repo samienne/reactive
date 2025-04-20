@@ -34,6 +34,10 @@ namespace ase
         GlRenderQueue& getMainGlRenderQueue();
         GlRenderQueue const& getMainGlRenderQueue() const;
 
+        void validate(std::string_view msg) const;
+        static void validate(bool enabled, std::string_view msg);
+        bool isValidationEnabled() const;
+
         // From RenderContextImpl
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;

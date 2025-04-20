@@ -76,6 +76,30 @@ GlRenderQueue const& GlRenderContext::getMainGlRenderQueue() const
     return *mainQueue_;
 }
 
+void GlRenderContext::validate(std::string_view msg) const
+{
+    validate(isValidationEnabled(), msg);
+}
+
+void GlRenderContext::validate(bool enabled, std::string_view msg)
+{
+    if (!enabled)
+        return;
+
+    auto err = glGetError();
+    if (err != GL_NO_ERROR)
+    {
+        std::cout << "Error: " << msg << ": " << glErrorToString(err)
+            << std::endl;
+        glGetError();
+    }
+}
+
+bool GlRenderContext::isValidationEnabled() const
+{
+    return true;
+}
+
 std::shared_ptr<RenderQueueImpl> GlRenderContext::getMainRenderQueue()
 {
     return mainQueue_;
