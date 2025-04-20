@@ -2,17 +2,10 @@
 
 #include "glprogram.h"
 #include "glvertexshader.h"
-#include "glfragmentshader.h"
-#include "glvertexbuffer.h"
-#include "glindexbuffer.h"
 #include "gltexture.h"
 #include "glframebuffer.h"
 #include "glrendercontext.h"
 #include "glpipeline.h"
-
-#include "vertexshader.h"
-#include "fragmentshader.h"
-#include "buffer.h"
 
 #include "debug.h"
 

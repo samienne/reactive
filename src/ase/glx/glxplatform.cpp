@@ -343,17 +343,26 @@ void GlxPlatform::run(RenderContext& renderContext,
 {
     DBG("Starting GlxPlatform::run");
 
+    bool const lockStep = true;
+    int const targetFps = 60;
+    auto const step = std::chrono::microseconds(1000000 / targetFps);
+
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
     auto lastFrame = startTime;
-    auto nextFrame = startTime + std::chrono::microseconds(16667);
+    auto nextFrame = startTime + step;
 
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
 
     while (true)
     {
-        auto thisFrame = clock.now();
+        std::chrono::steady_clock::time_point thisFrame;
+        if (lockStep)
+            thisFrame = nextFrame;
+        else
+            thisFrame = clock.now();
+
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - startTime);
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -380,11 +389,9 @@ void GlxPlatform::run(RenderContext& renderContext,
         mainQueue.submit(std::move(commandBuffer));
 
         auto now = clock.now();
-        nextFrame += std::chrono::microseconds(16667);
+        nextFrame += step;
         while (nextFrame < now)
-        {
-            nextFrame += std::chrono::microseconds(16667);
-        }
+            nextFrame += step;
 
         /*
         auto frameTime = std::chrono::duration_cast<
@@ -397,7 +404,7 @@ void GlxPlatform::run(RenderContext& renderContext,
         }
         */
 
-        if (frameFutures.size() > 2)
+        if (frameFutures.size() > 1)
         {
             ZoneScopedN("Wait for frame to finish");
             ZoneValue(frameFutures.size());
