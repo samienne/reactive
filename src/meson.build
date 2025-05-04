@@ -1,7 +1,9 @@
 btl_args = []
 if get_option('tracy_enable')
-  btl_args = ['-DTRACY_ENABLE']
+  btl_args += ['-DTRACY_ENABLE']
 endif
+
+btl_args = ['-fcoroutines-ts']
 
 libbtldep = declare_dependency(
         include_directories: include_directories('../include'),
