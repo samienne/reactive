@@ -73,10 +73,33 @@ void GenericWindow::resize(Vector2i size)
         resizeCallback_();
 }
 
-void GenericWindow::notifyRedraw()
+bool GenericWindow::needsRedraw() const
 {
-    if (redrawCallback_)
-        redrawCallback_();
+    return needsRedraw_;
+}
+
+void GenericWindow::requestFrame()
+{
+    needsRedraw_ = true;
+}
+
+void GenericWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(
+            Frame const&)> callback)
+{
+    frameCallback_ = std::move(callback);
+}
+
+std::optional<std::chrono::microseconds> GenericWindow::frame(
+        Frame const& frame)
+{
+    if (frameCallback_)
+    {
+        auto t = frameCallback_(frame);
+        needsRedraw_ = t != std::nullopt;
+    }
+
+    return std::nullopt;
 }
 
 void GenericWindow::injectPointerButtonEvent(
@@ -168,11 +191,6 @@ void GenericWindow::setCloseCallback(std::function<void()> func)
 void GenericWindow::setResizeCallback(std::function<void()> func)
 {
     resizeCallback_ = std::move(func);
-}
-
-void GenericWindow::setRedrawCallback(std::function<void()> func)
-{
-    redrawCallback_ = std::move(func);
 }
 
 void GenericWindow::setButtonCallback(

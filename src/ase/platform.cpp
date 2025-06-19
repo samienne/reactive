@@ -31,5 +31,16 @@ RenderContext Platform::makeRenderContext()
     return d()->makeRenderContext();
 }
 
+void Platform::run(RenderContext& renderContext,
+        std::function<bool(Frame const&)> frameCallback)
+{
+    d()->run(renderContext, std::move(frameCallback));
+}
+
+void Platform::requestFrame()
+{
+    d()->requestFrame();
+}
+
 } // namespace platform
 

@@ -1,5 +1,6 @@
 #include "glrenderqueue.h"
 
+#include "commandbuffer.h"
 #include "gldispatchedcontext.h"
 
 #include <tracy/Tracy.hpp>
@@ -51,6 +52,8 @@ void GlRenderQueue::finish()
 
 void GlRenderQueue::submit(CommandBuffer&& renderQueue)
 {
+    if (renderQueue.size() > 10)
+        std::cout << "submit queue commands: " << renderQueue.size() << std::endl;
     renderState_.submit(std::move(renderQueue));
 }
 

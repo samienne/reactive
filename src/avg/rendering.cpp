@@ -321,12 +321,49 @@ void renderElements(ase::CommandBuffer& commandBuffer,
     resultVertices.reserve(vertexCount);
     resultIndices.reserve(indexCount);
 
+    auto pushElements = [&](ase::Pipeline const& pipeline)
+    {
+        float const z = resultVertices[0][2];
+
+        auto vb = context.makeVertexBuffer();
+        auto ib = context.makeIndexBuffer();
+
+        commandBuffer.pushUpload(
+                vb,
+                ase::Buffer(std::move(resultVertices)),
+                ase::Usage::StreamDraw
+                );
+
+        commandBuffer.pushUpload(
+                ib,
+                ase::Buffer(std::move(resultIndices)),
+                ase::Usage::StreamDraw
+                );
+
+        commandBuffer.push(framebuffer, pipeline, painter.getUniformSet(),
+                std::move(vb), std::move(ib), {}, z);
+
+        resultVertices.clear();
+        resultIndices.clear();
+    };
+
     for (auto i = elements.begin(); i != elements.end(); ++i)
     {
         auto const& element = *i;
-        auto next = i+1;
 
-        uint32_t indexOffset = resultVertices.size();
+        bool const pipelineChanged = previousPipeline.has_value()
+                && *previousPipeline != element.pipeline;
+
+        if (!resultVertices.empty()
+                && !resultIndices.empty()
+                && pipelineChanged)
+        {
+            pushElements(element.pipeline);
+
+            previousPipeline = element.pipeline;
+        }
+
+        auto indexOffset = static_cast<unsigned int>(resultVertices.size());
 
         for (auto const& v : element.vertices)
             resultVertices.push_back(v);
@@ -334,41 +371,12 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         for (auto index : element.indices)
             resultIndices.push_back(indexOffset + index);
 
-        bool const outOfElements = next == elements.end();
-        bool const pipelineChanged = previousPipeline.has_value()
-                && *previousPipeline != element.pipeline;
-
-        if (!resultVertices.empty()
-                && !resultIndices.empty()
-                && (outOfElements || pipelineChanged))
-        {
-            float const z = resultVertices[0][2];
-
-            auto vb = context.makeVertexBuffer();
-            auto ib = context.makeIndexBuffer();
-
-            commandBuffer.pushUpload(
-                    vb,
-                    ase::Buffer(std::move(resultVertices)),
-                    ase::Usage::StreamDraw
-                    );
-
-            commandBuffer.pushUpload(
-                    ib,
-                    ase::Buffer(std::move(resultIndices)),
-                    ase::Usage::StreamDraw
-                    );
-
-            commandBuffer.push(framebuffer, element.pipeline, painter.getUniformSet(),
-                    std::move(vb), std::move(ib), {}, z);
-
-            resultVertices.clear();
-            resultIndices.clear();
-        }
-
         if (!previousPipeline.has_value())
             previousPipeline = element.pipeline;
     }
+
+    if (previousPipeline && !resultVertices.empty() && !resultIndices.empty())
+        pushElements(*previousPipeline);
 }
 
 pmr::vector<Element> generateElements(pmr::memory_resource* memory,

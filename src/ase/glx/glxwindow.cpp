@@ -145,7 +145,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
         glXSwapIntervalEXT = (PFNGLXSWAPINTERVALEXTPROC) glXGetProcAddress(
                 (unsigned char const*) "glXSwapIntervalEXT");
         if (glXSwapIntervalEXT)
-            glXSwapIntervalEXT(dpy, glxWin_, 1);
+            glXSwapIntervalEXT(dpy, glxWin_, -1);
 
         XFree(vInfo);
         vInfo = 0;
@@ -199,10 +199,27 @@ void GlxWindow::destroy()
     }
 }
 
+std::optional<std::chrono::microseconds> GlxWindow::frame(Frame const& frame)
+{
+    return genericWindow_.frame(frame);
+}
+
 void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 {
     for (auto const& e : events)
         handleEvent(e);
+}
+
+bool GlxWindow::needsRedraw() const
+{
+    return genericWindow_.needsRedraw();
+}
+
+void GlxWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
+        callback)
+{
+    genericWindow_.setFrameCallback(std::move(callback));
 }
 
 void GlxWindow::setCloseCallback(std::function<void()> func)
@@ -213,11 +230,6 @@ void GlxWindow::setCloseCallback(std::function<void()> func)
 void GlxWindow::setResizeCallback(std::function<void()> func)
 {
     genericWindow_.setResizeCallback(std::move(func));
-}
-
-void GlxWindow::setRedrawCallback(std::function<void()> func)
-{
-    genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void GlxWindow::setButtonCallback(
@@ -268,7 +280,10 @@ void GlxWindow::handleEvent(_XEvent const& e)
     {
     case Expose:
         if (event.xexpose.count == 0)
-            genericWindow_.notifyRedraw();
+        {
+            genericWindow_.requestFrame();
+            platform_.requestFrame();
+        }
         break;
     case ConfigureNotify:
         genericWindow_.resize(
@@ -421,6 +436,7 @@ void GlxWindow::present(Dispatched)
     auto dpy = platform_.getDisplay();
 
     platform_.swapGlxBuffers(lock, glxWin_);
+    FrameMark;
 
     /*GLenum err = glGetError();
     if (err != GL_NO_ERROR)
@@ -433,6 +449,11 @@ void GlxWindow::present(Dispatched)
 GlxWindow::Lock GlxWindow::lockX() const
 {
     return platform_.lockX();
+}
+
+::GLXWindow GlxWindow::getGlxWindowId() const
+{
+    return glxWin_;
 }
 
 void GlxWindow::setVisible(bool value)
@@ -493,9 +514,10 @@ Framebuffer& GlxWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
-void GlxWindow::makeCurrent(Lock const& lock, GlxContext const& context) const
+void GlxWindow::requestFrame()
 {
-    context.makeCurrent(lock, glxWin_);
+    genericWindow_.requestFrame();
+    platform_.requestFrame();
 }
 
 } // namespace

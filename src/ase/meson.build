@@ -46,7 +46,7 @@ elif target_machine.system() == 'windows'
     glheadersdep = glheaders.get_variable('glheaders_dep')
 
     system_deps = [glheadersdep, gldep]
-    system_link_args = ['shcore.lib']
+    system_link_args = ['shcore.lib', 'winmm.lib']
     system_incs = []
     system_src = [
         'windows/wglplatform.cpp',

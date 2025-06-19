@@ -3,11 +3,19 @@
 #include "wglwindow.h"
 #include "wglrendercontext.h"
 
+#include "commandbuffer.h"
+#include "renderqueue.h"
 #include "rendercontext.h"
 #include "window.h"
 #include "platform.h"
+#include "debug.h"
+
+#include "tracy/Tracy.hpp"
+
+#include <btl/future.h>
 
 #include <windows.h>
+
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
@@ -15,6 +23,7 @@
 
 #include <unordered_map>
 #include <iostream>
+#include <queue>
 
 namespace ase
 {
@@ -149,6 +158,11 @@ Platform makeDefaultPlatform()
     return Platform(std::make_shared<WglPlatform>());
 }
 
+bool WglPlatform::isBackgroundQueueEnabled() const
+{
+    return false;
+}
+
 HGLRC WglPlatform::createRawContext(int minor, int major)
 {
     static const int attribs[] = {
@@ -264,6 +278,93 @@ RenderContext WglPlatform::makeRenderContext()
 
     return RenderContext(std::make_shared<WglRenderContext>(*this,
                 fgContext, bgContext));
+}
+
+void WglPlatform::run(RenderContext& renderContext,
+        std::function<bool(Frame const&)> frameCallback)
+{
+    DBG("Starting WglPlatform::run");
+
+    std::chrono::steady_clock clock;
+    auto startTime = clock.now();
+    auto lastFrame = startTime;
+    auto nextFrame = startTime + std::chrono::microseconds(16667);
+
+    std::queue<btl::future::Future<>> frameFutures;
+    auto mainQueue = renderContext.getMainRenderQueue();
+
+    while (true)
+    {
+        auto thisFrame = clock.now();
+        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
+                thisFrame - startTime);
+        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
+                thisFrame - lastFrame);
+
+        handleEvents();
+
+        Frame frame { time, dt };
+
+        if (!frameCallback(frame))
+            break;
+
+        for (auto& weakWindow : windows)
+        {
+            if (auto window = weakWindow.second.lock())
+            {
+                if (window->needsRedraw())
+                    window->frame(frame);
+            }
+        }
+
+        ase::CommandBuffer commandBuffer;
+        frameFutures.push(commandBuffer.pushFence());
+        mainQueue.submit(std::move(commandBuffer));
+
+        auto now = clock.now();
+        nextFrame += std::chrono::microseconds(16667);
+        while (nextFrame < now)
+        {
+            nextFrame += std::chrono::microseconds(16667);
+        }
+
+        /*
+        auto frameTime = std::chrono::duration_cast<
+            std::chrono::microseconds>(now - thisFrame);
+        auto remaining = nextFrame - now;
+        if (remaining.count() > 0)
+        {
+            ZoneScopedN("sleep");
+            timeBeginPeriod(1);
+            std::this_thread::sleep_for(remaining);
+            timeEndPeriod(1);
+        }
+        */
+
+        if (frameFutures.size() > 1)
+        {
+            ZoneScopedN("Wait for frame to finish");
+            ZoneValue(frameFutures.size());
+            frameFutures.front().wait();
+            frameFutures.pop();
+        }
+
+        lastFrame = thisFrame;
+    }
+
+    while (!frameFutures.empty())
+    {
+        ZoneScopedN("Wait for frame to finish");
+        ZoneValue(frameFutures.size());
+        frameFutures.front().wait();
+        frameFutures.pop();
+    }
+
+    DBG("Shutting down WglPlatform...");
+}
+
+void WglPlatform::requestFrame()
+{
 }
 
 } // namespace ase

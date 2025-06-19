@@ -14,7 +14,7 @@ namespace btl::future
     {
     public:
         MergedFuture(std::vector<Future<T>> futures) :
-            count_(futures.size()),
+            count_(static_cast<int>(futures.size())),
             futures_(std::move(futures))
         {
         }

@@ -45,7 +45,7 @@ namespace ase
             return reinterpret_cast<T const&>(*d());
         }
 
-    protected:
+    public:
         inline PipelineImpl* d() { return deferred_.get(); }
         inline PipelineImpl const* d() const { return deferred_.get(); }
 

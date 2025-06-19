@@ -6,6 +6,8 @@
 
 #include "window.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
@@ -33,16 +35,27 @@ WglDispatchedContext const& WglRenderContext::getWglContext() const
             );
 }
 
-void WglRenderContext::present(Dispatched, Window& window)
+void WglRenderContext::present(Dispatched /*dispatched*/, Window& window)
 {
+    ZoneScoped;
     WglWindow& wglWindow = window.getImpl<WglWindow>();
 
-    wglMakeCurrent(
-            wglWindow.getDc(),
-            getWglContext().getWglContext()
-            );
+    /*if (wglWindow.getDc() != wglGetCurrentDC()
+            || getWglContext().getWglContext() != wglGetCurrentContext())*/
+    {
+        ZoneScopedN("wglMakeCurrent");
+        /*
+        static_cast<WglDispatchedContext&>(
+                getMainGlRenderQueue().getDispatcher()
+                ).makeCurrent(dispatched, wglWindow);
+        */
+    }
 
-    SwapBuffers(wglWindow.getDc());
+    {
+        ZoneScopedN("SwapBuffers");
+        SwapBuffers(wglWindow.getDc());
+        FrameMark;
+    }
 }
 
 } // namespace ase

@@ -46,8 +46,6 @@ namespace btl::future
 
             LockType lock(mutex_);
 
-            ready_.load(std::memory_order_acquire);
-
             // Second check after actually locking the mutex just to be sure.
             if (!std::holds_alternative<std::monostate>(value_))
                 return;
@@ -67,8 +65,6 @@ namespace btl::future
 
             lock.unlock();
             condition.wait(lock2);
-
-            ready_.load(std::memory_order_acquire);
 
             if (oldCallback.has_value())
                 (*oldCallback)(*this);

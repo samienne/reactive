@@ -133,7 +133,7 @@ namespace avg
 
             auto t = time - beginTime_;
             T const* value = &initial_;
-            KeyFrame const* keyFrame;
+            KeyFrame const* keyFrame = nullptr;
 
             for (auto const& frame : keyFrames_)
             {
@@ -154,6 +154,9 @@ namespace avg
                 value = &frame.target;
                 t -= frame.duration * frame.repeatCount;
             }
+
+            if (!keyFrame)
+                return initial_;
 
             float a = std::clamp(
                     (float)t.count() / (float)keyFrame->duration.count(),

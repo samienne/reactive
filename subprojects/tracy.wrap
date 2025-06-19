@@ -1,7 +1,7 @@
 [wrap-git]
 directory = tracy
 url = https://github.com/wolfpld/tracy.git
-revision = 30f1b901a9bab40a193c97c77ec82ac70805164d
+revision = 5d542dc09f3d9378d005092a4ad446bd405f819a
 depth = 1
 diff_files = tracy0001.patch
 

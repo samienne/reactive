@@ -130,7 +130,7 @@ namespace ase
     private:
         inline void ensureUniqueness()
         {
-            if (deferred_.unique())
+            if (deferred_.use_count() == 1)
                 return;
 
             auto own = std::make_shared<BufferDeferred>(deferred_->len);

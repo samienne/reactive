@@ -71,6 +71,17 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
+void Window::requestFrame()
+{
+    d()->requestFrame();
+}
+
+void Window::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)> func)
+{
+    d()->setFrameCallback(std::move(func));
+}
+
 void Window::setCloseCallback(std::function<void()> func)
 {
     d()->setCloseCallback(std::move(func));
@@ -79,11 +90,6 @@ void Window::setCloseCallback(std::function<void()> func)
 void Window::setResizeCallback(std::function<void()> func)
 {
     d()->setResizeCallback(std::move(func));
-}
-
-void Window::setRedrawCallback(std::function<void()> func)
-{
-    d()->setRedrawCallback(std::move(func));
 }
 
 void Window::setButtonCallback(

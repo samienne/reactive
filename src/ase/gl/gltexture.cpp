@@ -39,8 +39,9 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
         glGenTextures(1, &texture_);
 
     glBindTexture(GL_TEXTURE_2D, texture_);
-    glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format), size[0],
-        size[1], 0, formatToGl(format), GL_UNSIGNED_BYTE, buffer.data());
+    glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format),
+            static_cast<GLsizei>(size[0]), static_cast<GLsizei>(size[1]),
+            0, formatToGl(format), GL_UNSIGNED_BYTE, buffer.data());
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);

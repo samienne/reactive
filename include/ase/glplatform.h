@@ -19,6 +19,8 @@ namespace ase
     public:
         GlPlatform();
         virtual ~GlPlatform();
+
+        virtual bool isBackgroundQueueEnabled() const;
     };
 }
 

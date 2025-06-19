@@ -82,6 +82,23 @@ namespace
 
         return d1.getZ() > d2.getZ();
     }
+
+    bool hasGlExtensions(GlFunctions const& gl, std::string const& name)
+    {
+        GLint extensionCount = 0;
+        glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
+
+        for (int i = 0; i < extensionCount; ++i)
+        {
+            if(strcmp(reinterpret_cast<char const*>(
+                            gl.glGetStringi(GL_EXTENSIONS, i)), name.c_str()) == 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 } // anonymous namespace
 
 
@@ -92,37 +109,54 @@ GlRenderState::GlRenderState(
     dispatcher_(dispatcher),
     presentCallback_(std::move(presentCallback))
 {
-    dispatcher_.dispatch([](GlFunctions const&)
+    dispatcher_.dispatch([](GlFunctions const& gl)
     {
         glEnable(GL_DEPTH_TEST);
 
         GLint srgbEnabled = 0;
 #ifdef GL_EXT_framebuffer_sRGB
-        GLenum err;
-        glGetError();
-
-        glGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE_EXT, &srgbEnabled);
-        err = glGetError();
-        if (err != GL_NO_ERROR)
+        if (hasGlExtensions(gl, "GL_ARB_framebuffer_sRGB"))
         {
-            DBG("GlRenderContext: failed to read sRGB status, disabling: %1",
-                    glErrorToString(err));
-            srgbEnabled = 0;
-        }
-        else
-            srgbEnabled = 1;
+            GLenum err;
+            glGetError();
 
-        if (srgbEnabled)
-        {
             glEnable(GL_FRAMEBUFFER_SRGB_EXT);
-            DBG("GlRenderContext: sRGB surfaces enabled.");
+            err = glGetError();
+            if (err == GL_NO_ERROR)
+            {
+                srgbEnabled = 1;
+            }
+            else
+            {
+                DBG("GlRenderContext: Unable to enable sRGB support: %1",
+                        glErrorToString(err));
+            }
+            /*
+            glGetIntegerv(GL_FRAMEBUFFER_SRGB_CAPABLE_EXT, &srgbEnabled);
+            err = glGetError();
+            if (false && err != GL_NO_ERROR)
+            {
+                DBG("GlRenderContext: failed to read sRGB status, disabling: %1",
+                        glErrorToString(err));
+                srgbEnabled = 0;
+            }
+            else
+                srgbEnabled = 1;
+
+            if (srgbEnabled)
+            {
+                glEnable(GL_FRAMEBUFFER_SRGB_EXT);
+                DBG("GlRenderContext: sRGB surfaces enabled.");
+            }
+            */
         }
         else
         {
-            glDisable(GL_FRAMEBUFFER_SRGB_EXT);
-            DBG("GlRenderContext: sRGB surfaces disabled.");
+            DBG("GlRenderContext: No GL_ARB_framebuffer_sRGB support available.");
         }
 #endif
+        if (!srgbEnabled)
+            DBG("GlRenderContext: sRGB surfaces disabled");
 
 #ifdef GLX_EXT_swap_control
         //glXSwapIntervalEXT(dpy, glxWin_, 1);
@@ -190,7 +224,8 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     if (viewportSize_ != size)
     {
         viewportSize_ = size;
-        glViewport(0, 0, size[0], size[1]);
+        glViewport(0, 0, static_cast<GLsizei>(size[0]),
+                static_cast<GLsizei>(size[1]));
     }
 }
 
@@ -407,26 +442,26 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         // Set Textures
         int index = 0;
         activeTextures_.reserve(textures.size());
-        auto j = activeTextures_.begin();
-        for (auto i = textures.begin(); i != textures.end(); ++i)
+        auto k = activeTextures_.begin();
+        for (auto j = textures.begin(); j != textures.end(); ++j)
         {
-            GLuint tex = i->getImpl<GlTexture>().getGlObject();
+            GLuint tex = j->getImpl<GlTexture>().getGlObject();
 
-            if (j == activeTextures_.end() || *j != tex)
+            if (k == activeTextures_.end() || *k != tex)
             {
-                if (j != activeTextures_.end() || tex)
+                if (k != activeTextures_.end() || tex)
                 {
                     gl.glActiveTexture(GL_TEXTURE0 + index);
 
                     glBindTexture(GL_TEXTURE_2D, tex);
                 }
 
-                if (j == activeTextures_.end())
+                if (k == activeTextures_.end())
                     activeTextures_.push_back(tex);
                 else
                 {
-                    *j = tex;
-                    ++j;
+                    *k = tex;
+                    ++k;
                 }
             }
 
@@ -469,10 +504,11 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 GlUniformBuffer const& uniformBuffer = range.buffer.getImpl<
                     GlUniformBuffer>();
 
-                gl.glBindBufferRange(GL_UNIFORM_BUFFER, binding,
+                gl.glBindBufferRange(GL_UNIFORM_BUFFER,
+                        static_cast<GLuint>(binding),
                         uniformBuffer.getBuffer().getBuffer(),
-                        range.offset,
-                        range.size
+                        static_cast<GLintptr>(range.offset),
+                        static_cast<GLsizeiptr>(range.size)
                         );
             }
         }
@@ -480,12 +516,13 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         if (ibo)
         {
             ZoneScopedN("glDrawElement");
-            glDrawElements(mode, count, GL_UNSIGNED_INT, 0);
+            glDrawElements(mode, static_cast<GLsizei>(count),
+                    GL_UNSIGNED_INT, 0);
         }
         else
         {
             ZoneScopedN("glDrawArarys");
-            glDrawArrays(mode, 0, count);
+            glDrawArrays(mode, 0, static_cast<GLsizei>(count));
         }
         }
     }
@@ -543,12 +580,12 @@ void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)
 }
 
 void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,
-        VertexSpec const& spec, std::vector<GLint>& activeAttribs)
+        VertexSpec const& vertexSpec, std::vector<GLint>& activeAttribs)
 {
     ZoneScoped;
 
-    size_t stride = spec.getStride();
-    std::vector<VertexSpec::Spec> const& specs = spec.getSpecs();
+    size_t stride = vertexSpec.getStride();
+    std::vector<VertexSpec::Spec> const& specs = vertexSpec.getSpecs();
     std::vector<GLint> attribs;
     attribs.reserve(specs.size());
 
@@ -557,8 +594,9 @@ void GlRenderState::pushSpec(Dispatched, GlFunctions const& gl,
         VertexSpec::Spec const& spec = *i;
 
         attribs.push_back(spec.attribLoc);
-        gl.glVertexAttribPointer(spec.attribLoc, spec.size, typeToGl(spec.type),
-                spec.normalized, stride, (void*)spec.pointer);
+        gl.glVertexAttribPointer(spec.attribLoc, static_cast<GLint>(spec.size),
+                typeToGl(spec.type), spec.normalized,
+                static_cast<GLsizei>(stride), (void*)spec.pointer);
 
         /*DBG("attrib: %1 %2 %3 %4 %5 %6", spec.attribLoc, spec.size,
                 glTypeToString(typeToGl(spec.type)), spec.normalized,

@@ -397,12 +397,12 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
     if (hwnd_ == 0)
         throw std::runtime_error("Unable to create window");
 
-    HDC dc = GetDC(hwnd_);
+    hdc_ = GetDC(hwnd_);
 
     auto pfd = platform_.getPixelFormatDescriptor();
 
-    int n = ChoosePixelFormat(dc, &pfd);
-    SetPixelFormat(dc, n, &pfd);
+    int n = ChoosePixelFormat(hdc_, &pfd);
+    SetPixelFormat(hdc_, n, &pfd);
 
     scalingFactor = getWindowScalingFactor(hwnd_);
     int dpi = GetDpiForWindow(hwnd_);
@@ -432,7 +432,7 @@ HWND WglWindow::getHwnd() const
 
 HDC WglWindow::getDc() const
 {
-    return GetDC(hwnd_);
+    return hdc_;
 }
 
 void WglWindow::present()
@@ -484,6 +484,29 @@ Framebuffer& WglWindow::getDefaultFramebuffer()
     return defaultFramebuffer_;
 }
 
+void WglWindow::requestFrame()
+{
+    genericWindow_.requestFrame();
+    platform_.requestFrame();
+}
+
+std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
+{
+    return genericWindow_.frame(frame);
+}
+
+bool WglWindow::needsRedraw() const
+{
+    return genericWindow_.needsRedraw();
+}
+
+void WglWindow::setFrameCallback(
+        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
+        callback)
+{
+    genericWindow_.setFrameCallback(std::move(callback));
+}
+
 void WglWindow::setCloseCallback(std::function<void()> func)
 {
     genericWindow_.setCloseCallback(std::move(func));
@@ -492,11 +515,6 @@ void WglWindow::setCloseCallback(std::function<void()> func)
 void WglWindow::setResizeCallback(std::function<void()> func)
 {
     genericWindow_.setResizeCallback(std::move(func));
-}
-
-void WglWindow::setRedrawCallback(std::function<void()> func)
-{
-    genericWindow_.setRedrawCallback(std::move(func));
 }
 
 void WglWindow::setButtonCallback(

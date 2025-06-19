@@ -62,6 +62,7 @@ namespace ase
         PFNGLFENCESYNCPROC glFenceSync = nullptr;
         PFNGLCLIENTWAITSYNCPROC glClientWaitSync = nullptr;
         PFNGLDELETESYNCPROC glDeleteSync = nullptr;
+        PFNGLGETSTRINGIPROC glGetStringi = nullptr;
     };
 } // namespace ase
 

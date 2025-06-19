@@ -477,7 +477,7 @@ UpdateResult TransitionNode::update(
         auto const& newTransition = reinterpret_cast<TransitionNode const&>(*newNode);
         auto const& oldTransition = reinterpret_cast<TransitionNode const&>(*oldNode);
 
-        bool isActive = oldTransition.isActive_;
+        isActive = oldTransition.isActive_;
         oldActive = oldTransition.activeNode_;
         newActive = isActive
             ? newTransition.activeNode_
@@ -959,7 +959,7 @@ RenderTree RenderTree::transform(Transform const& transform) &&
 {
     if (root_)
     {
-        if (!root_.unique())
+        if (root_.use_count() != 1)
             root_ = root_->clone();
 
         root_->transform(transform);

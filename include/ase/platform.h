@@ -3,13 +3,16 @@
 #include "vector.h"
 #include "asevisibility.h"
 
+#include <chrono>
 #include <memory>
+#include <optional>
 
 namespace ase
 {
     class Window;
     class RenderContext;
     class PlatformImpl;
+    struct Frame;
 
     class ASE_EXPORT Platform
     {
@@ -20,6 +23,9 @@ namespace ase
         Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();
+        void run(RenderContext& renderContext,
+                std::function<bool(Frame const&)> frameCallback);
+        void requestFrame();
 
         template <typename T>
         T& getImpl()

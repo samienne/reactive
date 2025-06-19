@@ -20,6 +20,10 @@ namespace ase
 
         void present();
 
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
+        bool needsRedraw() const;
+
+        // From WindowImpl
         void setVisible(bool value) override;
         bool isVisible() const override;
 
@@ -30,9 +34,13 @@ namespace ase
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
+        void requestFrame() override;
+
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(Frame const&)>)
+            override;
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
-        void setRedrawCallback(std::function<void()> func) override;
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb) override;
         void setPointerCallback(
@@ -53,6 +61,7 @@ namespace ase
     private:
         WglPlatform& platform_;
         HWND hwnd_;
+        HDC hdc_;
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;

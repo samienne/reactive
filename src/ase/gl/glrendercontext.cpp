@@ -43,17 +43,20 @@ GlRenderContext::GlRenderContext(
                 {
                     present(d, w);
                 })),
-    transferQueue_(std::make_shared<GlRenderQueue>(std::move(bgContext),
-                [](Dispatched, Window&) {})),
+    transferQueue_(platform.isBackgroundQueueEnabled()
+            ? std::make_shared<GlRenderQueue>(std::move(bgContext), [](Dispatched, Window&) {})
+            : mainQueue_),
     objectManager_(*this),
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
-    dispatch([](GlFunctions const&)
+    dispatch([bgEnabled=platform.isBackgroundQueueEnabled()](GlFunctions const&)
     {
         std::cout << "GlVendor: " << glGetString(GL_VENDOR) << std::endl;
         std::cout << "GlRenderer: " << glGetString(GL_RENDERER) << std::endl;
         std::cout << "GlVersion: " << glGetString(GL_VERSION) << std::endl;
+        std::cout << "BackgroundQueueEnabled: "
+            << (bgEnabled ? "yes" : "no") << std::endl;
     });
 }
 
@@ -71,6 +74,30 @@ GlRenderQueue& GlRenderContext::getMainGlRenderQueue()
 GlRenderQueue const& GlRenderContext::getMainGlRenderQueue() const
 {
     return *mainQueue_;
+}
+
+void GlRenderContext::validate(std::string_view msg) const
+{
+    validate(isValidationEnabled(), msg);
+}
+
+void GlRenderContext::validate(bool enabled, std::string_view msg)
+{
+    if (!enabled)
+        return;
+
+    auto err = glGetError();
+    if (err != GL_NO_ERROR)
+    {
+        std::cout << "Error: " << msg << ": " << glErrorToString(err)
+            << std::endl;
+        glGetError();
+    }
+}
+
+bool GlRenderContext::isValidationEnabled() const
+{
+    return true;
 }
 
 std::shared_ptr<RenderQueueImpl> GlRenderContext::getMainRenderQueue()

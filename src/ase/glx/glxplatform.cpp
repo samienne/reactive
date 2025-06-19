@@ -4,8 +4,10 @@
 #include "glxcontext.h"
 #include "glxwindow.h"
 
-#include "platform.h"
+#include "commandbuffer.h"
 #include "rendercontext.h"
+#include "renderqueue.h"
+#include "platform.h"
 
 #include "debug.h"
 
@@ -20,6 +22,7 @@
 #include <stdexcept>
 #include <utility>
 #include <unordered_set>
+#include <queue>
 
 #include <cstdlib>
 
@@ -267,6 +270,18 @@ float GlxPlatform::getScalingFactor() const
     return static_cast<float>(std::max(0.25, atof(factor)));
 }
 
+inline std::optional<std::chrono::microseconds> minTime(
+        std::optional<std::chrono::microseconds> const& l,
+        std::optional<std::chrono::microseconds> const& r)
+{
+    if (l.has_value() && r.has_value())
+        return std::min(*l, *r);
+    else if (r.has_value())
+        return r;
+    else
+        return l;
+}
+
 Window GlxPlatform::makeWindow(Vector2i size)
 {
     auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());
@@ -321,6 +336,98 @@ void GlxPlatform::handleEvents()
 RenderContext GlxPlatform::makeRenderContext()
 {
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
+}
+
+void GlxPlatform::run(RenderContext& renderContext,
+        std::function<bool(Frame const&)> frameCallback)
+{
+    DBG("Starting GlxPlatform::run");
+
+    bool const lockStep = true;
+    int const targetFps = 60;
+    auto const step = std::chrono::microseconds(1000000 / targetFps);
+
+    std::chrono::steady_clock clock;
+    auto startTime = clock.now();
+    auto lastFrame = startTime;
+    auto nextFrame = startTime + step;
+
+    std::queue<btl::future::Future<>> frameFutures;
+    auto mainQueue = renderContext.getMainRenderQueue();
+
+    while (true)
+    {
+        std::chrono::steady_clock::time_point thisFrame;
+        if (lockStep)
+            thisFrame = nextFrame;
+        else
+            thisFrame = clock.now();
+
+        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
+                thisFrame - startTime);
+        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
+                thisFrame - lastFrame);
+
+        handleEvents();
+
+        Frame frame { time, dt };
+
+        if (!frameCallback(frame))
+            break;
+
+        for (auto& weakWindow : d()->windows_)
+        {
+            if (auto window = weakWindow.lock())
+            {
+                if (window->needsRedraw())
+                    window->frame(frame);
+            }
+        }
+
+        ase::CommandBuffer commandBuffer;
+        frameFutures.push(commandBuffer.pushFence());
+        mainQueue.submit(std::move(commandBuffer));
+
+        auto now = clock.now();
+        nextFrame += step;
+        while (nextFrame < now)
+            nextFrame += step;
+
+        /*
+        auto frameTime = std::chrono::duration_cast<
+            std::chrono::microseconds>(now - thisFrame);
+        auto remaining = nextFrame - now;
+        if (remaining.count() > 0)
+        {
+            ZoneScopedN("sleep");
+            std::this_thread::sleep_for(remaining);
+        }
+        */
+
+        if (frameFutures.size() > 1)
+        {
+            ZoneScopedN("Wait for frame to finish");
+            ZoneValue(frameFutures.size());
+            frameFutures.front().wait();
+            frameFutures.pop();
+        }
+
+        lastFrame = thisFrame;
+    }
+
+    while (!frameFutures.empty())
+    {
+        ZoneScopedN("Wait for frame to finish");
+        ZoneValue(frameFutures.size());
+        frameFutures.front().wait();
+        frameFutures.pop();
+    }
+
+    DBG("Shutting down GlxPlatform..");
+}
+
+void GlxPlatform::requestFrame()
+{
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
@@ -438,6 +545,7 @@ void GlxPlatform::destroyGlxContext(GlxPlatform::Lock const& /*lock*/,
 void GlxPlatform::makeGlxContextCurrent(GlxPlatform::Lock const& /*lock*/,
         GLXContext context, GLXDrawable drawable)
 {
+    ZoneScoped;
     if (!drawable && context)
         drawable = d()->dummyBuffer_;
 

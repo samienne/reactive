@@ -30,12 +30,12 @@ jobs:
         strategy:
             matrix:
                 compiler: [
-                  { "deps": "gcc-8 g++-8", "CC": "gcc-8", "CXX": "g++-8", "type": "release", config: ""},
-                  { "deps": "gcc-9 g++-9", "CC": "gcc-9", "CXX": "g++-9", "type": "release", config: ""},
                   { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release", config: ""},
-                  { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release", config: ""},
-                  { "deps": "clang-8", "CC": "clang-8", "CXX": "clang++-8", "type": "release", config: "-Dtracy_enable=true"} ]
-        runs-on: "ubuntu-20.04"
+                  { "deps": "gcc-11 g++-11", "CC": "gcc-11", "CXX": "g++-11", "type": "release", config: ""},
+                  { "deps": "gcc-12 g++-12", "CC": "gcc-12", "CXX": "g++-12", "type": "release", config: ""},
+                  { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: ""},
+                  { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: "-Dtracy_enable=true"} ]
+        runs-on: "ubuntu-22.04"
         steps:
         - uses: actions/checkout@v2
           with:

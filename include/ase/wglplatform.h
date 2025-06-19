@@ -20,17 +20,21 @@ namespace ase
         WglPlatform(WglPlatform const&) = delete;
         WglPlatform& operator=(WglPlatform const&) = delete;
 
+        bool isBackgroundQueueEnabled() const override;
+
         HGLRC createRawContext(int minor, int major);
         HDC getDummyDc() const;
         PIXELFORMATDESCRIPTOR getPixelFormatDescriptor() const;
 
         static std::string getLastErrorString();
 
-    private:
         // From PlatformImpl
         Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
+        void run(RenderContext& renderContext,
+                std::function<bool(Frame const&)> frameCallback) override;
+        void requestFrame() override;
 
     private:
         HWND dummyWindow_ = nullptr;

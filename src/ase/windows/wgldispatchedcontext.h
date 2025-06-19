@@ -9,11 +9,14 @@
 
 #include "systemgl.h"
 
+#include <GL/wglext.h>
+
 #include <windows.h>
 
 namespace ase
 {
     class WglPlatform;
+    class WglWindow;
 
     class WglDispatchedContext : public GlDispatchedContext
     {
@@ -21,10 +24,13 @@ namespace ase
         WglDispatchedContext(WglPlatform& platform, HGLRC context);
 
         HGLRC getWglContext() const;
+        void makeCurrent(Dispatched, WglWindow const& window);
 
     private:
         WglPlatform& platform_;
         HGLRC context_;
+        HDC hdc_;
+        PFNWGLSWAPINTERVALEXTPROC wglSwapInterval_ = nullptr;
     };
 } // namespace ase
 

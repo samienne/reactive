@@ -60,7 +60,10 @@ namespace ase
         GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
         void handleEvents(std::vector<_XEvent> const& events);
+
+        bool needsRedraw() const;
 
         // From WindowImpl
         void setVisible(bool value) override;
@@ -73,9 +76,13 @@ namespace ase
         float getScalingFactor() const override;
         Framebuffer& getDefaultFramebuffer() override;
 
+        void requestFrame() override;
+
+        void setFrameCallback(
+                std::function<std::optional<std::chrono::microseconds>(Frame const&)>)
+            override;
         void setCloseCallback(std::function<void()> func) override;
         void setResizeCallback(std::function<void()> func) override;
-        void setRedrawCallback(std::function<void()> func) override;
         void setButtonCallback(
                 std::function<void(PointerButtonEvent const&)> cb) override;
         void setPointerCallback(
@@ -96,10 +103,10 @@ namespace ase
         void present(Dispatched);
         Lock lockX() const;
 
-        friend class GlxContext;
-        friend class GlxFramebuffer;
-        void makeCurrent(Lock const& lock, GlxContext const& context) const;
+        friend class GlxDispatchedContext;
+        ::GLXWindow getGlxWindowId() const;
 
+    private:
         GlxPlatform& platform_;
         ::Window xWin_ = 0;
         ::GLXWindow glxWin_ = 0;
