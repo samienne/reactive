@@ -7,20 +7,20 @@
 
 namespace reactive::widget
 {
-    inline auto trackObb(signal::InputHandle<avg::Obb> handle)
+    inline auto trackObb(bq::signal::InputHandle<avg::Obb> handle)
     {
         return makeSharedInstanceSignalModifier([handle=std::move(handle)](auto instance)
             {
-                auto obb = signal::map([](Instance const& instance)
+                auto obb = bq::signal::map([](Instance const& instance)
                         {
                             return widget.getObb();
                         },
                         instance
                         );
 
-                auto obb2 = signal::tee(std::move(obb), handle);
+                auto obb2 = bq::signal::tee(std::move(obb), handle);
 
-                return signal::map([](auto instance, auto obb)
+                return bq::signal::map([](auto instance, auto obb)
                         {
                             return std::move(instance)
                                 .setObb(obb)

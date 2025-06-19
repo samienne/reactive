@@ -13,7 +13,7 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onClick(unsigned int button,
-        signal::AnySignal<std::function<void(ClickEvent const&)>> cb)
+        bq::signal::AnySignal<std::function<void(ClickEvent const&)>> cb)
 {
     auto f = [button](
             std::function<void(ClickEvent const&)> const& cb,
@@ -44,7 +44,7 @@ AnyWidgetModifier onClick(unsigned int button,
 }
 
 AnyWidgetModifier onClick(unsigned int button,
-        signal::AnySignal<std::function<void()>> cb)
+        bq::signal::AnySignal<std::function<void()>> cb)
 {
     auto f = [](std::function<void()> cb, ClickEvent const&)
     {
@@ -57,7 +57,7 @@ AnyWidgetModifier onClick(unsigned int button,
 
 AnyWidgetModifier onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
 {
-    return onClick(button, signal::constant(std::move(f)));
+    return onClick(button, bq::signal::constant(std::move(f)));
 }
 
 } // namespace reactive

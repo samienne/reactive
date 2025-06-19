@@ -5,9 +5,9 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TFunc>
     class EvaluateOnInit
@@ -39,7 +39,7 @@ namespace reactive::signal
             return {};
         }
 
-        Connection observe(DataContext&, DataType&, std::function<void()>)
+        btl::connection observe(DataContext&, DataType&, std::function<void()>)
         {
             return {};
         }
@@ -57,5 +57,5 @@ namespace reactive::signal
         return wrap(EvaluateOnInit<std::decay_t<TFunc>>(std::forward<
                 TFunc>(func)));
     }
-} // reactive::signal
+} // bq::signal
 

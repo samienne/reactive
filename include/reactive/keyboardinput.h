@@ -33,7 +33,7 @@ namespace reactive
     class REACTIVE_EXPORT KeyboardInput
     {
     public:
-        using FocusHandle = signal::InputHandle<bool>;
+        using FocusHandle = bq::signal::InputHandle<bool>;
         using KeyHandler = btl::Function<InputResult(KeyEvent const& e)>;
         using TextHandler = btl::Function<InputResult(TextEvent const& e)>;
 

@@ -12,7 +12,7 @@ namespace reactive::widget
     class InstanceModifier;
 
     using AnyInstanceModifier = InstanceModifier<
-        std::function<signal::AnySignal<Instance>(signal::AnySignal<Instance>)>
+        std::function<bq::signal::AnySignal<Instance>(bq::signal::AnySignal<Instance>)>
         >;
 
     template <typename T>
@@ -39,7 +39,7 @@ namespace reactive::widget
         InstanceModifier& operator=(InstanceModifier&&) = default;
 
         template <typename U>
-        auto operator()(signal::Signal<U, Instance> instance)
+        auto operator()(bq::signal::Signal<U, Instance> instance)
         {
             return func_(std::move(instance));
         }
@@ -57,7 +57,7 @@ namespace reactive::widget
     };
 
     template <typename T, typename U>
-    auto operator|(signal::Signal<T, Instance> w, InstanceModifier<U> t)
+    auto operator|(bq::signal::Signal<T, Instance> w, InstanceModifier<U> t)
     {
         return std::move(std::move(t)(std::move(w)));
     }
@@ -101,7 +101,7 @@ namespace reactive::widget
 
     template <typename TFunc, typename... Ts,
              typename = std::enable_if_t<std::is_invocable_r_v<
-                 signal::AnySignal<Instance>, TFunc, signal::AnySignal<Instance>, Ts&&...
+                 bq::signal::AnySignal<Instance>, TFunc, bq::signal::AnySignal<Instance>, Ts&&...
                  > > >
     auto makeInstanceSignalModifier(TFunc&& func, Ts&&... ts)
     {
@@ -130,7 +130,7 @@ namespace reactive::widget
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_convertible_v<
             TFunc,
-            std::function<signal::AnySignal<Instance>(signal::AnySignal<Instance>, Ts...)>>
+            std::function<bq::signal::AnySignal<Instance>(bq::signal::AnySignal<Instance>, Ts...)>>
         >>
     auto makeSharedInstanceSignalModifier(TFunc&& f, Ts&&... ts)
     {
@@ -163,7 +163,7 @@ namespace reactive::widget
             Instance,
             TFunc,
             Instance,
-            signal::UnpackSignalResultT<signal::SignalTypeT<Ts>>...
+            bq::signal::UnpackSignalResultT<bq::signal::SignalTypeT<Ts>>...
         >>>
     auto makeInstanceModifier(TFunc&& func, Ts&&... ts)
     {

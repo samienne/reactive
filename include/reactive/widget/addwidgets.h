@@ -50,20 +50,20 @@ namespace reactive::widget
             ;
     }
 
-    inline auto addWidgets(std::vector<signal::AnySignal<Instance>> instances)
+    inline auto addWidgets(std::vector<bq::signal::AnySignal<Instance>> instances)
     {
         return makeInstanceModifier([](Instance instance, auto instances)
                 {
                     return addWidgets(std::move(instance), std::move(instances));
                 },
-                signal::combine(std::move(instances))
+                bq::signal::combine(std::move(instances))
                 );
 
     }
 
 
     template <typename T>
-    auto addWidgets(signal::Signal<T, std::vector<Instance>> instances)
+    auto addWidgets(bq::signal::Signal<T, std::vector<Instance>> instances)
     {
         return makeInstanceModifier([](Instance instance, auto instances)
                 {
@@ -73,9 +73,9 @@ namespace reactive::widget
                 );
     }
 
-    inline auto addWidget(signal::AnySignal<Instance> instance)
+    inline auto addWidget(bq::signal::AnySignal<Instance> instance)
     {
-        std::vector<signal::AnySignal<Instance>> instances;
+        std::vector<bq::signal::AnySignal<Instance>> instances;
         instances.push_back(std::move(instance));
 
         return addWidgets(std::move(instances));

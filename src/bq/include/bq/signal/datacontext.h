@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <cassert>
 
-namespace reactive::signal
+namespace bq::signal
 {
     REACTIVE_EXPORT btl::UniqueId makeUniqueId();
 
@@ -118,5 +118,5 @@ namespace reactive::signal
         std::vector<std::shared_ptr<Base>> frameData_;
         std::vector<std::shared_ptr<Base>> prevFrameData_;
     };
-} // namespace reactive::signal
+} // namespace bq::signal
 

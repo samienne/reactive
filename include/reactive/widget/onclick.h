@@ -11,10 +11,10 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier onClick(unsigned int button,
-            signal::AnySignal<std::function<void(ClickEvent const&)>> cb);
+            bq::signal::AnySignal<std::function<void(ClickEvent const&)>> cb);
 
     REACTIVE_EXPORT AnyWidgetModifier onClick(unsigned int button,
-            signal::AnySignal<std::function<void()>> cb);
+            bq::signal::AnySignal<std::function<void()>> cb);
 
     REACTIVE_EXPORT AnyWidgetModifier onClick(unsigned int button,
             std::function<void(ClickEvent const&)> f);

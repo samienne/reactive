@@ -8,7 +8,7 @@
 
 namespace reactive::widget
 {
-    REACTIVE_EXPORT AnyWidgetModifier onPointerMove(signal::AnySignal<
+    REACTIVE_EXPORT AnyWidgetModifier onPointerMove(bq::signal::AnySignal<
             std::function<EventResult(ase::PointerMoveEvent const&)>
             > cb);
 

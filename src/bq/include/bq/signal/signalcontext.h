@@ -3,7 +3,7 @@
 #include "signal.h"
 #include "datacontext.h"
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class SignalContext
@@ -46,7 +46,7 @@ namespace reactive::signal
             return didChange_;
         }
 
-        Connection observe(std::function<void()> callback)
+        btl::connection observe(std::function<void()> callback)
         {
             return sig_.unwrap().observe(dataContext_, data_,
                     std::move(callback));
@@ -90,5 +90,5 @@ namespace reactive::signal
                 std::move(sig)
                 );
     }
-} // namespace reactive::signal
+} // namespace bq::signal
 

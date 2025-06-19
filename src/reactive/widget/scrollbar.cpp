@@ -117,10 +117,10 @@ namespace
 
     template <bool IsHorizontal, typename T, typename U, typename V>
     auto scrollPointerDown(
-            signal::InputHandle<std::optional<avg::Vector2f>> downHandle,
-            signal::Signal<T, avg::Vector2f> sizeSignal,
-            signal::Signal<U, float> amountSignal,
-            signal::Signal<V, float> handleSizeSignal)
+            bq::signal::InputHandle<std::optional<avg::Vector2f>> downHandle,
+            bq::signal::Signal<T, avg::Vector2f> sizeSignal,
+            bq::signal::Signal<U, float> amountSignal,
+            bq::signal::Signal<V, float> handleSizeSignal)
     {
         return merge(
                 std::move(sizeSignal),
@@ -147,23 +147,23 @@ namespace
         std::array<float, 3> aux{{25, 25, 25}};
 
         if (IsHorizontal)
-            return signal::constant(simpleSizeHint(main, aux));
+            return bq::signal::constant(simpleSizeHint(main, aux));
         else
-            return signal::constant(simpleSizeHint(aux, main));
+            return bq::signal::constant(simpleSizeHint(aux, main));
     }
 
     template <bool IsHorizontal>
     auto makeScrollBar(
-        signal::InputHandle<float> scrollHandle,
-        signal::AnySignal<float> amount,
-        signal::AnySignal<float> handleSize)
+        bq::signal::InputHandle<float> scrollHandle,
+        bq::signal::AnySignal<float> amount,
+        bq::signal::AnySignal<float> handleSize)
     {
         return makeWidgetWithSize([](auto size, auto theme, auto scrollHandle,
                     auto amount, auto handleSize)
         {
-            auto downOffset = signal::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
+            auto downOffset = bq::signal::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
             auto isDown = downOffset.signal.map([](auto v) { return v.has_value(); });
-            auto hover = signal::makeInput(false);
+            auto hover = bq::signal::makeInput(false);
 
             auto sliderObb = merge(size.clone(), amount, handleSize).map([]
                     (avg::Vector2f size, float amount, float handleSize)
@@ -228,20 +228,20 @@ namespace
 
 template <bool IsHorizontal>
 AnyWidget scrollBar(
-        signal::InputHandle<float> scrollHandle,
-        signal::AnySignal<float> amount,
-        signal::AnySignal<float> handleSize)
+        bq::signal::InputHandle<float> scrollHandle,
+        bq::signal::AnySignal<float> amount,
+        bq::signal::AnySignal<float> handleSize)
 {
     return makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
-        | widget::margin(signal::constant(5.0f))
+        | widget::margin(bq::signal::constant(5.0f))
         | setSizeHint(getScrollBarSizeHint<IsHorizontal>())
         ;
 }
 
 AnyWidget hScrollBar(
-        signal::InputHandle<float> handle,
-        signal::AnySignal<float> amount,
-        signal::AnySignal<float> handleSize)
+        bq::signal::InputHandle<float> handle,
+        bq::signal::AnySignal<float> amount,
+        bq::signal::AnySignal<float> handleSize)
 {
     return scrollBar<true>(std::move(handle), std::move(amount).share(),
             std::move(handleSize).map([](float v)
@@ -251,9 +251,9 @@ AnyWidget hScrollBar(
 }
 
 AnyWidget vScrollBar(
-        signal::InputHandle<float> handle,
-        signal::AnySignal<float> amount,
-        signal::AnySignal<float> handleSize)
+        bq::signal::InputHandle<float> handle,
+        bq::signal::AnySignal<float> amount,
+        bq::signal::AnySignal<float> handleSize)
 {
     return scrollBar<false>(std::move(handle), std::move(amount).share(),
             std::move(handleSize).map([](float v)

@@ -10,7 +10,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerMove(signal::AnySignal<
+AnyWidgetModifier onPointerMove(bq::signal::AnySignal<
         std::function<EventResult(ase::PointerMoveEvent const&)>
         > cb)
 {
@@ -44,7 +44,7 @@ AnyWidgetModifier onPointerMove(
         std::function<EventResult(ase::PointerMoveEvent const&)> cb
         )
 {
-    return onPointerMove(signal::constant(std::move(cb)));
+    return onPointerMove(bq::signal::constant(std::move(cb)));
 }
 
 } // namespace reactive::widget

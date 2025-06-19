@@ -21,7 +21,7 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier trackFocus(signal::InputHandle<bool> const& handle)
+AnyWidgetModifier trackFocus(bq::signal::InputHandle<bool> const& handle)
 {
     return makeWidgetModifier(
             makeSharedInstanceSignalModifier([](auto instance, auto handle)

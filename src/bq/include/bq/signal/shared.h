@@ -14,7 +14,7 @@
 #include <btl/connection.h>
 #include <btl/shared.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage, typename... Ts>
     class Shared
@@ -79,5 +79,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<Shared<Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

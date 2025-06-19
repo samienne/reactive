@@ -407,7 +407,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, signal::AnySignal<avg::Vector2f>,
+        std::is_invocable_r_v<AnyWidget, TFunc, bq::signal::AnySignal<avg::Vector2f>,
         ParamProviderTypeT<Ts>...>
         >>
     auto makeWidgetWithSize(TFunc&& func, Ts&&... ts)
@@ -471,7 +471,7 @@ namespace reactive::widget
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, signal::AnySignal<avg::Vector2f>,
+        std::is_invocable_r_v<AnyWidget, TFunc, AnyWidget, bq::signal::AnySignal<avg::Vector2f>,
         ParamProviderTypeT<Ts>...>
         >>
     auto makeWidgetModifierWithSize(TFunc&& func, Ts&&... ts)

@@ -148,7 +148,7 @@ bool canNavigate(FocusGroupState const& state, KeyEvent const& e)
 }
 
  auto makeKeyHandler(
-         stream::Handle<KeyEvent> keyHandle,
+         bq::stream::Handle<KeyEvent> keyHandle,
          std::optional<KeyboardInput::KeyHandler> handler,
          FocusGroupState state)
     -> KeyboardInput::KeyHandler
@@ -189,7 +189,7 @@ auto makeTextHandler(std::optional<KeyboardInput::TextHandler> handler)
 
 std::vector<KeyboardInput> mapStateToInputs(
     FocusGroupState const& state,
-    stream::Handle<KeyEvent> keyHandle,
+    bq::stream::Handle<KeyEvent> keyHandle,
     avg::Obb obb
     )
 {
@@ -278,16 +278,16 @@ AnyInstanceModifier focusGroup()
             auto inputs = widget.map(&Instance::getKeyboardInputs);
             auto obb = widget.map(&Instance::getObb);
 
-            auto keyStream = stream::pipe<KeyEvent>();
+            auto keyStream = bq::stream::pipe<KeyEvent>();
 
             auto state = merge(
                     std::move(inputs),
-                    stream::collect(std::move(keyStream.stream))
+                    bq::stream::collect(std::move(keyStream.stream))
                     ).withPrevious(&step, FocusGroupState());
 
             auto newInputs = merge(
                     std::move(state),
-                    signal::constant(keyStream.handle),
+                    bq::signal::constant(keyStream.handle),
                     std::move(obb)
                     ).map(mapStateToInputs);
 

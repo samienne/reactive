@@ -7,7 +7,7 @@
 
 #include <type_traits>
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {
@@ -21,7 +21,7 @@ namespace reactive
     }
 }
 
-namespace reactive::stream
+namespace bq::stream
 {
     template <typename TFunc, typename T, typename U, typename V, typename... TSignals>
     auto iterate(TFunc&& func, signal::Signal<U, V> initial,

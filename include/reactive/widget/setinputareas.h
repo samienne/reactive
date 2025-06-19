@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setInputAreas(signal::Signal<T, std::vector<InputArea>> areas)
+    auto setInputAreas(bq::signal::Signal<T, std::vector<InputArea>> areas)
     {
         return makeInstanceModifier([](Instance instance, auto areas)
                 {

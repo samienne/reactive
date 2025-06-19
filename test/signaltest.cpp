@@ -12,7 +12,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace reactive::signal;
+using namespace bq::signal;
 
 static_assert(std::is_same_v<
         ConcatSignalResults<SignalResult<int, char>, SignalResult<int const&, std::string&>>::type,

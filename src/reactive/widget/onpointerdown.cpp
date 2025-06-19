@@ -13,7 +13,7 @@
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerDown(signal::AnySignal<
+AnyWidgetModifier onPointerDown(bq::signal::AnySignal<
         std::function<EventResult(reactive::PointerButtonEvent const&)>
         > cb)
 {
@@ -49,7 +49,7 @@ AnyWidgetModifier onPointerDown(
         std::function<EventResult(reactive::PointerButtonEvent const&)> cb
         )
 {
-    return onPointerDown(signal::constant(std::move(cb)));
+    return onPointerDown(bq::signal::constant(std::move(cb)));
 }
 } // namespace reactive::widget
 

@@ -19,7 +19,7 @@
 
 #include <string>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -417,5 +417,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<AnySignal<Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

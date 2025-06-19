@@ -3,7 +3,7 @@
 #include "handle.h"
 #include "stream.h"
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {

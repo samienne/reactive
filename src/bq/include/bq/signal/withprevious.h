@@ -6,11 +6,11 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
 #include <btl/copywrapper.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T>
     struct SignalResultToConstRef
@@ -110,7 +110,7 @@ namespace reactive::signal
             return r;
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> callback)
         {
             return sig_.observe(context, data.innerData, std::move(callback));
@@ -124,5 +124,5 @@ namespace reactive::signal
 
     template <typename TStorage, typename TFunc, typename... Ts>
     struct IsSignal<WithPrevious<TStorage, TFunc, Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

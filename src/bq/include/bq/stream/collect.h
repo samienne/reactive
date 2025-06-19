@@ -15,7 +15,7 @@
 
 #include <mutex>
 
-namespace reactive::stream
+namespace bq::stream
 {
     template <typename T>
     class Collect
@@ -83,7 +83,7 @@ namespace reactive::stream
             return { {}, !data.control->values.empty() };
         }
 
-        Connection observe(signal::DataContext&, DataType& data,
+        btl::connection observe(signal::DataContext&, DataType& data,
                 std::function<void()> callback)
         {
             std::unique_lock lock(data.control->mutex);
@@ -93,7 +93,7 @@ namespace reactive::stream
 
             std::weak_ptr<Control> weakControl = data.control;
 
-            return Connection::on_disconnect([id, weakControl]()
+            return btl::connection::on_disconnect([id, weakControl]()
                 {
                     if (auto control = weakControl.lock())
                     {
@@ -121,9 +121,9 @@ namespace reactive::stream
     }
 } // reactive::stream
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T>
     struct IsSignal<stream::Collect<T>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

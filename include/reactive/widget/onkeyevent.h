@@ -14,7 +14,7 @@ namespace reactive::widget
     namespace detail
     {
         template <typename T, typename U>
-        auto onKeyEvent(signal::Signal<T, U> handler)
+        auto onKeyEvent(bq::signal::Signal<T, U> handler)
         {
             return makeInstanceModifier([](Instance instance, auto handler)
                 {
@@ -34,7 +34,7 @@ namespace reactive::widget
 
         inline auto onKeyEvent(KeyboardInput::KeyHandler handler)
         {
-            return onKeyEvent(signal::constant(std::move(handler)));
+            return onKeyEvent(bq::signal::constant(std::move(handler)));
         }
     } // namespace detail
 
@@ -42,11 +42,11 @@ namespace reactive::widget
     {
     public:
         OnKeyEvent(
-                signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
-                signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action);
+                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
+                bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action);
 
         template <typename T>
-        auto operator()(signal::Signal<T, Instance> instance) const
+        auto operator()(bq::signal::Signal<T, Instance> instance) const
         {
             auto f = [](
                 std::function<bool(ase::KeyEvent const&)> const& pred,
@@ -69,21 +69,21 @@ namespace reactive::widget
         }
 
         OnKeyEvent acceptIf(
-                signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
                 predicate) &&;
 
         OnKeyEvent acceptIf(
                 std::function<bool(ase::KeyEvent const&)> pred) &&;
 
         OnKeyEvent acceptIfNot(
-                signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
                 predicate) &&;
 
         OnKeyEvent acceptIfNot(
                 std::function<bool(ase::KeyEvent const&)> pred) &&;
 
         OnKeyEvent action(
-                signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&;
+                bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&;
 
         OnKeyEvent action(
                 std::function<void(ase::KeyEvent const&)> action) &&;
@@ -98,8 +98,8 @@ namespace reactive::widget
         }
 
     private:
-        signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate_;
-        signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action_;
+        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate_;
+        bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action_;
     };
 
     REACTIVE_EXPORT OnKeyEvent onKeyEvent();
@@ -110,7 +110,7 @@ namespace reactive::widget
             std::function<InputResult(ase::KeyEvent const&)> cb);
 
     REACTIVE_EXPORT AnyWidgetModifier onKeyEvent(
-            signal::AnySignal<std::function<InputResult(ase::KeyEvent const&)>> cb);
+            bq::signal::AnySignal<std::function<InputResult(ase::KeyEvent const&)>> cb);
 
 } // reactive::widget
 

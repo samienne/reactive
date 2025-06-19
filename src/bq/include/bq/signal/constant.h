@@ -9,7 +9,7 @@
 
 #include <btl/copywrapper.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T>
     class Constant
@@ -51,10 +51,10 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext&, DataType&, TCallback&&)
+        btl::connection observe(DataContext&, DataType&, TCallback&&)
         {
             // nothing to observe
-            return Connection();
+            return btl::connection();
         }
 
     private:
@@ -77,4 +77,4 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<Constant<Ts...>> : std::true_type {};
-} // reactive::signal
+} // bq::signal

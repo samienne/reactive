@@ -20,17 +20,17 @@ namespace reactive::widget
         BuildParams& operator=(BuildParams&&) noexcept = default;
 
         template <typename Tag>
-        std::optional<signal::AnySignal<typename Tag::type>> get() const
+        std::optional<bq::signal::AnySignal<typename Tag::type>> get() const
         {
             auto r = params_.find(typeid(Tag));
             if (r == params_.end())
                 return std::nullopt;
 
-            return std::any_cast<signal::AnySignal<typename Tag::type>>(r->second);
+            return std::any_cast<bq::signal::AnySignal<typename Tag::type>>(r->second);
         }
 
         template <typename Tag>
-        signal::AnySignal<typename Tag::type> valueOrDefault() const
+        bq::signal::AnySignal<typename Tag::type> valueOrDefault() const
         {
             auto value = get<Tag>();
             if (!value)
@@ -40,18 +40,18 @@ namespace reactive::widget
         }
 
         template <typename Tag, typename T>
-        void set(signal::Signal<T, typename Tag::type> value)
+        void set(bq::signal::Signal<T, typename Tag::type> value)
         {
             params_.insert_or_assign(
                     typeid(Tag),
-                    signal::AnySignal<typename Tag::type>(std::move(value))
+                    bq::signal::AnySignal<typename Tag::type>(std::move(value))
                     );
         }
 
         template <typename Tag>
         void set(typename Tag::type value)
         {
-            set(share(signal::constant<typename Tag::type>(std::move(value))));
+            set(share(bq::signal::constant<typename Tag::type>(std::move(value))));
         }
 
     private:

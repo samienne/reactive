@@ -22,7 +22,7 @@ namespace reactive
 
         App windows(std::initializer_list<Window> windows) &&;
 
-        int run(signal::AnySignal<bool> running) &&;
+        int run(bq::signal::AnySignal<bool> running) &&;
         int run() &&;
 
         [[nodiscard]]

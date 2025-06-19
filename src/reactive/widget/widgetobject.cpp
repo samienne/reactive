@@ -18,12 +18,12 @@ namespace
 {
     template <typename T, typename U>
     auto buildWidgetObject(AnyWidget widget, BuildParams const& params,
-            signal::Signal<T, avg::Vector2f> size,
-            signal::Signal<U, avg::Transform> t,
+            bq::signal::Signal<T, avg::Vector2f> size,
+            bq::signal::Signal<U, avg::Transform> t,
             avg::UniqueId id)
     {
         auto builder = (std::move(widget)
-            | widget::setId(signal::constant(id))
+            | widget::setId(bq::signal::constant(id))
             | transform(std::move(t))
             )(params)
             ;
@@ -40,8 +40,8 @@ namespace
 } // anonymous namespace
 
 WidgetObject::Impl::Impl(AnyWidget widget, BuildParams const& params) :
-    sizeInput_(signal::makeInput(avg::Vector2f(100, 100))),
-    transformInput_(signal::makeInput(avg::Transform())),
+    sizeInput_(bq::signal::makeInput(avg::Vector2f(100, 100))),
+    transformInput_(bq::signal::makeInput(avg::Transform())),
     widget_(buildWidgetObject(
                 std::move(widget),
                 params,
@@ -73,7 +73,7 @@ void WidgetObject::setTransform(avg::Transform t)
     impl_->transformInput_.handle.set(t);
 }
 
-signal::AnySignal<Instance> const& WidgetObject::getWidget()
+bq::signal::AnySignal<Instance> const& WidgetObject::getWidget()
 {
     return impl_->widget_.first;
 }
@@ -83,7 +83,7 @@ avg::UniqueId const& WidgetObject::getId() const
     return impl_->id_;
 }
 
-signal::AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
+bq::signal::AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
 {
     return *impl_->widget_.second;
 }

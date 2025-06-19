@@ -3,9 +3,9 @@
 #include "signal.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T>
     class Combine
@@ -51,10 +51,10 @@ namespace reactive::signal
             return r;
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> callback)
         {
-            Connection c;
+            btl::connection c;
 
             for (size_t i = 0; i < sigs_.size(); ++i)
                 c += sigs_[i].unwrap().observe(context, data.datas[i], callback);

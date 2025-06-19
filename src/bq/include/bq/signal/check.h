@@ -5,9 +5,9 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TSignal>
     class Check
@@ -59,7 +59,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 TCallback&& callback)
         {
             return sig_.observe(context, data.innerData,
@@ -72,5 +72,5 @@ namespace reactive::signal
 
     template <typename T>
     struct IsSignal<Check<T>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

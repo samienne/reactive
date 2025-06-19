@@ -9,9 +9,9 @@ namespace reactive::widget
     struct AnimationTag
     {
         using type = std::optional<avg::AnimationOptions>;
-        static signal::AnySignal<type> getDefaultValue()
+        static bq::signal::AnySignal<type> getDefaultValue()
         {
-            return signal::constant<typename AnimationTag::type>(std::nullopt);
+            return bq::signal::constant<typename AnimationTag::type>(std::nullopt);
         }
     };
 

@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
 
-AnyElementModifier setElementId(signal::AnySignal<avg::UniqueId> id)
+AnyElementModifier setElementId(bq::signal::AnySignal<avg::UniqueId> id)
 {
     return makeElementModifier(makeInstanceModifier(
         [](Instance instance, avg::UniqueId const& id)
@@ -30,7 +30,7 @@ AnyElementModifier setElementId(signal::AnySignal<avg::UniqueId> id)
         ));
 }
 
-AnyWidgetModifier setId(signal::AnySignal<avg::UniqueId> id)
+AnyWidgetModifier setId(bq::signal::AnySignal<avg::UniqueId> id)
 {
     return makeWidgetModifier(setElementId(std::move(id)));
 }

@@ -20,7 +20,7 @@ namespace reactive
 {
     template <Axis dir>
     widget::AnyWidget dynamicBox(
-            signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
+            bq::signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets)
     {
         return widget::makeWidget([](
                     reactive::widget::BuildParams const& params,
@@ -44,7 +44,7 @@ namespace reactive
                 auto hintsWithoutId = builders.map([]
                         (std::vector<std::pair<size_t, widget::AnyBuilder>> const& builders)
                     {
-                            std::vector<signal::AnySignal<SizeHint>>
+                            std::vector<bq::signal::AnySignal<SizeHint>>
                             hintSignals;
                             for (auto const& builder : builders)
                             {
@@ -57,7 +57,7 @@ namespace reactive
                 auto hints = builders.map([]
                         (std::vector<std::pair<size_t, widget::AnyBuilder>> const& builders)
                     {
-                            std::vector<signal::AnySignal<std::pair<size_t, SizeHint>>>
+                            std::vector<bq::signal::AnySignal<std::pair<size_t, SizeHint>>>
                             hintSignals;
                             for (auto const& builder : builders)
                             {
@@ -147,7 +147,7 @@ namespace reactive
                                     auto element = std::move(builder.second)
                                             (std::move(size))
                                             | widget::setElementId(
-                                                    signal::constant(avg::UniqueId())
+                                                    bq::signal::constant(avg::UniqueId())
                                                     )
                                             | transformBuilder(transform)
                                             ;
@@ -164,7 +164,7 @@ namespace reactive
                             [](std::vector<std::pair<size_t, widget::AnyElement>>
                                 elements)
                             {
-                                std::vector<signal::AnySignal<widget::Instance>> result;
+                                std::vector<bq::signal::AnySignal<widget::Instance>> result;
 
                                 for (auto&& element : elements)
                                 {

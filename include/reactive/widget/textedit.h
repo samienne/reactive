@@ -44,17 +44,17 @@ namespace reactive::widget
     struct REACTIVE_EXPORT TextEdit
     {
         operator AnyWidget() const;
-        TextEdit onEnter(signal::AnySignal<std::function<void()>> cb) &&;
+        TextEdit onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&;
         TextEdit onEnter(std::function<void()> cb) &&;
 
         AnyWidget build() &&;
 
-        signal::InputHandle<TextEditState> handle_;
-        signal::AnySignal<TextEditState> state_;
-        std::vector<signal::AnySignal<std::function<void()>>> onEnter_;
+        bq::signal::InputHandle<TextEditState> handle_;
+        bq::signal::AnySignal<TextEditState> state_;
+        std::vector<bq::signal::AnySignal<std::function<void()>>> onEnter_;
     };
 
-    REACTIVE_EXPORT TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-            signal::AnySignal<TextEditState> state);
+    REACTIVE_EXPORT TextEdit textEdit(bq::signal::InputHandle<TextEditState> handle,
+            bq::signal::AnySignal<TextEditState> state);
 } // namespace reactive::widget
 

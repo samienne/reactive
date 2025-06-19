@@ -5,7 +5,7 @@
 #include <chrono>
 #include <stdint.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     class REACTIVE_EXPORT FrameInfo
     {
@@ -30,5 +30,5 @@ namespace reactive::signal
         uint64_t frameId_;
         std::chrono::microseconds dt_;
     };
-} // reactive::signal
+} // bq::signal
 

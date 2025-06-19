@@ -8,7 +8,7 @@
 
 namespace reactive::widget
 {
-    inline auto trackSize(signal::InputHandle<ase::Vector2f> handle)
+    inline auto trackSize(bq::signal::InputHandle<ase::Vector2f> handle)
         //-> BuiderModifier
     {
         return makeSharedInstanceSignalModifier(

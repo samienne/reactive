@@ -5,8 +5,7 @@
 #include "signalresult.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
-
+#include <btl/connection.h>
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>
 #include <btl/typetraits.h>
@@ -14,7 +13,7 @@
 #include <functional>
 #include <type_traits>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T>
     using initialize_t = decltype(std::declval<std::decay_t<T> const&>().initialize(
@@ -56,7 +55,7 @@ namespace reactive::signal
         observe_t<T>
         >> : btl::All<
             std::is_same<UpdateResult, update_t<T>>,
-            std::is_same<Connection, observe_t<T>>,
+            std::is_same<btl::connection, observe_t<T>>,
             std::is_nothrow_move_constructible<std::decay_t<T>>,
             std::is_copy_constructible<std::decay_t<T>>,
             std::is_copy_assignable<std::decay_t<T>>
@@ -67,7 +66,7 @@ namespace reactive::signal
     {
         static_assert(IsSignalResult<std::decay_t<evaluate_t<T>>>::value);
         static_assert(std::is_same_v<UpdateResult, update_t<T>>);
-        static_assert(std::is_same_v<Connection, observe_t<T>>);
+        static_assert(std::is_same_v<btl::connection, observe_t<T>>);
         static_assert(std::is_nothrow_move_constructible_v<std::decay_t<T>>);
         static_assert(std::is_copy_constructible_v<std::decay_t<T>>);
         static_assert(std::is_copy_assignable_v<std::decay_t<T>>);
@@ -222,5 +221,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     using ConcatSignalResultsT = typename ConcatSignalResults<Ts...>::type;
-} // namespace reactive::signal
+} // namespace bq::signal
 

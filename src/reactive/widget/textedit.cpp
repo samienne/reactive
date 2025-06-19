@@ -154,16 +154,16 @@ namespace
     }
 
     auto makeTextEdit(
-            signal::AnySignal<widget::Theme> theme,
-            signal::InputHandle<TextEditState> handle,
-            std::vector<signal::AnySignal<std::function<void()>>> const& onEnter,
-            signal::AnySignal<TextEditState> oldState)
+            bq::signal::AnySignal<widget::Theme> theme,
+            bq::signal::InputHandle<TextEditState> handle,
+            std::vector<bq::signal::AnySignal<std::function<void()>>> const& onEnter,
+            bq::signal::AnySignal<TextEditState> oldState)
     {
-        auto keyStream = stream::pipe<Events>();
+        auto keyStream = bq::stream::pipe<Events>();
 
-        auto requestFocus = stream::pipe<bool>();
+        auto requestFocus = bq::stream::pipe<bool>();
 
-        auto focus = signal::makeInput(false);
+        auto focus = bq::signal::makeInput(false);
 
         auto focusPercentage = std::move(focus.signal)
             .map([](bool b) -> avg::Animated<float>
@@ -180,12 +180,12 @@ namespace
                     return theme.getSecondary();
                 });
 
-        auto newState = stream::iterate(
+        auto newState = bq::stream::iterate(
                 updateTextEdit,
                 oldState,
                 std::move(keyStream.stream),
                 theme,
-                signal::combine(onEnter)
+                bq::signal::combine(onEnter)
                 ).tee(handle);
 
         return makeWidget()
@@ -197,7 +197,7 @@ namespace
                     std::move(newState),
                     std::move(focusPercentage)
                     )
-            | widget::margin(signal::constant(5.0f))
+            | widget::margin(bq::signal::constant(5.0f))
             | widget::clip()
             | widget::frame(std::move(frameColor))
             | onClick(1,
@@ -208,7 +208,7 @@ namespace
                         keyHandle.push(e);
                     })
             //| widget::onKeyEvent(sendKeysTo(keyStream.handle))
-            | widget::onKeyEvent(signal::combine(onEnter).bindToFunction(
+            | widget::onKeyEvent(bq::signal::combine(onEnter).bindToFunction(
                         [handle=keyStream.handle](
                             std::vector<std::function<void()>> onEnter,
                             KeyEvent const& keyEvent)
@@ -229,7 +229,7 @@ namespace
                             return InputResult::handled;
                         }))
             | widget::onTextEvent(sendKeysTo(keyStream.handle))
-            | setSizeHint(signal::constant(simpleSizeHint(250.0f, 40.0f)))
+            | setSizeHint(bq::signal::constant(simpleSizeHint(250.0f, 40.0f)))
             ;
     }
 
@@ -246,7 +246,7 @@ TextEdit::operator AnyWidget() const
             );
 }
 
-TextEdit TextEdit::onEnter(signal::AnySignal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&
 {
     onEnter_.push_back(std::move(cb).share());
     return std::move(*this);
@@ -254,7 +254,7 @@ TextEdit TextEdit::onEnter(signal::AnySignal<std::function<void()>> cb) &&
 
 TextEdit TextEdit::onEnter(std::function<void()> cb) &&
 {
-    return std::move(*this).onEnter(signal::constant(std::move(cb)));
+    return std::move(*this).onEnter(bq::signal::constant(std::move(cb)));
 }
 
 AnyWidget TextEdit::build() &&
@@ -262,8 +262,8 @@ AnyWidget TextEdit::build() &&
     return *this;
 }
 
-TextEdit textEdit(signal::InputHandle<TextEditState> handle,
-        signal::AnySignal<TextEditState> state)
+TextEdit textEdit(bq::signal::InputHandle<TextEditState> handle,
+        bq::signal::AnySignal<TextEditState> state)
 {
     return TextEdit{std::move(handle), std::move(state), {}};
 }

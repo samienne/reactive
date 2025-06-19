@@ -2,7 +2,7 @@
 
 #include <btl/uniqueid.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
 btl::UniqueId makeUniqueId()
 {
@@ -20,5 +20,5 @@ btl::UniqueId DataContext::getId() const
     return id_;
 }
 
-} // namespace reactive::signal
+} // namespace bq::signal
 

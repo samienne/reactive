@@ -43,10 +43,10 @@ namespace
 
 REACTIVE_EXPORT AnyShape rectangle()
 {
-    return rectangle(signal::constant(5.0f));
+    return rectangle(bq::signal::constant(5.0f));
 }
 
-REACTIVE_EXPORT AnyShape rectangle(signal::AnySignal<float> cornerRadius)
+REACTIVE_EXPORT AnyShape rectangle(bq::signal::AnySignal<float> cornerRadius)
 {
     return shape::makeShape(makeRectangle, animate(std::move(cornerRadius)));
 }

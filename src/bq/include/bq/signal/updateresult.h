@@ -4,7 +4,7 @@
 #include <optional>
 #include <algorithm>
 
-namespace reactive::signal
+namespace bq::signal
 {
     using signal_time_t = std::chrono::microseconds;
     struct UpdateResult
@@ -32,5 +32,5 @@ namespace reactive::signal
         };
     }
 
-} // reactive::signal
+} // bq::signal
 

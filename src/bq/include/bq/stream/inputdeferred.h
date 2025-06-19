@@ -6,7 +6,7 @@
 
 #include <btl/spinlock.h>
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {

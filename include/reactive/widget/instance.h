@@ -49,9 +49,9 @@ namespace reactive::widget
     };
 
     template <typename T>
-    auto makeInstance(signal::Signal<T, avg::Vector2f> size)
+    auto makeInstance(bq::signal::Signal<T, avg::Vector2f> size)
     {
-        auto focus = signal::makeInput(false);
+        auto focus = bq::signal::makeInput(false);
 
         return merge(std::move(size), std::move(focus.signal))
             .map([focusHandle=std::move(focus.handle)]

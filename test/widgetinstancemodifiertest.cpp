@@ -15,12 +15,13 @@
 
 #include <gtest/gtest.h>
 
+using namespace bq;
 using namespace reactive;
 using namespace reactive::widget;
 
 auto makeEmptyInstance()
 {
-    return makeInstance(signal::constant(avg::Vector2f(0.0f, 0.0f)));
+    return makeInstance(bq::signal::constant(avg::Vector2f(0.0f, 0.0f)));
 }
 
 struct TestTag
@@ -41,7 +42,7 @@ TEST(WidgetInstanceModifier, typeErasure)
     auto w = makeEmptyInstance()
         | std::move(t2);
 
-    //static_assert(reactive::signal::IsSignalType<decltype(w), Instance>::value);
+    //static_assert(bq::signal::IsSignalType<decltype(w), Instance>::value);
 }
 
 TEST(Widget, widgetBuildParameters)
@@ -54,7 +55,7 @@ TEST(Widget, widgetBuildParameters)
             {
                 auto p = params.get<TestTag>();
 
-                tag1 = p ? reactive::signal::makeSignalContext(*p).evaluate() : "no p";
+                tag1 = p ? bq::signal::makeSignalContext(*p).evaluate() : "no p";
 
                 return widget;
             },
@@ -69,7 +70,7 @@ TEST(Widget, widgetBuildParameters)
             {
                 auto p = params.get<TestTag>();
 
-                tag2 = p ? reactive::signal::makeSignalContext(*p).evaluate() : "no p";
+                tag2 = p ? bq::signal::makeSignalContext(*p).evaluate() : "no p";
 
                 return widget;
             },

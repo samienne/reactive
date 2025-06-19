@@ -39,7 +39,7 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier margin(signal::AnySignal<float> amount)
+AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
@@ -76,7 +76,7 @@ AnyWidgetModifier margin(signal::AnySignal<float> amount)
 
 AnyWidgetModifier margin(float amount)
 {
-    return margin(signal::constant(amount));
+    return margin(bq::signal::constant(amount));
 }
 
 } // namespace reactive::widget

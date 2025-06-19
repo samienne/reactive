@@ -11,7 +11,7 @@
 namespace reactive::widget
 {
     template <typename T>
-    auto setRenderTree(signal::Signal<T, avg::RenderTree> renderTree)
+    auto setRenderTree(bq::signal::Signal<T, avg::RenderTree> renderTree)
     {
         return makeInstanceModifier([](Instance instance, avg::RenderTree renderTree)
                 -> Instance

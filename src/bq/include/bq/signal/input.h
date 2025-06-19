@@ -7,7 +7,7 @@
 #include <mutex>
 #include <memory>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -234,7 +234,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
             std::unique_lock lock(control_->mutex);
 
@@ -286,5 +286,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<InputSignal<Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

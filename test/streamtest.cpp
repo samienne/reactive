@@ -12,8 +12,8 @@
 #include <string>
 #include <chrono>
 
-using namespace reactive;
-using namespace reactive::stream;
+using namespace bq;
+using namespace bq::stream;
 
 using us = std::chrono::microseconds;
 using ms = std::chrono::milliseconds;

@@ -6,9 +6,9 @@
 #include "frameinfo.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -95,7 +95,7 @@ namespace reactive::signal
             return r;
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> const& callback)
         {
             auto c = conditionSignal_.observe(context, data.conditionData,
@@ -128,4 +128,4 @@ namespace reactive::signal
                     std::move(falseSignal)
                     ));
     }
-} // namespace reactive::signal
+} // namespace bq::signal

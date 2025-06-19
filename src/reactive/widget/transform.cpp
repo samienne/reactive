@@ -9,7 +9,7 @@
 namespace reactive::widget
 {
 
-AnyInstanceModifier transformBuilder(signal::AnySignal<avg::Transform> t)
+AnyInstanceModifier transformBuilder(bq::signal::AnySignal<avg::Transform> t)
 {
     return makeInstanceModifier([](Instance instance, avg::Transform const& t)
             {
@@ -19,7 +19,7 @@ AnyInstanceModifier transformBuilder(signal::AnySignal<avg::Transform> t)
             );
 }
 
-AnyWidgetModifier transform(signal::AnySignal<avg::Transform> t)
+AnyWidgetModifier transform(bq::signal::AnySignal<avg::Transform> t)
 {
     return makeWidgetModifier(transformBuilder(std::move(t)));
 }

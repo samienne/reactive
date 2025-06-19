@@ -12,7 +12,7 @@ namespace reactive::widget
 {
     template <typename T>
     auto setAnimation(
-            signal::Signal<T, std::optional<avg::AnimationOptions>> animationOptions)
+            bq::signal::Signal<T, std::optional<avg::AnimationOptions>> animationOptions)
     {
         return setParams<AnimationTag>(std::move(animationOptions).share());
     }
@@ -20,14 +20,14 @@ namespace reactive::widget
     inline auto setAnimation(avg::AnimationOptions options)
     {
         return setAnimation(
-                signal::constant<std::optional<avg::AnimationOptions>>(
+                bq::signal::constant<std::optional<avg::AnimationOptions>>(
                     std::move(options)
                     )
                 );
     }
 
     template <typename T, typename U>
-    auto setAnimation(avg::AnimationOptions options, signal::Signal<T, U> signal)
+    auto setAnimation(avg::AnimationOptions options, bq::signal::Signal<T, U> signal)
     {
         return makeWidgetModifier(
                 [](auto widget, auto animation, auto options, auto signal)
@@ -56,7 +56,7 @@ namespace reactive::widget
     inline auto setAnimation(std::nullopt_t)
     {
         return setAnimation(
-                signal::constant<std::optional<avg::AnimationOptions>>(
+                bq::signal::constant<std::optional<avg::AnimationOptions>>(
                     std::nullopt
                     )
                 );
@@ -74,7 +74,7 @@ namespace reactive::widget
 
     template <typename T, typename U>
     auto setAnimation(float duration, avg::Curve curve,
-            signal::Signal<T, U> signal)
+            bq::signal::Signal<T, U> signal)
     {
         return setAnimation(avg::AnimationOptions{
                 std::chrono::duration_cast<std::chrono::milliseconds>(

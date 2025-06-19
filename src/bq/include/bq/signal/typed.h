@@ -10,7 +10,7 @@
 
 #include <memory>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class SignalBase
@@ -184,5 +184,5 @@ namespace reactive::signal
                     );
         }
     }
-} // namespace reactive::signal
+} // namespace bq::signal
 

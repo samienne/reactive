@@ -6,15 +6,13 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
-
 #include <btl/copywrapper.h>
 #include <btl/connection.h>
 
 #include <tuple>
 #include <type_traits>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TFunc, typename TSignal>
     class Map
@@ -92,7 +90,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
             return sig_.observe(context, data.signalData, std::forward<TCallback>(
                         callback));
@@ -105,5 +103,5 @@ namespace reactive::signal
 
     template <typename TFunc, typename TSignal>
     struct IsSignal<Map<TFunc, TSignal>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

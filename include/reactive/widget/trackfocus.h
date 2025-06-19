@@ -7,6 +7,6 @@
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier trackFocus(
-            signal::InputHandle<bool> const& handle);
+            bq::signal::InputHandle<bool> const& handle);
 } // namespace reactive::widget
 

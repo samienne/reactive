@@ -24,7 +24,7 @@ namespace reactive::widget
     struct AnyBuilder;
 
     using BuilderBase = Builder<
-        widget::AnyElementModifier, signal::AnySignal<SizeHint>
+        widget::AnyElementModifier, bq::signal::AnySignal<SizeHint>
         >;
 
     template <typename T>
@@ -66,7 +66,7 @@ namespace reactive::widget
         Builder& operator=(Builder&&) noexcept = default;
 
         template <typename T>
-        auto operator()(signal::Signal<T, avg::Vector2f> size) &&
+        auto operator()(bq::signal::Signal<T, avg::Vector2f> size) &&
         {
             return makeElement(std::move(size))
                 | std::move(*modifier_)
@@ -167,7 +167,7 @@ namespace reactive::widget
         BuildParams buildParams_;
     };
 
-    struct AnyBuilder : Builder<AnyElementModifier, signal::AnySignal<SizeHint>>
+    struct AnyBuilder : Builder<AnyElementModifier, bq::signal::AnySignal<SizeHint>>
     {
         template <typename TModifier, typename TSizeHint>
         static auto castBuilder(Builder<TModifier, TSizeHint> base)
@@ -202,7 +202,7 @@ namespace reactive::widget
         return makeBuilder(
                 detail::makeElementModifierUnchecked(
                     [](auto element) { return element; }),
-                signal::constant(simpleSizeHint(100.0f, 100.0f)),
+                bq::signal::constant(simpleSizeHint(100.0f, 100.0f)),
                 BuildParams{}
                 );
     }

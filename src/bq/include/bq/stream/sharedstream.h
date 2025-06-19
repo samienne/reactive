@@ -3,7 +3,7 @@
 #include "stream.h"
 #include "sharedcontrol.h"
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {

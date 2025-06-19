@@ -9,7 +9,7 @@
 #include <btl/any.h>
 #include <btl/connection.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename T, typename... Ts>
     class Signal;
@@ -96,7 +96,7 @@ namespace reactive::signal
             return r;
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> callback)
         {
             auto c = sig_.observe(context, data.outerData, callback);
@@ -124,4 +124,4 @@ namespace reactive::signal
             return sig;
         }
     }
-} // namespace reactive::signal
+} // namespace bq::signal

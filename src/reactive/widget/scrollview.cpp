@@ -27,9 +27,9 @@ AnyWidget scrollView(AnyWidget widget)
     {
         auto builder = std::move(widget)(std::move(params));
 
-        auto viewSize = signal::makeInput(avg::Vector2f(10.0f, 200.0f));
-        auto x = signal::makeInput(0.5f);
-        auto y = signal::makeInput(0.5f);
+        auto viewSize = bq::signal::makeInput(avg::Vector2f(10.0f, 200.0f));
+        auto x = bq::signal::makeInput(0.5f);
+        auto y = bq::signal::makeInput(0.5f);
 
         auto contentSize = builder.getSizeHint().map([](auto hint)
                 {
@@ -57,8 +57,8 @@ AnyWidget scrollView(AnyWidget widget)
                     return viewSize[1] / contentSize[1];
                 });
 
-        auto dragOffset = signal::makeInput(avg::Vector2f());
-        auto scrollPos = signal::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
+        auto dragOffset = bq::signal::makeInput(avg::Vector2f());
+        auto scrollPos = bq::signal::makeInput<std::optional<avg::Vector2f>>(std::nullopt);
 
         auto t = merge(x.signal, y.signal, contentSize, viewSize.signal)
             .map([](float x, float y, avg::Vector2f contentSize, avg::Vector2f viewSize)
@@ -73,7 +73,7 @@ AnyWidget scrollView(AnyWidget widget)
             ;
 
         auto view = bin(std::move(contentWidget), contentSize)
-            | setSizeHint(signal::constant(simpleSizeHint(
+            | setSizeHint(bq::signal::constant(simpleSizeHint(
                 {{100, 400, 10000}},
                 {{100, 800, 10000}}
                 )))
@@ -127,7 +127,7 @@ AnyWidget scrollView(AnyWidget widget)
 
         auto makeBox = []()
         {
-            return signal::constant(simpleSizeHint(25.0f, 25.0f));
+            return bq::signal::constant(simpleSizeHint(25.0f, 25.0f));
         };
 
         return vbox({

@@ -14,13 +14,13 @@ namespace reactive
     namespace detail
     {
         template <typename T, typename T2>
-        void push(stream::Handle<T> h, T2&& t)
+        void push(bq::stream::Handle<T> h, T2&& t)
         {
             h.push(std::forward<T2>(t));
         }
 
         template <typename T, typename T2>
-        void push(signal::InputHandle<T> h, T2&& t)
+        void push(bq::signal::InputHandle<T> h, T2&& t)
         {
             h.set(std::forward<T2>(t));
         }
@@ -68,38 +68,38 @@ namespace reactive
     } // detail
 
     template <typename T>
-    auto send(T&& t, stream::Handle<T> const& handle)
-        -> detail::Send<stream::Handle<T> const&, T>
+    auto send(T&& t, bq::stream::Handle<T> const& handle)
+        -> detail::Send<bq::stream::Handle<T> const&, T>
     {
-        return detail::Send<stream::Handle<T> const&, T>(handle,
+        return detail::Send<bq::stream::Handle<T> const&, T>(handle,
                 std::forward<T>(t));
     }
 
     template <typename T, typename U, typename = std::enable_if_t<
         std::is_convertible_v<U, T>
         >>
-    auto send(U&& u, signal::InputHandle<T> const& handle)
+    auto send(U&& u, bq::signal::InputHandle<T> const& handle)
         -> detail::Send<
-            signal::InputHandle<std::decay_t<T>> const&, U
+            bq::signal::InputHandle<std::decay_t<T>> const&, U
         >
     {
         return detail::Send<
-            signal::InputHandle<std::decay_t<T>> const&,
+            bq::signal::InputHandle<std::decay_t<T>> const&,
             U>(handle, std::forward<U>(u));
     }
 
     template <typename T>
-    auto send(signal::InputHandle<T> const& handle)
-        -> detail::Forward<signal::InputHandle<T> const&>
+    auto send(bq::signal::InputHandle<T> const& handle)
+        -> detail::Forward<bq::signal::InputHandle<T> const&>
     {
-        return detail::Forward<signal::InputHandle<T> const&>(handle);
+        return detail::Forward<bq::signal::InputHandle<T> const&>(handle);
     }
 
     template <typename T>
-    auto send(stream::Handle<T> const& handle)
-        -> detail::Forward<stream::Handle<T> const&>
+    auto send(bq::stream::Handle<T> const& handle)
+        -> detail::Forward<bq::stream::Handle<T> const&>
     {
-        return detail::Forward<stream::Handle<T> const&>(handle);
+        return detail::Forward<bq::stream::Handle<T> const&>(handle);
     }
 
     namespace detail
@@ -119,12 +119,12 @@ namespace reactive
                 return InputResult::handled;
             }
 
-            mutable stream::Handle<T> handle;
+            mutable bq::stream::Handle<T> handle;
         };
     } // detail
 
     template <typename T>
-    auto sendKeysTo(stream::Handle<T> handle)
+    auto sendKeysTo(bq::stream::Handle<T> handle)
         -> detail::KeySender<T>
     {
         return detail::KeySender<T>{std::move(handle)};

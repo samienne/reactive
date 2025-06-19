@@ -10,7 +10,7 @@ namespace reactive
     template <typename T>
     DataSource<T> dataSourceFromCollection(Collection<T>& collection)
     {
-        auto eventPipe = stream::pipe<typename DataSource<T>::Event>();
+        auto eventPipe = bq::stream::pipe<typename DataSource<T>::Event>();
 
         DataSource<T> result{std::move(eventPipe.stream), {}, {} };
 

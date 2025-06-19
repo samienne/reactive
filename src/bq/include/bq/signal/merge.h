@@ -5,7 +5,7 @@
 
 #include <btl/all.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class Merge
@@ -47,7 +47,8 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data,
+                TCallback&& callback)
         {
             return doObserve(context, data, std::forward<TCallback>(callback),
                     std::make_index_sequence<sizeof...(Ts)>());
@@ -89,7 +90,7 @@ namespace reactive::signal
         auto doObserve(DataContext& context, DataType& data,
                 TCallback&& callback, std::index_sequence<S...>)
         {
-            return (Connection() + ... + std::get<S>(sigs_).observe(
+            return (btl::connection() + ... + std::get<S>(sigs_).observe(
                         context, std::get<S>(data.sigData), callback));
         }
 
@@ -109,5 +110,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<Merge<Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

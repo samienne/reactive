@@ -4,7 +4,7 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class Weak
@@ -94,7 +94,7 @@ namespace reactive::signal
             return { data.contextData->nextUpdate, data.contextData->didChange };
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> callback)
         {
             if (auto control = control_.lock())
@@ -111,5 +111,5 @@ namespace reactive::signal
 
     template <typename... Ts>
     struct IsSignal<Weak<Ts...>> : std::true_type {};
-} // namespace reactive::signal
+} // namespace bq::signal
 

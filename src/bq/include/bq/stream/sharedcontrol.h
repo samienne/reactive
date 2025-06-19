@@ -6,7 +6,7 @@
 #include <vector>
 #include <functional>
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {

@@ -6,11 +6,9 @@
 #include "frameinfo.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
-#include <iostream>
-
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage>
     class WithChanged
@@ -69,7 +67,7 @@ namespace reactive::signal
             };
         }
 
-        Connection observe(DataContext& context, DataType& data,
+        btl::connection observe(DataContext& context, DataType& data,
                 std::function<void()> callback)
         {
             return sig_.observe(context, data.innerData, std::move(callback));
@@ -82,5 +80,5 @@ namespace reactive::signal
 
     template <typename TStorage>
     struct IsSignal<WithChanged<TStorage>> : std::true_type {};
-} // reactive::signal
+} // bq::signal
 

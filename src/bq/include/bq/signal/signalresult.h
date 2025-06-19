@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <tuple>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class SignalResult;
@@ -266,5 +266,5 @@ namespace reactive::signal
 
     template <typename T>
     using UnpackSignalResultT = typename UnpackSignalResult<T>::type;
-} // reactive::signal
+} // bq::signal
 

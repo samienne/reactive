@@ -12,7 +12,7 @@
 
 namespace reactive::widget
 {
-    AnyWidgetModifier background(signal::AnySignal<avg::Brush> brush)
+    AnyWidgetModifier background(bq::signal::AnySignal<avg::Brush> brush)
     {
         return background(shape::rectangle().fill(std::move(brush)));
     }

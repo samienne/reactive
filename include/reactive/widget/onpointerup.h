@@ -10,7 +10,7 @@
 
 namespace reactive::widget
 {
-    AnyWidgetModifier onPointerUp(signal::AnySignal<
+    AnyWidgetModifier onPointerUp(bq::signal::AnySignal<
             std::function<EventResult(ase::PointerButtonEvent const&)>
             > cb);
 

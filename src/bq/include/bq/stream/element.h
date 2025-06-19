@@ -5,7 +5,7 @@
 #include <memory>
 #include <optional>
 
-namespace reactive
+namespace bq
 {
     namespace stream
     {

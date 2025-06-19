@@ -8,7 +8,7 @@
 namespace reactive::widget
 {
     template <typename... TTags, typename... Ts>
-    auto setParams(signal::Signal<Ts, typename TTags::type>... values)
+    auto setParams(bq::signal::Signal<Ts, typename TTags::type>... values)
     {
         if constexpr (sizeof...(TTags) == 0)
         {
@@ -34,7 +34,7 @@ namespace reactive::widget
 
     /*
     template <typename... TTags, typename... Ts>
-    auto setParams(signal::Signal<Ts, typename TTags::type>... values)
+    auto setParams(bq::signal::Signal<Ts, typename TTags::type>... values)
     {
         return setParams<TTags...>(share(std::move(values)...));
     }
@@ -43,7 +43,7 @@ namespace reactive::widget
     template <typename... TTags>
     auto setParams(typename TTags::type... values)
     {
-        return setParams<TTags...>(signal::constant(std::move(values)...));
+        return setParams<TTags...>(bq::signal::constant(std::move(values)...));
     }
 } // namespace reactive::widget
 

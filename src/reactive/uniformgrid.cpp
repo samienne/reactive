@@ -60,8 +60,8 @@ UniformGrid::operator widget::AnyWidget() &&
             {
                 auto hi = merge(
                         builders[i].getSizeHint(),
-                        signal::constant(1.0f / (float)cell.w),
-                        signal::constant(1.0f / (float)cell.h)
+                        bq::signal::constant(1.0f / (float)cell.w),
+                        bq::signal::constant(1.0f / (float)cell.h)
                         ).map(multiplySizeHint);
 
                 ++i;

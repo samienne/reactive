@@ -5,13 +5,12 @@
 #include "frameinfo.h"
 #include "datacontext.h"
 
-#include "reactive/connection.h"
+#include <btl/connection.h>
 
 #include <cstdint>
 #include <mutex>
 
-
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename... Ts>
     class SharedControlBase
@@ -29,7 +28,7 @@ namespace reactive::signal
                 BaseDataType const& data) = 0;
         virtual UpdateResult baseUpdate(DataContext& context, BaseDataType& data,
                 FrameInfo const& frame) = 0;
-        virtual Connection baseObserve(DataContext& context, BaseDataType& data,
+        virtual btl::connection baseObserve(DataContext& context, BaseDataType& data,
                 std::function<void()> callback) = 0;
     };
 
@@ -131,7 +130,7 @@ namespace reactive::signal
             return update(context, static_cast<DataType&>(data), frame);
         }
 
-        Connection baseObserve(DataContext& context,
+        btl::connection baseObserve(DataContext& context,
                 typename Super::BaseDataType& data,
                 std::function<void()> callback) override
         {
@@ -203,7 +202,7 @@ namespace reactive::signal
         }
 
         template <typename TCallback>
-        Connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
         {
             if (ContextDataType* contextData = data.lock())
             {
@@ -218,5 +217,5 @@ namespace reactive::signal
         btl::UniqueId id_;
         StorageType sig_;
     };
-} // namespcae reactive::signal
+} // namespcae bq::signal
 

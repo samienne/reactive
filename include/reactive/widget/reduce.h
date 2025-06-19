@@ -11,7 +11,7 @@ namespace reactive::widget
     template <typename TSignalWidget, typename = typename
         std::enable_if
         <
-            signal::IsSignalType<TSignalWidget, Instance>::value
+            bq::signal::IsSignalType<TSignalWidget, Instance>::value
         >::type>
     auto reduce(TSignalWidget w2)
     {

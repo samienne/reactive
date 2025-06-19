@@ -4,7 +4,7 @@
 
 #include <btl/all.h>
 
-namespace reactive::signal
+namespace bq::signal
 {
     template <typename TStorage, typename... Ts>
     class Signal;
@@ -32,5 +32,5 @@ namespace reactive::signal
     {
         return { std::forward<TStorage>(sig) };
     }
-} // namespace reactive::signal
+} // namespace bq::signal
 

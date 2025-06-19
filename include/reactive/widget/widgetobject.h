@@ -22,10 +22,10 @@ namespace reactive::widget
         void resize(avg::Vector2f size);
         void setTransform(avg::Transform t);
 
-        signal::AnySignal<Instance> const& getWidget();
+        bq::signal::AnySignal<Instance> const& getWidget();
         avg::UniqueId const& getId() const;
 
-        signal::AnySignal<SizeHint> const& getSizeHint() const;
+        bq::signal::AnySignal<SizeHint> const& getSizeHint() const;
 
     private:
         struct Impl
@@ -33,13 +33,13 @@ namespace reactive::widget
             Impl(AnyWidget widget, BuildParams const& params);
 
             avg::UniqueId id_;
-            signal::Input<signal::SignalResult<avg::Vector2f>,
-                signal::SignalResult<avg::Vector2f>> sizeInput_;
-            signal::Input<signal::SignalResult<avg::Transform>,
-                signal::SignalResult<avg::Transform>> transformInput_;
+            bq::signal::Input<bq::signal::SignalResult<avg::Vector2f>,
+                bq::signal::SignalResult<avg::Vector2f>> sizeInput_;
+            bq::signal::Input<bq::signal::SignalResult<avg::Transform>,
+                bq::signal::SignalResult<avg::Transform>> transformInput_;
             std::pair<
-                signal::AnySignal<Instance>,
-                btl::CloneOnCopy<signal::AnySignal<SizeHint>>
+                bq::signal::AnySignal<Instance>,
+                btl::CloneOnCopy<bq::signal::AnySignal<SizeHint>>
                 > widget_;
         };
 

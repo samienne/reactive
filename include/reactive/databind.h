@@ -19,9 +19,9 @@
 namespace reactive
 {
     template <typename T>
-    signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
+    bq::signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> dataBind(
             DataSource<T> source,
-            std::function<widget::AnyWidget(signal::AnySignal<T> value, size_t id)> delegate
+            std::function<widget::AnyWidget(bq::signal::AnySignal<T> value, size_t id)> delegate
             )
     {
         using namespace widget;
@@ -29,7 +29,7 @@ namespace reactive
         struct WidgetState
         {
             widget::AnyWidget widget;
-            signal::InputHandle<T> valueHandle;
+            bq::signal::InputHandle<T> valueHandle;
             size_t id;
         };
 
@@ -38,14 +38,14 @@ namespace reactive
             std::vector<WidgetState> objects;
         };
 
-        auto initial = signal::evaluateOnInit(
+        auto initial = bq::signal::evaluateOnInit(
                 [eval=std::move(source.evaluate), delegate]()
                 {
                     State state;
 
                     for (auto&& item : eval())
                     {
-                        auto input = signal::makeInput<T>(std::move(item.second));
+                        auto input = bq::signal::makeInput<T>(std::move(item.second));
                         state.objects.push_back(WidgetState{
                                 delegate(input.signal, item.first),
                                 input.handle,
@@ -56,7 +56,7 @@ namespace reactive
                     return state;
                 });
 
-        auto state = stream::iterate(
+        auto state = bq::stream::iterate(
             // connection is put into the lambda just to keep it alive
             [delegate, connection=std::make_shared<Connection>(
                 std::move(source.connection))]
@@ -66,7 +66,7 @@ namespace reactive
                 {
                     auto& insert = std::get<typename DataSource<T>::Insert>(event);
 
-                    auto valueInput = signal::makeInput<T>(std::move(insert.value));
+                    auto valueInput = bq::signal::makeInput<T>(std::move(insert.value));
 
                     state.objects.insert(
                             state.objects.begin() + insert.index,
