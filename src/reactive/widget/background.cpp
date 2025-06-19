@@ -6,7 +6,7 @@
 
 #include "shape/rectangle.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/brush.h>
 

@@ -1,17 +1,16 @@
 #pragma once
 
-#include "signal/input.h"
-
-#include <reactive/stream/iterate.h>
-#include <reactive/stream/pipe.h>
-
 #include <reactive/widget/widget.h>
 #include <reactive/widget/builder.h>
 
 #include <reactive/datasource.h>
 
-#include <reactive/signal/evaluateoninit.h>
-#include <reactive/signal/signal.h>
+#include <bq/signal/input.h>
+#include <bq/signal/evaluateoninit.h>
+#include <bq/signal/signal.h>
+
+#include <bq/stream/iterate.h>
+#include <bq/stream/pipe.h>
 
 #include <variant>
 #include <vector>

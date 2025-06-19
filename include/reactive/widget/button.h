@@ -1,10 +1,10 @@
 #pragma once
 
-#include "reactive/widget/widget.h"
+#include "widget.h"
 
 #include "reactive/reactivevisibility.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {

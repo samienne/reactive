@@ -3,7 +3,7 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <ase/hoverevent.h>
 

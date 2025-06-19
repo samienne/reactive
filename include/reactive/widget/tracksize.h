@@ -2,7 +2,7 @@
 
 #include "instancemodifier.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <ase/vector.h>
 

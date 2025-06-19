@@ -4,7 +4,7 @@
 #include "widget/setkeyboardinputs.h"
 #include "widget/instance.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {

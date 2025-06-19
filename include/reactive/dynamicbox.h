@@ -11,8 +11,8 @@
 
 #include "box.h"
 
-#include "signal/combine.h"
-#include "signal/signal.h"
+#include <bq/signal/combine.h>
+#include <bq/signal/signal.h>
 
 #include <avg/rendertree.h>
 

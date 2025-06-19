@@ -7,7 +7,7 @@ devtest = executable('devtest',
         'streamtest.cpp',
         include_directories : incdir,
         link_with : [],
-        dependencies : [gtestdep, libreactivedep]
+        dependencies : [libbqdep, gtestdep, libreactivedep]
         )
 
 unittest = executable('unittest',

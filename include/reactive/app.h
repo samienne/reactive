@@ -1,9 +1,9 @@
 #pragma once
 
-#include "signal/signal.h"
-
 #include "window.h"
 #include "reactivevisibility.h"
+
+#include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 

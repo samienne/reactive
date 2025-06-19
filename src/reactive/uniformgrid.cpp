@@ -1,14 +1,13 @@
 #include "uniformgrid.h"
 
 #include "widget/providebuildparams.h"
-#include "widget/setsizehint.h"
 
 #include "layout.h"
 #include "mapsizehint.h"
 #include "stacksizehint.h"
 
-#include "signal/combine.h"
-#include "signal/signal.h"
+#include <bq/signal/combine.h>
+#include <bq/signal/signal.h>
 
 namespace reactive
 {

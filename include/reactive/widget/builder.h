@@ -7,7 +7,7 @@
 #include "reactive/simplesizehint.h"
 #include "reactive/sizehint.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/transform.h>
 

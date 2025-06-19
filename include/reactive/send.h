@@ -2,8 +2,8 @@
 
 #include "inputresult.h"
 
-#include "signal/input.h"
-#include "stream/handle.h"
+#include <bq/signal/input.h>
+#include <bq/stream/handle.h>
 
 #include <ase/pointerbuttonevent.h>
 #include <ase/textevent.h>

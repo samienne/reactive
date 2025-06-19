@@ -1,18 +1,16 @@
 #include "reactive/widget/focusgroup.h"
 
-#include "reactive/widget/onkeyevent.h"
 #include "reactive/widget/setkeyboardinputs.h"
 #include "reactive/widget/instancemodifier.h"
 #include "reactive/widget/instance.h"
 
-#include "reactive/stream/pipe.h"
-#include "reactive/stream/collect.h"
+#include <bq/stream/pipe.h>
+#include <bq/stream/collect.h>
 
 #include "debug.h"
 
 #include <algorithm>
 #include <unordered_map>
-#include <functional>
 
 namespace reactive::widget
 {

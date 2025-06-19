@@ -3,7 +3,7 @@
 #include "setparams.h"
 #include "provideanimation.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <avg/curve.h>
 #include <avg/animationoptions.h>

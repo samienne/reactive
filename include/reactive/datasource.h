@@ -1,8 +1,8 @@
 #pragma once
 
-#include "stream/stream.h"
-
 #include "connection.h"
+
+#include <bq/stream/stream.h>
 
 #include <variant>
 

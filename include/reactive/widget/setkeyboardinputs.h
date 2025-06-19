@@ -4,7 +4,7 @@
 
 #include "reactive/keyboardinput.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <btl/cloneoncopy.h>
 

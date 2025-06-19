@@ -3,10 +3,9 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include "reactive/signal/signal.h"
-
-#include "reactive/pointermoveevent.h"
 #include "reactive/eventresult.h"
+
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {

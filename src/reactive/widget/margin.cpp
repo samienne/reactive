@@ -3,14 +3,12 @@
 #include "widget/transform.h"
 #include "widget/instance.h"
 #include "widget/instancemodifier.h"
-#include "widget/builder.h"
-#include "widget/setsizehint.h"
 #include "widget/widget.h"
 
 #include <reactive/growsizehint.h>
 
-#include <reactive/signal/signal.h>
-#include <reactive/signal/merge.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/merge.h>
 
 #include <avg/transform.h>
 

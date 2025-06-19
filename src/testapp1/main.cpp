@@ -34,7 +34,7 @@
 #include <reactive/vbox.h>
 #include <reactive/withanimation.h>
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 

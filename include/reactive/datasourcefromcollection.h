@@ -1,9 +1,9 @@
 #pragma once
 
-#include "stream/pipe.h"
-
 #include "collection.h"
 #include "datasource.h"
+
+#include <bq/stream/pipe.h>
 
 namespace reactive
 {

@@ -14,10 +14,10 @@
 
 #include "reactive/simplesizehint.h"
 
-#include "reactive/signal/combine.h"
+#include <bq/signal/combine.h>
 
-#include "stream/iterate.h"
-#include "stream/pipe.h"
+#include <bq/stream/iterate.h>
+#include <bq/stream/pipe.h>
 
 #include "clickevent.h"
 #include "send.h"

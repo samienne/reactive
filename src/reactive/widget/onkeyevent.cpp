@@ -1,12 +1,11 @@
 #include "widget/onkeyevent.h"
 
 #include "widget/instancemodifier.h"
-#include "widget/builder.h"
 #include "widget/widget.h"
 
 #include "reactive/inputresult.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <ase/keyevent.h>
 

@@ -2,7 +2,7 @@
 
 #include "instance.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <type_traits>
 

@@ -8,8 +8,8 @@
 #include <reactive/widget/provideparam.h>
 #include <reactive/widget/widget.h>
 
-#include <reactive/signal/signal.h>
-#include <reactive/signal/signalcontext.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/signalcontext.h>
 
 #include <pmr/new_delete_resource.h>
 

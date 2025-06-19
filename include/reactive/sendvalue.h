@@ -1,7 +1,7 @@
 #pragma once
 
-#include "signal/input.h"
-#include "signal/signal.h"
+#include <bq/signal/input.h>
+#include <bq/signal/signal.h>
 
 namespace reactive
 {

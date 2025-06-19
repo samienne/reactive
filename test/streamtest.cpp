@@ -1,10 +1,10 @@
-#include <reactive/stream/collect.h>
-#include <reactive/stream/iterate.h>
-#include <reactive/stream/pipe.h>
-#include <reactive/stream/sharedstream.h>
-#include <reactive/stream/stream.h>
+#include <bq/stream/collect.h>
+#include <bq/stream/iterate.h>
+#include <bq/stream/pipe.h>
+#include <bq/stream/sharedstream.h>
+#include <bq/stream/stream.h>
 
-#include <reactive/signal/signalcontext.h>
+#include <bq/signal/signalcontext.h>
 
 #include <gtest/gtest.h>
 

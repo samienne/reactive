@@ -8,13 +8,12 @@
 
 #include <reactive/shapes.h>
 #include <reactive/send.h>
-
 #include <reactive/simplesizehint.h>
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
-#include <reactive/stream/iterate.h>
-#include <reactive/stream/pipe.h>
+#include <bq/stream/iterate.h>
+#include <bq/stream/pipe.h>
 
 #include <avg/font.h>
 

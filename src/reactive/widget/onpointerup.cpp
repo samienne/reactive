@@ -1,13 +1,11 @@
 #include "widget/onpointerup.h"
 
-#include "widget/setinputareas.h"
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include "reactive/signal/signal.h"
-
-#include "reactive/pointerbuttonevent.h"
 #include "reactive/eventresult.h"
+
+#include <bq/signal/signal.h>
 
 #include <functional>
 #include <type_traits>

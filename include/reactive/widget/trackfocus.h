@@ -2,7 +2,7 @@
 
 #include "widget.h"
 
-#include <reactive/signal/input.h>
+#include <bq/signal/input.h>
 
 namespace reactive::widget
 {

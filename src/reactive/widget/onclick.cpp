@@ -1,12 +1,10 @@
 #include "widget/onclick.h"
 
 #include "widget/onpointerup.h"
-#include "widget/onpointerdown.h"
 
-#include "reactive/pointerbuttonevent.h"
 #include "reactive/clickevent.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <functional>
 #include <type_traits>

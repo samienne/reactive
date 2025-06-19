@@ -3,7 +3,7 @@
 #include "box.h"
 #include "dynamicbox.h"
 
-#include "signal/signal.h"
+#include <bq/signal/signal.h>
 
 namespace reactive
 {

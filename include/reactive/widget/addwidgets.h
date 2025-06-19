@@ -7,8 +7,8 @@
 
 #include "reactive/inputarea.h"
 
-#include "reactive/signal/signal.h"
-#include "reactive/signal/combine.h"
+#include <bq/signal/signal.h>
+#include <bq/signal/combine.h>
 
 #include <btl/all.h>
 #include <btl/typetraits.h>

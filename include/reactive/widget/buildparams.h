@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <any>
 #include <typeindex>

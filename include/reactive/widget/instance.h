@@ -5,7 +5,7 @@
 #include "reactive/keyboardinput.h"
 #include "reactive/inputarea.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/rendertree.h>
 #include <avg/obb.h>

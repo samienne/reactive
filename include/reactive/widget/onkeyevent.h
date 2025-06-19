@@ -5,7 +5,7 @@
 
 #include "reactive/inputresult.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 #include <ase/keyevent.h>
 

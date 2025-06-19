@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/animated.h>
 

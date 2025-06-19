@@ -2,7 +2,7 @@
 
 #include "widget.h"
 
-#include <reactive/stream/stream.h>
+#include <bq/stream/stream.h>
 
 namespace reactive::widget
 {

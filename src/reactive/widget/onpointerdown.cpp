@@ -1,13 +1,12 @@
 #include "widget/onpointerdown.h"
 
-#include "widget/setinputareas.h"
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
 #include "eventresult.h"
 #include "pointerbuttonevent.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <functional>
 
@@ -15,7 +14,7 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier onPointerDown(signal::AnySignal<
-        std::function<EventResult(ase::PointerButtonEvent const&)>
+        std::function<EventResult(reactive::PointerButtonEvent const&)>
         > cb)
 {
     btl::UniqueId id = btl::makeUniqueId();
@@ -47,7 +46,7 @@ AnyWidgetModifier onPointerDown(signal::AnySignal<
 }
 
 AnyWidgetModifier onPointerDown(
-        std::function<EventResult(ase::PointerButtonEvent const&)> cb
+        std::function<EventResult(reactive::PointerButtonEvent const&)> cb
         )
 {
     return onPointerDown(signal::constant(std::move(cb)));

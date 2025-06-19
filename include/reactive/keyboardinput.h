@@ -2,9 +2,10 @@
 
 #include "inputresult.h"
 
-#include "signal/input.h"
-#include "stream/handle.h"
 #include "reactivevisibility.h"
+
+#include <bq/signal/input.h>
+#include <bq/stream/handle.h>
 
 #include <avg/obb.h>
 

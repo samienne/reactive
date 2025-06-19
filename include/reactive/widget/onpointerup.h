@@ -2,9 +2,9 @@
 
 #include "widget.h"
 
-#include "reactive/signal/signal.h"
-
 #include "reactive/eventresult.h"
+
+#include <bq/signal/signal.h>
 
 #include <functional>
 

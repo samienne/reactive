@@ -4,9 +4,9 @@
 #include "send.h"
 #include "debug.h"
 
-#include "signal/input.h"
-#include "signal/updateresult.h"
-#include "signal/signalcontext.h"
+#include <bq/signal/input.h>
+#include <bq/signal/updateresult.h>
+#include <bq/signal/signalcontext.h>
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>

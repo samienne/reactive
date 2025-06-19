@@ -5,7 +5,7 @@
 #include <reactive/widget/ondraw.h>
 #include <reactive/widget/widget.h>
 
-#include <reactive/signal/fromoptional.h>
+#include <bq/signal/fromoptional.h>
 
 #include <avg/animated.h>
 #include <avg/brush.h>

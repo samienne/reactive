@@ -4,7 +4,7 @@
 
 #include "reactivevisibility.h"
 
-#include "signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <btl/cloneoncopy.h>
 

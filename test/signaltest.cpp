@@ -1,12 +1,12 @@
-#include <reactive/signal/signal.h>
-#include <reactive/signal/constant.h>
-#include <reactive/signal/signalcontext.h>
-#include <reactive/signal/input.h>
-#include <reactive/signal/merge.h>
-#include <reactive/signal/join.h>
-#include <reactive/signal/combine.h>
-#include <reactive/signal/fromoptional.h>
-#include <reactive/signal/evaluateoninit.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/constant.h>
+#include <bq/signal/signalcontext.h>
+#include <bq/signal/input.h>
+#include <bq/signal/merge.h>
+#include <bq/signal/join.h>
+#include <bq/signal/combine.h>
+#include <bq/signal/fromoptional.h>
+#include <bq/signal/evaluateoninit.h>
 
 #include <btl/demangle.h>
 

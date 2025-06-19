@@ -3,11 +3,11 @@
 #include "stream.h"
 #include "sharedstream.h"
 
-#include <reactive/signal/signalresult.h>
-#include <reactive/signal/updateresult.h>
-#include <reactive/signal/frameinfo.h>
-#include <reactive/signal/signal.h>
-#include <reactive/signal/datacontext.h>
+#include <bq/signal/signalresult.h>
+#include <bq/signal/updateresult.h>
+#include <bq/signal/frameinfo.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/datacontext.h>
 
 #include <btl/demangle.h>
 #include <btl/spinlock.h>
