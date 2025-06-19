@@ -1,14 +1,4 @@
 incdir = include_directories('../include')
-gtest = subproject('gtest')
-gtestdep = gtest.get_variable('gtest_main_dep')
-
-devtest = executable('devtest',
-        'signaltest.cpp',
-        'streamtest.cpp',
-        include_directories : incdir,
-        link_with : [],
-        dependencies : [libbqdep, gtestdep, libreactivedep]
-        )
 
 unittest = executable('unittest',
         'asynctest.cpp',
@@ -41,5 +31,4 @@ unittest = executable('unittest',
         dependencies : [gtestdep, libasedep, libavgdep, libreactivedep])
 
 test('unittest', unittest, timeout : 1200, args: ['--gtest_output=xml'])
-test('devtest', devtest, timeout : 1200, args: ['--gtest_output=xml'])
 

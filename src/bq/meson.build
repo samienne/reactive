@@ -19,3 +19,11 @@ libbqdep = declare_dependency(
   include_directories: include_directories('include'),
   )
 
+bqtest = executable('bqtest',
+  'test/signaltest.cpp',
+  'test/streamtest.cpp',
+  dependencies: [libbqdep, gtestdep],
+  )
+
+test('bq', bqtest, timeout : 1200, args: ['--gtest_output=xml'])
+
