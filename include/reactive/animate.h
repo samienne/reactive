@@ -1,6 +1,6 @@
 #pragma once
 
-#include "signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/animated.h>
 
@@ -8,7 +8,7 @@ namespace reactive
 {
 
 template <typename T, typename U>
-auto animate(signal::Signal<T, U> sig)
+auto animate(bq::signal::Signal<T, U> sig)
 {
     return std::move(sig).map([](auto value)
             {

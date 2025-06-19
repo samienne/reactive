@@ -32,7 +32,6 @@ libreactivesrc = [
     'widget/widget.cpp',
     'widget/widgetobject.cpp',
     'shape/rectangle.cpp',
-    'signal/datacontext.cpp',
     'debug/drawkeyboardinputs.cpp',
     'shapes.cpp',
     'uniformgrid.cpp',
@@ -59,7 +58,7 @@ libreactivesrc = [
     'withanimation.cpp',
 ]
 
-reactivedep = [libbtldep, libasedep, libavgdep]
+reactivedep = [libbtldep, libbqdep, libasedep, libavgdep]
 
 libreactive = library(
         'reactive',

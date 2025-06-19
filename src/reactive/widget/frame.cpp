@@ -10,8 +10,8 @@ namespace reactive::widget
 {
 
 AnyWidgetModifier frame(
-        signal::AnySignal<float> cornerRadius,
-        signal::AnySignal<avg::Color> color
+        bq::signal::AnySignal<float> cornerRadius,
+        bq::signal::AnySignal<avg::Color> color
         )
 {
     auto pen = std::move(color).map([](auto const& color)
@@ -26,24 +26,24 @@ AnyWidgetModifier frame(
             );
 }
 
-AnyWidgetModifier frame(signal::AnySignal<avg::Color> color)
+AnyWidgetModifier frame(bq::signal::AnySignal<avg::Color> color)
 {
-    return frame(signal::constant(10.0f), std::move(color));
+    return frame(bq::signal::constant(10.0f), std::move(color));
 }
 
-AnyWidgetModifier frame(signal::AnySignal<float> cornerRadius)
+AnyWidgetModifier frame(bq::signal::AnySignal<float> cornerRadius)
 {
     return frame(
             std::move(cornerRadius),
-            signal::constant(widget::Theme().getBackgroundHighlight())
+            bq::signal::constant(widget::Theme().getBackgroundHighlight())
             );
 }
 
 AnyWidgetModifier frame()
 {
     return frame(
-            signal::constant(10.0f),
-            signal::constant(widget::Theme().getBackgroundHighlight())
+            bq::signal::constant(10.0f),
+            bq::signal::constant(widget::Theme().getBackgroundHighlight())
             );
 }
 } // reactive::widget

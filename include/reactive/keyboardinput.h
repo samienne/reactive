@@ -2,9 +2,10 @@
 
 #include "inputresult.h"
 
-#include "signal/input.h"
-#include "stream/handle.h"
 #include "reactivevisibility.h"
+
+#include <bq/signal/input.h>
+#include <bq/stream/handle.h>
 
 #include <avg/obb.h>
 
@@ -32,7 +33,7 @@ namespace reactive
     class REACTIVE_EXPORT KeyboardInput
     {
     public:
-        using FocusHandle = signal::InputHandle<bool>;
+        using FocusHandle = bq::signal::InputHandle<bool>;
         using KeyHandler = btl::Function<InputResult(KeyEvent const& e)>;
         using TextHandler = btl::Function<InputResult(TextEvent const& e)>;
 

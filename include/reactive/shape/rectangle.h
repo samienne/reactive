@@ -4,11 +4,11 @@
 
 #include "reactive/reactivevisibility.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 namespace reactive::shape
 {
     REACTIVE_EXPORT AnyShape rectangle();
-    REACTIVE_EXPORT AnyShape rectangle(signal::AnySignal<float> cornerRadius);
+    REACTIVE_EXPORT AnyShape rectangle(bq::signal::AnySignal<float> cornerRadius);
 } // namespace reactive::shape
 

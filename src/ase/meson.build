@@ -76,7 +76,7 @@ else
 endif
 
 threadsdep = dependency('threads')
-asedep = [libeigendep, threadsdep, tracydep]
+asedep = [libeigendep, threadsdep, tracydep, libbtldep]
 
 incdir = include_directories(
         '.',

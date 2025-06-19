@@ -5,10 +5,10 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
-#include <reactive/stream/collect.h>
-#include <reactive/stream/stream.h>
+#include <bq/stream/collect.h>
+#include <bq/stream/stream.h>
 
 namespace reactive::widget
 {
@@ -21,15 +21,15 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier focusOn(stream::Stream<bool> stream)
+AnyWidgetModifier focusOn(bq::stream::Stream<bool> stream)
 {
-    auto focusRequest = stream::collect(std::move(stream)).map(hasValues);
+    auto focusRequest = bq::stream::collect(std::move(stream)).map(hasValues);
 
     return makeWidgetModifier(makeInstanceSignalModifier(
         [](auto instance, auto focusRequest)
         {
             return std::move(instance)
-                | setFocusable(signal::constant(true))
+                | setFocusable(bq::signal::constant(true))
                 | requestFocus(std::move(focusRequest))
                 ;
         },

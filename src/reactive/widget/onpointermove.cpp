@@ -3,15 +3,14 @@
 #include "widget/instancemodifier.h"
 #include "widget/widget.h"
 
-#include "reactive/signal/signal.h"
-
-#include "reactive/pointermoveevent.h"
 #include "reactive/eventresult.h"
+
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {
 
-AnyWidgetModifier onPointerMove(signal::AnySignal<
+AnyWidgetModifier onPointerMove(bq::signal::AnySignal<
         std::function<EventResult(ase::PointerMoveEvent const&)>
         > cb)
 {
@@ -45,7 +44,7 @@ AnyWidgetModifier onPointerMove(
         std::function<EventResult(ase::PointerMoveEvent const&)> cb
         )
 {
-    return onPointerMove(signal::constant(std::move(cb)));
+    return onPointerMove(bq::signal::constant(std::move(cb)));
 }
 
 } // namespace reactive::widget

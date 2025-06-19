@@ -4,7 +4,7 @@
 #include "widget/setkeyboardinputs.h"
 #include "widget/instance.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {
@@ -21,7 +21,7 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier trackFocus(signal::InputHandle<bool> const& handle)
+AnyWidgetModifier trackFocus(bq::signal::InputHandle<bool> const& handle)
 {
     return makeWidgetModifier(
             makeSharedInstanceSignalModifier([](auto instance, auto handle)

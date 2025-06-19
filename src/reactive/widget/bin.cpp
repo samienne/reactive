@@ -8,7 +8,7 @@ namespace reactive::widget
 {
 
 AnyWidget bin(AnyWidget contentWidget,
-        signal::AnySignal<avg::Vector2f> contentSize)
+        bq::signal::AnySignal<avg::Vector2f> contentSize)
 {
     return makeWidgetWithSize(
         [](auto viewSize, BuildParams const& params, auto contentSize, auto contentWidget)

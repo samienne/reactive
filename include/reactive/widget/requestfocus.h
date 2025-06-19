@@ -2,12 +2,12 @@
 
 #include "instancemodifier.h"
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
 namespace reactive::widget
 {
     template <typename T>
-    auto requestFocus(signal::Signal<T, bool> requestFocus)
+    auto requestFocus(bq::signal::Signal<T, bool> requestFocus)
     {
         return makeInstanceModifier([](Instance instance, bool requestFocus)
             {

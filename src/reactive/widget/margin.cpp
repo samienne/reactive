@@ -3,14 +3,12 @@
 #include "widget/transform.h"
 #include "widget/instance.h"
 #include "widget/instancemodifier.h"
-#include "widget/builder.h"
-#include "widget/setsizehint.h"
 #include "widget/widget.h"
 
 #include <reactive/growsizehint.h>
 
-#include <reactive/signal/signal.h>
-#include <reactive/signal/merge.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/merge.h>
 
 #include <avg/transform.h>
 
@@ -41,7 +39,7 @@ namespace
     }
 } // anonymous namespace
 
-AnyWidgetModifier margin(signal::AnySignal<float> amount)
+AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
@@ -78,7 +76,7 @@ AnyWidgetModifier margin(signal::AnySignal<float> amount)
 
 AnyWidgetModifier margin(float amount)
 {
-    return margin(signal::constant(amount));
+    return margin(bq::signal::constant(amount));
 }
 
 } // namespace reactive::widget

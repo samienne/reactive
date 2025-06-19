@@ -1,9 +1,9 @@
 #pragma once
 
-#include "signal/signal.h"
-
 #include "window.h"
 #include "reactivevisibility.h"
+
+#include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 
@@ -22,7 +22,7 @@ namespace reactive
 
         App windows(std::initializer_list<Window> windows) &&;
 
-        int run(signal::AnySignal<bool> running) &&;
+        int run(bq::signal::AnySignal<bool> running) &&;
         int run() &&;
 
         [[nodiscard]]

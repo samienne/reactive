@@ -5,19 +5,19 @@
 #include "reactive/eventresult.h"
 #include "reactive/pointerbuttonevent.h"
 
-#include "reactive/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <functional>
 
 namespace reactive::widget
 {
     REACTIVE_EXPORT AnyWidgetModifier onPointerDown(
-            signal::AnySignal<std::function<EventResult(
-                ase::PointerButtonEvent const&)
+            bq::signal::AnySignal<std::function<EventResult(
+                reactive::PointerButtonEvent const&)
             >> cb);
 
     REACTIVE_EXPORT AnyWidgetModifier onPointerDown(
-            std::function<EventResult(ase::PointerButtonEvent const&)> cb
+            std::function<EventResult(reactive::PointerButtonEvent const&)> cb
             );
 } // namespace reactive::widget
 

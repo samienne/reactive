@@ -2,15 +2,15 @@
 
 #include "widget.h"
 
-#include "reactive/signal/signal.h"
-
 #include "reactive/eventresult.h"
+
+#include <bq/signal/signal.h>
 
 #include <functional>
 
 namespace reactive::widget
 {
-    AnyWidgetModifier onPointerUp(signal::AnySignal<
+    AnyWidgetModifier onPointerUp(bq::signal::AnySignal<
             std::function<EventResult(ase::PointerButtonEvent const&)>
             > cb);
 

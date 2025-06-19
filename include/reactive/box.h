@@ -2,13 +2,11 @@
 
 #include "layout.h"
 
-#include "signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <avg/drawing.h>
 
 #include <ase/vector.h>
-
-#include <functional>
 
 namespace reactive
 {

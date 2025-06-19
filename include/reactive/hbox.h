@@ -11,7 +11,7 @@ namespace reactive
     REACTIVE_EXPORT widget::AnyWidget hbox(std::vector<widget::AnyWidget> widgets);
 
     REACTIVE_EXPORT widget::AnyWidget hbox(
-            signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets
+            bq::signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>> widgets
             );
 } // namespace reactive
 
