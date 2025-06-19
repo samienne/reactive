@@ -1,13 +1,13 @@
 #pragma once
 
-#include "reactive/reactivevisibility.h"
+#include "bq/bqvisibility.h"
 
 #include <chrono>
 #include <stdint.h>
 
 namespace bq::signal
 {
-    class REACTIVE_EXPORT FrameInfo
+    class BQ_EXPORT FrameInfo
     {
     public:
         inline FrameInfo(uint64_t frameId, std::chrono::microseconds dt) :

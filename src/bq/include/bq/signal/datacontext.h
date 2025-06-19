@@ -1,6 +1,6 @@
 #pragma once
 
-#include "reactive/reactivevisibility.h"
+#include "bq/bqvisibility.h"
 
 #include <btl/uniqueid.h>
 #include <btl/demangle.h>
@@ -12,9 +12,9 @@
 
 namespace bq::signal
 {
-    REACTIVE_EXPORT btl::UniqueId makeUniqueId();
+    BQ_EXPORT btl::UniqueId makeUniqueId();
 
-    class REACTIVE_EXPORT DataContext
+    class BQ_EXPORT DataContext
     {
     public:
         using DataId = btl::UniqueId;
