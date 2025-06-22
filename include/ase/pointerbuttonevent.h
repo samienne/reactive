@@ -2,8 +2,6 @@
 
 #include "vector.h"
 
-#include <avg/transform.h>
-
 #include "asevisibility.h"
 
 #include <ostream>
