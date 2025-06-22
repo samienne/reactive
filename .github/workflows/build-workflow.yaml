@@ -57,7 +57,9 @@ jobs:
           run: |
             cd build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
             ./test/unittest --gtest_output=xml
-            ./test/devtest --gtest_output=xml
+            ./src/btl/test/btltest --gtest_output=xml
+            ./src/avg/test/avgtest --gtest_output=xml
+            ./src/bq/test/bqtest --gtest_output=xml
 
     build-macos:
         runs-on: "macOS-latest"
@@ -83,7 +85,9 @@ jobs:
           run: |
             cd build/release
             ./test/unittest --gtest_output=xml
-            ./test/devtest --gtest_output=xml
+            ./src/btl/test/btltest --gtest_output=xml
+            ./src/avg/test/avgtest --gtest_output=xml
+            ./src/bq/test/bqtest --gtest_output=xml
 
     build-win:
         runs-on: "windows-2019"
