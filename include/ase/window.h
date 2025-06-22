@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <optional>
 #include <chrono>
 #include <string>
 #include <memory>
