@@ -1,6 +1,6 @@
 #pragma once
 
-#include <reactive/widget/widget.h>
+#include <bqui/widget/widget.h>
 
-reactive::widget::AnyWidget adder();
+bqui::widget::AnyWidget adder();
 

@@ -1,5 +1,5 @@
 #pragma once
 
-#include <reactive/widget/widget.h>
+#include <bqui/widget/widget.h>
 
-reactive::widget::AnyWidget spinner();
+bqui::widget::AnyWidget spinner();

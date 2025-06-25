@@ -2,6 +2,6 @@ subdir('btl')
 subdir('ase')
 subdir('avg')
 subdir('bq')
-subdir('reactive')
+subdir('bqui')
 subdir('testapp1')
 

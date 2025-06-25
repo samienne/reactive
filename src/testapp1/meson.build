@@ -5,6 +5,6 @@ executable('testapp1',
         'adder.cpp',
         'testwidget.cpp',
         'main.cpp',
-        dependencies : [libreactivedep]
+        dependencies : [libbquidep]
         )
 

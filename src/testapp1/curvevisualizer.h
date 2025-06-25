@@ -1,7 +1,7 @@
 #pragma once
 
-#include <reactive/widget/widget.h>
+#include <bqui/widget/widget.h>
 
-reactive::widget::AnyWidget curveVisualizer(
+bqui::widget::AnyWidget curveVisualizer(
         bq::signal::AnySignal<avg::Curve> curve
         );

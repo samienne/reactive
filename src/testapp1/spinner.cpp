@@ -1,18 +1,20 @@
 #include "spinner.h"
 
-#include <reactive/widget/ondraw.h>
-#include <reactive/widget/providetheme.h>
-#include <reactive/widget/elementmodifier.h>
-#include <reactive/shapes.h>
+#include <bqui/modifier/ondraw.h>
+#include <bqui/modifier/elementmodifier.h>
+
+#include <bqui/provider/providetheme.h>
+
+#include <bqui/shapes.h>
 
 #include <avg/animated.h>
 #include <avg/curve/curves.h>
 
-using namespace reactive;
+using namespace bqui;
 
 namespace {
     auto drawSpinner(avg::DrawContext const& context, avg::Vector2f size,
-            widget::Theme const& theme, float state)
+            Theme const& theme, float state)
     {
         avg::Brush brush(theme.getGreen());
 
@@ -47,14 +49,14 @@ namespace {
     }
 } // anonymous namespace
 
-reactive::widget::AnyWidget spinner()
+widget::AnyWidget spinner()
 {
     auto state = bq::signal::constant(avg::infiniteAnimation(
                 0.0f, 1.0f, avg::curve::linear, 2.0f
                 ));
 
     return widget::makeWidget()
-        | widget::onDraw(drawSpinner, widget::provideTheme(), std::move(state))
+        | modifier::onDraw(drawSpinner, provider::provideTheme(), std::move(state))
         ;
 }
 
