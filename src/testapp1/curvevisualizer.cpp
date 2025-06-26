@@ -1,19 +1,19 @@
 #include "curvevisualizer.h"
-#include "avg/curve/curves.h"
-#include "reactive/widget/buildermodifier.h"
-#include "reactive/widget/margin.h"
 
-#include <reactive/widget/setanimation.h>
-#include <reactive/widget/ondraw.h>
-#include <reactive/widget/setsizehint.h>
-#include <reactive/widget/frame.h>
+#include <bqui/modifier/buildermodifier.h>
+#include <bqui/modifier/margin.h>
+#include <bqui/modifier/setanimation.h>
+#include <bqui/modifier/ondraw.h>
+#include <bqui/modifier/setsizehint.h>
+#include <bqui/modifier/frame.h>
 
-#include <reactive/shapes.h>
+#include <bqui/shapes.h>
 
+#include <avg/curve/curves.h>
 #include <avg/rendertree.h>
 #include <avg/drawcontext.h>
 
-using namespace reactive;
+using namespace bqui;
 
 namespace {
     auto drawGraph(avg::DrawContext const& context, avg::Vector2f const& size,
@@ -54,8 +54,8 @@ namespace {
     }
 } // anonymous namespace
 
-reactive::widget::AnyWidget curveVisualizer(
-        reactive::signal::AnySignal<avg::Curve> curve
+widget::AnyWidget curveVisualizer(
+        bq::signal::AnySignal<avg::Curve> curve
         )
 {
     auto c = curve.clone().map([](auto curve)
@@ -64,11 +64,11 @@ reactive::widget::AnyWidget curveVisualizer(
             });
 
     return widget::makeWidget()
-        | widget::onDraw(drawGraph, std::move(c))
-        | widget::setAnimation(0.9f, avg::curve::easeInOutCubic, std::move(curve))
-        | widget::margin(signal::constant(7.0f))
-        | widget::frame()
-        | widget::setSizeHint(signal::constant(simpleSizeHint(300.0f, 300.0f)))
+        | modifier::onDraw(drawGraph, std::move(c))
+        | modifier::setAnimation(0.9f, avg::curve::easeInOutCubic, std::move(curve))
+        | modifier::margin(bq::signal::constant(7.0f))
+        | modifier::frame()
+        | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(300.0f, 300.0f)))
         ;
 }
 

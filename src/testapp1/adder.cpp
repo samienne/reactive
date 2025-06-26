@@ -1,41 +1,43 @@
 #include "adder.h"
-#include "avg/curve/curves.h"
 
-#include <reactive/widget/clip.h>
-#include <reactive/widget/transition.h>
-#include <reactive/widget/onclick.h>
-#include <reactive/widget/frame.h>
-#include <reactive/widget/textedit.h>
-#include <reactive/widget/label.h>
-#include <reactive/widget/button.h>
-#include <reactive/widget/theme.h>
-#include <reactive/widget/settheme.h>
 
-#include <reactive/datasourcefromcollection.h>
-#include <reactive/datasource.h>
-#include <reactive/filler.h>
-#include <reactive/vbox.h>
-#include <reactive/hbox.h>
-#include <reactive/withanimation.h>
-#include <reactive/databind.h>
+#include <bqui/modifier/clip.h>
+#include <bqui/modifier/transition.h>
+#include <bqui/modifier/onclick.h>
+#include <bqui/modifier/frame.h>
+#include <bqui/modifier/settheme.h>
 
-#include <reactive/signal/signal.h>
+#include <bqui/widget/textedit.h>
+#include <bqui/widget/label.h>
+#include <bqui/widget/button.h>
+#include <bqui/widget/filler.h>
+#include <bqui/widget/vbox.h>
+#include <bqui/widget/hbox.h>
 
+#include <bqui/theme.h>
+#include <bqui/datasourcefromcollection.h>
+#include <bqui/datasource.h>
+#include <bqui/withanimation.h>
+#include <bqui/databind.h>
+
+#include <bq/signal/signal.h>
+
+#include <avg/curve/curves.h>
 #include <avg/rendertree.h>
 
 #include <string>
 
-using namespace reactive;
+using namespace bqui;
 
 namespace
 {
     widget::AnyWidget itemEntry(
-            signal::InputHandle<std::string> outHandle,
+            bq::signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
             std::function<void()> onSort
             )
     {
-        auto textState = signal::makeInput(widget::TextEditState(""));
+        auto textState = bq::signal::makeInput(widget::TextEditState(""));
         auto handle = textState.handle;
 
         auto onEnterSignal = textState.signal
@@ -51,16 +53,16 @@ namespace
                 outHandle,
                 &widget::TextEditState::text);
 
-        return hbox({
-                textEdit(handle, std::move(state))
+        return widget::hbox({
+                widget::textEdit(handle, std::move(state))
                     .onEnter(onEnterSignal),
                 widget::button("Add", onEnterSignal),
-                widget::button("Sort", signal::constant(std::move(onSort)))
+                widget::button("Sort", bq::signal::constant(std::move(onSort)))
             });
     }
 } // anonymous namespace
 
-reactive::widget::AnyWidget adder()
+bqui::widget::AnyWidget adder()
 {
     Collection<std::string> items;
 
@@ -73,16 +75,16 @@ reactive::widget::AnyWidget adder()
         range.pushBack("test 4");
     }
 
-    auto textInput = signal::makeInput<std::string>("");
+    auto textInput = bq::signal::makeInput<std::string>("");
 
     auto swapState = std::make_shared<size_t>();
 
     auto widgets = dataBind<std::string>(
             dataSourceFromCollection(items),
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (bq::signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
-                return hbox({
+                return widget::hbox({
                 widget::button("U",
                     textInputSignal.bindToFunction(
                     [items, id] (std::string str) mutable
@@ -94,7 +96,7 @@ reactive::widget::AnyWidget adder()
                             range.update(i, std::move(str));
                         }
                     })),
-                widget::button("T", signal::constant([items, id]() mutable
+                widget::button("T", bq::signal::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto range = items.rangeLock();
@@ -103,7 +105,7 @@ reactive::widget::AnyWidget adder()
                         range.move(i, range.begin());
                         }))
                 ,
-                widget::button("S", signal::constant(
+                widget::button("S", bq::signal::constant(
                     [items, id, swapState]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
@@ -124,31 +126,31 @@ reactive::widget::AnyWidget adder()
                 ,
                 widget::label(std::move(value))
                 ,
-                hfiller()
+                widget::hfiller()
                 ,
-                widget::button("x", signal::constant([id, items]() mutable
+                widget::button("x", bq::signal::constant([id, items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         items.rangeLock().eraseWithId(id);
                     }))
                 })
-                | reactive::widget::transition(reactive::widget::transitionLeft())
-                | reactive::widget::clip()
+                | modifier::transition(modifier::transitionLeft())
+                | modifier::clip()
             ;
             });
 
-    auto fancy = signal::makeInput(false);
+    auto fancy = bq::signal::makeInput(false);
 
     auto theme = fancy.signal.map([](bool fancy)
             {
                 if (fancy)
                 {
-                    widget::Theme fancyTheme;
+                    Theme fancyTheme;
                     fancyTheme.setSecondary(avg::Color(0.3f, 0.0f, 0.2f));
                     return fancyTheme;
                 }
 
-                return widget::Theme();
+                return Theme();
 
             });
 
@@ -160,8 +162,8 @@ reactive::widget::AnyWidget adder()
                 return "Normal";
             });
 
-    return vbox({
-            vbox(std::move(widgets)),
+    return widget::vbox({
+            widget::vbox(std::move(widgets)),
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
                     auto a = withAnimation(0.3f, avg::curve::easeInCubic);
@@ -173,7 +175,7 @@ reactive::widget::AnyWidget adder()
                     items.rangeLock().sort();
                 }
                 ),
-                hbox({
+                widget::hbox({
                     widget::label("Theme:"),
                     widget::button(std::move(buttonTitle), fancy.signal.bindToFunction(
                         [handle=fancy.handle](bool fancy) mutable
@@ -184,7 +186,7 @@ reactive::widget::AnyWidget adder()
                     })
             }
         )
-        | widget::setTheme(std::move(theme))
+        | modifier::setTheme(std::move(theme))
         ;
 }
 

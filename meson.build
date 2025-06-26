@@ -12,8 +12,10 @@ libfreetypedep = freetype.get_variable('freetype_dep')
 mapbox = subproject('mapbox')
 mapboxdep = mapbox.get_variable('mapbox_dep')
 
+gtest = subproject('gtest')
+gtestdep = gtest.get_variable('gtest_main_dep')
+
 tracydep = dependency('tracy')
 
 subdir('src')
-subdir('test')
 

@@ -1,133 +1,133 @@
 
 glsrcs = [
-  'gl/glplatform.cpp',
-  'gl/glprogram.cpp',
-  'gl/glshader.cpp',
-  'gl/glvertexshader.cpp',
-  'gl/glfragmentshader.cpp',
-  'gl/glbuffer.cpp',
-  'gl/glvertexbuffer.cpp',
-  'gl/glindexbuffer.cpp',
-  'gl/gluniformbuffer.cpp',
-  'gl/gltexture.cpp',
-  'gl/glerror.cpp',
-  'gl/gltype.cpp',
-  'gl/glblendmode.cpp',
-  'gl/glrendercontext.cpp',
-  'gl/glframebuffer.cpp',
-  'gl/glpipeline.cpp',
-  'gl/globjectmanager.cpp',
-  'gl/glrenderstate.cpp',
-  'gl/gldispatchedcontext.cpp',
-  'gl/gluniformset.cpp',
-  'gl/glrenderbuffer.cpp',
-  'gl/glrenderqueue.cpp'
+  'src/gl/glplatform.cpp',
+  'src/gl/glprogram.cpp',
+  'src/gl/glshader.cpp',
+  'src/gl/glvertexshader.cpp',
+  'src/gl/glfragmentshader.cpp',
+  'src/gl/glbuffer.cpp',
+  'src/gl/glvertexbuffer.cpp',
+  'src/gl/glindexbuffer.cpp',
+  'src/gl/gluniformbuffer.cpp',
+  'src/gl/gltexture.cpp',
+  'src/gl/glerror.cpp',
+  'src/gl/gltype.cpp',
+  'src/gl/glblendmode.cpp',
+  'src/gl/glrendercontext.cpp',
+  'src/gl/glframebuffer.cpp',
+  'src/gl/glpipeline.cpp',
+  'src/gl/globjectmanager.cpp',
+  'src/gl/glrenderstate.cpp',
+  'src/gl/gldispatchedcontext.cpp',
+  'src/gl/gluniformset.cpp',
+  'src/gl/glrenderbuffer.cpp',
+  'src/gl/glrenderqueue.cpp'
   ]
 
 if target_machine.system() == 'linux'
-    gldep = dependency('gl')
-    x11dep = dependency('x11')
-    xextdep = dependency('xext')
-    system_deps = [gldep, x11dep, xextdep]
-    system_link_args = []
-    system_incs = ['glx']
-    system_src = [
-        'glx/glxplatform.cpp',
-        'glx/glxrendercontext.cpp',
-        'glx/glxwindow.cpp',
-        'glx/glxcontext.cpp',
-        'glx/glxdispatchedcontext.cpp',
-        'glx/glxframebuffer.cpp',
-        glsrcs
-        ]
+  gldep = dependency('gl')
+  x11dep = dependency('x11')
+  xextdep = dependency('xext')
+  system_deps = [gldep, x11dep, xextdep]
+  system_link_args = []
+  system_incs = ['src/glx']
+  system_src = [
+    'src/glx/glxplatform.cpp',
+    'src/glx/glxrendercontext.cpp',
+    'src/glx/glxwindow.cpp',
+    'src/glx/glxcontext.cpp',
+    'src/glx/glxdispatchedcontext.cpp',
+    'src/glx/glxframebuffer.cpp',
+    glsrcs
+    ]
 elif target_machine.system() == 'windows'
-    glheaders = subproject('glheaders')
-    gldep = dependency('gl')
-    glheadersdep = glheaders.get_variable('glheaders_dep')
+  glheaders = subproject('glheaders')
+  gldep = dependency('gl')
+  glheadersdep = glheaders.get_variable('glheaders_dep')
 
-    system_deps = [glheadersdep, gldep]
-    system_link_args = ['shcore.lib', 'winmm.lib']
-    system_incs = []
-    system_src = [
-        'windows/wglplatform.cpp',
-        'windows/wglrendercontext.cpp',
-        'windows/wglwindow.cpp',
-        'windows/wgldispatchedcontext.cpp',
-        'windows/wglframebuffer.cpp',
-        glsrcs
-        ]
+  system_deps = [glheadersdep, gldep]
+  system_link_args = ['shcore.lib', 'winmm.lib']
+  system_incs = []
+  system_src = [
+    'src/windows/wglplatform.cpp',
+    'src/windows/wglrendercontext.cpp',
+    'src/windows/wglwindow.cpp',
+    'src/windows/wgldispatchedcontext.cpp',
+    'src/windows/wglframebuffer.cpp',
+    glsrcs
+    ]
 else
-    system_deps = []
-    system_link_args = []
-    system_incs = []
-    system_src = [
-        'dummy/dummyplatform.cpp',
-        'dummy/dummyrendercontext.cpp',
-        'dummy/dummywindow.cpp',
-        'dummy/dummyframebuffer.cpp',
-        'dummy/dummyprogram.cpp',
-        'dummy/dummyuniformbuffer.cpp',
-        'dummy/dummytexture.cpp',
-        'dummy/dummypipeline.cpp',
-        'dummy/dummyuniformset.cpp',
-        'dummy/dummyrenderbuffer.cpp',
-        'dummy/dummyrenderqueue.cpp',
+  system_deps = []
+  system_link_args = []
+  system_incs = []
+  system_src = [
+    'src/dummy/dummyplatform.cpp',
+    'src/dummy/dummyrendercontext.cpp',
+    'src/dummy/dummywindow.cpp',
+    'src/dummy/dummyframebuffer.cpp',
+    'src/dummy/dummyprogram.cpp',
+    'src/dummy/dummyuniformbuffer.cpp',
+    'src/dummy/dummytexture.cpp',
+    'src/dummy/dummypipeline.cpp',
+    'src/dummy/dummyuniformset.cpp',
+    'src/dummy/dummyrenderbuffer.cpp',
+    'src/dummy/dummyrenderqueue.cpp',
     ]
 endif
 
 threadsdep = dependency('threads')
-asedep = [libeigendep, threadsdep, tracydep]
+asedep = [libeigendep, threadsdep, tracydep, libbtldep]
 
 incdir = include_directories(
-        '.',
-        '../../include',
-        '../../include/ase',
-        'gl',
-        system_incs
-        )
+  'src',
+  'include',
+  'include/ase',
+  'src/gl',
+  system_incs
+  )
 
 libasesrc = [
-        'genericwindow.cpp',
-        'platform.cpp',
-        'window.cpp',
-        'rendercontext.cpp',
-        'renderable.cpp',
-        'vertexspec.cpp',
-        'namedvertexspec.cpp',
-        'vertexbuffer.cpp',
-        'indexbuffer.cpp',
-        'mesh.cpp',
-        'dispatcher.cpp',
-        'uniformbuffer.cpp',
-        'fragmentshader.cpp',
-        'vertexshader.cpp',
-        'program.cpp',
-        'commandbuffer.cpp',
-        'drawcommand.cpp',
-        'texture.cpp',
-        'framebuffer.cpp',
-        'pipeline.cpp',
-        'pointerbuttonevent.cpp',
-        'keyevent.cpp',
-        'textevent.cpp',
-        'keycode.cpp',
-        'uniformset.cpp',
-        'renderbuffer.cpp',
-        'renderqueue.cpp'
-        ]
+  'src/genericwindow.cpp',
+  'src/platform.cpp',
+  'src/window.cpp',
+  'src/rendercontext.cpp',
+  'src/renderable.cpp',
+  'src/vertexspec.cpp',
+  'src/namedvertexspec.cpp',
+  'src/vertexbuffer.cpp',
+  'src/indexbuffer.cpp',
+  'src/mesh.cpp',
+  'src/dispatcher.cpp',
+  'src/uniformbuffer.cpp',
+  'src/fragmentshader.cpp',
+  'src/vertexshader.cpp',
+  'src/program.cpp',
+  'src/commandbuffer.cpp',
+  'src/drawcommand.cpp',
+  'src/texture.cpp',
+  'src/framebuffer.cpp',
+  'src/pipeline.cpp',
+  'src/pointerbuttonevent.cpp',
+  'src/keyevent.cpp',
+  'src/textevent.cpp',
+  'src/keycode.cpp',
+  'src/uniformset.cpp',
+  'src/renderbuffer.cpp',
+  'src/renderqueue.cpp'
+  ]
 
 libase = library('ase',
-        [system_src, libasesrc],
-        dependencies: [system_deps, asedep],
-        cpp_args: ['-DASE_EXPORT_SYMBOLS'],
-        link_args: system_link_args,
-        gnu_symbol_visibility: 'hidden',
-        include_directories: incdir
-        )
+  [system_src, libasesrc],
+  dependencies: [system_deps, asedep],
+  cpp_args: ['-DASE_EXPORT_SYMBOLS'],
+  link_args: system_link_args,
+  gnu_symbol_visibility: 'hidden',
+  include_directories: incdir
+  )
 
 libasedep = declare_dependency(
-        link_with: libase,
-        dependencies: asedep,
-        include_directories: include_directories('../../include')
-        )
+  link_with: libase,
+  dependencies: asedep,
+  include_directories: include_directories('include')
+  )
 

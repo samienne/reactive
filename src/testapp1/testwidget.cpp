@@ -1,27 +1,27 @@
 #include "testwidget.h"
 
-#include <reactive/widget/onclick.h>
-#include <reactive/widget/ondraw.h>
-#include <reactive/widget/onkeyevent.h>
-#include <reactive/widget/builder.h>
-#include <reactive/widget/setsizehint.h>
+#include <bqui/modifier/onclick.h>
+#include <bqui/modifier/ondraw.h>
+#include <bqui/modifier/onkeyevent.h>
+#include <bqui/modifier/setsizehint.h>
 
-#include <reactive/shapes.h>
-#include <reactive/send.h>
+#include <bqui/widget/builder.h>
 
-#include <reactive/simplesizehint.h>
+#include <bqui/shapes.h>
+#include <bqui/send.h>
+#include <bqui/simplesizehint.h>
 
-#include <reactive/signal/signal.h>
+#include <bq/signal/signal.h>
 
-#include <reactive/stream/iterate.h>
-#include <reactive/stream/pipe.h>
+#include <bq/stream/iterate.h>
+#include <bq/stream/pipe.h>
 
 #include <avg/font.h>
 
 #include <ase/stringify.h>
 #include <ase/vector.h>
 
-using namespace reactive;
+using namespace bqui;
 
 namespace
 {
@@ -29,7 +29,7 @@ namespace
             avg::Obb const& obb, bool state, std::string const& str)
         -> avg::Drawing
     {
-        widget::Theme theme;
+        Theme theme;
 
         auto size = obb.getSize();
 
@@ -56,11 +56,11 @@ namespace
 
 widget::AnyWidget makeTestWidget()
 {
-    using namespace reactive::widget;
+    using namespace bqui::widget;
 
-    auto p = stream::pipe<int>();
+    auto p = bq::stream::pipe<int>();
 
-    auto state = stream::iterate(
+    auto state = bq::stream::iterate(
             [](bool v, int) -> bool
             {
                 return !v;
@@ -68,22 +68,22 @@ widget::AnyWidget makeTestWidget()
             false,
             std::move(p.stream));
 
-    auto p2 = stream::pipe<KeyEvent>();
-    auto textState = stream::iterate(
+    auto p2 = bq::stream::pipe<KeyEvent>();
+    auto textState = bq::stream::iterate(
             [](std::string const&, KeyEvent const& e) -> std::string
             {
                 return ase::toString(e.getKey());
             },
             std::string(), std::move(p2.stream));
 
-    auto focus = signal::makeInput(false);
+    auto focus = bq::signal::makeInput(false);
 
     return widget::makeWidget()
-        | onDraw(drawTestWidget, std::move(state), std::move(textState))
-        | widget::onClick(1, send(1, p.handle))
-        | widget::onClick(1, send(true, focus.handle))
-        | widget::onKeyEvent(sendKeysTo(p2.handle))
-        | widget::setSizeHint(signal::constant(simpleSizeHint(
+        | modifier::onDraw(drawTestWidget, std::move(state), std::move(textState))
+        | modifier::onClick(1, send(1, p.handle))
+        | modifier::onClick(1, send(true, focus.handle))
+        | modifier::onKeyEvent(sendKeysTo(p2.handle))
+        | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
                     {{200.0f, 400.0f, 10000.0f}},
                     {{50.0f, 150.0f, 10000.0f}})))
     ;
