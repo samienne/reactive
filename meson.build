@@ -18,5 +18,4 @@ gtestdep = gtest.get_variable('gtest_main_dep')
 tracydep = dependency('tracy')
 
 subdir('src')
-subdir('test')
 

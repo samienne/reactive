@@ -41,11 +41,12 @@ libavgdep = declare_dependency(
 
 avgtest =  executable('avgtest',
   'test/animatedtest.cpp',
-  'test/pathtest.cpp',
   'test/avgtransformtest.cpp',
-  'test/fonttest.cpp',
   'test/brushtest.cpp',
   'test/colortest.cpp',
+  'test/fonttest.cpp',
+  'test/hashtest.cpp',
+  'test/pathtest.cpp',
   'test/pentest.cpp',
   dependencies: [gtestdep, libavgdep],
   )
