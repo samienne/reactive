@@ -1,9 +1,6 @@
-incdir = include_directories('../include')
-
 unittest = executable('unittest',
         'test1.cpp',
         'hashtest.cpp',
-        include_directories : incdir,
         link_with : [],
         dependencies : [gtestdep, libasedep, libavgdep, libbquidep])
 
