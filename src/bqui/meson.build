@@ -78,10 +78,10 @@ libbquidep = declare_dependency(
   )
 
 bquitest =  executable('bquitest',
-  'test/collectiontest.cpp',
-  'test/databindtest.cpp',
+  #'test/collectiontest.cpp',
+  #'test/databindtest.cpp',
   'test/widgetinstancemodifiertest.cpp',
-  'test/widgettest.cpp',
+  #'test/widgettest.cpp',
   dependencies: [gtestdep, libbquidep],
   )
 

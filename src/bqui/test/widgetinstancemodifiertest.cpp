@@ -192,6 +192,7 @@ TEST(Widget, builderModifierTags)
 
 TEST(Widget, elementModifierParams)
 {
+
     std::string tag = "not set";
     std::string tag2 = "not set";
     std::string tag3 = "not set";
@@ -199,6 +200,7 @@ TEST(Widget, elementModifierParams)
     auto widget = makeWidget()
         | makeElementModifier([&](auto element)
             {
+                std::cout << "eval" << std::endl;
                 tag = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
                         ).evaluate();

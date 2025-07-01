@@ -112,14 +112,28 @@ namespace bqui::modifier
 
     namespace detail
     {
-        struct MakeBuilderModifier1
+        struct MakeBuilderModifierFromElement1
         {
             template <typename T, typename U>
             auto operator()(T&& builder, U&& f) const
             {
-                return std::forward<T>(builder)
-                    .map(std::forward<U>(f))
-                    ;
+                auto sizeHint = builder.getSizeHint();
+                auto gravity = builder.getGravity();
+
+                return widget::makeBuilder([builder=std::forward<T>(builder),
+                    modifier=std::forward<U>(f)]
+                    (BuildParams const& /*params*/, auto size)
+                    {
+                        auto element = builder.clone()
+                            (std::move(size))
+                            | modifier;
+
+                        return element;
+                    },
+                    std::move(sizeHint),
+                    {},
+                    std::move(gravity)
+                    );
             }
         };
     } // namespace detail
@@ -129,7 +143,7 @@ namespace bqui::modifier
     //-> BuilderModifier
     {
         return detail::makeBuilderModifierUnchecked(
-                detail::MakeBuilderModifier1(),
+                detail::MakeBuilderModifierFromElement1(),
                 std::move(f)
                 );
     }
@@ -140,38 +154,6 @@ namespace bqui::modifier
     {
         return makeBuilderModifier(makeElementModifier(std::move(f)));
     }
-
-    /*
-    namespace detail
-    {
-        struct MakeBuilderPreModifier1
-        {
-            template <typename T, typename F>
-            auto operator()(T&& builder, F&& f) const
-            {
-                return std::forward<T>(builder)
-                    .preMap(std::forward<F>(f))
-                    ;
-            }
-        };
-    } // namespace detail
-
-    template <typename TFunc>
-    auto makeBuilderPreModifier(ElementModifier<TFunc> f)
-    //-> BuilderModifier
-    {
-        return detail::makeBuilderModifierUnchecked(
-                detail::MakeBuilderPreModifier1(),
-                std::move(f)
-                );
-    }
-
-    template <typename TFunc>
-    auto makeBuilderPreModifier(InstanceModifier<TFunc> f)
-    {
-        return makeBuilderPreModifier(makeElementModifier(std::move(f)));
-    }
-    */
 
     template <typename T, typename... Ts>
     auto operator|(widget::Builder<Ts...> builder, BuilderModifier<T> f)
