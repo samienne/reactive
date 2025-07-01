@@ -33,12 +33,15 @@ namespace bqui::widget
 
     template <typename TModifier, typename TSizeHint>
     auto makeBuilder(modifier::ElementModifier<TModifier> modifier,
-            TSizeHint&& sizeHint, BuildParams params)
+            TSizeHint&& sizeHint, BuildParams params,
+            bq::signal::AnySignal<avg::Vector2f> gravity)
     {
-        return Builder<modifier::ElementModifier<TModifier>, std::decay_t<TSizeHint>>(
+        return Builder<modifier::ElementModifier<TModifier>,
+            std::decay_t<TSizeHint>>(
                 std::move(modifier),
                 std::forward<TSizeHint>(sizeHint),
-                std::move(params)
+                std::move(params),
+                std::move(gravity)
                 );
     }
 
@@ -48,10 +51,12 @@ namespace bqui::widget
     public:
         using SizeHintType = std::decay_t<TSizeHint>;
 
-        Builder(TModifier modifier, TSizeHint sizeHint, BuildParams params) :
+        Builder(TModifier modifier, TSizeHint sizeHint, BuildParams params,
+                bq::signal::AnySignal<avg::Vector2f> gravity) :
             modifier_(std::move(modifier)),
             sizeHint_(std::move(sizeHint)),
-            buildParams_(std::move(params))
+            buildParams_(std::move(params)),
+            gravity_(std::move(gravity))
         {
         }
 
@@ -95,10 +100,12 @@ namespace bqui::widget
                         std::forward<TFunc>(func)
                         ),
                     std::move(*sizeHint_),
-                    std::move(buildParams_)
+                    std::move(buildParams_),
+                    std::move(gravity_)
                     );
         }
 
+        /*
         template <typename TFunc, typename = std::enable_if_t<
             std::is_invocable_r_v<AnyElement, TFunc, AnyElement>
             >>
@@ -120,9 +127,11 @@ namespace bqui::widget
                         std::forward<TFunc>(func)
                         ),
                     std::move(*sizeHint_),
-                    std::move(buildParams_)
+                    std::move(buildParams_),
+                    std::move(gravity_)
                     );
         }
+        */
 
         template <typename TSignalSizeHint>
         auto setSizeHint(TSignalSizeHint sizeHint) &&
@@ -130,7 +139,8 @@ namespace bqui::widget
             return makeBuilder(
                     std::move(*modifier_),
                     std::move(sizeHint),
-                    std::move(buildParams_)
+                    std::move(buildParams_),
+                    std::move(gravity_)
                     );
         }
 
@@ -142,9 +152,20 @@ namespace bqui::widget
         auto setBuildParams(BuildParams params) &&
         {
             return makeBuilder(
-                    std::move(*modifier_),
+                    modifier::detail::makeElementModifierUnchecked(
+                        [params, oldParams=buildParams_](auto element, auto&& modifier)
+                        {
+                            return std::invoke(
+                                std::forward<decltype(modifier)>(modifier),
+                                std::move(element).setParams(oldParams)
+                                )
+                                .setParams(params);
+                        },
+                        std::move(*modifier_)
+                        ),
                     std::move(*sizeHint_),
-                    std::move(params)
+                    std::move(params),
+                    std::move(gravity_)
                     );
         }
 
@@ -153,12 +174,30 @@ namespace bqui::widget
             return buildParams_;
         }
 
+        auto setGravity(bq::signal::AnySignal<avg::Vector2f> gravity)
+        {
+            auto copy = clone();
+            copy.gravity_ = std::move(gravity);
+            return copy;
+        }
+
+        auto setGravity(avg::Vector2f gravity)
+        {
+            return setGravity(bq::signal::constant(std::move(gravity)));
+        }
+
+        bq::signal::AnySignal<avg::Vector2f> getGravity() const
+        {
+            return gravity_;
+        }
+
         operator BuilderBase() &&
         {
             return BuilderBase(
                     std::move(*modifier_),
                     std::move(*sizeHint_),
-                    std::move(buildParams_)
+                    std::move(buildParams_),
+                    std::move(gravity_)
                     );
         }
 
@@ -166,6 +205,8 @@ namespace bqui::widget
         btl::CloneOnCopy<TModifier> modifier_;
         btl::CloneOnCopy<TSizeHint> sizeHint_;
         BuildParams buildParams_;
+        bq::signal::AnySignal<avg::Vector2f> gravity_ =
+            bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
     };
 
     struct AnyBuilder : Builder<modifier::AnyElementModifier,
@@ -205,7 +246,8 @@ namespace bqui::widget
                 modifier::detail::makeElementModifierUnchecked(
                     [](auto element) { return element; }),
                 bq::signal::constant(simpleSizeHint(100.0f, 100.0f)),
-                BuildParams{}
+                BuildParams{},
+                bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
     }
 
@@ -226,7 +268,8 @@ namespace bqui::widget
                     {
                         return simpleSizeHint(size[0], size[1]);
                     }),
-                std::move(buildParams)
+                std::move(buildParams),
+                bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
     }
 

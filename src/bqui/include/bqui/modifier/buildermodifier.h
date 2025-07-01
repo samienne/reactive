@@ -141,6 +141,7 @@ namespace bqui::modifier
         return makeBuilderModifier(makeElementModifier(std::move(f)));
     }
 
+    /*
     namespace detail
     {
         struct MakeBuilderPreModifier1
@@ -170,6 +171,7 @@ namespace bqui::modifier
     {
         return makeBuilderPreModifier(makeElementModifier(std::move(f)));
     }
+    */
 
     template <typename T, typename... Ts>
     auto operator|(widget::Builder<Ts...> builder, BuilderModifier<T> f)
