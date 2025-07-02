@@ -35,5 +35,7 @@ namespace bqui
      * @brief Equivalent of simpleSizeHint({{x, x, x}}, {{y, y, y}}).
      */
     BQUI_EXPORT SimpleSizeHint simpleSizeHint(float width, float height);
+
+    BQUI_EXPORT SimpleSizeHint defaultSizeHint();
 }
 

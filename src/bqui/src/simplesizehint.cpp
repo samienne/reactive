@@ -35,5 +35,14 @@ SimpleSizeHint simpleSizeHint(float x, float y)
 {
     return simpleSizeHint({{x, x, x}}, {{y, y, y}});
 }
+
+SimpleSizeHint defaultSizeHint()
+{
+    return simpleSizeHint(
+            { 10.0f, 10000.f, 10000.0f},
+            { 10.0f, 10000.f, 10000.0f}
+            );
+}
+
 } // namespace bqui
 
