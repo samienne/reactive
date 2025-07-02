@@ -2,6 +2,7 @@
 
 #include "bqui/modifier/addwidgets.h"
 #include "bqui/modifier/setsizehint.h"
+#include "bqui/modifier/setgravity.h"
 
 #include "bqui/provider/providetheme.h"
 
@@ -42,6 +43,7 @@ namespace bqui::modifier
         {
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
+            auto gravity = builder.getGravity();
 
             return makeWidgetWithSize([](auto size, BuildParams const& params,
                         auto builder, auto bgWidget)
@@ -60,12 +62,15 @@ namespace bqui::modifier
                         });
 
                 return makeWidgetFromElement(
-                        makeElement(std::move(newInstance), params));
+                        makeElement(std::move(newInstance), params)
+                        )
+                    ;
             },
             params,
             std::move(builder),
             std::move(bgWidget)
             )
+            | setGravity(std::move(gravity))
             | setSizeHint(std::move(sizeHint))
             ;
         },

@@ -211,7 +211,7 @@ namespace bqui::widget
                         .setParams(std::move(params))
                         ;
                 },
-                bq::signal::constant(simpleSizeHint(100.0f, 100.0f)),
+                bq::signal::constant(defaultSizeHint()),
                 BuildParams{},
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );

@@ -229,7 +229,7 @@ namespace
                         }))
             | modifier::onTextEvent(sendKeysTo(keyStream.handle))
             | modifier::setSizeHint(
-                    bq::signal::constant(simpleSizeHint(150.0f, 40.0f))
+                    bq::signal::constant(simpleSizeHint(250.0f, 40.0f))
                     )
             ;
     }

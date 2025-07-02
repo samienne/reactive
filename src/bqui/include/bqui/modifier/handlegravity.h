@@ -4,8 +4,6 @@
 #include "buildermodifier.h"
 #include "transform.h"
 
-#include "bqui/bquivisibility.h"
-
 namespace bqui::modifier
 {
     namespace {
@@ -17,20 +15,20 @@ namespace bqui::modifier
                 {
                     SizeHintResult widthRequest = sizeHint.getWidth();
 
-                    float width = std::clamp(outerSize.x(), widthRequest[0],
+                    float width = std::clamp(outerSize.x(), 0.0f,
                             std::max(widthRequest[1], widthRequest[2]));
 
                     SizeHintResult heightRequest = sizeHint.getHeightForWidth(
                             width);
 
-                    float height = std::clamp(outerSize.y(), heightRequest[0],
+                    float height = std::clamp(outerSize.y(), 0.0f,
                             std::max(heightRequest[1], heightRequest[2]));
 
                     SizeHintResult finalWidthRequest =
                         sizeHint.getWidthForHeight(height);
 
                     float finalWidth = std::clamp(outerSize.x(),
-                            finalWidthRequest[0],
+                            0.0f,
                             std::max(finalWidthRequest[1], finalWidthRequest[2]));
 
                     return { finalWidth, height };

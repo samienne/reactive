@@ -6,6 +6,7 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/settheme.h>
+#include <bqui/modifier/setgravity.h>
 
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/label.h>
@@ -186,6 +187,7 @@ bqui::widget::AnyWidget adder()
                     })
             }
         )
+        | modifier::setGravity({ 0.5f, 1.0f })
         | modifier::setTheme(std::move(theme))
         ;
 }
