@@ -5,6 +5,7 @@
 #include <bqui/modifier/setsize.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/drawkeyboardinputs.h>
+#include "bqui/modifier/setminimumsize.h"
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/focusgroup.h>
 #include <bqui/modifier/frame.h>
@@ -117,7 +118,8 @@ int main()
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
                     }).cast<std::function<void()>>())
-                | modifier::setSizeHint( {100.0f, 200.0} ),
+                //| modifier::setSizeHint( {100.0f, 200.0} ),
+                | modifier::setMinimumSize({ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame(),
             curveVisualizer(std::move(curve)),
