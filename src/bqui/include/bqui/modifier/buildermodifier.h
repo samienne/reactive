@@ -110,15 +110,59 @@ namespace bqui::modifier
                 );
     }
 
+    template <typename TFunc, typename... Ts,
+         typename = std::enable_if_t<
+             std::is_invocable_r_v<widget::AnyBuilder, TFunc,
+                 widget::AnyBuilder,
+                 bq::signal::AnySignal<avg::Vector2f>,
+                 provider::ParamProviderTypeT<Ts>...
+             >
+         >
+    >
+    auto makeBuilderModifierWithSize(TFunc&& func, Ts&&... ts)
+    {
+        return makeBuilderModifier([](auto builder, auto func, auto&&... ts)
+            {
+                auto sizeHint = builder.getSizeHint();
+                auto gravity = builder.getGravity();
+                auto params = builder.getBuildParams();
+
+                return makeBuilder(btl::bindArguments(
+                    [](BuildParams const&, auto size, auto func,
+                        auto builder, auto&&... ts)
+                    {
+                        auto sharedSize = std::move(size).share();
+                        auto modifiedBuilder = func(builder, sharedSize,
+                                std::forward<decltype(ts)>(ts)...
+                                );
+
+                        return std::move(modifiedBuilder)(sharedSize);
+                    },
+                    std::move(func),
+                    std::move(builder),
+                    std::forward<decltype(ts)>(ts)...
+                    ),
+                    std::move(sizeHint),
+                    std::move(params),
+                    std::move(gravity)
+                    );
+
+            },
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
+    }
+
     namespace detail
     {
-        struct MakeBuilderModifierFromElement1
+        struct MakeBuilderModifierFromElementModifier1
         {
             template <typename T, typename U>
             auto operator()(T&& builder, U&& f) const
             {
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
+                auto params = builder.getBuildParams();
 
                 return widget::makeBuilder([builder=std::forward<T>(builder),
                     modifier=std::forward<U>(f)]
@@ -131,7 +175,7 @@ namespace bqui::modifier
                         return element;
                     },
                     std::move(sizeHint),
-                    {},
+                    std::move(params),
                     std::move(gravity)
                     );
             }
@@ -143,7 +187,7 @@ namespace bqui::modifier
     //-> BuilderModifier
     {
         return detail::makeBuilderModifierUnchecked(
-                detail::MakeBuilderModifierFromElement1(),
+                detail::MakeBuilderModifierFromElementModifier1(),
                 std::move(f)
                 );
     }

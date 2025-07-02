@@ -244,56 +244,6 @@ namespace bqui::modifier
             ;
     }
 
-    namespace detail
-    {
-        struct MakeWidgetModifierWithSize1
-        {
-            template <typename U, typename TFunc, typename V, typename... Ts>
-            auto operator()(V&& size, U&& builder, TFunc&& func, Ts&&... ts) const
-            {
-                return std::invoke(
-                        std::forward<decltype(func)>(func),
-                        makeWidgetFromBuilder(std::forward<U>(builder)),
-                        std::forward<decltype(size)>(size),
-                        std::forward<decltype(ts)>(ts)...
-                        );
-            }
-        };
-
-        struct MakeWidgetModifierWithSize2
-        {
-            template <typename T, typename U>
-            auto operator()(T&& builder, U&& sizeHint) const
-            {
-                return std::forward<T>(builder)
-                    .setSizeHint(std::forward<U>(sizeHint));
-            }
-        };
-
-        struct MakeWidgetModifierWithSize3
-        {
-            template <typename T, typename U, typename... Ts>
-            auto operator()(T&& widget, BuildParams const& params, U&& func,
-                    Ts&&... ts) const
-            {
-                auto builder = std::forward<T>(widget)(params);
-
-                auto sizeHint = builder.getSizeHint().clone();
-
-                return makeWidgetWithSize(
-                    detail::MakeWidgetModifierWithSize1(),
-                    std::move(builder),
-                    std::forward<decltype(func)>(func),
-                    std::forward<decltype(ts)>(ts)...
-                    )
-                    | makeWidgetModifier(makeBuilderModifier(
-                                detail::MakeWidgetModifierWithSize2(),
-                                std::move(sizeHint)))
-                    ;
-            }
-        };
-    } // namespace detail
-
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<widget::AnyWidget, TFunc, widget::AnyWidget,
             bq::signal::AnySignal<avg::Vector2f>,
@@ -301,12 +251,30 @@ namespace bqui::modifier
         >>
     auto makeWidgetModifierWithSize(TFunc&& func, Ts&&... ts)
     {
-        return makeWidgetModifier(
-                detail::MakeWidgetModifierWithSize3(),
-                provider::provideBuildParams(),
-                std::forward<TFunc>(func),
-                std::forward<Ts>(ts)...
-                );
+        return makeWidgetModifier([](auto widget, auto func, auto&&... ts)
+            {
+                auto builderModifier = makeBuilderModifierWithSize(
+                    [](auto const& builder, auto size, auto func, auto widget,
+                        auto&&... ts)
+                    {
+                        auto newWidget = func(std::move(widget), std::move(size),
+                                    std::forward<decltype(ts)>(ts)...
+                                );
+
+                        return std::move(newWidget)(builder.getBuildParams());
+                    },
+                    std::move(func),
+                    widget.clone(),
+                    std::forward<decltype(ts)>(ts)...
+                    );
+
+                return std::move(widget)
+                    | makeWidgetModifier(std::move(builderModifier))
+                    ;
+            },
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
     }
 
     template <typename T, typename U>
