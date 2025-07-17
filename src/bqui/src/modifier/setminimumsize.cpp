@@ -1,6 +1,5 @@
 #include "bqui/modifier/setminimumsize.h"
 
-#include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/mapsizehint.h"
 
 #include "bqui/mapsizehint.h"
@@ -9,34 +8,31 @@ namespace bqui::modifier
 {
 
 namespace {
+    SizeHintResult setMinimumSizeHintResult(SizeHintResult result, float minimum)
+    {
+            float min = minimum;
+            float max = std::max(min, result[1]);
+            float fill = std::max(max, result[2]);
+
+        return { min, max, fill };
+    }
+
     auto setMinimumSizeImpl2(SizeHint sizeHint, avg::Vector2f minimumSize)
     {
         return mapSizeHint(std::move(sizeHint),
                 [minimumSize](SizeHintResult result) -> SizeHintResult
                 {
-                    float min = minimumSize.x();
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumSizeHintResult(result, minimumSize.x());
                 },
                 [minimumSize](SizeHintResult result, float)
                     -> SizeHintResult
                 {
-                    float min = minimumSize.y();
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumSizeHintResult(result, minimumSize.y());
                 },
                 [minimumSize](SizeHintResult result, float)
                     -> SizeHintResult
                 {
-                    float min = minimumSize.x();
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumSizeHintResult(result, minimumSize.x());
                 }
                 );
     }
@@ -53,8 +49,8 @@ namespace {
                 [minimumWidth](SizeHintResult result) -> SizeHintResult
                 {
                     float min = minimumWidth;
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
+                    float max = std::max(min, result[1]);
+                    float fill = std::max(max, result[2]);
 
                     return {{ min, max, fill }};
                 },
@@ -67,8 +63,8 @@ namespace {
                     -> SizeHintResult
                 {
                     float min = minimumWidth;
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
+                    float max = std::max(min, result[1]);
+                    float fill = std::max(max, result[2]);
 
                     return {{ min, max, fill }};
                 }
@@ -86,8 +82,8 @@ namespace {
                     -> SizeHintResult
                 {
                     float min = minimumHeight;
-                    float max = std::max(min, result[0]);
-                    float fill = std::max(max, result[1]);
+                    float max = std::max(min, result[1]);
+                    float fill = std::max(max, result[2]);
 
                     return {{ min, max, fill }};
                 },

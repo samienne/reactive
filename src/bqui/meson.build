@@ -17,6 +17,7 @@ libbquisrc = [
   'src/modifier/ontextevent.cpp',
   'src/modifier/setgravity.cpp',
   'src/modifier/setid.cpp',
+  'src/modifier/setmaximumsize.cpp',
   'src/modifier/setminimumsize.cpp',
   'src/modifier/setsize.cpp',
   'src/modifier/setsizehint.cpp',
