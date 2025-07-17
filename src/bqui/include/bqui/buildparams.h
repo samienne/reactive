@@ -56,6 +56,11 @@ namespace bqui
             set(share(bq::signal::constant<typename Tag::type>(std::move(value))));
         }
 
+        size_t size() const
+        {
+            return params_.size();
+        }
+
     private:
         std::unordered_map<std::type_index, std::any> params_;
     };

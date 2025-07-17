@@ -1,5 +1,6 @@
 #include "spinner.h"
 
+#include <bqui/modifier/setsize.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/elementmodifier.h>
 
@@ -57,6 +58,7 @@ widget::AnyWidget spinner()
 
     return widget::makeWidget()
         | modifier::onDraw(drawSpinner, provider::provideTheme(), std::move(state))
+        | modifier::setSize({ 100.0f, 100.0f })
         ;
 }
 

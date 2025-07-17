@@ -38,17 +38,32 @@ namespace
             std::forward<TSignalAmount>(amount)
             );
     }
+
+    template <typename T, typename U, typename V>
+    auto marginWidgetModifier(T widget, U&& size, BuildParams const& params,
+            bq::signal::Signal<V, float> amount)
+    {
+        auto builder = std::move(widget)(params);
+
+        auto adjustedSize = merge(size, amount).map(
+                [](avg::Vector2f size, float amount) -> avg::Vector2f
+                {
+                    return {
+                        std::max(0.0f, size.x() - 2.0f * amount),
+                        std::max(0.0f, size.y() - 2.0f * amount)
+                    };
+                });
+
+        auto element = std::move(builder)(std::move(adjustedSize));
+
+        return widget::makeWidgetFromElement(std::move(element));;
+    }
 } // anonymous namespace
 
 AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
 {
     return makeWidgetModifier([](auto widget, auto amount)
     {
-        auto aNeg = amount.map([](float f)
-                {
-                    return -f;
-                });
-
         auto t = amount.map([](float amount)
                 {
                     return avg::translate(amount, amount);
@@ -64,8 +79,12 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
                 },
                 amount);
 
+        auto shrinkModifier = makeWidgetModifierWithSize(
+                BTL_FN(marginWidgetModifier), provider::provideBuildParams(),
+                amount);
+
         return std::move(widget)
-            | makeBuilderPreModifier(growSize(std::move(aNeg)))
+            | shrinkModifier
             | transform(std::move(t))
             | growSize(amount)
             | std::move(builderGrowSizeHint)
