@@ -2,8 +2,10 @@
 #include "spinner.h"
 #include "curvevisualizer.h"
 
+#include <bqui/modifier/setsize.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/drawkeyboardinputs.h>
+#include "bqui/modifier/setminimumsize.h"
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/focusgroup.h>
 #include <bqui/modifier/frame.h>
@@ -13,6 +15,7 @@
 #include <bqui/modifier/onpointerdown.h>
 #include <bqui/modifier/onhover.h>
 #include <bqui/modifier/onclick.h>
+#include <bqui/modifier/setgravity.h>
 
 #include <bqui/widget/scrollbar.h>
 #include <bqui/widget/scrollview.h>
@@ -115,8 +118,8 @@ int main()
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
                     }).cast<std::function<void()>>())
-                | modifier::setSizeHint(
-                        bq::signal::constant(simpleSizeHint(100.0f, 200.0))),
+                //| modifier::setSizeHint( {100.0f, 200.0} ),
+                | modifier::setMinimumSize({ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame(),
             curveVisualizer(std::move(curve)),
@@ -124,7 +127,10 @@ int main()
                         [handle=curveSelection.handle](int i) mutable
                         {
                             handle.set(static_cast<int>((i+1) % curves.size()));
-                        })),
+                        }))
+                | modifier::setGravity({ 0.5f, 1.0f })
+                | modifier::setSize({ 150, 50 })
+                | modifier::setSizeHint({ 300, 300 }),
             widget::vfiller()
         })
         , widget::vbox({

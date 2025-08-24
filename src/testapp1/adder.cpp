@@ -6,6 +6,8 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/settheme.h>
+#include <bqui/modifier/setgravity.h>
+#include <bqui/modifier/setminimumsize.h>
 
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/label.h>
@@ -183,9 +185,11 @@ bqui::widget::AnyWidget adder()
                             auto a = withAnimation(0.3f, avg::curve::linear);
                             handle.set(!fancy);
                         }))
+                        | modifier::setMinimumWidth(250.0f)
                     })
             }
         )
+        | modifier::setGravity({ 0.5f, 1.0f })
         | modifier::setTheme(std::move(theme))
         ;
 }

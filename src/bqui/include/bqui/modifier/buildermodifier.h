@@ -110,16 +110,74 @@ namespace bqui::modifier
                 );
     }
 
+    template <typename TFunc, typename... Ts,
+         typename = std::enable_if_t<
+             std::is_invocable_r_v<widget::AnyBuilder, TFunc,
+                 widget::AnyBuilder,
+                 bq::signal::AnySignal<avg::Vector2f>,
+                 provider::ParamProviderTypeT<Ts>...
+             >
+         >
+    >
+    auto makeBuilderModifierWithSize(TFunc&& func, Ts&&... ts)
+    {
+        return makeBuilderModifier([](auto builder, auto func, auto&&... ts)
+            {
+                auto sizeHint = builder.getSizeHint();
+                auto gravity = builder.getGravity();
+                auto params = builder.getBuildParams();
+
+                return makeBuilder(btl::bindArguments(
+                    [](BuildParams const&, auto size, auto func,
+                        auto builder, auto&&... ts)
+                    {
+                        auto sharedSize = std::move(size).share();
+                        auto modifiedBuilder = func(builder, sharedSize,
+                                std::forward<decltype(ts)>(ts)...
+                                );
+
+                        return std::move(modifiedBuilder)(sharedSize);
+                    },
+                    std::move(func),
+                    std::move(builder),
+                    std::forward<decltype(ts)>(ts)...
+                    ),
+                    std::move(sizeHint),
+                    std::move(params),
+                    std::move(gravity)
+                    );
+
+            },
+            std::forward<TFunc>(func),
+            std::forward<Ts>(ts)...
+            );
+    }
+
     namespace detail
     {
-        struct MakeBuilderModifier1
+        struct MakeBuilderModifierFromElementModifier1
         {
             template <typename T, typename U>
             auto operator()(T&& builder, U&& f) const
             {
-                return std::forward<T>(builder)
-                    .map(std::forward<U>(f))
-                    ;
+                auto sizeHint = builder.getSizeHint();
+                auto gravity = builder.getGravity();
+                auto params = builder.getBuildParams();
+
+                return widget::makeBuilder([builder=std::forward<T>(builder),
+                    modifier=std::forward<U>(f)]
+                    (BuildParams const& /*params*/, auto size)
+                    {
+                        auto element = builder.clone()
+                            (std::move(size))
+                            | modifier;
+
+                        return element;
+                    },
+                    std::move(sizeHint),
+                    std::move(params),
+                    std::move(gravity)
+                    );
             }
         };
     } // namespace detail
@@ -129,7 +187,7 @@ namespace bqui::modifier
     //-> BuilderModifier
     {
         return detail::makeBuilderModifierUnchecked(
-                detail::MakeBuilderModifier1(),
+                detail::MakeBuilderModifierFromElementModifier1(),
                 std::move(f)
                 );
     }
@@ -139,36 +197,6 @@ namespace bqui::modifier
     //-> BuilderModifier
     {
         return makeBuilderModifier(makeElementModifier(std::move(f)));
-    }
-
-    namespace detail
-    {
-        struct MakeBuilderPreModifier1
-        {
-            template <typename T, typename F>
-            auto operator()(T&& builder, F&& f) const
-            {
-                return std::forward<T>(builder)
-                    .preMap(std::forward<F>(f))
-                    ;
-            }
-        };
-    } // namespace detail
-
-    template <typename TFunc>
-    auto makeBuilderPreModifier(ElementModifier<TFunc> f)
-    //-> BuilderModifier
-    {
-        return detail::makeBuilderModifierUnchecked(
-                detail::MakeBuilderPreModifier1(),
-                std::move(f)
-                );
-    }
-
-    template <typename TFunc>
-    auto makeBuilderPreModifier(InstanceModifier<TFunc> f)
-    {
-        return makeBuilderPreModifier(makeElementModifier(std::move(f)));
     }
 
     template <typename T, typename... Ts>

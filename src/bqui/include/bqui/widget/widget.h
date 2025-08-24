@@ -2,9 +2,11 @@
 
 #include "builder.h"
 
-#include "bqui/buildparams.h"
+#include "bqui/modifier/elementmodifier.h"
 
 #include "bqui/provider/providebuildparams.h"
+
+#include "bqui/buildparams.h"
 
 #include <bq/signal/signal.h>
 
@@ -13,12 +15,7 @@
 #include <btl/pushback.h>
 #include <btl/bindarguments.h>
 
-#include <optional>
-#include <tuple>
 #include <type_traits>
-#include <unordered_map>
-#include <typeindex>
-#include <any>
 #include <utility>
 
 namespace bqui::widget

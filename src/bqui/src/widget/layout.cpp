@@ -5,6 +5,7 @@
 #include "bqui/modifier/setsizehint.h"
 #include "bqui/modifier/transform.h"
 #include "bqui/modifier/addwidgets.h"
+#include "bqui/modifier/handlegravity.h"
 
 #include "bqui/provider/providebuildparams.h"
 
@@ -79,7 +80,12 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
         std::vector<widget::AnyBuilder> builders;
 
         for (auto&& widget : widgets)
-            builders.push_back(std::move(widget)(params));
+        {
+            builders.push_back((
+                        std::move(widget)
+                        | modifier::handleGravity()
+                        )(params));
+        }
 
         return layout(
                 std::move(sizeHintMap),

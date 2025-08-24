@@ -164,13 +164,21 @@ TEST(Widget, builderModifierTags)
     std::string tag3;
 
     auto widget = makeWidget()
-        | makeBuilderModifier([&](auto builder, auto tagValue)
+        | makeWidgetModifierWithSize([&](auto widget, auto)
             {
-                tag = signal::makeSignalContext(tagValue).evaluate();
-                return builder;
-            }, provideParam<TestTag>())
-        | setParams<TestTag>("set value 1")
-        | makeBuilderModifier([&](auto builder, auto tagValue)
+                return std::move(widget)
+                    | makeBuilderModifierWithSize([&](auto builder, auto, auto tagValue)
+                        {
+                            tag = signal::makeSignalContext(tagValue).evaluate();
+                            return builder;
+                        }, provideParam<TestTag>());
+            })
+        | makeWidgetModifierWithSize([&](auto widget, auto)
+            {
+                return std::move(widget)
+                    | setParams<TestTag>("set value 1");
+            })
+        | makeBuilderModifierWithSize([&](auto builder, auto, auto tagValue)
             {
                 tag2 = signal::makeSignalContext(tagValue).evaluate();
                 return builder;
@@ -183,7 +191,7 @@ TEST(Widget, builderModifierTags)
             }, provideParam<TestTag>())
         ;
 
-    std::move(widget)(BuildParams());
+    std::move(widget)(BuildParams())(signal::constant(avg::Vector2f(100, 100)));
 
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);
@@ -192,6 +200,7 @@ TEST(Widget, builderModifierTags)
 
 TEST(Widget, elementModifierParams)
 {
+
     std::string tag = "not set";
     std::string tag2 = "not set";
     std::string tag3 = "not set";

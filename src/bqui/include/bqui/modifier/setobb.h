@@ -8,10 +8,10 @@
 
 #include <btl/cloneoncopy.h>
 
-namespace reactive::widget
+namespace bqui::modifier
 {
     template <typename T>
-    auto setObb(Signal<T, avg::Obb> obb)
+    auto setObb(bq::signal::Signal<T, avg::Obb> obb)
     {
         return makeInstanceModifier([](widget::Instance instance, avg::Obb const& obb)
                 {

@@ -10,44 +10,19 @@ namespace bqui::modifier
     >
     auto modifyParamsObject(TFunc&& func, Ts&&... ts)
     {
-        return detail::makeWidgetModifierUnchecked(
-            [](auto widget, auto func, auto&&... ts)
+        return makeWidgetModifier(
+            [](auto widget, BuildParams oldParams, auto func, auto&&... ts)
             {
-                return widget::detail::makeWidgetUncheckedWithParams(
-                        [](auto params, auto&& func, auto&& widget, auto&&... ts)
-                        // -> AnyBuilder
-                        {
-                            auto newParams = std::invoke(
-                                        std::forward<decltype(func)>(func),
-                                        params,
-                                        std::forward<decltype(ts)>(ts)...
-                                        );
+                auto newParams = std::invoke(func, oldParams,
+                        std::forward<decltype(ts)>(ts)...);
 
-                            return std::invoke(
-                                    std::forward<decltype(widget)>(widget),
-                                    newParams
-                                    )
-                                    .setBuildParams(params)
-                                    .preMap([newParams](auto element)
-                                        {
-                                            return std::move(element)
-                                                .setParams(newParams)
-                                                ;
-                                        })
-                                    .map([params](auto element)
-                                        {
-                                            return std::move(element)
-                                                .setParams(params)
-                                                ;
-                                        })
-                                    ;
+                auto builder = std::move(widget)(newParams)
+                    .setBuildParams(newParams)
+                    ;
 
-                        },
-                        std::forward<decltype(func)>(func),
-                        std::forward<decltype(widget)>(widget),
-                        std::forward<decltype(ts)>(ts)...
-                        );
+                return makeWidgetFromBuilder(std::move(builder));
             },
+            provider::provideBuildParams(),
             std::forward<TFunc>(func),
             std::forward<Ts>(ts)...
             );
