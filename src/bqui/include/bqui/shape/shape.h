@@ -145,7 +145,7 @@ namespace bqui::shape
                 ;
         }
 
-        auto clip(Shape clipShape) // -> Shape
+        auto clip(Shape clipShape) && // -> Shape
         {
             return detail::makeShapeUncheckedFromSignal(
                     merge(std::move(func_), std::move(clipShape.func_))
@@ -164,6 +164,46 @@ namespace bqui::shape
                                 std::move(rhs)
                                 );
                         }));
+        }
+
+        auto size(bq::signal::AnySignal<avg::Vector2f> size,
+                bq::signal::AnySignal<avg::Vector2f> gravity) && // -> Shape
+        {
+            return detail::makeShapeUncheckedFromSignal(
+                merge(std::move(func_), std::move(size), std::move(gravity))
+                .map([](auto func, avg::Vector2f size, avg::Vector2f gravity)
+                {
+                    return makeShapeFunction(
+                        [](avg::DrawContext const& drawContext,
+                            avg::Vector2f size,
+                            auto func,
+                            avg::Vector2f requestedSize,
+                            avg::Vector2f gravity) -> avg::Shape
+                        {
+                            avg::Vector2f offset = (requestedSize - size);
+
+                            offset = {
+                                offset.x() * gravity.x(),
+                                offset.y() * gravity.y()
+                            };
+
+                            return std::move(func(drawContext, requestedSize))
+                                .transform(avg::translate(-offset))
+                                ;
+                        },
+                        std::move(func),
+                        std::move(size),
+                        std::move(gravity)
+                        );
+                }));
+        }
+
+        auto size(bq::signal::AnySignal<avg::Vector2f> size) && // -> Shape
+        {
+            return std::move(*this).size(
+                    std::move(size),
+                    bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
+                    );
         }
 
         operator AnyShape() const&
