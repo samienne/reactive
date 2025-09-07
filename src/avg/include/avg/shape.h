@@ -40,6 +40,9 @@ namespace avg
         Shape strokeToShape(Pen const& pen) &&;
 
         Shape transform(Transform t) &&;
+        Shape translate(Vector2f offset) &&;
+        Shape rotate(float angle) &&;
+        Shape scale(float factor) &&;
 
         Rect getControlBb() const;
 
