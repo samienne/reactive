@@ -137,7 +137,7 @@ Rect Rect::enlarged(float amount) const
 {
     return Rect(
             Vector2f(getLeft() - amount, getBottom() - amount),
-            Vector2f(amount * 2.0f, amount * 2.0f)
+            Vector2f(getWidth() + amount * 2.0f, getHeight() + amount * 2.0f)
             );
 }
 
