@@ -111,6 +111,7 @@ int main()
     auto widgets = widget::hbox({
         widget::vbox({
             shape::rectangle()
+                //.size(bq::signal::constant(avg::Vector2f(100, 100)))
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
                 | modifier::onClick(0, m.signal.bindToFunction([h=m.handle](bool b) mutable
