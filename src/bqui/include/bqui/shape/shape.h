@@ -206,6 +206,146 @@ namespace bqui::shape
                     );
         }
 
+        auto transform(bq::signal::AnySignal<avg::Animated<avg::Transform>> transform) && // -> Shape
+        {
+            return detail::makeShapeUncheckedFromSignal(
+                merge(std::move(func_), std::move(transform))
+                .map([](auto func, avg::Animated<avg::Transform> transform)
+                {
+                    return makeShapeFunction(
+                        [](avg::DrawContext const& drawContext,
+                            avg::Vector2f size,
+                            auto func,
+                            avg::Transform transform) -> avg::Shape
+                        {
+                            return std::move(func(drawContext, size))
+                                .transform(std::move(transform))
+                                ;
+                        },
+                        std::move(func),
+                        std::move(transform)
+                        );
+                }));
+        }
+
+        auto transform(avg::Transform transform) && // -> Shape
+        {
+            return std::move(*this).transform(
+                    bq::signal::constant(std::move(transform))
+                    );
+        }
+
+        auto translate(bq::signal::AnySignal<avg::Animated<avg::Vector2f>> offset)
+        {
+            return detail::makeShapeUncheckedFromSignal(
+                merge(std::move(func_), std::move(offset))
+                .map([](auto func, avg::Animated<avg::Vector2f> offset)
+                {
+                    return makeShapeFunction(
+                        [](avg::DrawContext const& drawContext,
+                            avg::Vector2f size,
+                            auto func,
+                            avg::Vector2f offset) -> avg::Shape
+                        {
+                            return std::move(func(drawContext, size))
+                                .translate(offset)
+                                ;
+                        },
+                        std::move(func),
+                        std::move(offset)
+                        );
+                }));
+        }
+
+        auto translate(avg::Vector2f translation) && // -> Shape
+        {
+            return std::move(*this).translate(bq::signal::constant(translation));
+        }
+
+        auto rotate(bq::signal::AnySignal<avg::Animated<float>> angle,
+                bq::signal::AnySignal<avg::Animated<avg::Vector2f>> anchor =
+                bq::signal::constant(avg::Vector2f(0.5f, 0.5f))) && // -> Shape
+        {
+            return detail::makeShapeUncheckedFromSignal(
+                merge(std::move(func_), std::move(angle), std::move(anchor))
+                .map([](auto func, avg::Animated<float> angle,
+                        avg::Animated<avg::Vector2f> anchor)
+                {
+                    return makeShapeFunction(
+                        [](avg::DrawContext const& drawContext,
+                            avg::Vector2f size,
+                            auto func,
+                            float angle,
+                            avg::Vector2f anchor) -> avg::Shape
+                        {
+                            avg::Vector2f offset(
+                                    size.x() * anchor.x(),
+                                    size.y() * anchor.y()
+                                    );
+
+                            return std::move(func(drawContext, size))
+                                .translate(-offset)
+                                .rotate(angle)
+                                .translate(offset)
+                                ;
+                        },
+                        std::move(func),
+                        std::move(angle),
+                        std::move(anchor)
+                        );
+                }));
+        }
+
+        auto rotate(float angle, avg::Vector2f anchor = { 0.5f, 0.5f }) && // -> Shape
+        {
+            return std::move(*this).rotate(
+                    bq::signal::constant(angle),
+                    bq::signal::constant(anchor)
+                    );
+        }
+
+        auto scale(bq::signal::AnySignal<avg::Animated<float>> factor,
+                bq::signal::AnySignal<avg::Animated<avg::Vector2f>> anchor =
+                bq::signal::constant(avg::Vector2f(0.5f, 0.5f))) && // -> Shape
+        {
+            return detail::makeShapeUncheckedFromSignal(
+                merge(std::move(func_), std::move(factor), std::move(anchor))
+                .map([](auto func, avg::Animated<float> factor,
+                        avg::Animated<avg::Vector2f> anchor)
+                {
+                    return makeShapeFunction(
+                        [](avg::DrawContext const& drawContext,
+                            avg::Vector2f size,
+                            auto func,
+                            float factor,
+                            avg::Vector2f anchor) -> avg::Shape
+                        {
+                            avg::Vector2f offset(
+                                    size.x() * anchor.x(),
+                                    size.y() * anchor.y()
+                                    );
+
+                            return std::move(func(drawContext, size))
+                                .translate(-offset)
+                                .scale(factor)
+                                .translate(offset)
+                                ;
+                        },
+                        std::move(func),
+                        std::move(factor),
+                        std::move(anchor)
+                        );
+                }));
+        }
+
+        auto scale(float factor, avg::Vector2f anchor) && // -> Shape
+        {
+            return std::move(*this).scale(
+                    bq::signal::constant(factor),
+                    bq::signal::constant(anchor)
+                    );
+        }
+
         operator AnyShape() const&
         {
             return AnyShape(ShapeBuildTag{}, func_);
