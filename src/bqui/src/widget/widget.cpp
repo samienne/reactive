@@ -18,4 +18,3 @@ namespace bqui::modifier
     template class BQUI_EXPORT_TEMPLATE BuilderModifier<std::function<widget::AnyBuilder(widget::AnyBuilder)>>;
     template class BQUI_EXPORT_TEMPLATE ElementModifier<std::function<widget::AnyElement(widget::AnyElement)>>;
 }
-
