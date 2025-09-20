@@ -11,7 +11,7 @@
 namespace bqui::widget
 {
     template <typename TInstance>
-    class Element;
+    class BQUI_EXPORT_CLASS_TEMPLATE Element;
 
     using AnyElement = Element<bq::signal::AnySignal<Instance>>;
 
@@ -19,7 +19,7 @@ namespace bqui::widget
     auto makeElement(bq::signal::Signal<TInstance, Instance> instance, BuildParams params);
 
     template <typename TInstance>
-    class Element
+    class BQUI_EXPORT_CLASS_TEMPLATE Element
     {
     public:
         Element(TInstance instance, BuildParams params) :
@@ -89,8 +89,11 @@ namespace bqui::widget
         BuildParams params_;
     };
 
+    /*
+    // Gcc has problems exporting this template
     extern template class BQUI_EXPORT_TEMPLATE
         Element<bq::signal::AnySignal<Instance>>;
+    */
 
     template <typename TInstance>
     auto makeElement(bq::signal::Signal<TInstance, Instance> instance, BuildParams params)

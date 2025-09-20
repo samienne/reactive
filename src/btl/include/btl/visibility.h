@@ -6,6 +6,7 @@
     #define BTL_VISIBLE __attribute__ ((visibility ("default")))
     #define BTL_HIDDEN __attribute__ ((visibility ("hidden")))
 
+    #define BTL_VISIBILITY_PUSH_VISIBLE _Pragma("GCC visibility push(default)")
     #define BTL_VISIBILITY_PUSH_HIDDEN _Pragma("GCC visibility push(hidden)")
     #define BTL_VISIBILITY_POP _Pragma("GCC visibility pop")
 
@@ -17,6 +18,10 @@
     #if defined(__clang__)
         #define BTL_EXPORT_TEMPLATE BTL_EXPORT
         #define BTL_EXPORT_CLASS_TEMPLATE
+        #define BTL_IMPORT_TEMPLATE BTL_IMPORT
+    #elif defined(__GNUC__)
+        #define BTL_EXPORT_TEMPLATE BTL_EXPORT
+        #define BTL_EXPORT_CLASS_TEMPLATE BTL_EXPORT
         #define BTL_IMPORT_TEMPLATE BTL_IMPORT
     #else
         #define BTL_EXPORT_TEMPLATE
