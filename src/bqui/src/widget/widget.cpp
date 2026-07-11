@@ -8,14 +8,14 @@
 
 namespace bqui::widget
 {
-    template class Widget<std::function<AnyBuilder(BuildParams)>>;
-    template class Element<bq::signal::AnySignal<Instance>>;
+    template class BQUI_EXPORT_TEMPLATE Widget<std::function<AnyBuilder(BuildParams)>>;
+    template class BQUI_EXPORT_TEMPLATE Element<bq::signal::AnySignal<Instance>>;
 }
 
 namespace bqui::modifier
 {
-    template class WidgetModifier<std::function<widget::AnyWidget(widget::AnyWidget)>>;
-    template class BuilderModifier<std::function<widget::AnyBuilder(widget::AnyBuilder)>>;
-    template class ElementModifier<std::function<widget::AnyElement(widget::AnyElement)>>;
+    template class BQUI_EXPORT_TEMPLATE WidgetModifier<std::function<widget::AnyWidget(widget::AnyWidget)>>;
+    template class BQUI_EXPORT_TEMPLATE BuilderModifier<std::function<widget::AnyBuilder(widget::AnyBuilder)>>;
+    template class BQUI_EXPORT_TEMPLATE ElementModifier<std::function<widget::AnyElement(widget::AnyElement)>>;
 }
 
