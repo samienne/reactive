@@ -27,8 +27,8 @@
 #elif defined(_WIN32)
     #define BTL_EXPORT __declspec(dllexport)
     #define BTL_IMPORT __declspec(dllimport)
-    #define BTL_EXPORT_TEMPLATE
-    #define BTL_IMPORT_TEMPLATE
+    #define BTL_EXPORT_TEMPLATE __declspec(dllexport)
+    #define BTL_IMPORT_TEMPLATE __declspec(dllimport)
     #define BTL_EXPORT_CLASS_TEMPLATE
 
     #define BTL_FORCE_INLINE inline

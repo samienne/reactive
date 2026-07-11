@@ -10,15 +10,15 @@
 
 namespace avg
 {
-template class Animated<float>;
-template class Animated<Vector2f>;
-template class Animated<Rect>;
-template class Animated<Transform>;
-template class Animated<Obb>;
-template class Animated<Color>;
-template class Animated<Brush>;
-template class Animated<Pen>;
-template class Animated<Curve>;
+template class AVG_EXPORT_TEMPLATE Animated<float>;
+template class AVG_EXPORT_TEMPLATE Animated<Vector2f>;
+template class AVG_EXPORT_TEMPLATE Animated<Rect>;
+template class AVG_EXPORT_TEMPLATE Animated<Transform>;
+template class AVG_EXPORT_TEMPLATE Animated<Obb>;
+template class AVG_EXPORT_TEMPLATE Animated<Color>;
+template class AVG_EXPORT_TEMPLATE Animated<Brush>;
+template class AVG_EXPORT_TEMPLATE Animated<Pen>;
+template class AVG_EXPORT_TEMPLATE Animated<Curve>;
 
 } // namespace avg
 
