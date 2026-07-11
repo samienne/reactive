@@ -82,7 +82,13 @@ jobs:
             ninja -C build/release test
 
     build-win:
+        name: "build-win (${{ matrix.compiler.name }})"
         runs-on: "windows-2022"
+        strategy:
+            matrix:
+                compiler: [
+                  { "name": "msvc", "CC": "", "CXX": "" },
+                  { "name": "clang-cl", "CC": "clang-cl", "CXX": "clang-cl" } ]
         steps:
         - uses: actions/checkout@v2
           name: checkout
@@ -138,11 +144,17 @@ jobs:
 
             $env:PKG_CONFIG_LIBDIR = "."
 
-            md build\win-release
+            # Select compiler for this matrix leg (empty CC => default MSVC).
+            if ("${{ matrix.compiler.CC }}" -ne "") {
+                $env:CC = "${{ matrix.compiler.CC }}"
+                $env:CXX = "${{ matrix.compiler.CXX }}"
+            }
+
+            $builddir = "build/win-${{ matrix.compiler.name }}"
+            md $builddir
             echo 'Configuring...'
-            python build\meson\meson.py setup --buildtype=release --wrap-mode=forcefallback  . build/win-release
-            #python build\meson\meson.py compile -C build/win-$(BUILDTYPE)
+            python build\meson\meson.py setup --buildtype=release --wrap-mode=forcefallback . $builddir
             echo 'Building...'
-            ninja -C build/win-release
-            ninja -C build/win-release test
+            ninja -C $builddir
+            ninja -C $builddir test
 
