@@ -387,18 +387,23 @@ namespace bqui::shape
                         })
                 );
         }
+
+        // The animated value type a shape parameter T resolves to once the
+        // provider/signal wrappers are stripped.
+        template <typename T>
+        using ShapeParamValueT = avg::AnimatedTypeT<std::decay_t<
+            bq::signal::SingleSignalTypeT<
+                provider::ParamProviderTypeT<std::decay_t<T>>>>>;
+
     } // namespace detail
 
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<
-            avg::Shape,
-            TFunc,
-            avg::DrawContext const&,
-            avg::Vector2f,
-            avg::AnimatedTypeT<std::decay_t<
-                bq::signal::SingleSignalTypeT<provider::ParamProviderTypeT<
-                    std::decay_t<Ts>>>
-            >>...
+        std::is_invocable_r_v< //
+            avg::Shape, //
+            TFunc, //
+            avg::DrawContext const&, //
+            avg::Vector2f, //
+            detail::ShapeParamValueT<Ts>... //
         >>>
     auto makeShape(TFunc&& func, Ts&&... ts)
     {
