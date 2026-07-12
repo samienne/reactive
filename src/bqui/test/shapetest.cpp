@@ -77,8 +77,10 @@ TEST(shape, geometryTransformsInstantiate)
     (void)(rectangle().size(constant(avg::Vector2f(100, 100)),
             constant(avg::Vector2f(0.5f, 0.5f))));
 
-    // Boolean op and stroke-widening (both -> Shape).
+    // Boolean op and stroke-widening (both -> Shape). clip() takes AnyShape,
+    // so it must work after transforms have changed the concrete Shape type.
     (void)(rectangle().clip(rectangle()));
+    (void)(rectangle().rotate(0.5f).clip(rectangle()));
     (void)(rectangle().strokeToShape(constant(testPen())));
 
     // Conversion to AnyShape.
@@ -104,6 +106,7 @@ TEST(shape, terminalStylingInstantiate)
             std::nullopt, constant(testPen()));
     widget::AnyWidget w8 = rectangle().fillAndStroke(
             constant(testBrush()), std::nullopt);
+    widget::AnyWidget w9 = rectangle().fillAndStroke(testBrush(), testPen());
 
     (void)w1;
     (void)w2;
@@ -113,6 +116,7 @@ TEST(shape, terminalStylingInstantiate)
     (void)w6;
     (void)w7;
     (void)w8;
+    (void)w9;
 
     SUCCEED();
 }

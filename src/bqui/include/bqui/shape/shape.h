@@ -73,7 +73,7 @@ namespace bqui::shape
         {
             return widget::makeWidget()
                 | makeDrawModifier(
-                        func_.clone(),
+                        std::move(func_),
                         bq::signal::constant(std::optional<avg::Brush>()),
                         std::move(pen).map([](auto p)
                             {
@@ -92,7 +92,7 @@ namespace bqui::shape
         auto fill(bq::signal::Signal<U, avg::Brush> brush) && // -> Widget
         {
             return widget::makeWidget()
-                | makeDrawModifier(func_.clone(),
+                | makeDrawModifier(std::move(func_),
                         std::move(brush).map([](auto b)
                             {
                                 return std::make_optional(std::move(b));
@@ -141,13 +141,20 @@ namespace bqui::shape
         {
             return widget::makeWidget()
                 | makeDrawModifier(
-                        func_.clone(),
+                        std::move(func_),
                         bq::signal::fromOptional(std::move(brush)),
                         bq::signal::fromOptional(std::move(pen)))
                 ;
         }
 
-        auto clip(Shape clipShape) && // -> Shape
+        auto fillAndStroke(avg::Brush brush, avg::Pen pen) && // -> Widget
+        {
+            return std::move(*this).fillAndStroke(
+                    bq::signal::constant(std::move(brush)),
+                    bq::signal::constant(std::move(pen)));
+        }
+
+        auto clip(AnyShape clipShape) && // -> Shape
         {
             return detail::makeShapeUncheckedFromSignal(
                     merge(std::move(func_), std::move(clipShape.func_))
@@ -359,6 +366,11 @@ namespace bqui::shape
         }
 
     private:
+        // Allow Shape<T> to reach the func_ of a differently-typed Shape (e.g.
+        // an AnyShape passed to clip()).
+        template <typename U>
+        friend class Shape;
+
         T func_;
     };
 
