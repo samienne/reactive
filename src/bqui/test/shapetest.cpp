@@ -1,5 +1,7 @@
 #include <bqui/shape/shape.h>
 #include <bqui/shape/rectangle.h>
+#include <bqui/shape/ellipse.h>
+#include <bqui/shape/circle.h>
 
 #include <bqui/widget/widget.h>
 
@@ -117,6 +119,24 @@ TEST(shape, terminalStylingInstantiate)
     (void)w7;
     (void)w8;
     (void)w9;
+
+    SUCCEED();
+}
+
+TEST(shape, factoriesInstantiate)
+{
+    widget::AnyWidget e = shape::ellipse().fill(testBrush());
+    widget::AnyWidget c = shape::circle().stroke(testPen());
+
+    // Factories compose with transforms and terminals like any other shape.
+    widget::AnyWidget e2 =
+            shape::ellipse().rotate(0.5f).fillAndStroke(testBrush(), testPen());
+    shape::AnyShape masked = shape::circle().clip(shape::rectangle());
+
+    (void)e;
+    (void)c;
+    (void)e2;
+    (void)masked;
 
     SUCCEED();
 }

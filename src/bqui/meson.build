@@ -39,6 +39,8 @@ libbquisrc = [
   'src/widget/vbox.cpp',
   'src/widget/widget.cpp',
 
+  'src/shape/circle.cpp',
+  'src/shape/ellipse.cpp',
   'src/shape/rectangle.cpp',
 
   'src/widgetobject.cpp',
