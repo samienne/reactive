@@ -388,16 +388,26 @@ namespace bqui::shape
         template <typename TFunc, typename... Ts>
         auto makeShapeUnchecked(TFunc&& func, Ts&&... ts)
         {
-            return makeShapeUncheckedFromSignal(
-                merge(std::forward<Ts>(ts)...).map(
-                        [func=std::forward<TFunc>(func)](auto&&... values) mutable
-                        {
-                            return makeShapeFunction(
-                                    func,
-                                    std::forward<decltype(values)>(values)...
-                                    );
-                        })
-                );
+            // A shape with no animated parameters is just a constant shape
+            // function; merge() has no zero-argument form.
+            if constexpr (sizeof...(Ts) == 0)
+            {
+                return makeShapeUncheckedFromSignal(bq::signal::constant(
+                            avg::makeShapeFunction(std::forward<TFunc>(func))));
+            }
+            else
+            {
+                return makeShapeUncheckedFromSignal(
+                    bq::signal::merge(std::forward<Ts>(ts)...).map(
+                            [func=std::forward<TFunc>(func)](auto&&... values) mutable
+                            {
+                                return makeShapeFunction(
+                                        func,
+                                        std::forward<decltype(values)>(values)...
+                                        );
+                            })
+                    );
+            }
         }
 
         // The animated value type a shape parameter T resolves to once the
