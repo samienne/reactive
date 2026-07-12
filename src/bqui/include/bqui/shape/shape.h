@@ -84,7 +84,8 @@ namespace bqui::shape
 
         auto stroke(avg::Pen pen) &&
         {
-            return stroke(bq::signal::constant(std::move(pen)));
+            return std::move(*this).stroke(
+                    bq::signal::constant(std::move(pen)));
         }
 
         template <typename U>
@@ -103,12 +104,13 @@ namespace bqui::shape
 
         auto fill(avg::Brush brush) &&
         {
-            return fill(std::move(brush));
+            return std::move(*this).fill(
+                    bq::signal::constant(std::move(brush)));
         }
 
         auto fill(avg::Color const& color) &&
         {
-            return fill(avg::Brush(color));
+            return std::move(*this).fill(avg::Brush(color));
         }
 
         template <typename U>
