@@ -160,7 +160,7 @@ namespace bqui::shape
                                     auto rhs)
                                 {
                                     return lhs(drawContext, size)
-                                        & rhs(drawContext, size);
+                                        .intersect(rhs(drawContext, size));
                                 },
                                 std::move(lhs),
                                 std::move(rhs)
@@ -237,7 +237,7 @@ namespace bqui::shape
                     );
         }
 
-        auto translate(bq::signal::AnySignal<avg::Animated<avg::Vector2f>> offset)
+        auto translate(bq::signal::AnySignal<avg::Animated<avg::Vector2f>> offset) && // -> Shape
         {
             return detail::makeShapeUncheckedFromSignal(
                 merge(std::move(func_), std::move(offset))
@@ -340,7 +340,7 @@ namespace bqui::shape
                 }));
         }
 
-        auto scale(float factor, avg::Vector2f anchor) && // -> Shape
+        auto scale(float factor, avg::Vector2f anchor = { 0.5f, 0.5f }) && // -> Shape
         {
             return std::move(*this).scale(
                     bq::signal::constant(factor),
