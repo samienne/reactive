@@ -39,6 +39,8 @@ libbquisrc = [
   'src/widget/vbox.cpp',
   'src/widget/widget.cpp',
 
+  'src/shape/circle.cpp',
+  'src/shape/ellipse.cpp',
   'src/shape/rectangle.cpp',
 
   'src/widgetobject.cpp',
@@ -46,7 +48,6 @@ libbquisrc = [
   'src/shapes.cpp',
   'src/keyboardinput.cpp',
   'src/inputarea.cpp',
-  'src/widget.cpp',
   'src/window.cpp',
   'src/app.cpp',
   'src/connection.cpp',
@@ -64,12 +65,17 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
+args = []
+if target_machine.system() != 'windows'
+  args += ['-Wno-attributes']
+endif
+
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
   dependencies: bquidep,
-  cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
+  cpp_args: ['-DBQUI_EXPORT_SYMBOLS', args],
   gnu_symbol_visibility: 'hidden'
   )
 
@@ -80,10 +86,11 @@ libbquidep = declare_dependency(
   )
 
 bquitest =  executable('bquitest',
-  #'test/collectiontest.cpp',
-  #'test/databindtest.cpp',
+  'test/collectiontest.cpp',
+  'test/databindtest.cpp',
+  'test/shapetest.cpp',
   'test/widgetinstancemodifiertest.cpp',
-  #'test/widgettest.cpp',
+  'test/widgettest.cpp',
   dependencies: [gtestdep, libbquidep],
   )
 

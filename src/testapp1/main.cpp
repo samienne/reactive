@@ -5,7 +5,7 @@
 #include <bqui/modifier/setsize.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/drawkeyboardinputs.h>
-#include "bqui/modifier/setminimumsize.h"
+#include <bqui/modifier/setminimumsize.h>
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/focusgroup.h>
 #include <bqui/modifier/frame.h>
@@ -16,6 +16,7 @@
 #include <bqui/modifier/onhover.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
+#include <bqui/modifier/transform.h>
 
 #include <bqui/widget/scrollbar.h>
 #include <bqui/widget/scrollview.h>
@@ -108,9 +109,27 @@ int main()
                 return avg::Brush(color);
             });
 
+    auto angle = bq::signal::constant(avg::infiniteAnimation(
+                -0.1f, 0.1f, avg::curve::easeInOutCubic, 2.0f, avg::RepeatMode::reverse
+                ));
+
+    auto offset = bq::signal::constant(avg::infiniteAnimation(
+                avg::Vector2f(-20,0),
+                avg::Vector2f(20, 0),
+                avg::curve::easeInOutCubic, 2.0f,
+                avg::RepeatMode::reverse
+                ));
+
     auto widgets = widget::hbox({
         widget::vbox({
             shape::rectangle()
+                //.size(bq::signal::constant(avg::Vector2f(100, 100)))
+                //.transform(bq::signal::constant(avg::translate(10, 20)))
+                //.transform(avg::translate(10, 20))
+                //.translate({10, 20})
+                .translate(offset)
+                //.translate(bq::signal::constant(avg::Vector2f(10, 20)))
+                .rotate(angle)
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
                 | modifier::onClick(0, m.signal.bindToFunction([h=m.handle](bool b) mutable

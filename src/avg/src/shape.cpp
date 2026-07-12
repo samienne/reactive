@@ -453,6 +453,21 @@ Shape Shape::transform(Transform t) &&
     return t * std::move(*this);
 }
 
+Shape Shape::translate(Vector2f offset) &&
+{
+    return avg::translate(offset) * std::move(*this);
+}
+
+Shape Shape::rotate(float angle) &&
+{
+    return avg::rotate(angle) * std::move(*this);
+}
+
+Shape Shape::scale(float factor) &&
+{
+    return avg::scale(factor) * std::move(*this);
+}
+
 Rect Shape::getControlBb() const
 {
     return avg::getControlBb(Transform(), root_);
