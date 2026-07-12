@@ -37,7 +37,7 @@ jobs:
                   { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: "-Dtracy_enable=true"} ]
         runs-on: "ubuntu-22.04"
         steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
           with:
               submodules: recursive
 
@@ -58,9 +58,9 @@ jobs:
             ninja -C build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }} test
 
     build-macos:
-        runs-on: "macOS-latest"
+        runs-on: "macos-15"
         steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
           with:
               submodules: recursive
 
@@ -90,7 +90,7 @@ jobs:
                   { "name": "msvc", "CC": "", "CXX": "" },
                   { "name": "clang-cl", "CC": "clang-cl", "CXX": "clang-cl" } ]
         steps:
-        - uses: actions/checkout@v2
+        - uses: actions/checkout@v4
           name: checkout
           with:
               submodules: recursive
@@ -157,4 +157,26 @@ jobs:
             echo 'Building...'
             ninja -C $builddir
             ninja -C $builddir test
+
+    # Aggregating gate: this is the ONLY job to mark as a required status check.
+    # It turns green only if every job it needs succeeded, so new matrix legs are
+    # covered automatically; adding a brand-new top-level job just means adding it
+    # to `needs` below (reviewed in-repo, not in branch-protection settings).
+    ci-success:
+        name: ci-success
+        if: always()
+        needs: [build-linux, build-macos, build-win]
+        runs-on: "ubuntu-22.04"
+        steps:
+        - name: Verify all required jobs succeeded
+          run: |
+            results="${{ join(needs.*.result, ' ') }}"
+            echo "Required job results: $results"
+            for r in $results; do
+              if [ "$r" != "success" ]; then
+                echo "::error::A required job did not succeed (got '$r'). Failing the gate."
+                exit 1
+              fi
+            done
+            echo "All required jobs succeeded."
 
