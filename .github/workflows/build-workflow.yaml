@@ -6,7 +6,7 @@ jobs:
         runs-on: "ubuntu-latest"
         if: false
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           with:
               fetch-depth: 1
               ref: ${{ github.event.pull_request.head.sha }}
@@ -37,7 +37,7 @@ jobs:
                   { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: "-Dtracy_enable=true"} ]
         runs-on: "ubuntu-22.04"
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           with:
               submodules: recursive
 
@@ -60,7 +60,7 @@ jobs:
     build-macos:
         runs-on: "macos-15"
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           with:
               submodules: recursive
 
@@ -90,7 +90,7 @@ jobs:
                   { "name": "msvc", "CC": "", "CXX": "" },
                   { "name": "clang-cl", "CC": "clang-cl", "CXX": "clang-cl" } ]
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v5
           name: checkout
           with:
               submodules: recursive
