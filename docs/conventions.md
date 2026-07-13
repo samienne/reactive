@@ -9,7 +9,7 @@ before editing the corresponding area.
 
 - **`Any` prefix = type erasure.** `AnySignal<T>`, `AnyWidget`, `AnyShape`,
   `AnyWidgetModifier` are the type-erased forms of their concrete templated
-  counterparts (e.g. `Signal<Storage, T>`). Store and pass the `Any` form.
+  counterparts (e.g. `Signal<TStorage, Ts...>`). Store and pass the `Any` form.
 - Project is *Reactive*; the libraries are `bq` (signal core) and `bqui` (UI).
   The repo is still named `reactive` from before the rename.
 

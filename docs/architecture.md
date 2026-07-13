@@ -45,10 +45,11 @@ read-only signal plus a handle you push new values into. Signals are transformed
 with `map` (derive a new signal) and combined with `merge`. A **constant** never
 changes. See `src/bq/include/bq/signal/`.
 
-Throughout the codebase, the `Any`-prefixed types (`AnySignal<T>`) are the
-type-erased forms of the concrete `Signal<Storage, T>` — the erased form is what
-you store and pass around. This `Any` = "type-erased" convention is used
-everywhere (`AnyWidget`, `AnyShape`, …).
+Throughout the codebase, the `Any`-prefixed types (e.g. `AnySignal<T>`) are the
+type-erased forms of the concrete `Signal<TStorage, Ts...>` — they drop the
+internal storage type, keeping only the value type(s), and are what you store
+and pass around. This `Any` = "type-erased" convention is used everywhere
+(`AnyWidget`, `AnyShape`, …).
 
 ### Streams — events over time
 

@@ -23,7 +23,7 @@ should be shaped. Where a rule has a *why* or a mechanism, it points at
 
 - Use the `Any`-prefixed, type-erased forms (`AnySignal<T>`, `AnyWidget`,
   `AnyShape`, …) in public signatures and in prose. Only refer to the concrete
-  `Signal<Storage, T>` form when explaining the type erasure itself.
+  `Signal<TStorage, Ts...>` form when explaining the type erasure itself.
 - Public headers go under `src/<lib>/include/<lib>/` (the include firewall).
 
 ## Templates and builders
