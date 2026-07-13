@@ -44,3 +44,5 @@ subprojects/*
 tags
 compile_commands.json
 
+loomworks.json
+
