@@ -77,12 +77,10 @@ parameters — must be built as a *constant* instead of via an empty `merge`
   one-item-per-line when it would otherwise fit within the column limit. The
   in-code workaround is a **trailing empty `//` comment** on each element, which
   forces the break. It is load-bearing — do not remove those comments.
-- For dense template metaprogramming (e.g. an `enable_if` full of nested
-  traits), extract the nested expression into a named `using` alias / `constexpr
-  bool` predicate rather than reaching for `// clang-format off`. It formats
-  cleanly and reads better.
-- Never transcribe API signatures into Markdown; reference documentation is
-  Doxygen in the headers.
+
+The prescriptive rules that follow from this (the `//` trick, extracting dense
+template metaprogramming into named aliases, Doxygen-only API reference) live in
+`docs/style-guide.md`.
 
 ## CI
 

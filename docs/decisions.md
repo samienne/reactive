@@ -74,8 +74,10 @@ a branch's individual commits.
 ## Documentation lives in three homes
 
 User narrative → `readme.md`. API reference → **Doxygen in the headers**.
-Cross-cutting model, conventions, and decisions → `docs/` (this set), with a
-thin auto-loaded `CLAUDE.md` hub.
+Cross-cutting model, conventions, style, and decisions → `docs/`, with a thin
+hub in `AGENTS.md` (imported by `CLAUDE.md` so Claude Code auto-loads it).
+`AGENTS.md` is the canonical, tool-neutral name; `CLAUDE.md` is a one-line
+pointer for Claude Code specifically.
 
 **Why:** one home per fact minimises drift. Reference docs co-located with
 declarations are updated in the same diff; narrative and model docs never

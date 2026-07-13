@@ -33,7 +33,7 @@ dataflow library that the UI happens to use.
 
 ### Signals — values over time
 
-A **signal** describes a value that varies over time; a `Signal<int>` is a
+A **signal** describes a value that varies over time; an `AnySignal<int>` is a
 *description of how to compute an int*, not a stored int. Signals are stateless
 graph descriptions — the actual current values and caches live in an evaluation
 context, not in the signal object — which is what makes them cheap to copy and
