@@ -31,6 +31,12 @@ exported to dependents, so `#include <lib/header.h>` compiles only when `<lib>`
 is a declared dependency — a deliberate compile-time firewall (see
 `docs/conventions.md`).
 
+**Each library documents itself** in `src/<lib>/readme.md` (concepts and usage)
+and `src/<lib>/AGENTS.md` (internals, entry points, traps). Read the relevant
+library's `AGENTS.md` before working in it; those docs are co-located so they
+travel with the library if it becomes its own repository. `docs/architecture.md`
+indexes them.
+
 ## Build / test / run
 
 Meson + Ninja. Dependencies (Eigen, FreeType, mapbox, gtest, tracy) are fetched
