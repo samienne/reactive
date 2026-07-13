@@ -34,13 +34,13 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
 - Per-library **`readme.md` files carry no "verified against" stamp** on purpose
   — they are concepts/usage, not a contract.
 
-## Precision expectations
+## Precision anchors
 
-- **Technical docs** (`docs/`, `AGENTS.md`) must be precise. Illustrative
-  simplifications are acceptable only in a human-facing `readme.md`. (E.g. the
-  concrete signal type is `Signal<TStorage, Ts...>` with a value pack, and
-  `AnySignal` *derives from* `Signal<void, Ts...>` rather than aliasing it — the
-  technical docs should say so exactly.)
+The rubric requires technical docs to be precise (`style-guide.md`); this is the
+recurring spot to check. The concrete signal type is `Signal<TStorage, Ts...>`
+(a value pack), and `AnySignal` *derives from* `Signal<void, Ts...>` rather than
+aliasing it — confirm the technical docs say so exactly (a `readme.md` may
+simplify).
 
 ## Severity
 

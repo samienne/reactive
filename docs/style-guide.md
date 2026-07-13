@@ -67,6 +67,8 @@ General rules:
 - **One home per fact:** concepts/usage → `readme.md`; API contract → Doxygen;
   cross-cutting model/conventions/decisions → top-level `docs/`; library-specific
   knowledge → that library's `AGENTS.md`.
+- **Technical docs must be precise.** `docs/` and `AGENTS.md` state things
+  exactly; illustrative simplifications belong only in a human-facing `readme.md`.
 - Stamp the model/conventions/decisions docs with the commit they were "verified
   against."
 
