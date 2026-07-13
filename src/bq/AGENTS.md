@@ -12,10 +12,10 @@ folder here and leave one-line hooks below.
 - A signal is `Signal<TStorage, Ts...>` (`bq/signal/signal.h`). `Ts...` is a
   **pack of value types** — a signal can carry more than one value, delivered as
   a `SignalResult<Ts...>` (`bq/signal/signalresult.h`).
-- `AnySignal<Ts...>` is literally `Signal<void, Ts...>` — the `void` storage type
-  **is** the type erasure. Use `AnySignal` in public signatures and when storing
-  a signal; the concrete `Signal<TStorage, Ts...>` is what `map`/`merge`/etc.
-  return before erasure.
+- `AnySignal<Ts...>` derives from `Signal<void, Ts...>` — the `void` storage type
+  is what erases the concrete storage. Use `AnySignal` in public signatures and
+  when storing a signal; the concrete `Signal<TStorage, Ts...>` is what
+  `map`/`merge`/etc. return before erasure.
 
 ## Evaluation model
 
@@ -27,12 +27,12 @@ folder here and leave one-line hooks below.
 
 ## Entry points
 
-- State in: `makeInput` (`signal/input.h`) → `{signal, handle}`; push with
+- State in: `makeInput` (`bq/signal/input.h`) → `{signal, handle}`; push with
   `handle.set`.
-- Derive/combine: `map` (`signal/map.h`), `merge` (`signal/merge.h`),
-  `combine`/`join`/`conditional` (same folder). `constant` (`signal/constant.h`).
-- Streams: `pipe` (`stream/pipe.h`) → `{handle, stream}`, `handle.push`;
-  `iterate` (`stream/iterate.h`) folds a stream into a signal; `collect`.
+- Derive/combine: `map` (`bq/signal/map.h`), `merge` (`bq/signal/merge.h`),
+  `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
+- Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
+  `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 
 ## Traps
 

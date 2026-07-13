@@ -20,4 +20,5 @@ are in the top-level `docs/`.
   (integrated-vs-discrete GPU, vsync).
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
-  clang must be `clang-cl`, not `clang++` (see `AGENTS.md` at the repo root).
+  clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
+  `AGENTS.md` cover this).
