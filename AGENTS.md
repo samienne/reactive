@@ -12,6 +12,7 @@ system works*, not this file:
 - [`docs/conventions.md`](docs/conventions.md) — idioms and gotchas to know before editing.
 - [`docs/style-guide.md`](docs/style-guide.md) — how to write code and docs here (the review rubric).
 - [`docs/decisions.md`](docs/decisions.md) — why non-obvious choices were made.
+- [`docs/reviewing.md`](docs/reviewing.md) — how the pre-merge review works (what to weight, known false-positives).
 
 API reference is **Doxygen in the public headers**, not Markdown. Do not
 transcribe signatures into any Markdown doc, and do not add comments in code
@@ -80,7 +81,8 @@ For substantive changes, run these before asking for that approval (scale them
 down for trivial or docs-only PRs):
 
 1. **Clean-context style review** — a *fresh* agent (no authoring context)
-   checks the diff against `docs/style-guide.md` and `docs/conventions.md`.
+   checks the diff against `docs/style-guide.md`, `docs/conventions.md`, and
+   `docs/reviewing.md` (what to weight and known false-positives).
 2. **Clean-context correctness review** — a *fresh* agent reviews the diff for
    bugs and logic errors.
 3. **Docs-freshness check** — if the change alters the model, a convention, or a
@@ -88,6 +90,11 @@ down for trivial or docs-only PRs):
 
 The clean context matters: the author rationalises its own work, so an unbiased
 reviewer with only the diff and the rubric catches drift the author misses.
+
+After the human review, **capture any reusable lesson** in its home — a rule →
+`docs/style-guide.md`/`conventions.md`; a review heuristic or false-positive →
+`docs/reviewing.md` — so the next review applies it without the human repeating
+themselves.
 
 ## Keeping these docs honest
 
