@@ -169,6 +169,59 @@ TEST(Stream, lateContextMissesPriorEvents)
     EXPECT_EQ((std::vector<std::string>{ "late" }), c2.evaluate());
 }
 
+// A shared downstream must unregister its callback when destroyed, so its
+// mapping function stops running on subsequent events. (Currently fails: the
+// unregister lambda is stored on the control but never invoked.)
+TEST(Stream, sharedUnregistersOnDestroy)
+{
+    auto p = pipe<std::string>();
+    auto shared = std::move(p.stream).share();
+
+    int count = 0;
+    {
+        auto d = shared.fmap([&count](std::string s) { ++count; return s; });
+        p.handle.push("a");
+        EXPECT_EQ(1, count);
+    }
+
+    // d is destroyed; its callback must no longer run.
+    p.handle.push("b");
+    EXPECT_EQ(1, count);
+}
+
+// Destroying one shared view must not unregister a sibling that shares the same
+// control, even when destroyed out of creation order (callback ids must be
+// unique per control). Reachable because share() is idempotent per control.
+TEST(Stream, unregisterDoesNotStarveSibling)
+{
+    auto p = pipe<std::string>();
+
+    Stream<std::string> copy1 = p.stream;
+    Stream<std::string> copy2 = p.stream;
+
+    auto shared1 = std::move(copy1).share();
+    auto shared2 = std::move(copy2).share();
+
+    int count1 = 0;
+    int count2 = 0;
+
+    auto d1 = shared1.fmap([&count1](std::string s) { ++count1; return s; });
+
+    {
+        // Created after d1, destroyed before it.
+        auto d2 = shared2.fmap([&count2](std::string s) { ++count2; return s; });
+
+        p.handle.push("a");
+        EXPECT_EQ(1, count1);
+        EXPECT_EQ(1, count2);
+    }
+
+    // d2 is gone; d1 must still be registered, d2 must not fire.
+    p.handle.push("b");
+    EXPECT_EQ(2, count1);
+    EXPECT_EQ(1, count2);
+}
+
 TEST(Stream, collect)
 {
     auto p = pipe<std::string>();
