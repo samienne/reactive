@@ -21,6 +21,7 @@ libbquisrc = [
   'src/modifier/setminimumsize.cpp',
   'src/modifier/setsize.cpp',
   'src/modifier/setsizehint.cpp',
+  'src/modifier/setwidgetintrospection.cpp',
   'src/modifier/trackfocus.cpp',
   'src/modifier/transform.cpp',
 
