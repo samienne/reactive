@@ -100,10 +100,10 @@ TEST(Stream, convertShared)
     Stream<std::string> s = std::move(p.stream).share();
 }
 
-// stream.h:55: share() assigns control_->callback outright (no chaining). So
-// share()ing the SAME underlying stream twice makes the second share win and
-// silently starves the first. This pins that behaviour down: sharing a stream
-// more than once (e.g. collecting the same raw stream in two places) is a bug.
+// share() is idempotent per underlying Control: sharing the SAME underlying
+// stream more than once reuses the first broadcast instead of overwriting the
+// callback, so every shared view still receives every event. (Previously the
+// second share() won and silently starved the first.)
 TEST(Stream, shareSameStreamTwice)
 {
     auto p = pipe<std::string>();
@@ -121,8 +121,8 @@ TEST(Stream, shareSameStreamTwice)
 
     p.handle.push("event");
 
-    // The second share() overwrote the first: copy1's shared view is starved.
-    EXPECT_EQ(0, count1);
+    // Both shared views see the event: the second share() reused the first.
+    EXPECT_EQ(1, count1);
     EXPECT_EQ(1, count2);
 }
 
