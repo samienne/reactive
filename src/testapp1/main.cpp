@@ -31,14 +31,20 @@
 
 #include <bqui/shape/rectangle.h>
 
+#include <bqui/modifier/setwidgetintrospection.h>
+
+#include <bqui/widget/introspection.h>
+
 #include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
+#include <bqui/buildparams.h>
 #include <bqui/send.h>
 #include <bqui/window.h>
 #include <bqui/app.h>
 #include <bqui/withanimation.h>
 
 #include <bq/signal/signal.h>
+#include <bq/signal/signalcontext.h>
 
 #include <avg/curve/curves.h>
 
@@ -90,6 +96,31 @@ Window makeSecondWindow()
                 | modifier::focusGroup(),
             handle);
 }
+
+namespace
+{
+    void printIntrospection(widget::Introspection const& node, int depth)
+    {
+        std::cout << std::string(depth * 2, ' ') << node.role;
+        if (node.name)
+            std::cout << " \"" << *node.name << "\"";
+        std::cout << "\n";
+
+        for (auto const& child : node.children)
+            printIntrospection(child, depth + 1);
+    }
+
+    void printWidgetHierarchy(widget::AnyWidget widget)
+    {
+        auto introspection = std::move(widget)(BuildParams{}).getIntrospection();
+        auto data = bq::signal::makeSignalContext(std::move(introspection))
+            .evaluate();
+
+        std::cout << "Widget hierarchy:\n";
+        printIntrospection(data, 0);
+        std::cout << std::endl;
+    }
+} // anonymous namespace
 
 int main()
 {
@@ -207,7 +238,8 @@ int main()
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
                 | modifier::setMinimumSize({ 100.0f, 200.0f }),
             widget::label("Curves")
-                | modifier::frame(),
+                | modifier::frame()
+                | modifier::setName("curvesLabel"),
             curveVisualizer(std::move(curve)),
             widget::button(std::move(curveName), curveSelection.signal.bindToFunction(
                         [handle=curveSelection.handle](int i) mutable
@@ -216,7 +248,9 @@ int main()
                         }))
                 | modifier::setGravity({ 0.5f, 1.0f })
                 | modifier::setSize({ 150, 50 })
-                | modifier::setSizeHint({ 300, 300 }),
+                | modifier::setSizeHint({ 300, 300 })
+                | modifier::setName("nextCurveButton")
+                | modifier::setRole("Button"),
             widget::vfiller()
         })
         , widget::vbox({
@@ -242,9 +276,13 @@ int main()
                     {
                         std::cout << "Hover: " << e.hover << std::endl;
                     })
+            | modifier::setName("adder")
+            | modifier::setRole("Adder")
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 bq::signal::constant(0.5f))
     });
+
+    printWidgetHierarchy(widgets.clone());
 
     return app()
         .addWindow(window(

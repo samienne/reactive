@@ -6,8 +6,13 @@
 #include "bqui/modifier/transform.h"
 #include "bqui/modifier/addwidgets.h"
 #include "bqui/modifier/handlegravity.h"
+#include "bqui/modifier/setwidgetintrospection.h"
+
+#include "bqui/widget/introspection.h"
 
 #include "bqui/provider/providebuildparams.h"
+
+#include <bq/signal/combine.h>
 
 namespace bqui::widget
 {
@@ -87,11 +92,26 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
                         )(params));
         }
 
+        std::vector<bq::signal::AnySignal<Introspection>> childIntrospections;
+        childIntrospections.reserve(builders.size());
+        for (auto const& builder : builders)
+            childIntrospections.push_back(builder.getIntrospection());
+
+        auto introspection = bq::signal::combine(std::move(childIntrospections))
+            .map([](std::vector<Introspection> children)
+            {
+                Introspection data;
+                data.role = "Layout";
+                data.children = std::move(children);
+                return data;
+            });
+
         return layout(
                 std::move(sizeHintMap),
                 std::move(obbMap),
                 std::move(builders)
-                );
+                )
+            | modifier::setWidgetIntrospection(std::move(introspection));
     },
     provider::provideBuildParams(),
     std::move(sizeHintMap),

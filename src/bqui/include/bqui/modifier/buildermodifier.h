@@ -123,6 +123,7 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                auto introspection = builder.getIntrospection();
 
                 return makeBuilder(btl::bindArguments(
                     [](BuildParams const&, auto size, auto func,
@@ -141,7 +142,8 @@ namespace bqui::modifier
                     ),
                     std::move(sizeHint),
                     std::move(params),
-                    std::move(gravity)
+                    std::move(gravity),
+                    std::move(introspection)
                     );
 
             },
