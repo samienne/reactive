@@ -100,6 +100,75 @@ TEST(Stream, convertShared)
     Stream<std::string> s = std::move(p.stream).share();
 }
 
+// stream.h:55: share() assigns control_->callback outright (no chaining). So
+// share()ing the SAME underlying stream twice makes the second share win and
+// silently starves the first. This pins that behaviour down: sharing a stream
+// more than once (e.g. collecting the same raw stream in two places) is a bug.
+TEST(Stream, shareSameStreamTwice)
+{
+    auto p = pipe<std::string>();
+
+    Stream<std::string> copy1 = p.stream;
+    Stream<std::string> copy2 = p.stream;
+
+    auto shared1 = std::move(copy1).share();
+    auto shared2 = std::move(copy2).share();
+
+    int count1 = 0;
+    int count2 = 0;
+    auto d1 = shared1.fmap([&count1](std::string s) { ++count1; return s; });
+    auto d2 = shared2.fmap([&count2](std::string s) { ++count2; return s; });
+
+    p.handle.push("event");
+
+    // The second share() overwrote the first: copy1's shared view is starved.
+    EXPECT_EQ(0, count1);
+    EXPECT_EQ(1, count2);
+}
+
+// Two SignalContexts built from the SAME collect signal, both alive before any
+// event: does each independently see every event? (multi-context coexistence)
+TEST(Stream, collectInTwoContexts)
+{
+    auto p = pipe<std::string>();
+    auto s = collect(std::move(p.stream));
+
+    auto c1 = signal::makeSignalContext(s);
+    auto c2 = signal::makeSignalContext(s);
+
+    p.handle.push("a");
+
+    auto r1 = c1.update(signal::FrameInfo(1, {}));
+    auto r2 = c2.update(signal::FrameInfo(1, {}));
+
+    EXPECT_TRUE(r1.didChange);
+    EXPECT_TRUE(r2.didChange);
+    EXPECT_EQ((std::vector<std::string>{ "a" }), c1.evaluate());
+    EXPECT_EQ((std::vector<std::string>{ "a" }), c2.evaluate());
+}
+
+// A context created AFTER an event was pushed misses that event permanently
+// (streams have no current-value convergence like signal inputs).
+TEST(Stream, lateContextMissesPriorEvents)
+{
+    auto p = pipe<std::string>();
+    auto s = collect(std::move(p.stream));
+
+    auto c1 = signal::makeSignalContext(s);
+
+    p.handle.push("early");
+
+    auto c2 = signal::makeSignalContext(s);
+
+    p.handle.push("late");
+
+    c1.update(signal::FrameInfo(1, {}));
+    c2.update(signal::FrameInfo(1, {}));
+
+    EXPECT_EQ((std::vector<std::string>{ "early", "late" }), c1.evaluate());
+    EXPECT_EQ((std::vector<std::string>{ "late" }), c2.evaluate());
+}
+
 TEST(Stream, collect)
 {
     auto p = pipe<std::string>();
