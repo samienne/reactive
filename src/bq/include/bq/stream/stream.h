@@ -49,11 +49,18 @@ namespace bq
 
             SharedStream<T> share() &&
             {
+                // Sharing is idempotent per underlying Control: if this stream
+                // was already shared and that broadcast is still alive, reuse
+                // it. Otherwise a second share() would overwrite callback and
+                // starve the earlier shared view.
+                if (auto existing = control_->shared.lock())
+                    return SharedStream<T>(std::move(existing));
+
                 auto newControl = std::make_shared<SharedControl<T>>();
                 std::weak_ptr<SharedControl<T>> weakControl(newControl);
 
                 control_->callback =
-                    [control = std::move(weakControl)](T value)
+                    [control = weakControl](T value)
                     {
                         if (auto p = control.lock())
                         {
@@ -63,6 +70,7 @@ namespace bq
                         }
                     };
 
+                control_->shared = std::move(weakControl);
                 newControl->upstream = std::move(control_);
 
                 return SharedStream<T>(std::move(newControl));
