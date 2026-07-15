@@ -3,6 +3,9 @@
 #include "stream.h"
 #include "sharedcontrol.h"
 
+#include <optional>
+#include <utility>
+
 namespace bq
 {
     namespace stream
@@ -10,15 +13,36 @@ namespace bq
         template <typename T>
         class SharedStream
         {
+            // Move-only, fire-once RAII guard: runs its function exactly once,
+            // when the still-active instance is destroyed. Moving transfers the
+            // function, disarming the moved-from instance so that the temporary
+            // spun up while constructing the downstream control does not fire
+            // the unregister early (before the callback is even registered) or a
+            // second time.
             template <typename TFunc>
             struct OnDelete
             {
-                ~OnDelete()
+                explicit OnDelete(TFunc callBack) :
+                    callBack(std::move(callBack))
                 {
-                    callBack();
                 }
 
-                TFunc callBack;
+                OnDelete(OnDelete&& other) noexcept :
+                    callBack(std::exchange(other.callBack, std::nullopt))
+                {
+                }
+
+                OnDelete(OnDelete const&) = delete;
+                OnDelete& operator=(OnDelete&&) = delete;
+                OnDelete& operator=(OnDelete const&) = delete;
+
+                ~OnDelete()
+                {
+                    if (callBack)
+                        (*callBack)();
+                }
+
+                std::optional<TFunc> callBack;
             };
 
         public:
@@ -31,17 +55,22 @@ namespace bq
             auto fmap(TFunc&& f) const -> Stream<std::invoke_result_t<TFunc, T>>
             {
                 using NewType = std::invoke_result_t<TFunc, T>;
-                size_t index = nextIndex_++;
+                size_t index = control_->nextIndex++;
 
-                auto destructor = [index, control = control_]()
+                auto unregister = [index, control = control_]()
                 {
                     for (auto i = control->callbacks.begin();
                             i != control->callbacks.end(); ++i)
                     {
                         if (i->second == index)
+                        {
                             control->callbacks.erase(i);
+                            break;
+                        }
                     }
                 };
+
+                OnDelete<decltype(unregister)> destructor(std::move(unregister));
 
                 using NewControl = ControlWithData<NewType, decltype(destructor)>;
                 auto newControl = std::make_shared<NewControl>(std::move(destructor));
@@ -68,7 +97,6 @@ namespace bq
 
         private:
             std::shared_ptr<SharedControl<T>> control_;
-            mutable size_t nextIndex_ = 1;
         };
     } // stream
 } // reactive
