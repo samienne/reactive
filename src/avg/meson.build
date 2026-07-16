@@ -51,5 +51,7 @@ avgtest =  executable('avgtest',
   dependencies: [gtestdep, libavgdep],
   )
 
-test('avg', avgtest, timeout: 1200, args: ['--gtest_output=xml'])
+test('avg', avgtest, timeout: 1200,
+  args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
+  workdir: meson.project_source_root())
 

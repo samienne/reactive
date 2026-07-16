@@ -14,7 +14,7 @@
 #include <utility>
 #include <string>
 
-const std::string fontPath = "../../data/fonts/OpenSans-Regular.ttf";
+const std::string fontPath = "data/fonts/OpenSans-Regular.ttf";
 
 TEST(Font, ToPath)
 {
