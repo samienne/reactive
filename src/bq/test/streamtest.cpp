@@ -143,8 +143,8 @@ TEST(Stream, collectInTwoContexts)
 
     EXPECT_TRUE(r1.didChange);
     EXPECT_TRUE(r2.didChange);
-    EXPECT_EQ((std::vector<std::string>{ "a" }), c1.evaluate());
-    EXPECT_EQ((std::vector<std::string>{ "a" }), c2.evaluate());
+    EXPECT_EQ((std::vector<std::string>{ "a" }), c1.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<std::string>{ "a" }), c2.evaluate<0>().get<0>());
 }
 
 // A context created AFTER an event was pushed misses that event permanently
@@ -165,8 +165,8 @@ TEST(Stream, lateContextMissesPriorEvents)
     c1.update(signal::FrameInfo(1, {}));
     c2.update(signal::FrameInfo(1, {}));
 
-    EXPECT_EQ((std::vector<std::string>{ "early", "late" }), c1.evaluate());
-    EXPECT_EQ((std::vector<std::string>{ "late" }), c2.evaluate());
+    EXPECT_EQ((std::vector<std::string>{ "early", "late" }), c1.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<std::string>{ "late" }), c2.evaluate<0>().get<0>());
 }
 
 // A shared downstream must unregister its callback when destroyed, so its
@@ -232,14 +232,14 @@ TEST(Stream, collect)
 
     auto c = signal::makeSignalContext(s);
 
-    EXPECT_EQ(std::vector<std::string>(), c.evaluate());
+    EXPECT_EQ(std::vector<std::string>(), c.evaluate<0>().get<0>());
 
     p.handle.push("test1");
 
     auto r = c.update(signal::FrameInfo(1, {}));
     EXPECT_TRUE(r.didChange);
 
-    auto r1 = c.evaluate();
+    auto r1 = c.evaluate<0>().get<0>();
     EXPECT_EQ(1, r1.size());
     EXPECT_EQ("test1", r1.at(0));
 }
@@ -260,12 +260,12 @@ TEST(Stream, iterate)
     static_assert(signal::checkSignal<decltype(s.unwrap())>());
 
     auto c = signal::makeSignalContext(s);
-    auto v = c.evaluate();
+    auto v = c.evaluate<0>().get<0>();
 
     EXPECT_EQ("hello", v);
 
     auto r = c.update(signal::FrameInfo(1, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("hello", v);
@@ -273,14 +273,14 @@ TEST(Stream, iterate)
     values.handle.push("world");
 
     r = c.update(signal::FrameInfo(2, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("helloworld", v);
 
     initial.handle.set("");
     r = c.update(signal::FrameInfo(3, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("", v);
@@ -290,25 +290,25 @@ TEST(Stream, iterate)
     values.handle.push("world");
 
     r = c.update(signal::FrameInfo(4, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
     r = c.update(signal::FrameInfo(5, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
     r = c.update(signal::FrameInfo(6, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byeworld", v);
 
     r = c.update(signal::FrameInfo(7, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byeworld", v);

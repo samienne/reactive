@@ -92,9 +92,9 @@ TEST(signal, constant)
 
     auto c = makeSignalContext(s);
 
-    EXPECT_EQ(10, c.evaluate());
+    EXPECT_EQ(10, c.evaluate<0>().get<0>());
 
-    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
 
     FrameInfo frame(1, signal_time_t(10));
 
@@ -110,9 +110,9 @@ TEST(signal, signalContext)
 
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 
-    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
 
-    int v = c.evaluate();
+    int v = c.evaluate<0>().get<0>();
 
     EXPECT_EQ(42, v);
 }
@@ -125,20 +125,21 @@ TEST(signal, signalInput)
 
     auto c = makeSignalContext(input.signal);
 
-    EXPECT_EQ(Type<SignalContext<int const&>>(), Type<decltype(c)>());
+    EXPECT_EQ(Type<SignalContext<decltype(input.signal)>>(),
+            Type<decltype(c)>());
 
-    EXPECT_EQ(42, c.evaluate());
+    EXPECT_EQ(42, c.evaluate<0>().get<0>());
 
     input.handle.set(22);
 
-    EXPECT_EQ(42, c.evaluate());
+    EXPECT_EQ(42, c.evaluate<0>().get<0>());
 
     auto r = c.update(FrameInfo(1, {}));
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 
-    EXPECT_EQ(22, c.evaluate());
+    EXPECT_EQ(22, c.evaluate<0>().get<0>());
 
-    EXPECT_EQ(Type<int const&>(), getType(c.evaluate()));
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
 }
 
 TEST(signal, map)
@@ -154,7 +155,7 @@ TEST(signal, map)
 
     auto c = makeSignalContext(std::move(s));
 
-    EXPECT_EQ(84, c.evaluate());
+    EXPECT_EQ(84, c.evaluate<0>().get<0>());
 
     auto r = c.update(FrameInfo(1, {}));
 
@@ -163,11 +164,11 @@ TEST(signal, map)
 
     input.handle.set(12);
 
-    EXPECT_EQ(84, c.evaluate());
+    EXPECT_EQ(84, c.evaluate<0>().get<0>());
 
     r = c.update(FrameInfo(2, {}));
 
-    EXPECT_EQ(24, c.evaluate());
+    EXPECT_EQ(24, c.evaluate<0>().get<0>());
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ(std::nullopt, r.nextUpdate);
 }
@@ -191,7 +192,7 @@ TEST(signal, mapReferenceToTemp)
 
     auto c = makeSignalContext(std::move(s2));
 
-    EXPECT_EQ(42, c.evaluate());
+    EXPECT_EQ(42, c.evaluate<0>().get<0>());
 }
 
 TEST(signal, merge)
@@ -209,12 +210,12 @@ TEST(signal, merge)
 
     auto c = makeSignalContext(std::move(s));
 
-    Type<SignalResult<int const&, int const&, std::string const&>> type2;
-    EXPECT_EQ(type2, getType(c.evaluate()));
+    Type<SignalResult<int, int, std::string> const&> type2;
+    EXPECT_EQ(type2, getType(c.evaluate<0>()));
 
-    EXPECT_EQ(42, c.evaluate().get<0>());
-    EXPECT_EQ(20, c.evaluate().get<1>());
-    EXPECT_EQ("test", c.evaluate().get<2>());
+    EXPECT_EQ(42, c.evaluate<0>().get<0>());
+    EXPECT_EQ(20, c.evaluate<0>().get<1>());
+    EXPECT_EQ("test", c.evaluate<0>().get<2>());
 }
 
 TEST(signal, share)
@@ -230,7 +231,7 @@ TEST(signal, share)
 
     static_assert(checkSignal<decltype(s2.unwrap())>());
 
-    std::vector<SignalContext<std::string>> contexts;
+    std::vector<SignalContext<decltype(s2)>> contexts;
     for (int i = 0; i < 1024; ++i)
     {
         contexts.emplace_back(makeSignalContext(s2));
@@ -242,7 +243,7 @@ TEST(signal, share)
         futures.push_back(btl::async([&context]() mutable
             {
 
-                EXPECT_EQ("hello world!", context.evaluate());
+                EXPECT_EQ("hello world!", context.evaluate<0>().get<0>());
 
                 auto r = context.update(FrameInfo(1, signal_time_t(16)));
 
@@ -264,12 +265,12 @@ TEST(signal, share)
 
         std::move(f).then([&]()
             {
-                EXPECT_EQ("hello world!", context.evaluate());
+                EXPECT_EQ("hello world!", context.evaluate<0>().get<0>());
 
                 auto r = context.update(FrameInfo(2, signal_time_t(16)));
                 EXPECT_TRUE(r.didChange);
 
-                EXPECT_EQ("bye world!", context.evaluate());
+                EXPECT_EQ("bye world!", context.evaluate<0>().get<0>());
             });
     }
 
@@ -301,7 +302,7 @@ TEST(signal, join)
 
     auto c = makeSignalContext(j);
 
-    auto r1 = c.evaluate();
+    auto r1 = c.evaluate<0>();
 
     EXPECT_EQ("hello", r1.get<0>());
     EXPECT_EQ(42, r1.get<1>());
@@ -311,11 +312,11 @@ TEST(signal, join)
     input4.handle.set("?");
 
     c.update(FrameInfo(1, {}));
-    auto r2 = c.evaluate();
+    auto r2 = c.evaluate<0>();
 
     EXPECT_EQ("world", r2.get<0>());
     EXPECT_EQ(42, r2.get<1>());
-    EXPECT_EQ("?", r1.get<2>());
+    EXPECT_EQ("?", r2.get<2>());
 }
 
 TEST(signal, combine)
@@ -337,7 +338,7 @@ TEST(signal, combine)
 
     auto c = makeSignalContext(s);
 
-    auto r = c.evaluate();
+    auto r = c.evaluate<0>().get<0>();
 
     EXPECT_EQ(v1, r);
 
@@ -348,7 +349,7 @@ TEST(signal, combine)
 
     EXPECT_TRUE(ur.didChange);
 
-    r = c.evaluate();
+    r = c.evaluate<0>().get<0>();
 
     EXPECT_EQ(v2, r);
 
@@ -368,7 +369,7 @@ TEST(signal, conditional)
 
     auto c = makeSignalContext(s);
 
-    auto r = c.evaluate();
+    auto r = c.evaluate<0>();
 
     EXPECT_EQ("hello", r.get<0>());
     EXPECT_EQ(42, r.get<1>());
@@ -376,7 +377,7 @@ TEST(signal, conditional)
     cond.handle.set(false);
 
     auto ur = c.update(FrameInfo(1, {}));
-    r = c.evaluate();
+    r = c.evaluate<0>();
 
     EXPECT_TRUE(ur.didChange);
 
@@ -433,14 +434,14 @@ TEST(signal, tee)
 
     auto c = makeSignalContext(s2);
 
-    auto r1 = c.evaluate();
+    auto r1 = c.evaluate<0>();
 
     EXPECT_EQ("hellohello", r1.get<0>());
     EXPECT_EQ(84, r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 
-    auto r2 = c.evaluate();
+    auto r2 = c.evaluate<0>();
 
     EXPECT_EQ("hellohello", r2.get<0>());
     EXPECT_EQ(84, r2.get<1>());
@@ -448,7 +449,7 @@ TEST(signal, tee)
     input1.handle.set("world", 22);
     c.update(FrameInfo(2, {}));
 
-    auto r3 = c.evaluate();
+    auto r3 = c.evaluate<0>();
 
     EXPECT_EQ("worldworld", r3.get<0>());
     EXPECT_EQ(44, r3.get<1>());
@@ -471,14 +472,14 @@ TEST(signal, teeCircular)
 
     auto c = makeSignalContext(s2);
 
-    auto r1 = c.evaluate();
+    auto r1 = c.evaluate<0>();
 
     EXPECT_EQ("hellohelloworld", r1.get<0>());
     EXPECT_EQ(106, r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 
-    auto r2 = c.evaluate();
+    auto r2 = c.evaluate<0>();
 
     EXPECT_EQ("hellohelloworld", r2.get<0>());
     EXPECT_EQ(106, r2.get<1>());
@@ -504,14 +505,14 @@ TEST(signal, teeWithFunc)
 
     auto c = makeSignalContext(s2);
 
-    auto r1 = c.evaluate();
+    auto r1 = c.evaluate<0>();
 
     EXPECT_EQ(106, r1.get<0>());
     EXPECT_EQ("hellohelloworld", r1.get<1>());
 
     c.update(FrameInfo(1, {}));
 
-    auto r2 = c.evaluate();
+    auto r2 = c.evaluate<0>();
 
     EXPECT_EQ(106, r2.get<0>());
     EXPECT_EQ("hellohelloworld", r2.get<1>());
@@ -525,9 +526,9 @@ TEST(signal, makeOptional)
 
     auto c = makeSignalContext(s2);
 
-    EXPECT_EQ(Type<std::optional<int> const&>(), getType(c.evaluate()));
+    EXPECT_EQ(Type<std::optional<int> const&>(), getType(c.evaluate<0>().get<0>()));
 
-    EXPECT_EQ(std::make_optional(42), c.evaluate());
+    EXPECT_EQ(std::make_optional(42), c.evaluate<0>().get<0>());
 }
 
 TEST(signal, fromOptional)
@@ -630,7 +631,7 @@ TEST(signal, cast)
 
     auto c = makeSignalContext(s2);
 
-    auto f = c.evaluate();
+    auto f = c.evaluate<0>().get<0>();
 
     EXPECT_EQ(Type<std::function<std::string(int)>>(), Type<decltype(f)>());
 
@@ -655,7 +656,7 @@ TEST(signal, bindToFunction)
 
     auto c = makeSignalContext(s2);
 
-    auto f = c.evaluate();
+    auto f = c.evaluate<0>().get<0>();
 
     EXPECT_EQ("42hello, world", f("world"));
 }
@@ -670,13 +671,13 @@ TEST(signal, withChanged)
 
     auto c = makeSignalContext(s1);
 
-    auto v = c.evaluate();
+    auto v = c.evaluate<0>();
     EXPECT_FALSE(v.get<0>());
     EXPECT_EQ(42, v.get<1>());
     EXPECT_EQ("hello", v.get<2>());
 
     auto r = c.update(FrameInfo(1, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_FALSE(v.get<0>());
@@ -686,7 +687,7 @@ TEST(signal, withChanged)
     input.handle.set(22, "world");
 
     r = c.update(FrameInfo(2, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_TRUE(v.get<0>());
@@ -694,7 +695,7 @@ TEST(signal, withChanged)
     EXPECT_EQ("world", v.get<2>());
 
     r = c.update(FrameInfo(3, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     // Inner value did not change but our own first value changed from true to
     // false
@@ -704,7 +705,7 @@ TEST(signal, withChanged)
     EXPECT_EQ("world", v.get<2>());
 
     r = c.update(FrameInfo(4, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_FALSE(v.get<0>());
@@ -727,25 +728,25 @@ TEST(signal, withPrevious)
 
     auto c = makeSignalContext(s);
 
-    auto v = c.evaluate();
+    auto v = c.evaluate<0>().get<0>();
 
     EXPECT_EQ("helloworld", v);
 
     auto r = c.update(FrameInfo(1, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("helloworld", v);
 
     input.handle.set("bye");
     r = c.update(FrameInfo(2, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("helloworldbye", v);
 
     r = c.update(FrameInfo(3, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>().get<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("helloworldbye", v);
@@ -766,13 +767,13 @@ TEST(signal, withPreviousMulti)
 
     auto c = makeSignalContext(s);
 
-    auto v = c.evaluate();
+    auto v = c.evaluate<0>();
 
     EXPECT_EQ("helloworld", v.get<0>());
     EXPECT_EQ(64, v.get<1>());
 
     auto r = c.update(FrameInfo(1, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("helloworld", v.get<0>());
@@ -780,14 +781,14 @@ TEST(signal, withPreviousMulti)
 
     input.handle.set(33, "bye");
     r = c.update(FrameInfo(2, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_TRUE(r.didChange);
     EXPECT_EQ("byehelloworld", v.get<0>());
     EXPECT_EQ(97, v.get<1>());
 
     r = c.update(FrameInfo(3, {}));
-    v = c.evaluate();
+    v = c.evaluate<0>();
 
     EXPECT_FALSE(r.didChange);
     EXPECT_EQ("byehelloworld", v.get<0>());
