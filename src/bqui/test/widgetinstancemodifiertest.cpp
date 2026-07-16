@@ -59,7 +59,7 @@ TEST(Widget, widgetBuildParameters)
             {
                 auto p = params.get<TestTag>();
 
-                tag1 = p ? bq::signal::makeSignalContext(*p).evaluate() : "no p";
+                tag1 = p ? bq::signal::makeSignalContext(*p).evaluate<0>().get<0>() : "no p";
 
                 return widget;
             },
@@ -74,7 +74,7 @@ TEST(Widget, widgetBuildParameters)
             {
                 auto p = params.get<TestTag>();
 
-                tag2 = p ? bq::signal::makeSignalContext(*p).evaluate() : "no p";
+                tag2 = p ? bq::signal::makeSignalContext(*p).evaluate<0>().get<0>() : "no p";
 
                 return widget;
             },
@@ -111,7 +111,7 @@ TEST(Widget, differentModifiers)
             ).getInstance();
 
     auto context = makeSignalContext(instanceSignal);
-    auto instance = context.evaluate();
+    auto instance = context.evaluate<0>().get<0>();
 
     EXPECT_EQ(avg::Vector2f(200.0f, 400.0f), instance.getSize());
 }
@@ -123,7 +123,7 @@ TEST(Widget, withParams)
     auto widget = makeWidget()
         | makeWidgetModifier([&](auto widget, auto str)
             {
-                tag = signal::makeSignalContext(str).evaluate();
+                tag = signal::makeSignalContext(str).template evaluate<0>().template get<0>();
                 return widget;
             }, provideParam<TestTag>())
         ;
@@ -142,7 +142,7 @@ TEST(Widget, setParams)
     auto widget = makeWidget()
         | makeWidgetModifier([&](auto widget, auto str)
             {
-                tag = signal::makeSignalContext(str).evaluate();
+                tag = signal::makeSignalContext(str).template evaluate<0>().template get<0>();
                 return widget;
             },
             provideParam<TestTag>()
@@ -169,7 +169,7 @@ TEST(Widget, builderModifierTags)
                 return std::move(widget)
                     | makeBuilderModifierWithSize([&](auto builder, auto, auto tagValue)
                         {
-                            tag = signal::makeSignalContext(tagValue).evaluate();
+                            tag = signal::makeSignalContext(tagValue).template evaluate<0>().template get<0>();
                             return builder;
                         }, provideParam<TestTag>());
             })
@@ -180,13 +180,13 @@ TEST(Widget, builderModifierTags)
             })
         | makeBuilderModifierWithSize([&](auto builder, auto, auto tagValue)
             {
-                tag2 = signal::makeSignalContext(tagValue).evaluate();
+                tag2 = signal::makeSignalContext(tagValue).template evaluate<0>().template get<0>();
                 return builder;
             }, provideParam<TestTag>())
         | setParams<TestTag>("set value 2")
         | makeBuilderModifier([&](auto builder, auto tagValue)
             {
-                tag3 = signal::makeSignalContext(tagValue).evaluate();
+                tag3 = signal::makeSignalContext(tagValue).template evaluate<0>().template get<0>();
                 return builder;
             }, provideParam<TestTag>())
         ;
@@ -210,7 +210,7 @@ TEST(Widget, elementModifierParams)
             {
                 tag = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
-                        ).evaluate();
+                        ).template evaluate<0>().template get<0>();
                 return element;
             })
         | setParams<TestTag>("set value 1")
@@ -218,7 +218,7 @@ TEST(Widget, elementModifierParams)
             {
                 tag2 = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
-                        ).evaluate();
+                        ).template evaluate<0>().template get<0>();
                 return element;
             })
         | setParams<TestTag>("set value 2")
@@ -226,7 +226,7 @@ TEST(Widget, elementModifierParams)
             {
                 tag3 = signal::makeSignalContext(
                         element.getParams().template valueOrDefault<TestTag>()
-                        ).evaluate();
+                        ).template evaluate<0>().template get<0>();
                 return element;
             })
         ;

@@ -81,12 +81,12 @@ public:
         widgetInstanceSignal_(window_.getWidget()(
                     BuildParams{}
                     )(std::move(size_.signal)).getInstance()),
-        widgetInstance_(widgetInstanceSignal_.evaluate()),
+        widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
         titleSignal_(window_.getTitle()),
         drawing_(memory_)
     {
         aseWindow.setVisible(true);
-        aseWindow.setTitle(titleSignal_.evaluate());
+        aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
         aseWindow.setFrameCallback([this](ase::Frame const& frame) {
                 return onFrame(frame);
@@ -270,14 +270,14 @@ public:
         updateResult = updateResult + titleSignal_.update(frameInfo);
 
 
-        if (titleSignal_.didChange())
-            aseWindow.setTitle(titleSignal_.evaluate());
+        if (titleSignal_.didChange<0>())
+            aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-        if (widgetInstanceSignal_.didChange())
+        if (widgetInstanceSignal_.didChange<0>())
         {
             ZoneScopedN("Widget instance signal evaluation");
 
-            widgetInstance_ = widgetInstanceSignal_.evaluate();
+            widgetInstance_ = widgetInstanceSignal_.evaluate<0>().get<0>();
 
             // If there's an area with the same id -> update
             auto areas = widgetInstance_.getInputAreas();
@@ -331,7 +331,7 @@ public:
             }
         }
 
-        if (widgetInstanceSignal_.didChange()
+        if (widgetInstanceSignal_.didChange<0>()
                 || (nextUpdate_ && *nextUpdate_ <= timer)
                 )
         {
@@ -417,7 +417,7 @@ public:
 
     std::string getTitle() const
     {
-        return titleSignal_.evaluate();
+        return titleSignal_.evaluate<0>().get<0>();
     }
 
     widget::Instance const& getWidgetInstance() const
@@ -435,9 +435,10 @@ private:
     avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
         bq::signal::SignalResult<ase::Vector2f>> size_;
-    bq::signal::SignalContext<widget::Instance> widgetInstanceSignal_;
+    bq::signal::SignalContext<bq::signal::AnySignal<widget::Instance>>
+        widgetInstanceSignal_;
     widget::Instance widgetInstance_;
-    bq::signal::SignalContext<std::string> titleSignal_;
+    bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
     //RenderCache cache_;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
@@ -496,7 +497,7 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
             auto [timeToNext, didChange] = running.update(frame);
 
-            return running.evaluate();
+            return running.evaluate<0>().get<0>();
         });
 
     DBG("Shutting down...");

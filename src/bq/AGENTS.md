@@ -22,6 +22,13 @@ folder here and leave one-line hooks below.
 - Signals are **stateless graph descriptions**. The actual per-signal state
   (current values, caches) lives in a `SignalContext` (`bq/signal/signalcontext.h`),
   not in the signal object — which is why signals are cheap to copy and share.
+- A `SignalContext<TSignals...>` can hold **several** top-level signals over one
+  shared `DataContext`; they advance in lockstep and a `.share()` node reachable
+  from more than one of them is evaluated once per pass. Address every entry by
+  index (`evaluate<I>()`/`didChange<I>()`), even with a single signal — there is
+  no non-indexed accessor. Each entry's result is cached by owned value, so
+  `evaluate<I>()` never aliases signal data; extract with `.get<N>()`. See
+  `docs/decisions.md` for the rationale.
 - Evaluation is **change-driven**: a signal is recomputed when its inputs
   actually change, not on a fixed frame tick.
 
