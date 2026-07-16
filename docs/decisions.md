@@ -1,9 +1,42 @@
 # Decisions
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `1c71f09` (2026-07-15).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## `SignalContext` holds N signals over one shared `DataContext`
+
+`SignalContext` is parameterized over signal *types* (`SignalContext<TSignals...>`,
+each a `Signal<...>`/`AnySignal<...>`), not value packs, and drives all of them
+over a single shared `DataContext`. Every entry is addressed by index —
+`evaluate<I>()`, `didChange<I>()`, plus `didAnyChange()` — even with a single
+signal; there is no non-indexed convenience accessor.
+
+**Why:** several top-level signals (widget instance, introspection, window
+title) must advance in lockstep and dedup their shared sub-graphs. One shared
+`DataContext` makes `.share()` the cross-signal dedup lever — a shared node
+reachable from two entries is evaluated once per pass, not once per entry —
+while `.cache()` remains the temporal/sub-expression memoization lever.
+
+Parameterizing over signal *types* (rather than value packs) lets typed and
+type-erased signals coexist in one context and keeps `SignalContext` distinct
+from `merge`/`combine`, which fuse signals into one value pack. Per-signal
+**cadence was deliberately dropped**: every entry updates every frame, and
+per-signal evaluation memoization is the user's explicit choice via `.cache()`.
+
+Each entry's result is **cached by owned value**, uniformly regardless of
+arity — evaluated on construction and refreshed after any update in which that
+entry changed. `evaluate<I>()` returns a reference into that cached
+`SignalResult`; the caller extracts a value with `.get<N>()`. Caching by owned
+value (never by the reference-holding result the signal evaluates to) is the
+deliberate choice: an evaluated result can hold element references into signal
+data that go stale after `swapFrameData()` or a move, so the context copies the
+result into owned values on the way in and never aliases signal data.
+
+The one hard correctness constraint: `dataContext_.swapFrameData()` runs
+**exactly once per update pass, after every entry has updated** — never per
+entry, or one entry would rotate away frame data another still needs.
 
 ## Shape transforms are paint-time; layout size is separate
 
