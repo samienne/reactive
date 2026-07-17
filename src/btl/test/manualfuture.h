@@ -1,8 +1,8 @@
 #pragma once
 
-#include <btl/future/promise.h>
 #include <btl/future/future.h>
 #include <btl/future/futurecontrol.h>
+#include <btl/future/promise.h>
 
 #include <memory>
 #include <utility>

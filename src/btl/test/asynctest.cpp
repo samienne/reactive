@@ -1,22 +1,21 @@
 #include "manualfuture.h"
 
+#include <btl/always.h>
+#include <btl/async.h>
+#include <btl/delayed.h>
+#include <btl/future/future.h>
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
-#include <btl/future/whenall.h>
 #include <btl/future/sharedfuture.h>
-#include <btl/future/future.h>
-
-#include <btl/delayed.h>
-#include <btl/async.h>
-#include <btl/reduce.h>
+#include <btl/future/whenall.h>
 #include <btl/plus.h>
-#include <btl/always.h>
+#include <btl/reduce.h>
 
 #include <gtest/gtest.h>
 
 #include <atomic>
-#include <random>
 #include <chrono>
+#include <random>
 #include <thread>
 #include <type_traits>
 
