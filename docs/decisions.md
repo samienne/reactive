@@ -158,9 +158,8 @@ from the realised instance — `element.getIntrospection()` after driving a size
 
 A node whose widget never contributes a role/name/data keeps the default
 `Introspection` (role `"Widget"`, obb from its realised size). Because
-introspection is on the `Instance`, modifiers that round-trip through `Element`
-(`margin`/`frame`/`clip`) no longer reset it — the previous `Builder`-level
-reset is gone.
+introspection lives on the `Instance`, modifiers that round-trip through
+`Element` (`margin`/`frame`/`clip`) preserve it.
 
 ## Async tests drive completion manually, not with sleeps
 

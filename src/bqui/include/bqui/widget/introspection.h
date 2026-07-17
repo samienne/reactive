@@ -27,11 +27,12 @@ namespace bqui::widget
     ///
     /// A uniform, recursive node giving a consumer a faithful, directly usable
     /// view of a widget: its name and role, the affordances it offers, its
-    /// window-space geometry, an author-controlled data bag, and its declared
-    /// children. Carried reactively on the Builder (see builder.h) so dynamic
-    /// content stays reflected, and set through modifiers
-    /// (setName/setRole/setData/addCapability/setWidgetIntrospection) — not a
-    /// reflection of a widget's internals.
+    /// realised window-space geometry, an author-controlled data bag, and its
+    /// declared children. Carried on the realised Instance and set through
+    /// modifiers (setName/setRole/setData/addCapability/setWidgetIntrospection)
+    /// — a curated surface, not a reflection of a widget's internals. `obb` is
+    /// the widget's actual resolved geometry, seeded from the realised size and
+    /// composed to window space as the instance is placed.
     ///
     /// `children` is author-controlled: opaque widgets emit none, containers
     /// aggregate, and an affordance whose geometry diverges from its parent is
