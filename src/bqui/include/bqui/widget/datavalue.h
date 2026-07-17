@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bqui/bquivisibility.h"
+
 #include <map>
 #include <string>
 #include <variant>
@@ -21,7 +23,7 @@ namespace bqui::widget
     /// serialise a widget tree's declared data to JSON without depending on any
     /// UI type. It is a value type with value semantics and equality, suitable
     /// for carrying inside a reactive `AnySignal`.
-    struct DataValue
+    struct BQUI_EXPORT DataValue
     {
         using Variant = std::variant<
             std::string,
@@ -34,21 +36,14 @@ namespace bqui::widget
         Variant value = std::string{};
 
         DataValue() = default;
-        DataValue(std::string value) : value(std::move(value)) {}
-        DataValue(char const* value) : value(std::string(value)) {}
-        DataValue(double value) : value(value) {}
-        DataValue(bool value) : value(value) {}
-        DataValue(DataMap value) : value(std::move(value)) {}
-        DataValue(DataArray value) : value(std::move(value)) {}
+        DataValue(std::string value);
+        DataValue(char const* value);
+        DataValue(double value);
+        DataValue(bool value);
+        DataValue(DataMap value);
+        DataValue(DataArray value);
     };
 
-    inline bool operator==(DataValue const& lhs, DataValue const& rhs)
-    {
-        return lhs.value == rhs.value;
-    }
-
-    inline bool operator!=(DataValue const& lhs, DataValue const& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    BQUI_EXPORT bool operator==(DataValue const& lhs, DataValue const& rhs);
+    BQUI_EXPORT bool operator!=(DataValue const& lhs, DataValue const& rhs);
 } // namespace bqui::widget
