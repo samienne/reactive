@@ -11,9 +11,21 @@ are in the top-level `docs/`.
 - `src/gl/` — the shared OpenGL implementation.
 - `src/glx/`, `src/windows/` — the Linux (GLX) and Windows (WGL) bindings;
   `wglrendercontext`/`wglwindow` are the Windows rendering path.
-- `src/dummy/` — the headless backend for tests.
+- `src/dummy/` — the headless backend. It opens no OS window and drives a
+  deterministic, fixed-`dt`, frame-budgeted loop (`DummyPlatform::run`/`step`),
+  so a run is bounded and reproducible. `DummyWindow` delegates callback storage
+  and dispatch to the shared `GenericWindow` (same as `WglWindow`), which also
+  carries the `inject*` event seam. It is compiled on **every** platform (see
+  `dummysrcs` in `meson.build`) so any app can run headless.
 
 ## Notes
+
+- Two platform factories: `makeDefaultPlatform()` returns the OS backend (WGL/GLX,
+  or the dummy where there is none — `dummydefaultplatform.cpp` defines it there),
+  and `makeDummyPlatform()` always returns the headless one. `bqui::App::run`
+  selects between them via env (`REACTIVE_HEADLESS`/`REACTIVE_PLATFORM=dummy`) or a
+  programmatic override; platform (headful/headless) and mode (normal/agentic) are
+  orthogonal.
 
 - The Windows GPU/rendering path lives under `src/windows/` and `src/gl/` — this
   is where to look for Windows rendering performance or context-selection issues

@@ -22,8 +22,7 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/rendercontext.h>
-#include <ase/platform.h>
+#include <ase/dummyplatform.h>
 
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
@@ -45,6 +44,8 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 namespace bqui
 {
@@ -56,6 +57,34 @@ namespace
     uint64_t getNextFrameId()
     {
         return ++s_frameId_;
+    }
+
+    // A truthy env var: set and neither empty nor "0".
+    bool envFlag(char const* name)
+    {
+        char const* value = std::getenv(name);
+        return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
+    }
+
+    bool envEquals(char const* name, char const* expected)
+    {
+        char const* value = std::getenv(name);
+        return value && std::strcmp(value, expected) == 0;
+    }
+
+    // Headless when REACTIVE_HEADLESS is truthy or REACTIVE_PLATFORM=dummy.
+    bool wantsHeadlessEnv()
+    {
+        return envFlag("REACTIVE_HEADLESS")
+            || envEquals("REACTIVE_PLATFORM", "dummy");
+    }
+
+    // Agentic mode when REACTIVE_AGENT is truthy or REACTIVE_MODE=agent.
+    // Orthogonal to the platform choice; a no-op selector for now.
+    bool wantsAgentEnv()
+    {
+        return envFlag("REACTIVE_AGENT")
+            || envEquals("REACTIVE_MODE", "agent");
     }
 } // anonymous namespace
 
@@ -118,6 +147,12 @@ public:
 
     std::shared_ptr<WindowList> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
+
+    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    // A programmatic override wins over the env var so tests need no global env.
+    std::optional<ase::Platform> platformOverride_;
+    std::optional<bool> headlessOverride_;
+    std::optional<bool> agentOverride_;
 
 private:
     mutable std::mutex mutex_;
@@ -577,6 +612,24 @@ App& App::addWindow(Window window)
     return addWindows(std::vector<Window> { std::move(window) });
 }
 
+App& App::platform(ase::Platform platform)
+{
+    d()->platformOverride_ = std::move(platform);
+    return *this;
+}
+
+App& App::headless(bool headless)
+{
+    d()->headlessOverride_ = headless;
+    return *this;
+}
+
+App& App::agentic(bool agentic)
+{
+    d()->agentOverride_ = agentic;
+    return *this;
+}
+
 App& App::addWindowArray(bq::signal::ArraySignal<Window> windows)
 {
     d()->addArray(std::move(windows));
@@ -619,7 +672,30 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    ase::Platform platform = ase::makeDefaultPlatform();
+    // Platform: explicit override, else headless env, else the OS default.
+    bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
+
+    ase::Platform platform = d()->platformOverride_
+        ? *d()->platformOverride_
+        : (headless ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
+
+    // Mode is orthogonal and, for now, only recorded — the agentic control
+    // loop is a later change. Resolve it so the flag is available.
+    bool agentic = d()->agentOverride_.value_or(wantsAgentEnv());
+    (void)agentic;
+
+    // A headless run is bounded and deterministic; REACTIVE_FRAMES caps the
+    // frame budget (the default keeps a headless run from spinning forever).
+    if (headless && !d()->platformOverride_)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+                platform.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+        }
+    }
 
     ase::RenderContext context = platform.makeRenderContext();
 

@@ -8,6 +8,8 @@
 
 #include <avg/curve/curves.h>
 
+#include <ase/platform.h>
+
 #include <btl/shared.h>
 #include <btl/uniqueid.h>
 #include <btl/visibility.h>
@@ -44,6 +46,23 @@ namespace bqui
 
         /** @overload */
         App& addWindow(Window window);
+
+        /** @brief Force a specific ase platform (e.g. a headless one),
+         * bypassing env selection. Lets a test run headless without a
+         * process-global env var.
+         */
+        App& platform(ase::Platform platform);
+
+        /** @brief Force headless (dummy) or headful, overriding the
+         * REACTIVE_HEADLESS / REACTIVE_PLATFORM env vars.
+         */
+        App& headless(bool headless);
+
+        /** @brief Force agentic mode on/off, overriding the REACTIVE_AGENT /
+         * REACTIVE_MODE env vars. Orthogonal to the platform choice; for now
+         * the flag is only recorded (the control loop comes later).
+         */
+        App& agentic(bool agentic);
 
         /** @brief Opens a list of windows the caller drives.
          *
