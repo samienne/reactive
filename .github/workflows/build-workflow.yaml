@@ -27,6 +27,7 @@ jobs:
 
     build-linux:
         name: "build-linux (${{ matrix.compiler.CC }} ${{ matrix.compiler.config }})"
+        if: false # TEMP: reduced for ARM64 race debugging — restore before merge
         strategy:
             matrix:
                 compiler: [
@@ -68,21 +69,27 @@ jobs:
           run: |
             brew install python3 ninja
 
-        - name: Build
+        # TEMP: reduced for ARM64 race debugging — restore before merge.
+        # Builds and runs ONLY the small asyncstresstest target (btl is
+        # header-only, so ninja compiles just that TU, not ase/avg/bqui) under
+        # ThreadSanitizer, which flags the whenall.h store-buffering race
+        # deterministically on the Apple-Silicon runner.
+        - name: Build (TSan, async stress only)
           run: |
             sudo rm -Rf /Library/Developer/CommandLineTools
             sudo xcode-select -s /Applications/Xcode.app
-            mkdir -p build/release
-            cd build/release
-            python3 ../meson/meson.py setup --buildtype=release --wrap-mode=forcefallback ../..
-            ninja
+            mkdir -p build/tsan
+            cd build/tsan
+            python3 ../meson/meson.py setup --buildtype=debug --wrap-mode=forcefallback -Db_sanitize=thread ../..
+            ninja src/btl/asyncstresstest
 
-        - name: Tests
+        - name: Tests (TSan)
           run: |
-            ninja -C build/release test
+            TSAN_OPTIONS="halt_on_error=1 exitcode=66" ./build/tsan/src/btl/asyncstresstest
 
     build-win:
         name: "build-win (${{ matrix.compiler.name }})"
+        if: false # TEMP: reduced for ARM64 race debugging — restore before merge
         runs-on: "windows-2022"
         strategy:
             matrix:
@@ -165,7 +172,7 @@ jobs:
     ci-success:
         name: ci-success
         if: always()
-        needs: [build-linux, build-macos, build-win]
+        needs: [build-macos] # TEMP: reduced for ARM64 race debugging — restore [build-linux, build-macos, build-win] before merge
         runs-on: "ubuntu-22.04"
         steps:
         - name: Verify all required jobs succeeded
