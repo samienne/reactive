@@ -5,6 +5,29 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Async tests drive completion manually, not with sleeps
+
+Tests in `src/btl/test/asynctest.cpp` whose correctness depends on *ordering*
+(a task hasn't finished yet, a cancelled continuation must not run) create their
+own promise/future pair with the test-only `makeManualFuture<Ts...>()` helper
+(`src/btl/test/manualfuture.h`) and complete it explicitly, instead of running
+a real `async()` job and racing a `sleep_for` against the outcome.
+
+**Why:** the sleeps were an ordering *proxy* — "sleep 100 ms so the other thing
+finishes first" — which loses the race under CI load. `whenAllCancelOnFail` was
+the worst case and the source of the macOS flake. Manual promises make the
+ordering explicit and remove the wall-clock waits, so those tests are
+deterministic and the btl suite dropped from ~17 s to ~3 s. This needs **no
+change to `async()`/`then()`** — the helper mirrors what `async.h` does
+internally (control + weak `Promise` + owning `Future`) without the threadpool.
+
+**Follow-up (deferred):** `async.delayed` genuinely tests the `TimedQueue`
+timer and must measure elapsed time; `async.perf`, `whenAllFail`, and
+`mergeFail` are throughput/concurrency stress tests. Making *those* fast and
+deterministic needs `async()`/`then()` to accept an injectable executor with a
+controllable virtual clock plus a pump (`handleTimers`/`drain`) — a production
+change we chose not to build here.
+
 ## `SignalContext` holds N signals over one shared `DataContext`
 
 `SignalContext` is parameterized over signal *types* (`SignalContext<TSignals...>`,

@@ -1,20 +1,21 @@
-#include <atomic>
+#include "manualfuture.h"
+
+#include <btl/always.h>
+#include <btl/async.h>
+#include <btl/delayed.h>
+#include <btl/future/future.h>
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
-#include <btl/future/whenall.h>
 #include <btl/future/sharedfuture.h>
-#include <btl/future/future.h>
-
-#include <btl/delayed.h>
-#include <btl/async.h>
-#include <btl/reduce.h>
+#include <btl/future/whenall.h>
 #include <btl/plus.h>
-#include <btl/always.h>
+#include <btl/reduce.h>
 
 #include <gtest/gtest.h>
 
-#include <random>
+#include <atomic>
 #include <chrono>
+#include <random>
 #include <thread>
 #include <type_traits>
 
@@ -38,7 +39,6 @@ auto makeFuture(T&& value)
     return async([value=std::forward<T>(value)]() mutable
         -> std::decay_t<T>
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         return std::forward<T>(value);
     });
 }
@@ -81,8 +81,6 @@ TEST(async, then)
             {
                 return async([s]()
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
                     return "test: " + s;
                 });
             });
@@ -215,17 +213,20 @@ TEST(async, autoCancel)
 {
     std::atomic<bool> didRun(false);
 
-    {
-        auto f = makeFuture(std::make_shared<int>(20));
+    auto [p, fut] = btl::test::makeManualFuture<std::shared_ptr<int>>();
 
-        auto f2 = std::move(f).then([&didRun](std::shared_ptr<int>)
+    {
+        // The continuation is registered on fut but its downstream future is
+        // dropped at the end of this scope, before the upstream completes.
+        auto f2 = std::move(fut).then([&didRun](std::shared_ptr<int>)
             {
                 didRun = true;
             });
     }
 
-    // Make sure that the future has time to finish if it is running
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    // Completing the upstream now must not run the continuation: the downstream
+    // control is gone, so the callback's weak_ptr fails to lock.
+    p.set(std::make_shared<int>(20));
 
     EXPECT_FALSE(didRun);
 }
@@ -488,34 +489,32 @@ TEST(async, whenAllFail)
 
 TEST(async, whenAllCancelOnFail)
 {
-    for (int i = 0; i < 100; ++i)
-    {
-        auto f1 = btl::async([]()
-                {
-                    throw std::runtime_error("test error");
+    // When one input to whenAll fails, the other input's still-pending
+    // continuation must be cancelled and never run. Driving completion
+    // explicitly (rather than racing a sleep against cancellation) makes the
+    // ordering deterministic.
+    auto [p1, fut1] = btl::test::makeManualFuture<int>();
+    auto [p2, fut2] = btl::test::makeManualFuture<>();
 
-                    return 10;
-                });
+    std::atomic_bool called{false};
 
-        std::atomic_bool called = false;
+    auto f2 = std::move(fut2).then([&called]()
+            {
+                called.store(true);
+            });
 
-        auto f2 = btl::async([]()
-                {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                })
-                .then([&called]()
-                {
-                    called.store(true);
-                })
-                ;
+    auto r = whenAll(std::move(fut1), std::move(f2));
 
-        auto r = whenAll(std::move(f1), std::move(f2));
+    // Fail the first input before the second's upstream completes.
+    p1.setFailure(std::make_exception_ptr(std::runtime_error("test error")));
 
-        EXPECT_THROW(std::move(r).get();, std::runtime_error);
-        EXPECT_FALSE(called.load());
+    EXPECT_THROW(std::move(r).get(), std::runtime_error);
+    EXPECT_FALSE(called.load());
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    // Completing the second input's upstream now must not resurrect the
+    // cancelled continuation.
+    p2.set();
+    EXPECT_FALSE(called.load());
 }
 
 TEST(async, mergeFail)

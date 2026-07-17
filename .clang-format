@@ -123,20 +123,34 @@ ForEachMacros:
   - BOOST_FOREACH
 IfMacros:
   - KJ_IF_MAYBE
-IncludeBlocks:   Preserve
+IncludeBlocks:   Regroup
 IncludeCategories:
-  - Regex:           '^"(llvm|llvm-c|clang|clang-c)/'
-    Priority:        2
-    SortPriority:    0
-    CaseSensitive:   false
-  - Regex:           '^(<|"(gtest|gmock|isl|json)/)'
-    Priority:        3
-    SortPriority:    0
-    CaseSensitive:   false
-  - Regex:           '.*'
+  # Local "..." headers (same lib/module). The main header matching the .cpp is
+  # auto-prioritized above these via IncludeIsMainRegex.
+  - Regex:           '^"'
     Priority:        1
-    SortPriority:    0
-    CaseSensitive:   false
+  # Project libraries most-derived first (a before b when a depends on b), so
+  # the foundational btl comes last. Dependency order is btl <- bq <- ase <- avg
+  # <- bqui.
+  - Regex:           '^<bqui/'
+    Priority:        2
+  - Regex:           '^<bq/'
+    Priority:        3
+  - Regex:           '^<avg/'
+    Priority:        4
+  - Regex:           '^<ase/'
+    Priority:        5
+  - Regex:           '^<btl/'
+    Priority:        6
+  # Third-party angle-bracket libraries (contain a '/'): gtest, Eigen, mapbox...
+  - Regex:           '^<.*/'
+    Priority:        7
+  # C++ standard headers: <atomic>, <vector> (no '/' and no '.').
+  - Regex:           '^<[^/.]+>'
+    Priority:        8
+  # C headers: <assert.h>, <string.h>.
+  - Regex:           '^<.*\.h>'
+    Priority:        9
 IncludeIsMainRegex: '(Test)?$'
 IncludeIsMainSourceRegex: ''
 IndentAccessModifiers: false
