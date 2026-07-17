@@ -99,11 +99,40 @@ Window makeSecondWindow()
 
 namespace
 {
+    char const* capabilityName(widget::Capability cap)
+    {
+        switch (cap)
+        {
+            case widget::Capability::Clickable: return "Clickable";
+            case widget::Capability::Editable: return "Editable";
+            case widget::Capability::Focusable: return "Focusable";
+            case widget::Capability::Scrollable: return "Scrollable";
+        }
+        return "?";
+    }
+
     void printIntrospection(widget::Introspection const& node, int depth)
     {
         std::cout << std::string(depth * 2, ' ') << node.role;
         if (node.name)
             std::cout << " \"" << *node.name << "\"";
+
+        if (!node.capabilities.empty())
+        {
+            std::cout << " [";
+            for (size_t i = 0; i < node.capabilities.size(); ++i)
+                std::cout << (i ? "," : "")
+                    << capabilityName(node.capabilities[i]);
+            std::cout << "]";
+        }
+
+        auto text = node.data.find("text");
+        if (text != node.data.end())
+            if (auto s = std::get_if<std::string>(&text->second.value))
+                std::cout << " text=\"" << *s << "\"";
+
+        auto size = node.obb.getSize();
+        std::cout << " obb=" << size[0] << "x" << size[1];
         std::cout << "\n";
 
         for (auto const& child : node.children)

@@ -192,6 +192,36 @@ The one hard correctness constraint: `dataContext_.swapFrameData()` runs
 **exactly once per update pass, after every entry has updated** — never per
 entry, or one entry would rotate away frame data another still needs.
 
+## Introspection obbs are resolved at natural size, not realised size
+
+A widget's introspection `obb` (window-space geometry) is computed from its
+size *hints* (each hint's natural/maximum size), composed through the layout
+hierarchy, not from the widget's realised on-screen size.
+
+**Why:** introspection is a signal carried on the `Builder` and is observed via
+`Builder::getIntrospection()` *before* the builder is invoked with a size — the
+realised size does not exist at that point. Threading the realised size into
+introspection would mean carrying it through `Element`/`Instance` (introspection
+is currently dropped at the `Element` boundary), which is a larger change.
+Resolving at natural size gives correct roles/capabilities/data and geometry
+that is exact when the realised layout equals the natural sizes and a faithful
+relative layout otherwise. Realised-size resolution — carrying introspection
+onto the `Instance` so a consumer that drives the window size gets pixel-exact
+window-space obbs — is the intended follow-up.
+
+## Modifiers that round-trip through `Element` reset introspection
+
+`margin`/`frame`/`clip` and other element-round-tripping modifiers rebuild the
+builder and drop its introspection back to the default node. A self-describing
+widget therefore applies `setRole`/`setData`/`addCapability`/`setIntrospectionObb`
+*after* those modifiers in its chain.
+
+**Why:** introspection lives on the `Builder`; the `Element` round-trip
+(`makeBuilderModifier(ElementModifier)`) constructs a fresh builder without
+threading it. Carrying introspection through `Element` is the same deferred work
+as above; until then, ordering the introspection modifiers last is the
+convention.
+
 ## Shape transforms are paint-time; layout size is separate
 
 Transforms on a shape (`translate`/`rotate`/`scale`/`transform`) and the
