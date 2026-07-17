@@ -68,7 +68,6 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")
         | modifier::setData("text", std::move(textData))
-        | modifier::setIntrospectionObb()
         ;
 }
 

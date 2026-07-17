@@ -1,8 +1,8 @@
 #include "bqui/modifier/setwidgetintrospection.h"
 
-#include "bqui/modifier/buildermodifier.h"
+#include "bqui/modifier/instancemodifier.h"
 
-#include "bqui/sizehint.h"
+#include "bqui/widget/widget.h"
 
 #include <algorithm>
 
@@ -12,10 +12,15 @@ namespace bqui::modifier
 AnyWidgetModifier setWidgetIntrospection(
         bq::signal::AnySignal<widget::Introspection> introspection)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder, auto introspection)
+    return makeWidgetModifier(makeInstanceModifier(
+        [](widget::Instance instance, widget::Introspection introspection)
         {
-            return std::move(builder).setIntrospection(std::move(introspection));
+            // The obb is realised geometry owned by the instance, not authored
+            // here; keep it so the escape hatch still reports real bounds.
+            introspection.obb = instance.getIntrospection().obb;
+
+            return std::move(instance)
+                .setIntrospection(std::move(introspection));
         },
         std::move(introspection)
         ));
@@ -29,18 +34,13 @@ AnyWidgetModifier setWidgetIntrospection(widget::Introspection introspection)
 
 AnyWidgetModifier setName(bq::signal::AnySignal<std::string> name)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder, auto name)
+    return makeWidgetModifier(makeInstanceModifier(
+        [](widget::Instance instance, std::string name)
         {
-            auto introspection = merge(builder.getIntrospection(),
-                    std::move(name))
-                .map([](widget::Introspection data, std::string name)
-                {
-                    data.name = std::move(name);
-                    return data;
-                });
+            auto data = instance.getIntrospection();
+            data.name = std::move(name);
 
-            return std::move(builder).setIntrospection(std::move(introspection));
+            return std::move(instance).setIntrospection(std::move(data));
         },
         std::move(name)
         ));
@@ -53,18 +53,13 @@ AnyWidgetModifier setName(std::string name)
 
 AnyWidgetModifier setRole(bq::signal::AnySignal<std::string> role)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder, auto role)
+    return makeWidgetModifier(makeInstanceModifier(
+        [](widget::Instance instance, std::string role)
         {
-            auto introspection = merge(builder.getIntrospection(),
-                    std::move(role))
-                .map([](widget::Introspection data, std::string role)
-                {
-                    data.role = std::move(role);
-                    return data;
-                });
+            auto data = instance.getIntrospection();
+            data.role = std::move(role);
 
-            return std::move(builder).setIntrospection(std::move(introspection));
+            return std::move(instance).setIntrospection(std::move(data));
         },
         std::move(role)
         ));
@@ -78,21 +73,15 @@ AnyWidgetModifier setRole(std::string role)
 AnyWidgetModifier setData(std::string key,
         bq::signal::AnySignal<widget::DataValue> value)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder, std::string key, auto value)
+    return makeWidgetModifier(makeInstanceModifier(
+        [key=std::move(key)](widget::Instance instance,
+                widget::DataValue value)
         {
-            auto introspection = merge(builder.getIntrospection(),
-                    std::move(value))
-                .map([key=std::move(key)](widget::Introspection data,
-                        widget::DataValue value)
-                {
-                    data.data[key] = std::move(value);
-                    return data;
-                });
+            auto data = instance.getIntrospection();
+            data.data[key] = std::move(value);
 
-            return std::move(builder).setIntrospection(std::move(introspection));
+            return std::move(instance).setIntrospection(std::move(data));
         },
-        std::move(key),
         std::move(value)
         ));
 }
@@ -102,63 +91,20 @@ AnyWidgetModifier setData(std::string key, widget::DataValue value)
     return setData(std::move(key), bq::signal::constant(std::move(value)));
 }
 
-namespace
-{
-    // The size a hint asks for when unconstrained: its natural size (index 1 of
-    // the min/natural/stretch triple) per axis. Introspection obbs are resolved
-    // at this size because the realised size is not known where introspection
-    // is observed.
-    avg::Vector2f naturalSize(bqui::SizeHint const& hint)
-    {
-        auto width = hint.getWidth();
-        auto height = hint.getHeightForWidth(width[1]);
-        return avg::Vector2f(width[1], height[1]);
-    }
-} // namespace
-
-AnyWidgetModifier setIntrospectionObb()
-{
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder)
-        {
-            auto obb = builder.getSizeHint().map([](bqui::SizeHint const& hint)
-                {
-                    return avg::Obb(naturalSize(hint));
-                });
-
-            auto introspection = merge(builder.getIntrospection(), std::move(obb))
-                .map([](widget::Introspection data, avg::Obb obb)
-                {
-                    data.obb = std::move(obb);
-                    return data;
-                });
-
-            return std::move(builder).setIntrospection(std::move(introspection));
-        }
-        ));
-}
-
 AnyWidgetModifier addCapability(widget::Capability capability)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-        [](auto builder, widget::Capability capability)
+    return makeWidgetModifier(makeInstanceModifier(
+        [capability](widget::Instance instance)
         {
-            auto introspection = builder.getIntrospection().map(
-                [capability](widget::Introspection data)
-                {
-                    if (std::find(data.capabilities.begin(),
-                                data.capabilities.end(), capability)
-                            == data.capabilities.end())
-                    {
-                        data.capabilities.push_back(capability);
-                    }
+            auto data = instance.getIntrospection();
+            if (std::find(data.capabilities.begin(), data.capabilities.end(),
+                        capability) == data.capabilities.end())
+            {
+                data.capabilities.push_back(capability);
+            }
 
-                    return data;
-                });
-
-            return std::move(builder).setIntrospection(std::move(introspection));
-        },
-        capability
+            return std::move(instance).setIntrospection(std::move(data));
+        }
         ));
 }
 

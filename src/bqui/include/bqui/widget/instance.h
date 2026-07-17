@@ -4,6 +4,8 @@
 #include "bqui/keyboardinput.h"
 #include "bqui/inputarea.h"
 
+#include "bqui/widget/introspection.h"
+
 #include <bq/signal/signal.h>
 
 #include <avg/rendertree.h>
@@ -21,7 +23,8 @@ namespace bqui::widget
                 std::vector<InputArea> inputAreas,
                 avg::Obb const& obb,
                 std::vector<KeyboardInput> keyboardInputs,
-                Theme theme
+                Theme theme,
+                Introspection introspection = Introspection{}
               );
 
         avg::RenderTree const& getRenderTree() const;
@@ -30,11 +33,13 @@ namespace bqui::widget
         avg::Vector2f getSize() const;
         std::vector<KeyboardInput> const& getKeyboardInputs() const;
         Theme const& getTheme() const;
+        Introspection const& getIntrospection() const;
         Instance setRenderTree(avg::RenderTree renderTree) &&;
         Instance setInputAreas(std::vector<InputArea> inputAreas) &&;
         Instance setObb(avg::Obb const& obb) &&;
         Instance setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) &&;
         Instance setTheme(Theme theme) &&;
+        Instance setIntrospection(Introspection introspection) &&;
         Instance transform(avg::Transform const& t) &&;
         Instance transformR(avg::Transform const& t) &&;
         Instance clone() const;
@@ -45,6 +50,7 @@ namespace bqui::widget
         avg::Obb obb_;
         std::vector<KeyboardInput> keyboardInputs_;
         Theme theme_;
+        Introspection introspection_;
     };
 
     template <typename T>
@@ -56,6 +62,9 @@ namespace bqui::widget
             .map([focusHandle=std::move(focus.handle)]
                 (avg::Vector2f size, bool focused)
                 {
+                    Introspection introspection;
+                    introspection.obb = avg::Obb(size);
+
                     return Instance(
                             avg::RenderTree(),
                             {},
@@ -65,7 +74,8 @@ namespace bqui::widget
                                     .setFocus(focused)
                                     .setFocusHandle(focusHandle)
                             },
-                            Theme()
+                            Theme(),
+                            std::move(introspection)
                             );
                 });
     }

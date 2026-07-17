@@ -103,7 +103,6 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
         | modifier::setRole("Button")
         | modifier::setData("text", std::move(captionData))
         | modifier::addCapability(widget::Capability::Clickable)
-        | modifier::setIntrospectionObb()
         ;
 }
 
