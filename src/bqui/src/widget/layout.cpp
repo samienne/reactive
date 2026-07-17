@@ -57,10 +57,6 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                         return std::move(builder)(std::move(size)).getInstance();
                     });
 
-                // Each child instance carries its own introspection with an obb
-                // already placed by transformBuilder above; addWidgets folds
-                // those into this container's introspection.children, so obbs
-                // compose to window space at the root.
                 return widget::makeWidget()
                     | modifier::addWidgets(std::move(widgets))
                     | modifier::setRole("Layout")

@@ -28,6 +28,7 @@ libbquisrc = [
   'src/widget/bin.cpp',
   'src/widget/button.cpp',
   'src/widget/box.cpp',
+  'src/widget/datavalue.cpp',
   'src/widget/hbox.cpp',
   'src/widget/instance.cpp',
   'src/widget/label.cpp',
