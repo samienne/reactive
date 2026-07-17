@@ -15,6 +15,7 @@
 #include <bqui/buildparams.h>
 
 #include <avg/color.h>
+#include <avg/transform.h>
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -168,15 +169,15 @@ TEST(introspection, childrenCarryOwnDivergentObb)
 
     // Find the clickable child; it must carry Clickable and its own obb.
     auto clickable = std::find_if(node.children.begin(), node.children.end(),
-            [](Introspection const& c)
+            [](IntrospectionChild const& c)
             {
-                return hasCapability(c, Capability::Clickable);
+                return hasCapability(*c, Capability::Clickable);
             });
     ASSERT_NE(node.children.end(), clickable);
-    EXPECT_EQ("Box", clickable->role);
+    EXPECT_EQ("Box", (*clickable)->role);
 
     // The two children have divergent geometry (different obbs).
-    EXPECT_NE(node.children[0].obb, node.children[1].obb);
+    EXPECT_NE(node.children[0]->obb, node.children[1]->obb);
 }
 
 TEST(introspection, leafObbIsRealisedSize)
@@ -215,7 +216,7 @@ TEST(introspection, stretchedChildObbExceedsNatural)
             avg::Vector2f(600.0f, 400.0f));
 
     ASSERT_EQ(1u, node.children.size());
-    auto childSize = node.children[0].obb.getSize();
+    auto childSize = node.children[0]->obb.getSize();
     EXPECT_GT(childSize[0], 100.0f);
     EXPECT_GT(childSize[1], 100.0f);
 }
@@ -236,12 +237,83 @@ TEST(introspection, childObbIsWindowSpace)
 
     ASSERT_EQ(2u, node.children.size());
 
-    auto first = node.children[0].obb.getCenter();
-    auto second = node.children[1].obb.getCenter();
+    auto first = node.children[0]->obb.getCenter();
+    auto second = node.children[1]->obb.getCenter();
 
     // The second child sits to the right of the first (larger x center).
     EXPECT_GT(second[0], first[0]);
     // And the first child is not at the window origin's local frame — its
     // center has a positive x offset (half its own width at least).
     EXPECT_GT(first[0], 0.0f);
+}
+
+TEST(introspection, resolveComposesDeepNestingAbsolutely)
+{
+    // Build a deeply nested tree by hand, each level offset from its parent and
+    // storing its obb in local space, then resolve. The composed absolute obb
+    // of the deepest leaf must equal the eager sum of every ancestor offset —
+    // proving the single lazy top-down pass equals the old per-level rewrite.
+    constexpr int depth = 8;
+    constexpr float step = 10.0f;
+
+    // Deepest leaf: a 4x4 box at local origin.
+    Introspection leaf;
+    leaf.role = "Leaf";
+    leaf.obb = avg::Obb(avg::Vector2f(4.0f, 4.0f));
+
+    Introspection node = leaf;
+    for (int i = 0; i < depth; ++i)
+    {
+        Introspection parent;
+        parent.role = "N";
+        // Each level is placed +step,+step from its own parent's frame.
+        parent.obb = avg::Obb(avg::Vector2f(0.0f, 0.0f),
+                avg::translate(step, step));
+        parent.children.push_back(makeIntrospectionChild(std::move(node)));
+        node = std::move(parent);
+    }
+
+    auto resolved = resolveIntrospection(node);
+
+    // Walk down to the leaf, which is now in absolute space.
+    Introspection const* cur = &resolved;
+    for (int i = 0; i < depth; ++i)
+    {
+        ASSERT_EQ(1u, cur->children.size());
+        cur = cur->children.front().get();
+    }
+
+    // depth offsets of `step`, plus the leaf's own half-size (4/2 = 2).
+    float expected = depth * step + 2.0f;
+    auto center = cur->obb.getCenter();
+    EXPECT_FLOAT_EQ(expected, center[0]);
+    EXPECT_FLOAT_EQ(expected, center[1]);
+}
+
+TEST(introspection, resolveEqualsEagerComposition)
+{
+    // Same tree resolved lazily must match an eager, per-level left-multiply of
+    // every node's obb — the exact behaviour the lazy pass replaces.
+    Introspection leaf;
+    leaf.obb = avg::Obb(avg::Vector2f(6.0f, 8.0f), avg::translate(3.0f, 1.0f));
+
+    Introspection mid;
+    mid.obb = avg::Obb(avg::Vector2f(0.0f, 0.0f), avg::translate(20.0f, 5.0f));
+    mid.children.push_back(makeIntrospectionChild(leaf));
+
+    Introspection root;
+    root.obb = avg::Obb(avg::Vector2f(0.0f, 0.0f), avg::translate(100.0f, 50.0f));
+    root.children.push_back(makeIntrospectionChild(mid));
+
+    auto resolved = resolveIntrospection(root);
+
+    // Eager reference: leaf absolute = root.t * mid.t * leaf.obb.
+    auto eagerLeaf = root.obb.getTransform()
+        * (mid.obb.getTransform() * leaf.obb);
+
+    auto const& resolvedLeaf =
+        *resolved.children.front()->children.front();
+
+    EXPECT_EQ(eagerLeaf.getCenter(), resolvedLeaf.obb.getCenter());
+    EXPECT_EQ(eagerLeaf.getSize(), resolvedLeaf.obb.getSize());
 }

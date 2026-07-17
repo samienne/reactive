@@ -47,7 +47,8 @@ namespace bqui::modifier
         widget::Introspection introspection = i.getIntrospection();
         introspection.children.reserve(instances.size());
         for (auto const& instance : instances)
-            introspection.children.push_back(instance.getIntrospection());
+            introspection.children.push_back(
+                    widget::makeIntrospectionChild(instance.getIntrospection()));
 
         return std::move(i)
             .setRenderTree(avg::RenderTree(std::move(container)))

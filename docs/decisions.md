@@ -141,25 +141,41 @@ while Release inlines it. Debug coverage runs on macOS until that is fixed.
 A widget's `Introspection` (name, role, capabilities, obb, data, children) is a
 field on the realised `Instance`, alongside its render tree, input areas, and
 keyboard inputs. Its `obb` is the widget's actual resolved on-screen geometry:
-`makeInstance` seeds it from the realised size, `Instance::transform` composes
-each placement transform onto the whole introspection subtree (exactly as it
-does for the instance obb and input areas), and `addWidgets` folds each child
-instance's introspection into its parent's `children`. The obbs therefore
-accumulate to window space at the root (whose transform is the identity).
+`makeInstance` seeds it from the realised size, and `addWidgets` folds each
+child instance's introspection into its parent's `children`.
 
 **Why:** introspection geometry must reflect what is actually drawn, and the
 realised size only exists once a `Builder` is invoked with a size to produce an
 `Instance`. Carrying introspection on the `Instance` (rather than as a `Builder`
 signal resolved from size *hints*) makes the obb exact, makes composition reuse
 the same transform chain as rendering, and makes the metadata modifiers plain
-`InstanceModifier`s that read/adjust the realised node. The consumer reads it
-from the realised instance — `element.getIntrospection()` after driving a size
-(the window loop already realises the instance with the window-size signal).
+`InstanceModifier`s that read/adjust the realised node.
 
 A node whose widget never contributes a role/name/data keeps the default
 `Introspection` (role `"Widget"`, obb from its realised size). Because
 introspection lives on the `Instance`, modifiers that round-trip through
 `Element` (`margin`/`frame`/`clip`) preserve it.
+
+## Introspection nodes are shared-immutable with local obbs (like the render tree)
+
+An `Introspection` node stores its `obb` in its **own local space** and holds
+its children as `std::shared_ptr<Introspection const>` — structurally shared,
+immutable subtrees. `Instance::transform(t)` composes `t` onto only the node's
+own obb (**O(1) per level**), leaving the shared child subtree untouched; the
+absolute window-space obbs are produced by a single top-down pass,
+`resolveIntrospection`, run once at the consumer boundary
+(`Element::getIntrospection`). This mirrors avg's render tree, where each node
+stores a local transform and `ContainerNode::draw` composes
+`parentObb.getTransform() * localObb` as it descends.
+
+**Why:** the earlier version stored absolute obbs and had `Instance::transform`
+rewrite every node in the subtree, so cost multiplied with depth
+(`O(depth × subtree)`) and every level deep-copied the tree. Local obbs +
+shared children make a transform `O(1)` and let a signal that changes one node
+rebuild only that node and its ancestors' references, keeping untouched sibling
+subtrees shared. The public contract is unchanged: the consumer still receives
+absolute window-space obbs — the flatten just happens once, lazily, at the
+boundary instead of eagerly at every level.
 
 ## Async tests drive completion manually, not with sleeps
 

@@ -136,7 +136,7 @@ namespace
         std::cout << "\n";
 
         for (auto const& child : node.children)
-            printIntrospection(child, depth + 1);
+            printIntrospection(*child, depth + 1);
     }
 
     void printWidgetHierarchy(widget::AnyWidget widget, avg::Vector2f size)

@@ -2,8 +2,12 @@
 
 #include "datavalue.h"
 
-#include <avg/obb.h>
+#include "bqui/bquivisibility.h"
 
+#include <avg/obb.h>
+#include <avg/transform.h>
+
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -23,20 +27,32 @@ namespace bqui::widget
         Scrollable,
     };
 
+    struct Introspection;
+
+    /// An immutable, structurally shared child node. Subtrees are shared by
+    /// pointer, so transforming or rebuilding one node leaves untouched siblings
+    /// shared rather than copied (the same idiom as avg's render tree).
+    using IntrospectionChild = std::shared_ptr<Introspection const>;
+
     /// A curated, introspectable description of a widget.
     ///
-    /// A uniform, recursive node giving a consumer a faithful, directly usable
-    /// view of a widget: its name and role, the affordances it offers, its
-    /// realised window-space geometry, an author-controlled data bag, and its
-    /// declared children. Carried on the realised Instance and set through
-    /// modifiers (setName/setRole/setData/addCapability/setWidgetIntrospection)
-    /// — a curated surface, not a reflection of a widget's internals. `obb` is
-    /// the widget's actual resolved geometry, seeded from the realised size and
-    /// composed to window space as the instance is placed.
+    /// A uniform, recursive node giving a consumer a faithful view of a widget:
+    /// its name and role, the affordances it offers, its geometry, an
+    /// author-controlled data bag, and its declared children. Carried on the
+    /// realised Instance and set through modifiers
+    /// (setName/setRole/setData/addCapability/setWidgetIntrospection) — a
+    /// curated surface, not a reflection of a widget's internals.
+    ///
+    /// `obb` is stored in the node's own **local** space, and its transform
+    /// places the node (and, as their frame, its children) relative to the
+    /// parent — mirroring how avg's render tree stores a local transform per
+    /// node. `Instance::transform` composes onto this obb in O(1) without
+    /// rewriting the subtree; the absolute window-space obbs are produced by a
+    /// single top-down pass (`resolveIntrospection`) at the consumer boundary.
     ///
     /// `children` is author-controlled: opaque widgets emit none, containers
     /// aggregate, and an affordance whose geometry diverges from its parent is
-    /// represented as a child node.
+    /// represented as a child node. Children are shared immutable nodes.
     struct Introspection
     {
         std::optional<std::string> name;
@@ -44,35 +60,38 @@ namespace bqui::widget
         std::vector<Capability> capabilities;
         avg::Obb obb;
         DataMap data;
-        std::vector<Introspection> children;
+        std::vector<IntrospectionChild> children;
     };
 
-    inline bool operator==(Introspection const& lhs, Introspection const& rhs)
+    /// Wrap a node as a shared immutable child.
+    inline IntrospectionChild makeIntrospectionChild(Introspection node)
     {
-        return lhs.name == rhs.name
-            && lhs.role == rhs.role
-            && lhs.capabilities == rhs.capabilities
-            && lhs.obb == rhs.obb
-            && lhs.data == rhs.data
-            && lhs.children == rhs.children;
+        return std::make_shared<Introspection const>(std::move(node));
     }
+
+    BQUI_EXPORT bool operator==(Introspection const& lhs,
+            Introspection const& rhs);
 
     inline bool operator!=(Introspection const& lhs, Introspection const& rhs)
     {
         return !(lhs == rhs);
     }
 
-    /// Left-multiply every obb in the subtree by `t`, mapping the node and all
-    /// its descendants into an outer coordinate space. A container uses this to
-    /// lift each child's introspection from child-local into its own space; the
-    /// composition applied at every layer resolves obbs to window space at the
-    /// root (whose transform is the identity).
+    /// Place a node relative to an outer frame by composing `t` onto its own
+    /// obb. O(1): the shared child subtree is left untouched, its obbs staying
+    /// local; the composition is folded in later by `resolveIntrospection`.
     inline Introspection transformIntrospection(Introspection node,
             avg::Transform const& t)
     {
         node.obb = t * node.obb;
-        for (auto& child : node.children)
-            child = transformIntrospection(std::move(child), t);
         return node;
     }
+
+    /// Flatten a node to absolute geometry: compose `parent` onto the node's obb
+    /// and, recursively, onto every descendant, producing a tree whose obbs are
+    /// all in the outer (window) coordinate space. This is the single top-down
+    /// pass that turns the shared, locally-stored representation into the
+    /// absolute obbs a consumer sees; run it once at the boundary.
+    BQUI_EXPORT Introspection resolveIntrospection(Introspection const& node,
+            avg::Transform const& parent = avg::Transform());
 } // namespace bqui::widget

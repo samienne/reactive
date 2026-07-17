@@ -85,9 +85,15 @@ namespace bqui::widget
             return instance_->clone().map(&Instance::getKeyboardInputs);
         }
 
+        // Absolute window-space introspection: the instance stores obbs in
+        // local space with a per-node transform, so flatten once here at the
+        // consumer boundary (see resolveIntrospection).
         auto getIntrospection() const
         {
-            return instance_->clone().map(&Instance::getIntrospection);
+            return instance_->clone().map([](Instance const& instance)
+                {
+                    return resolveIntrospection(instance.getIntrospection());
+                });
         }
 
     private:

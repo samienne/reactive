@@ -31,6 +31,7 @@ libbquisrc = [
   'src/widget/datavalue.cpp',
   'src/widget/hbox.cpp',
   'src/widget/instance.cpp',
+  'src/widget/introspection.cpp',
   'src/widget/label.cpp',
   'src/widget/layout.cpp',
   'src/widget/scrollbar.cpp',
