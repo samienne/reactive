@@ -22,9 +22,10 @@ namespace bqui::widget
 namespace
 {
 
-// The size a size hint asks for when unconstrained: its maximum (index 1) on
-// each axis. Introspection geometry is resolved at this natural size, since the
-// realised size is not known where introspection is aggregated (builder level).
+// The size a size hint asks for when unconstrained: its natural size (index 1
+// of the min/natural/stretch triple) on each axis. Introspection geometry is
+// resolved at this size, since the realised size is not known where
+// introspection is aggregated (builder level).
 avg::Vector2f naturalSize(SizeHint const& hint)
 {
     auto width = hint.getWidth();
