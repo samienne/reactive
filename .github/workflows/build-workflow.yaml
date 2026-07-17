@@ -85,7 +85,9 @@ jobs:
 
         - name: Tests (TSan)
           run: |
-            TSAN_OPTIONS="halt_on_error=1 exitcode=66" ./build/tsan/src/btl/asyncstresstest
+            # exitcode=66 makes a TSan-reported data race fail the job; do not
+            # halt on the first report so every racing site is shown.
+            TSAN_OPTIONS="halt_on_error=0 exitcode=66" ./build/tsan/src/btl/asyncstresstest
 
     build-win:
         name: "build-win (${{ matrix.compiler.name }})"
