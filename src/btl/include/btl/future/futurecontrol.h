@@ -149,7 +149,6 @@ namespace btl::future
         {
             bool r = ready_.load(std::memory_order_acquire);
             TSAN_ANNOTATE_HAPPENS_AFTER(&value_);
-            TSAN_ANNOTATE_HAPPENS_AFTER(&value_.getReferenceForTsan());
             return r;
         }
 
@@ -211,7 +210,6 @@ namespace btl::future
             LockType lock(mutex_);
             value_ = std::move(value);
             TSAN_ANNOTATE_HAPPENS_BEFORE(&value_);
-            TSAN_ANNOTATE_HAPPENS_BEFORE(&value_.getReferenceForTsan());
             ready_.store(true, std::memory_order_release);
 
             if (callback_.has_value())
