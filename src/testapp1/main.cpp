@@ -143,7 +143,7 @@ namespace
     {
         auto introspection = std::move(widget)(BuildParams{}).getIntrospection();
         auto data = bq::signal::makeSignalContext(std::move(introspection))
-            .evaluate();
+            .evaluate<0>().get<0>();
 
         std::cout << "Widget hierarchy:\n";
         printIntrospection(data, 0);
