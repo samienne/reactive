@@ -245,7 +245,6 @@ namespace
             | modifier::setData("text", std::move(textData))
             | modifier::addCapability(widget::Capability::Editable)
             | modifier::addCapability(widget::Capability::Focusable)
-            | modifier::setIntrospectionObb()
             ;
     }
 

@@ -30,10 +30,13 @@ using namespace bqui::modifier;
 
 namespace
 {
-    // Build a widget and read its declared introspection tree.
-    Introspection introspect(AnyWidget widget)
+    // Build a widget, realise it at a concrete size, and read its introspection
+    // tree. The obbs are realised geometry, so a size must be driven.
+    Introspection introspect(AnyWidget widget,
+            avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
     {
-        auto sig = std::move(widget)(BuildParams{}).getIntrospection();
+        auto sig = std::move(widget)(BuildParams{})(bq::signal::constant(size))
+                .getIntrospection();
         return bq::signal::makeSignalContext(std::move(sig))
             .evaluate<0>().get<0>();
     }
@@ -174,4 +177,71 @@ TEST(introspection, childrenCarryOwnDivergentObb)
 
     // The two children have divergent geometry (different obbs).
     EXPECT_NE(node.children[0].obb, node.children[1].obb);
+}
+
+TEST(introspection, leafObbIsRealisedSize)
+{
+    // A bare widget's obb is exactly the driven (realised) size.
+    auto node = introspect(makeWidget() | setRole("Bare"),
+            avg::Vector2f(320.0f, 240.0f));
+
+    EXPECT_EQ(avg::Vector2f(320.0f, 240.0f), node.obb.getSize());
+}
+
+TEST(introspection, obbTracksRealisedSizeNotNatural)
+{
+    // A filled rectangle stretches to fill; its realised obb must follow the
+    // driven window size, proving the obb is realised geometry, not a fixed
+    // natural/hint size.
+    auto small = introspect(filledRect() | setRole("Fill"),
+            avg::Vector2f(100.0f, 50.0f));
+    auto large = introspect(filledRect() | setRole("Fill"),
+            avg::Vector2f(900.0f, 700.0f));
+
+    EXPECT_EQ(avg::Vector2f(100.0f, 50.0f), small.obb.getSize());
+    EXPECT_EQ(avg::Vector2f(900.0f, 700.0f), large.obb.getSize());
+    EXPECT_NE(small.obb, large.obb);
+}
+
+TEST(introspection, stretchedChildObbExceedsNatural)
+{
+    // A stretchy child (filled rect, ~zero natural size) placed in an hbox that
+    // is realised much larger than natural: its child obb must reflect the
+    // stretched bounds, not the small natural size.
+    std::vector<AnyWidget> children;
+    children.push_back(filledRect() | setRole("Stretchy"));
+
+    auto node = introspect(hbox(std::move(children)),
+            avg::Vector2f(600.0f, 400.0f));
+
+    ASSERT_EQ(1u, node.children.size());
+    auto childSize = node.children[0].obb.getSize();
+    EXPECT_GT(childSize[0], 100.0f);
+    EXPECT_GT(childSize[1], 100.0f);
+}
+
+TEST(introspection, childObbIsWindowSpace)
+{
+    // Two fixed-size children in an hbox: the second child's obb must be offset
+    // into window space by the first child's width (composed placement
+    // transform), not sitting at the origin in its own local space.
+    std::vector<AnyWidget> children;
+    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+            | setRole("First"));
+    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+            | setRole("Second"));
+
+    auto node = introspect(hbox(std::move(children)),
+            avg::Vector2f(400.0f, 40.0f));
+
+    ASSERT_EQ(2u, node.children.size());
+
+    auto first = node.children[0].obb.getCenter();
+    auto second = node.children[1].obb.getCenter();
+
+    // The second child sits to the right of the first (larger x center).
+    EXPECT_GT(second[0], first[0]);
+    // And the first child is not at the window origin's local frame — its
+    // center has a positive x offset (half its own width at least).
+    EXPECT_GT(first[0], 0.0f);
 }

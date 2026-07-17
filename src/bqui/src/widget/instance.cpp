@@ -7,13 +7,15 @@ Instance::Instance(avg::RenderTree renderTree,
         std::vector<InputArea> inputAreas,
         avg::Obb const& obb,
         std::vector<KeyboardInput> keyboardInputs,
-        Theme theme
+        Theme theme,
+        Introspection introspection
         ) :
     renderTree_(std::move(renderTree)),
     inputAreas_(std::move(inputAreas)),
     obb_(obb),
     keyboardInputs_(std::move(keyboardInputs)),
-    theme_(std::move(theme))
+    theme_(std::move(theme)),
+    introspection_(std::move(introspection))
 {
 }
 
@@ -47,6 +49,11 @@ Theme const& Instance::getTheme() const
     return theme_;
 }
 
+Introspection const& Instance::getIntrospection() const
+{
+    return introspection_;
+}
+
 Instance Instance::setRenderTree(avg::RenderTree renderTree) &&
 {
     return Instance(
@@ -54,7 +61,8 @@ Instance Instance::setRenderTree(avg::RenderTree renderTree) &&
             std::move(inputAreas_),
             obb_,
             std::move(keyboardInputs_),
-            std::move(theme_)
+            std::move(theme_),
+            std::move(introspection_)
             );
 }
 
@@ -65,7 +73,8 @@ Instance Instance::setInputAreas(std::vector<InputArea> inputAreas) &&
             std::move(inputAreas),
             obb_,
             std::move(keyboardInputs_),
-            std::move(theme_)
+            std::move(theme_),
+            std::move(introspection_)
             );
 }
 
@@ -76,7 +85,8 @@ Instance Instance::setObb(avg::Obb const& obb) &&
             std::move(inputAreas_),
             obb,
             std::move(keyboardInputs_),
-            std::move(theme_)
+            std::move(theme_),
+            std::move(introspection_)
             );
 }
 
@@ -87,7 +97,8 @@ Instance Instance::setKeyboardInputs(std::vector<KeyboardInput> keyboardInputs) 
             std::move(inputAreas_),
             obb_,
             std::move(keyboardInputs),
-            std::move(theme_)
+            std::move(theme_),
+            std::move(introspection_)
             );
 }
 
@@ -98,7 +109,20 @@ Instance Instance::setTheme(Theme theme) &&
             std::move(inputAreas_),
             obb_,
             std::move(keyboardInputs_),
-            std::move(theme)
+            std::move(theme),
+            std::move(introspection_)
+            );
+}
+
+Instance Instance::setIntrospection(Introspection introspection) &&
+{
+    return Instance(
+            std::move(renderTree_),
+            std::move(inputAreas_),
+            obb_,
+            std::move(keyboardInputs_),
+            std::move(theme_),
+            std::move(introspection)
             );
 }
 
@@ -115,7 +139,8 @@ Instance Instance::transform(avg::Transform const& t) &&
             std::move(inputAreas_),
             t * obb_,
             std::move(keyboardInputs_),
-            std::move(theme_)
+            std::move(theme_),
+            transformIntrospection(std::move(introspection_), t)
             );
 }
 

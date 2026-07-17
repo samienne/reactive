@@ -136,6 +136,32 @@ constructor of `Widget<std::function<AnyBuilder(BuildParams)>>` is left
 undefined once the class is declared `extern template`, which only stays hidden
 while Release inlines it. Debug coverage runs on macOS until that is fixed.
 
+## Introspection rides the `Instance`; obbs are realised geometry
+
+A widget's `Introspection` (name, role, capabilities, obb, data, children) is a
+field on the realised `Instance`, alongside its render tree, input areas, and
+keyboard inputs. Its `obb` is the widget's actual resolved on-screen geometry:
+`makeInstance` seeds it from the realised size, `Instance::transform` composes
+each placement transform onto the whole introspection subtree (exactly as it
+does for the instance obb and input areas), and `addWidgets` folds each child
+instance's introspection into its parent's `children`. The obbs therefore
+accumulate to window space at the root (whose transform is the identity).
+
+**Why:** introspection geometry must reflect what is actually drawn, and the
+realised size only exists once a `Builder` is invoked with a size to produce an
+`Instance`. Carrying introspection on the `Instance` (rather than as a `Builder`
+signal resolved from size *hints*) makes the obb exact, makes composition reuse
+the same transform chain as rendering, and makes the metadata modifiers plain
+`InstanceModifier`s that read/adjust the realised node. The consumer reads it
+from the realised instance — `element.getIntrospection()` after driving a size
+(the window loop already realises the instance with the window-size signal).
+
+A node whose widget never contributes a role/name/data keeps the default
+`Introspection` (role `"Widget"`, obb from its realised size). Because
+introspection is on the `Instance`, modifiers that round-trip through `Element`
+(`margin`/`frame`/`clip`) no longer reset it — the previous `Builder`-level
+reset is gone.
+
 ## Async tests drive completion manually, not with sleeps
 
 Tests in `src/btl/test/asynctest.cpp` whose correctness depends on *ordering*
@@ -191,36 +217,6 @@ result into owned values on the way in and never aliases signal data.
 The one hard correctness constraint: `dataContext_.swapFrameData()` runs
 **exactly once per update pass, after every entry has updated** — never per
 entry, or one entry would rotate away frame data another still needs.
-
-## Introspection obbs are resolved at natural size, not realised size
-
-A widget's introspection `obb` (window-space geometry) is computed from its
-size *hints* (each hint's natural/maximum size), composed through the layout
-hierarchy, not from the widget's realised on-screen size.
-
-**Why:** introspection is a signal carried on the `Builder` and is observed via
-`Builder::getIntrospection()` *before* the builder is invoked with a size — the
-realised size does not exist at that point. Threading the realised size into
-introspection would mean carrying it through `Element`/`Instance` (introspection
-is currently dropped at the `Element` boundary), which is a larger change.
-Resolving at natural size gives correct roles/capabilities/data and geometry
-that is exact when the realised layout equals the natural sizes and a faithful
-relative layout otherwise. Realised-size resolution — carrying introspection
-onto the `Instance` so a consumer that drives the window size gets pixel-exact
-window-space obbs — is the intended follow-up.
-
-## Modifiers that round-trip through `Element` reset introspection
-
-`margin`/`frame`/`clip` and other element-round-tripping modifiers rebuild the
-builder and drop its introspection back to the default node. A self-describing
-widget therefore applies `setRole`/`setData`/`addCapability`/`setIntrospectionObb`
-*after* those modifiers in its chain.
-
-**Why:** introspection lives on the `Builder`; the `Element` round-trip
-(`makeBuilderModifier(ElementModifier)`) constructs a fresh builder without
-threading it. Carrying introspection through `Element` is the same deferred work
-as above; until then, ordering the introspection modifiers last is the
-convention.
 
 ## Shape transforms are paint-time; layout size is separate
 

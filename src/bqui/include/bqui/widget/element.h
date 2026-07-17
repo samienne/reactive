@@ -85,6 +85,11 @@ namespace bqui::widget
             return instance_->clone().map(&Instance::getKeyboardInputs);
         }
 
+        auto getIntrospection() const
+        {
+            return instance_->clone().map(&Instance::getIntrospection);
+        }
+
     private:
         btl::CloneOnCopy<TInstance> instance_;
         BuildParams params_;

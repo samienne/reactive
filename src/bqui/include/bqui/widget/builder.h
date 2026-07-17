@@ -1,7 +1,6 @@
 #pragma once
 
 #include "element.h"
-#include "introspection.h"
 
 #include "bqui/provider/paramprovider.h"
 
@@ -40,16 +39,13 @@ namespace bqui::widget
         >
     >
     auto makeBuilder(TFunc&& func, TSizeHint&& sizeHint,
-            BuildParams params, bq::signal::AnySignal<avg::Vector2f> gravity,
-            bq::signal::AnySignal<Introspection> introspection =
-                bq::signal::constant(Introspection{}))
+            BuildParams params, bq::signal::AnySignal<avg::Vector2f> gravity)
     {
         return Builder<std::decay_t<TFunc>, std::decay_t<TSizeHint>>(
                 std::forward<TFunc>(func),
                 std::forward<TSizeHint>(sizeHint),
                 std::move(params),
-                std::move(gravity),
-                std::move(introspection)
+                std::move(gravity)
                 );
     }
 
@@ -60,14 +56,11 @@ namespace bqui::widget
         using SizeHintType = std::decay_t<TSizeHint>;
 
         Builder(TFunc func, TSizeHint sizeHint, BuildParams params,
-                bq::signal::AnySignal<avg::Vector2f> gravity,
-                bq::signal::AnySignal<Introspection> introspection =
-                    bq::signal::constant(Introspection{})) :
+                bq::signal::AnySignal<avg::Vector2f> gravity) :
             func_(std::move(func)),
             sizeHint_(std::move(sizeHint)),
             buildParams_(std::move(params)),
-            gravity_(std::move(gravity)),
-            introspection_(std::move(introspection))
+            gravity_(std::move(gravity))
         {
         }
 
@@ -95,8 +88,7 @@ namespace bqui::widget
                     std::move(*func_),
                     std::move(sizeHint),
                     std::move(buildParams_),
-                    std::move(gravity_),
-                    std::move(introspection_)
+                    std::move(gravity_)
                     );
         }
 
@@ -114,8 +106,7 @@ namespace bqui::widget
                 },
                 std::move(*sizeHint_),
                 std::move(params),
-                std::move(gravity_),
-                std::move(introspection_)
+                std::move(gravity_)
                 );
         }
 
@@ -141,26 +132,13 @@ namespace bqui::widget
             return gravity_;
         }
 
-        auto setIntrospection(bq::signal::AnySignal<Introspection> introspection)
-        {
-            auto copy = clone();
-            copy.introspection_ = std::move(introspection);
-            return copy;
-        }
-
-        bq::signal::AnySignal<Introspection> getIntrospection() const
-        {
-            return introspection_;
-        }
-
         operator BuilderBase() &&
         {
             return BuilderBase(
                     std::move(*func_),
                     std::move(*sizeHint_),
                     std::move(buildParams_),
-                    std::move(gravity_),
-                    std::move(introspection_)
+                    std::move(gravity_)
                     );
         }
 
@@ -170,8 +148,6 @@ namespace bqui::widget
         BuildParams buildParams_;
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
-        bq::signal::AnySignal<Introspection> introspection_ =
-            bq::signal::constant(Introspection{});
     };
 
     struct AnyBuilder : Builder<std::function<widget::AnyElement(

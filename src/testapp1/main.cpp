@@ -139,13 +139,18 @@ namespace
             printIntrospection(child, depth + 1);
     }
 
-    void printWidgetHierarchy(widget::AnyWidget widget)
+    void printWidgetHierarchy(widget::AnyWidget widget, avg::Vector2f size)
     {
-        auto introspection = std::move(widget)(BuildParams{}).getIntrospection();
+        // Introspection obbs are realised geometry, so drive a concrete size:
+        // the tree is resolved as if laid out in a window of that size.
+        auto introspection = std::move(widget)(BuildParams{})(
+                    bq::signal::constant(size))
+                .getIntrospection();
         auto data = bq::signal::makeSignalContext(std::move(introspection))
             .evaluate<0>().get<0>();
 
-        std::cout << "Widget hierarchy:\n";
+        std::cout << "Widget hierarchy (window " << size[0] << "x" << size[1]
+            << "):\n";
         printIntrospection(data, 0);
         std::cout << std::endl;
     }
@@ -311,7 +316,8 @@ int main()
                 bq::signal::constant(0.5f))
     });
 
-    printWidgetHierarchy(widgets.clone());
+    printWidgetHierarchy(widgets.clone(), avg::Vector2f(800.0f, 600.0f));
+    printWidgetHierarchy(widgets.clone(), avg::Vector2f(400.0f, 300.0f));
 
     return app()
         .addWindow(window(
