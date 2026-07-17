@@ -9,8 +9,10 @@ conventions are in the top-level `docs/`.
   `BTL_EXPORT_TEMPLATE`, …) that every library re-exports as `AVG_EXPORT_*`,
   `BQUI_EXPORT_*`, etc. Changing it affects all libraries — see
   `docs/conventions.md` for the MSVC-vs-clang-cl export rules.
-- `async.h` / `future/` provide the async primitives. The test
-  `async.whenAllCancelOnFail` (`test/asynctest.cpp`) is **timing-flaky on macOS
-  CI**; re-run the failed job to clear it.
+- `async.h` / `future/` provide the async primitives. Tests whose correctness
+  depends on ordering drive completion manually via `makeManualFuture<Ts...>()`
+  (`test/manualfuture.h`) instead of sleeping — see `docs/decisions.md` for the
+  rationale and the deferred injectable-executor follow-up. `async.delayed` is
+  the one test that still legitimately measures wall-clock time.
 - Most of `btl` is header-only template code, which is why the include-dir
   firewall matters here (see `docs/conventions.md`).
