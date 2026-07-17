@@ -1,13 +1,20 @@
-// TEMP: dedicated stress harness for the whenAll cancel-on-failure
-// store-buffering race in btl/future/whenall.h (ARM64-only under normal
-// timing; deterministic here under ThreadSanitizer). Restore/trim before
-// merge — see the PR description.
+// TEMP: dedicated stress harness for the whenAll cancel-on-failure race in
+// btl/future/whenall.h. Restore/trim before merge — see the PR description.
 //
-// The functional signal is: whenAll(f1, f2) where f1 fails immediately must
-// cancel f2 before f2's `.then` runs. If the SB handshake double-misses,
-// values_ is never reset, f2 survives, its `.then` fires, and `called`
-// becomes true. Under TSan the un-serialized access to values_ (init() vs
-// reportFailure() on two threads) is reported directly.
+// Scenario (the whenAllCancelOnFail case, hammered): whenAll(f1, f2) where f1
+// fails immediately and f2 sleeps, then runs a `.then` that sets a flag. f1's
+// failure must cancel f2 — whenAll drops its only strong reference to f2's
+// control (values_.reset()) so f2's continuation can never run. The reset is
+// handed between init() (calling thread) and reportFailure() (pool thread) via
+// a store-buffering handshake on two non-seq_cst atomics; when both loads miss,
+// neither resets values_, f2 survives, and its `.then` fires (the flag is set).
+//
+// One instance is exercised at a time (only f1 and f2 in flight), so neither
+// waits behind the other for a pool thread: f1 fails promptly while f2 is still
+// sleeping. A correct implementation therefore always cancels f2 with a wide
+// timing margin, and an observed set flag is a genuine missed reset — not a
+// benign race between two legitimately concurrent completions, nor thread-pool
+// starvation delaying f1's failure past f2's sleep.
 
 #include <btl/future/whenall.h>
 #include <btl/future/future.h>
@@ -17,6 +24,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 
@@ -25,37 +33,30 @@ using btl::async;
 
 namespace
 {
-    // One iteration of the whenAllCancelOnFail scenario. f1 fails immediately;
-    // f2 sleeps briefly and then runs a `.then`. Because f1 fails first,
-    // whenAll must drop its reference to f2 (values_.reset()) so f2's `.then`
-    // never runs. The sleep is what makes cancellation the *correct* outcome:
-    // f1's failure has time to reach whenAll before f2 finishes, so a `called`
-    // of true is a genuine defect (the reset was missed), not a benign race
-    // between two legitimately-concurrent completions.
-    //
-    // The reset is handed between init() (calling thread) and reportFailure()
-    // (pool thread) via a store-buffering handshake on two non-seq_cst
-    // atomics; when both loads miss, neither resets values_. On x86 the
-    // lock-prefixed CAS drains the store buffer so the miss is not observed;
-    // on ARM64 it is. Either way, ThreadSanitizer reports the un-serialized
-    // access to values_ deterministically.
+    // f2 must still be sleeping when f1's failure is processed, so cancellation
+    // is unambiguously the correct outcome and has a wide margin to win.
+    constexpr auto kSiblingSleep = std::chrono::milliseconds(40);
+
+    // Returns true if f2's continuation leaked (ran despite f1 failing first).
     bool runOnce()
     {
+        // Heap-owned so the flag outlives this frame and a late (i.e.
+        // not-cancelled) continuation can still be observed setting it.
+        auto called = std::make_shared<std::atomic_bool>(false);
+
         auto f1 = async([]() -> int
                 {
                     throw std::runtime_error("test error");
                     return 10;
                 });
 
-        std::atomic_bool called = false;
-
         auto f2 = async([]()
                 {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+                    std::this_thread::sleep_for(kSiblingSleep);
                 })
-                .then([&called]()
+                .then([called]()
                 {
-                    called.store(true);
+                    called->store(true);
                 });
 
         auto r = whenAll(std::move(f1), std::move(f2));
@@ -69,13 +70,12 @@ namespace
         {
             threw = true;
         }
-
-        // Give any surviving (i.e. not-cancelled) f2 continuation time to run
-        // so a functional miss is observable even without TSan.
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-
         EXPECT_TRUE(threw);
-        return called.load();
+
+        // Wait out f2's sleep with margin so a surviving continuation has run.
+        std::this_thread::sleep_for(kSiblingSleep + std::chrono::milliseconds(20));
+
+        return called->load();
     }
 } // namespace
 
@@ -90,8 +90,8 @@ TEST(asyncStress, whenAllCancelOnFail)
             ++leaked;
     }
 
-    // Under a correct implementation the failed future always cancels its
-    // sibling before the `.then` runs, so `called` is never observed true.
+    // A correct whenAll always cancels the sibling of a failed future before its
+    // `.then` runs, so `called` is never observed true.
     EXPECT_EQ(0, leaked)
         << "f2's continuation ran " << leaked << " / " << kIterations
         << " times despite f1 failing first — whenAll failed to cancel it.";
