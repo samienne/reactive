@@ -104,9 +104,10 @@ AnyWidgetModifier setData(std::string key, widget::DataValue value)
 
 namespace
 {
-    // The size a hint asks for when unconstrained: its maximum (index 1) per
-    // axis. Introspection obbs are resolved at this natural size because the
-    // realised size is not known where introspection is observed.
+    // The size a hint asks for when unconstrained: its natural size (index 1 of
+    // the min/natural/stretch triple) per axis. Introspection obbs are resolved
+    // at this size because the realised size is not known where introspection
+    // is observed.
     avg::Vector2f naturalSize(bqui::SizeHint const& hint)
     {
         auto width = hint.getWidth();
