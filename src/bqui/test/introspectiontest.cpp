@@ -34,7 +34,8 @@ namespace
     Introspection introspect(AnyWidget widget)
     {
         auto sig = std::move(widget)(BuildParams{}).getIntrospection();
-        return bq::signal::makeSignalContext(std::move(sig)).evaluate();
+        return bq::signal::makeSignalContext(std::move(sig))
+            .evaluate<0>().get<0>();
     }
 
     bool hasCapability(Introspection const& node, Capability cap)
