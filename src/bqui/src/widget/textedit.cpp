@@ -10,6 +10,10 @@
 #include "bqui/modifier/ontextevent.h"
 #include "bqui/modifier/onclick.h"
 #include "bqui/modifier/setsizehint.h"
+#include "bqui/modifier/setwidgetintrospection.h"
+
+#include "bqui/widget/introspection.h"
+#include "bqui/widget/datavalue.h"
 
 #include "bqui/provider/providetheme.h"
 
@@ -160,6 +164,12 @@ namespace
     {
         auto keyStream = bq::stream::pipe<Events>();
 
+        auto sharedState = std::move(oldState).share();
+        auto textData = sharedState.map([](TextEditState const& state)
+                {
+                    return DataValue(state.text);
+                });
+
         auto requestFocus = bq::stream::pipe<bool>();
 
         auto focus = bq::signal::makeInput(false);
@@ -181,7 +191,7 @@ namespace
 
         auto newState = bq::stream::iterate(
                 updateTextEdit,
-                oldState,
+                sharedState,
                 std::move(keyStream.stream),
                 theme,
                 bq::signal::combine(onEnter)
@@ -231,6 +241,11 @@ namespace
             | modifier::setSizeHint(
                     bq::signal::constant(simpleSizeHint(250.0f, 40.0f))
                     )
+            | modifier::setRole("TextEdit")
+            | modifier::setData("text", std::move(textData))
+            | modifier::addCapability(widget::Capability::Editable)
+            | modifier::addCapability(widget::Capability::Focusable)
+            | modifier::setIntrospectionObb()
             ;
     }
 

@@ -8,8 +8,12 @@
 #include "bqui/modifier/onhover.h"
 #include "bqui/modifier/onclick.h"
 #include "bqui/modifier/ondraw.h"
+#include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/provider/providetheme.h"
+
+#include "bqui/widget/introspection.h"
+#include "bqui/widget/datavalue.h"
 
 #include "bqui/shapes.h"
 
@@ -55,7 +59,13 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
     auto down = bq::signal::makeInput<bool>(false);
     auto hover = bq::signal::makeInput<bool>(false);
 
-    return widget::label(std::move(label))
+    auto sharedLabel = std::move(label).share();
+    auto captionData = sharedLabel.map([](std::string text)
+            {
+                return DataValue(std::move(text));
+            });
+
+    return widget::label(sharedLabel)
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::makeWidgetModifier(
             [](auto widget, auto theme, auto downSignal, auto hoverSignal)
@@ -90,6 +100,10 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
                 handle.set(e.hover);
             })
         | modifier::onClick(1, std::move(onClick))
+        | modifier::setRole("Button")
+        | modifier::setData("text", std::move(captionData))
+        | modifier::addCapability(widget::Capability::Clickable)
+        | modifier::setIntrospectionObb()
         ;
 }
 

@@ -1,6 +1,9 @@
 #include "bqui/modifier/onclick.h"
 
 #include "bqui/modifier/onpointerup.h"
+#include "bqui/modifier/setwidgetintrospection.h"
+
+#include "bqui/widget/introspection.h"
 
 #include "bqui/clickevent.h"
 
@@ -30,7 +33,8 @@ AnyWidgetModifier onClick(unsigned int button,
         return EventResult::possible;
     };
 
-    return makeWidgetModifierWithSize([](auto widget, auto size, auto f, auto cb)
+    auto clickModifier = makeWidgetModifierWithSize(
+        [](auto widget, auto size, auto f, auto cb)
         {
             return std::move(widget)
                 | onPointerUp(
@@ -40,6 +44,21 @@ AnyWidgetModifier onClick(unsigned int button,
         },
         std::move(f),
         std::move(cb).share()
+        );
+
+    // The click behaviour is applied through a size-aware modifier that lowers
+    // to Element (dropping introspection), so contribute the Clickable
+    // capability and the node's obb at the widget level, outside that lowering.
+    return makeWidgetModifier(
+        [](auto widget, auto clickModifier)
+        {
+            return std::move(widget)
+                | std::move(clickModifier)
+                | addCapability(widget::Capability::Clickable)
+                | setIntrospectionObb()
+                ;
+        },
+        std::move(clickModifier)
         );
 }
 
