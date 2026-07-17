@@ -86,12 +86,17 @@ namespace btl::future
 
             });
 
-            // TEMP(repro): reverted to the racy two-flag handshake to capture a
-            // red CI run. The fix restores the SpinLock serialisation below.
+            // Publish that registration is complete and, under the same lock a
+            // failing sibling uses, drop values_ if a failure has already been
+            // reported. Serialising the initialized_/values_ pair here (rather
+            // than handing them off through two independent atomics) closes the
+            // store-buffering window where init() and reportFailure() could
+            // each observe the other's flag as unset and *both* skip the reset,
+            // leaving a cancelled future's continuation to run.
+            std::unique_lock<SpinLock> lock(valuesMutex_);
+            initialized_ = true;
             if (failed_.load(std::memory_order_acquire))
                 values_.reset();
-
-            initialized_.store(true, std::memory_order_release);
         }
 
         void reportFailure(std::exception_ptr err)
@@ -102,7 +107,8 @@ namespace btl::future
             {
                 this->setFailure(std::move(err));
 
-                if (initialized_.load(std::memory_order_acquire))
+                std::unique_lock<SpinLock> lock(valuesMutex_);
+                if (initialized_)
                     values_.reset();
             }
         }
@@ -115,6 +121,11 @@ namespace btl::future
 
             if (count == 1)
             {
+                std::unique_lock<SpinLock> lock(valuesMutex_);
+
+                if (!values_)
+                    return;
+
                 std::apply([this](auto&&... values)
                     {
                         this->setValue(std::tuple_cat(
@@ -131,10 +142,14 @@ namespace btl::future
         }
 
     private:
-        // TEMP(repro): racy two-flag members restored to reproduce red on CI.
+        // Serialises every access to values_ so exactly one thread ever drops
+        // it: init() completing, a sibling reporting failure, or the final
+        // value becoming ready. Without this the failed_/initialized_ handshake
+        // is a store-buffering race (both loads can miss on ARM64).
+        SpinLock valuesMutex_;
         std::atomic_int count_;
         std::atomic_bool failed_ = false;
-        std::atomic_bool initialized_ = false;
+        bool initialized_ = false;
         std::optional<std::tuple<Ts...>> values_;
     };
 

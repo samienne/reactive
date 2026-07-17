@@ -71,23 +71,30 @@ jobs:
 
         # TEMP: reduced for ARM64 race debugging — restore before merge.
         # Builds and runs ONLY the small asyncstresstest target (btl is
-        # header-only, so ninja compiles just that TU, not ase/avg/bqui) under
-        # ThreadSanitizer, which flags the whenall.h store-buffering race
-        # deterministically on the Apple-Silicon runner.
-        - name: Build (TSan, async stress only)
+        # header-only, so ninja compiles just that TU, not ase/avg/bqui). A
+        # separate ThreadSanitizer *compile* of the same target keeps the TSan
+        # annotation path building (it had bit-rotted). NOTE: TSan does not flag
+        # this bug — a store-buffering double-miss produces no conflicting
+        # access — so the functional stress test is the detector.
+        - name: Build (async stress only)
           run: |
             sudo rm -Rf /Library/Developer/CommandLineTools
             sudo xcode-select -s /Applications/Xcode.app
+            mkdir -p build/debug
+            cd build/debug
+            python3 ../meson/meson.py setup --buildtype=debug --wrap-mode=forcefallback ../..
+            ninja src/btl/asyncstresstest
+
+        - name: Build (TSan compile smoke test)
+          run: |
             mkdir -p build/tsan
             cd build/tsan
             python3 ../meson/meson.py setup --buildtype=debug --wrap-mode=forcefallback -Db_sanitize=thread ../..
             ninja src/btl/asyncstresstest
 
-        - name: Tests (TSan)
+        - name: Tests (async stress)
           run: |
-            # exitcode=66 makes a TSan-reported data race fail the job; do not
-            # halt on the first report so every racing site is shown.
-            TSAN_OPTIONS="halt_on_error=0 exitcode=66" ./build/tsan/src/btl/asyncstresstest
+            ./build/debug/src/btl/asyncstresstest
 
     build-win:
         name: "build-win (${{ matrix.compiler.name }})"
