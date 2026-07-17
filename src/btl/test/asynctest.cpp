@@ -1,4 +1,5 @@
-#include <atomic>
+#include "manualfuture.h"
+
 #include <btl/future/join.h>
 #include <btl/future/merge.h>
 #include <btl/future/whenall.h>
@@ -11,10 +12,9 @@
 #include <btl/plus.h>
 #include <btl/always.h>
 
-#include "manualfuture.h"
-
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <random>
 #include <chrono>
 #include <thread>
