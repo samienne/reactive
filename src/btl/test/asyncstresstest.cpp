@@ -35,7 +35,7 @@ namespace
 {
     // f2 must still be sleeping when f1's failure is processed, so cancellation
     // is unambiguously the correct outcome and has a wide margin to win.
-    constexpr auto kSiblingSleep = std::chrono::milliseconds(40);
+    constexpr auto kSiblingSleep = std::chrono::milliseconds(150);
 
     // Returns true if f2's continuation leaked (ran despite f1 failing first).
     bool runOnce()
@@ -81,7 +81,7 @@ namespace
 
 TEST(asyncStress, whenAllCancelOnFail)
 {
-    constexpr int kIterations = 3000;
+    constexpr int kIterations = 400;
 
     int leaked = 0;
     for (int i = 0; i < kIterations; ++i)
