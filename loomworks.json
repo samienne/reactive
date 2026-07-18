@@ -1,0 +1,56 @@
+{
+  "name": "reactive",
+  "projects": {
+    "reactive": {
+      "meson": {
+        
+      },
+      "launch": {
+        "app": {
+          "working_dir": ".",
+          "target": "testapp1"
+        }
+      },
+      "path": "."
+    }
+  },
+  "profiles": {
+    "Release:clang-cl-18.1.7": {
+      "configuration_set": "Release",
+      "tools": [
+        "clang-cl-18.1.7"
+      ]
+    },
+    "Release:msvc-17-2022-enterprise": {
+      "configuration_set": "Release",
+      "tools": [
+        "msvc-17-2022-enterprise"
+      ]
+    },
+    "Debug:clang-cl-18.1.7": {
+      "configuration_set": "Debug",
+      "tools": [
+        "clang-cl-18.1.7"
+      ],
+      "default_target": {
+        "target": "testapp1",
+        "working_dir": ".",
+        "project": "reactive"
+      }
+    },
+    "Debug:msvc-17-2022-enterprise": {
+      "configuration_set": "Debug",
+      "tools": [
+        "msvc-17-2022-enterprise"
+      ]
+    }
+  },
+  "configuration_sets": {
+    "Release": {
+      "reactive": "variant:Release"
+    },
+    "Debug": {
+      "reactive": "variant:Debug"
+    }
+  }
+}
