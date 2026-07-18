@@ -11,18 +11,21 @@ namespace bqui::widget
 {
     struct DataValue;
 
-    /// An ordered string-keyed bag of introspection data values.
+    /** @brief An ordered string-keyed bag of introspection data values. */
     using DataMap = std::map<std::string, DataValue>;
 
-    /// A sequence of introspection data values.
+    /** @brief A sequence of introspection data values. */
     using DataArray = std::vector<DataValue>;
 
-    /// A plain, JSON-shaped value carried in a widget's introspection data bag.
-    ///
-    /// Holds a string, number, boolean, nested map, or array, so a consumer can
-    /// serialise a widget tree's declared data to JSON without depending on any
-    /// UI type. It is a value type with value semantics and equality, suitable
-    /// for carrying inside a reactive `AnySignal`.
+    /**
+     * @brief A plain, JSON-shaped value carried in a widget's introspection data
+     * bag.
+     *
+     * Holds a string, number, boolean, nested map, or array, so a consumer can
+     * serialise a widget tree's declared data to JSON without depending on any
+     * UI type. It is a value type with value semantics and equality, suitable
+     * for carrying inside a reactive `AnySignal`.
+     */
     struct BQUI_EXPORT DataValue
     {
         using Variant = std::variant<
