@@ -284,6 +284,26 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
+bool WglPlatform::step(Frame const& frame,
+        std::function<bool(Frame const&)> const& frameCallback)
+{
+    handleEvents();
+
+    if (!frameCallback(frame))
+        return false;
+
+    for (auto& weakWindow : windows)
+    {
+        if (auto window = weakWindow.second.lock())
+        {
+            if (window->needsRedraw())
+                window->frame(frame);
+        }
+    }
+
+    return true;
+}
+
 void WglPlatform::run(RenderContext& renderContext,
         std::function<bool(Frame const&)> frameCallback)
 {
@@ -305,21 +325,10 @@ void WglPlatform::run(RenderContext& renderContext,
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
 
-        handleEvents();
-
         Frame frame { time, dt };
 
-        if (!frameCallback(frame))
+        if (!step(frame, frameCallback))
             break;
-
-        for (auto& weakWindow : windows)
-        {
-            if (auto window = weakWindow.second.lock())
-            {
-                if (window->needsRedraw())
-                    window->frame(frame);
-            }
-        }
 
         ase::CommandBuffer commandBuffer;
         frameFutures.push(commandBuffer.pushFence());

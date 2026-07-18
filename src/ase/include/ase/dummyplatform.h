@@ -31,11 +31,22 @@ namespace ase
         RenderContext makeRenderContext() override;
 
         /**
+         * @brief Advance exactly one frame at the supplied time: run the app
+         * callback, then each live window's frame callback.
+         *
+         * Clock-agnostic — the caller supplies the frame — so run() pumps fixed
+         * deterministic frames and an external driver can supply its own.
+         *
+         * @return Whether the app callback asked to keep running.
+         */
+        bool step(Frame const& frame,
+                std::function<bool(Frame const&)> const& frameCallback) override;
+
+        /**
          * @brief Pump frames until the app frame callback returns false or the
          * frame budget is reached.
          *
-         * Each frame uses the fixed `dt` and advances a deterministic clock; the
-         * app callback runs first, then each live window's frame callback.
+         * Each frame uses the fixed `dt` and advances a deterministic clock.
          */
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) override;
@@ -54,15 +65,6 @@ namespace ase
          * Default is bounded so a headless run cannot spin forever.
          */
         void setMaxFrames(uint64_t maxFrames);
-
-        /**
-         * @brief Advance exactly one frame: run the app callback and each window
-         * frame with the fixed dt.
-         *
-         * @return Whether the app callback asked to keep running. Lets a caller
-         * pump frames on demand.
-         */
-        bool step(std::function<bool(Frame const&)> const& frameCallback);
 
     private:
         std::vector<std::weak_ptr<DummyWindow>> windows_;

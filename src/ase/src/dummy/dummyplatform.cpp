@@ -43,13 +43,13 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
     maxFrames_ = maxFrames;
 }
 
-bool DummyPlatform::step(
+bool DummyPlatform::step(Frame const& frame,
         std::function<bool(Frame const&)> const& frameCallback)
 {
-    time_ += dt_;
-    Frame frame{ time_, dt_ };
+    handleEvents();
 
-    bool keepRunning = frameCallback(frame);
+    if (!frameCallback(frame))
+        return false;
 
     // Drop expired windows, then advance the live ones.
     auto it = windows_.begin();
@@ -66,7 +66,7 @@ bool DummyPlatform::step(
         }
     }
 
-    return keepRunning;
+    return true;
 }
 
 void DummyPlatform::run(RenderContext&,
@@ -74,7 +74,10 @@ void DummyPlatform::run(RenderContext&,
 {
     for (uint64_t i = 0; maxFrames_ == 0 || i < maxFrames_; ++i)
     {
-        if (!step(frameCallback))
+        time_ += dt_;
+        Frame frame{ time_, dt_ };
+
+        if (!step(frame, frameCallback))
             break;
     }
 }

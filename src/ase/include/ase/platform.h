@@ -4,6 +4,7 @@
 #include "asevisibility.h"
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -23,6 +24,14 @@ namespace ase
         Window makeWindow(Vector2i size);
         void handleEvents();
         RenderContext makeRenderContext();
+
+        /** @brief Advance exactly one frame at the supplied time, driving
+         * events, the app callback, and each window. Clock-agnostic: the caller
+         * supplies the frame, so a driver can step with a controlled time.
+         * @return Whether the app callback asked to keep running. */
+        bool step(Frame const& frame,
+                std::function<bool(Frame const&)> const& frameCallback);
+
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback);
         void requestFrame();
