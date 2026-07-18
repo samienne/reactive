@@ -94,4 +94,6 @@ bquitest =  executable('bquitest',
   dependencies: [gtestdep, libbquidep],
   )
 
-test('bqui', bquitest, timeout: 1200, args: ['--gtest_output=xml'])
+test('bqui', bquitest, timeout: 1200,
+  args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
+  workdir: meson.project_source_root())

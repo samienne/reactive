@@ -57,7 +57,7 @@ struct ThemeDeferred
     avg::Color blue                 = color::blue;
     avg::Color cyan                 = color::cyan;
     avg::Color green                = color::green;
-    avg::Font font = avg::Font("../../data/fonts/OpenSans-Regular.ttf", 0);
+    avg::Font font = avg::Font("data/fonts/OpenSans-Regular.ttf", 0);
     float textHeight = 12.0f;
 
     bool operator==(ThemeDeferred const& rhs) const
@@ -111,7 +111,7 @@ ThemeDeferred::ThemeDeferred() :
     blue(color::blue),
     cyan(color::cyan),
     green(color::green),
-    font(avg::Font("../../data/fonts/OpenSans-Regular.ttf", 0)),
+    font(avg::Font("data/fonts/OpenSans-Regular.ttf", 0)),
     textHeight(12.0f)
 {
 }
