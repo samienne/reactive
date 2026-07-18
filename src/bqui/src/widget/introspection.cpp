@@ -3,6 +3,19 @@
 namespace bqui::widget
 {
 
+char const* toString(Capability capability)
+{
+    switch (capability)
+    {
+        case Capability::Clickable: return "Clickable";
+        case Capability::Editable: return "Editable";
+        case Capability::Focusable: return "Focusable";
+        case Capability::Scrollable: return "Scrollable";
+    }
+
+    return "";
+}
+
 bool operator==(Introspection const& lhs, Introspection const& rhs)
 {
     if (lhs.name != rhs.name
