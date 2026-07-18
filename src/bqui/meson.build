@@ -1,4 +1,5 @@
 libbquisrc = [
+  'src/agent/introspectionjson.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -88,6 +89,7 @@ bquitestsrc = [
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/headlessapptest.cpp',
+  'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
