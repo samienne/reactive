@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <string>
+
 using namespace bqui::agent;
 
 TEST(json, parsesObjectWithMixedValues)
@@ -52,6 +54,13 @@ TEST(json, rejectsMalformedInput)
     EXPECT_FALSE(parseJson("{\"a\":1,}").has_value());
     EXPECT_FALSE(parseJson("").has_value());
     EXPECT_FALSE(parseJson("{}trailing").has_value());
+}
+
+TEST(json, rejectsPathologicallyDeepNesting)
+{
+    // Deep nesting must fail cleanly (no stack overflow).
+    std::string deep(1000, '[');
+    EXPECT_FALSE(parseJson(deep).has_value());
 }
 
 TEST(json, wrongTypeAccessorsReturnFallback)

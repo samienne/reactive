@@ -135,10 +135,18 @@ private:
         if (!ok_)
             return {};
 
+        // Cap nesting so adversarial deeply-nested input cannot overflow the
+        // stack; the agent's commands are shallow.
+        if (depth_ >= kMaxDepth)
+        {
+            ok_ = false;
+            return {};
+        }
+
         switch (peek())
         {
-            case '{': return parseObject();
-            case '[': return parseArray();
+            case '{': ++depth_; { auto v = parseObject(); --depth_; return v; }
+            case '[': ++depth_; { auto v = parseArray(); --depth_; return v; }
             case '"': return JsonValue(parseString());
             case 't':
                 consumeLiteral("true");
@@ -361,8 +369,11 @@ private:
         return JsonValue(value);
     }
 
+    static constexpr int kMaxDepth = 64;
+
     std::string const& text_;
     size_t pos_ = 0;
+    int depth_ = 0;
     bool ok_ = true;
 };
 

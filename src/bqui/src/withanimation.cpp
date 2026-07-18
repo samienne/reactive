@@ -39,7 +39,7 @@ namespace bqui
 
     AnimationGuard withAnimation(avg::AnimationOptions options)
     {
-        return app().withAnimation(std::move(options));
+        return withAnimationForCurrentApp(std::move(options));
     }
 
     AnimationGuard withAnimation(std::chrono::milliseconds time,

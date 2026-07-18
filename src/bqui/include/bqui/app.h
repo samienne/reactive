@@ -170,6 +170,9 @@ namespace bqui
     {
     public:
         AnimationGuard(AppDeferred& app, std::optional<avg::AnimationOptions> options);
+
+        /** @brief Guard over `app`, or a no-op guard when `app` is null. */
+        AnimationGuard(AppDeferred* app, std::optional<avg::AnimationOptions> options);
         AnimationGuard(AnimationGuard const& rhs) noexcept = delete;
         AnimationGuard(AnimationGuard&& rhs) noexcept = delete;
 
@@ -184,5 +187,12 @@ namespace bqui
     };
 
     BQUI_EXPORT App app();
+
+    /**
+     * @brief Open an animation transaction on the app currently running, or a
+     * no-op guard if none is running.
+     */
+    BQUI_EXPORT AnimationGuard withAnimationForCurrentApp(
+            avg::AnimationOptions options);
 }
 

@@ -1,5 +1,6 @@
 #include <bqui/app.h>
 #include <bqui/window.h>
+#include <bqui/withanimation.h>
 #include <bqui/widget/label.h>
 #include <bqui/widget/introspection.h>
 
@@ -93,4 +94,32 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     EXPECT_EQ(ase::ButtonState::down, gotButton->state);
     EXPECT_EQ(ase::Vector2f(20.0f, 30.0f), gotButton->pos);
     EXPECT_EQ("hi", gotText);
+}
+
+TEST(headlessApp, isReRunnable)
+{
+    // Running an app must not consume the window so another app can run in the
+    // same process (the loop and its tests rely on this).
+    for (int i = 0; i < 2; ++i)
+    {
+        int result = app()
+            .platform(makeBoundedHeadless(3))
+            .windows({
+                    window(bq::signal::constant<std::string>("Test"),
+                        label("Rerun"))
+                    })
+            .run();
+
+        EXPECT_EQ(0, result);
+    }
+}
+
+TEST(headlessApp, withAnimationIsANoOpWithNoRunningApp)
+{
+    // The free withAnimation reaches the running app; with none running it must
+    // be a harmless no-op, not a crash.
+    withAnimation(std::chrono::milliseconds(100), avg::curve::linear,
+            [] {});
+
+    SUCCEED();
 }
