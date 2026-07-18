@@ -478,7 +478,11 @@ public:
         return onFrame( { timer_, dt });
     }
 
-    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
+    // Advance the reactive state one frame: apply pending events and
+    // time-dependent signals via the transaction, producing the current
+    // (stateless) render tree and introspection. Does not draw. Returns the
+    // transaction's requested time-to-next-update.
+    std::optional<bq::signal::signal_time_t> update(ase::Frame const& frame)
     {
         ZoneScoped;
 
@@ -491,10 +495,18 @@ public:
             resized_ = false;
         }
 
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
-                timer_);
+        return makeTransaction(frame.dt, std::nullopt);
+    }
 
-        auto timeToNext = makeTransaction(frame.dt, std::nullopt);
+    // Draw the current render tree at the given time and present it. A pure
+    // evaluation of the stateless tree — no state advance — so it can be called
+    // at any time point independently of update().
+    void render(std::chrono::microseconds time)
+    {
+        ZoneScoped;
+
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
+                time);
 
         if (animating_)
         {
@@ -514,6 +526,15 @@ public:
         painter_.flush();
 
         ++frames_;
+    }
+
+    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
+    {
+        ZoneScoped;
+
+        auto timeToNext = update(frame);
+
+        render(frame.time);
 
         if (animating_)
             return std::chrono::microseconds(0);
