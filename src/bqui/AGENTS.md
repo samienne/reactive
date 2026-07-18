@@ -153,6 +153,17 @@ handle's lifetime without a backend at all. Run `testapp1` to exercise the rest
 — its extra windows are app-owned, and their close button both animates and
 removes itself.
 
+## Agent layer
+
+`agent/` is the headless agent-control surface, independent of the widget
+pipeline:
+
+- `introspectionjson.h` — `toJson` serialises a resolved `Introspection` tree
+  (absolute window-space obbs) to JSON: the observe payload.
+- `transport.h` — a swappable, length-prefixed framed message channel
+  (`connect`/`listen`+`accept`); the local IPC is a named pipe on Windows and a
+  Unix-domain socket elsewhere. It carries bytes only, no protocol knowledge.
+
 ## Traps
 
 - `Widget`/`Element`/the modifiers have **no `extern template` declaration and
