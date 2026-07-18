@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <cstdint>
 #include <optional>
 #include <chrono>
 #include <string>
@@ -68,6 +69,25 @@ namespace ase
         void setKeyCallback(std::function<void(KeyEvent const&)> cb);
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
         void setTextCallback(std::function<void(TextEvent const&)> cb);
+
+        /** @brief Drive the window with a pointer button event as if it came
+         * from the platform. Works uniformly across every backend. */
+        void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos, ButtonState buttonState);
+
+        /** @brief Drive the window with a pointer move event. */
+        void injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos);
+
+        /** @brief Drive the window with a hover enter/leave event. */
+        void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state);
+
+        /** @brief Drive the window with a key event. */
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text);
+
+        /** @brief Drive the window with a text-input event. */
+        void injectTextEvent(std::string text);
 
         template <class T>
         T const& getImpl() const

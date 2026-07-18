@@ -125,5 +125,33 @@ void Window::setTextCallback(std::function<void(TextEvent const&)> cb)
     d()->setTextCallback(std::move(cb));
 }
 
+void Window::injectPointerButtonEvent(unsigned int pointerIndex,
+        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
+{
+    d()->injectPointerButtonEvent(pointerIndex, buttonIndex, pos, buttonState);
+}
+
+void Window::injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos)
+{
+    d()->injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void Window::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+        bool state)
+{
+    d()->injectHoverEvent(pointerIndex, pos, state);
+}
+
+void Window::injectKeyEvent(KeyState keyState, KeyCode keyCode,
+        uint32_t modifiers, std::string text)
+{
+    d()->injectKeyEvent(keyState, keyCode, modifiers, std::move(text));
+}
+
+void Window::injectTextEvent(std::string text)
+{
+    d()->injectTextEvent(std::move(text));
+}
+
 } // namespace
 

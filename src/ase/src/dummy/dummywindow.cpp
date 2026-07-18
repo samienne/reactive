@@ -103,6 +103,37 @@ void DummyWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
     genericWindow_.setTextCallback(std::move(cb));
 }
 
+void DummyWindow::injectPointerButtonEvent(unsigned int pointerIndex,
+        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
+{
+    genericWindow_.injectPointerButtonEvent(pointerIndex, buttonIndex, pos,
+            buttonState);
+}
+
+void DummyWindow::injectPointerMoveEvent(unsigned int pointerIndex,
+        Vector2f pos)
+{
+    genericWindow_.injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void DummyWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+        bool state)
+{
+    genericWindow_.injectHoverEvent(pointerIndex, pos, state);
+}
+
+void DummyWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
+        uint32_t modifiers, std::string text)
+{
+    genericWindow_.injectKeyEvent(keyState, keyCode, modifiers,
+            std::move(text));
+}
+
+void DummyWindow::injectTextEvent(std::string text)
+{
+    genericWindow_.injectTextEvent(std::move(text));
+}
+
 bool DummyWindow::needsRedraw() const
 {
     return genericWindow_.needsRedraw();
@@ -111,11 +142,6 @@ bool DummyWindow::needsRedraw() const
 std::optional<std::chrono::microseconds> DummyWindow::frame(Frame const& frame)
 {
     return genericWindow_.frame(frame);
-}
-
-GenericWindow& DummyWindow::getGenericWindow()
-{
-    return genericWindow_;
 }
 
 } // namespace ase

@@ -14,9 +14,14 @@ are in the top-level `docs/`.
 - `src/dummy/` — the headless backend. It opens no OS window and drives a
   deterministic, fixed-`dt`, frame-budgeted loop (`DummyPlatform::run`/`step`),
   so a run is bounded and reproducible. `DummyWindow` delegates callback storage
-  and dispatch to the shared `GenericWindow` (same as `WglWindow`), which also
-  carries the `inject*` event seam. It is compiled on **every** platform (see
-  `dummysrcs` in `meson.build`) so any app can run headless.
+  and dispatch to the shared `GenericWindow` (same as `WglWindow`/`GlxWindow`).
+  It is compiled on **every** platform (see `dummysrcs` in `meson.build`) so any
+  app can run headless.
+- `GenericWindow` (`src/genericwindow.cpp`) is a shared, backend-internal helper
+  holding the window's callbacks and the event-injection logic; every concrete
+  window owns one privately. Programmatic input goes through the abstract
+  `WindowImpl`/`Window` `inject*` methods (which forward to it), never through
+  `GenericWindow` directly — it stays off the public surface.
 
 ## Notes
 

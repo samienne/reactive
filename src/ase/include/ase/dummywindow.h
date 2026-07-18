@@ -38,12 +38,21 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
         void setTextCallback(std::function<void(TextEvent const&)> cb) override;
 
+        void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos,
+                ButtonState buttonState) override;
+        void injectPointerMoveEvent(unsigned int pointerIndex,
+                Vector2f pos) override;
+        void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state) override;
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text) override;
+        void injectTextEvent(std::string text) override;
+
         // Drive the stored frame callback for one frame. The headless platform
-        // calls this to advance a window; input injection reuses the same
-        // GenericWindow seam the real backends use.
+        // calls this to advance a window.
         bool needsRedraw() const;
         std::optional<std::chrono::microseconds> frame(Frame const& frame);
-        GenericWindow& getGenericWindow();
 
     private:
         GenericWindow genericWindow_;

@@ -8,6 +8,9 @@
 
 #include <ase/platform.h>
 #include <ase/dummyplatform.h>
+#include <ase/window.h>
+#include <ase/pointerbuttonevent.h>
+#include <ase/keyevent.h>
 
 #include <gtest/gtest.h>
 
@@ -58,4 +61,36 @@ TEST(headlessApp, introspectionResolvesWithNoWindow)
     EXPECT_EQ("Label", node.role);
     EXPECT_GT(node.obb.getSize()[0], 0.0f);
     EXPECT_GT(node.obb.getSize()[1], 0.0f);
+}
+
+TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
+{
+    // Events injected via the abstract ase::Window interface reach the window's
+    // callbacks — the uniform, backend-agnostic seam (no GenericWindow in
+    // sight). Exercised on the headless window here; every backend delegates
+    // identically.
+    auto platform = ase::makeDummyPlatform();
+    auto window = platform.makeWindow(ase::Vector2i(200, 100));
+
+    std::optional<ase::PointerButtonEvent> gotButton;
+    window.setButtonCallback([&](ase::PointerButtonEvent const& e)
+            {
+                gotButton = e;
+            });
+
+    std::string gotText;
+    window.setTextCallback([&](ase::TextEvent const& e)
+            {
+                gotText = e.getText();
+            });
+
+    window.injectPointerButtonEvent(0, 1, ase::Vector2f(20.0f, 30.0f),
+            ase::ButtonState::down);
+    window.injectTextEvent("hi");
+
+    ASSERT_TRUE(gotButton.has_value());
+    EXPECT_EQ(1u, gotButton->button);
+    EXPECT_EQ(ase::ButtonState::down, gotButton->state);
+    EXPECT_EQ(ase::Vector2f(20.0f, 30.0f), gotButton->pos);
+    EXPECT_EQ("hi", gotText);
 }
