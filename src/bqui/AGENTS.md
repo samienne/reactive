@@ -163,6 +163,11 @@ pipeline:
 - `transport.h` — a swappable, length-prefixed framed message channel
   (`connect`/`listen`+`accept`); the local IPC is a named pipe on Windows and a
   Unix-domain socket elsewhere. It carries bytes only, no protocol knowledge.
+- `json.h` — a tiny read-only JSON parser for the small inbound commands.
+- `controlloop.h` — `runAgentLoop` serves the agent over a `Transport`
+  (step/snapshot/quit), driving an `AgentWindow` (inject, step, introspect).
+  `App::run` enters it in agentic mode (`REACTIVE_MODE=agent`), connecting to
+  `REACTIVE_AGENT_ENDPOINT` instead of free-running.
 
 ## Traps
 

@@ -15,6 +15,7 @@
 #include <btl/visibility.h>
 
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bqui
@@ -59,10 +60,18 @@ namespace bqui
         App& headless(bool headless);
 
         /** @brief Force agentic mode on/off, overriding the REACTIVE_AGENT /
-         * REACTIVE_MODE env vars. Orthogonal to the platform choice; for now
-         * the flag is only recorded (the control loop comes later).
+         * REACTIVE_MODE env vars.
+         *
+         * Orthogonal to the platform choice. In agentic mode the app connects
+         * to an endpoint and is driven by an external agent instead of
+         * free-running.
          */
         App& agentic(bool agentic);
+
+        /** @brief Set the agent channel endpoint, overriding
+         * REACTIVE_AGENT_ENDPOINT, so a test need not set a process-global env.
+         */
+        App& agentEndpoint(std::string endpoint);
 
         /** @brief Opens a list of windows the caller drives.
          *
