@@ -52,14 +52,8 @@
 namespace bqui
 {
 
-class AppDeferred;
-
 namespace
 {
-    // The app currently inside App::run, so the free withAnimation() can reach
-    // its live windows. Set for the duration of a run and cleared after.
-    AppDeferred* s_currentApp = nullptr;
-
     uint64_t s_frameId_ = 0;
 
     uint64_t getNextFrameId()
@@ -804,12 +798,6 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    // Publish the running app so the free withAnimation() can reach its live
-    // windows; cleared however this returns.
-    s_currentApp = d();
-    struct ClearCurrentApp { ~ClearCurrentApp() { s_currentApp = nullptr; } }
-        clearCurrentApp;
-
     // Platform: explicit override, else headless env, else the OS default.
     bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
 
@@ -947,18 +935,9 @@ AnimationGuard App::withAnimation(avg::AnimationOptions options)
 
 AnimationGuard::AnimationGuard(AppDeferred& app,
         std::optional<avg::AnimationOptions> options) :
-    AnimationGuard(&app, std::move(options))
-{
-}
-
-AnimationGuard::AnimationGuard(AppDeferred* app,
-        std::optional<avg::AnimationOptions> options) :
-    app_(app),
+    app_(&app),
     options_(options)
 {
-    if (!app_)
-        return;
-
     for (auto& glue : app_->windowGlues_)
     {
         glue->makeTransaction(
@@ -984,12 +963,9 @@ AnimationGuard::~AnimationGuard()
 
 App app()
 {
-    return App();
-}
+    static App application;
 
-AnimationGuard withAnimationForCurrentApp(avg::AnimationOptions options)
-{
-    return AnimationGuard(s_currentApp, std::move(options));
+    return application;
 }
 
 }

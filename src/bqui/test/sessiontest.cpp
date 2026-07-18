@@ -344,14 +344,13 @@ TEST(session, observeClickObserveRoundTripDrivesARealApp)
 
     std::thread appThread([&]
     {
-        app()
+        App()
             .platform(ase::makeDummyPlatform())
             .agentic(true)
             .agentEndpoint(endpoint)
-            .windows({
+            .addWindow(
                     window(bq::signal::constant<std::string>("Agent"),
-                        counterWidget(count.handle, count.signal, state))
-                    })
+                        counterWidget(count.handle, count.signal, state)))
             .run();
     });
 

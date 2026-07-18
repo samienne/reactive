@@ -35,7 +35,7 @@ TEST(headlessApp, runsAndExitsWithNoWindow)
     // number of frames, and return cleanly without ever opening an OS window.
     auto widget = label("Headless");
 
-    int result = app()
+    int result = App()
         .platform(makeBoundedHeadless(5))
         .addWindow(
                 window(bq::signal::constant<std::string>("Test"),
@@ -96,18 +96,17 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     EXPECT_EQ("hi", gotText);
 }
 
-TEST(headlessApp, isReRunnable)
+TEST(headlessApp, secondAppRunsInTheSameProcess)
 {
-    // Running an app must not consume the window so another app can run in the
-    // same process (the loop and its tests rely on this).
+    // App::run clones its windows rather than consuming them, so a second app
+    // can build and run in the same process without hitting an emptied widget.
     for (int i = 0; i < 2; ++i)
     {
-        int result = app()
+        int result = App()
             .platform(makeBoundedHeadless(3))
-            .windows({
+            .addWindow(
                     window(bq::signal::constant<std::string>("Test"),
-                        label("Rerun"))
-                    })
+                        label("Rerun")))
             .run();
 
         EXPECT_EQ(0, result);
@@ -116,8 +115,8 @@ TEST(headlessApp, isReRunnable)
 
 TEST(headlessApp, withAnimationIsANoOpWithNoRunningApp)
 {
-    // The free withAnimation reaches the running app; with none running it must
-    // be a harmless no-op, not a crash.
+    // The free withAnimation reaches the singleton app; with no run active its
+    // windowGlues_ are empty, so it must be a harmless no-op, not a crash.
     withAnimation(std::chrono::milliseconds(100), avg::curve::linear,
             [] {});
 
