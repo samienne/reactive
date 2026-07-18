@@ -2,6 +2,7 @@
 
 #include "bqui/widget/datavalue.h"
 
+#include <cmath>
 #include <cstdio>
 #include <sstream>
 #include <variant>
@@ -46,8 +47,15 @@ void writeString(std::ostream& out, std::string const& value)
 
 void writeNumber(std::ostream& out, double value)
 {
-    // A round-trippable, locale-independent number without a trailing decimal
-    // point for integers.
+    // JSON has no non-finite literals, so keep the output valid.
+    if (!std::isfinite(value))
+    {
+        out << '0';
+        return;
+    }
+
+    // "%g" is round-trippable at 9 significant digits and drops the trailing
+    // decimal point for integers; the default "C" locale keeps the point a dot.
     char buf[32];
     std::snprintf(buf, sizeof(buf), "%.9g", value);
     out << buf;
