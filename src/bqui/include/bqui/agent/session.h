@@ -43,10 +43,10 @@ namespace bqui::agent
                 uint32_t modifiers, std::string text) = 0;
         virtual void injectText(std::string text) = 0;
 
-        /** @brief The current resolved (absolute window-space) introspection. */
+        /** @brief The current resolved (window-space) introspection. */
         virtual widget::Introspection introspect() const = 0;
 
-        /** @brief Advance this window one frame by `dt` (update then render). */
+        /** @brief Advance this window one frame by `dt` (update then draw). */
         virtual void advance(std::chrono::microseconds dt) = 0;
     };
 
@@ -57,8 +57,8 @@ namespace bqui::agent
      * command, apply it to the windows, send back a snapshot of all of them,
      * repeat. Commands are `step` (route each inject to its target window by
      * index, then advance every window one dt), `snapshot` (observe without
-     * advancing), and `quit`. A malformed command is answered with an error, not
-     * a crash; a clean channel close ends the loop.
+     * advancing), and `quit`. A malformed command is answered with an error,
+     * not a crash; a clean channel close ends the loop.
      */
     BQUI_EXPORT void runSession(std::vector<AgentWindow*> const& windows,
             Transport& transport);

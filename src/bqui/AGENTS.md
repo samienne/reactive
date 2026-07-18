@@ -167,10 +167,11 @@ pipeline:
 - `session.h` — `runSession` serves the agent over a `Transport`
   (step/snapshot/quit), driving a set of `AgentWindow`s (inject / introspect /
   advance). The protocol is multi-window: `snapshot` returns every window in a
-  `windows` array, an inject routes to a window by `index`, and `step` advances
-  the whole app one `dt`. `App::run` hands its windows to it in agentic mode
-  (`REACTIVE_MODE=agent`), connecting to `REACTIVE_AGENT_ENDPOINT` instead of
-  free-running; the `WindowGlue → AgentWindow` adapter stays private to `App`.
+  `windows` array (each tagged with its `index`), an inject routes to a window
+  by its `window` field (its position in that array; default 0), and `step`
+  advances the whole app one `dt`. `App::run` hands its windows to it in agentic
+  mode (`REACTIVE_MODE=agent`), connecting to `REACTIVE_AGENT_ENDPOINT` instead
+  of free-running; the `WindowGlue → AgentWindow` adapter stays private to `App`.
 
 ## Traps
 
