@@ -22,13 +22,15 @@ namespace ase
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
 
-        // Advance exactly one frame at the supplied time: handle pending events,
-        // invoke the app frame callback, then drive each window's frame. It does
-        // not sample any clock — the caller supplies the frame — so an external
-        // driver can step the platform with a controlled time. Returns whether
-        // the app callback asked to keep running.
-        virtual bool step(Frame const& frame,
-                std::function<bool(Frame const&)> const& frameCallback) = 0;
+        /**
+         * @brief Inject one frame into the windows: advance each live window at
+         * the supplied time.
+         *
+         * Samples no clock and touches neither OS events nor the app callback
+         * (those belong to run()'s loop), so an external driver can drive it with
+         * a controlled time.
+         */
+        virtual void step(Frame const& frame) = 0;
 
         virtual void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) = 0;

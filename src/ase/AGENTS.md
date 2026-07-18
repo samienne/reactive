@@ -25,11 +25,12 @@ are in the top-level `docs/`.
 
 ## Notes
 
-- Every platform's `run()` owns the frame loop and the clock; the per-frame body
-  lives in a shared, clock-agnostic `PlatformImpl::step(Frame const&, cb)`
-  (`handleEvents` → app callback → each window's frame). `run()` samples
-  `std::steady_clock` (the dummy uses a fixed `dt`), builds the `Frame`, and calls
-  `step()`; an external driver can call `step()` with its own controlled time.
+- Every platform's `run()` owns the frame loop and the clock: each iteration it
+  samples `std::steady_clock` (the dummy uses a fixed `dt`), builds the `Frame`,
+  runs `handleEvents()` and the app frame callback, then calls the clock-agnostic
+  `PlatformImpl::step(Frame const&)` — the minimal primitive that just injects the
+  frame into the windows (advancing each live `window->frame`). An external driver
+  can call `step()` with its own controlled time.
 - Two platform factories: `makeDefaultPlatform()` returns the OS backend (WGL/GLX,
   or the dummy where there is none — `dummydefaultplatform.cpp` defines it there),
   and `makeDummyPlatform()` always returns the headless one. `bqui::App::run`

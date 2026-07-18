@@ -31,16 +31,13 @@ namespace ase
         RenderContext makeRenderContext() override;
 
         /**
-         * @brief Advance exactly one frame at the supplied time: run the app
-         * callback, then each live window's frame callback.
+         * @brief Inject one frame into the windows at the supplied time: advance
+         * each live window's frame callback.
          *
          * Clock-agnostic — the caller supplies the frame — so run() pumps fixed
          * deterministic frames and an external driver can supply its own.
-         *
-         * @return Whether the app callback asked to keep running.
          */
-        bool step(Frame const& frame,
-                std::function<bool(Frame const&)> const& frameCallback) override;
+        void step(Frame const& frame) override;
 
         /**
          * @brief Pump frames until the app frame callback returns false or the

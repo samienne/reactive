@@ -49,9 +49,10 @@ namespace ase
                 uint32_t modifiers, std::string text) override;
         void injectTextEvent(std::string text) override;
 
-        // Drive the stored frame callback for one frame. The headless platform
-        // calls this to advance a window.
         bool needsRedraw() const;
+
+        /** @brief Drive the stored frame callback for one frame, so the headless
+         * platform can advance this window. */
         std::optional<std::chrono::microseconds> frame(Frame const& frame);
 
     private:

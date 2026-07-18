@@ -338,14 +338,8 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-bool GlxPlatform::step(Frame const& frame,
-        std::function<bool(Frame const&)> const& frameCallback)
+void GlxPlatform::step(Frame const& frame)
 {
-    handleEvents();
-
-    if (!frameCallback(frame))
-        return false;
-
     for (auto& weakWindow : d()->windows_)
     {
         if (auto window = weakWindow.lock())
@@ -354,8 +348,6 @@ bool GlxPlatform::step(Frame const& frame,
                 window->frame(frame);
         }
     }
-
-    return true;
 }
 
 void GlxPlatform::run(RenderContext& renderContext,
@@ -388,10 +380,14 @@ void GlxPlatform::run(RenderContext& renderContext,
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
 
+        handleEvents();
+
         Frame frame { time, dt };
 
-        if (!step(frame, frameCallback))
+        if (!frameCallback(frame))
             break;
+
+        step(frame);
 
         ase::CommandBuffer commandBuffer;
         frameFutures.push(commandBuffer.pushFence());
