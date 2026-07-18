@@ -1,5 +1,6 @@
 libbquisrc = [
   'src/agent/introspectionjson.cpp',
+  'src/agent/transport.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -93,6 +94,7 @@ bquitestsrc = [
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
+  'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
   'test/windowtest.cpp',
