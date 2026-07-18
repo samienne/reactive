@@ -1,4 +1,4 @@
-#include "bqui/agent/controlloop.h"
+#include "bqui/agent/session.h"
 
 #include "bqui/agent/introspectionjson.h"
 #include "bqui/agent/json.h"
@@ -72,11 +72,31 @@ void applyInjection(AgentWindow& window, JsonValue const& event)
     }
 }
 
-std::string snapshotResponse(AgentWindow const& window)
+// The target window of an inject event, or none if the index is out of range.
+AgentWindow* targetWindow(std::vector<AgentWindow*> const& windows,
+        JsonValue const& event)
 {
-    return "{\"type\":\"snapshot\",\"introspection\":"
-        + toJson(window.introspection())
-        + "}";
+    auto index = static_cast<size_t>(
+            event.find("window").value_or(JsonValue()).asNumber(0.0));
+
+    return index < windows.size() ? windows[index] : nullptr;
+}
+
+std::string snapshotResponse(std::vector<AgentWindow*> const& windows)
+{
+    std::string out = "{\"type\":\"snapshot\",\"windows\":[";
+
+    for (size_t i = 0; i < windows.size(); ++i)
+    {
+        if (i > 0)
+            out += ',';
+
+        out += "{\"index\":" + std::to_string(i) + ",\"introspection\":"
+            + toJson(windows[i]->introspect()) + "}";
+    }
+
+    out += "]}";
+    return out;
 }
 
 std::string errorResponse(std::string const& message)
@@ -86,7 +106,7 @@ std::string errorResponse(std::string const& message)
 
 } // namespace
 
-void runAgentLoop(Transport& transport, AgentWindow& window)
+void runSession(std::vector<AgentWindow*> const& windows, Transport& transport)
 {
     for (;;)
     {
@@ -111,23 +131,32 @@ void runAgentLoop(Transport& transport, AgentWindow& window)
             auto inject = command->find("inject");
             if (inject && inject->isArray())
                 for (auto const& event : inject->asArray())
-                    applyInjection(window, event);
+                    if (auto* window = targetWindow(windows, event))
+                        applyInjection(*window, event);
 
             auto dt = std::chrono::microseconds(static_cast<int64_t>(
                     command->find("dt_us").value_or(JsonValue()).asNumber(0.0)));
-            window.step(dt);
+            for (auto* window : windows)
+                window->advance(dt);
 
-            transport.send(snapshotResponse(window));
+            transport.send(snapshotResponse(windows));
         }
         else if (type == "snapshot")
         {
-            transport.send(snapshotResponse(window));
+            transport.send(snapshotResponse(windows));
         }
         else
         {
             transport.send(errorResponse("unknown command type"));
         }
     }
+}
+
+void runSession(std::vector<AgentWindow*> const& windows,
+        std::string const& endpoint)
+{
+    auto transport = connect(endpoint);
+    runSession(windows, *transport);
 }
 
 } // namespace bqui::agent

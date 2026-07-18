@@ -1,7 +1,7 @@
 libbquisrc = [
-  'src/agent/controlloop.cpp',
   'src/agent/introspectionjson.cpp',
   'src/agent/json.cpp',
+  'src/agent/session.cpp',
   'src/agent/transport.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
@@ -89,7 +89,6 @@ libbquidep = declare_dependency(
   )
 
 bquitestsrc = [
-  'test/agentcontrollooptest.cpp',
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/headlessapptest.cpp',
@@ -97,6 +96,7 @@ bquitestsrc = [
   'test/introspectiontest.cpp',
   'test/jsontest.cpp',
   'test/layouttest.cpp',
+  'test/sessiontest.cpp',
   'test/shapetest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',

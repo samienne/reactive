@@ -2,8 +2,7 @@
 
 #include "bqui/window.h"
 
-#include "bqui/agent/controlloop.h"
-#include "bqui/agent/transport.h"
+#include "bqui/agent/session.h"
 
 #include "debug.h"
 #include "windowlist.h"
@@ -672,25 +671,35 @@ namespace
             glue_.getWindow().injectTextEvent(std::move(text));
         }
 
-        void step(std::chrono::microseconds dt) override
-        {
-            glue_.stepFrame(dt);
-        }
-
-        widget::Introspection introspection() const override
+        widget::Introspection introspect() const override
         {
             return glue_.getResolvedIntrospection();
+        }
+
+        void advance(std::chrono::microseconds dt) override
+        {
+            glue_.stepFrame(dt);
         }
 
     private:
         WindowGlue& glue_;
     };
 
-    void runAgentic(WindowGlue& glue, std::string const& endpoint)
+    void runAgentSession(
+            std::vector<btl::shared<WindowGlue>>& glues,
+            std::string const& endpoint)
     {
-        auto transport = agent::connect(endpoint);
-        GlueAgentWindow window(glue);
-        agent::runAgentLoop(*transport, window);
+        std::vector<GlueAgentWindow> adapters;
+        adapters.reserve(glues.size());
+        for (auto& glue : glues)
+            adapters.emplace_back(*glue);
+
+        std::vector<agent::AgentWindow*> windows;
+        windows.reserve(adapters.size());
+        for (auto& adapter : adapters)
+            windows.push_back(&adapter);
+
+        agent::runSession(windows, endpoint);
     }
 } // anonymous namespace
 
@@ -891,7 +900,8 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
         if (!endpoint.empty())
         {
-            runAgentic(*d()->windowGlues_.front(), endpoint);
+            runAgentSession(d()->windowGlues_, endpoint);
+            d()->windowGlues_.clear();
             return 0;
         }
     }

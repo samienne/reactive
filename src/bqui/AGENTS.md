@@ -164,10 +164,13 @@ pipeline:
   (`connect`/`listen`+`accept`); the local IPC is a named pipe on Windows and a
   Unix-domain socket elsewhere. It carries bytes only, no protocol knowledge.
 - `json.h` — a tiny read-only JSON parser for the small inbound commands.
-- `controlloop.h` — `runAgentLoop` serves the agent over a `Transport`
-  (step/snapshot/quit), driving an `AgentWindow` (inject, step, introspect).
-  `App::run` enters it in agentic mode (`REACTIVE_MODE=agent`), connecting to
-  `REACTIVE_AGENT_ENDPOINT` instead of free-running.
+- `session.h` — `runSession` serves the agent over a `Transport`
+  (step/snapshot/quit), driving a set of `AgentWindow`s (inject / introspect /
+  advance). The protocol is multi-window: `snapshot` returns every window in a
+  `windows` array, an inject routes to a window by `index`, and `step` advances
+  the whole app one `dt`. `App::run` hands its windows to it in agentic mode
+  (`REACTIVE_MODE=agent`), connecting to `REACTIVE_AGENT_ENDPOINT` instead of
+  free-running; the `WindowGlue → AgentWindow` adapter stays private to `App`.
 
 ## Traps
 
