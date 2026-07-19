@@ -214,7 +214,7 @@ namespace bq::signal
 
         auto join() const
         {
-            return wrap(Join<TStorage>(Super::sig_));
+            return wrap(Join<StorageType>(Super::sig_));
         }
 
         Signal clone() const

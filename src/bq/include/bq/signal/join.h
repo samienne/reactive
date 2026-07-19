@@ -14,18 +14,39 @@ namespace bq::signal
     template <typename T, typename... Ts>
     class Signal;
 
+    template <typename... Ts>
+    class AnySignal;
+
     namespace detail
     {
         template <typename T>
-        auto toSignal(T&& t)
+        struct IsSignalObject : std::false_type
         {
-            return constant(std::forward<T>(t));
-        }
+        };
 
         template <typename T, typename... Ts>
-        Signal<T, Ts...> toSignal(Signal<T, Ts...> sig)
+        struct IsSignalObject<Signal<T, Ts...>> : std::true_type
         {
-            return sig;
+        };
+
+        template <typename... Ts>
+        struct IsSignalObject<AnySignal<Ts...>> : std::true_type
+        {
+        };
+
+        // A signal passes through; anything else becomes a constant. This is
+        // one function rather than an overload pair because an AnySignal is
+        // derived from Signal, so an unconstrained forwarding overload would
+        // be the better match for it and would wrap a signal in a constant.
+        template <typename T>
+        auto toSignal(T&& t)
+        {
+            if constexpr (IsSignalObject<std::decay_t<T>>::value)
+                return std::forward<T>(t);
+            else if constexpr (IsSignal<std::decay_t<T>>::value)
+                return wrap(std::decay_t<T>(std::forward<T>(t)));
+            else
+                return constant(std::forward<T>(t));
         }
     } // anonymous namespace
 
