@@ -36,6 +36,9 @@ _testbuild
 build/*
 !build/*.sh
 
+# loomworks working copy + per-toolchain build trees (loomworks.json is shared)
+.nvim/
+
 session.vim
 test.py
 subprojects/*
