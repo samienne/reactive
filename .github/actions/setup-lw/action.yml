@@ -1,0 +1,54 @@
+name: "Set up lw"
+description: "Put the loomworks CLI (lw) and meson on PATH."
+
+# TEMPORARY bootstrap: lw has no published releases yet, so we run it straight
+# from a checkout of its `feature/standalone-cli` branch on top of a prebuilt
+# luvi. Once lw ships signed releases this becomes a pinned binary download
+# plus `lw install` (see `lw help ci`).
+
+inputs:
+  loomworks-ref:
+    description: "Branch or tag of the loomworks repository to run lw from."
+    default: "feature/standalone-cli"
+  luvi-version:
+    description: "Tag of the luvi release providing the Lua host."
+    default: "v2.15.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install meson
+      shell: bash
+      run: python3 -m pip install --upgrade meson
+
+    - name: Fetch lw and its luvi host
+      shell: bash
+      env:
+        LOOMWORKS_REF: ${{ inputs.loomworks-ref }}
+        LUVI_VERSION: ${{ inputs.luvi-version }}
+      run: |
+        set -euo pipefail
+
+        git clone --depth 1 --branch "$LOOMWORKS_REF" \
+          https://github.com/samienne/loomworks.nvim.git "$RUNNER_TEMP/loomworks"
+
+        case "$RUNNER_OS" in
+          Linux)   asset=luvi-Linux-x86_64-luajit-regular; luvi=$RUNNER_TEMP/luvi ;;
+          macOS)   asset=luvi-Darwin-arm64-luajit-regular; luvi=$RUNNER_TEMP/luvi ;;
+          Windows) asset=luvi-Windows-amd64-luajit-regular.exe; luvi=$RUNNER_TEMP/luvi.exe ;;
+          *) echo "::error::unsupported runner OS $RUNNER_OS"; exit 1 ;;
+        esac
+
+        curl -fsSL --retry 3 \
+          "https://github.com/luvit/luvi/releases/download/$LUVI_VERSION/$asset" -o "$luvi"
+        chmod +x "$luvi"
+
+        echo "LW_LUVI=$luvi" >> "$GITHUB_ENV"
+        echo "$RUNNER_TEMP/loomworks/bin" >> "$GITHUB_PATH"
+
+    - name: Report lw environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        "$LW_LUVI" -v
+        lw --no-input tools

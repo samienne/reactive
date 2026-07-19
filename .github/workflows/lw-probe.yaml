@@ -1,0 +1,37 @@
+name: lw-probe
+# Throwaway: dumps `lw tools` per runner so the toolchain keys in loomworks.json
+# can be written against reality. Deleted before this PR is ready for review.
+on: [push]
+jobs:
+    probe:
+        name: "probe (${{ matrix.os }})"
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-22.04, macos-15, windows-2022]
+        runs-on: ${{ matrix.os }}
+        steps:
+        - uses: actions/checkout@v5
+
+        - name: Install compilers
+          if: runner.os == 'Linux'
+          run: |
+            sudo apt-get update
+            sudo apt-get install -y ninja-build libgl1-mesa-dev \
+              gcc-10 g++-10 gcc-11 g++-11 gcc-12 g++-12 clang-11
+
+        - name: Install ninja
+          if: runner.os == 'macOS'
+          run: brew install ninja
+
+        - uses: ./.github/actions/setup-lw
+
+        - name: Probe
+          shell: bash
+          run: |
+            echo "--- lw tools --cached ---"
+            lw --no-input tools --cached || true
+            echo "--- meson ---"
+            meson --version
+            echo "--- configuration list ---"
+            lw --no-input configuration list reactive || true
