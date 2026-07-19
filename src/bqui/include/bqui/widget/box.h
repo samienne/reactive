@@ -146,12 +146,6 @@ namespace bqui::widget
         }
         else
         {
-            auto xHintResults = btl::fmap(hints,
-                    [](auto const& hint)
-                    {
-                        return hint.getWidth();
-                    });
-
             auto yHintResults = btl::fmap(hints,
                     [&size](auto const& hint)
                     {
