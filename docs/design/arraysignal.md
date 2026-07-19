@@ -529,8 +529,6 @@ into.
 
 ### `map` with extra signals
 
-### `map` with extra signals
-
 `arraySignal.map(f, sig1, sig2)` — where `f` receives the item's value plus the
 current values of those signals — should be supported. It is **`combine` sugar
 per element**: the node is still created once per identity, and only values
@@ -617,9 +615,11 @@ section is that argument, and it is the most important part of this document.
 - **A changed key means a new item.** The old key vanishes, so its id is evicted
   and its item removed; the new key is new, so it gets a new id and the delegate
   runs. This is a consequence of the rule above, not a separate one.
-- **Eviction is strict.** When an item disappears its key→id mapping is dropped
-  immediately; the resulting `ArraySignal` is a strict 1:1 mapping of the source
-  array, with no lingering entries for items that might come back.
+- **Eviction is strict, and evicted items are destroyed.** When an item
+  disappears its key→id mapping is dropped immediately and whatever the delegate
+  built for it is destroyed — no retention, no pool, no resurrection. The
+  resulting `ArraySignal` is a strict 1:1 mapping of the source array. A key that
+  goes away and comes back is a new item, exactly as a changed key is.
 - **Duplicate keys**: assert in debug. In release, tolerate gracefully — the
   result may be suboptimal (an item may lose its identity and be rebuilt) but it
   must not crash, corrupt the mapping, or drop items. The concrete release rule
@@ -682,6 +682,148 @@ a comparison. The project targets **C++17**, so the design must not depend on
 that, and the silent-no-op trap is real for us today. Noted only so that the
 ergonomics are understood to improve on their own if the standard level ever
 moves.
+
+## Contracts and traps
+
+Each of these is a rule an implementor or a caller can get wrong without any
+diagnostic firing. They are separated out so they can be lifted into
+`docs/conventions.md` verbatim when this lands.
+
+### `mapValues`: same size, positionally aligned, against the *current* input
+
+**Contract.** The vector `g` returns must have the same size as the vector it was
+given, and its element *i* must correspond to input element *i*. The input is the
+current membership, not the membership at the time the node was built.
+
+**Enforcement** is the size check — exactly the strength of today's
+`assert(obbs.size() == builders.size())` (`dynamicbox.h:70`). This design does
+**not** claim to make the contract statically checkable, and it would be
+dishonest to imply it does.
+
+What improves is *where* the assumption lives. Today it spans a re-keying step,
+a `withPrevious` element cache and a per-child id lookup, so a violation can be
+introduced in any of three places and only shows up at the assert. Under
+`mapValues` the assumption is confined to **one pure function that holds both
+vectors at once** — it can be read, unit-tested, and reasoned about without a
+signal graph.
+
+Positional alignment is exactly right for a layout, because a layout function is
+order-preserving and same-size *by construction*: one obb per child, in child
+order. When a computation genuinely reorders or drops elements, that is what
+`mapKeyed` is for — reach for it rather than trying to smuggle a permutation
+through `mapValues`.
+
+### Folding over a `KeyedArraySignal` is position-keyed, and positions are not stable
+
+This is the trap most likely to be walked into, because the code that walks into
+it looks like an obvious optimisation.
+
+`withPrevious` hands the fold a `prev` vector alongside the current one. Those
+two vectors are aligned **by position**, and position is not stable across a
+membership change: after an insert at the front, or a reorder, current slot *i*
+and previous slot *i* are different elements.
+
+So the natural optimisation — "reuse the previous obb for any element whose hint
+did not change" — compares element X's *current* hint against element Y's
+*previous* one. The sizes match. The assert passes. The layout is quietly wrong
+for a frame, and then usually right again, which is the worst possible failure
+signature.
+
+**Frame this as a correspondence bug, not a timing one.** Nothing arrived late;
+every value in both vectors is current-frame. What is wrong is *which element
+each slot refers to*. Waiting a frame, adding a `check()`, or forcing an extra
+update pass fixes nothing.
+
+The two correct forms:
+
+- **Fold per element, after `scatter`** — each element's fold sees only its own
+  history, so there is no correspondence to get wrong.
+- **Use `mapKeyed`** — the key travels with the value, so the fold can match on
+  it explicitly.
+
+### There is no frame-lag hazard
+
+Worth stating positively, because it is the first objection anyone raises about
+splitting a layout into fan-in, compute and fan-out nodes.
+
+`extract → mapValues → scatter` is **acyclic**. Every node in it settles within
+one update pass, so the arity the `scatter` sees is always the arity the
+`extract` produced. There is no frame in which the aggregate is stale with
+respect to membership.
+
+Two clarifications that prevent this from being over-claimed:
+
+- **Cycles do cause cross-frame variation, and they are pre-existing and
+  orthogonal.** `scrollView` seeds `viewSize` as an input with a placeholder
+  (`scrollview.cpp:33`) and feeds the measured size back through
+  `modifier::trackSize(viewSize.handle)` (`scrollview.cpp:83`). That loop settles
+  over frames today and will continue to. It is not introduced by this design and
+  is not fixed by it.
+- **A stale ambient input yields wrong *values*, never wrong *arity*.** Arity
+  comes from membership and propagates synchronously through the whole chain; the
+  `extras...` of `mapValues` only feed the maths. So the failure mode of a cycle
+  is a frame of wrong sizes, not a mismatched fan-out.
+
+**Do not claim animation causes lag.** `avg::Animated<T>` is an ordinary value as
+far as the signal system is concerned — it propagates like any other value, and
+the interpolation happens in the render tree at draw time. It introduces no
+signal-graph delay.
+
+### Once-per-identity initialisation is load-bearing
+
+`extract`'s "`f` is applied once per identity" is not an optimisation. It is what
+stops a sibling insert from resetting surviving children.
+
+The mechanism to be careful of is `bq::signal::Join`. Its `update` re-evaluates
+the outer signal and, **when the outer changed, discards and re-initialises the
+inner signal and its data**:
+
+```cpp
+// src/bq/include/bq/signal/join.h:85-97
+if (r.didChange)
+{
+    data.innerSignal = makeInnerSignal(sig_.evaluate(context, data.outerData));
+    data.innerData = data.innerSignal.initialize(context, frame);
+}
+```
+
+A naive fan-in — `builders.map(...combine...).join()`, which is what `dynamicBox`
+writes at `dynamicbox.h:42-53` — puts membership in the outer signal. Any change
+to membership therefore re-initialises *every* child's inner signal, resetting
+whatever `DataType` state hangs off it. `extract` must not be built that way: the
+per-identity signal has to be created once, when the identity appears, and
+survive membership changes to its siblings.
+
+### First value wins, and it cannot be asserted
+
+With `ArraySignal<Widget>`, the delegate has already run by the time a second
+`Widget` value arrives at a fixed key. There is nothing to do with it: applying
+it means rebuilding, and rebuilding loses the state the whole design exists to
+protect. **The rule is that the first value wins; the key is the unit of
+change.**
+
+Honesty about enforcement: **this cannot be asserted.**
+
+- `Widget` has no `operator==`, so "did the value actually change?" is not a
+  question that can be asked.
+- Asserting merely on "the signal emitted again" would false-positive on any
+  upstream that emits without a `check()` — which is most of them, since
+  `tryCheck()` is a silent no-op for non-comparable types.
+
+This is not new behaviour. It is today's silent `continue` in `dynamicBox`'s
+element cache (`dynamicbox.h:105-106`) promoted from an undocumented accident to
+a **stated contract**. The improvement is that a caller who needs a widget to
+change now has a correct expression of it — change the key — instead of a
+behaviour that appears to work and does not.
+
+### `tryCheck()` where it helps, silently nothing where it does not
+
+`Check` suppresses the *change notification*, not the value: its `update()`
+downgrades `didChange` to `false` when the newly evaluated value compares equal
+to the cached one (`src/bq/include/bq/signal/check.h:44-59`). Use `.tryCheck()`
+freely on per-element signals — it takes advantage of `operator==` where the type
+has one and passes silently through where it does not. See *Skipping repeats* above
+for the details and for the usability trap in that silence.
 
 ## What this supersedes
 
