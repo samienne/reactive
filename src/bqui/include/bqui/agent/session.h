@@ -13,6 +13,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -51,6 +52,16 @@ namespace bqui::agent
     };
 
     /**
+     * @brief The windows a session drives, as non-owning references.
+     *
+     * The session borrows the windows for the duration of the call; it never
+     * owns them. `App` owns the adapters and keeps them alive across the whole
+     * `runSession` call, so a reference (never null, never reseated) states the
+     * contract more precisely than a pointer would.
+     */
+    using AgentWindows = std::vector<std::reference_wrapper<AgentWindow>>;
+
+    /**
      * @brief Serve the agent over `transport` until it quits or disconnects.
      *
      * Synchronous request/response over the connected transport: receive one
@@ -60,10 +71,10 @@ namespace bqui::agent
      * advancing), and `quit`. A malformed command is answered with an error,
      * not a crash; a clean channel close ends the loop.
      */
-    BQUI_EXPORT void runSession(std::vector<AgentWindow*> const& windows,
+    BQUI_EXPORT void runSession(AgentWindows const& windows,
             Transport& transport);
 
     /** @brief Connect to `endpoint` and run a session over all `windows`. */
-    BQUI_EXPORT void runSession(std::vector<AgentWindow*> const& windows,
+    BQUI_EXPORT void runSession(AgentWindows const& windows,
             std::string const& endpoint);
 } // namespace bqui::agent

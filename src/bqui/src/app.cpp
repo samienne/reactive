@@ -36,6 +36,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <mutex>
@@ -54,7 +55,9 @@ namespace bqui
 
 namespace
 {
-    uint64_t s_frameId_ = 0;
+    // A process-wide frame counter: several windows (and, in tests, several
+    // apps on their own threads) draw from it, so the increment is atomic.
+    std::atomic<uint64_t> s_frameId_{ 0 };
 
     uint64_t getNextFrameId()
     {
@@ -688,10 +691,10 @@ namespace
         for (auto& glue : glues)
             adapters.emplace_back(*glue);
 
-        std::vector<agent::AgentWindow*> windows;
+        agent::AgentWindows windows;
         windows.reserve(adapters.size());
         for (auto& adapter : adapters)
-            windows.push_back(&adapter);
+            windows.push_back(adapter);
 
         agent::runSession(windows, endpoint);
     }

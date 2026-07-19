@@ -70,6 +70,10 @@ namespace bqui
 
         /** @brief Set the agent channel endpoint, overriding
          * REACTIVE_AGENT_ENDPOINT, so a test need not set a process-global env.
+         *
+         * A fully-local IPC endpoint the external agent listens on and the app
+         * connects to: a named-pipe name (`\\.\pipe\<name>`) on Windows, or a
+         * Unix-domain socket path on POSIX.
          */
         App& agentEndpoint(std::string endpoint);
 

@@ -72,17 +72,16 @@ void applyInjection(AgentWindow& window, JsonValue const& event)
     }
 }
 
-// The target window of an inject event, or none if the index is out of range.
-AgentWindow* targetWindow(std::vector<AgentWindow*> const& windows,
-        JsonValue const& event)
+// The target window of an inject event, or null if the index is out of range.
+AgentWindow* targetWindow(AgentWindows const& windows, JsonValue const& event)
 {
     auto index = static_cast<size_t>(
             event.find("window").value_or(JsonValue()).asNumber(0.0));
 
-    return index < windows.size() ? windows[index] : nullptr;
+    return index < windows.size() ? &windows[index].get() : nullptr;
 }
 
-std::string snapshotResponse(std::vector<AgentWindow*> const& windows)
+std::string snapshotResponse(AgentWindows const& windows)
 {
     std::string out = "{\"type\":\"snapshot\",\"windows\":[";
 
@@ -92,7 +91,7 @@ std::string snapshotResponse(std::vector<AgentWindow*> const& windows)
             out += ',';
 
         out += "{\"index\":" + std::to_string(i) + ",\"introspection\":"
-            + toJson(windows[i]->introspect()) + "}";
+            + toJson(windows[i].get().introspect()) + "}";
     }
 
     out += "]}";
@@ -106,7 +105,7 @@ std::string errorResponse(std::string const& message)
 
 } // namespace
 
-void runSession(std::vector<AgentWindow*> const& windows, Transport& transport)
+void runSession(AgentWindows const& windows, Transport& transport)
 {
     for (;;)
     {
@@ -136,8 +135,8 @@ void runSession(std::vector<AgentWindow*> const& windows, Transport& transport)
 
             auto dt = std::chrono::microseconds(static_cast<int64_t>(
                     command->find("dt_us").value_or(JsonValue()).asNumber(0.0)));
-            for (auto* window : windows)
-                window->advance(dt);
+            for (auto window : windows)
+                window.get().advance(dt);
 
             transport.send(snapshotResponse(windows));
         }
@@ -152,7 +151,7 @@ void runSession(std::vector<AgentWindow*> const& windows, Transport& transport)
     }
 }
 
-void runSession(std::vector<AgentWindow*> const& windows,
+void runSession(AgentWindows const& windows,
         std::string const& endpoint)
 {
     auto transport = connect(endpoint);

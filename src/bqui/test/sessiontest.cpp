@@ -114,8 +114,7 @@ namespace
         std::unique_ptr<Transport> agent;
         std::thread serverThread;
 
-        SessionFixture(std::string const& name,
-                std::vector<AgentWindow*> windows)
+        SessionFixture(std::string const& name, AgentWindows windows)
         {
             auto endpoint = uniqueEndpoint(name);
             listener = listen(endpoint);
@@ -150,7 +149,7 @@ TEST(session, snapshotReturnsAllWindowsWithoutAdvancing)
 {
     FakeAgentWindow a("w0");
     FakeAgentWindow b("w1");
-    SessionFixture s("snap", { &a, &b });
+    SessionFixture s("snap", { a, b });
 
     auto reply = s.request(R"({"type":"snapshot"})");
     ASSERT_TRUE(reply && reply->isObject());
@@ -177,7 +176,7 @@ TEST(session, stepRoutesInjectByIndexAndAdvancesAllWindows)
 {
     FakeAgentWindow a("w0");
     FakeAgentWindow b("w1");
-    SessionFixture s("step", { &a, &b });
+    SessionFixture s("step", { a, b });
 
     // Inject targets window 1 only; the step advances the whole app.
     auto reply = s.request(
@@ -195,7 +194,7 @@ TEST(session, injectDefaultsToWindowZero)
 {
     FakeAgentWindow a("w0");
     FakeAgentWindow b("w1");
-    SessionFixture s("default", { &a, &b });
+    SessionFixture s("default", { a, b });
 
     // No "window" field -> window 0.
     s.request(R"({"type":"step","dt_us":0,"inject":[)"
@@ -209,7 +208,7 @@ TEST(session, outOfRangeWindowIndexIsSkipped)
 {
     FakeAgentWindow a("w0");
     FakeAgentWindow b("w1");
-    SessionFixture s("oob", { &a, &b });
+    SessionFixture s("oob", { a, b });
 
     auto reply = s.request(R"({"type":"step","dt_us":0,"inject":[)"
                            R"({"kind":"pointerButton","window":5,"x":1,"y":2}]})");
@@ -225,7 +224,7 @@ TEST(session, outOfRangeWindowIndexIsSkipped)
 TEST(session, malformedAndUnknownCommandsGetAnError)
 {
     FakeAgentWindow a("w0");
-    SessionFixture s("errors", { &a });
+    SessionFixture s("errors", { a });
 
     auto malformed = s.request("not json");
     ASSERT_TRUE(malformed);
@@ -244,7 +243,7 @@ TEST(session, cleanCloseEndsTheSession)
     auto endpoint = uniqueEndpoint("close");
     auto listener = listen(endpoint);
 
-    std::vector<AgentWindow*> windows{ &a };
+    AgentWindows windows{ a };
     std::thread serverThread([&]
         {
             auto server = listener->accept();
