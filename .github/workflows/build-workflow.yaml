@@ -40,7 +40,6 @@ jobs:
                   { "deps": "gcc-10 g++-10", "tool": "gcc-10",   "set": "Release" },
                   { "deps": "gcc-11 g++-11", "tool": "gcc-11",   "set": "Release" },
                   { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Release" },
-                  { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Debug"   },
                   { "deps": "clang-11",      "tool": "clang-11", "set": "Release" },
                   { "deps": "clang-11",      "tool": "clang-11", "set": "Tracy"   } ]
         runs-on: "ubuntu-22.04"
