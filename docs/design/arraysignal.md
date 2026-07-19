@@ -155,7 +155,7 @@ signal) or a signal-of-vector, and a **branch** is a list of children. This
 syntax must work:
 
 ```cpp
-ArraySignal<Widget> content = {
+ArraySignal<AnyWidget> content = {
     someWidget,
     getArraySignalOfWidgets(),
     { otherWidget, getMoreWidgets() }
@@ -177,22 +177,22 @@ since every accepted form converts to `ArraySignal<T>`.
 constructed**, and is scoped to it. Ids are unique within one `ArraySignal` and
 mean nothing outside it.
 
-This is a reversal of an earlier draft, which put the allocator at the *exit*
-because ids were the consumer's business — a consumer reconciled against them,
-so a consumer-scoped, deterministic id space was what tests could assert on. The
-operator set below removes that requirement: identity is carried by
-`KeyedArraySignal`, `extract` and `scatter` match within a single `ArraySignal`'s
-space, and **an id never reaches user code**. Once nobody outside can see an id,
-the natural owner of the id space is the array itself, and the tension the
-earlier draft was working around disappears with it.
+The reason this works is that **an id never reaches user code**. Identity is
+carried by `KeyedArraySignal`; `extract` and `scatter` match within a single
+`ArraySignal`'s space; nothing outside can observe, construct or compare an id.
+Once that is true, the array is the natural owner of the id space, and ownership
+can be settled at construction — each `ArraySignal` allocates in its own space as
+it is built, and `concat` re-namespaces children rather than needing a shared
+counter.
 
-That tension was real, so record why it no longer bites. A *consumer*-owned
-allocator cannot be satisfied at construction time: nested `ArraySignal`s are
-built before their parent, and the parent before it ever reaches a consumer, so
-there is no point during construction at which the consumer's allocator is in
-scope. An *array*-owned allocator has no such problem — each `ArraySignal`
-allocates in its own space as it is built, and concatenation re-namespaces
-children rather than needing a shared counter.
+> **Superseded position.** An earlier draft put the allocator at the *exit*,
+> because ids were then the consumer's business: a consumer reconciled against
+> them, so the id space had to be consumer-scoped and deterministic for tests to
+> assert on. That draft also recorded a real obstacle — a consumer-owned
+> allocator cannot be satisfied at construction time, since nested
+> `ArraySignal`s are built before their parent and the parent before it reaches
+> any consumer, so the consumer's allocator is never in scope. Both the
+> requirement and the obstacle came from ids being visible. They lapse together.
 
 Consequences:
 
@@ -211,14 +211,14 @@ Consequences:
   `src/bq/src/signal/datacontext.cpp:7-11`, remains the fallback if the scoped
   form proves unworkable.)
 
-**What still needs an id-revealing exit.** PR #99 gives `App` a window list of
-`AnySignal<std::vector<std::pair<size_t, Window>>>`, and `dataBind` already
-returns exactly that shape for widgets
-(`src/bqui/include/bqui/databind.h:22`). Those consumers reconcile against ids
-directly. Under this design they are served by `extract`/`scatter` like any
-other consumer — the reconcile *is* apply-once-per-identity — but if a raw
-id-pair exit survives for them, it reveals the `ArraySignal`'s own ids rather
-than minting a per-consumer space. See *Open questions*.
+**This rests on an unsettled question.** Two consumers hand `size_t` ids to
+their caller today: PR #99's `App` window list
+(`AnySignal<std::vector<std::pair<size_t, Window>>>`) and `dataBind`
+(`src/bqui/include/bqui/databind.h:22`). If identity truly never surfaces then
+**there is no id-pair exit at all**, and those consumers take an `ArraySignal`
+and use `forEach` instead of being handed a vector of pairs. That is a real
+change to the shape of PR #99, and it is not this document's call to make. See
+*Open questions*.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
@@ -299,17 +299,28 @@ functions for that reason, not for aesthetics.
 never obtains, so they are already out of reach. Only `extract` and `scatter` —
 which take or return an `ArraySignal` — need moving off the class.
 
-### The layering test
+### What holds the two layers together
 
-**`forEach` must be implementable in terms of the advanced operations.** If the
-basic layer needs machinery the advanced layer cannot express, the split is
-cosmetic and the "advanced" header is not actually the lower layer — it is a
-sibling, and the document should say so instead.
+The two layers are not stacked — `forEach` is not built out of `extract` and
+`scatter`, and it never could be: `extract` is fan-in, `scatter` is fan-out, and
+`forEach` is neither. Its content is the key→id diff plus a once-per-identity
+invocation.
 
-Concretely, what the test comes down to is that `forEach`'s
-once-per-identity delegate invocation and `extract`'s once-per-identity
-initialisation are **the same primitive**, used once for fan-out and once for
-fan-in. This is not yet demonstrated; see *Open questions*.
+What relates them is a **shared primitive underneath both**:
+
+> `forEach`'s once-per-identity delegate invocation and `extract`'s
+> once-per-identity initialisation must be **the same apply-once-per-identity
+> operation**, used once for fan-out and once for fan-in.
+
+That is the invariant to hold the implementation to. If the two end up with
+separate caching machinery, they will drift in exactly the way `layout()` and
+`dynamicBox` drifted, and the identity guarantees in this document will hold for
+one of them and not the other.
+
+(An earlier draft stated a stronger rule — that `forEach` must be *implementable
+in terms of* the advanced operations — as a test of whether the split was real.
+It does not survive scrutiny, for the reason in the first paragraph, and is
+withdrawn rather than kept with a caveat.)
 
 ## The operator set
 
@@ -378,6 +389,25 @@ with the hand-rolled form:
   a list from a different container type-checks perfectly.
 
 `scatter` does the match **once, in one pass**, at construction.
+
+### Why it is called `scatter` and not `mapWith`
+
+`mapWith` was considered and rejected. It is the more descriptive name — it says
+"`map`, plus something" and it would sit alphabetically and conceptually next to
+`map`, which is where the framing above wants it.
+
+That is precisely the problem. **The name is a mild deterrent, and that is the
+point.** `scatter` lives in the layout-implementor header; a caller who reaches
+for it usually wants `map` and does not yet know it. A name that reads as an
+obvious extension of `map` invites exactly the wrong traffic, whereas a slightly
+opaque one makes a reader stop and find out what it does — at which point they
+discover the header it lives in and the aggregate it needs, and the two-layer
+split has done its job.
+
+The cost is real (the name does not describe the operation from the caller's
+side; nothing is redistributed anywhere the caller can see) and is accepted. The
+descriptive framing lives in this document and belongs in the Doxygen; the
+identifier's job here is gatekeeping, not exposition.
 
 ### The distinguished type is what removes the hazard
 
@@ -796,15 +826,15 @@ survive membership changes to its siblings.
 
 ### First value wins, and it cannot be asserted
 
-With `ArraySignal<Widget>`, the delegate has already run by the time a second
-`Widget` value arrives at a fixed key. There is nothing to do with it: applying
-it means rebuilding, and rebuilding loses the state the whole design exists to
-protect. **The rule is that the first value wins; the key is the unit of
-change.**
+With `ArraySignal<AnyWidget>`, the delegate has already run by the time a second
+`AnyWidget` value arrives at a fixed key. There is nothing to do with it:
+applying it means rebuilding, and rebuilding loses the state the whole design
+exists to protect. **The rule is that the first value wins; the key is the unit
+of change.**
 
 Honesty about enforcement: **this cannot be asserted.**
 
-- `Widget` has no `operator==`, so "did the value actually change?" is not a
+- `AnyWidget` has no `operator==`, so "did the value actually change?" is not a
   question that can be asked.
 - Asserting merely on "the signal emitted again" would false-positive on any
   upstream that emits without a `check()` — which is most of them, since
@@ -927,6 +957,25 @@ Neither is a hard problem. Both exist **because `dynamicBox` is a second
 implementation of `layout()` that drifted** — every fix to one has to be
 remembered for the other, and it was not. One engine makes drift structurally
 impossible, which is worth more than either individual fix.
+
+### The unified engine takes `ArraySignal<AnyWidget>`
+
+**Settled.** Not `ArraySignal<Widget>` or any concrete widget type.
+
+- A layout's children are **differently typed by nature** — a label next to a
+  button next to a nested box — so a homogeneous array of a concrete widget type
+  could not hold them. Type erasure is not a compromise here; it is the only
+  thing that describes the input.
+- Both existing engines already take `AnyWidget` (`layout.h:33-34`,
+  `dynamicbox.h:23-24`), so nothing is lost and no caller changes shape.
+- `ArraySignal` is **type-erased regardless** (*There is deliberately no
+  `AnyArraySignal`*), so a concrete element type would buy no devirtualisation
+  even where the children happened to agree.
+
+The consequence for the `scatter` delegate is that it receives an
+`AnySignal<AnyWidget>` rather than a concrete widget type. That is enough: it
+needs `getSizeHint()` and `getGravity()`, which the erased interface provides,
+and those are exactly what `handleGravity` and the hint fan-in consume.
 
 ## Worked example: `dynamicBox`
 
@@ -1283,32 +1332,26 @@ Points the design does not yet settle. Flagged rather than guessed.
   introduced," and means a filtered-out widget silently loses its state. Decide
   whether `filter` evicts from the shared identity space or only masks its own
   output, and say which guarantee survives.
-- **Is `scatter` the right name?** "Scatter" implies a redistribution the caller
-  never sees — nothing is being spread anywhere from the caller's point of view;
-  the delegate simply receives one more argument. **`mapWith`** says what it does
-  and puts it next to `map`, which is where the *`scatter` is `map` with one
-  extra argument* framing wants it. `scatter` is used throughout this document
-  because that is the name the design was worked out under. Settle before the
-  header is written; renaming afterwards is churn.
-- **Does the layering test actually pass?** *The API surface* asserts that
-  `forEach` must be implementable in terms of `extract`/`scatter`, on pain of the
-  layering being cosmetic. That has **not been demonstrated.** `extract` is
-  fan-in and `scatter` is fan-out, while `forEach` is neither — its content is
-  the key→id diff plus once-per-identity invocation. The plausible resolution is
-  that the shared primitive is *apply-once-per-identity*, which `forEach` and
-  `extract` both use, and that the test should be restated in those terms.
-  Restate it or drop it; leaving an untested claim in a design document is worse
-  than either.
-- **Does a raw id-revealing exit survive at all?** *Identity is internal* argues
-  that nothing outside needs to see an id, which is what justifies moving the
-  allocator onto the `ArraySignal`. But PR #99's `App` window list and today's
-  `dataBind` both hand ids to their consumer. If both are rewritten onto
-  `extract`/`scatter` the question disappears; if either keeps an id-pair
-  signal, decide which layer's header it lives in and say what the ids mean.
-- **`ArraySignal<Widget>` versus `ArraySignal<AnyWidget>` for the layout API.**
-  *First value wins* is stated for `ArraySignal<Widget>`, but `layout()` and
-  `dynamicBox` both take `AnyWidget` today. Which one the unified engine accepts
-  affects whether the delegate can see a concrete builder type. Not settled here.
+- **Does any identity surface at the exit?** This is the one open question that
+  changes code outside this design, and it should be decided when PR #99 is
+  reworked rather than pre-empted here.
+
+  *Identity is internal* argues that nothing outside the `ArraySignal` needs to
+  see an id, and that is what justifies scoping the allocator to the array. Taken
+  to its conclusion it means **there is no id-pair exit at all**: `App` would
+  take an `ArraySignal<Window>` and use `forEach` — building a `WindowGlue` per
+  identity — instead of being handed
+  `AnySignal<vector<pair<size_t, Window>>>` and reconciling by hand. Likewise
+  `dataBind`'s consumers.
+
+  The alternative is that some consumer genuinely needs the ids, in which case
+  an id-revealing exit survives and two things must be settled with it: which
+  layer's header it lives in, and what an id *means* to a consumer given that it
+  is now the `ArraySignal`'s own number rather than one minted for that consumer
+  (in particular, whether it is stable enough to assert on in a test).
+
+  The two live consumers are PR #99's window list and `dataBind`
+  (`src/bqui/include/bqui/databind.h:22`).
 
 ## Implementation order
 
@@ -1333,6 +1376,81 @@ anything in `bqui` changes.
    `dataSourceFromCollection` here too, and port
    `src/bqui/test/databindtest.cpp:18` and `src/testapp1/adder.cpp:84`.
 
-Steps 3 and 4 are the ones that need tests written first: neither `dynamicBox`
-nor `uniformGrid` has any coverage today, so there is nothing to catch a
-regression in the rewrite.
+### The safety net for steps 3 and 4
+
+Steps 3 and 4 reimplement code that had no coverage at all. **PR #102 (branch
+`layout-tests`) is the start of that net** and should land before the rewrite
+does.
+
+It pins down *observable* geometry rather than internals: probe widgets carry a
+uniquely-identified `InputArea`, the layout is realised once through a single
+`SignalContext`, and the areas are looked up by id to recover both the size a
+child was allocated and where it was placed. Because input areas accumulate
+enclosing transforms on their way to the root `Instance`, this reads the geometry
+a child actually received — which is decided *outside* the child, by
+`handleGravity()` and `transformBuilder()` — rather than what the child asked
+for. The tests name only `hbox`, `vbox`, `mapObbs`, `AnyWidget`, `SizeHint` and
+`Instance`, so they survive a reimplementation.
+
+Seven tests cover `hbox` filler distribution (partial and full), `vbox`'s
+reversed y axis, `handleGravity` centering in an oversized slot, upward
+`SizeHint` aggregation, and `mapObbs` on both axes. They are mutation-verified:
+an off-by-one in the `mapObbs` accumulator turns five red *including the
+end-to-end probe tests*, and a doubled gravity offset turns exactly one red —
+the one that covers gravity — while leaving both isolated `mapObbs` tests green.
+That last result is the argument for the probe harness over testing
+`ObbMap`/`SizeHintMap` in isolation: the pure-maths tests alone would have missed
+it.
+
+Still uncovered, and worth adding before step 4 in particular: `stack`,
+`uniformGrid`, `dynamicBox`, nesting, zero- and one-child cases, degenerate
+hints, non-default gravity, and changing hints. `stack` and `uniformGrid` need
+nothing new from the harness; a dynamic child list needs the probe list built
+from a signal, and changing hints need `context.update()` between evaluations.
+
+### Hazards in `getSizes` for the rewrite
+
+`getSizes` (`box.h:24-52`) is the core of the placement maths and the unified
+engine will reimplement this path. Two properties of it are load-bearing by
+accident. Both were surfaced by PR #102 and re-verified against the current
+source.
+
+**It divides by zero on equal consecutive hint components, and only survives
+because of `std::min`'s argument order.** The multiplier loop computes
+`(size - prev) / (combined[i] - prev)` (`box.h:33-38`). The denominator is zero
+whenever two consecutive aggregate components are equal — which is the *common*
+case, not a corner one: any fixed-size child has a hint like `{{30, 30, 30}}`, so
+`combined[1] - combined[0]` is zero. The quotient is `±inf` (or `NaN` when the
+box is exactly the natural size, since the numerator is zero too), and it lands
+on the right answer only because:
+
+```cpp
+multiplier[i] = std::max(0.0f, std::min(1.0f, m));
+```
+
+`std::min(a, b)` returns `(b < a) ? b : a`. With `a = 1.0f` and `b = NaN`, the
+comparison is false, so it returns `1.0f` — the correct multiplier. Written the
+other way round, `std::min(m, 1.0f)` returns `NaN`, and `std::max(0.0f, NaN)`
+then returns `0.0f`: **every fixed-size child collapses to zero width.** The
+same reversal turns the `+inf` case into `0.0f` as well.
+
+So the clamp is not defensive code that happens to also handle the degenerate
+interval — it is the *only* thing handling it, and it does so through an
+unwritten dependency on operand order. A rewrite must handle the zero-width
+interval explicitly instead.
+
+**The output is not clamped against `size`.** The only bound on the total is that
+each multiplier is clamped to `[0, 1]`, which holds the sum to the aggregate
+maximum *provided every hint is monotonic* (`min ≤ preferred ≤ max`). Two
+consequences:
+
+- For well-formed hints, a box larger than the children's total maximum leaves
+  the remainder **unused** — children under-fill rather than overflow. That is
+  ordinary layout behaviour (fillers exist to absorb it), but it means a rewrite
+  must not assume `sum(getSizes(size, hints)) == size`.
+- For a **non-monotonic** hint the bound fails outright and children overflow the
+  box. A hint of `{{100, 0, 100}}` — minimum above preferred — gives
+  `multiplier = {1, 0, 1}` and a child size of `200` in a 200-wide box; two such
+  children total `400`. Nothing rejects such a hint today.
+
+Neither is fixed in PR #102, which deliberately changes no behaviour.
