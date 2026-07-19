@@ -1,25 +1,48 @@
 {
-  "name": "reactive",
   "projects": {
     "reactive": {
+      "path": ".",
       "meson": {
-        
+        "configurations": {
+          "Tracy": {
+            "options": {
+              "wrap_mode": "forcefallback",
+              "tracy_enable": "true"
+            },
+            "variant": "Release"
+          },
+          "Debug": {
+            "options": {
+              "wrap_mode": "forcefallback"
+            },
+            "variant": "Debug"
+          },
+          "Release": {
+            "options": {
+              "wrap_mode": "forcefallback"
+            },
+            "variant": "Release"
+          }
+        }
       },
       "launch": {
         "app": {
-          "working_dir": ".",
-          "target": "testapp1"
+          "target": "testapp1",
+          "working_dir": "."
         }
-      },
-      "path": "."
+      }
     }
   },
   "configuration_sets": {
-    "Release": {
-      "reactive": "variant:Release"
+    "Tracy": {
+      "reactive": "Tracy"
     },
     "Debug": {
-      "reactive": "variant:Debug"
+      "reactive": "Debug"
+    },
+    "Release": {
+      "reactive": "Release"
     }
-  }
+  },
+  "name": "reactive"
 }

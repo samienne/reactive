@@ -1,0 +1,44 @@
+name: "lw build and test"
+description: "Create a throwaway lw profile for a configuration set, build it, then run its tests."
+
+inputs:
+  set:
+    description: "Configuration set from loomworks.json (Debug, Release, Tracy)."
+    required: true
+  tool:
+    description: "Toolchain pin, matched by prefix against `lw tools` (e.g. gcc-12)."
+    required: true
+  test-jobs:
+    description: "How many tests to run concurrently."
+    default: "4"
+
+runs:
+  using: composite
+  steps:
+    - name: Build and test ${{ inputs.set }} with ${{ inputs.tool }}
+      shell: bash
+      env:
+        LW_SET: ${{ inputs.set }}
+        LW_TOOL: ${{ inputs.tool }}
+        LW_TEST_JOBS: ${{ inputs.test-jobs }}
+      run: |
+        set -euo pipefail
+        profile="$LW_SET:$LW_TOOL"
+
+        # --local: the profile is this runner's own and must never reach the
+        # shared loomworks.json.
+        lw --no-input profile create "$LW_SET" "$LW_TOOL" --local
+
+        # Build explicitly before testing: `lw test` does not establish the
+        # compiler environment for the rebuild it triggers, so on MSVC a stale
+        # build tree makes it fail with `cl` not found.
+        lw --no-input build "$profile"
+        lw --no-input test "$profile" --junit junit.xml -- --num-processes "$LW_TEST_JOBS"
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: junit-${{ runner.os }}-${{ inputs.tool }}-${{ inputs.set }}
+        path: "junit*.xml"
+        if-no-files-found: warn

@@ -47,3 +47,4 @@ subprojects/*
 tags
 compile_commands.json
 
+junit*.xml
