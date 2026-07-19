@@ -102,7 +102,7 @@ reorders. This is the *only* place identity is needed, because "which item is
 this?" no longer has a positional answer. `forEach` is what supplies it.
 
 `ArraySignal<T>` expresses both. Its literal forms (a value, a signal, a nested
-braced list) are value-dynamic. Structural dynamism enters a `ArraySignal` only
+braced list) are value-dynamic. Structural dynamism enters an `ArraySignal` only
 through `forEach` — or through the reactive-subtree constructor, which is
 structural dynamism at the coarsest possible granularity (the whole subtree is
 replaced).
@@ -115,7 +115,7 @@ replaced).
 
 A `ArraySignal<T>` is an **immutable value**. It has no `push_back`, no `erase`, no
 mutation of any kind. Dynamism flows *in* from upstream: a `Collection<T>`
-converted into a `ArraySignal<T>` stays live because the conversion produced a
+converted into an `ArraySignal<T>` stays live because the conversion produced a
 signal that the collection drives — mutating the collection changes the
 `ArraySignal`'s signal, not the `ArraySignal` object.
 
@@ -565,7 +565,7 @@ the item's *construction* does. The two cover different needs.
 
 **Constraint:** `ArraySignal::map` must **mirror `Signal::map` exactly** — same
 argument order, same arity handling, same name. The symmetry between the two
-domains is the payoff of this whole framing; a `ArraySignal::map` that takes extra
+domains is the payoff of this whole framing; an `ArraySignal::map` that takes extra
 signals while `Signal::map` does not would break it at the first thing anyone
 tries.
 
