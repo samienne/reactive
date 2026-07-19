@@ -50,6 +50,12 @@ meson compile -C build
 meson test -C build                     # unit tests
 ```
 
+CI drives the same builds through `lw` (loomworks), using the configuration sets
+in `loomworks.json`: `lw profile create <set> <tool> --local`, then `lw build`
+and `lw test`. `lw` establishes the compiler environment itself, so it sidesteps
+the MSVC note below. Profiles are per-machine and deliberately uncommitted; see
+`lw help` and `lw help ci`.
+
 Platform notes that will bite you:
 
 - **Windows configure needs the MSVC environment** — run from an "x64 Native
