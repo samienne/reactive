@@ -1,6 +1,6 @@
 # bq — agent notes
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `2c6969c` (2026-07-20).*
 
 Internals, entry points, and traps for the reactive core. Concepts and usage are
 in `readme.md`; project-wide conventions are in the top-level `docs/`. This file
@@ -40,6 +40,10 @@ folder here and leave one-line hooks below.
   `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
+- Keyed collections: `ArraySignal<T>` (`bq/signal/arraysignal.h`) with
+  `forEach`/`map`/`concat`; `KeyedArraySignal<A>` with `extract`/`scatter`
+  (`bq/signal/arraysignallayout.h`, for container implementations only). Design
+  record: `docs/design/arraysignal.md`.
 
 ## Traps
 
@@ -48,6 +52,15 @@ folder here and leave one-line hooks below.
   even found by ADL. Build a no-input signal as a `constant` instead. The
   principled fix would be a `signal<void>` identity element for `merge` — see
   `docs/decisions.md`.
+
+- **`Join` re-initialises its inner signal whenever the outer changes**
+  (`bq/signal/join.h`, in `update`). Everything below it that keeps state in the
+  positional `DataType` tree — `map` caches, `withPrevious`, `iterate` folds —
+  starts over. Anything that must survive has to sit under a `.share()`, because
+  `SharedControl` keys its state by a `btl::UniqueId` in the `DataContext` and so
+  re-finds it. This is why every per-identity signal in `arraysignal.h` is
+  shared; the failure mode without it is that inserting one list element silently
+  resets every sibling.
 
 For cross-cutting rules (the `Any` = type-erasure convention, the include-dir
 firewall, symbol visibility) see `docs/conventions.md`; do not restate them here.
