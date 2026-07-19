@@ -8,6 +8,7 @@
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
+#include <bq/signal/constant.h>
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>
@@ -33,10 +34,14 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <functional>
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace bqui
 {
@@ -56,13 +61,16 @@ class WindowGlue;
 class BQUI_EXPORT AppDeferred
 {
 public:
-    AppDeferred()
+    AppDeferred() :
+        windows_(bq::signal::constant(
+                    std::vector<std::pair<size_t, Window>>()))
     {
         TracyAppInfo("Reactive application", 20);
     }
 
-    std::vector<Window> windows_;
-    std::vector<btl::shared<WindowGlue>> windowGlues_;
+    WindowList windows_;
+    std::vector<std::pair<size_t, btl::shared<WindowGlue>>> windowGlues_;
+    std::function<void(std::vector<size_t> const&)> onReconciled_;
 };
 
 class WindowGlue
@@ -466,8 +474,32 @@ App::App() :
 
 App App::windows(std::initializer_list<Window> windows) &&
 {
+    // The static convenience path is the reactive path over a *constant*
+    // signal: enumerate the windows into (id, window) pairs so they reconcile
+    // through the same by-id machinery as a dynamic list.
+    std::vector<std::pair<size_t, Window>> enumerated;
+    enumerated.reserve(windows.size());
+
+    size_t id = 0;
     for (auto const& w : windows)
-        d()->windows_.push_back(btl::clone(w));
+        enumerated.emplace_back(id++, btl::clone(w));
+
+    d()->windows_ = bq::signal::constant(std::move(enumerated));
+
+    return std::move(*this);
+}
+
+App App::windows(WindowList windows) &&
+{
+    d()->windows_ = std::move(windows);
+
+    return std::move(*this);
+}
+
+App App::onWindowsReconciled(
+        std::function<void(std::vector<size_t> const&)> callback) &&
+{
+    d()->onReconciled_ = std::move(callback);
 
     return std::move(*this);
 }
@@ -476,15 +508,53 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
-    d()->windowGlues_.reserve(d()->windows_.size());
-
     ase::RenderContext context = platform.makeRenderContext();
 
-    for (auto&& w : d()->windows_)
-    {
-        d()->windowGlues_.push_back(std::make_shared<WindowGlue>(
-            platform, context, std::move(w)));
-    }
+    auto& glues = d()->windowGlues_;
+
+    // Reconcile the live WindowGlues against the sampled window list, keyed by
+    // stable id: create a glue when its id first appears, destroy one when its
+    // id is gone, and leave untouched ids alone. Order follows the list so the
+    // glue vector mirrors the current window set.
+    auto reconcile =
+        [&](std::vector<std::pair<size_t, Window>> const& windows)
+        {
+            std::vector<std::pair<size_t, btl::shared<WindowGlue>>> next;
+            next.reserve(windows.size());
+
+            for (auto const& entry : windows)
+            {
+                auto existing = std::find_if(glues.begin(), glues.end(),
+                        [&](auto const& g) { return g.first == entry.first; });
+
+                if (existing != glues.end())
+                    next.push_back(std::move(*existing));
+                else
+                    next.emplace_back(entry.first,
+                            std::make_shared<WindowGlue>(
+                                platform, context, btl::clone(entry.second)));
+            }
+
+            // Anything left in `glues` has a disappeared id; dropping `glues`
+            // destroys those WindowGlues (and closes their windows).
+            glues = std::move(next);
+
+            if (d()->onReconciled_)
+            {
+                std::vector<size_t> ids;
+                ids.reserve(glues.size());
+                for (auto const& g : glues)
+                    ids.push_back(g.first);
+
+                d()->onReconciled_(ids);
+            }
+        };
+
+    // A dedicated context samples the window list once per frame, at the top of
+    // the loop, so glue creation/destruction happens at a single well-defined
+    // point before the running signal is evaluated.
+    auto windows = bq::signal::makeSignalContext(d()->windows_);
+    reconcile(windows.evaluate<0>().get<0>());
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
@@ -495,7 +565,11 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
-            auto [timeToNext, didChange] = running.update(frame);
+
+            if (windows.update(frame).didChange)
+                reconcile(windows.evaluate<0>().get<0>());
+
+            running.update(frame);
 
             return running.evaluate<0>().get<0>();
         });
@@ -505,13 +579,13 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& glue : d()->windowGlues_)
+    for (auto const& glue : glues)
     {
-        DBG("Window \"%1\" had FPS of %2.", glue->getTitle(),
-                (double)glue->getFrames() / time.count());
+        DBG("Window \"%1\" had FPS of %2.", glue.second->getTitle(),
+                (double)glue.second->getFrames() / time.count());
     }
 
-    d()->windowGlues_.clear();
+    glues.clear();
 
     return 0;
 }
@@ -519,8 +593,23 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
 int App::run() &&
 {
     auto running = bq::signal::makeInput(true);
-    for (auto&& w : d()->windows_)
-        w = std::move(w).onClose(send(false, running.handle));
+
+    // Wire every window's onClose to stop the app. Mapping over the signal
+    // keeps the list reactive: windows added mid-run get the same close
+    // handler, so closing any live window stops the app.
+    d()->windows_ = d()->windows_.map(
+            [handle = running.handle]
+            (std::vector<std::pair<size_t, Window>> const& windows)
+            {
+                std::vector<std::pair<size_t, Window>> wired;
+                wired.reserve(windows.size());
+                for (auto const& entry : windows)
+                    wired.emplace_back(entry.first,
+                            btl::clone(entry.second).onClose(
+                                send(false, handle)));
+
+                return wired;
+            });
 
     return std::move(*this).run(running.signal);
 }
@@ -537,7 +626,7 @@ AnimationGuard::AnimationGuard(AppDeferred& app,
 {
     for (auto& glue : app_->windowGlues_)
     {
-        glue->makeTransaction(
+        glue.second->makeTransaction(
                 std::chrono::milliseconds(0),
                 std::nullopt
                 );
@@ -551,7 +640,7 @@ AnimationGuard::~AnimationGuard()
 
     for (auto& glue : app_->windowGlues_)
     {
-        glue->makeTransaction(
+        glue.second->makeTransaction(
                 std::chrono::milliseconds(0),
                 options_
                 );

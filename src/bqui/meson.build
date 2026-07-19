@@ -86,6 +86,7 @@ libbquidep = declare_dependency(
   )
 
 bquitest =  executable('bquitest',
+  'test/apptest.cpp',
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/shapetest.cpp',

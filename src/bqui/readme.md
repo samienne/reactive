@@ -51,6 +51,13 @@ return app()
     .run();
 ```
 
+The window list is reactive. `windows({...})` is a convenience over a *constant*
+`WindowList` — a signal of `(id, Window)` pairs whose `size_t` is a stable id,
+the same shape `dataBind` produces for widgets. `windows(signal)` takes such a
+signal directly. The run loop samples the list once per frame and reconciles the
+live windows by id: a new id opens a window, a vanished id closes one, existing
+ones persist.
+
 Signal changes made inside a `withAnimation` scope are animated.
 
 ## Layout (of the source)

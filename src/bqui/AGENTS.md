@@ -1,6 +1,6 @@
 # bqui — agent notes
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `221cd3f` (2026-07-19).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -38,6 +38,18 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.
 - Animation: `withanimation.h` (guard or lambda form) marks changes to animate.
+
+## The app loop (`app.cpp`)
+
+`App` holds its windows as a reactive `WindowList` — a signal of `(stable-id,
+Window)` pairs, the same shape `dataBind` produces for widgets. `windows({...})`
+is a constant of that shape; `windows(signal)` and `onWindowsReconciled` take
+the dynamic path. `App::run` samples the list once per frame (a dedicated
+`SignalContext`, before the running signal) and reconciles `WindowGlue`s keyed
+by id: a new id constructs a glue (which creates its `ase::Window` on demand), a
+vanished id drops it (closing the window), existing ones persist. A `WindowGlue`
+owns everything for one window (its `ase::Window`, painter, per-window signal
+contexts, input state).
 
 ## Traps
 
