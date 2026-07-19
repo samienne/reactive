@@ -55,9 +55,9 @@ namespace bqui::agent
      * @brief The windows a session drives, as non-owning references.
      *
      * The session borrows the windows for the duration of the call; it never
-     * owns them. `App` owns the adapters and keeps them alive across the whole
-     * `runSession` call, so a reference (never null, never reseated) states the
-     * contract more precisely than a pointer would.
+     * owns them. The caller owns the adapters and keeps them alive across the
+     * whole `runSession` call, so a reference (never null, never reseated)
+     * states the contract more precisely than a pointer would.
      */
     using AgentWindows = std::vector<std::reference_wrapper<AgentWindow>>;
 

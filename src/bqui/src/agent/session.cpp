@@ -135,7 +135,7 @@ void runSession(AgentWindows const& windows, Transport& transport)
 
             auto dt = std::chrono::microseconds(static_cast<int64_t>(
                     command->find("dt_us").value_or(JsonValue()).asNumber(0.0)));
-            for (auto window : windows)
+            for (auto& window : windows)
                 window.get().advance(dt);
 
             transport.send(snapshotResponse(windows));
