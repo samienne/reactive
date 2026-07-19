@@ -1,14 +1,9 @@
 #include "bqui/widget/uniformgrid.h"
 
-#include "bqui/provider/providebuildparams.h"
-
 #include "bqui/widget/layout.h"
 
 #include "bqui/mapsizehint.h"
 #include "bqui/stacksizehint.h"
-
-#include <bq/signal/combine.h>
-#include <bq/signal/signal.h>
 
 namespace bqui::widget
 {
@@ -48,26 +43,9 @@ auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
 
 UniformGrid::operator AnyWidget() &&
 {
-    return makeWidget([](BuildParams const& params, auto widgets, auto cells,
+    return makeWidget([](auto widgets, auto cells,
                 unsigned int w, unsigned int h)
         {
-            std::vector<AnyBuilder> builders;
-
-            for (auto&& widget : widgets)
-                builders.push_back(std::move(widget)(params));
-
-            size_t i = 0;
-            for (auto const& cell : cells)
-            {
-                auto hi = merge(
-                        builders[i].getSizeHint(),
-                        bq::signal::constant(1.0f / (float)cell.w),
-                        bq::signal::constant(1.0f / (float)cell.h)
-                        ).map(multiplySizeHint);
-
-                ++i;
-            }
-
             auto mapHints = [w, h](std::vector<SizeHint> const& hints)
                 -> SizeHint
             {
@@ -108,7 +86,6 @@ UniformGrid::operator AnyWidget() &&
                     );
 
         },
-        provider::provideBuildParams(),
         std::move(widgets_),
         std::move(cells_),
         w_,
