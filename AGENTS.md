@@ -14,6 +14,11 @@ system works*, not this file:
 - [`docs/decisions.md`](docs/decisions.md) — why non-obvious choices were made.
 - [`docs/reviewing.md`](docs/reviewing.md) — how the pre-merge review works (what to weight, known false-positives).
 
+`docs/design/` holds **forward-looking proposals** — agreed designs that are not
+built yet. They describe what does *not* exist, so never treat one as a
+description of the tree; each is deleted once its stable parts have moved into
+`conventions.md`/`decisions.md` and header Doxygen.
+
 API reference is **Doxygen in the public headers**, not Markdown. Do not
 transcribe signatures into any Markdown doc, and do not add comments in code
 that point at these docs (they rot). Docs point at code; code never points at
