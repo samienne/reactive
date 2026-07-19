@@ -1,13 +1,20 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: proposal — not implemented.** Nothing described here exists in the
-> tree yet. This document is the agreed design, recorded so the implementation
-> has a target and so the reasoning survives. Once it is built, the stable parts
-> move to their normal homes — the model and its traps to
-> `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
-> contract to Doxygen in the new public headers — and this file goes away.
+> **Status: steps 1 and 2 implemented in `bq`; steps 3 and 4 not started.**
+> `ArraySignal<T>`, `forEach`, `map`, `concat`, `KeyedArraySignal<A>`,
+> `extract`, `mapValues`, `mapKeyed`, `values` and `scatter` live in
+> `src/bq/include/bq/signal/arraysignal.h` and `arraysignallayout.h`, covered by
+> `src/bq/test/arraysignaltest.cpp`. Nothing in `bqui` has changed: `layout()`
+> and `dynamicBox` are untouched. This document remains the design record until
+> the `bqui` work lands, at which point the stable parts move to their normal
+> homes — the model and its traps to `docs/conventions.md`, the settled *why* to
+> `docs/decisions.md`, and the API contract to the Doxygen already in the new
+> headers — and this file goes away.
+>
+> Where building it contradicted the design, this document has been corrected
+> rather than the implementation bent to fit; see *What building it changed*.
 
-*Last verified against `93357c3` (2026-07-19).*
+*Last verified against `2c6969c` (2026-07-20).*
 
 ## The problem
 
@@ -46,6 +53,97 @@ Two payoffs beyond the code sharing:
   `uniformGrid` and `dynamicBox` become one implementation rather than two that
   drift apart. That finding is the headline of this document; see *One layout
   engine*.
+
+## What building it changed
+
+The `bq` half was built against this document. Most of it survived contact
+unaltered. These points did not, and the document has been corrected here and
+in the sections they belong to.
+
+**`extract`'s function takes the element's signal, not its value.** The design
+said `f : T → AnySignal<A>`. That cannot be applied once per identity: reaching
+a `T` means evaluating the element's signal, and a signal can only be evaluated
+inside a `SignalContext`, which an operator does not have when it builds the
+graph. Written as `value.map(f).join()` it becomes exactly the `Join` hazard the
+design exists to avoid. So `f` is `AnySignal<T> → AnySignal<A>`, matching
+`forEach`'s delegate and the shared apply-once-per-identity primitive. A plain
+`T → A` is also accepted and is mapped over the element's value, since that form
+has no state to preserve and no hazard.
+
+**`mapValues` calls `g(extras..., values)`.** The design described `g` as
+`vector<A> → vector<B>` "with extras injected alongside", while also claiming it
+matches `ObbMap`'s `(Vector2f, vector<SizeHint>) → vector<Obb>` *down to the
+argument order*. Those disagree. The argument-order claim is the load-bearing
+one — it is what lets an existing `ObbMap` be passed straight in — so the extras
+come first.
+
+**Identity is namespaced by allocator, not by rewriting ids.** An `ArrayId` is
+an id space plus an index, and the space is a distinct object per array. `concat`
+therefore needs no re-namespacing pass: its children's ids are already distinct
+because their spaces are. The cost is that an id embeds a pointer, so **ids are
+not reproducible between runs** — which retires this document's argument that a
+scoped allocator gives "dense, deterministic ids so that a test can assert on the
+id set". A test can assert that two ids differ, or that an id survived a change;
+it cannot assert on the id set itself. That is no loss, because ids never surface.
+
+**The duplicate-key release rule is settled, and is better than "suboptimal".**
+Each occurrence of a repeated key is disambiguated by its occurrence index, so
+the entry is `(key, n)`. The first occurrence keeps `(key, 0)` and every later
+one keeps its own stable entry. Nothing is dropped, nothing churns, and the
+1:1 mapping holds. Debug still asserts, because duplicate keys almost always
+mean the caller keyed on the wrong thing. The candidate rule in *Open questions*
+— fresh ids per export for the duplicates — is superseded; it was strictly worse.
+
+**`share()` is the mechanism that defeats the `Join` hazard.** The design said
+`extract` "must not be built" on `map(...).join()` without saying what to build
+instead. The answer is that the per-identity signal is `.share()`d before it is
+cached. `SharedControl` keys its per-context state by a `btl::UniqueId` in the
+`DataContext` (`sharedcontrol.h:147-155`), so when `Join::update` re-initialises
+the inner signal it *finds the existing state* rather than building fresh. The
+fan-in above it is still `combine(...).join()`; what changed is that
+re-initialising it is now harmless. Dropping that one `.share()` turns the
+sibling-state test red and nothing else.
+
+**Element equality is identity-only.** An element sequence compares equal when
+the ids match, whatever the values do. That makes the sequence
+equality-comparable, so `tryCheck()` on it means precisely "membership is
+unchanged" and suppresses the change notification — which is what keeps a value
+change from re-initialising the fan-in at all.
+
+**The once-per-identity cache lives with the operator, not in the context.**
+Everything it holds is an immutable description — a signal, or the value a
+delegate built — so it is context-independent, and a mutex-guarded control block
+owned by the operator is enough. The known limitation is that realising the *same*
+`ArraySignal` in two `SignalContext`s whose membership diverges makes the two
+evict each other's entries. That is churn, not corruption, and no consumer does
+it today.
+
+**`scatter` drops elements whose identity is not in the aggregate.** This
+follows from `mapKeyed` being allowed to drop keys. The alternative — handing
+the delegate a slice that does not exist — has no well-defined value.
+
+**Two pre-existing `bq` bugs had to be fixed to build this at all.** Both are in
+`join`, and both meant `join()` silently or loudly failed on a type-erased
+signal:
+
+- `Signal::join()` instantiated `Join<TStorage>`, and `TStorage` is `void` for an
+  `AnySignal`. It now uses `StorageType`, which is the same type for every
+  concrete signal and the erased storage for an `AnySignal`.
+- `detail::toSignal` was an overload pair: a forwarding `toSignal(T&&)` that
+  wraps a value in a `constant`, and a `toSignal(Signal<T, Ts...>)` that passes a
+  signal through. For an `AnySignal` the forwarding overload wins — it is an exact
+  match, while the other needs a derived-to-base conversion — so `join()` on a
+  signal whose value was an `AnySignal` wrapped it in a `constant` and did not
+  join. It is now one function with an `if constexpr`.
+
+**Not implemented, and why.** `join`/`flatMap` and `filter` are listed in the
+operator set but nothing here needs them, and `filter`'s eviction semantics are
+an unresolved open question. The `AnySignal<ArraySignal<T>>` reactive-subtree
+constructor is not implemented either: *Open questions* records that the design
+does not yet agree with itself about whether it is a third identity-minting site,
+and it should be reconciled before it is built. `map` with extra signals waits on
+`Signal::map` gaining that form first, as the design requires. The defaulted
+delegate is not offered, so its return type never arises.
 
 ## Naming
 
@@ -204,12 +302,14 @@ Consequences:
   holds it (a `DataType` slot in the `SignalContext`, or a control block with its
   own id as `SharedControl` does) is an implementation choice; the requirement is
   only that its lifetime match the `ArraySignal`'s.
-- Not a process-wide global, for the same two reasons as before: no global
-  mutable state to make thread-safe, and deterministic ids so that a test can
-  assert on the id set rather than on whatever the global counter happened to be
-  at. (A global atomic in the style of `bq::signal::makeUniqueId`,
-  `src/bq/src/signal/datacontext.cpp:7-11`, remains the fallback if the scoped
-  form proves unworkable.)
+- Not a process-wide global: there is no global mutable state to make
+  thread-safe, and each array's counter starts from the same place, so an
+  array's ids do not depend on what else the process built first.
+- **As built, an id is an id space plus an index**, and the space is the unit of
+  distinctness — `concat` composes arrays without rewriting any id. Because the
+  space is identified by its address, ids are *not* reproducible between runs.
+  An earlier draft argued the opposite as a benefit; see *What building it
+  changed*.
 
 **This rests on an unsettled question.** Two consumers hand `size_t` ids to
 their caller today: PR #99's `App` window list
@@ -348,15 +448,18 @@ implementation needs.
 
 ### Advanced: the fan-in / fan-out pair
 
-- **`extract(f : T → AnySignal<A>) → KeyedArraySignal<A>`** — order-preserving
-  fan-in. `f` is applied **once per identity**, so the per-element signal it
-  returns is initialised once and thereafter merely updates. For a layout, `f` is
-  "give me this child's size hint".
-- **`mapValues(g : vector<A> → vector<B>, extras...) → KeyedArraySignal<B>`** —
-  the maths. `g` sees every child's value at once and returns one value per
-  child; identity rides along untouched. `extras...` are ambient signals injected
-  alongside the vector — for a layout, the container's own size. This is where a
-  layout's obb computation goes.
+- **`extract(f : AnySignal<T> → AnySignal<A>) → KeyedArraySignal<A>`** —
+  order-preserving fan-in. `f` is applied **once per identity**, so the
+  per-element signal it returns is initialised once and thereafter merely
+  updates. For a layout, `f` is "give me this child's size hint". A plain
+  `T → A` is accepted too and is mapped over the element's value; a
+  `T → AnySignal<A>` is not, for the reason in *What building it changed*.
+- **`mapValues(g : (extras..., vector<A>) → vector<B>, extras...) →
+  KeyedArraySignal<B>`** — the maths. `g` sees every child's value at once and
+  returns one value per child; identity rides along untouched. `extras...` are
+  ambient signals injected alongside the vector — for a layout, the container's
+  own size — and they are passed to `g` first, so an existing `ObbMap` is a `g`
+  unaltered. This is where a layout's obb computation goes.
 - **`mapKeyed(vector<pair<Key, A>> → vector<pair<Key, B>>)`** — the same, for
   computations that **reorder or drop**. `Key` is opaque: comparable and hashable,
   and otherwise meaningless. Nothing may be inferred from its value, its ordering
@@ -634,11 +737,11 @@ section is that argument, and it is the most important part of this document.
   re-invoked because a value changed — a value change arrives through the
   `AnySignal<T>` the delegate already holds. This is the whole point.
 - **The delegate is the last parameter** so it can be defaulted when only keying
-  is wanted. *Wrinkle to settle:* with a signal-taking delegate, the identity
-  default gives `U = AnySignal<T>`, so the defaulted call yields
-  `ArraySignal<AnySignal<T>>` rather than `ArraySignal<T>`. That is defensible but not
-  obviously what a caller expects; decide at implementation time whether the
-  default unwraps it, or whether the defaulted overload is simply not offered.
+  is wanted. No default is offered: with a signal-taking delegate the identity
+  default gives `U = AnySignal<T>`, so the defaulted call would yield
+  `ArraySignal<AnySignal<T>>` rather than `ArraySignal<T>` — defensible, but not
+  what a caller expects. Requiring the delegate costs a caller who only wants
+  keying one identity lambda and keeps the result type obvious.
 - **`keyFn` runs for every item whenever the array signal changes.** The
   algorithm computes the new key set, drops the ids whose keys are absent, and
   preserves the id for every key that is still present.
@@ -650,10 +753,12 @@ section is that argument, and it is the most important part of this document.
   built for it is destroyed — no retention, no pool, no resurrection. The
   resulting `ArraySignal` is a strict 1:1 mapping of the source array. A key that
   goes away and comes back is a new item, exactly as a changed key is.
-- **Duplicate keys**: assert in debug. In release, tolerate gracefully — the
-  result may be suboptimal (an item may lose its identity and be rebuilt) but it
-  must not crash, corrupt the mapping, or drop items. The concrete release rule
-  is still open (see *Open questions*).
+- **Duplicate keys**: assert in debug. In release, each occurrence of a repeated
+  key is disambiguated by its occurrence index, so the internal entry is
+  `(key, n)`. Every occurrence keeps a stable identity of its own: nothing is
+  dropped, nothing churns, and the 1:1 mapping holds. The cost is only that two
+  items the caller considers the same are two items here — which is what keying
+  them the same was already claiming.
 - **The delegate is run by the generic apply-once-per-id operation** described
   above, not by machinery of its own; `forEach` supplies the key→id mapping and
   delegates the caching to it.
@@ -820,9 +925,24 @@ if (r.didChange)
 A naive fan-in — `builders.map(...combine...).join()`, which is what `dynamicBox`
 writes at `dynamicbox.h:42-53` — puts membership in the outer signal. Any change
 to membership therefore re-initialises *every* child's inner signal, resetting
-whatever `DataType` state hangs off it. `extract` must not be built that way: the
-per-identity signal has to be created once, when the identity appears, and
-survive membership changes to its siblings.
+whatever `DataType` state hangs off it.
+
+**How `extract` survives this.** The fan-in is still `combine(...).join()`; what
+makes it safe is that the per-identity signal is created once, when the identity
+appears, and is `.share()`d before it is cached. `SharedControl` keys its
+per-context state by a `btl::UniqueId` in the `DataContext`
+(`sharedcontrol.h:147-155`), so a re-initialisation *finds* that state instead of
+building fresh. The positional `DataType` tree — the thing `Join` actually
+discards — is below the shared node and is never re-entered.
+
+Two things follow, and both are worth stating because they are easy to undo by
+accident:
+
+- **Every per-identity signal must be shared.** An unshared one has only
+  positional `DataType` state, which is exactly what a sibling insert resets.
+- **The element sequence must not report a change when only a value changed**,
+  or the re-initialisation happens every frame. That is what identity-only
+  element equality plus `tryCheck()` buys.
 
 ### First value wins, and it cannot be asserted
 
@@ -1295,21 +1415,13 @@ consumer-side reconcile. See *Open questions*.
 
 Points the design does not yet settle. Flagged rather than guessed.
 
-- **The defaulted delegate's return type.** As noted above, defaulting a
-  `(AnySignal<T>) -> U` delegate to identity yields `ArraySignal<AnySignal<T>>`,
-  not `ArraySignal<T>`. Decide whether to unwrap it, to require the delegate, or to
-  offer the default only where `ArraySignal<AnySignal<T>>` is what the consumer
-  wants.
-- **`{x}` — one-element list or single item?** They export the same list, so the
-  choice is about which constructor wins and what the error messages say. Pick
-  one and write the test.
-- **Duplicate-key tolerance is under-specified.** "Suboptimal but not
-  catastrophic" needs a concrete rule. *Candidate:* the first occurrence keeps
-  the id; subsequent duplicates get fresh ids on each export, and therefore
-  rebuild. That satisfies "must not fail catastrophically" and keeps the 1:1
-  mapping, at the cost of churn for the duplicates. Not adopted — state the rule
-  before implementing, so the release behaviour is testable rather than
-  accidental.
+- **The defaulted delegate's return type.** *Settled by omission:* the delegate
+  is required, so the question does not arise. Revisit only if a caller wants
+  keying without building.
+- **`{x}` — one-element list or single item?** *Settled:* the
+  `std::initializer_list<ArraySignal<T>>` constructor wins in braced
+  initialisation, so `{x}` is a one-element list. It exports the same sequence
+  the single item would, so nothing observable turns on it.
 - **Whether `Collection<T>` and `DataSource<T>` are removed or kept.** `forEach`
   supersedes the *plumbing*; `Collection` remains a reasonable mutable source.
   Note that `Collection`'s ids are pointer values, so a `Collection` source must
@@ -1358,13 +1470,13 @@ Points the design does not yet settle. Flagged rather than guessed.
 Four steps, in this order. The first two are the `bq` core and can land before
 anything in `bqui` changes.
 
-1. **`ArraySignal<T>` core** — the type, its constructors, the tree, `concat`,
-   `join`, `map`, the scoped id allocator, and the generic apply-once-per-identity
-   operation.
-2. **`forEach`, `KeyedArraySignal`, and the advanced layer** — the keyed operator
-   plus `extract`, `mapValues`, `mapKeyed`, `values` and `scatter` in the
-   layout-implementor header. `forEach` and `extract` must share the
-   apply-once-per-identity primitive from step 1.
+1. **`ArraySignal<T>` core** — ✅ done, except `join`/`flatMap` and the
+   `AnySignal<ArraySignal<T>>` constructor. The type, its constructors, the
+   tree, `concat`, `map`, the scoped id allocator, and the generic
+   apply-once-per-identity operation.
+2. **`forEach`, `KeyedArraySignal`, and the advanced layer** — ✅ done.
+   `forEach` and `extract` share the apply-once-per-identity primitive from
+   step 1.
 3. **Unify `layout()`** — reimplement `layout()` over `extract`/`mapValues`/
    `scatter`, keeping its existing `SizeHintMap`/`ObbMap` signature so `box`,
    `stack` and `uniformGrid` are unaffected. Delete the dead heterogeneous tuple
@@ -1402,11 +1514,22 @@ That last result is the argument for the probe harness over testing
 `ObbMap`/`SizeHintMap` in isolation: the pure-maths tests alone would have missed
 it.
 
-Still uncovered, and worth adding before step 4 in particular: `stack`,
-`uniformGrid`, `dynamicBox`, nesting, zero- and one-child cases, degenerate
-hints, non-default gravity, and changing hints. `stack` and `uniformGrid` need
-nothing new from the harness; a dynamic child list needs the probe list built
-from a signal, and changing hints need `context.update()` between evaluations.
+**PR #103 (branch `layout-tests-breadth`) extends it to 24 tests**, adding
+`stack`, `uniformGrid`, `dynamicBox` (initial, add, remove, and reorder with
+stable keys), nesting, and degenerate hints.
+
+Two of those tests pin behaviour that is **current but not correct**, because the
+rewrite will change it:
+
+- `uniformGrid`'s size hint ignores `cell.w` and `cell.h`.
+- `dynamicBox` never applies `handleGravity()`.
+
+Steps 3 and 4 will therefore turn those two red **by design**. That is the
+rewrite working, not a regression — update the tests to the new behaviour rather
+than restoring the old.
+
+Still uncovered: zero- and one-child cases, non-default gravity, and changing
+hints. Changing hints need `context.update()` between evaluations.
 
 ### Hazards in `getSizes` for the rewrite
 
@@ -1415,29 +1538,27 @@ engine will reimplement this path. Two properties of it are load-bearing by
 accident. Both were surfaced by PR #102 and re-verified against the current
 source.
 
-**It divides by zero on equal consecutive hint components, and only survives
-because of `std::min`'s argument order.** The multiplier loop computes
+**It divides by zero on equal consecutive hint components, but the result is not
+observable for monotonic hints.** The multiplier loop computes
 `(size - prev) / (combined[i] - prev)` (`box.h:33-38`). The denominator is zero
 whenever two consecutive aggregate components are equal — which is the *common*
 case, not a corner one: any fixed-size child has a hint like `{{30, 30, 30}}`, so
-`combined[1] - combined[0]` is zero. The quotient is `±inf` (or `NaN` when the
-box is exactly the natural size, since the numerator is zero too), and it lands
-on the right answer only because:
+`combined[1] - combined[0]` is zero. The quotient is `±inf`, or `NaN` when the
+box is exactly the natural size and the numerator is zero too.
 
-```cpp
-multiplier[i] = std::max(0.0f, std::min(1.0f, m));
-```
+Nothing downstream sees it. A zero *combined* interval is a sum of non-negative
+per-child intervals, so when the denominator is zero every child's interval at
+that index is zero as well — the multiplier is scaling zero, and its value cannot
+matter.
 
-`std::min(a, b)` returns `(b < a) ? b : a`. With `a = 1.0f` and `b = NaN`, the
-comparison is false, so it returns `1.0f` — the correct multiplier. Written the
-other way round, `std::min(m, 1.0f)` returns `NaN`, and `std::max(0.0f, NaN)`
-then returns `0.0f`: **every fixed-size child collapses to zero width.** The
-same reversal turns the `+inf` case into `0.0f` as well.
-
-So the clamp is not defensive code that happens to also handle the degenerate
-interval — it is the *only* thing handling it, and it does so through an
-unwritten dependency on operand order. A rewrite must handle the zero-width
-interval explicitly instead.
+**The `std::min` argument order is not load-bearing.** An earlier draft of this
+document reasoned from the arithmetic that `std::max(0.0f, std::min(1.0f, m))`
+survives `NaN` only because `std::min` returns its first argument on an unordered
+comparison, and that reversing the operands would collapse every fixed-size child
+to zero width. PR #103 applied that exact mutation, rebuilt, and all 24 layout
+tests stayed green. The claim was wrong and is withdrawn; a rewrite is free to
+write the clamp either way, though it should still avoid the division rather than
+rely on the arithmetic being harmless.
 
 **The output is not clamped against `size`.** The only bound on the total is that
 each multiplier is clamped to `[0, 1]`, which holds the sum to the aggregate
@@ -1451,6 +1572,7 @@ consequences:
 - For a **non-monotonic** hint the bound fails outright and children overflow the
   box. A hint of `{{100, 0, 100}}` — minimum above preferred — gives
   `multiplier = {1, 0, 1}` and a child size of `200` in a 200-wide box; two such
-  children total `400`. Nothing rejects such a hint today.
+  children total `400`. Nothing rejects such a hint today. PR #103 pins this as
+  current behaviour in `mapObbsOverflowsOnNonMonotonicHints`.
 
-Neither is fixed in PR #102, which deliberately changes no behaviour.
+Neither is fixed in PR #102 or #103, which deliberately change no behaviour.
