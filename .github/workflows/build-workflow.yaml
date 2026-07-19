@@ -93,8 +93,7 @@ jobs:
 
         - uses: ./.github/actions/setup-lw
 
-        # No vcvars dance and no ninja download: lw establishes the MSVC
-        # environment itself, and ninja comes from pip with meson.
+        # lw establishes the MSVC environment itself; ninja comes from pip.
         - uses: ./.github/actions/lw-build-test
           with:
             set: Release

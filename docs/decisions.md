@@ -5,6 +5,25 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## CI bootstraps `lw` from a branch checkout, and no longer pins meson
+
+`.github/actions/setup-lw` clones the loomworks repository at a named branch and
+runs `lw` on a prebuilt luvi host, rather than downloading a released binary.
+meson and ninja come from pip with no version pin, replacing the vendored
+`build/meson` submodule CI used to configure with.
+
+**Why:** `lw` has no published releases yet, so a branch checkout is the only
+way for a runner to obtain it. This is temporary — once `lw` ships signed
+releases it becomes the pinned download-and-verify flow that `lw help ci`
+documents. The meson pin went because meson installs trivially from pip and its
+language is stable enough that floating costs less than maintaining a pin; the
+submodule stays in the tree for the local `build/*.sh` scripts.
+
+**Not done:** a Linux `Debug` leg. It does not link — the member-template
+constructor of `Widget<std::function<AnyBuilder(BuildParams)>>` is left
+undefined once the class is declared `extern template`, which only stays hidden
+while Release inlines it. Debug coverage runs on macOS until that is fixed.
+
 ## Async tests drive completion manually, not with sleeps
 
 Tests in `src/btl/test/asynctest.cpp` whose correctness depends on *ordering*

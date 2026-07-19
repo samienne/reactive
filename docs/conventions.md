@@ -84,11 +84,23 @@ template metaprogramming into named aliases, Doxygen-only API reference) live in
 
 ## CI
 
-The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy), macOS,
-and Windows (**MSVC and clang-cl**). A single aggregating job, **`ci-success`**,
-`needs` all the build jobs and is the *only* required status check — new matrix
-legs are covered automatically, and a new top-level job just needs adding to its
-`needs` list. Mark only `ci-success` as required in branch protection.
+The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy), macOS
+(Release and Debug), and Windows (**MSVC and clang-cl**). A single aggregating
+job, **`ci-success`**, `needs` all the build jobs and is the *only* required
+status check — new matrix legs are covered automatically, and a new top-level
+job just needs adding to its `needs` list. Mark only `ci-success` as required in
+branch protection.
+
+Builds run through **`lw`** (loomworks), not direct meson calls: a leg is a
+configuration set from `loomworks.json` plus a coarse toolchain pin, and the two
+composite actions under `.github/actions/` do the rest. Two traps:
+
+- **Build before you test.** `lw test` does not establish the compiler
+  environment for the rebuild it triggers, so on MSVC it fails with `cl` not
+  found whenever the build tree is stale. Always run `lw build <profile>` first.
+- **Create profiles with `--local`.** Profiles are per-machine but default to
+  local+shared, so an unqualified `lw profile create` followed by `lw publish`
+  would push a runner's toolchain into the committed `loomworks.json`.
 
 Known flaky: `async.whenAllCancelOnFail` (in `src/btl/test/asynctest.cpp`)
 intermittently fails on macOS runners; re-run the failed job to clear it.

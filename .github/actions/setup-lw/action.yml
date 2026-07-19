@@ -1,10 +1,9 @@
 name: "Set up lw"
 description: "Put the loomworks CLI (lw) and meson on PATH."
 
-# TEMPORARY bootstrap: lw has no published releases yet, so we run it straight
-# from a checkout of its `feature/standalone-cli` branch on top of a prebuilt
-# luvi. Once lw ships signed releases this becomes a pinned binary download
-# plus `lw install` (see `lw help ci`).
+# TEMPORARY: runs lw from a branch checkout on top of a prebuilt luvi, because
+# lw has no published releases yet. It moves to the pinned download-and-verify
+# flow in `lw help ci` once it does.
 
 inputs:
   loomworks-ref:
@@ -21,8 +20,7 @@ runs:
       with:
         python-version: "3.x"
 
-    # Unpinned on purpose: meson installs trivially from pip and its language is
-    # stable enough that floating costs less than maintaining a pin.
+    # Unpinned on purpose.
     - name: Install meson and ninja
       shell: bash
       run: python -m pip install --upgrade meson ninja
