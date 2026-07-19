@@ -653,7 +653,7 @@ T>>>` before `forEach` sees it. With that comes a warning worth stating loudly:
 The semantics, verified:
 
 - `check()` exists **only** when the signal's value type is equality-comparable
-  (`btl::IsEqualityComparable`, `src/btl/include/btl/typetraits.h:78`); calling
+  (`btl::IsEqualityComparable`, `src/btl/include/btl/typetraits.h:82-89`); calling
   it on a non-comparable type is a hard "no member named `check`" error.
 - `tryCheck()` exists always. When the type is comparable it *is* `check()`;
   when it is not, it is a **silent passthrough** returning an equivalent signal
@@ -661,7 +661,7 @@ The semantics, verified:
 - What `Check` suppresses is the **change notification**, not the value: its
   `update()` downgrades the inner signal's `didChange` to `false` when the newly
   evaluated value compares equal to the cached one
-  (`src/bq/include/bq/signal/check.h:44`). `nextUpdate` passes through.
+  (`src/bq/include/bq/signal/check.h:44-59`). `nextUpdate` passes through.
 - Comparison of a multi-value `SignalResult<Ts...>` is **all-or-nothing**, not
   per element (`src/bq/include/bq/signal/signalresult.h:117`): the trait is true
   only if every `T` is comparable, and a change in any element propagates all of
@@ -1024,7 +1024,7 @@ lock-guarded container whose writer API (`pushBack`, `update`, `erase`, `swap`,
 `move`, `sort` — `collection.h:307-461`) mutates the vector under a spin lock and
 synchronously invokes registered callbacks. Each item's `size_t` id is the
 address of its heap-allocated value —
-`reinterpret_cast<size_t>(iter_->ptr())` (`collection.h:138-141`) — which is
+`reinterpret_cast<size_t>(iter_->ptr())` (`collection.h:140`) — which is
 stable across reallocation but **not reproducible between runs**. That is
 another argument for a scoped allocator with dense, deterministic ids: a test
 can assert on the id set. `forEach` accepts a `Collection<T>` directly, so it
@@ -1046,11 +1046,12 @@ shape (`databind.h:22`). `forEach` is the same operator with the delegate
 generalised to any `U`, the source generalised past `DataSource`, and the
 identity supplied by a key function instead of by the collection.
 
-**`dynamicBox`** (`src/bqui/include/bqui/dynamicbox.h:23`, the implementation
-behind `hbox`/`vbox` — `src/bqui/src/widget/hbox.cpp:18`,
-`src/bqui/src/widget/vbox.cpp:20`) consumes that exported signal. It keeps its
-job: `toSignal` on a `ArraySignal<AnyWidget>` produces the very signal it already
-takes, so it needs at most an overload. What it should shed is its build-cache (below).
+**`dynamicBox`** (`src/bqui/include/bqui/dynamicbox.h:23`, the signal-taking
+overload of `hbox`/`vbox` — `src/bqui/src/widget/hbox.cpp:18`,
+`src/bqui/src/widget/vbox.cpp:20`) **goes away entirely.** Earlier drafts kept it
+and merely gave it an overload; the *One layout engine* finding supersedes that.
+`hbox`/`vbox` take an `ArraySignal<AnyWidget>`, and both the static and the
+dynamic case run through the single unified `layout()`.
 
 Existing callers are `src/bqui/test/databindtest.cpp:18` and
 `src/testapp1/adder.cpp:84`; both are `Collection` → `dataSourceFromCollection`
@@ -1083,7 +1084,7 @@ Per-context state is looked up by exactly that id:
 and, on a miss, creates fresh state (`src/bq/include/bq/signal/input.h:126-131`);
 `SharedControl::initialize` does the same (`sharedcontrol.h:148-154`).
 `DataContext::findData` is a plain map lookup keyed by `DataId = btl::UniqueId`
-(`src/bq/include/bq/signal/datacontext.h:79-100`).
+(`src/bq/include/bq/signal/datacontext.h:78-100`).
 
 So: **a new control block is a new id is a miss in `findData` is fresh state.**
 State is keyed by object identity, and rebuilding destroys that identity by
@@ -1098,9 +1099,10 @@ there." It does not work, and there is already a live demonstration.
 `dynamicBox` rebuilds its children inside a `.map()` — `std::move(widget.second)(params)`
 invokes each child's whole build function (`src/bqui/include/bqui/dynamicbox.h:35`).
 That map node is created **once**, when `WindowGlue` constructs its
-`SignalContext` (`src/bqui/src/app.cpp:81-84`, member declared at `:438-439`),
+`SignalContext` (`src/bqui/src/app.cpp:81-83`, member declared at `:438-439`),
 and that context lives for the entire run — it is pumped once per frame at
-`app.cpp:269` and torn down only at `app.cpp:509`. So every list change
+`app.cpp:269` and torn down only when its `WindowGlue` is destroyed
+(`app.cpp:251`, `app.cpp:514`). So every list change
 re-executes the build inside the *same*, never-reinitialised context, and the
 rebuilt children still get fresh state. The context is shared; the *ids* are
 not, because the rebuild constructed new controls.
@@ -1140,7 +1142,7 @@ Streams are the worst case. An `iterate` fold and the `pipe` feeding it are
 separate nodes; nothing guarantees they are preserved or recreated together, so
 a structural match can preserve one and recreate the other — a fold reading from
 a pipe that no longer feeds it. The type check in `findData`
-(`datacontext.h:87-93`) does not save this: it only catches collisions between
+(`datacontext.h:88-94`) does not save this: it only catches collisions between
 *differently*-typed data, and same-shaped list items are the same type by
 construction.
 
@@ -1169,8 +1171,8 @@ values through a handle, never rebuild.
 **`dynamicBox` caches the built element by item id.** Its `withPrevious` fold
 keeps, for each id present in the new builder list, the element it built
 previously, and only constructs an element for ids it has not seen
-(`src/bqui/include/bqui/dynamicbox.h:104-159` — the `prev.first == id` hit at
-`:116-120` reuses the old element and `continue`s at `:123`).
+(`src/bqui/include/bqui/dynamicbox.h:85-141` — the `prev.first == id` hit at
+`:97-102` reuses the old element and `continue`s at `:105-106`).
 
 `forEach` formalises exactly this pattern and moves it below the UI layer, where
 it works for any `U` rather than only for widgets.
@@ -1182,7 +1184,7 @@ This is a correctness finding, not just a design argument.
 `dynamicBox`'s cache is keyed by id and consulted *before* anything looks at the
 widget. For each entry in the incoming builder list it searches the previous
 result for the same id; on a hit it reuses the old element and `continue`s
-(`src/bqui/include/bqui/dynamicbox.h:113-124`). The builder that stage 1 just
+(`src/bqui/include/bqui/dynamicbox.h:94-106`). The builder that stage 1 just
 produced from the *current* widget is dropped on the floor.
 
 So if an existing id's **widget changes** — same item, different widget — the
@@ -1223,22 +1225,22 @@ here; noted so the option stays visible.
 **`dynamicBox` wastes work.** Its two stages disagree. Stage 1 (widget →
 builder, `dynamicbox.h:28-40`) re-invokes **every** child's build function on
 **every** list change, allocating throwaway inputs, pipes, and ids. Stage 2
-(builder → element, `dynamicbox.h:104-159`) then caches by id, so for every
+(builder → element, `dynamicbox.h:85-141`) then caches by id, so for every
 pre-existing item the builder stage 1 just produced is dropped unused at the
-`continue` on `dynamicbox.h:123-124`. The cache makes `dynamicBox` *correct*,
+`continue` on `dynamicbox.h:105-106`. The cache makes `dynamicBox` *correct*,
 not *cheap*: one insert costs an O(n) build-and-discard. `.share()`
 (`dynamicbox.h:40`) bounds it to once per changed frame, but not per changed
-item. Worth cleaning up when this area is reworked; `forEach` removes the reason
-for the pattern entirely. (Related, and cheap to fix while there: the per-id
-`hints` signal at `dynamicbox.h:55-72` is computed, `.share()`d, and never used.)
-This is the *performance* half of the same cache; the correctness half — that
-the discarded builder may carry a genuinely changed widget — is in *Rationale*
-above and is not merely a cleanup.
+item. This is the *performance* half of the same cache; the correctness half —
+that the discarded builder may carry a genuinely changed widget — is in
+*Rationale* above and is not merely a cleanup. Both are moot once `dynamicBox`
+is deleted in favour of the unified engine.
 
 **PR #99 (dynamic windows)** is open, and makes `App`'s window list
 `AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
-stable id. It is expected to be reworked onto `ArraySignal<Window>`, with `App`
-owning the id allocator.
+stable id. It is expected to be reworked onto `ArraySignal<Window>`. Note that
+`App` no longer owns an id allocator under this design — the `ArraySignal` does —
+so the rework is `extract`/`scatter` over the window list rather than a
+consumer-side reconcile. See *Open questions*.
 
 ## Open questions
 
@@ -1281,14 +1283,56 @@ Points the design does not yet settle. Flagged rather than guessed.
   introduced," and means a filtered-out widget silently loses its state. Decide
   whether `filter` evicts from the shared identity space or only masks its own
   output, and say which guarantee survives.
+- **Is `scatter` the right name?** "Scatter" implies a redistribution the caller
+  never sees — nothing is being spread anywhere from the caller's point of view;
+  the delegate simply receives one more argument. **`mapWith`** says what it does
+  and puts it next to `map`, which is where the *`scatter` is `map` with one
+  extra argument* framing wants it. `scatter` is used throughout this document
+  because that is the name the design was worked out under. Settle before the
+  header is written; renaming afterwards is churn.
+- **Does the layering test actually pass?** *The API surface* asserts that
+  `forEach` must be implementable in terms of `extract`/`scatter`, on pain of the
+  layering being cosmetic. That has **not been demonstrated.** `extract` is
+  fan-in and `scatter` is fan-out, while `forEach` is neither — its content is
+  the key→id diff plus once-per-identity invocation. The plausible resolution is
+  that the shared primitive is *apply-once-per-identity*, which `forEach` and
+  `extract` both use, and that the test should be restated in those terms.
+  Restate it or drop it; leaving an untested claim in a design document is worse
+  than either.
+- **Does a raw id-revealing exit survive at all?** *Identity is internal* argues
+  that nothing outside needs to see an id, which is what justifies moving the
+  allocator onto the `ArraySignal`. But PR #99's `App` window list and today's
+  `dataBind` both hand ids to their consumer. If both are rewritten onto
+  `extract`/`scatter` the question disappears; if either keeps an id-pair
+  signal, decide which layer's header it lives in and say what the ids mean.
+- **`ArraySignal<Widget>` versus `ArraySignal<AnyWidget>` for the layout API.**
+  *First value wins* is stated for `ArraySignal<Widget>`, but `layout()` and
+  `dynamicBox` both take `AnyWidget` today. Which one the unified engine accepts
+  affects whether the delegate can see a concrete builder type. Not settled here.
 
 ## Implementation order
 
-Two commits, in this order:
+Four steps, in this order. The first two are the `bq` core and can land before
+anything in `bqui` changes.
 
-1. **`ArraySignal<T>` core** — the type, its constructors, the tree, `join`,
-   `toSignal` and the scoped id allocator, and the generic apply-once-per-id
-   operation. Independently useful: `App::windows` can consume it before
-   `forEach` exists.
-2. **`forEach`** — the keyed operator on top, plus the retirement path for
-   `dataBind` / `dataSourceFromCollection` / `dynamicBox`'s caching layer.
+1. **`ArraySignal<T>` core** — the type, its constructors, the tree, `concat`,
+   `join`, `map`, the scoped id allocator, and the generic apply-once-per-identity
+   operation.
+2. **`forEach`, `KeyedArraySignal`, and the advanced layer** — the keyed operator
+   plus `extract`, `mapValues`, `mapKeyed`, `values` and `scatter` in the
+   layout-implementor header. `forEach` and `extract` must share the
+   apply-once-per-identity primitive from step 1.
+3. **Unify `layout()`** — reimplement `layout()` over `extract`/`mapValues`/
+   `scatter`, keeping its existing `SizeHintMap`/`ObbMap` signature so `box`,
+   `stack` and `uniformGrid` are unaffected. Delete the dead heterogeneous tuple
+   path (`accumulateSizeHintsTuple`, `MapObbs`) at the same time, since nothing
+   in the unified engine can use it.
+4. **Delete `dynamicBox`** — `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
+   route to the unified `layout()`. This is where the missing `handleGravity()`
+   and the element-cache bug disappear. Retire `dataBind` /
+   `dataSourceFromCollection` here too, and port
+   `src/bqui/test/databindtest.cpp:18` and `src/testapp1/adder.cpp:84`.
+
+Steps 3 and 4 are the ones that need tests written first: neither `dynamicBox`
+nor `uniformGrid` has any coverage today, so there is nothing to catch a
+regression in the rewrite.
