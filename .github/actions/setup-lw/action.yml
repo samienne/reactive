@@ -17,9 +17,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    # Unpinned on purpose: meson installs trivially from pip and its language is
+    # stable enough that floating costs less than maintaining a pin.
     - name: Install meson
       shell: bash
-      run: python3 -m pip install --upgrade meson
+      run: python -m pip install --upgrade meson
 
     - name: Fetch lw and its luvi host
       shell: bash
