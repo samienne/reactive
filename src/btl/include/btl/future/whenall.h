@@ -51,8 +51,11 @@ namespace btl::future
                     >
     {
     public:
+        // count_ starts one above the input count; init() owns the extra count
+        // and releases it only after it has stopped walking values_, so
+        // completion never destroys values_ from under that walk.
         WhenAll(std::tuple<Ts...> values) :
-            count_(((IsFuture<std::decay_t<Ts>>::value ? 1 : 0) + ... + 0)),
+            count_(((IsFuture<std::decay_t<Ts>>::value ? 1 : 0) + ... + 0) + 1),
             values_(std::move(values))
         {
         }
@@ -86,6 +89,8 @@ namespace btl::future
                 values_.reset();
 
             initialized_.store(true, std::memory_order_release);
+
+            reportValueReady();
         }
 
         void reportFailure(std::exception_ptr err)
@@ -103,7 +108,7 @@ namespace btl::future
 
         void reportValueReady()
         {
-            auto count = count_.fetch_sub(1);
+            auto count = count_.fetch_sub(1, std::memory_order_acq_rel);
 
             assert(count >= 1);
 

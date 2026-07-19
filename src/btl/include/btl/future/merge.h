@@ -13,8 +13,11 @@ namespace btl::future
         public FutureControl<std::vector<T>>
     {
     public:
+        // count_ starts one above the input count; init() owns the extra count
+        // and releases it only after it has stopped walking futures_, so
+        // completion never destroys futures_ from under that walk.
         MergedFuture(std::vector<Future<T>> futures) :
-            count_(static_cast<int>(futures.size())),
+            count_(static_cast<int>(futures.size()) + 1),
             futures_(std::move(futures))
         {
         }
@@ -50,6 +53,8 @@ namespace btl::future
                 futures_.clear();
 
             initialized_.store(true, std::memory_order_release);
+
+            reportFutureReady();
         }
 
         void reportFailure(std::exception_ptr err)
@@ -67,7 +72,7 @@ namespace btl::future
 
         void reportFutureReady()
         {
-            auto count = count_.fetch_sub(1, std::memory_order_acquire);
+            auto count = count_.fetch_sub(1, std::memory_order_acq_rel);
 
             assert(count >= 1);
 

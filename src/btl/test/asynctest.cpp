@@ -541,3 +541,35 @@ TEST(async, mergeFail)
     }
 }
 
+TEST(async, mergeInputsReadyBeforeInit)
+{
+    // Every input is already ready when merge() registers its callbacks, so
+    // each registration runs the completion path from inside init()'s loop.
+    std::vector<Future<int>> v;
+    for (int i = 0; i < 32; ++i)
+        v.push_back(makeReadyFuture(i));
+
+    auto r = merge(std::move(v));
+
+    EXPECT_EQ(32u, std::move(r).get().size());
+}
+
+TEST(async, mergeEmpty)
+{
+    auto r = merge(std::vector<Future<int>>());
+
+    EXPECT_TRUE(std::move(r).get().empty());
+}
+
+TEST(async, whenAllInputsReadyBeforeInit)
+{
+    // Both inputs are already ready when whenAll() registers its callbacks, so
+    // each registration runs the completion path from inside init()'s walk.
+    auto r = whenAll(makeReadyFuture(10), makeReadyFuture(20))
+        .then([](int i, int j)
+            {
+                return i + j;
+            });
+
+    EXPECT_EQ(30, std::move(r).get());
+}
