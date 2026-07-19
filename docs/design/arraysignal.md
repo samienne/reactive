@@ -1,4 +1,4 @@
-# Design: `DynArray<T>` and `forEach`
+# Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
 > **Status: proposal — not implemented.** Nothing described here exists in the
 > tree yet. This document is the agreed design, recorded so the implementation
@@ -7,7 +7,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new public headers — and this file goes away.
 
-*Written against `221cd3f` (2026-07-19).*
+*Last verified against `93357c3` (2026-07-19).*
 
 ## The problem
 
@@ -20,20 +20,72 @@ existing answer — `Collection` + `dataSourceFromCollection` + `dataBind` +
 container, it is not composable, and it lives in `bqui` where only widgets can
 use it.
 
-This design replaces that pipeline with two pieces:
+This design replaces that pipeline with three pieces:
 
-- **`DynArray<T>`** — a value in `bq` describing a list whose contents and
+- **`ArraySignal<T>`** — a value in `bq` describing a list whose contents and
   structure may both be dynamic. It is the *input* type a list-consuming API
   accepts.
-- **`forEach`** — the keyed operator that turns a changing collection into a
-  `DynArray<U>` with stable per-item identity, invoking a delegate once per new
+- **`forEach`** — the keyed operator that turns a changing collection into an
+  `ArraySignal<U>` with stable per-item identity, invoking a delegate once per new
   item rather than once per change.
+- **`KeyedArraySignal<A>`** plus the free functions `extract` and `scatter` — the
+  fan-in / fan-out pair that lets a *container* compute over all of its children
+  at once and hand each child its own share of the result, without ever exposing
+  an identity.
 
-`DynArray` is best understood as **its own domain alongside `Signal`**, entered
-by `forEach` and left by `toSignal`; that framing is developed below and is what
-tells us which operations must exist and what each does to identity. It also
-fixes a real bug: `dynamicBox` today supports dynamic *membership* only, and
-silently ignores a changed widget for an existing item.
+`ArraySignal` is best understood as **its own domain alongside `Signal`**, entered
+by `forEach` and left by `values`; that framing is developed below and is what
+tells us which operations must exist and what each does to identity.
+
+Two payoffs beyond the code sharing:
+
+- It **fixes a real bug**: `dynamicBox` today supports dynamic *membership* only,
+  and silently ignores a changed widget for an existing item.
+- It **unifies the static and dynamic layout engines**. `layout()`'s own type
+  aliases turn out to be this API already, so `hbox`, `vbox`, `stack`,
+  `uniformGrid` and `dynamicBox` become one implementation rather than two that
+  drift apart. That finding is the headline of this document; see *One layout
+  engine*.
+
+## Naming
+
+The type was called `DynArray<T>` in earlier drafts. It is now **`ArraySignal<T>`**,
+and the keyed aggregate is **`KeyedArraySignal<A>`**.
+
+`DynArray` reads like a mutable container — `std::dynarray` was a proposed
+`std::vector` sibling — and that mis-sells the type completely: it is immutable,
+it carries no storage the caller can poke at, and it belongs in the same
+category as `Signal`. Naming it `ArraySignal` puts it there.
+
+### There is deliberately no `AnyArraySignal`
+
+In `bq::signal` the `Any` prefix means **type-erased**: `Signal<TStorage, Ts...>`
+carries its storage type in the type (`signal.h:160`) and `AnySignal<Ts...>`
+erases it (`signal.h:372`, a class deriving from `Signal<void, Ts...>`). The
+storage-typed form exists so a chain of combinators stays free of virtual
+dispatch.
+
+`ArraySignal` is **type-erased by construction** and never wants a storage-typed
+twin. An array is heap-backed anyway: the per-element indirection that
+storage-typing avoids for `Signal` is already paid here, so a
+`Signal`-style split would buy nothing and double the surface. **Do not add an
+`AnyArraySignal` alias, and do not "restore the symmetry" with `Signal` by
+introducing a storage parameter.** The asymmetry is the decision, not an
+oversight.
+
+### `KeyedArraySignal` is a sibling, not a subtype
+
+`KeyedArraySignal<A>` is **not** an `ArraySignal<A>` with extra fields, and there
+is no subtyping between them. It is a separate type with a different operation
+set:
+
+- `ArraySignal<T>` is **per-element**: `forEach`, `map`, `concat`.
+- `KeyedArraySignal<A>` is **whole-vector**: `mapValues`, `mapKeyed`, `values`.
+
+Reaching for `forEach` on a `KeyedArraySignal` is the natural mistake and it
+will not compile — deliberately. A `KeyedArraySignal` exists to be operated on
+*as a vector*, because that is what a layout computation needs; it re-enters the
+per-element world only through `scatter`.
 
 ## The framing: two kinds of dynamism
 
@@ -49,23 +101,23 @@ machinery is needed, and none should be paid for.
 reorders. This is the *only* place identity is needed, because "which item is
 this?" no longer has a positional answer. `forEach` is what supplies it.
 
-`DynArray<T>` expresses both. Its literal forms (a value, a signal, a nested
-braced list) are value-dynamic. Structural dynamism enters a `DynArray` only
+`ArraySignal<T>` expresses both. Its literal forms (a value, a signal, a nested
+braced list) are value-dynamic. Structural dynamism enters a `ArraySignal` only
 through `forEach` — or through the reactive-subtree constructor, which is
 structural dynamism at the coarsest possible granularity (the whole subtree is
 replaced).
 
-## `DynArray<T>`
+## `ArraySignal<T>`
 
-`DynArray<T>` lives in `bq`. It has no UI dependency; `bqui` merely consumes it.
+`ArraySignal<T>` lives in `bq`. It has no UI dependency; `bqui` merely consumes it.
 
 ### It is a description, not a container
 
-A `DynArray<T>` is an **immutable value**. It has no `push_back`, no `erase`, no
+A `ArraySignal<T>` is an **immutable value**. It has no `push_back`, no `erase`, no
 mutation of any kind. Dynamism flows *in* from upstream: a `Collection<T>`
-converted into a `DynArray<T>` stays live because the conversion produced a
+converted into a `ArraySignal<T>` stays live because the conversion produced a
 signal that the collection drives — mutating the collection changes the
-`DynArray`'s signal, not the `DynArray` object.
+`ArraySignal`'s signal, not the `ArraySignal` object.
 
 This is the same discipline as the rest of the toolkit (`docs/architecture.md`):
 descriptions are immutable values, state lives upstream.
@@ -73,7 +125,7 @@ descriptions are immutable values, state lives upstream.
 ### A constructor per supported type — deliberately not a variant
 
 The natural implementation is `std::variant` over the accepted forms. We are
-**not** doing that. Instead `DynArray<T>` gets one converting constructor per
+**not** doing that. Instead `ArraySignal<T>` gets one converting constructor per
 supported source type:
 
 | Constructor takes | Meaning |
@@ -81,9 +133,9 @@ supported source type:
 | `T` (or anything convertible to `T`) | a single constant item |
 | `AnySignal<T>` | a single item whose value varies |
 | `AnySignal<std::vector<T>>` | a varying list of items |
-| `std::initializer_list<DynArray<T>>` | a fixed list of children |
-| `std::vector<DynArray<T>>` | ditto, built at runtime |
-| `AnySignal<DynArray<T>>` | a reactive subtree (see below) |
+| `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
+| `std::vector<ArraySignal<T>>` | ditto, built at runtime |
+| `AnySignal<ArraySignal<T>>` | a reactive subtree (see below) |
 
 Two reasons. First, **acceptance is precisely controlled**: each form is opted
 into by writing a constructor, so an accidentally-convertible type cannot slip
@@ -97,15 +149,15 @@ representation is free to change.
 
 ### It is a uniform recursive tree
 
-Because *everything* converts to `DynArray<T>`, including a braced list of
-`DynArray<T>`, the type is a tree: a **leaf** is a single item (constant or
+Because *everything* converts to `ArraySignal<T>`, including a braced list of
+`ArraySignal<T>`, the type is a tree: a **leaf** is a single item (constant or
 signal) or a signal-of-vector, and a **branch** is a list of children. This
 syntax must work:
 
 ```cpp
-DynArray<Widget> content = {
+ArraySignal<Widget> content = {
     someWidget,
-    getDynArrayOfWidgets(),
+    getArraySignalOfWidgets(),
     { otherWidget, getMoreWidgets() }
 };
 ```
@@ -115,30 +167,30 @@ Nesting is not a special case in the consumer: the consumer sees the exported
 
 ### It leaves the domain as `AnySignal<std::vector<std::pair<size_t, T>>>`
 
-The single exit from `DynArray<T>` back to `Signal` produces a signal of
+The single exit from `ArraySignal<T>` back to `Signal` produces a signal of
 `(id, value)` pairs in list order. Consumers reconcile against the ids and never
 look at the tree.
 
 This is not a new shape. `dataBind` already returns exactly it for widgets
 (`src/bqui/include/bqui/databind.h:22`), and the open PR #99 proposes
 `AnySignal<std::vector<std::pair<size_t, Window>>>` for `App`'s window list.
-`DynArray` generalises what those two arrived at independently.
+`ArraySignal` generalises what those two arrived at independently.
 
 ### Ids are assigned at the exit, by a scoped allocator
 
 **Settled:** the allocator is constructed at the point the
 `AnySignal<std::vector<std::pair<size_t, T>>>` is constructed, and is a
-parameter of that operation. **Construction of a `DynArray` assigns no ids at
+parameter of that operation. **Construction of a `ArraySignal` assigns no ids at
 all**; the exit does. So an id is a property of *one exit's* view of the tree,
 and the allocator's lifetime is the exit signal's lifetime.
 
 This resolves what would otherwise be a genuine tension. A consumer-owned
 allocator and a per-type constructor set cannot both be satisfied at
-construction time: nested `DynArray`s are built before their parent, and the
+construction time: nested `ArraySignal`s are built before their parent, and the
 parent before it ever reaches a consumer, so there is no point during
 construction at which the consumer's allocator is in scope. Making the allocator
 a parameter of the exit removes the problem instead of threading around it —
-`DynArray` values stay pure descriptions that can be built, stored, and passed
+`ArraySignal` values stay pure descriptions that can be built, stored, and passed
 anywhere, and nothing needs an ambient allocator.
 
 Ids are **reused across re-exports**, so an item that survives a change keeps
@@ -157,14 +209,14 @@ that escape hatch is now gone.)
 **Consequence for `forEach`'s key→id map.** That map is what makes an id
 survive, so it lives wherever the allocator lives: in the durable state hanging
 off the exit signal, created and destroyed with it. It is *not* per-evaluation
-state, and it is not something the `DynArray` value carries — a `DynArray` used
+state, and it is not something the `ArraySignal` value carries — a `ArraySignal` used
 by two exits legitimately has two independent id spaces and therefore two maps.
 Exactly which mechanism holds that state (a `DataType` slot in the
 `SignalContext`, or a control block with its own id, as `SharedControl` does) is
 an implementation choice; the requirement is only that its lifetime match the
 exit's.
 
-### The reactive subtree: `AnySignal<DynArray<T>>`
+### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
 This constructor makes a whole subtree swappable — conditional branches, a
 section of a list that changes shape wholesale. The rule on swap:
@@ -184,16 +236,16 @@ keys are actually known.
 These are design constraints on the implementation, not incidental details.
 
 - **The "convertible to `T`" constructor must be SFINAE-constrained.** An
-  unconstrained `template <typename U> DynArray(U&&)` is a better match than the
-  copy and move constructors for a non-const lvalue `DynArray`, and it will also
+  unconstrained `template <typename U> ArraySignal(U&&)` is a better match than the
+  copy and move constructors for a non-const lvalue `ArraySignal`, and it will also
   swallow `AnySignal<T>` and braced lists that were meant for the dedicated
   constructors. Constrain it on `std::is_convertible_v<U, T>` *and* exclude
-  `DynArray` itself and every other accepted form. This is the single most
+  `ArraySignal` itself and every other accepted form. This is the single most
   likely way to get a mysterious compile error or a silently wrong overload.
 
-- **Prefer an explicit `std::initializer_list<DynArray<T>>` constructor.** In
+- **Prefer an explicit `std::initializer_list<ArraySignal<T>>` constructor.** In
   braced initialisation an `initializer_list` constructor wins over everything
-  else, so relying on a `vector<DynArray<T>>` constructor to catch braces is a
+  else, so relying on a `vector<ArraySignal<T>>` constructor to catch braces is a
   trap — the `initializer_list` form must exist, and the `vector` form is the
   runtime-built sibling, not a substitute.
 
@@ -204,14 +256,14 @@ These are design constraints on the implementation, not incidental details.
   actually produces it rather than leaving it to whichever constructor happened
   to be a better match.
 
-## `DynArray` as a domain alongside `Signal`
+## `ArraySignal` as a domain alongside `Signal`
 
-`DynArray` is not a helper type bolted onto `Signal` — it is **its own domain**,
+`ArraySignal` is not a helper type bolted onto `Signal` — it is **its own domain**,
 with its own operations, entered and left by explicit boundary operations:
 
 ```
                 forEach(collection, keyFn, delegate)
-    Signal  ──────────────────────────────────────────▶  DynArray
+    Signal  ──────────────────────────────────────────▶  ArraySignal
             ◀──────────────────────────────────────────
                         toSignal(allocator)
 ```
@@ -222,18 +274,18 @@ what their laws are, and — most usefully — what each one does to identity.
 
 ### The operations
 
-- **`pure : T → DynArray<T>`** — the single-item constructor. Already in the
+- **`pure : T → ArraySignal<T>`** — the single-item constructor. Already in the
   table above.
-- **Concatenation** — the `initializer_list` / `vector<DynArray<T>>`
+- **Concatenation** — the `initializer_list` / `vector<ArraySignal<T>>`
   constructor, with the empty list as identity. This is a **monoid**, and its
   associativity law is not an abstraction: it is literally the brace-nesting
   ergonomics we require, `{a, {b, c}} ≡ {a, b, c}`. The syntax goal and the
   algebraic law are the same statement.
-- **`join : DynArray<DynArray<T>> → DynArray<T>`** — already latent. A branch
+- **`join : ArraySignal<ArraySignal<T>> → ArraySignal<T>`** — already latent. A branch
   node *is* nesting, and collapsing the tree *is* join. It deserves a name
   because `flatMap` then falls out as `map` followed by `join`, with no new
   machinery.
-- **`map : (T → U) → DynArray<T> → DynArray<U>`** — a lawful functor. See the
+- **`map : (T → U) → ArraySignal<T> → ArraySignal<U>`** — a lawful functor. See the
   caveat below: this is emphatically **not** the delegate form `forEach`
   rejects.
 - **`filter`** — not required by anything here, but obviously wanted soon.
@@ -290,9 +342,9 @@ the exit does not?"
 
 Two distinct collapses exist and must not share a name:
 
-- **`join`** (or `flatten`) — `DynArray<DynArray<T>> → DynArray<T>`. Stays
+- **`join`** (or `flatten`) — `ArraySignal<ArraySignal<T>> → ArraySignal<T>`. Stays
   inside the domain; collapses nesting.
-- **`toSignal(allocator)`** — `DynArray<T> → AnySignal<vector<pair<size_t, T>>>`.
+- **`toSignal(allocator)`** — `ArraySignal<T> → AnySignal<vector<pair<size_t, T>>>`.
   Leaves the domain; assigns and reveals ids.
 
 `resolve(allocator)` is an acceptable alternative for the second. What is not
@@ -311,7 +363,7 @@ emissions** currently exists in three places:
    destroy it when the id vanishes, keep it otherwise.
 3. `forEach` would be the third.
 
-Three hand-rolled copies of one algorithm is two too many. **`DynArray` should
+Three hand-rolled copies of one algorithm is two too many. **`ArraySignal` should
 own a generic "apply `f` once per id, cache the result, reuse on later
 emissions" operation**, and all three collapse onto it.
 
@@ -354,7 +406,7 @@ footgun; that is the one thing to say in the Doxygen for `map`.
 
 ### `map` with extra signals
 
-`dynArray.map(f, sig1, sig2)` — where `f` receives the item's value plus the
+`arraySignal.map(f, sig1, sig2)` — where `f` receives the item's value plus the
 current values of those signals — should be supported. It is **`combine` sugar
 per element**: the node is still created once per identity, and only values
 recompute. It introduces **no new footgun class**, because the dangerous case is
@@ -388,26 +440,26 @@ the item's *construction* does. The two cover different needs.
   today is `a.merge(b, c).map(f)` — which is exactly the sugar being proposed,
   spelled out.
 
-**Constraint:** `DynArray::map` must **mirror `Signal::map` exactly** — same
+**Constraint:** `ArraySignal::map` must **mirror `Signal::map` exactly** — same
 argument order, same arity handling, same name. The symmetry between the two
-domains is the payoff of this whole framing; a `DynArray::map` that takes extra
+domains is the payoff of this whole framing; a `ArraySignal::map` that takes extra
 signals while `Signal::map` does not would break it at the first thing anyone
 tries.
 
 Since `Signal::map` does **not** currently take extra signals, that constraint
 argues for **adding the extra-signals form to `Signal::map` first** (as sugar
-over `merge().map()`), and only then giving `DynArray::map` the matching shape.
+over `merge().map()`), and only then giving `ArraySignal::map` the matching shape.
 Doing it the other way round would make the two domains diverge exactly where
 the framing promises they agree.
 
 ## `forEach`
 
 ```
-forEach(collection, keyFn, delegate) -> DynArray<U>
+forEach(collection, keyFn, delegate) -> ArraySignal<U>
 ```
 
 `forEach` is the producer of structural dynamism, the **entry** into the
-`DynArray` domain, and the replacement for the `Collection` / `DataSource` /
+`ArraySignal` domain, and the replacement for the `Collection` / `DataSource` /
 `dataBind` plumbing. It is the only operation other than `pure` that mints
 identity.
 
@@ -431,7 +483,7 @@ section is that argument, and it is the most important part of this document.
 - **The delegate is the last parameter** so it can be defaulted when only keying
   is wanted. *Wrinkle to settle:* with a signal-taking delegate, the identity
   default gives `U = AnySignal<T>`, so the defaulted call yields
-  `DynArray<AnySignal<T>>` rather than `DynArray<T>`. That is defensible but not
+  `ArraySignal<AnySignal<T>>` rather than `ArraySignal<T>`. That is defensible but not
   obviously what a caller expects; decide at implementation time whether the
   default unwraps it, or whether the defaulted overload is simply not offered.
 - **`keyFn` runs for every item whenever the array signal changes.** The
@@ -441,7 +493,7 @@ section is that argument, and it is the most important part of this document.
   and its item removed; the new key is new, so it gets a new id and the delegate
   runs. This is a consequence of the rule above, not a separate one.
 - **Eviction is strict.** When an item disappears its key→id mapping is dropped
-  immediately; the resulting `DynArray` is a strict 1:1 mapping of the source
+  immediately; the resulting `ArraySignal` is a strict 1:1 mapping of the source
   array, with no lingering entries for items that might come back.
 - **Duplicate keys**: assert in debug. In release, tolerate gracefully — the
   result may be suboptimal (an item may lose its identity and be rebuilt) but it
@@ -540,7 +592,7 @@ identity supplied by a key function instead of by the collection.
 **`dynamicBox`** (`src/bqui/include/bqui/dynamicbox.h:23`, the implementation
 behind `hbox`/`vbox` — `src/bqui/src/widget/hbox.cpp:18`,
 `src/bqui/src/widget/vbox.cpp:20`) consumes that exported signal. It keeps its
-job: `toSignal` on a `DynArray<AnyWidget>` produces the very signal it already
+job: `toSignal` on a `ArraySignal<AnyWidget>` produces the very signal it already
 takes, so it needs at most an overload. What it should shed is its build-cache (below).
 
 Existing callers are `src/bqui/test/databindtest.cpp:18` and
@@ -728,7 +780,7 @@ above and is not merely a cleanup.
 
 **PR #99 (dynamic windows)** is open, and makes `App`'s window list
 `AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
-stable id. It is expected to be reworked onto `DynArray<Window>`, with `App`
+stable id. It is expected to be reworked onto `ArraySignal<Window>`, with `App`
 owning the id allocator.
 
 ## Open questions
@@ -736,9 +788,9 @@ owning the id allocator.
 Points the design does not yet settle. Flagged rather than guessed.
 
 - **The defaulted delegate's return type.** As noted above, defaulting a
-  `(AnySignal<T>) -> U` delegate to identity yields `DynArray<AnySignal<T>>`,
-  not `DynArray<T>`. Decide whether to unwrap it, to require the delegate, or to
-  offer the default only where `DynArray<AnySignal<T>>` is what the consumer
+  `(AnySignal<T>) -> U` delegate to identity yields `ArraySignal<AnySignal<T>>`,
+  not `ArraySignal<T>`. Decide whether to unwrap it, to require the delegate, or to
+  offer the default only where `ArraySignal<AnySignal<T>>` is what the consumer
   wants.
 - **`{x}` — one-element list or single item?** They export the same list, so the
   choice is about which constructor wins and what the error messages say. Pick
@@ -755,11 +807,11 @@ Points the design does not yet settle. Flagged rather than guessed.
   Note that `Collection`'s ids are pointer values, so a `Collection` source must
   either feed its ids through as keys or be keyed on item content.
 - **The reactive subtree looks like a third minting site.** The identity algebra
-  says only `pure` and `forEach` mint identity, but the `AnySignal<DynArray<T>>`
+  says only `pure` and `forEach` mint identity, but the `AnySignal<ArraySignal<T>>`
   constructor hands out **fresh ids on every swap**. Either that constructor is
   an acknowledged third minting site — in which case the table needs a row and
   the "single rule" needs rewording — or the swap should be modelled as `join`
-  over a signal-of-`DynArray`, with the fresh ids coming from re-entering the
+  over a signal-of-`ArraySignal`, with the fresh ids coming from re-entering the
   new subtree's own `pure`s. The second is tidier and probably intended, but it
   is not what the current wording says. Reconcile before implementing.
 - **`filter` and the apply-once-per-id cache disagree about eviction.** Two
@@ -777,7 +829,7 @@ Points the design does not yet settle. Flagged rather than guessed.
 
 Two commits, in this order:
 
-1. **`DynArray<T>` core** — the type, its constructors, the tree, `join`,
+1. **`ArraySignal<T>` core** — the type, its constructors, the tree, `join`,
    `toSignal` and the scoped id allocator, and the generic apply-once-per-id
    operation. Independently useful: `App::windows` can consume it before
    `forEach` exists.
