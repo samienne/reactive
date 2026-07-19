@@ -825,6 +825,196 @@ freely on per-element signals — it takes advantage of `operator==` where the t
 has one and passes silently through where it does not. See *Skipping repeats* above
 for the details and for the usability trap in that silence.
 
+## One layout engine
+
+This is the headline finding, and it was not the goal when the design started.
+`bqui` has **two** layout engines: the static one (`layout()`, used by `box`,
+`stack` and `uniformGrid`) and the dynamic one (`dynamicBox`, used by `hbox` and
+`vbox` when the child list is a signal). The operator set above does not add a
+third. It **collapses the two into one**.
+
+### `layout()`'s own type aliases already are this API
+
+`src/bqui/include/bqui/widget/layout.h` declares exactly two things a layout must
+supply:
+
+```cpp
+// layout.h:11-13
+using ObbMap = btl::Function<
+    std::vector<avg::Obb>(ase::Vector2f size,
+            std::vector<SizeHint> const&)>;
+
+// layout.h:22-24
+using SizeHintMap = btl::Function<
+    SizeHint(std::vector<SizeHint> const&)
+    >;
+```
+
+Read those against the operator set:
+
+| `layout()` alias | Operator |
+| --- | --- |
+| `ObbMap` — `(Vector2f, vector<SizeHint>) -> vector<Obb>` | `mapValues(g, size)` — `g` is `vector<A> -> vector<B>`, `size` is the ambient extra |
+| `SizeHintMap` — `vector<SizeHint> -> SizeHint` | `values().map(...)` |
+
+`ObbMap` is `mapValues` with the container size as the injected extra, down to
+the argument order. `SizeHintMap` is `values()` followed by an ordinary
+`Signal::map`. The abstraction was not invented for this design; it was already
+sitting in the static engine's signature, un-named and un-reused.
+
+`layout()`'s implementation completes the picture: it fans in with
+`bq::signal::combine` over the children's hints (`layout.cpp:21-26`), computes
+once (`layout.cpp:31`), and fans out per child (`layout.cpp:34-55`). That is
+`extract`, `mapValues`, `scatter`, hand-written for the static case.
+
+### The static engine expresses nothing the dynamic one cannot — the tuple path is dead
+
+There is one thing the static engine could in principle do that a homogeneous
+`ArraySignal<T>` cannot: hold children of **heterogeneous types** in a
+`std::tuple`, keeping each child's concrete type through the layout. `box.h`
+contains the machinery for it:
+
+- `accumulateSizeHintsTuple` (`box.h:116-121`), returning
+  `AccumulateSizeHint<dir, std::tuple<Ts...>>`.
+- `MapObbs<dir>` (`box.h:163-202`), a struct whose `operator()` is templated on
+  the hint container and flattens it with `btl::forEach`.
+
+**Both are dead code.** A repo-wide search for either name over all `.h`, `.hpp`
+and `.cpp` files returns only their own definitions — `box.h:117` and `box.h:164`
+— and nothing else in the tree. `box()` uses the vector forms
+(`accumulateSizeHints<dir>` and `&mapObbs<dir>`, `box.h:238`); so do `stack`
+(`stack.cpp:25`) and `uniformGrid` (`uniformgrid.cpp:82-86`).
+
+So the only capability the static path has over a unified engine is one **no
+caller uses**. That removes the last reason to keep two implementations.
+
+### Cost: the static path is lighter at construction, not at steady state
+
+The fair objection is that a static list should not pay for identity it does not
+need. The honest accounting:
+
+- **Construction.** The unified engine costs one extra node in the graph and N
+  key allocations. Once.
+- **Steady state.** For a never-changing membership, `extract`'s `Join`
+  initialises its inner signal once and thereafter behaves as a plain `combine` —
+  the re-initialisation branch at `join.h:88-92` is only taken when the *outer*
+  signal changes, and for fixed membership it never does. `scatter` matches
+  identity once at construction, not per emission. **Per frame, both paths do the
+  same work.**
+
+A per-frame cost would be a real argument against unifying. A one-off
+construction cost is not.
+
+### Safety: keyed fan-out removes two unchecked arity contracts
+
+The static path fans out with `obbs.at(index)` on a captured index
+(`layout.cpp:37-47`). `at()` throws rather than corrupting, but the contract —
+"the obb vector has one entry per builder, in builder order" — is unchecked at
+the type level and is asserted nowhere. It is the same unchecked contract as
+`dynamicBox`'s `assert(obbs.size() == builders.size())` (`dynamicbox.h:70`),
+written a different way.
+
+Keyed fan-out removes both: `scatter` cannot be handed an aggregate that did not
+come from the matching `extract`.
+
+### The maintenance argument is the strongest one
+
+`dynamicBox` is missing `handleGravity()`. `layout()` applies it to every child
+(`layout.cpp:84-87`); `dynamicBox` does not apply it anywhere. `dynamicBox` also
+has the element-cache correctness bug described under *Rationale*.
+
+Neither is a hard problem. Both exist **because `dynamicBox` is a second
+implementation of `layout()` that drifted** — every fix to one has to be
+remembered for the other, and it was not. One engine makes drift structurally
+impossible, which is worth more than either individual fix.
+
+## Worked example: `dynamicBox`
+
+`dynamicBox` is ~150 lines of `dynamicbox.h`. Under the operator set it is
+roughly 15. The mapping, stage by stage:
+
+| Current implementation | Becomes |
+| --- | --- |
+| Apply `BuildParams` to each child widget (`dynamicbox.h:28-40`) | `map` |
+| Fan in each builder's size hint (`dynamicbox.h:42-53`) | `extract(&Builder::getSizeHint)` |
+| Container hint from children's hints (`dynamicbox.h:55-59`) | `values().map(accumulateSizeHints<dir>)` |
+| Obb computation (`dynamicbox.h:63-65`) | `mapValues(&mapObbs<dir>, size)` |
+| Re-key obbs positionally back onto builder ids (`dynamicbox.h:66-82`) | **deleted** — identity is carried by `KeyedArraySignal` |
+| `withPrevious` element cache and per-child id lookup (`dynamicbox.h:85-141`) | `scatter` |
+| Fan in each element's instance (`dynamicbox.h:143-156`) | `extract(&Element::getInstance).values()` |
+
+Two of those rows are the interesting ones.
+
+**The re-keying block disappears entirely.** `dynamicbox.h:66-82` exists only to
+re-attach ids that were dropped when the hints were fanned in: it asserts the two
+vectors are the same length and zips them by position. That is the alignment
+invariant being re-established by hand after having been thrown away. `extract`
+never throws it away, so there is nothing to re-establish.
+
+**The element cache becomes an operator.** `dynamicbox.h:85-141` is a
+`withPrevious` fold that, for each incoming builder id, linearly scans the
+previous result for a match, reuses it if found, and otherwise builds a new
+element whose obb comes from an O(n) search of the shared obb list
+(`dynamicbox.h:108-122`). That is apply-once-per-identity plus identity-matched
+fan-out, hand-rolled — `scatter`.
+
+### The missing `handleGravity()` is fixed structurally
+
+`layout()` pipes every child through `modifier::handleGravity()` before building
+it (`layout.cpp:84-87`). `dynamicBox` does not, so a gravity set on a child of an
+`hbox`/`vbox` with a dynamic child list is silently ignored.
+
+Unifying fixes this by construction rather than by remembering to add a line.
+`handleGravity` is a three-pass negotiation — it asks the child for
+`getWidth()`, clamps against the outer width, asks `getHeightForWidth()` with the
+result, clamps again, then asks `getWidthForHeight()` and clamps a third time
+(`handlegravity.h:16-34`) — and then offsets by the child's gravity
+(`handlegravity.h:37-46`). Its inputs are the child's own size hint, the outer
+size assigned to it, and the child's gravity.
+
+The `scatter` delegate has all three: the child's value (hence its builder, hence
+`getSizeHint()` and `getGravity()`), and the identity-matched obb, which *is* the
+assigned outer size. So `handleGravity` composes into the delegate with nothing
+threaded around.
+
+## Layout audit
+
+Every collection layout in `bqui` was checked against the operator set. All of
+them are expressible. Recording the audit is worth more than recording the
+conclusion, because several of them *look* like counterexamples.
+
+The reason none of them is: the apparent difficulties all live **inside the
+`vector<A> -> vector<B>` function body**, and `mapValues` takes an arbitrary
+function. No primitive beyond it is needed.
+
+| Apparent difficulty | Where it actually lives |
+| --- | --- |
+| The prefix scan with a running accumulator in `mapObbs`, with the y-axis running backwards (`box.h:213-230`) | A local `float acc` in a loop. No `scan` primitive needed. |
+| `getSizes` computes a container-level aggregate — the three-element `multiplier` — and then redistributes it per child (`box.h:24-52`) | One function that already receives every child's hint at once. That is exactly the `mapValues` shape. |
+| A second fan-in round *inside* the hint computation: `AccumulateSizeHint::getHeightForWidth` re-queries every child at its resolved width, zipping via a mutable counter (`box.h:70-90`) | Inside the `SizeHint` value, not in the signal graph. |
+| The lazy, re-entrant `SizeHint` (`AccumulateSizeHint`, `box.h:54-107`; `StackSizeHint`, `stacksizehint.h:8-15`) that the parent may re-query at arbitrary widths | The laziness is **inside the value**. The child hints are captured synchronously when the aggregate is built; re-querying never touches the signal graph. |
+| `stack` needs zero per-child data downward but all of it upward (`stack.cpp:12-25`) | `values()` for the upward direction; a `mapValues` that returns the same obb for every child for the downward one. |
+
+Two layouts actively shaped the design:
+
+- **`uniformGrid` carries per-child non-hint metadata.** Each child has a grid
+  `Cell` (`uniformgrid.cpp:21-22`), and the cells live in a **parallel vector**
+  held in correspondence with the widgets by an invariant that only
+  `UniformGrid::cell()` maintains. The obb map then captures `cells` and iterates
+  it positionally (`uniformgrid.cpp:55-80`) — a second unchecked alignment
+  contract, distinct from the hint one. An `ArraySignal` element that carries its
+  own metadata dissolves both the parallel vector and the invariant.
+- **`scrollView` composes children with synthetic extras.** Its final layout is
+  `vbox({ hbox({view, vScrollBar}), hbox({hScrollBar, hfiller | setSizeHint}) })`
+  (`scrollview.cpp:136-141`) — the filler has no corresponding input child at
+  all. This is what makes **`concat` load-bearing rather than theoretical**: a
+  container must be able to place framework-supplied children alongside the
+  caller's without them sharing an identity space.
+
+**Not collection layouts, and out of scope:** `bin`, `scrollView` itself,
+`background`/`foreground` (`modifier/background.h:13-18`) and `scrollBar`. They
+take a fixed number of children with fixed roles and stay exactly as they are.
+
 ## What this supersedes
 
 The existing pipeline, and what `forEach` does instead:
