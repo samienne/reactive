@@ -162,59 +162,63 @@ ArraySignal<Widget> content = {
 };
 ```
 
-Nesting is not a special case in the consumer: the consumer sees the exported
-`(id, value)` list and never walks the tree.
+Nesting is not a special case in the consumer: a consumer operates through
+`forEach`, `map`, `extract` and `scatter`, all of which see a flat sequence of
+identified elements, and never walks the tree.
 
-### It leaves the domain as `AnySignal<std::vector<std::pair<size_t, T>>>`
+Note that the *stated public requirement* is only that `{a, b, c}` compiles for
+values of `T`. The `initializer_list` element type being `ArraySignal<T>` rather
+than `T` is how that requirement is met **and** how nesting falls out for free,
+since every accepted form converts to `ArraySignal<T>`.
 
-The single exit from `ArraySignal<T>` back to `Signal` produces a signal of
-`(id, value)` pairs in list order. Consumers reconcile against the ids and never
-look at the tree.
+### Identity is internal, and the id space belongs to the `ArraySignal`
 
-This is not a new shape. `dataBind` already returns exactly it for widgets
-(`src/bqui/include/bqui/databind.h:22`), and the open PR #99 proposes
-`AnySignal<std::vector<std::pair<size_t, Window>>>` for `App`'s window list.
-`ArraySignal` generalises what those two arrived at independently.
+**Settled:** the id allocator is **constructed at the point the `ArraySignal` is
+constructed**, and is scoped to it. Ids are unique within one `ArraySignal` and
+mean nothing outside it.
 
-### Ids are assigned at the exit, by a scoped allocator
+This is a reversal of an earlier draft, which put the allocator at the *exit*
+because ids were the consumer's business — a consumer reconciled against them,
+so a consumer-scoped, deterministic id space was what tests could assert on. The
+operator set below removes that requirement: identity is carried by
+`KeyedArraySignal`, `extract` and `scatter` match within a single `ArraySignal`'s
+space, and **an id never reaches user code**. Once nobody outside can see an id,
+the natural owner of the id space is the array itself, and the tension the
+earlier draft was working around disappears with it.
 
-**Settled:** the allocator is constructed at the point the
-`AnySignal<std::vector<std::pair<size_t, T>>>` is constructed, and is a
-parameter of that operation. **Construction of a `ArraySignal` assigns no ids at
-all**; the exit does. So an id is a property of *one exit's* view of the tree,
-and the allocator's lifetime is the exit signal's lifetime.
+That tension was real, so record why it no longer bites. A *consumer*-owned
+allocator cannot be satisfied at construction time: nested `ArraySignal`s are
+built before their parent, and the parent before it ever reaches a consumer, so
+there is no point during construction at which the consumer's allocator is in
+scope. An *array*-owned allocator has no such problem — each `ArraySignal`
+allocates in its own space as it is built, and concatenation re-namespaces
+children rather than needing a shared counter.
 
-This resolves what would otherwise be a genuine tension. A consumer-owned
-allocator and a per-type constructor set cannot both be satisfied at
-construction time: nested `ArraySignal`s are built before their parent, and the
-parent before it ever reaches a consumer, so there is no point during
-construction at which the consumer's allocator is in scope. Making the allocator
-a parameter of the exit removes the problem instead of threading around it —
-`ArraySignal` values stay pure descriptions that can be built, stored, and passed
-anywhere, and nothing needs an ambient allocator.
+Consequences:
 
-Ids are **reused across re-exports**, so an item that survives a change keeps
-its id. This requires the allocator to be *stateful and durable* — it lives with
-the exit signal, not with a single evaluation.
+- Ids are **reused across evaluations**, so an item that survives a change keeps
+  its id. The allocator is therefore *stateful and durable*: it lives with the
+  `ArraySignal`'s durable state, not with a single evaluation.
+- **`forEach`'s key→id map lives in that same state.** It is not per-evaluation
+  state and it is not something a user-visible value carries. Which mechanism
+  holds it (a `DataType` slot in the `SignalContext`, or a control block with its
+  own id as `SharedControl` does) is an implementation choice; the requirement is
+  only that its lifetime match the `ArraySignal`'s.
+- Not a process-wide global, for the same two reasons as before: no global
+  mutable state to make thread-safe, and deterministic ids so that a test can
+  assert on the id set rather than on whatever the global counter happened to be
+  at. (A global atomic in the style of `bq::signal::makeUniqueId`,
+  `src/bq/src/signal/datacontext.cpp:7-11`, remains the fallback if the scoped
+  form proves unworkable.)
 
-Not a process-wide global, for two reasons: no global mutable state to make
-thread-safe, and **deterministic per-exit ids**, which is what lets a test
-assert on the id set — as PR #99's window tests do — instead of on whatever the
-global counter happened to be at. Ids only need to be unique *within one exit*,
-so a per-consumer allocator is sufficient. (A global atomic in the style of
-`bq::signal::makeUniqueId`, `src/bq/src/signal/datacontext.cpp:7`, remains the
-fallback if the scoped form proves unworkable — but the tension that motivated
-that escape hatch is now gone.)
-
-**Consequence for `forEach`'s key→id map.** That map is what makes an id
-survive, so it lives wherever the allocator lives: in the durable state hanging
-off the exit signal, created and destroyed with it. It is *not* per-evaluation
-state, and it is not something the `ArraySignal` value carries — a `ArraySignal` used
-by two exits legitimately has two independent id spaces and therefore two maps.
-Exactly which mechanism holds that state (a `DataType` slot in the
-`SignalContext`, or a control block with its own id, as `SharedControl` does) is
-an implementation choice; the requirement is only that its lifetime match the
-exit's.
+**What still needs an id-revealing exit.** PR #99 gives `App` a window list of
+`AnySignal<std::vector<std::pair<size_t, Window>>>`, and `dataBind` already
+returns exactly that shape for widgets
+(`src/bqui/include/bqui/databind.h:22`). Those consumers reconcile against ids
+directly. Under this design they are served by `extract`/`scatter` like any
+other consumer — the reconcile *is* apply-once-per-identity — but if a raw
+id-pair exit survives for them, it reveals the `ArraySignal`'s own ids rather
+than minting a per-consumer space. See *Open questions*.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
@@ -256,40 +260,151 @@ These are design constraints on the implementation, not incidental details.
   actually produces it rather than leaving it to whichever constructor happened
   to be a better match.
 
-## `ArraySignal` as a domain alongside `Signal`
+## The API surface: two layers
 
-`ArraySignal` is not a helper type bolted onto `Signal` — it is **its own domain**,
-with its own operations, entered and left by explicit boundary operations:
+Most callers need four things: build one, iterate it, concatenate, transform.
+Layout implementors need two more, and those two are sharp enough that an
+ordinary caller reaching for them is almost always a mistake. So the surface is
+split across **two headers**:
 
-```
-                forEach(collection, keyFn, delegate)
-    Signal  ──────────────────────────────────────────▶  ArraySignal
-            ◀──────────────────────────────────────────
-                        toSignal(allocator)
-```
+| Header | Namespace | Contents |
+| --- | --- | --- |
+| `<bq/signal/arraysignal.h>` | `bq::signal` | `ArraySignal<T>` and its constructors (`std::initializer_list`, `std::vector<T>`, `AnySignal<...>`); `forEach(keyFn, delegate)`; `concat`; `map` |
+| `<bq/signal/arraysignallayout.h>` | a nested namespace, e.g. `bq::signal::layout` | the free functions `extract` and `scatter`, plus `KeyedArraySignal<A>`'s operations |
 
-Naming this is worth doing because most of the structure is **already latent**
-in the design above. Making it explicit tells us which operations must exist,
-what their laws are, and — most usefully — what each one does to identity.
+### Why not the `src/`-vs-`include/` firewall
 
-### The operations
+The project's usual way to hide something is to keep it out of
+`src/<lib>/include/`, which makes it uncompilable from any other library
+(`docs/conventions.md`). **That mechanism cannot be used here.** `ArraySignal`
+lives in `bq`; layouts live in `bqui`; `bqui` can only include `<bq/...>` public
+headers. Anything internal to `bq` is unreachable from a layout, and layouts are
+precisely the code that needs `extract` and `scatter`. The firewall is
+inter-library, and this split is intra-audience — the wrong tool.
 
-- **`pure : T → ArraySignal<T>`** — the single-item constructor. Already in the
-  table above.
-- **Concatenation** — the `initializer_list` / `vector<ArraySignal<T>>`
-  constructor, with the empty list as identity. This is a **monoid**, and its
-  associativity law is not an abstraction: it is literally the brace-nesting
-  ergonomics we require, `{a, {b, c}} ≡ {a, b, c}`. The syntax goal and the
-  algebraic law are the same statement.
-- **`join : ArraySignal<ArraySignal<T>> → ArraySignal<T>`** — already latent. A branch
-  node *is* nesting, and collapsing the tree *is* join. It deserves a name
-  because `flatMap` then falls out as `map` followed by `join`, with no new
+So the separation is by **header and namespace**, which is advisory rather than
+enforced. That is the correct strength: an implementor who writes the extra
+include has declared intent, and grep finds every such site.
+
+### Why the advanced operations must be free functions
+
+In C++ a class's member functions are all declared in one class definition.
+There is no way to add members in a second header, and no way to make a member
+available only to code that opted in. **Gating the surface therefore requires
+that the gated operations not be members.** `extract` and `scatter` are free
+functions for that reason, not for aesthetics.
+
+`KeyedArraySignal` being a separate type does most of the work for free:
+`mapValues`, `mapKeyed` and `values` are members of a type an ordinary caller
+never obtains, so they are already out of reach. Only `extract` and `scatter` —
+which take or return an `ArraySignal` — need moving off the class.
+
+### The layering test
+
+**`forEach` must be implementable in terms of the advanced operations.** If the
+basic layer needs machinery the advanced layer cannot express, the split is
+cosmetic and the "advanced" header is not actually the lower layer — it is a
+sibling, and the document should say so instead.
+
+Concretely, what the test comes down to is that `forEach`'s
+once-per-identity delegate invocation and `extract`'s once-per-identity
+initialisation are **the same primitive**, used once for fan-out and once for
+fan-in. This is not yet demonstrated; see *Open questions*.
+
+## The operator set
+
+Two groups. The first is the everyday surface; the second is what a container
+implementation needs.
+
+### Basic
+
+- **`ArraySignal<T>{...}` / from `vector<T>` / from `AnySignal<...>`** — the
+  constructors. The single-item form is `pure : T → ArraySignal<T>`.
+- **`concat`** — the `initializer_list` / `vector<ArraySignal<T>>` form, with the
+  empty array as identity. This is a **monoid**, and its associativity law is not
+  an abstraction: it is literally the brace-nesting ergonomics we require,
+  `{a, {b, c}} ≡ {a, b, c}`. The syntax goal and the algebraic law are the same
+  statement.
+- **`map : (T → U) → ArraySignal<T> → ArraySignal<U>`** — a lawful functor,
+  value-level. See *`forEach` vs `map`*.
+- **`forEach(keyFn, delegate)`** — the keyed operator; identity-level.
+- **`join : ArraySignal<ArraySignal<T>> → ArraySignal<T>`** — latent in the tree
+  shape: a branch node *is* nesting, and collapsing the tree *is* join. Worth a
+  name because `flatMap` then falls out as `map` followed by `join`, with no new
   machinery.
-- **`map : (T → U) → ArraySignal<T> → ArraySignal<U>`** — a lawful functor. See the
-  caveat below: this is emphatically **not** the delegate form `forEach`
-  rejects.
 - **`filter`** — not required by anything here, but obviously wanted soon.
   Identity-preserving for the items that survive.
+
+### Advanced: the fan-in / fan-out pair
+
+- **`extract(f : T → AnySignal<A>) → KeyedArraySignal<A>`** — order-preserving
+  fan-in. `f` is applied **once per identity**, so the per-element signal it
+  returns is initialised once and thereafter merely updates. For a layout, `f` is
+  "give me this child's size hint".
+- **`mapValues(g : vector<A> → vector<B>, extras...) → KeyedArraySignal<B>`** —
+  the maths. `g` sees every child's value at once and returns one value per
+  child; identity rides along untouched. `extras...` are ambient signals injected
+  alongside the vector — for a layout, the container's own size. This is where a
+  layout's obb computation goes.
+- **`mapKeyed(vector<pair<Key, A>> → vector<pair<Key, B>>)`** — the same, for
+  computations that **reorder or drop**. `Key` is opaque: comparable and hashable,
+  and otherwise meaningless. Nothing may be inferred from its value, its ordering
+  relative to other keys, or its stability across runs.
+- **`values() → AnySignal<vector<A>>`** — the one-way escape back to a plain
+  signal, discarding identity. **Every** layout needs it, for upward size-hint
+  propagation: the container's own hint is a pure function of its children's
+  hints and has no per-child result to scatter back.
+- **`scatter(keyed, f) → ArraySignal<U>`** — fan-out, where `f` is
+  `(AnySignal<T>, AnySignal<B>) -> U`: exactly `map`'s delegate plus the
+  identity-matched slice of the aggregate. For a layout, `f` is "build this child
+  against the obb that was computed for it".
+
+### `scatter` is `map` with one extra, identity-matched argument
+
+That is the sentence that makes the operator obvious. `map` gives the delegate
+the element's own value; `scatter` gives it the element's own value *and* the
+element's own share of a previously computed aggregate.
+
+It can be hand-rolled as `map` plus an id lookup — that is exactly what
+`dynamicBox` does today, at `dynamicbox.h:108-122`, where each child maps the
+shared obb list and linearly searches it for its own id. Three things are wrong
+with the hand-rolled form:
+
+- **It is O(n) per element per emission**, so O(n²) per layout change.
+- **Missing entries are undefined.** `dynamicBox` asserts and returns a
+  default-constructed `avg::Obb` (`dynamicbox.h:118-119`) — in release, a
+  zero-sized box, silently.
+- **Nothing stops a lookup in a foreign id space.** The ids are plain `size_t`;
+  a list from a different container type-checks perfectly.
+
+`scatter` does the match **once, in one pass**, at construction.
+
+### The distinguished type is what removes the hazard
+
+The aggregate could have been a plain `AnySignal<vector<pair<Id, A>>>`. Making it
+a **distinguished type** — `KeyedArraySignal<A>` — is what turns the matching
+hazard into a compile error:
+
+- Only something `extract` produced can be scattered back.
+- Ids never surface, so nothing can be keyed on them by accident and no caller
+  can invent one.
+- The alignment invariant is **carried by the type** rather than by
+  `assert(obbs.size() == builders.size())` (`dynamicbox.h:70`).
+
+That last point is the whole argument for a new type rather than a type alias.
+
+### Multi-value `ArraySignal` was considered and rejected
+
+`Signal<Ts...>` is variadic, and mirroring that with `ArraySignal<Ts...>` was
+considered, mainly to avoid making callers write `std::pair` when an element
+naturally carries two things.
+
+That motivation **evaporated once `scatter` took a function**: the delegate
+receives two separate signal arguments, so the common case — value plus
+aggregate slice — never needed a pair in the first place. The general case is
+recovered with a `makePair`-style helper at the call site. Variadic
+`ArraySignal` would multiply every operator signature above for a problem that
+no longer exists.
 
 ### The identity algebra
 
@@ -300,26 +415,21 @@ to reason from when asking "will this rebuild?":
 | Operation | Effect on identity |
 | --- | --- |
 | `pure` | **creates** one id |
-| concatenation / nesting | **namespaces** children — child ids stay distinct, order is preserved |
+| `concat` / nesting | **namespaces** children — child ids stay distinct, order is preserved |
 | `map` | **preserves** — same ids, transformed values |
 | `filter` | **preserves** for survivors; dropped items' ids are evicted |
 | `join` / `flatMap` | **namespaces** inner ids into the outer id space |
 | `forEach` | **creates** ids, derived from keys |
-| `toSignal` | **reveals** ids; creates nothing |
+| `extract` | **preserves** — the `KeyedArraySignal` carries the input's ids |
+| `mapValues` | **preserves** — identity rides along, values change |
+| `mapKeyed` | **preserves** for the keys the function returns; others are dropped |
+| `values` | **discards** — the result is a plain signal with no identity |
+| `scatter` | **preserves** — re-enters `ArraySignal` with the ids it matched on |
 
 Read it as a single rule: **only `pure` and `forEach` mint identity.**
-Everything else either carries identity through unchanged or re-namespaces it
-without inventing any. That is what makes it possible to look at a pipeline and
-say whether a given item will keep its state.
-
-One clarification the table needs, given that ids are assigned at the exit:
-inside the domain, identity is **symbolic** — a position in the tree, or a key —
-and it is `toSignal` that resolves each symbolic identity to a concrete
-`size_t`. "`pure` creates an id" means it introduces a new identity that the
-exit will number; "`map` preserves ids" means it does not disturb the symbolic
-identities, so the same items get the same numbers as they would have without
-it. The two statements — "construction assigns no ids" and "`map` preserves
-ids" — are consistent only under this reading, so state it in the Doxygen too.
+Everything else either carries identity through unchanged, re-namespaces it
+without inventing any, or drops it entirely (`values`). That is what makes it
+possible to look at a pipeline and say whether a given item will keep its state.
 
 ### The boundary is asymmetric
 
@@ -331,34 +441,32 @@ values with no notion of which value "is" which across a change. Identity has to
 come from somewhere, and only the caller knows what makes two items the same
 thing. Hence `forEach` takes a `keyFn`.
 
-Leaving is free because by then the ids exist; `toSignal` only has to *reveal*
-them, and its allocator parameter is about which id space to reveal them in, not
-about inventing identity.
+Leaving is free because by then the identities exist and `values()` merely
+forgets them. Forgetting needs no information; remembering does.
 
 This is the one-sentence answer to "why does `forEach` need a key function and
-the exit does not?"
+`values()` does not?"
 
-### Naming: `join`/`flatten` vs `toSignal`
+### Naming: `join` vs `values`
 
 Two distinct collapses exist and must not share a name:
 
-- **`join`** (or `flatten`) — `ArraySignal<ArraySignal<T>> → ArraySignal<T>`. Stays
-  inside the domain; collapses nesting.
-- **`toSignal(allocator)`** — `ArraySignal<T> → AnySignal<vector<pair<size_t, T>>>`.
-  Leaves the domain; assigns and reveals ids.
+- **`join`** (or `flatten`) — `ArraySignal<ArraySignal<T>> → ArraySignal<T>`.
+  Stays inside the domain; collapses nesting; identity survives.
+- **`values()`** — `KeyedArraySignal<A> → AnySignal<vector<A>>`. Leaves the
+  domain; identity is discarded.
 
-`resolve(allocator)` is an acceptable alternative for the second. What is not
-acceptable is calling both of them `flatten`, which is the natural drift given
-that both "flatten" something — and which would make every sentence about ids
-ambiguous. Earlier drafts of this document used "flatten" for the exit; that
-usage is retired.
+What is not acceptable is calling both of them `flatten`, which is the natural
+drift given that both "flatten" something — and which would make every sentence
+about identity ambiguous. Earlier drafts used "flatten" for the exit; that usage
+is retired.
 
 ### One operation, three call sites: apply-once-per-id
 
 The pattern **build once per id → cache the result → reuse it on later
 emissions** currently exists in three places:
 
-1. `dynamicBox` caches built elements by id (`dynamicbox.h:104-159`).
+1. `dynamicBox` caches built elements by id (`dynamicbox.h:85-141`).
 2. `App`'s window reconcile in PR #99: create a `WindowGlue` on a new id,
    destroy it when the id vanishes, keep it otherwise.
 3. `forEach` would be the third.
@@ -380,29 +488,46 @@ Semantics, fixed to match the rest of the design:
 - A **re-appearing key rebuilds.** There is no resurrection of evicted state; a
   key that goes away and comes back is a new item, exactly as a changed key is.
 
-### `.map` is value-level; the build delegate is structure-level
+## `forEach` vs `map` — the central distinction
 
-This looks contradictory and is the most important caveat in the document: a
-`(T) -> U` function is **banned** as the `forEach` delegate and **fine** as
-`.map`. Same signature — different role.
+Both take a function from an element to something else. They are not
+interchangeable, and confusing them is the single easiest way to write code that
+looks right and silently throws away user state.
 
-- **`.map(f)` is value-level.** It is implemented as a per-element `sig.map(f)`,
-  so the `Map` node is created **once per identity**, and on a value change `f`
-  re-runs *inside* the already-built signal graph. Nothing is constructed, so
-  nothing is destroyed. Lawful functor, no state loss.
-- **The build delegate is structure-level.** Its `f` *constructs* something
-  stateful — a widget with an input, a stream fold, a window. Re-invoking it
-  means a rebuild, and a rebuild is what destroys state (see *Rationale*).
+- **`forEach` is identity-level.** Its delegate is `(AnySignal<T>) -> U`, and it
+  is invoked **once per key**. It is *not* re-invoked when the item's value
+  changes — the new value arrives through the signal the delegate already holds.
+  Nothing is constructed on a value change, so nothing is destroyed. **This is
+  what preserves widget state.**
+- **`map` is value-level.** Its function is `T -> U`, re-run on every value
+  change. Implemented as a per-element `sig.map(f)`, so the `Map` node is created
+  once per identity and `f` re-runs *inside* the already-built graph. Perfect for
+  data; ruinous for widgets, because building a widget here reconstructs it — and
+  everything it holds — on every change.
 
-The rule to hold onto:
+The rule, stated plainly, is the one sentence to carry out of this document:
 
-> **`.map` for transforming values; the `(AnySignal<T>) -> U` build form for
-> constructing stateful things.**
+> **Transform data in `map`; build widgets in `forEach`.**
 
 The type system cannot tell these apart — `(T) -> U` is `(T) -> U` whether it
 adds one to a number or spins up a text field with a cursor — so the
-documentation has to. A `.map` whose function constructs a widget is the
-footgun; that is the one thing to say in the Doxygen for `map`.
+documentation has to. A `map` whose function constructs a widget is the footgun;
+that is the one thing to say in the Doxygen for `map`.
+
+### Why `map` stays public
+
+The tempting safety move is to hide `map` and let `forEach` cover everything.
+That is worse. `forEach` **mints an identity** for every element, and an identity
+is a commitment: a key to compute, a key→id entry to keep, an eviction rule to
+reason about. Forcing a pure `T -> U` data transform through `forEach` pays all
+of that for something that has no state to preserve, and — more importantly —
+teaches callers that `forEach` is the default, which makes the identity-level /
+value-level distinction invisible exactly where it matters.
+
+`map` is public because the choice between the two must be *made*, not defaulted
+into.
+
+### `map` with extra signals
 
 ### `map` with extra signals
 
