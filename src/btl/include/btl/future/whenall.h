@@ -51,8 +51,11 @@ namespace btl::future
                     >
     {
     public:
+        // count_ starts one above the input count; init() owns the extra count
+        // and releases it only after it has stopped walking values_, so
+        // completion never destroys values_ from under that walk.
         WhenAll(std::tuple<Ts...> values) :
-            count_(((IsFuture<std::decay_t<Ts>>::value ? 1 : 0) + ... + 0)),
+            count_(((IsFuture<std::decay_t<Ts>>::value ? 1 : 0) + ... + 0) + 1),
             values_(std::move(values))
         {
         }
@@ -82,10 +85,9 @@ namespace btl::future
 
             });
 
-            if (failed_.load(std::memory_order_acquire))
-                values_.reset();
+            arriveAndReset();
 
-            initialized_.store(true, std::memory_order_release);
+            reportValueReady();
         }
 
         void reportFailure(std::exception_ptr err)
@@ -94,40 +96,53 @@ namespace btl::future
             bool hadNotFailed = failed_.compare_exchange_strong(expected, true);
             if (hadNotFailed)
             {
-                this->setFailure(std::move(err));
+                arriveAndReset();
 
-                if (initialized_.load(std::memory_order_acquire))
-                    values_.reset();
+                this->setFailure(std::move(err));
             }
         }
 
         void reportValueReady()
         {
-            auto count = count_.fetch_sub(1);
+            auto count = count_.fetch_sub(1, std::memory_order_acq_rel);
 
             assert(count >= 1);
 
             if (count == 1)
             {
-                std::apply([this](auto&&... values)
+                auto value = std::apply([](auto&&... values)
                     {
-                        this->setValue(std::tuple_cat(
+                        return std::tuple_cat(
                                     detail::getValueAsTuple(
                                         std::forward<decltype(values)>(values)
                                         )...
-                                    ));
+                                    );
                     },
                     std::move(*values_)
                     );
 
-                values_.reset();
+                arriveAndReset();
+
+                this->setValue(std::move(value));
             }
         }
 
     private:
+        // Arrivals come from init(), the success path and the failure path,
+        // and exactly two of them ever happen: a failed input reports failure
+        // instead of readiness, so count_ never reaches one. init() arrives
+        // once its walk is over, so the second arrival, the one that resets,
+        // never runs mid-walk. Both callers arrive before publishing the
+        // result, so a ready combined future has already dropped its inputs.
+        void arriveAndReset()
+        {
+            if (resetArrivals_.fetch_add(1, std::memory_order_acq_rel) == 1)
+                values_.reset();
+        }
+
         std::atomic_int count_;
         std::atomic_bool failed_ = false;
-        std::atomic_bool initialized_ = false;
+        std::atomic_int resetArrivals_ = 0;
         std::optional<std::tuple<Ts...>> values_;
     };
 

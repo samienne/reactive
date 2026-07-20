@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
+#include <memory>
 #include <random>
 #include <thread>
 #include <type_traits>
@@ -436,21 +438,27 @@ TEST(async, futureResult)
 
 TEST(async, futureFail)
 {
-    bool failCalled = false;
+    // Retrieving the value does not imply the registered callbacks have run:
+    // the value is published before they are invoked, so the callback can
+    // still be pending when get() returns. Wait for the callback itself.
+    auto failCalled = std::make_shared<std::promise<void>>();
+    auto failLatch = failCalled->get_future();
+
     auto f = btl::async([]()
             {
                 throw std::runtime_error("test error");
 
                 return 10;
             })
-            .onFailure([&](std::exception_ptr const&)
+            .onFailure([failCalled](std::exception_ptr const&)
             {
-                failCalled = true;
+                failCalled->set_value();
             });
 
 
     EXPECT_THROW(std::move(f).get(), std::runtime_error);
-    EXPECT_TRUE(failCalled);
+    EXPECT_EQ(std::future_status::ready,
+            failLatch.wait_for(std::chrono::seconds(10)));
 }
 
 TEST(async, whenAllFail)
@@ -469,21 +477,24 @@ TEST(async, whenAllFail)
                     return 20;
                 });
 
-        std::atomic_bool failCalled = false;
+        auto failCalled = std::make_shared<std::promise<void>>();
+        auto failLatch = failCalled->get_future();
 
         auto r1 = whenAll(std::move(f1), std::move(f2))
             .then([](int x, int y)
             {
                 return x+y;
             })
-            .onFailure([&](std::exception_ptr const&)
+            .onFailure([failCalled](std::exception_ptr const&)
             {
-                failCalled.store(true);
+                failCalled->set_value();
             })
             ;
 
         EXPECT_THROW(std::move(r1).get(), std::runtime_error);
-        EXPECT_TRUE(failCalled.load());
+
+        ASSERT_EQ(std::future_status::ready,
+                failLatch.wait_for(std::chrono::seconds(10)));
     }
 }
 
@@ -541,3 +552,88 @@ TEST(async, mergeFail)
     }
 }
 
+TEST(async, mergeInputsReadyBeforeInit)
+{
+    // Every input is already ready when merge() registers its callbacks, so
+    // each registration runs the completion path from inside init()'s loop.
+    std::vector<Future<int>> v;
+    for (int i = 0; i < 32; ++i)
+        v.push_back(makeReadyFuture(i));
+
+    auto r = merge(std::move(v));
+
+    EXPECT_EQ(32u, std::move(r).get().size());
+}
+
+TEST(async, mergeEmpty)
+{
+    auto r = merge(std::vector<Future<int>>());
+
+    EXPECT_TRUE(std::move(r).get().empty());
+}
+
+TEST(async, whenAllInputsReadyBeforeInit)
+{
+    // Both inputs are already ready when whenAll() registers its callbacks, so
+    // each registration runs the completion path from inside init()'s walk.
+    auto r = whenAll(makeReadyFuture(10), makeReadyFuture(20))
+        .then([](int i, int j)
+            {
+                return i + j;
+            });
+
+    EXPECT_EQ(30, std::move(r).get());
+}
+
+TEST(async, mergeReleasesInputsOnFailure)
+{
+    // A failing merge must drop its inputs, not hold them for as long as the
+    // merged future lives. The retained input still owns its value, so the
+    // value's use count is the observable.
+    auto value = std::make_shared<int>(7);
+
+    auto [p, fut] = btl::test::makeManualFuture<std::shared_ptr<int>>();
+
+    std::vector<Future<std::shared_ptr<int>>> v;
+    v.push_back(makeReadyFuture(value));
+    v.push_back(std::move(fut));
+
+    long useCountWhenReady = 0;
+
+    auto r = merge(std::move(v))
+        .onFailure([&](std::exception_ptr const&)
+            {
+                useCountWhenReady = value.use_count();
+            });
+
+    p.setFailure(std::make_exception_ptr(std::runtime_error("test error")));
+
+    EXPECT_THROW(std::move(r).get(), std::runtime_error);
+
+    // The inputs must already be gone by the time the merged future is made
+    // ready, not merely by the time the caller looks.
+    EXPECT_EQ(1, useCountWhenReady);
+    EXPECT_EQ(1, value.use_count());
+}
+
+TEST(async, whenAllReleasesInputsOnFailure)
+{
+    auto value = std::make_shared<int>(7);
+
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    long useCountWhenReady = 0;
+
+    auto r = whenAll(makeReadyFuture(value), std::move(fut))
+        .onFailure([&](std::exception_ptr const&)
+            {
+                useCountWhenReady = value.use_count();
+            });
+
+    p.setFailure(std::make_exception_ptr(std::runtime_error("test error")));
+
+    EXPECT_THROW(std::move(r).getTuple(), std::runtime_error);
+
+    EXPECT_EQ(1, useCountWhenReady);
+    EXPECT_EQ(1, value.use_count());
+}
