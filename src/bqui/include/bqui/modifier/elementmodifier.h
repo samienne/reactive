@@ -51,9 +51,6 @@ namespace bqui::modifier
         btl::CloneOnCopy<TFunc> func_;
     };
 
-    extern template class BQUI_EXPORT_TEMPLATE
-        ElementModifier<std::function<widget::AnyElement(widget::AnyElement)>>;
-
     namespace detail
     {
         template <typename TFunc>

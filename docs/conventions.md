@@ -1,6 +1,6 @@
 # Conventions & gotchas
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `9cbe4cb` (2026-07-20).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -23,7 +23,7 @@ edge should be a hard `#include` error, not a silent compile against another
 library's internals. When adding a public header, put it under the nested
 `<lib>/` directory.
 
-## Symbol visibility and DLL export (Windows)
+## Symbol visibility and DLL export
 
 Exported template instantiations use a macro scheme in
 `src/btl/include/btl/visibility.h` (`BTL_EXPORT_TEMPLATE` etc., re-exported per
@@ -39,6 +39,37 @@ so if the instantiation *definition* is not marked exported you get
 unresolved-symbol link errors under clang-cl only. Always mark the definition,
 not just the declaration. (This is why the Windows branch of `visibility.h`
 gives `*_EXPORT_TEMPLATE` a real `dllexport`/`dllimport`.)
+
+The other trap: **GCC cannot export bqui's type-erased instantiations at all.**
+The libraries build with `gnu_symbol_visibility: 'hidden'`, and GCC fixes a
+specialization's visibility when the specialization is first *named*. It takes
+the **minimum of the explicit attribute and the computed minimum over the
+template arguments** — an attribute is honoured, but it cannot lift an argument
+that is itself hidden. The type-erased classes name their own erased
+specialization inside their bodies — `operator AnyWidget() &&` and friends — so
+the specialization is fixed at that point, through `std::function` of a hidden
+type, and no later attribute reaches it. The instantiation is emitted, but
+localised when the shared object is linked, so a consumer's reference is
+unresolved.
+
+Raising it would mean marking every type in the argument tree default-visible,
+including `bq::signal::AnySignal` — a cross-library ABI widening with no
+compile-time backstop for the next unmarked type to join the tree. So
+**`Widget`, `Element`, `WidgetModifier`, `ElementModifier` and
+`BuilderModifier` carry no `extern template` declaration on any toolchain**;
+every translation unit instantiates them implicitly. `Element` had been doing
+exactly that for years already.
+
+This is specific to classes that name their own erased specialization.
+`avg::Animated<T>` keeps the `extern template` scheme and exports normally,
+because it has no such self-conversion operator.
+
+**A Release build hides the whole problem** — the members are small enough to
+inline at every call site, so no external reference is emitted. That is why the
+gcc-12 and clang-11 **Debug** matrix legs exist.
+
+GCC **9 through 16** were probed and behave identically, so this is not
+something to gate on a version range. clang is unaffected.
 
 ## Templates: latent bugs and smoke tests
 
@@ -84,9 +115,9 @@ template metaprogramming into named aliases, Doxygen-only API reference) live in
 
 ## CI
 
-The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy, plus one
-clang-15 ASan+UBSan leg), macOS (Release and Debug), and Windows (**MSVC and
-clang-cl**). A single aggregating
+The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy, one
+clang-15 ASan+UBSan leg, plus gcc-12 and clang-11 in Debug), macOS (Release and
+Debug), and Windows (**MSVC and clang-cl**). A single aggregating
 job, **`ci-success`**, `needs` all the build jobs and is the *only* required
 status check — new matrix legs are covered automatically, and a new top-level
 job just needs adding to its `needs` list. Mark only `ci-success` as required in

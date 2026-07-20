@@ -49,7 +49,9 @@ jobs:
                   { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Release" },
                   { "deps": "clang-11",      "tool": "clang-11", "set": "Release" },
                   { "deps": "clang-11",      "tool": "clang-11", "set": "Tracy"   },
-                  { "deps": "",              "tool": "clang-15", "set": "Sanitize" } ]
+                  { "deps": "",              "tool": "clang-15", "set": "Sanitize" },
+                  { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Debug"   },
+                  { "deps": "clang-11",      "tool": "clang-11", "set": "Debug"   } ]
         runs-on: "ubuntu-22.04"
         steps:
         - uses: actions/checkout@v5

@@ -65,17 +65,12 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
-args = []
-if target_machine.system() != 'windows'
-  args += ['-Wno-attributes']
-endif
-
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
   dependencies: bquidep,
-  cpp_args: ['-DBQUI_EXPORT_SYMBOLS', args],
+  cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
   gnu_symbol_visibility: 'hidden'
   )
 

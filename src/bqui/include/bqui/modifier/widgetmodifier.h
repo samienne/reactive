@@ -46,9 +46,6 @@ namespace bqui::modifier
         btl::CloneOnCopy<TFunc> func_;
     };
 
-    extern template class BQUI_EXPORT_TEMPLATE
-        WidgetModifier<std::function<widget::AnyWidget(widget::AnyWidget)>>;
-
     namespace detail
     {
         template <typename TFunc>
