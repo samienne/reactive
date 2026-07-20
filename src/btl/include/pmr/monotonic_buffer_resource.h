@@ -53,7 +53,9 @@ namespace pmr
             }
 
             current_ = ptr;
-            p_ = reinterpret_cast<char*>(current_) + sizeof(chunk);
+            p_ = current_
+                ? reinterpret_cast<char*>(current_) + sizeof(chunk)
+                : nullptr;
         }
 
     private:
