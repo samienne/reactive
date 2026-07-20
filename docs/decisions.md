@@ -33,6 +33,16 @@ an explicit `release()` walks off a null `current_`. UBSan flagged the pointer
 arithmetic leading into it; the defect itself is a hard access violation, not a
 paper-only diagnosis.
 
+**Why the configurations repeat themselves:** `Debug`, `Release`, `Tracy` and
+`Sanitize` each spell out `wrap_mode` rather than inheriting it from a shared
+mixin. `lw` configurations do have an `inherits` chain, and the obvious
+refactor is a `Common` mixin plus an `AddressUndefined` one that a TSan or
+Debug+ASan set could compose with. It does not work as of lw v0.1.2: a
+configuration that inherits a mixin does *not* pick up the mixin's `options`.
+Restructuring that way configures with `wrap_mode = default` and an empty
+`b_sanitize`, i.e. a sanitizer leg that builds uninstrumented and passes. Revisit
+when `inherits` merges options.
+
 ## Azure Pipelines is retired
 
 `azure-pipelines.yml` is deleted. It was superseded by the GitHub Actions

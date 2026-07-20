@@ -7,7 +7,7 @@ inputs:
       Tag of the loomworks release to install. Changing it needs the matching
       SHA-256 sums below, which is the point: the pin covers the bytes, not
       just the name.
-    default: "v0.1.1"
+    default: "v0.1.2"
 
 runs:
   using: composite
@@ -34,15 +34,15 @@ runs:
         case "$RUNNER_OS" in
           Linux)
             asset=lw-linux-x86_64
-            sha=ff612c69498a817db2682e0f70f351c1fe6b993921f3ccda93d04c9215736ec6
+            sha=c3bab6716050383617652273a4698ef52aa183c35be4acd4c6189a81ffb10b2a
             bindir=$HOME/.local/bin ;;
           macOS)
             asset=lw-macos-arm64
-            sha=501e5a7e4eaf1f943adab9c491fb4256da3e8b7f539fa67d1552f35ec7780c38
+            sha=62e95fdc4113b92abafef5cf78d259af88a6c695a05a004ae162718cf877463a
             bindir=$HOME/.local/bin ;;
           Windows)
             asset=lw-windows-x86_64.exe
-            sha=01a39b2f92d2d6e2c2dd97715b22103a4288b66f661aa04ce9b830d61215fb48
+            sha=ec1291b0ac9d7d6b5f4e18fc952fcbbf988b4a92d4a6f33addb3940568b96d1e
             bindir=$LOCALAPPDATA/Microsoft/WindowsApps ;;
           *)
             echo "::error::unsupported runner OS $RUNNER_OS"; exit 1 ;;
