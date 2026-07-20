@@ -1,48 +1,59 @@
 {
+  "name": "reactive",
   "projects": {
     "reactive": {
-      "path": ".",
       "meson": {
         "configurations": {
+          "Debug": {
+            "variant": "Debug",
+            "options": {
+              "wrap_mode": "forcefallback"
+            }
+          },
+          "Sanitize": {
+            "variant": "RelWithDebInfo",
+            "options": {
+              "wrap_mode": "forcefallback",
+              "b_lundef": "false",
+              "b_sanitize": "address,undefined"
+            }
+          },
+          "Release": {
+            "variant": "Release",
+            "options": {
+              "wrap_mode": "forcefallback"
+            }
+          },
           "Tracy": {
+            "variant": "Release",
             "options": {
               "wrap_mode": "forcefallback",
               "tracy_enable": "true"
-            },
-            "variant": "Release"
-          },
-          "Debug": {
-            "options": {
-              "wrap_mode": "forcefallback"
-            },
-            "variant": "Debug"
-          },
-          "Release": {
-            "options": {
-              "wrap_mode": "forcefallback"
-            },
-            "variant": "Release"
+            }
           }
         }
       },
       "launch": {
         "app": {
-          "target": "testapp1",
-          "working_dir": "."
+          "working_dir": ".",
+          "target": "testapp1"
         }
-      }
+      },
+      "path": "."
     }
   },
   "configuration_sets": {
-    "Tracy": {
-      "reactive": "Tracy"
+    "Sanitize": {
+      "reactive": "Sanitize"
     },
     "Debug": {
       "reactive": "Debug"
     },
     "Release": {
       "reactive": "Release"
+    },
+    "Tracy": {
+      "reactive": "Tracy"
     }
-  },
-  "name": "reactive"
+  }
 }
