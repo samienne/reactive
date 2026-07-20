@@ -5,6 +5,35 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Sanitizers run on one dedicated leg, not on every leg
+
+CI has a single `Sanitize` configuration set (`-Db_sanitize=address,undefined`
+over `RelWithDebInfo`) built by one Linux leg with clang. The other legs build
+unsanitized, exactly as they did before.
+
+**Why not everywhere:** ASan is *not* a superset of the existing coverage. The
+`merge` re-entrancy bug fixed in #104 was clean under ASan — nothing was read
+after the invalidation and the buffer stayed live — and was caught by clang-cl's
+debug iterators instead. Sanitizers and debug-STL checks find different classes
+of bug, so turning ASan on everywhere would trade coverage away rather than add
+it. Always-on also costs roughly 2x runtime and 2–3x memory per leg, makes every
+failure ambiguous between a real regression and a sanitizer interaction, and —
+because ASan changes allocation and layout — would leave the shipped
+configuration untested.
+
+`RelWithDebInfo` rather than `Debug`: ASan wants optimized code for tolerable
+wall-clock while still keeping frame pointers and symbols for a usable stack.
+`ASAN_OPTIONS`/`UBSAN_OPTIONS` set `halt_on_error`/`abort_on_error`, because
+UBSan's default is to diagnose and *continue*, which would let the leg report
+findings and still exit 0.
+
+## Azure Pipelines is retired
+
+`azure-pipelines.yml` is deleted. It was superseded by the GitHub Actions
+workflow years ago — `ci-success` is the only required check — and it invoked
+`build/meson/meson.py`, so removing the vendored submodule left it referencing a
+path that no longer exists. Nothing else in the tree pointed at Azure DevOps.
+
 ## meson comes from pip, and the vendored copy is gone
 
 CI installs `lw` from a pinned, SHA-256-verified loomworks release, and gets

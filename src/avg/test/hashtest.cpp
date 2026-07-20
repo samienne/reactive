@@ -73,12 +73,3 @@ TEST(Hash, vector)
             || h(v) == 3949976766425552089u);
 }
 
-
-// TEMPORARY: deliberate heap-use-after-free to prove the Sanitize leg fails.
-TEST(Hash, deliberateAsanBug)
-{
-    int* p = new int[4];
-    p[0] = 1;
-    delete[] p;
-    EXPECT_EQ(1, p[0]);
-}
