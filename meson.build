@@ -4,18 +4,31 @@ if target_machine.system() == 'windows'
     add_global_arguments('/wd4251', '/bigobj', '/UNICODE', language : 'cpp')
 endif
 
-libeigendep = dependency('eigen3')
+# Third-party headers come in as system includes so their diagnostics stay out
+# of our build log without also blinding us to our own code, and the subprojects
+# compile at warning level 0 rather than ours.
+subproject_warnings = ['warning_level=0']
 
-freetype = subproject('freetype2', default_options: ['png=disabled', 'harfbuzz=disabled', 'zlib=disabled', 'tests=disabled', 'brotli=disabled'])
-libfreetypedep = freetype.get_variable('freetype_dep')
+libeigendep = dependency('eigen3', include_type: 'system')
 
-mapbox = subproject('mapbox')
-mapboxdep = mapbox.get_variable('mapbox_dep')
+freetype = subproject('freetype2',
+    default_options: [
+      'png=disabled',
+      'harfbuzz=disabled',
+      'zlib=disabled',
+      'tests=disabled',
+      'brotli=disabled',
+      ] + subproject_warnings)
+libfreetypedep = freetype.get_variable('freetype_dep').as_system()
 
-gtest = subproject('gtest')
-gtestdep = gtest.get_variable('gtest_main_dep')
+mapbox = subproject('mapbox', default_options: subproject_warnings)
+mapboxdep = mapbox.get_variable('mapbox_dep').as_system()
 
-tracydep = dependency('tracy')
+gtest = subproject('gtest', default_options: subproject_warnings)
+gtestdep = gtest.get_variable('gtest_main_dep').as_system()
+
+tracydep = dependency('tracy', include_type: 'system',
+    default_options: subproject_warnings)
 
 subdir('src')
 

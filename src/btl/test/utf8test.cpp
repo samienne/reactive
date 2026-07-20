@@ -8,6 +8,13 @@
 
 using namespace utf8;
 
+namespace
+{
+    /** A lone continuation byte, which is never a valid encoding. */
+    constexpr char strayByte =
+        static_cast<char>(static_cast<unsigned char>(0x80));
+}
+
 TEST(Utf8, viewConstruct)
 {
     std::string str("tättäröö");
@@ -87,7 +94,7 @@ TEST(Utf8, emptyString)
 
 TEST(Utf8, garbage)
 {
-    std::string str(10, (char)0x80);
+    std::string str(10, strayByte);
     std::vector<uint32_t> v;
     for (auto c : asUtf8(str))
         v.push_back(c);
@@ -101,8 +108,8 @@ TEST(Utf8, garbage)
 
 TEST(Utf8, garbagePadding)
 {
-    auto str = std::string(10, (char)0x80) + std::string("ätestö")
-        + std::string(10, (char)0x80);
+    auto str = std::string(10, strayByte) + std::string("ätestö")
+        + std::string(10, strayByte);
     std::vector<uint32_t> v;
     for (auto&& c : asUtf8(str))
         v.push_back(c);

@@ -24,6 +24,7 @@ namespace avg
                 );
 
         ClipNode(ClipNode const&) = default;
+        ClipNode& operator=(ClipNode const&) = default;
 
         UpdateResult update(
                 RenderTree const& oldTree,

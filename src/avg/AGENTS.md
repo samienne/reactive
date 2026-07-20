@@ -1,6 +1,6 @@
 # avg — agent notes
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `9c47767` (2026-07-20).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -40,6 +40,13 @@ outgrows one file.
 - The `Animated<T>` explicit template instantiations live in
   `src/avg/src/animated.cpp` and are export-marked — if you add an animated type,
   add it there too (see `docs/conventions.md` on template export vs clang-cl).
+
+## Vendored Clipper
+
+`src/clipper/` is upstream Clipper, not ours. It builds as its own `libclipper`
+static target with warnings off, so a file added there gets no diagnostics —
+and a file added to `libavgsrc` instead gets all of them. Keep changes to it to
+what upstream would recognise.
 
 ## Text
 

@@ -5,12 +5,11 @@
 namespace ase
 {
     class WglWindow;
-    class WglPlatform;
 
     class WglFramebuffer : public GlBaseFramebuffer
     {
     public:
-        WglFramebuffer(WglPlatform& platform, WglWindow& window);
+        explicit WglFramebuffer(WglWindow& window);
 
         WglFramebuffer(WglFramebuffer const&) = delete;
         WglFramebuffer(WglFramebuffer&&) = delete;
@@ -35,7 +34,6 @@ namespace ase
         void unsetStencilTarget() override;
 
     private:
-        WglPlatform& platform_;
         WglWindow& window_;
     };
 } // namespace ase
