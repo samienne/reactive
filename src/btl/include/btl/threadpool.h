@@ -5,6 +5,7 @@
 #include <vector>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <condition_variable>
 #include <deque>
 #include <thread>
@@ -26,7 +27,8 @@ namespace btl
 
         bool operator<(TimedTask const& rhs) const noexcept
         {
-            // Order is reversed
+            // Reversed, so that the heap algorithms keep the earliest task
+            // at the front.
             return timePoint > rhs.timePoint;
         }
     };
@@ -44,12 +46,14 @@ namespace btl
                     timePoint,
                     std::forward<TFunc>(func)
                     });
+
+            std::push_heap(tasks_.begin(), tasks_.end());
         }
 
         inline MoveOnlyFunction<void()> pop() noexcept
         {
-            auto task = std::move(tasks_.front());
             std::pop_heap(tasks_.begin(), tasks_.end());
+            auto task = std::move(tasks_.back());
             tasks_.pop_back();
             return std::move(task.function);
         }
