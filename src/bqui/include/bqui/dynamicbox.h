@@ -52,25 +52,6 @@ namespace bqui
                             return combine(std::move(hintSignals));
                     }).join().share();
 
-                auto hints = builders.map([]
-                        (std::vector<std::pair<size_t, widget::AnyBuilder>> const& builders)
-                    {
-                            std::vector<bq::signal::AnySignal<std::pair<size_t, SizeHint>>>
-                            hintSignals;
-                            for (auto const& builder : builders)
-                            {
-                                hintSignals.push_back(
-                                        builder.second.getSizeHint()
-                                            .map([id=builder.first](SizeHint hint)
-                                                {
-                                                    return std::make_pair(id, hint);
-                                                })
-                                        );
-                            }
-
-                            return combine(std::move(hintSignals));
-                    }).join().share();
-
                 auto resultHint = hintsWithoutId.map(
                         [](std::vector<SizeHint> const& hints) -> SizeHint
                         {
@@ -117,6 +98,7 @@ namespace bqui
                                         {
                                             result.push_back(std::move(prev));
                                             found = true;
+                                            break;
                                         }
                                     }
 
