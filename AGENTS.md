@@ -42,13 +42,21 @@ indexes them.
 
 Meson + Ninja. Dependencies (Eigen, FreeType, mapbox, gtest, tracy) are fetched
 as Meson subprojects on first configure, so initial setup needs a network.
-(If `meson` isn't on PATH, invoke it as `python -m mesonbuild.mesonmain`.)
+Install the tools with `pip install meson ninja`; no copy is vendored in the
+tree. (If `meson` isn't on PATH after that, invoke it as
+`python -m mesonbuild.mesonmain`.)
 
 ```sh
 meson setup build --buildtype=debug     # or release
 meson compile -C build
 meson test -C build                     # unit tests
 ```
+
+CI drives the same builds through `lw` (loomworks), using the configuration sets
+in `loomworks.json`: `lw profile create <set> <tool> --local`, then `lw build`
+and `lw test`. `lw` establishes the compiler environment itself, so it sidesteps
+the MSVC note below. Profiles are per-machine and deliberately uncommitted; see
+`lw help` and `lw help ci`.
 
 Platform notes that will bite you:
 

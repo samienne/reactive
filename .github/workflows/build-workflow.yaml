@@ -1,5 +1,18 @@
 name: build-workflow
 on: [push]
+
+env:
+    # Belt and braces: lw also infers this from CI, but be explicit so a job
+    # can never block on a prompt.
+    LW_NO_INPUT: "1"
+
+    # UBSan diagnoses and *continues* by default, which would let a sanitizer
+    # leg print findings and still exit 0. Make both abort instead, so a finding
+    # fails the job. Only the Sanitize leg has sanitizers linked in; these are
+    # inert everywhere else.
+    ASAN_OPTIONS: "halt_on_error=1:abort_on_error=1:print_stacktrace=1"
+    UBSAN_OPTIONS: "halt_on_error=1:abort_on_error=1:print_stacktrace=1"
+
 jobs:
     clang-format:
         name: "Clang-format"
@@ -26,137 +39,72 @@ jobs:
             git clang-format-17 origin/master --diffstat
 
     build-linux:
-        name: "build-linux (${{ matrix.compiler.CC }} ${{ matrix.compiler.config }})"
+        name: "build-linux (${{ matrix.leg.tool }} ${{ matrix.leg.set }})"
         strategy:
+            fail-fast: false
             matrix:
-                compiler: [
-                  { "deps": "gcc-10 g++-10", "CC": "gcc-10", "CXX": "g++-10", "type": "release", config: ""},
-                  { "deps": "gcc-11 g++-11", "CC": "gcc-11", "CXX": "g++-11", "type": "release", config: ""},
-                  { "deps": "gcc-12 g++-12", "CC": "gcc-12", "CXX": "g++-12", "type": "release", config: ""},
-                  { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: ""},
-                  { "deps": "clang-11", "CC": "clang-11", "CXX": "clang++-11", "type": "release", config: "-Dtracy_enable=true"} ]
+                leg: [
+                  { "deps": "gcc-10 g++-10", "tool": "gcc-10",   "set": "Release" },
+                  { "deps": "gcc-11 g++-11", "tool": "gcc-11",   "set": "Release" },
+                  { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Release" },
+                  { "deps": "clang-11",      "tool": "clang-11", "set": "Release" },
+                  { "deps": "clang-11",      "tool": "clang-11", "set": "Tracy"   },
+                  { "deps": "",              "tool": "clang-15", "set": "Sanitize" } ]
         runs-on: "ubuntu-22.04"
         steps:
         - uses: actions/checkout@v5
-          with:
-              submodules: recursive
 
         - name: Install dependencies
           run: |
             sudo apt-get update
-            sudo apt-get install -y ninja-build gcovr lcov libgl1-mesa-dev ${{ matrix.compiler.deps }}
+            sudo apt-get install -y libgl1-mesa-dev ${{ matrix.leg.deps }}
 
-        - name: Build
-          run: |
-            mkdir -p build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
-            cd build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }}
-            CC=${{ matrix.compiler.CC }} CXX=${{ matrix.compiler.CXX }} ../meson/meson.py setup --buildtype=${{ matrix.compiler.type }} --wrap-mode=forcefallback -Db_coverage=true ${{ matrix.compiler.config }} ../..
-            ninja
+        - uses: ./.github/actions/setup-lw
 
-        - name: Tests
-          run: |
-            ninja -C build/${{ matrix.compiler.CC }}-${{ matrix.compiler.type }} test
+        - uses: ./.github/actions/lw-build-test
+          with:
+            set: ${{ matrix.leg.set }}
+            tool: ${{ matrix.leg.tool }}
 
     build-macos:
+        name: "build-macos (${{ matrix.set }})"
+        strategy:
+            fail-fast: false
+            matrix:
+                set: [Release, Debug]
         runs-on: "macos-15"
         steps:
         - uses: actions/checkout@v5
+
+        - name: Select the full Xcode toolchain
+          run: sudo xcode-select -s /Applications/Xcode.app
+
+        - uses: ./.github/actions/setup-lw
+
+        # `clang-17` is Apple clang from the selected Xcode.
+        - uses: ./.github/actions/lw-build-test
           with:
-              submodules: recursive
-
-        - name: Install dependencies
-          run: |
-            brew install python3 ninja
-
-        - name: Build
-          run: |
-            sudo rm -Rf /Library/Developer/CommandLineTools
-            sudo xcode-select -s /Applications/Xcode.app
-            mkdir -p build/release
-            cd build/release
-            python3 ../meson/meson.py setup --buildtype=release --wrap-mode=forcefallback ../..
-            ninja
-
-        - name: Tests
-          run: |
-            ninja -C build/release test
+            set: ${{ matrix.set }}
+            tool: clang-17
 
     build-win:
-        name: "build-win (${{ matrix.compiler.name }})"
+        name: "build-win (${{ matrix.tool }})"
         runs-on: "windows-2022"
         strategy:
+            fail-fast: false
             matrix:
-                compiler: [
-                  { "name": "msvc", "CC": "", "CXX": "" },
-                  { "name": "clang-cl", "CC": "clang-cl", "CXX": "clang-cl" } ]
+                tool: [msvc-17, clang-cl]
         steps:
         - uses: actions/checkout@v5
           name: checkout
+
+        - uses: ./.github/actions/setup-lw
+
+        # lw establishes the MSVC environment itself; ninja comes from pip.
+        - uses: ./.github/actions/lw-build-test
           with:
-              submodules: recursive
-
-        - name: Build
-          shell: pwsh
-          run: |
-            # download and install prerequisites
-            function DownloadFile([String] $Source, [String] $Destination)
-            {
-                $retries = 2
-                for ($i = 1; $i -le $retries; $i++)
-                {
-                    try
-                    {
-                        (New-Object net.webclient).DownloadFile($Source, $Destination)
-                        break # succeeded
-                    }
-                    catch [net.WebException]
-                    {
-                        if ($i -eq $retries)
-                        {
-                        throw # fail on last retry
-                        }
-
-                        $backoff = (10 * $i) # backoff 10s, 20s, 30s...
-                        echo ('{0}: {1}' -f $Source, $_.Exception.Message)
-                        echo ('Retrying in {0}s...' -f $backoff)
-                        Start-Sleep -m ($backoff * 1000)
-                    }
-                }
-            }
-
-            DownloadFile -Source 'https://github.com/mesonbuild/cidata/raw/master/ninja.exe' -Destination "ninja.exe"
-
-            # add downloads to PATH
-            $env:Path = "$env:SYSTEM_WORKFOLDER;$env:Path"
-
-            $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
-
-            $vcvarspath = &$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-            Write-Output "vc tools located at: $vcvarspath"
-
-            cmd.exe /c "call `"$vcvarspath\VC\Auxiliary\Build\vcvars64.bat`" && set > %temp%\vcvars.txt"
-
-            Get-Content "$env:temp\vcvars.txt" | Foreach-Object {
-                if ($_ -match "^(.*?)=(.*)$") {
-                Set-Content "env:\$($matches[1])" $matches[2]
-                }
-            }
-
-            $env:PKG_CONFIG_LIBDIR = "."
-
-            # Select compiler for this matrix leg (empty CC => default MSVC).
-            if ("${{ matrix.compiler.CC }}" -ne "") {
-                $env:CC = "${{ matrix.compiler.CC }}"
-                $env:CXX = "${{ matrix.compiler.CXX }}"
-            }
-
-            $builddir = "build/win-${{ matrix.compiler.name }}"
-            md $builddir
-            echo 'Configuring...'
-            python build\meson\meson.py setup --buildtype=release --wrap-mode=forcefallback . $builddir
-            echo 'Building...'
-            ninja -C $builddir
-            ninja -C $builddir test
+            set: Release
+            tool: ${{ matrix.tool }}
 
     # Aggregating gate: this is the ONLY job to mark as a required status check.
     # It turns green only if every job it needs succeeded, so new matrix legs are

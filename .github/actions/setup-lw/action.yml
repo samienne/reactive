@@ -1,0 +1,86 @@
+name: "Set up lw"
+description: "Put the loomworks CLI (lw), meson and ninja on PATH."
+
+inputs:
+  lw-version:
+    description: >
+      Tag of the loomworks release to install. Changing it needs the matching
+      SHA-256 sums below, which is the point: the pin covers the bytes, not
+      just the name.
+    default: "v0.1.2"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.x"
+
+    # Unpinned on purpose.
+    - name: Install meson and ninja
+      shell: bash
+      run: python -m pip install --upgrade meson ninja
+
+    # Download a pinned lw, verify it against the sums published with that
+    # release, and only then let the verified binary install itself — the
+    # bootstrap `lw help ci` prescribes.
+    - name: Install lw
+      shell: bash
+      env:
+        LW_VERSION: ${{ inputs.lw-version }}
+      run: |
+        set -euo pipefail
+
+        case "$RUNNER_OS" in
+          Linux)
+            asset=lw-linux-x86_64
+            sha=c3bab6716050383617652273a4698ef52aa183c35be4acd4c6189a81ffb10b2a
+            bindir=$HOME/.local/bin ;;
+          macOS)
+            asset=lw-macos-arm64
+            sha=62e95fdc4113b92abafef5cf78d259af88a6c695a05a004ae162718cf877463a
+            bindir=$HOME/.local/bin ;;
+          Windows)
+            asset=lw-windows-x86_64.exe
+            sha=ec1291b0ac9d7d6b5f4e18fc952fcbbf988b4a92d4a6f33addb3940568b96d1e
+            bindir=$LOCALAPPDATA/Microsoft/WindowsApps ;;
+          *)
+            echo "::error::unsupported runner OS $RUNNER_OS"; exit 1 ;;
+        esac
+
+        cd "$RUNNER_TEMP"
+        curl -fsSL --retry 3 \
+          "https://github.com/samienne/loomworks.nvim/releases/download/$LW_VERSION/$asset" \
+          -o "$asset"
+
+        # macOS runners have no sha256sum; shasum is on all three.
+        if command -v sha256sum >/dev/null; then
+          echo "$sha  $asset" | sha256sum -c -
+        else
+          echo "$sha  $asset" | shasum -a 256 -c -
+        fi
+
+        chmod +x "$asset"
+
+        # Fetch the runtime bundle separately from installing the binary:
+        # `lw install` only warns when its bundle download fails and still
+        # exits 0, leaving lw installed but unusable a step later. Doing it
+        # explicitly makes a network blip retryable, and fatal if it sticks.
+        "./$asset" install -y --no-bundle
+        for attempt in 1 2 3; do
+          "$bindir/lw" self-update && break
+          if [ "$attempt" = 3 ]; then
+            echo "::error::lw self-update failed after 3 attempts"
+            exit 1
+          fi
+          sleep 10
+        done
+
+        echo "$bindir" >> "$GITHUB_PATH"
+
+    - name: Report lw environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        lw --version
+        lw --no-input tools
