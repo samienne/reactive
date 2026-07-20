@@ -37,6 +37,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <cstdint>
 
 namespace bqui
 {

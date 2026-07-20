@@ -18,6 +18,7 @@
 #include <memory>
 #include <iostream>
 #include <codecvt>
+#include <cstdint>
 
 namespace ase
 {

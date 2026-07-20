@@ -6,6 +6,7 @@
 
 #include <mutex>
 #include <memory>
+#include <cstdint>
 
 namespace bq::signal
 {

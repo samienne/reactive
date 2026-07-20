@@ -1,5 +1,7 @@
 #include "keyevent.h"
 
+#include <cstdint>
+
 namespace ase
 {
 

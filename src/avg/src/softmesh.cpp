@@ -6,6 +6,8 @@
 #include <pmr/vector.h>
 #include <pmr/shared_ptr.h>
 
+#include <cstdint>
+
 namespace avg
 {
 

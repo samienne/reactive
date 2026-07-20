@@ -10,6 +10,8 @@
 
 #include <ase/keyevent.h>
 
+#include <cstdint>
+
 namespace bqui::modifier
 {
 
