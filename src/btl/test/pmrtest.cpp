@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <vector>
 #include <list>
 #include <iostream>
@@ -189,6 +190,51 @@ TEST(pmr, monotonic_buffer_resource_with_buffer)
     std::cout << "allocations: " <<  tr.getAllocationCount()
         << " (" << tr.getTotalAllocation() << " bytes)"
         << std::endl;
+}
+
+TEST(pmr, monotonic_buffer_resource_allocate_after_release)
+{
+    auto tr = TraceResource(new_delete_resource());
+
+    auto mono = monotonic_buffer_resource(&tr);
+
+    auto* p = static_cast<char*>(mono.allocate(64, 8));
+    std::fill(p, p + 64, 'a');
+
+    mono.release();
+
+    p = static_cast<char*>(mono.allocate(64, 8));
+    ASSERT_NE(nullptr, p);
+    EXPECT_EQ(0u, reinterpret_cast<std::uintptr_t>(p) % 8);
+    std::fill(p, p + 64, 'b');
+
+    for (int i = 0; i < 64; ++i)
+        EXPECT_EQ('b', p[i]);
+}
+
+TEST(pmr, monotonic_buffer_resource_release_is_idempotent)
+{
+    auto tr = TraceResource(new_delete_resource());
+
+    auto mono = monotonic_buffer_resource(&tr);
+
+    mono.release();
+    mono.release();
+
+    auto* p = mono.allocate(16, 8);
+    EXPECT_NE(nullptr, p);
+}
+
+TEST(pmr, monotonic_buffer_resource_without_allocating)
+{
+    auto tr = TraceResource(new_delete_resource());
+
+    {
+        auto mono = monotonic_buffer_resource(&tr);
+        (void)mono;
+    }
+
+    EXPECT_EQ(1u, tr.getAllocationCount());
 }
 
 TEST(pmr, monotonic_buffer_resource_alignment)
