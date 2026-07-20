@@ -27,6 +27,12 @@ wall-clock while still keeping frame pointers and symbols for a usable stack.
 UBSan's default is to diagnose and *continue*, which would let the leg report
 findings and still exit 0.
 
+**It earned its place immediately:** on its first run the leg surfaced a latent
+null-pointer dereference in `pmr::monotonic_buffer_resource` — allocating after
+an explicit `release()` walks off a null `current_`. UBSan flagged the pointer
+arithmetic leading into it; the defect itself is a hard access violation, not a
+paper-only diagnosis.
+
 ## Azure Pipelines is retired
 
 `azure-pipelines.yml` is deleted. It was superseded by the GitHub Actions
