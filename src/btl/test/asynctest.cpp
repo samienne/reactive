@@ -15,6 +15,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <future>
+#include <memory>
 #include <random>
 #include <thread>
 #include <type_traits>
@@ -436,21 +438,27 @@ TEST(async, futureResult)
 
 TEST(async, futureFail)
 {
-    bool failCalled = false;
+    // Retrieving the value does not imply the registered callbacks have run:
+    // the value is published before they are invoked, so the callback can
+    // still be pending when get() returns. Wait for the callback itself.
+    auto failCalled = std::make_shared<std::promise<void>>();
+    auto failLatch = failCalled->get_future();
+
     auto f = btl::async([]()
             {
                 throw std::runtime_error("test error");
 
                 return 10;
             })
-            .onFailure([&](std::exception_ptr const&)
+            .onFailure([failCalled](std::exception_ptr const&)
             {
-                failCalled = true;
+                failCalled->set_value();
             });
 
 
     EXPECT_THROW(std::move(f).get(), std::runtime_error);
-    EXPECT_TRUE(failCalled);
+    EXPECT_EQ(std::future_status::ready,
+            failLatch.wait_for(std::chrono::seconds(10)));
 }
 
 TEST(async, whenAllFail)
@@ -469,21 +477,24 @@ TEST(async, whenAllFail)
                     return 20;
                 });
 
-        std::atomic_bool failCalled = false;
+        auto failCalled = std::make_shared<std::promise<void>>();
+        auto failLatch = failCalled->get_future();
 
         auto r1 = whenAll(std::move(f1), std::move(f2))
             .then([](int x, int y)
             {
                 return x+y;
             })
-            .onFailure([&](std::exception_ptr const&)
+            .onFailure([failCalled](std::exception_ptr const&)
             {
-                failCalled.store(true);
+                failCalled->set_value();
             })
             ;
 
         EXPECT_THROW(std::move(r1).get(), std::runtime_error);
-        EXPECT_TRUE(failCalled.load());
+
+        ASSERT_EQ(std::future_status::ready,
+                failLatch.wait_for(std::chrono::seconds(10)));
     }
 }
 
