@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <future>
 #include <memory>
 #include <random>

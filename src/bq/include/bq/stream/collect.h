@@ -13,6 +13,7 @@
 #include <btl/spinlock.h>
 #include <btl/shared.h>
 
+#include <cstdint>
 #include <mutex>
 
 namespace bq::stream

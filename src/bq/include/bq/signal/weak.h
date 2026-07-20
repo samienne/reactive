@@ -4,6 +4,8 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
+#include <cstdint>
+
 namespace bq::signal
 {
     template <typename... Ts>

@@ -15,6 +15,7 @@
 
 #include <stdexcept>
 #include <memory>
+#include <cstdint>
 
 namespace mapbox::util {
 
