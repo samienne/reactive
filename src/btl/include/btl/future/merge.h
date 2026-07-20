@@ -49,10 +49,7 @@ namespace btl::future
 
             });
 
-            if (failed_.load(std::memory_order_acquire))
-                futures_.clear();
-
-            initialized_.store(true, std::memory_order_release);
+            arriveAndClear();
 
             reportFutureReady();
         }
@@ -63,10 +60,9 @@ namespace btl::future
             bool hadNotFailed = failed_.compare_exchange_strong(expected, true);
             if (hadNotFailed)
             {
-                this->setFailure(std::move(err));
+                arriveAndClear();
 
-                if (initialized_.load(std::memory_order_acquire))
-                    futures_.clear();
+                this->setFailure(std::move(err));
             }
         }
 
@@ -82,16 +78,29 @@ namespace btl::future
                 result.reserve(futures_.size());
                 for (auto&& future : futures_)
                     result.push_back(std::move(future).get());
-                this->setValue(std::move(result));
 
-                futures_.clear();
+                arriveAndClear();
+
+                this->setValue(std::move(result));
             }
         }
 
     private:
+        // Arrivals come from init(), the success path and the failure path,
+        // and exactly two of them ever happen: a failed input reports failure
+        // instead of readiness, so count_ never reaches one. init() arrives
+        // once its walk is over, so the second arrival, the one that clears,
+        // never runs mid-walk. Both callers arrive before publishing the
+        // result, so a ready merged future has already dropped its inputs.
+        void arriveAndClear()
+        {
+            if (clearArrivals_.fetch_add(1, std::memory_order_acq_rel) == 1)
+                futures_.clear();
+        }
+
         std::atomic_int count_;
         std::atomic_bool failed_ = false;
-        std::atomic_bool initialized_ = false;
+        std::atomic_int clearArrivals_ = 0;
         std::vector<Future<T>> futures_;
     };
 

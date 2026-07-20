@@ -20,7 +20,17 @@ conventions are in the top-level `docs/`.
   when the input is already ready. Their outstanding-input counters therefore
   start one above the input count; `init()` owns that extra count and releases
   it only after the walk, so completion — which destroys the inputs — can never
-  run while `init()` is still iterating them. Any new combinator built this way
-  needs the same extra count.
+  run while `init()` is still iterating them.
+- **Dropping those inputs goes through an arrival rendezvous**, not a "clear
+  only if `init()` has finished" flag: such a flag leaves a window where a
+  failure and `init()` each conclude the other will clear, and the inputs are
+  retained for the lifetime of the combined future. `init()`, the success path
+  and the failure path all arrive; the second arrival drops the inputs. Exactly
+  two ever arrive — `init()` on every non-throwing pass, and precisely one of
+  success and failure, because a failed input reports failure instead of
+  readiness and so the counter never reaches one. Both sites arrive *before*
+  publishing the result, so a ready combined future implies the inputs are
+  already released. Any new combinator built this way needs both the extra
+  count and the rendezvous.
 - Most of `btl` is header-only template code, which is why the include-dir
   firewall matters here (see `docs/conventions.md`).

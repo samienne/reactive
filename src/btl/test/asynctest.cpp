@@ -573,3 +573,56 @@ TEST(async, whenAllInputsReadyBeforeInit)
 
     EXPECT_EQ(30, std::move(r).get());
 }
+
+TEST(async, mergeReleasesInputsOnFailure)
+{
+    // A failing merge must drop its inputs, not hold them for as long as the
+    // merged future lives. The retained input still owns its value, so the
+    // value's use count is the observable.
+    auto value = std::make_shared<int>(7);
+
+    auto [p, fut] = btl::test::makeManualFuture<std::shared_ptr<int>>();
+
+    std::vector<Future<std::shared_ptr<int>>> v;
+    v.push_back(makeReadyFuture(value));
+    v.push_back(std::move(fut));
+
+    long useCountWhenReady = 0;
+
+    auto r = merge(std::move(v))
+        .onFailure([&](std::exception_ptr const&)
+            {
+                useCountWhenReady = value.use_count();
+            });
+
+    p.setFailure(std::make_exception_ptr(std::runtime_error("test error")));
+
+    EXPECT_THROW(std::move(r).get(), std::runtime_error);
+
+    // The inputs must already be gone by the time the merged future is made
+    // ready, not merely by the time the caller looks.
+    EXPECT_EQ(1, useCountWhenReady);
+    EXPECT_EQ(1, value.use_count());
+}
+
+TEST(async, whenAllReleasesInputsOnFailure)
+{
+    auto value = std::make_shared<int>(7);
+
+    auto [p, fut] = btl::test::makeManualFuture<int>();
+
+    long useCountWhenReady = 0;
+
+    auto r = whenAll(makeReadyFuture(value), std::move(fut))
+        .onFailure([&](std::exception_ptr const&)
+            {
+                useCountWhenReady = value.use_count();
+            });
+
+    p.setFailure(std::make_exception_ptr(std::runtime_error("test error")));
+
+    EXPECT_THROW(std::move(r).getTuple(), std::runtime_error);
+
+    EXPECT_EQ(1, useCountWhenReady);
+    EXPECT_EQ(1, value.use_count());
+}
