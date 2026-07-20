@@ -61,7 +61,21 @@ runs:
         fi
 
         chmod +x "$asset"
-        "./$asset" install -y
+
+        # Fetch the runtime bundle separately from installing the binary:
+        # `lw install` only warns when its bundle download fails and still
+        # exits 0, leaving lw installed but unusable a step later. Doing it
+        # explicitly makes a network blip retryable, and fatal if it sticks.
+        "./$asset" install -y --no-bundle
+        for attempt in 1 2 3; do
+          "$bindir/lw" self-update && break
+          if [ "$attempt" = 3 ]; then
+            echo "::error::lw self-update failed after 3 attempts"
+            exit 1
+          fi
+          sleep 10
+        done
+
         echo "$bindir" >> "$GITHUB_PATH"
 
     - name: Report lw environment
