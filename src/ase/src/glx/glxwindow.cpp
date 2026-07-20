@@ -6,6 +6,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <cstdint>
 #include <stdexcept>
 
 namespace ase

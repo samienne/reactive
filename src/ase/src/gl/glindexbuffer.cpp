@@ -3,6 +3,8 @@
 #include "dispatcher.h"
 #include "buffer.h"
 
+#include <cstdint>
+
 namespace ase
 {
 

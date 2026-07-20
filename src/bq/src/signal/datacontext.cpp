@@ -2,6 +2,8 @@
 
 #include <btl/uniqueid.h>
 
+#include <cstdint>
+
 namespace bq::signal
 {
 btl::UniqueId makeUniqueId()

@@ -4,6 +4,7 @@
 
 #include <Eigen/Geometry>
 
+#include <cstdint>
 #include <ostream>
 
 namespace ase

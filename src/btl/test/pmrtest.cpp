@@ -10,6 +10,7 @@
 #include <list>
 #include <iostream>
 #include <array>
+#include <cstdint>
 
 using namespace pmr;
 

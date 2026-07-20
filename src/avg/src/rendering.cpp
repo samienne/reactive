@@ -29,6 +29,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <cstdint>
 #include <optional>
 
 namespace avg

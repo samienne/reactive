@@ -1,5 +1,6 @@
 #include "genericwindow.h"
 
+#include <cstdint>
 #include <iostream>
 
 namespace ase

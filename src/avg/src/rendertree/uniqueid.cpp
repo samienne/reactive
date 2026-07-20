@@ -1,6 +1,7 @@
 #include "rendertree/uniqueid.h"
 
 #include <atomic>
+#include <cstdint>
 #include <iostream>
 
 namespace avg

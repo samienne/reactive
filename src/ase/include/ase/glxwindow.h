@@ -32,6 +32,7 @@
 #include <X11/Xutil.h>
 #include <X11/X.h>
 
+#include <cstdint>
 #include <mutex>
 #include <vector>
 
