@@ -5,19 +5,20 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
-## CI bootstraps `lw` from a branch checkout, and no longer pins meson
+## meson comes from pip, and the vendored copy is gone
 
-`.github/actions/setup-lw` clones the loomworks repository at a named branch and
-runs `lw` on a prebuilt luvi host, rather than downloading a released binary.
-meson and ninja come from pip with no version pin, replacing the vendored
-`build/meson` submodule CI used to configure with.
+CI installs `lw` from a pinned, SHA-256-verified loomworks release, and gets
+meson and ninja from pip with no version pin. The vendored `build/meson`
+submodule and the `build/*.sh` wrappers around it are deleted.
 
-**Why:** `lw` has no published releases yet, so a branch checkout is the only
-way for a runner to obtain it. This is temporary — once `lw` ships signed
-releases it becomes the pinned download-and-verify flow that `lw help ci`
-documents. The meson pin went because meson installs trivially from pip and its
-language is stable enough that floating costs less than maintaining a pin; the
-submodule stays in the tree for the local `build/*.sh` scripts.
+**Why:** meson installs trivially from pip and its language is stable enough
+that floating costs less than maintaining a pin, so a submodule pinning a whole
+meson checkout bought nothing. The scripts it existed for had rotted anyway —
+they hardcoded `g++-6` and called `mesonconf.py`, removed from meson years ago —
+and `lw` plus the plain `meson setup`/`compile`/`test` sequence covers what they
+did. The sanitizer variants they configured (`-Db_sanitize=thread`,
+`-Db_sanitize=undefined`) are a `meson setup` flag away, or an `lw`
+configuration if they earn a permanent home.
 
 **Not done:** a Linux `Debug` leg. It does not link — the member-template
 constructor of `Widget<std::function<AnyBuilder(BuildParams)>>` is left

@@ -42,7 +42,9 @@ indexes them.
 
 Meson + Ninja. Dependencies (Eigen, FreeType, mapbox, gtest, tracy) are fetched
 as Meson subprojects on first configure, so initial setup needs a network.
-(If `meson` isn't on PATH, invoke it as `python -m mesonbuild.mesonmain`.)
+Install the tools with `pip install meson ninja`; no copy is vendored in the
+tree. (If `meson` isn't on PATH after that, invoke it as
+`python -m mesonbuild.mesonmain`.)
 
 ```sh
 meson setup build --buildtype=debug     # or release

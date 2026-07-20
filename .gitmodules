@@ -1,3 +1,0 @@
-[submodule "build/meson"]
-	path = build/meson
-	url = https://github.com/jpakkane/meson

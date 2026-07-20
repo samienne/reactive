@@ -33,8 +33,7 @@ INSTALL
 *_backup
 _testbuild
 
-build/*
-!build/*.sh
+build/
 
 # loomworks working copy + per-toolchain build trees (loomworks.json is shared)
 .nvim/
