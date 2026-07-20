@@ -81,8 +81,7 @@ jobs:
 
         - uses: ./.github/actions/setup-lw
 
-        # `clang-17` is Apple clang from the selected Xcode; note that lw also
-        # reports it as `gcc-17` via the /usr/bin/gcc shim.
+        # `clang-17` is Apple clang from the selected Xcode.
         - uses: ./.github/actions/lw-build-test
           with:
             set: ${{ matrix.set }}
