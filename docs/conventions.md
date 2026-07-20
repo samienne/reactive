@@ -93,11 +93,8 @@ branch protection.
 
 Builds run through **`lw`** (loomworks), not direct meson calls: a leg is a
 configuration set from `loomworks.json` plus a coarse toolchain pin, and the two
-composite actions under `.github/actions/` do the rest. Two traps:
+composite actions under `.github/actions/` do the rest. One trap:
 
-- **Build before you test.** `lw test` does not establish the compiler
-  environment for the rebuild it triggers, so on MSVC it fails with `cl` not
-  found whenever the build tree is stale. Always run `lw build <profile>` first.
 - **Create profiles with `--local`.** Profiles are per-machine but default to
   local+shared, so an unqualified `lw profile create` followed by `lw publish`
   would push a runner's toolchain into the committed `loomworks.json`.

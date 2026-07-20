@@ -1,17 +1,13 @@
 name: "Set up lw"
-description: "Put the loomworks CLI (lw) and meson on PATH."
-
-# TEMPORARY: runs lw from a branch checkout on top of a prebuilt luvi, because
-# lw has no published releases yet. It moves to the pinned download-and-verify
-# flow in `lw help ci` once it does.
+description: "Put the loomworks CLI (lw), meson and ninja on PATH."
 
 inputs:
-  loomworks-ref:
-    description: "Branch or tag of the loomworks repository to run lw from."
-    default: "feature/standalone-cli"
-  luvi-version:
-    description: "Tag of the luvi release providing the Lua host."
-    default: "v2.15.0"
+  lw-version:
+    description: >
+      Tag of the loomworks release to install. Changing it needs the matching
+      SHA-256 sums below, which is the point: the pin covers the bytes, not
+      just the name.
+    default: "v0.1.1"
 
 runs:
   using: composite
@@ -25,34 +21,52 @@ runs:
       shell: bash
       run: python -m pip install --upgrade meson ninja
 
-    - name: Fetch lw and its luvi host
+    # Download a pinned lw, verify it against the sums published with that
+    # release, and only then let the verified binary install itself — the
+    # bootstrap `lw help ci` prescribes.
+    - name: Install lw
       shell: bash
       env:
-        LOOMWORKS_REF: ${{ inputs.loomworks-ref }}
-        LUVI_VERSION: ${{ inputs.luvi-version }}
+        LW_VERSION: ${{ inputs.lw-version }}
       run: |
         set -euo pipefail
 
-        git clone --depth 1 --branch "$LOOMWORKS_REF" \
-          https://github.com/samienne/loomworks.nvim.git "$RUNNER_TEMP/loomworks"
-
         case "$RUNNER_OS" in
-          Linux)   asset=luvi-Linux-x86_64-luajit-regular; luvi=$RUNNER_TEMP/luvi ;;
-          macOS)   asset=luvi-Darwin-arm64-luajit-regular; luvi=$RUNNER_TEMP/luvi ;;
-          Windows) asset=luvi-Windows-amd64-luajit-regular.exe; luvi=$RUNNER_TEMP/luvi.exe ;;
-          *) echo "::error::unsupported runner OS $RUNNER_OS"; exit 1 ;;
+          Linux)
+            asset=lw-linux-x86_64
+            sha=ff612c69498a817db2682e0f70f351c1fe6b993921f3ccda93d04c9215736ec6
+            bindir=$HOME/.local/bin ;;
+          macOS)
+            asset=lw-macos-arm64
+            sha=501e5a7e4eaf1f943adab9c491fb4256da3e8b7f539fa67d1552f35ec7780c38
+            bindir=$HOME/.local/bin ;;
+          Windows)
+            asset=lw-windows-x86_64.exe
+            sha=01a39b2f92d2d6e2c2dd97715b22103a4288b66f661aa04ce9b830d61215fb48
+            bindir=$LOCALAPPDATA/Microsoft/WindowsApps ;;
+          *)
+            echo "::error::unsupported runner OS $RUNNER_OS"; exit 1 ;;
         esac
 
+        cd "$RUNNER_TEMP"
         curl -fsSL --retry 3 \
-          "https://github.com/luvit/luvi/releases/download/$LUVI_VERSION/$asset" -o "$luvi"
-        chmod +x "$luvi"
+          "https://github.com/samienne/loomworks.nvim/releases/download/$LW_VERSION/$asset" \
+          -o "$asset"
 
-        echo "LW_LUVI=$luvi" >> "$GITHUB_ENV"
-        echo "$RUNNER_TEMP/loomworks/bin" >> "$GITHUB_PATH"
+        # macOS runners have no sha256sum; shasum is on all three.
+        if command -v sha256sum >/dev/null; then
+          echo "$sha  $asset" | sha256sum -c -
+        else
+          echo "$sha  $asset" | shasum -a 256 -c -
+        fi
+
+        chmod +x "$asset"
+        "./$asset" install -y
+        echo "$bindir" >> "$GITHUB_PATH"
 
     - name: Report lw environment
       shell: bash
       run: |
         set -euo pipefail
-        "$LW_LUVI" -v
+        lw --version
         lw --no-input tools
