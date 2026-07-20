@@ -7,6 +7,7 @@
 #include "bqui/provider/providebuildparams.h"
 
 #include "bqui/buildparams.h"
+#include "bqui/bquivisibility.h"
 
 #include <bq/signal/signal.h>
 
@@ -63,9 +64,6 @@ namespace bqui::widget
     private:
         btl::CloneOnCopy<TFunc> func_;
     };
-
-    extern template class BQUI_EXPORT_TEMPLATE
-        Widget<std::function<AnyBuilder(BuildParams)>>;
 
     namespace detail
     {

@@ -3,6 +3,7 @@
 #include "instance.h"
 
 #include "bqui/buildparams.h"
+#include "bqui/bquivisibility.h"
 
 #include <avg/vector.h>
 
@@ -88,12 +89,6 @@ namespace bqui::widget
         btl::CloneOnCopy<TInstance> instance_;
         BuildParams params_;
     };
-
-    /*
-    // Gcc has problems exporting this template
-    extern template class BQUI_EXPORT_TEMPLATE
-        Element<bq::signal::AnySignal<Instance>>;
-    */
 
     template <typename TInstance>
     auto makeElement(bq::signal::Signal<TInstance, Instance> instance, BuildParams params)

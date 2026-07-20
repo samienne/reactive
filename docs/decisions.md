@@ -1,9 +1,35 @@
 # Decisions
 
-*Last verified against `1c71f09` (2026-07-15).*
+*Last verified against `9cbe4cb` (2026-07-20).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## bqui's type-erased classes use no `extern template`
+
+`Widget`, `Element`, `WidgetModifier`, `ElementModifier` and `BuilderModifier`
+have no `extern template` declaration and no explicit instantiation on any
+toolchain. Every translation unit instantiates them implicitly.
+
+**Why:** GCC cannot export them at all (see `docs/conventions.md`), which is why
+Linux `Debug` had never linked. Guarding the declarations under GCC only was
+tried first, but it leaves a GCC-built library unusable from a clang-compiled
+consumer: the consumer honours the declaration and references a symbol the
+library cannot emit.
+
+**Why the cost is acceptable — measured, not assumed.** Baseline versus dropped,
+alternating on the same runner, two repetitions each: full-rebuild wall clock
+moved by −0.5 s (linux gcc-12 Debug and Release, ~249 s), +1.5 s (windows
+msvc-17 Debug, ~225 s) and −5 s (windows msvc-17 Release, ~468 s) — every delta
+smaller than the spread between repetitions of the *same* variant. Binary size
+is flat: Linux Release `libbqui.so` and `bquitest` byte-identical; Windows
+`bqui.dll` 4–20 KB *smaller* and `bquitest.exe` 2–7 KB larger, the copy having
+moved from the DLL into the consumer. Cross-compiler linking works in both
+directions afterwards, which it did not before. Only 26 translation units name
+these types at all.
+
+**Not a general rule.** `avg::Animated<T>` still uses `extern template` and
+exports correctly, because it never names its own erased specialization.
 
 ## Sanitizers run on one dedicated leg, not on every leg
 

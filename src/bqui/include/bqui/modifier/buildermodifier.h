@@ -41,9 +41,6 @@ namespace bqui::modifier
         btl::CloneOnCopy<std::decay_t<TFunc>> func_;
     };
 
-    extern template class BQUI_EXPORT_TEMPLATE
-        BuilderModifier<std::function<widget::AnyBuilder(widget::AnyBuilder)>>;
-
     using AnyBuilderModifier = BuilderModifier<std::function<widget::AnyBuilder(
             widget::AnyBuilder)>>;
 
