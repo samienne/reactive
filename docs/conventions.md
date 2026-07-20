@@ -84,8 +84,9 @@ template metaprogramming into named aliases, Doxygen-only API reference) live in
 
 ## CI
 
-The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy), macOS
-(Release and Debug), and Windows (**MSVC and clang-cl**). A single aggregating
+The GitHub Actions matrix builds Linux (gcc-10/11/12, clang-11 ± tracy, plus one
+clang-15 ASan+UBSan leg), macOS (Release and Debug), and Windows (**MSVC and
+clang-cl**). A single aggregating
 job, **`ci-success`**, `needs` all the build jobs and is the *only* required
 status check — new matrix legs are covered automatically, and a new top-level
 job just needs adding to its `needs` list. Mark only `ci-success` as required in
