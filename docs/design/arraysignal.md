@@ -16,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `e2f0ee7` (2026-07-22).*
+*Last verified against `77e391f` (2026-07-22).*
 
 ## The problem
 

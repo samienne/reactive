@@ -1,6 +1,6 @@
 # Decisions
 
-*Last verified against `e2f0ee7` (2026-07-22).*
+*Last verified against `77e391f` (2026-07-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
