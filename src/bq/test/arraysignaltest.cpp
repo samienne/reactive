@@ -115,9 +115,32 @@ TEST(arraySignal, concatJoinsArraysInOrder)
     ArraySignal<int> first = { 1, 2 };
     ArraySignal<int> second = { 3 };
 
-    auto c = makeSignalContext(values(concat(first, second, ArraySignal<int>(4))));
+    auto c = makeSignalContext(values(concat(first, second,
+                    ArraySignal<int>(4))));
 
     EXPECT_EQ((std::vector<int>{ 1, 2, 3, 4 }), c.evaluate<0>().get<0>());
+}
+
+// Every operator that builds an array mints its own identities, so two arrays
+// derived from one source can be concatenated. Without that, the branch a
+// container makes and then rejoins would collide with itself.
+TEST(arraySignal, arraysDerivedFromOneSourceConcatenate)
+{
+    ArraySignal<int> array = { 1, 2 };
+
+    auto doubled = array.map([](int value)
+        {
+            return 2 * value;
+        });
+
+    auto tripled = array.map([](int value)
+        {
+            return 3 * value;
+        });
+
+    auto c = makeSignalContext(values(concat(doubled, tripled)));
+
+    EXPECT_EQ((std::vector<int>{ 2, 4, 3, 6 }), c.evaluate<0>().get<0>());
 }
 
 // A single item whose value varies is a rebuild of that element: it takes a
@@ -147,6 +170,72 @@ TEST(arraySignal, aVaryingSingleItemRebuildsItself)
 
     // Only the element that changed was rebuilt.
     EXPECT_EQ(3, *builds);
+
+    // A repeat of the value it already holds is not a change, so it is not a
+    // rebuild either.
+    input.handle.set(5);
+    c.update(FrameInfo(2, {}));
+
+    EXPECT_EQ((std::vector<int>{ 0, 10 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(3, *builds);
+}
+
+// An evicted value is destroyed rather than retained against the key coming
+// back. Counting builds cannot see the difference; holding a weak reference to
+// what was built can.
+TEST(arraySignal, anEvictedValueIsDestroyed)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+    auto built = std::make_shared<std::vector<std::weak_ptr<int>>>();
+
+    auto c = makeSignalContext(join(forEach(
+                    AnySignal<std::vector<Item>>(input.signal),
+                    itemKey,
+                    [built](AnySignal<Item> item)
+                    {
+                        // Lives exactly as long as what the delegate returns.
+                        auto marker = std::make_shared<int>(0);
+                        built->push_back(marker);
+
+                        return AnySignal<int>(item.map(
+                                    [marker](Item const& i)
+                                    {
+                                        return i.value;
+                                    }));
+                    })));
+
+    ASSERT_EQ(2u, built->size());
+    EXPECT_FALSE((*built)[0].expired());
+    EXPECT_FALSE((*built)[1].expired());
+
+    input.handle.set(items({ { "b", 2 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(std::vector<int>{ 2 }, c.evaluate<0>().get<0>());
+    EXPECT_TRUE((*built)[0].expired());
+    EXPECT_FALSE((*built)[1].expired());
+}
+
+// A duplicate that appears only after the array has been running fails the
+// same way as one that was there from the start.
+TEST(arraySignal, forEachThrowsOnADuplicateKeyIntroducedByAnUpdate)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+
+    auto c = makeSignalContext(join(forEach(
+                    AnySignal<std::vector<Item>>(input.signal),
+                    itemKey,
+                    [](AnySignal<Item> item)
+                    {
+                        return itemValue(std::move(item));
+                    })));
+
+    EXPECT_EQ(std::vector<int>{ 1 }, c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "a", 2 } }));
+
+    expectThrowsContaining([&] { c.update(FrameInfo(1, {})); },
+            "duplicate key");
 }
 
 TEST(arraySignal, forEachBuildsOncePerKeyAndFollowsMembership)

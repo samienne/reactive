@@ -398,6 +398,13 @@ ignored by everything downstream — which is exactly `dynamicBox`'s bug. This i
 the third site that mints identity, alongside construction of a constant item and
 `forEach`.
 
+The signal is deduplicated with `tryCheck()` first, so a repeat of the value it
+already holds is not a rebuild. That protection is real only where `T` is
+equality-comparable: `tryCheck()` is *silently* a passthrough where it is not, so
+an `AnySignal<AnyWidget>` rebuilds on every change its source reports, equal or
+not. That is the trap already recorded under *Skipping repeats is a property of
+the data*, met here for the first time.
+
 ### `forEach` — the entry
 
 ```
@@ -873,15 +880,18 @@ document made and then had to withdraw.
   reaches a `map` through the identity change above, not through re-running `f`
   inside a node that outlives it.
 
-- **No per-array id space is needed.** Ids come from the same global counter as
-  every other `UniqueId`, so they are distinct across nodes by construction and
+- **No per-array id space is needed.** Ids come from the same counter as every
+  other `bq::signal` id, so they are distinct across nodes by construction and
   `concat` needs no re-namespacing — the conclusion the draft reached, but by way
-  of a per-context allocator that turns out to be unnecessary.
+  of a per-context allocator that turns out to be unnecessary. **Every** node
+  that builds an array mints its own, `map` included; a `map` that forwarded its
+  source's ids would make `concat(a, a.map(f))` a duplicate-key error, and that
+  is the shape of the branch a container makes and rejoins. Concatenating an
+  array with *itself* remains an error, which is correct.
 
-One thing the node does that the draft does not mention: it reports `didChange`
-only when the **id sequence** changed. A value change therefore does not rebuild
-the fan-in, which is what makes `join`'s re-initialisation branch a
-membership-change cost rather than a per-frame one.
+- **`join`'s per-identity share mints a `DataContext` id at churn rate**, and
+  `DataContext` never prunes. See *Future directions*: what was a noted
+  pre-existing wart is now a prerequisite, not an observation.
 
 The reactive subtree constructor, `AnySignal<ArraySignal<T>>`, is still not
 built; it remains where *Open questions* leaves it.
@@ -1316,11 +1326,15 @@ that the discarded builder may carry a genuinely changed widget — is in
 *Rationale* above and is not merely a cleanup. Both are moot once `dynamicBox`
 is deleted in favour of the unified engine.
 
-**`DataContext` never prunes.** `data_` holds `weak_ptr`s and an expired entry is
-reclaimed only when the *same* id is initialised again (`datacontext.h:70-79`).
-Every id here is minted fresh, so a long-lived window whose list churns
-accumulates dead map nodes for the life of the context. Pre-existing, but this is
-the first design that mints ids at churn rate, so it becomes load-bearing here.
+**`DataContext` never prunes** — and this is now a **prerequisite, not a future
+direction.** `data_` holds `weak_ptr`s and an expired entry is reclaimed only
+when the *same* id is initialised again (`datacontext.h:70-79`). Every other
+`initializeData` caller mints its id when the description is constructed, so the
+map is bounded by the size of the graph. `join` mints one per element identity
+per context, at update time, because that is where the per-identity share is
+built — so a long-lived window whose list churns grows `data_` without bound for
+the life of the context. Prune before the unified layout engine ships (step 4),
+or the churn becomes a leak in every dynamic list.
 
 **PR #99 (dynamic windows)** is open, and makes `App`'s window list
 `AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
@@ -1388,6 +1402,10 @@ Steps 0 to 2 are done; the rest is outstanding.
 
 3. **`scatter`.** Structurally the same node as `forEach` with a different
    source; the size-alignment check lives here.
+
+3b. **Prune `DataContext`.** A prerequisite for step 4 rather than a cleanup —
+   `join` mints an id per element identity at update time. See *Future
+   directions*.
 
 4. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

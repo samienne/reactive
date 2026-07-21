@@ -109,6 +109,19 @@ namespace bq::signal
         {
         };
 
+        /** @brief Whether `U` is accepted as a single constant item of `T`.
+         *
+         * A signal and an array of their own have their own constructors, so an
+         * unconstrained forwarding constructor would swallow both — and it
+         * would be a better match than the copy constructor for a non-const
+         * array lvalue besides.
+         */
+        template <typename U, typename T>
+        constexpr bool isPlainItem =
+            std::is_convertible_v<U, T>
+            && !std::is_convertible_v<U, AnySignal<T>>
+            && !IsArraySignal<std::decay_t<U>>::value;
+
         /** @brief Builds one value per key and keeps it while the key is
          * there.
          *
@@ -385,19 +398,21 @@ namespace bq::signal
 
         /** @brief Constructs a single item whose value varies over time.
          *
-         * A changed value rebuilds this element, and only this element.
+         * A changed value rebuilds this element, and only this element. The
+         * signal is deduplicated first, so a repeat of the value it already
+         * holds is not a rebuild — but only where `T` is equality-comparable,
+         * since tryCheck() is silently a passthrough where it is not.
          */
-        ArraySignal(AnySignal<T> value) :
+        template <typename TStorage>
+        ArraySignal(Signal<TStorage, T> value) :
             ArraySignal(ElementsSignal(wrap(detail::ArraySingle<T>(
-                                std::move(value).unwrap()))))
+                                AnySignal<T>(value.tryCheck()).unwrap()))))
         {
         }
 
         /** @brief Constructs a single constant item. */
         template <typename U, typename = std::enable_if_t<
-            std::is_convertible_v<U, T>
-            && !std::is_convertible_v<U, AnySignal<T>>
-            && !detail::IsArraySignal<std::decay_t<U>>::value
+            detail::isPlainItem<U, T>
             >>
         ArraySignal(U&& value) :
             ArraySignal(AnySignal<T>(constant(T(std::forward<U>(value)))))
@@ -438,9 +453,9 @@ namespace bq::signal
                             return element.id;
                         },
                         std::move(build),
-                        [](detail::ArrayId const& id)
+                        [](detail::ArrayId const&)
                         {
-                            return id;
+                            return detail::makeArrayId();
                         }));
         }
 
@@ -505,13 +520,18 @@ namespace bq::signal
      *
      * Eviction is strict. When a key leaves, its identity is dropped and what
      * the delegate built for it is destroyed in that same update; a key that
-     * leaves and returns is a new item, exactly as a changed key is.
+     * leaves and returns is a new item, exactly as a changed key is. The
+     * update builds the new table before it retires the old one, so a
+     * departing item and its replacement briefly coexist — a value holding a
+     * resource that only one owner may have cannot be built here.
      *
      * `keyFn` and `delegate` are invoked as const functions, and run for every
      * item on every change and once per key respectively. Keys must be unique
      * within this call and need not be unique anywhere else.
      *
-     * @throws std::runtime_error if two items share a key.
+     * @throws std::runtime_error if two items share a key. Thrown from an
+     *         update, this leaves the source advanced and the table not, so
+     *         the context should be discarded rather than driven again.
      */
     template <typename T, typename TKeyFunc, typename TDelegate>
     auto forEach(AnySignal<std::vector<T>> source, TKeyFunc keyFn,
@@ -554,10 +574,16 @@ namespace bq::signal
 
     /** @brief Concatenates arrays, preserving order and every identity.
      *
-     * Identities are distinct between arrays by construction, so nothing is
-     * re-keyed. With the empty array as its identity element this is a monoid,
-     * which is the same statement as `{a, {b, c}}` and `{a, b, c}` exporting
-     * the same list.
+     * Separately built arrays have distinct identities by construction, so
+     * nothing is re-keyed. With the empty array as its identity element this is
+     * a monoid, which is the same statement as `{a, {b, c}}` and `{a, b, c}`
+     * exporting the same list.
+     *
+     * Concatenating an array with *itself* is the one case that is not
+     * well-formed: its identities would appear twice, which the next operator
+     * over the result reports as a duplicate key. Arrays derived from a common
+     * source are fine — every operator that builds an array mints its own
+     * identities.
      */
     template <typename T>
     ArraySignal<T> concat(std::vector<ArraySignal<T>> arrays)

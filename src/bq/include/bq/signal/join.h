@@ -112,6 +112,11 @@ namespace bq::signal
             if (r.didChange)
             {
                 data.innerSignal = makeInnerSignal(sig_.evaluate(context, data.outerData));
+
+                // The new data is built before the old is released, so a
+                // shared node the two inner signals have in common finds its
+                // context data still alive and keeps it. Releasing first would
+                // silently restart everything such a node holds.
                 data.innerData = data.innerSignal.initialize(context, frame);
             }
 
