@@ -36,8 +36,9 @@ bq::signal::AnySignal<widget::Instance> buildChild(
         widget::AnyBuilder const& builder,
         bq::signal::AnySignal<avg::Obb> obb)
 {
-    auto transform = obb.map(&avg::Obb::getTransform);
-    auto size = obb.map(&avg::Obb::getSize);
+    auto shared = obb.share();
+    auto transform = shared.map(&avg::Obb::getTransform);
+    auto size = shared.map(&avg::Obb::getSize);
 
     auto placed = builder.clone()
         | modifier::transformBuilder(std::move(transform));
