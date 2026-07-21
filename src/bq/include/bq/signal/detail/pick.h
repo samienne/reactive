@@ -33,13 +33,13 @@ namespace bq::signal::detail
 
     /** @brief Blocks template argument deduction for a parameter. */
     template <typename T>
-    struct Identity
+    struct NonDeduced
     {
         using type = T;
     };
 
     template <typename T>
-    using IdentityT = typename Identity<T>::type;
+    using NonDeducedT = typename NonDeduced<T>::type;
 
     /** @brief Signal of the element stored under one key of a keyed source.
      *
@@ -60,6 +60,14 @@ namespace bq::signal::detail
     class Pick
     {
     public:
+        /** @brief The latched value, held once per context.
+         *
+         * Carries no lock. A DataContext belongs to one SignalContext and its
+         * data is written only by that context's initialize and update passes,
+         * so instantiations sharing this state are advanced one after another
+         * on a single thread. Concurrency in bq is between contexts, and
+         * between contexts each thread reaches a different one of these.
+         */
         struct ContextDataType
         {
             explicit ContextDataType(TValue value) :
@@ -167,7 +175,7 @@ namespace bq::signal::detail
      */
     template <typename TStorage, typename TKey, typename TValue>
     auto pick(Signal<TStorage, KeyedElements<TKey, TValue>> source,
-            IdentityT<TKey> key)
+            NonDeducedT<TKey> key)
     {
         using Storage = SignalStorageType<TStorage,
               KeyedElements<TKey, TValue>>;
