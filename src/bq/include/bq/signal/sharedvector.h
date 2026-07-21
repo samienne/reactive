@@ -219,6 +219,9 @@ namespace bq::signal
          *
          * The signal every copy of this vector exports is one signal, so a
          * SignalContext holding two of them keeps one set of state for both.
+         *
+         * It does not keep the contents writable: it outlives the last vector
+         * naming them and then carries the last contents published, forever.
          */
         AnySignal<std::vector<T>> signal() const
         {

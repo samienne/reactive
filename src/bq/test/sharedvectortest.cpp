@@ -195,6 +195,26 @@ TEST(sharedVector, aHandleOutlivesTheVectorItCameFrom)
     EXPECT_EQ((std::vector<int>{ 1, 2 }), *r);
 }
 
+// The signal is not a view onto the vector but a source in its own right, so
+// it keeps working once nothing can write to it again.
+TEST(sharedVector, theSignalOutlivesTheVector)
+{
+    AnySignal<std::vector<int>> sig = []()
+        {
+            SharedVector<int> vec = { 1, 2 };
+
+            return vec.signal();
+        }();
+
+    auto c = makeSignalContext(sig);
+
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
+
+    auto r = c.update(FrameInfo(1, {}));
+
+    EXPECT_FALSE(r.didChange);
+}
+
 // The point of the whole thing: a vector drives forEach, and an item's value
 // changing reaches the delegate through the signal it already holds rather
 // than by rebuilding what it built.
