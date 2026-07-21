@@ -3,12 +3,15 @@
 #include "window.h"
 #include "bquivisibility.h"
 
+#include <bq/signal/arraysignal.h>
 #include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 
 #include <btl/shared.h>
 #include <btl/visibility.h>
+
+#include <optional>
 
 namespace bqui
 {
@@ -20,9 +23,31 @@ namespace bqui
     public:
         explicit App();
 
-        App windows(std::initializer_list<Window> windows) &&;
+        /** @brief Sets the windows the app opens.
+         *
+         * The list is the only thing that says which windows exist. A braced
+         * list is a constant array, so `windows({ a, b })` opens two windows
+         * and never changes; a list built with bq::signal::forEach() opens and
+         * closes windows as its keys come and go, and every window that stays
+         * keeps everything it had — its widgets, their state, and its own OS
+         * window.
+         *
+         * A window closes by leaving the list, so wire what a window offers to
+         * whatever the list is built from: `Window::onClose` on a window whose
+         * key comes from an input removes that key.
+         */
+        App windows(bq::signal::ArraySignal<Window> windows) &&;
 
+        /** @brief Runs until `running` is false. */
         int run(bq::signal::AnySignal<bool> running) &&;
+
+        /** @overload
+         *
+         * Runs until a window closes — **any** window, including one that
+         * opened later. That is what a single-window app wants; a list whose
+         * windows come and go wants the overload above, so that closing one
+         * window can mean removing it rather than stopping.
+         */
         int run() &&;
 
         [[nodiscard]]

@@ -855,7 +855,10 @@ namespace bq::signal
      *
      * The only exit from the array domain, and the reason the element type has
      * to be a signal: an array of anything else has nothing to fan in. Map it
-     * to something joinable first.
+     * to something joinable first. A value that carries no variation of its own
+     * leaves as `constant(value)`: the exit hands back a vector of the
+     * elements' current values, and a constant's current value is the thing
+     * itself.
      *
      * A membership change initializes what arrived and releases what left. A
      * surviving element is carried across untouched, so whatever its signal has

@@ -5,6 +5,8 @@
 
 #include "debug.h"
 
+#include <bq/signal/arraysignal.h>
+#include <bq/signal/constant.h>
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
@@ -34,9 +36,12 @@
 #include <tracy/Tracy.hpp>
 
 #include <chrono>
+#include <functional>
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <string>
+#include <vector>
 #include <cstdint>
 
 namespace bqui
@@ -54,6 +59,8 @@ namespace
 
 class WindowGlue;
 
+using GlueSignal = bq::signal::AnySignal<btl::shared<WindowGlue>>;
+
 class BQUI_EXPORT AppDeferred
 {
 public:
@@ -62,7 +69,7 @@ public:
         TracyAppInfo("Reactive application", 20);
     }
 
-    std::vector<Window> windows_;
+    bq::signal::ArraySignal<Window> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
 };
 
@@ -112,7 +119,7 @@ public:
                         a.emitButtonEvent(e);
                         areas_[e.button].push_back(a);
 
-                        makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                        aseWindow.requestFrame();
                     }
                 }
             }
@@ -125,7 +132,7 @@ public:
 
                 areas_[e.button].clear();
 
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                aseWindow.requestFrame();
             }
 
         });
@@ -205,7 +212,7 @@ public:
                 (*currentKeyHandler_)(e);
                 keys_[e.getKey()] = *currentKeyHandler_;
 
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                aseWindow.requestFrame();
             }
             else
             {
@@ -217,7 +224,7 @@ public:
 
                 f(e);
 
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                aseWindow.requestFrame();
             }
         });
 
@@ -227,7 +234,7 @@ public:
             {
                 (*currentTextHandler_)(e);
 
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                aseWindow.requestFrame();
             }
         });
 
@@ -240,7 +247,7 @@ public:
                     currentHoverArea_->emitHoverEvent(e);
                     currentHoverArea_ = std::nullopt;
 
-                    makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
+                    aseWindow.requestFrame();
                 }
             }
         });
@@ -465,10 +472,9 @@ App::App() :
 {
 }
 
-App App::windows(std::initializer_list<Window> windows) &&
+App App::windows(bq::signal::ArraySignal<Window> windows) &&
 {
-    for (auto const& w : windows)
-        d()->windows_.push_back(btl::clone(w));
+    d()->windows_ = std::move(windows);
 
     return std::move(*this);
 }
@@ -477,15 +483,44 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
-    d()->windowGlues_.reserve(d()->windows_.size());
-
     ase::RenderContext context = platform.makeRenderContext();
 
-    for (auto&& w : d()->windows_)
+    // One glue per window identity: the array builds it when the identity
+    // appears and destroys it when the identity leaves, so a window that
+    // survives an edit keeps the glue it already had. A glue is not a signal,
+    // and join() is the only way out of the array, so each one leaves as a
+    // constant.
+    auto makeGlue = [&platform, &context](Window const& window)
     {
-        d()->windowGlues_.push_back(std::make_shared<WindowGlue>(
-            platform, context, std::move(w)));
-    }
+        btl::shared<WindowGlue> glue = std::make_shared<WindowGlue>(platform,
+                context, btl::clone(window));
+
+        return GlueSignal(bq::signal::constant(std::move(glue)));
+    };
+
+    auto glues = bq::signal::makeSignalContext(
+            bq::signal::join(d()->windows_.map(makeGlue)));
+
+    auto mainQueue = context.getMainRenderQueue();
+
+    auto collect = [&]()
+    {
+        std::vector<btl::shared<WindowGlue>> departing =
+            glues.evaluate<0>().get<0>();
+
+        // A frame that drew a departing window can still be in flight, and it
+        // holds that window's framebuffer, so nothing may release a glue until
+        // the queue has caught up.
+        mainQueue.finish();
+
+        // Swap and then clear, rather than assign: destroying a window runs
+        // event handlers that reach back into the live set, which must be the
+        // new one by then.
+        d()->windowGlues_.swap(departing);
+        departing.clear();
+    };
+
+    collect();
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
@@ -496,7 +531,11 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
-            auto [timeToNext, didChange] = running.update(frame);
+
+            if (glues.update(frame).didChange)
+                collect();
+
+            running.update(frame);
 
             return running.evaluate<0>().get<0>();
         });
@@ -512,6 +551,7 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
                 (double)glue->getFrames() / time.count());
     }
 
+    mainQueue.finish();
     d()->windowGlues_.clear();
 
     return 0;
@@ -520,8 +560,14 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
 int App::run() &&
 {
     auto running = bq::signal::makeInput(true);
-    for (auto&& w : d()->windows_)
-        w = std::move(w).onClose(send(false, running.handle));
+
+    // Wiring the handler through the array reaches a window that opens later
+    // just as it reaches one that was there from the start.
+    d()->windows_ = d()->windows_.map(
+            [handle = running.handle](Window const& window)
+            {
+                return btl::clone(window).onClose(send(false, handle));
+            });
 
     return std::move(*this).run(running.signal);
 }
