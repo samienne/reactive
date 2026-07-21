@@ -23,6 +23,9 @@ outgrows one file.
   `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill`. **Clipping is
   rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
   region/shape clip. (Path-level clipping is deferred — `docs/decisions.md`.)
+- **Trap:** `Shape::getControlBb` applies a composed element's transform twice
+  in its `Operation` branch; the sibling `StrokeToShape` branch is correct.
+  Known and unfixed — geometry derived from it inherits the error.
 
 ## Render tree
 
@@ -47,20 +50,22 @@ virtual, so adding a node kind means adding that override.
 - **Geometry is resolved, not authored.** A node reports its box already
   composed with every enclosing obb, so a reader places it without a transform
   of its own. It is derived from the nodes' `Animated<Obb>`, never from
-  `Shape::getControlBb`, so it does not inherit that function's double-transform
-  bug.
+  `Shape::getControlBb`, so it does not inherit that function's trap above.
 - **Text comes from drawing, not from the tree.** A leaf's content lives inside
   its draw function, so a leaf is drawn on its own out of the caller's memory
   and the `TextEntry`s of the result are collected; the drawing is discarded.
+  A snapshot therefore costs a whole draw pass. Because a leaf is drawn in
+  isolation, an enclosing `ClipNode` applies itself afterwards, through
+  `clipSnapshotText`.
 - **Nulls are expected.** An empty tree yields no root, and a node whose child
   is null yields no child; the walker never assumes a well-formed tree.
 
 `toJson` writes schema version 1: an envelope of `version`, `time`, `obb` and
-`root`, and per node `type`, `obb` (`center`/`size`/`angle`/`scale`), `text`
-and `children`, plus `id` when the node has one and `leaving` when the subtree
-is on its way out. Numbers are `%.9g` with non-finite written as zero. The
-schema is a contract — extend it additively and bump `Snapshot::version` when
-an existing field changes meaning.
+`root`, and per node `type`, `obb` (`center`/`size`/`angle`), `text` and
+`children`, plus `id` when the node has one and `leaving` when the subtree is
+on its way out. Text is passed through as the UTF-8 bytes the `TextEntry`
+carries. The schema is a contract — extend it additively and bump
+`Snapshot::version` when an existing field changes meaning.
 
 ## Animation
 

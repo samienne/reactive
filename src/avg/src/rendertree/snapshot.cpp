@@ -1,14 +1,15 @@
 #include "rendertree/snapshot.h"
 
-#include "rendertree/rendertreenode.h"
-
 #include "drawing.h"
 #include "obb.h"
+#include "rendertree/rendertreenode.h"
 #include "textentry.h"
 #include "transform.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <iomanip>
 #include <locale>
 #include <sstream>
 #include <string>
@@ -49,12 +50,7 @@ void collectText(
 
 void writeNumber(std::ostringstream& out, float value)
 {
-    char buffer[32];
-
-    std::snprintf(buffer, sizeof(buffer), "%.9g",
-            std::isfinite(value) ? static_cast<double>(value) : 0.0);
-
-    out << buffer;
+    out << (std::isfinite(value) ? value : 0.0f);
 }
 
 void writeString(std::ostringstream& out, std::string const& value)
@@ -108,6 +104,7 @@ void writeString(std::ostringstream& out, std::string const& value)
 void writeObb(std::ostringstream& out, Obb const& obb)
 {
     auto center = obb.getCenter();
+    auto scale = obb.getTransform().getScale();
     auto size = obb.getSize();
 
     out << "{\"center\":{\"x\":";
@@ -115,13 +112,11 @@ void writeObb(std::ostringstream& out, Obb const& obb)
     out << ",\"y\":";
     writeNumber(out, center[1]);
     out << "},\"size\":{\"w\":";
-    writeNumber(out, size[0]);
+    writeNumber(out, size[0] * scale);
     out << ",\"h\":";
-    writeNumber(out, size[1]);
+    writeNumber(out, size[1] * scale);
     out << "},\"angle\":";
     writeNumber(out, obb.getTransform().getRotation());
-    out << ",\"scale\":";
-    writeNumber(out, obb.getTransform().getScale());
     out << '}';
 }
 
@@ -205,10 +200,30 @@ SnapshotNode makeLeafSnapshotNode(
     return result;
 }
 
+void clipSnapshotText(SnapshotNode& node, Obb const& clip)
+{
+    auto bounds = clip.getBoundingRect();
+
+    node.text.erase(
+            std::remove_if(node.text.begin(), node.text.end(),
+                [&](SnapshotText const& text)
+                {
+                    return !text.obb.getBoundingRect().overlaps(bounds);
+                }),
+            node.text.end()
+            );
+
+    for (auto& child : node.children)
+        clipSnapshotText(child, clip);
+}
+
 std::string toJson(Snapshot const& snapshot)
 {
     std::ostringstream out;
+
+    // snprintf would take the decimal separator from the process locale.
     out.imbue(std::locale::classic());
+    out << std::setprecision(9);
 
     out << "{\"version\":" << Snapshot::version
         << ",\"time\":" << snapshot.time.count()

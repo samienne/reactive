@@ -110,23 +110,32 @@ TEST(Snapshot, describesTypeIdentityAndNesting)
 {
     auto id = avg::UniqueId();
 
+    // Every enclosing box is placed, so a child that failed to compose one of
+    // them cannot land where it is expected.
     auto container = std::make_shared<avg::ContainerNode>(
-            avg::Obb(avg::Vector2f(300.0f, 50.0f)));
+            placed(1000.0f, 500.0f, 300.0f, 50.0f));
 
     container->addChild(std::make_shared<avg::IdNode>(
                 id,
-                placed(10.0f, 0.0f, 100.0f, 50.0f),
-                rect(placed(0.0f, 0.0f, 100.0f, 50.0f))
+                placed(10.0f, 3.0f, 100.0f, 50.0f),
+                rect(placed(7.0f, 0.0f, 100.0f, 50.0f))
                 ));
 
     container->addChild(std::make_shared<avg::ClipNode>(
-                placed(200.0f, 0.0f, 50.0f, 50.0f),
-                rect(placed(0.0f, 0.0f, 80.0f, 50.0f))
+                placed(200.0f, 4.0f, 50.0f, 50.0f),
+                rect(placed(6.0f, 0.0f, 80.0f, 50.0f))
+                ));
+
+    container->addChild(std::make_shared<avg::TransitionNode>(
+                placed(20.0f, 5.0f, 50.0f, 50.0f),
+                true,
+                rect(placed(9.0f, 0.0f, 30.0f, 50.0f)),
+                rect(placed(0.0f, 0.0f, 30.0f, 50.0f))
                 ));
 
     auto snapshot = snapshotOf(
             avg::RenderTree(std::move(container)),
-            avg::Obb(avg::Vector2f(300.0f, 50.0f))
+            placed(1.0f, 2.0f, 300.0f, 50.0f)
             );
 
     ASSERT_TRUE(snapshot.root.has_value());
@@ -134,21 +143,31 @@ TEST(Snapshot, describesTypeIdentityAndNesting)
     auto const& root = *snapshot.root;
     EXPECT_EQ("ContainerNode", root.type);
     EXPECT_FALSE(root.id.has_value());
-    ASSERT_EQ(2u, root.children.size());
+    expectObb(root.obb, 1001.0f, 502.0f, 300.0f, 50.0f);
+    ASSERT_EQ(3u, root.children.size());
 
     auto const& idNode = root.children[0];
     EXPECT_EQ("IdNode", idNode.type);
     ASSERT_TRUE(idNode.id.has_value());
     EXPECT_EQ(id, *idNode.id);
-    expectObb(idNode.obb, 10.0f, 0.0f, 100.0f, 50.0f);
+    expectObb(idNode.obb, 1011.0f, 505.0f, 100.0f, 50.0f);
     ASSERT_EQ(1u, idNode.children.size());
     EXPECT_EQ("RectNode", idNode.children[0].type);
+    expectObb(idNode.children[0].obb, 1018.0f, 505.0f, 100.0f, 50.0f);
 
     auto const& clipNode = root.children[1];
     EXPECT_EQ("ClipNode", clipNode.type);
-    expectObb(clipNode.obb, 200.0f, 0.0f, 50.0f, 50.0f);
+    expectObb(clipNode.obb, 1201.0f, 506.0f, 50.0f, 50.0f);
     ASSERT_EQ(1u, clipNode.children.size());
     EXPECT_EQ("RectNode", clipNode.children[0].type);
+    expectObb(clipNode.children[0].obb, 1207.0f, 506.0f, 80.0f, 50.0f);
+
+    auto const& transitionNode = root.children[2];
+    EXPECT_EQ("TransitionNode", transitionNode.type);
+    EXPECT_FALSE(transitionNode.leaving);
+    expectObb(transitionNode.obb, 1021.0f, 507.0f, 50.0f, 50.0f);
+    ASSERT_EQ(1u, transitionNode.children.size());
+    expectObb(transitionNode.children[0].obb, 1030.0f, 507.0f, 30.0f, 50.0f);
 }
 
 TEST(Snapshot, geometryIsResolvedToTheSnapshotObb)
@@ -200,12 +219,21 @@ TEST(Snapshot, reportsTheTextALeafDraws)
     ASSERT_EQ(1u, leaf.text.size());
     EXPECT_EQ("Ok", leaf.text[0].text);
 
-    auto bounds = leaf.text[0].obb.getBoundingRect();
-    EXPECT_FALSE(bounds.isEmpty());
-
     // The text is placed by every enclosing obb, not just its own.
-    EXPECT_GE(bounds.getLeft(), 15.0f);
-    EXPECT_GE(bounds.getBottom(), 25.0f);
+    auto expected = avg::translate(15.0f, 25.0f) * avg::TextEntry(
+            avg::Font(fontPath, 0),
+            avg::Transform().scale(10.0f),
+            "Ok"
+            ).getControlObb();
+
+    auto bounds = leaf.text[0].obb.getBoundingRect();
+    auto expectedBounds = expected.getBoundingRect();
+
+    EXPECT_FALSE(bounds.isEmpty());
+    EXPECT_FLOAT_EQ(expectedBounds.getLeft(), bounds.getLeft());
+    EXPECT_FLOAT_EQ(expectedBounds.getBottom(), bounds.getBottom());
+    EXPECT_FLOAT_EQ(expectedBounds.getWidth(), bounds.getWidth());
+    EXPECT_FLOAT_EQ(expectedBounds.getHeight(), bounds.getHeight());
 }
 
 TEST(Snapshot, reportsASubtreeOnItsWayOut)
@@ -253,6 +281,57 @@ TEST(Snapshot, reportsASubtreeOnItsWayOut)
     ASSERT_EQ(1u, idNode.children.size());
     EXPECT_EQ("TransitionNode", idNode.children[0].type);
     EXPECT_TRUE(idNode.children[0].leaving);
+
+    EXPECT_NE(std::string::npos,
+            avg::toJson(snapshot).find("\"leaving\":true"));
+}
+
+TEST(Snapshot, textClippedAwayIsNotReported)
+{
+    auto container = std::make_shared<avg::ContainerNode>(
+            avg::Obb(avg::Vector2f(300.0f, 50.0f)));
+
+    container->addChild(std::make_shared<avg::ClipNode>(
+                placed(0.0f, 0.0f, 20.0f, 20.0f),
+                text(placed(500.0f, 500.0f, 100.0f, 50.0f), "hidden")
+                ));
+
+    container->addChild(std::make_shared<avg::ClipNode>(
+                placed(0.0f, 0.0f, 20.0f, 20.0f),
+                text(placed(0.0f, 0.0f, 100.0f, 50.0f), "shown")
+                ));
+
+    auto snapshot = snapshotOf(
+            avg::RenderTree(std::move(container)),
+            avg::Obb(avg::Vector2f(300.0f, 50.0f))
+            );
+
+    ASSERT_TRUE(snapshot.root.has_value());
+    ASSERT_EQ(2u, snapshot.root->children.size());
+
+    ASSERT_EQ(1u, snapshot.root->children[0].children.size());
+    EXPECT_TRUE(snapshot.root->children[0].children[0].text.empty());
+
+    ASSERT_EQ(1u, snapshot.root->children[1].children.size());
+    ASSERT_EQ(1u, snapshot.root->children[1].children[0].text.size());
+    EXPECT_EQ("shown", snapshot.root->children[1].children[0].text[0].text);
+}
+
+TEST(Snapshot, jsonWritesBoxesResolvedRatherThanAuthored)
+{
+    auto container = std::make_shared<avg::ContainerNode>(
+            avg::Obb(avg::Vector2f(100.0f, 50.0f)));
+
+    auto json = avg::toJson(snapshotOf(
+                avg::RenderTree(std::move(container)),
+                avg::Obb(avg::Vector2f(300.0f, 50.0f), avg::scale(2.0f))
+                ));
+
+    // The authored size is 100x50 under a scale of two.
+    EXPECT_NE(std::string::npos,
+            json.find("\"size\":{\"w\":200,\"h\":100}"));
+    EXPECT_NE(std::string::npos,
+            json.find("\"center\":{\"x\":100,\"y\":50}"));
 }
 
 TEST(Snapshot, anEmptyTreeHasNoRoot)
@@ -307,6 +386,7 @@ TEST(Snapshot, leavesTheTreeUnchanged)
             placed(10.0f, 20.0f, 300.0f, 50.0f));
 
     container->addChild(rect(placed(5.0f, 5.0f, 100.0f, 50.0f)));
+    container->addChild(text(placed(5.0f, 5.0f, 100.0f, 50.0f), "Ok"));
 
     auto tree = avg::RenderTree(std::move(container));
     auto const* root = tree.getRoot().get();
@@ -315,11 +395,13 @@ TEST(Snapshot, leavesTheTreeUnchanged)
 
     auto before = shapeBounds(tree.draw(context, viewport, zero).first);
 
-    tree.snapshot(context, viewport, zero);
+    auto first = avg::toJson(tree.snapshot(context, viewport, zero));
+    auto second = avg::toJson(tree.snapshot(context, viewport, zero));
 
     auto after = shapeBounds(tree.draw(context, viewport, zero).first);
 
     EXPECT_EQ(root, tree.getRoot().get());
+    EXPECT_EQ(first, second);
 
     ASSERT_EQ(before.size(), after.size());
     for (size_t i = 0; i < before.size(); ++i)
@@ -341,7 +423,7 @@ TEST(Snapshot, jsonCarriesTheSchemaVersionAndEscapesText)
     container->addChild(std::make_shared<avg::IdNode>(
                 id,
                 placed(0.0f, 0.0f, 100.0f, 50.0f),
-                text(placed(0.0f, 0.0f, 100.0f, 50.0f), "a\"b\nc")
+                text(placed(0.0f, 0.0f, 100.0f, 50.0f), "a\"b\\d\nc\x01")
                 ));
 
     auto json = avg::toJson(snapshotOf(
@@ -353,6 +435,9 @@ TEST(Snapshot, jsonCarriesTheSchemaVersionAndEscapesText)
     EXPECT_NE(std::string::npos, json.find("\"type\":\"ContainerNode\""));
     EXPECT_NE(std::string::npos,
             json.find("\"id\":" + std::to_string(id.getValue())));
-    EXPECT_NE(std::string::npos, json.find("\"text\":\"a\\\"b\\nc\""));
-    EXPECT_NE(std::string::npos, json.find("\"angle\":"));
+    EXPECT_NE(std::string::npos,
+            json.find("\"text\":\"a\\\"b\\\\d\\nc\\u0001\""));
+    EXPECT_NE(std::string::npos, json.find("\"angle\":0"));
+    EXPECT_EQ(std::string::npos, json.find("nan"));
+    EXPECT_EQ(std::string::npos, json.find("inf"));
 }
