@@ -14,20 +14,44 @@ namespace bq::signal
     template <typename T, typename... Ts>
     class Signal;
 
+    template <typename... Ts>
+    class AnySignal;
+
     namespace detail
     {
         template <typename T>
-        auto toSignal(T&& t)
+        struct IsSignalObject : std::false_type
         {
-            return constant(std::forward<T>(t));
-        }
+        };
 
         template <typename T, typename... Ts>
-        Signal<T, Ts...> toSignal(Signal<T, Ts...> sig)
+        struct IsSignalObject<Signal<T, Ts...>> : std::true_type
         {
-            return sig;
+        };
+
+        template <typename... Ts>
+        struct IsSignalObject<AnySignal<Ts...>> : std::true_type
+        {
+        };
+
+        /** @brief Passes a signal through, and makes a constant of anything
+         * else.
+         *
+         * One function rather than an overload pair because an AnySignal is
+         * derived from Signal: a forwarding overload is an exact match for it
+         * where the Signal one is only a derived-to-base conversion, so the
+         * overload set would wrap a type-erased signal in a constant instead
+         * of passing it through.
+         */
+        template <typename T>
+        auto toSignal(T&& t)
+        {
+            if constexpr (IsSignalObject<std::decay_t<T>>::value)
+                return std::forward<T>(t);
+            else
+                return constant(std::forward<T>(t));
         }
-    } // anonymous namespace
+    } // namespace detail
 
     template <typename T>
     class Join
@@ -117,7 +141,8 @@ namespace bq::signal
     {
         if constexpr (btl::any(IsSignal<Ts>::value...))
         {
-            return wrap(Join<T>(std::move(sig).unwrap()));
+            using Storage = typename Signal<T, Ts...>::StorageType;
+            return wrap(Join<Storage>(std::move(sig).unwrap()));
         }
         else
         {
