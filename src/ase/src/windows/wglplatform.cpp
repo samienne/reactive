@@ -194,7 +194,7 @@ HDC WglPlatform::getDummyDc() const
 
 PIXELFORMATDESCRIPTOR WglPlatform::getPixelFormatDescriptor() const
 {
-    PIXELFORMATDESCRIPTOR pfd = {0};
+    PIXELFORMATDESCRIPTOR pfd = {};
 
     pfd.nSize = sizeof(pfd);
     pfd.dwFlags = PFD_DOUBLEBUFFER | PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW;

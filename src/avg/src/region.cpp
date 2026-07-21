@@ -466,10 +466,6 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint32_t> >
 
         assert(node->Contour.front() != node->Contour.back());
 
-        size_t pointCount = node->Contour.size();
-        for (auto const& child : node->Childs)
-            pointCount += child->Contour.size();
-
         pmr::vector<pmr::vector<ClipperLib::IntPoint>> polygons(&mono);
         polygons.push_back(node->Contour);
 
@@ -483,7 +479,7 @@ std::pair<pmr::vector<Vector2f>, pmr::vector<uint32_t> >
 
         std::vector<uint32_t> triangles = mapbox::earcut(polygons);
 
-        size_t offset = vertices.size();
+        uint32_t offset = static_cast<uint32_t>(vertices.size());
         for (auto const& polygon : polygons)
         {
             for (auto const& vertex : polygon)
@@ -552,7 +548,7 @@ Region Region::withResource(pmr::memory_resource* memory) const
 
 void Region::ensureUniqueness()
 {
-    if (deferred_.unique())
+    if (deferred_.use_count() == 1)
         return;
 
     deferred_ = pmr::make_shared<RegionDeferred>(memory_, *d());

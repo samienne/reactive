@@ -1,5 +1,7 @@
 #include "bqui/theme.h"
 
+#include <cmath>
+
 namespace bqui
 {
 
@@ -8,10 +10,10 @@ namespace color
 
 float sRGBtoLinear(float sRGB)
 {
-    if (sRGB <= 0.04045)
-        return sRGB / 12.92;
+    if (sRGB <= 0.04045f)
+        return sRGB / 12.92f;
     else
-        return pow((sRGB + 0.055) / 1.055, 2.4);
+        return std::pow((sRGB + 0.055f) / 1.055f, 2.4f);
 }
 
 auto fromSrgb(float red, float green, float blue,

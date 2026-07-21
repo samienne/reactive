@@ -20,7 +20,7 @@ namespace bq::signal
      *
      * The state side of a changing list: forEach() consumes signal() and turns
      * it into an array of identified elements. Copies of a vector share one
-     * set of contents, the way a `btl::shared` does, so handing a copy to a
+     * set of contents, the way a 'btl::shared' does, so handing a copy to a
      * widget and keeping one to mutate is the intended use.
      *
      * Contents are reached only through a scoped handle. read() takes a shared
@@ -29,7 +29,7 @@ namespace bq::signal
      *
      * **The write scope is the unit of emission.** The signal is given the new
      * contents when a write handle is destroyed, not when an individual
-     * mutation happens, so a hundred `push_back`s under one handle produce one
+     * mutation happens, so a hundred 'push_back's under one handle produce one
      * emission carrying the final state. A write scope that mutates nothing
      * emits too: what publishes is the scope, not the mutation.
      *
@@ -48,7 +48,7 @@ namespace bq::signal
      * into code that might.
      *
      * The vector invokes no callback of its own, so the only caller-written
-     * code that runs under the lock is `T`'s copy constructor and destructor,
+     * code that runs under the lock is 'T''s copy constructor and destructor,
      * from publishing. The only other lock taken under the write lock is the
      * input's, and nothing under *that* lock reaches back here: the input's
      * handle never leaves this vector, so no signal can be pushed into it and
@@ -104,7 +104,7 @@ namespace bq::signal
         /** @brief Scoped write access.
          *
          * Holds an exclusive lock for its lifetime and gives the vector out by
-         * reference, so every mutating operation a `std::vector` has is
+         * reference, so every mutating operation a 'std::vector' has is
          * available. Destroying the handle publishes the contents to the
          * signal.
          *
@@ -179,7 +179,7 @@ namespace bq::signal
         {
         }
 
-        /** @brief Constructs a vector holding `initial`. */
+        /** @brief Constructs a vector holding 'initial'. */
         explicit SharedVector(std::vector<T> initial) :
             control_(std::make_shared<Control>(std::move(initial)))
         {
