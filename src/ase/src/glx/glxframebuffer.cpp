@@ -12,8 +12,7 @@
 namespace ase
 {
 
-GlxFramebuffer::GlxFramebuffer(GlxPlatform& platform, GlxWindow& window) :
-    platform_(platform),
+GlxFramebuffer::GlxFramebuffer(GlxWindow& window) :
     window_(window)
 {
 }
