@@ -40,6 +40,7 @@ namespace avg
                 );
 
         TransitionNode(TransitionNode const&) = default;
+        TransitionNode& operator=(TransitionNode const&) = default;
 
         UpdateResult update(
                 RenderTree const& oldTree,

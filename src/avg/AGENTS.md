@@ -44,6 +44,13 @@ outgrows one file.
   `src/avg/src/animated.cpp` and are export-marked — if you add an animated type,
   add it there too (see `docs/conventions.md` on template export vs clang-cl).
 
+## Vendored Clipper
+
+`src/clipper/` is upstream Clipper, not ours. It builds as its own `libclipper`
+static target with warnings off, so a file added there gets no diagnostics —
+and a file added to `libavgsrc` instead gets all of them. Keep changes to it to
+what upstream would recognise.
+
 ## Text
 
 Text goes through `Font`/`FontManager` (`font.h`, `fontmanager.h`), which shape

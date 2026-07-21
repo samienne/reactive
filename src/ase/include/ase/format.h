@@ -6,7 +6,7 @@
 
 namespace ase
 {
-    enum ASE_EXPORT Format
+    enum Format
     {
         FORMAT_UNKNOWN = 0,
         FORMAT_SRGBA,
