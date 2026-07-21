@@ -44,7 +44,7 @@ namespace
     }
 } // namespace
 
-TEST(Window, copiesAreOneWindow)
+TEST(AppWindows, copiesAreOneWindow)
 {
     Window w = makeWindow("a");
     Window copy = w;
@@ -53,7 +53,7 @@ TEST(Window, copiesAreOneWindow)
     EXPECT_NE(w.getId(), makeWindow("a").getId());
 }
 
-TEST(App, addWindowsAppends)
+TEST(AppWindows, addWindowsAppends)
 {
     App app;
 
@@ -64,7 +64,7 @@ TEST(App, addWindowsAppends)
             titles(app.getWindows()));
 }
 
-TEST(App, removeWindowRemovesByIdentity)
+TEST(AppWindows, removeWindowRemovesByIdentity)
 {
     App app;
 
@@ -77,7 +77,7 @@ TEST(App, removeWindowRemovesByIdentity)
     EXPECT_EQ(std::vector<std::string>{ "b" }, titles(app.getWindows()));
 }
 
-TEST(App, removingAWindowThatIsNotThereDoesNothing)
+TEST(AppWindows, removingAWindowThatIsNotThereDoesNothing)
 {
     App app;
     app.addWindow(makeWindow("a"));
@@ -87,7 +87,7 @@ TEST(App, removingAWindowThatIsNotThereDoesNothing)
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }
 
-TEST(App, aWindowClosesItself)
+TEST(AppWindows, aWindowClosesItself)
 {
     App app;
 
@@ -109,7 +109,7 @@ TEST(App, aWindowClosesItself)
 // The handle can be minted before the window, which is what lets a widget
 // inside the window close it: a window that captured itself would own the
 // widget that owns it.
-TEST(App, aWidgetInsideTheWindowCanCloseIt)
+TEST(AppWindows, aWidgetInsideTheWindowCanCloseIt)
 {
     App app;
 
@@ -127,7 +127,7 @@ TEST(App, aWidgetInsideTheWindowCanCloseIt)
     EXPECT_TRUE(app.getWindows().empty());
 }
 
-TEST(App, closingAWindowThatWasNeverAddedDoesNothing)
+TEST(AppWindows, closingAWindowThatWasNeverAddedDoesNothing)
 {
     Window a = makeWindow("a");
 
@@ -141,7 +141,7 @@ TEST(App, closingAWindowThatWasNeverAddedDoesNothing)
 
 // A window outlives its app whenever a widget or a callback still names it,
 // and the app is what close() reaches. It is held weakly for exactly this.
-TEST(App, closingAWindowWhoseAppIsGoneDoesNothing)
+TEST(AppWindows, closingAWindowWhoseAppIsGoneDoesNothing)
 {
     std::optional<App> app;
     app.emplace();
@@ -154,7 +154,7 @@ TEST(App, closingAWindowWhoseAppIsGoneDoesNothing)
     a.close();
 }
 
-TEST(App, aWindowCannotBeOpenedTwice)
+TEST(AppWindows, aWindowCannotBeOpenedTwice)
 {
     App app;
 
@@ -165,7 +165,7 @@ TEST(App, aWindowCannotBeOpenedTwice)
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }
 
-TEST(App, aWindowCannotBeOpenedTwiceWithinOneCall)
+TEST(AppWindows, aWindowCannotBeOpenedTwiceWithinOneCall)
 {
     App app;
 
@@ -179,14 +179,15 @@ TEST(App, aWindowCannotBeOpenedTwiceWithinOneCall)
     EXPECT_TRUE(app.getWindows().empty());
 }
 
-TEST(App, theWindowSignalFollowsTheCollection)
+TEST(AppWindows, theWindowSignalFollowsTheCollection)
 {
     App app;
     app.addWindow(makeWindow("a"));
 
     auto c = bq::signal::makeSignalContext(app.getWindowsSignal());
 
-    EXPECT_EQ(std::vector<std::string>{ "a" }, titles(c.evaluate<0>().get<0>()));
+    EXPECT_EQ(std::vector<std::string>{ "a" },
+            titles(c.evaluate<0>().get<0>()));
 
     app.addWindow(makeWindow("b"));
     c.update(bq::signal::FrameInfo(1, {}));
@@ -197,7 +198,7 @@ TEST(App, theWindowSignalFollowsTheCollection)
 
 // Copies of an App are one app: it is a handle to the state, which is what
 // lets app() hand the same one out everywhere.
-TEST(App, copiesShareTheCollection)
+TEST(AppWindows, copiesShareTheCollection)
 {
     App app;
     App copy = app;

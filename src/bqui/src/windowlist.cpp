@@ -1,6 +1,7 @@
 #include "windowlist.h"
 
 #include <algorithm>
+#include <iterator>
 #include <stdexcept>
 #include <utility>
 

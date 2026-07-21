@@ -64,6 +64,12 @@ membership changed, and `AnimationGuard` walks that cached vector. The no-signal
 `run()` overload stops when that cached vector is empty, which is why it counts
 both kinds of window.
 
+The concatenation happens once, at the start. The app's own collection is a live
+signal and so follows additions while the app runs; a *further array* added
+after `run` started is not seen, and picking one up would need the reactive
+subtree (`AnySignal<ArraySignal<T>>`) that `docs/design/arraysignal.md` still
+lists as open.
+
 ### How `Window::close()` reaches the list
 
 Through `WindowHandle`, which carries the window's `btl::UniqueId` and a

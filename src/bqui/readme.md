@@ -57,7 +57,8 @@ second window is a button handler away.
 
 A window closes by leaving the app's collection. Its title bar does that by
 itself, and so does `Window::close()`; `App::removeWindow` takes an identity
-instead. A window closing no longer stops the app — the last one closing does.
+instead. Closing one of several windows removes it; the app stops when the last
+one closes.
 
 For a close button *inside* the window, mint the window's handle first and give
 the widget that, rather than the window: a window captured in its own widget

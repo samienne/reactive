@@ -24,14 +24,18 @@ using namespace bqui;
 // AppDeferred with every other caller — two tests would then run the same
 // window list.
 //
-// App reports nothing about the open windows, so these tests watch the windows
-// themselves. Two things are observable from outside without any hook:
+// App::getWindows reports the app's own collection, and nothing at all about a
+// caller-supplied array or about what has actually been opened, so these tests
+// watch the windows themselves for the rest. Two things are observable from
+// outside without any hook:
 //
 //   - A window's title is read once per window that opens, when the glue builds
 //     its SignalContext; every later read is cached, and the dummy platform
 //     runs no window frames that could invalidate it. Counting reads of a title
 //     therefore counts openings, and a window rebuilt behind our backs counts
-//     twice.
+//     twice. A title read is equally the report that the window is open, which
+//     is the only thing a test running concurrently with the app loop can wait
+//     for.
 //   - A probe held by a window's close callback lives exactly as long as that
 //     window does.
 
@@ -60,6 +64,38 @@ namespace
     // The dummy platform's loop has no bound of its own, so a regression that
     // stopped a script advancing would hang rather than fail.
     constexpr int maxFrames = 100;
+
+    // A title that reports the window opening. The title is read once, when the
+    // glue builds its SignalContext, which is the app loop opening the window.
+    auto reportOpen(std::string title, std::atomic<bool>& opened)
+    {
+        return bq::signal::constant(std::move(title)).map(
+                [&opened](std::string const& text)
+                {
+                    opened = true;
+                    return text;
+                });
+    }
+
+    // Waits for the app loop to report something, and gives up rather than
+    // hanging if it never does — a stopped loop has to fail the test, not wedge
+    // the suite. The deadline is a backstop and not an ordering proxy: the test
+    // proceeds on the flag, never on the clock.
+    bool waitFor(std::atomic<bool> const& flag)
+    {
+        auto const deadline = std::chrono::steady_clock::now()
+            + std::chrono::seconds(30);
+
+        while (!flag)
+        {
+            if (std::chrono::steady_clock::now() > deadline)
+                return false;
+
+            std::this_thread::yield();
+        }
+
+        return true;
+    }
 } // namespace
 
 // A window whose key stays is not rebuilt when its neighbours come and go —
@@ -255,51 +291,51 @@ TEST(App, runWithNoWindowsReturnsImmediately)
     EXPECT_EQ(0, App().run());
 }
 
-// run() with no signal means "run while a window is open", which is a change
-// from "run until any window closes": closing one of several now removes it.
+// run() with no signal runs while a window is open, so closing one of several
+// removes it and only the last one stops the app.
 TEST(App, runStopsWhenTheLastWindowCloses)
 {
-    App app;
-
-    std::atomic<bool> started { false };
-    std::atomic<bool> returned { false };
-    std::atomic<bool> ranOnAfterTheFirstClose { false };
+    std::atomic<bool> firstOpened { false };
+    std::atomic<bool> laterOpened { false };
 
     Opens opens;
 
-    // The title is read when the window's glue is built, which happens inside
-    // run(), so this is the loop reporting that it has started.
-    Window first = window(
-            bq::signal::constant<std::string>("first").map(
-                [&](std::string const& title)
-                {
-                    started = true;
-                    return title;
-                }),
-            widget::makeWidget());
+    App app;
 
+    Window first = window(reportOpen("first", firstOpened),
+            widget::makeWidget());
     Window second = makeWindow("second", opens, std::make_shared<int>(0));
+
+    // A window added after another has closed opens only if the loop is still
+    // running, which is the whole of what this test asserts. Waiting for that
+    // window to open is waiting for an event the app produces, rather than for
+    // a stretch of wall clock in which it might have.
+    Window later = window(reportOpen("later", laterOpened),
+            widget::makeWidget());
 
     app.addWindows({ first, second });
 
     std::thread closer([&]()
         {
-            while (!started)
-                std::this_thread::yield();
+            if (waitFor(firstOpened))
+            {
+                first.close();
+                app.addWindow(later);
+                waitFor(laterOpened);
+            }
 
+            // Closed unconditionally, and closing twice or closing a window
+            // that was never added is a no-op: a loop that did not report what
+            // was waited for has to fail the assertions rather than run on.
             first.close();
-
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            ranOnAfterTheFirstClose = !returned;
-
             second.close();
+            later.close();
         });
 
     EXPECT_EQ(0, app.run());
-    returned = true;
 
     closer.join();
 
-    EXPECT_TRUE(ranOnAfterTheFirstClose);
+    EXPECT_TRUE(laterOpened);
     EXPECT_TRUE(app.getWindows().empty());
 }

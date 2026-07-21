@@ -83,7 +83,8 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
-        std::vector<bq::signal::ArraySignal<Window>> parts { windows_->array() };
+        std::vector<bq::signal::ArraySignal<Window>> parts {
+            windows_->array() };
         parts.insert(parts.end(), arrays_.begin(), arrays_.end());
 
         return bq::signal::concat(std::move(parts));

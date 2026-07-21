@@ -1,6 +1,6 @@
 # bq — agent notes
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `e2f0ee7` (2026-07-22).*
 
 Internals, entry points, and traps for the reactive core. Concepts and usage are
 in `readme.md`; project-wide conventions are in the top-level `docs/`. This file

@@ -83,12 +83,12 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/collectiontest.cpp',
-  'test/windowtest.cpp',
   'test/databindtest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  'test/windowtest.cpp',
   ]
 
 # App::run opens real windows, so it can only be exercised where ase builds its

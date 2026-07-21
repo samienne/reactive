@@ -53,6 +53,11 @@ namespace bqui
          * removeWindow() do nothing for them.
          *
          * Both kinds of window are open at once, and run() counts them all.
+         *
+         * Unlike the app's own collection, the set of arrays is fixed when
+         * run() starts: an array added after that is not opened. Add windows
+         * while the app runs through addWindows(), or put them in an array
+         * that is already there.
          */
         App& addWindowArray(bq::signal::ArraySignal<Window> windows);
 
