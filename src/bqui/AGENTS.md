@@ -174,6 +174,12 @@ owning `Window`.
   means having the builder hand out one shared hint signal rather than a fresh
   one per call — builder plumbing, not layout — which is why it is recorded here
   instead of patched at the call site.
+- Geometry recovered from input areas (`test/layouttest.cpp`) says nothing about
+  the render tree: a node placed wrongly, one that cannot be drawn at all, or
+  one paired with the wrong sibling across an update all leave the input areas
+  intact. Anything that only manifests when drawing belongs in
+  `test/rendertreetest.cpp`, which splices realised instances the way the window
+  loop does and asserts on the `avg::Drawing` that comes out.
 
 For cross-cutting rules (the `Any` convention, include-dir firewall, symbol
 visibility) see `docs/conventions.md`; do not restate them here.
