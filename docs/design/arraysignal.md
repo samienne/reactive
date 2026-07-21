@@ -368,7 +368,7 @@ The one thing the caller loses is the ability to have a single `forEach` build
 not its key. That is not a gap: the caller writes one array per shape and
 concatenates them, which is what the braced-list constructor is for.
 
-### Reading an element's signal once is enough, and is not the same as reading it on a clock
+### Reading an element's signal once, versus driving it on a clock
 
 **Settled when `App` grew its own window collection.** The rule above forbids
 *driving* an element's signal on a schedule of the consumer's own. It does not
