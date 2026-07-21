@@ -1,6 +1,6 @@
 # Conventions & gotchas
 
-*Last verified against `9cbe4cb` (2026-07-20).*
+*Last verified against `9c47767` (2026-07-20).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -26,19 +26,27 @@ library's internals. When adding a public header, put it under the nested
 ## Symbol visibility and DLL export
 
 Exported template instantiations use a macro scheme in
-`src/btl/include/btl/visibility.h` (`BTL_EXPORT_TEMPLATE` etc., re-exported per
-library as `AVG_EXPORT_TEMPLATE`, `BQUI_EXPORT_TEMPLATE`, …). The pattern for a
-DLL-exported explicit instantiation is: an `extern template` declaration in the
-header marked import/export, **and** the explicit instantiation *definition* in
-the `.cpp` marked with the export attribute.
+`src/btl/include/btl/visibility.h`, re-exported per library (`AVG_EXPORT`,
+`AVG_EXPORT_TEMPLATE`, …). **The two sites take different macros:** the `extern
+template` *declaration* in the header takes `*_EXPORT_TEMPLATE` (or
+`*_IMPORT_TEMPLATE` in a consumer), and the explicit instantiation *definition*
+in the `.cpp` takes `*_INSTANTIATE_TEMPLATE`. The `*_INSTANTIATE_TEMPLATE`
+re-export exists only where a library has explicit instantiations — today just
+`avg`.
+
+They are not interchangeable. On Windows and on GCC the attribute is accepted at
+one site and diagnosed at the other (`C4910` /
+`-Wdllexport-explicit-instantiation-decl`, and `-Wattributes` respectively), so
+the macro is defined empty at the site that would reject it. On clang targeting
+ELF/Mach-O both expand to the visibility attribute.
 
 The trap: **MSVC and clang-cl differ.** MSVC will re-emit header-defined inline
 members in each consumer even if nothing is exported, so it "works" by accident;
 clang-cl honours `extern template` strictly and links against the DLL's exports,
 so if the instantiation *definition* is not marked exported you get
-unresolved-symbol link errors under clang-cl only. Always mark the definition,
-not just the declaration. (This is why the Windows branch of `visibility.h`
-gives `*_EXPORT_TEMPLATE` a real `dllexport`/`dllimport`.)
+unresolved-symbol link errors under clang-cl only. This is why
+`BTL_INSTANTIATE_TEMPLATE` is a real `dllexport` on Windows even though
+`BTL_EXPORT_TEMPLATE` is empty there.
 
 The other trap: **GCC cannot export bqui's type-erased instantiations at all.**
 The libraries build with `gnu_symbol_visibility: 'hidden'`, and GCC fixes a
@@ -97,6 +105,21 @@ parameters — must be built as a *constant* instead of via an empty `merge`
 (see the `if constexpr (sizeof...(Ts) == 0)` branch in
 `src/bqui/include/bqui/shape/shape.h`). The principled fix would be a
 `signal<void>` identity element for `merge`; see `docs/decisions.md`.
+
+## Compiler warnings
+
+The project builds at `warning_level=3`; **third-party code does not**. Every
+subproject is configured with `warning_level=0` and its headers enter through
+`include_type: 'system'` / `.as_system()`, and the vendored
+`src/avg/src/clipper/` builds as its own target with warnings off. Keeping the
+noise out at that boundary is what makes a `-Wno-*` in our own targets
+unnecessary — do not add one; fix the code instead.
+
+Two things this cannot reach, so do not be surprised by them: Meson's
+`warning_level=0` emits no flag at all rather than `-w`, so a compiler's
+*default-on* diagnostics still fire inside a subproject; and Meson emits plain
+`/I` for a system include under MSVC (never `/external:I`), so third-party
+headers warn on the `msvc-17` leg but not on `clang-cl`.
 
 ## clang-format
 

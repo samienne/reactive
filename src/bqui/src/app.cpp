@@ -496,7 +496,7 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
-            auto [timeToNext, didChange] = running.update(frame);
+            running.update(frame);
 
             return running.evaluate<0>().get<0>();
         });

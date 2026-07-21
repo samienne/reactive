@@ -17,7 +17,7 @@
 
 namespace avg
 {
-    class AVG_EXPORT RenderTree;
+    class RenderTree;
 
     class AVG_EXPORT RenderTreeNode
     {
