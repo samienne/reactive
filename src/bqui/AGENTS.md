@@ -189,6 +189,13 @@ owning `Window`.
   constant (the `if constexpr (sizeof...(Ts) == 0)` branch in `shape/shape.h`).
 - Builder-style template APIs are guarded by an instantiation smoke test
   (`test/shapetest.cpp`) — extend it when adding builder methods.
+- **Known and unfixed: a child's size hint is instantiated twice under every
+  `layout()` container.** The hint fan-in reads each child's `getSizeHint()`,
+  and `handleGravity` reads it again when that child's element is built, so the
+  hint chain is evaluated once per child per pass instead of once. Fixing it
+  means having the builder hand out one shared hint signal rather than a fresh
+  one per call — builder plumbing, not layout — which is why it is recorded here
+  instead of patched at the call site.
 
 For cross-cutting rules (the `Any` convention, include-dir firewall, symbol
 visibility) see `docs/conventions.md`; do not restate them here.
