@@ -56,7 +56,9 @@ copy for a new node's per-context state.
 ## Entry points
 
 - State in: `makeInput` (`bq/signal/input.h`) → `{signal, handle}`; push with
-  `handle.set`.
+  `handle.set`. For a *list* of state, `SharedVector<T>`
+  (`bq/signal/sharedvector.h`) — an implicitly shared, lock-guarded vector whose
+  scoped `write()` publishes to a signal when the scope ends.
 - Derive/combine: `map` (`bq/signal/map.h`), `merge` (`bq/signal/merge.h`),
   `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
 - Lists whose *membership* changes: `ArraySignal<T>`, entered by `forEach` and
