@@ -496,6 +496,12 @@ and n resident copies besides. What the shared signal carries must be a
 `shared_ptr` to an immutable map, so the per-consumer copy is a refcount bump.
 This is a property of `Shared`, not of this design; a by-reference evaluate path
 for shared nodes would remove the constraint, and is worth having independently.
+A second `Shared` note while it is in view: `SharedControl::update` commits
+`lastFrame` and `updateResult` *before* re-evaluating (`sharedcontrol.h:187-196`),
+so an inner evaluation that throws leaves the node reporting a change with its
+previous value for the rest of the frame. Unreachable through `SignalContext`,
+which never catches, but it is the reason a throw is a discard-the-context error
+rather than a recoverable one.
 
 **An absent key yields no value, and asking for it anyway is a hard error.**
 `pick(key)` produces an `AnySignal<std::optional<T>>`, empty for any update in
@@ -538,7 +544,17 @@ inferred or stated too strongly:
 Note also that the project builds with `b_ndebug` off, so `assert` is live in
 every configuration here. A debug-assert / release-throw pair does not exist for
 us: the assert would always win and the throw would be unreachable. Hard errors
-of this kind are therefore a throw alone.
+of this kind are therefore a throw alone — that goes for a duplicate key as much
+as for a missing one.
+
+**A throw out of the graph ends the pass, not just the node.** `requirePresent`
+is the first thing in `bq` that makes evaluation throw, and where it surfaces
+depends on what is downstream: a `check` or `share` above it pulls the
+evaluation into `update`, so the exception comes out of
+`SignalContext::update()` with only some of the context's entries advanced and
+`swapFrameData()` skipped. Nothing is corrupted — the next frame recovers — but
+these are not exceptions to catch and continue from; the context should be
+discarded. Worth knowing before anything else in the tree learns to throw.
 
 **`scatter` is the same node.** Its aggregate is positional rather than keyed, but
 the scatter node knows the current key order, so it zips aggregate-with-keys into
@@ -696,13 +712,13 @@ section is that argument, and it is the most important part of this document.
   built for it is destroyed — no retention, no pool, no resurrection. The
   resulting `ArraySignal` is a strict 1:1 mapping of the source array. A key that
   goes away and comes back is a new item, exactly as a changed key is.
-- **Duplicate keys**: assert in debug; unspecified in release. Keys need only be
-  unique **within this `forEach`**, so a duplicate almost always means the caller
-  keyed on the wrong thing. The spike defined a release rule — disambiguate each
-  occurrence by its index, giving `(key, n)` entries — which worked but existed
-  only to satisfy a global-uniqueness requirement that no longer applies. It is
-  deleted rather than kept, because it added a concept to the model in exchange
-  for defining behaviour after a programming error.
+- **Duplicate keys throw.** Keys need only be unique **within this `forEach`**,
+  so a duplicate almost always means the caller keyed on the wrong thing. The
+  spike defined a release rule — disambiguate each occurrence by its index,
+  giving `(key, n)` entries — which worked but existed only to satisfy a
+  global-uniqueness requirement that no longer applies. It is deleted rather
+  than kept, because it added a concept to the model in exchange for defining
+  behaviour after a programming error.
 
 ### No index is passed to the delegate
 
@@ -767,9 +783,11 @@ of operators that no longer exist.
 ### Keys are unique within one `forEach`
 
 Not across the array — see *Identity is internal*. A duplicate key means the
-caller keyed on the wrong thing, so it is a **debug assert**; release behaviour is
-unspecified rather than defined, because defining it (the spike's occurrence-index
-scheme) bought nothing and cost a concept in the public model.
+caller keyed on the wrong thing, so it **throws**, in every build. Defining a
+recovery instead (the spike's occurrence-index scheme) bought nothing and cost a
+concept in the public model; asserting instead would be the same failure with
+less to go on, since `b_ndebug` is off here and an assert takes the process down
+without a message.
 
 ### `scatter`'s aggregate must be size-aligned with the current membership
 

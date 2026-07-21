@@ -2,17 +2,14 @@
 
 #include <bq/signal/signal.h>
 
-#include <btl/demangle.h>
 #include <btl/typetraits.h>
 
-#include <cassert>
 #include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
-#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -61,16 +58,27 @@ namespace bq::signal::detail
      * caller owes the key's presence — build a pick when its key appears, and
      * drop it no later than the update that observes the key leaving.
      *
+     * The throw leaves the surrounding pass unfinished: whether it surfaces
+     * from evaluate() or from update() depends on what is downstream, and a
+     * SignalContext that throws out of update() has advanced only some of its
+     * entries. Discard the context rather than driving it again.
+     *
+     * @param description Names the missing value in the error, since nothing
+     *                    about an empty optional says which one it was.
+     *
      * @throws std::runtime_error if the signal has no value.
      */
     template <typename TStorage, typename T>
-    auto requirePresent(Signal<TStorage, std::optional<T>> source)
+    auto requirePresent(Signal<TStorage, std::optional<T>> source,
+            std::string description)
     {
-        return std::move(source).map([](std::optional<T> const& value) -> T
+        return std::move(source).map(
+                [description=std::move(description)]
+                (std::optional<T> const& value) -> T
                 {
                     if (!value)
-                        throw std::runtime_error("requirePresent: no value of "
-                                + btl::demangle(typeid(T).name()));
+                        throw std::runtime_error(
+                                "requirePresent: no value for " + description);
 
                     return *value;
                 });
@@ -82,26 +90,32 @@ namespace bq::signal::detail
      * lookup instead of a scan, so that following every element of a source
      * costs O(n log n) per update rather than O(n^2).
      *
+     * `keyFn` is invoked as a const function, so it cannot carry state. It
+     * lives in the description, which every context over that description
+     * shares, so state in it would be state outside any context.
+     *
      * @param keyFn Maps an element to its key. Keys must be unique within one
-     *              source; a duplicate is a debug assert and the first
-     *              occurrence wins.
+     *              source; a duplicate means the caller keyed on the wrong
+     *              thing, so it is an error rather than something to resolve.
+     *
+     * @throws std::runtime_error if two elements share a key.
      */
     template <typename TStorage, typename T, typename TFunc>
     auto shareKeyed(Signal<TStorage, std::vector<T>> source, TFunc&& keyFn)
     {
-        using TKey = std::decay_t<std::invoke_result_t<TFunc&, T const&>>;
+        using TKey = std::decay_t<std::invoke_result_t<TFunc const&, T const&>>;
 
         return std::move(source)
             .map([keyFn=std::forward<TFunc>(keyFn)]
-                    (std::vector<T> const& items) mutable
+                    (std::vector<T> const& items)
                 {
                     auto keyed = std::make_shared<std::map<TKey, T>>();
 
                     for (auto const& item : items)
                     {
-                        auto inserted = keyed->insert({ keyFn(item), item });
-                        assert(inserted.second);
-                        (void)inserted;
+                        if (!keyed->insert({ keyFn(item), item }).second)
+                            throw std::runtime_error(
+                                    "shareKeyed: duplicate key");
                     }
 
                     return KeyedElements<TKey, T>(std::move(keyed));

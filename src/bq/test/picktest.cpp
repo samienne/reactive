@@ -31,6 +31,23 @@ namespace
         return item.key;
     };
 
+    template <typename TFunc>
+    void expectThrowsContaining(TFunc&& func, std::string const& text)
+    {
+        try
+        {
+            func();
+        }
+        catch (std::runtime_error const& e)
+        {
+            EXPECT_NE(std::string::npos, std::string(e.what()).find(text))
+                << e.what();
+            return;
+        }
+
+        ADD_FAILURE() << "expected a std::runtime_error containing " << text;
+    }
+
     // Counts how many times the source is evaluated, from inside the shared
     // subgraph so that the count is a count of evaluation passes.
     template <typename TSignal>
@@ -107,13 +124,14 @@ TEST(pick, hasNoValueWhileItsKeyIsAbsent)
 }
 
 // A consumer that needs the element to be there says so, and gets a loud
-// failure rather than a quiet one when it is not.
-TEST(pick, requirePresentThrowsOnAnAbsentKey)
+// failure naming what was missing rather than a quiet one when it is not.
+TEST(pick, requirePresentThrowsWhenTheKeyLeaves)
 {
     auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
 
     auto description = requirePresent(
-            pick(shareKeyed(input.signal, itemKey), std::string("b")));
+            pick(shareKeyed(input.signal, itemKey), std::string("b")),
+            "element b");
     auto& sig = description.unwrap();
 
     DataContext context;
@@ -124,7 +142,36 @@ TEST(pick, requirePresentThrowsOnAnAbsentKey)
     input.handle.set(std::vector<Item>{ { "a", 1 } });
     sig.update(context, data, FrameInfo(1, {}));
 
-    EXPECT_THROW(sig.evaluate(context, data), std::runtime_error);
+    expectThrowsContaining([&] { sig.evaluate(context, data); },
+            "element b");
+}
+
+// The obligation a caller owes is to build a pick when its key appears. Getting
+// that wrong fails at once, on the initial evaluation, rather than surfacing
+// later as a value that is quietly wrong.
+TEST(pick, requirePresentThrowsWhenTheKeyWasNeverThere)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 } });
+
+    auto description = requirePresent(
+            pick(shareKeyed(input.signal, itemKey), std::string("b")),
+            "element b");
+
+    expectThrowsContaining([&] { makeSignalContext(description); },
+            "element b");
+}
+
+// A key the caller thought was unique but is not means the wrong thing was
+// keyed on, so it fails rather than silently dropping an element.
+TEST(pick, shareKeyedThrowsOnADuplicateKey)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "a", 2 } });
+
+    auto description = pick(shareKeyed(input.signal, itemKey),
+            std::string("a"));
+
+    expectThrowsContaining([&] { makeSignalContext(description); },
+            "duplicate key");
 }
 
 // A pick reports a change whenever the source changes, even when the picked
@@ -141,8 +188,8 @@ TEST(pick, reportsAChangeOfAnyElementAndCheckSuppressesIt)
     };
 
     auto context = makeSignalContext(
-            requirePresent(pick(shared, std::string("b"))).map(value),
-            requirePresent(pick(shared, std::string("b")))
+            requirePresent(pick(shared, std::string("b")), "b").map(value),
+            requirePresent(pick(shared, std::string("b")), "b")
                 .map(value)
                 .check());
 
