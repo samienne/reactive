@@ -1,7 +1,8 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 to 3 of
-> *Implementation order* have landed; everything in `bqui` is
+> **Status: revised design, implementation started.** Steps 0 to 4 of
+> *Implementation order* have landed; `dynamicBox` and the `Collection`
+> pipeline are
 > outstanding, and this document has been amended to describe what was built
 > rather than what was first proposed. The earlier implementation on PR #100 is
 > a **superseded spike**:
@@ -15,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `86ddac5` (2026-07-21).*
+*Last verified against `c9cd3aa` (2026-07-21).*
 
 ## The problem
 
@@ -875,8 +876,8 @@ without a message.
 `scatter`'s aggregate is positional, and the node checks that it has one entry
 per element. This is the same strength as the spike's
 `assert(obbs.size() == builders.size())` (`dynamicbox.h:70`) and the static
-engine's unchecked `obbs.at(index)` contract (`layout.cpp:37-47`), except that it
-is stated once and enforced in one place. A size check cannot catch a
+engine's unchecked `obbs.at(index)` contract, which step 4 replaced, except
+that it is stated once and enforced in one place. A size check cannot catch a
 permutation, so it is worth being exact about what is left.
 
 **Through the intended construction, misalignment is unreachable.** When the
@@ -1004,64 +1005,78 @@ its own; needing one was an artefact of the round trip this revision removed. Th
 abstraction was not invented for this design either: it was already sitting in
 the static engine's signature, un-named and un-reused.
 
-`layout()`'s implementation completes the picture: it fans in with
-`bq::signal::combine` over the children's hints (`layout.cpp:21-26`), computes
-once (`layout.cpp:31`), and fans out per child (`layout.cpp:34-55`). That is
-`join`, a plain map, and `scatter` — hand-written for the static case.
+`layout()`'s implementation completed the picture: it fanned in with
+`bq::signal::combine` over the children's hints, computed once, and fanned out
+per child on a captured index. That is `join`, a plain map, and `scatter` —
+hand-written for the static case, and step 4 replaced it with the operators
+themselves.
 
-### The static engine expresses nothing the dynamic one cannot — the tuple path is dead
+### The static engine expresses nothing the dynamic one cannot — the tuple path was dead
 
-There is one thing the static engine could in principle do that a homogeneous
+There was one thing the static engine could in principle do that a homogeneous
 `ArraySignal<T>` cannot: hold children of **heterogeneous types** in a
 `std::tuple`, keeping each child's concrete type through the layout. `box.h`
-contains the machinery for it:
+carried the machinery for it — `accumulateSizeHintsTuple`, returning
+`AccumulateSizeHint<dir, std::tuple<Ts...>>`, and `MapObbs<dir>`, a struct whose
+`operator()` was templated on the hint container and flattened it with
+`btl::forEach`.
 
-- `accumulateSizeHintsTuple` (`box.h:116-121`), returning
-  `AccumulateSizeHint<dir, std::tuple<Ts...>>`.
-- `MapObbs<dir>` (`box.h:163-202`), a struct whose `operator()` is templated on
-  the hint container and flattens it with `btl::forEach`.
+**Both were dead code**, and step 4 deleted them. A repo-wide search for either
+name over all `.h`, `.hpp` and `.cpp` files returned only their own definitions
+and nothing else in the tree. `box()` uses the vector forms
+(`accumulateSizeHints<dir>` and `&mapObbs<dir>`); so do `stack` and
+`uniformGrid`.
 
-**Both are dead code.** A repo-wide search for either name over all `.h`, `.hpp`
-and `.cpp` files returns only their own definitions — `box.h:117` and `box.h:164`
-— and nothing else in the tree. `box()` uses the vector forms
-(`accumulateSizeHints<dir>` and `&mapObbs<dir>`, `box.h:238`); so do `stack`
-(`stack.cpp:25`) and `uniformGrid` (`uniformgrid.cpp:82-86`).
+So the only capability the static path had over a unified engine was one **no
+caller used**. That removed the last reason to keep two implementations.
 
-So the only capability the static path has over a unified engine is one **no
-caller uses**. That removes the last reason to keep two implementations.
-
-### Cost: the static path is lighter at construction, not at steady state
+### Cost: the static path is lighter per changed frame, not per idle frame
 
 The fair objection is that a static list should not pay for identity it does not
-need. The honest accounting:
+need. The honest accounting, corrected by step 4 against what was built:
 
 - **Construction.** The unified engine costs one extra node in the graph and N
   key allocations. Once.
-- **Steady state.** For a never-changing membership the fan-in initialises each
+- **An idle frame.** For a never-changing membership the fan-in initialises each
   element once and thereafter does what a plain `combine` does: the reconcile
   branch is only taken when the membership changes, and for a fixed list it never
-  does. `scatter` matches identity once at construction, not per emission. **Per
-  frame, both paths do the same work.**
+  does. Nothing re-evaluates, so **both paths do the same work.**
+- **A frame in which the aggregate changes** — a resize, for a layout. Here the
+  first draft was wrong to say `scatter` matches identity only at construction.
+  The *build* happens once per identity, but the keyed zip that feeds the slices
+  runs on **every emission**: it allocates a `map<ArrayId, W>` of N entries, and
+  each element then reads its slice through two map lookups where the static
+  engine did a `vector::at`. That is O(n log n) with N allocations against the
+  old O(n).
 
-A per-frame cost would be a real argument against unifying. A one-off
-construction cost is not.
+So the cost is real but it is paid on resize rather than per frame, and it is
+bounded by the same N the layout is already walking. A per-idle-frame cost
+would be a real argument against unifying; this one is not, and if a resize-heavy
+profile ever says otherwise the fix is in `keyByIdentity`, not in the framing.
 
 ### Safety: keyed fan-out removes two unchecked arity contracts
 
-The static path fans out with `obbs.at(index)` on a captured index
-(`layout.cpp:37-47`). `at()` throws rather than corrupting, but the contract —
-"the obb vector has one entry per builder, in builder order" — is unchecked at
-the type level and is asserted nowhere. It is the same unchecked contract as
-`dynamicBox`'s `assert(obbs.size() == builders.size())` (`dynamicbox.h:70`),
-written a different way.
+The static path fanned out with `obbs.at(index)` on a captured index. `at()`
+throws rather than corrupting, but the contract — "the obb vector has one entry
+per builder, in builder order" — was unchecked at the type level and asserted
+nowhere. It is the same unchecked contract as `dynamicBox`'s
+`assert(obbs.size() == builders.size())` (`dynamicbox.h:70`), written a
+different way.
 
 Keyed fan-out removes both: `scatter` matches by identity, and checks the
-aggregate's size against the current membership in one place.
+aggregate's size against the current membership in one place. Step 4 took the
+static half; `dynamicBox`'s assert goes with step 5.
+
+The check is stronger than the one it replaced, in a way a caller outside the
+tree can feel: `at()` threw only when the `ObbMap` returned **fewer** obbs than
+children, and silently ignored extra ones, where `scatter` rejects a mismatch in
+either direction. Every `ObbMap` in the tree returns exactly one obb per hint, so
+nothing here changes.
 
 ### The maintenance argument is the strongest one
 
 `dynamicBox` is missing `handleGravity()`. `layout()` applies it to every child
-(`layout.cpp:84-87`); `dynamicBox` does not apply it anywhere. `dynamicBox` also
+before building it; `dynamicBox` does not apply it anywhere. `dynamicBox` also
 has the element-cache correctness bug described under *Rationale*.
 
 Neither is a hard problem. Both exist **because `dynamicBox` is a second
@@ -1121,7 +1136,7 @@ fan-out, hand-rolled — `scatter`.
 ### The missing `handleGravity()` is fixed structurally
 
 `layout()` pipes every child through `modifier::handleGravity()` before building
-it (`layout.cpp:84-87`). `dynamicBox` does not, so a gravity set on a child of an
+it. `dynamicBox` does not, so a gravity set on a child of an
 `hbox`/`vbox` with a dynamic child list is silently ignored.
 
 Unifying fixes this by construction rather than by remembering to add a line.
@@ -1149,10 +1164,10 @@ primitive beyond `join` and `scatter` is needed.
 
 | Apparent difficulty | Where it actually lives |
 | --- | --- |
-| The prefix scan with a running accumulator in `mapObbs`, with the y-axis running backwards (`box.h:213-230`) | A local `float acc` in a loop. No `scan` primitive needed. |
-| `getSizes` computes a container-level aggregate — the three-element `multiplier` — and then redistributes it per child (`box.h:24-52`) | One function that already receives every child's hint at once. That is exactly the shape of a plain map over the joined hints. |
-| A second fan-in round *inside* the hint computation: `AccumulateSizeHint::getHeightForWidth` re-queries every child at its resolved width, zipping via a mutable counter (`box.h:70-90`) | Inside the `SizeHint` value, not in the signal graph. |
-| The lazy, re-entrant `SizeHint` (`AccumulateSizeHint`, `box.h:54-107`; `StackSizeHint`, `stacksizehint.h:8-15`) that the parent may re-query at arbitrary widths | The laziness is **inside the value**. The child hints are captured synchronously when the aggregate is built; re-querying never touches the signal graph. |
+| The prefix scan with a running accumulator in `mapObbs`, with the y-axis running backwards (`box.h`'s `mapObbs`) | A local `float acc` in a loop. No `scan` primitive needed. |
+| `getSizes` computes a container-level aggregate — the three-element `multiplier` — and then redistributes it per child (`box.h`'s `getSizes`) | One function that already receives every child's hint at once. That is exactly the shape of a plain map over the joined hints. |
+| A second fan-in round *inside* the hint computation: `AccumulateSizeHint::getHeightForWidth` re-queries every child at its resolved width, zipping via a mutable counter (`box.h`'s `AccumulateSizeHint`) | Inside the `SizeHint` value, not in the signal graph. |
+| The lazy, re-entrant `SizeHint` (`AccumulateSizeHint` in `box.h`; `StackSizeHint`, `stacksizehint.h:8-15`) that the parent may re-query at arbitrary widths | The laziness is **inside the value**. The child hints are captured synchronously when the aggregate is built; re-querying never touches the signal graph. |
 | `stack` needs zero per-child data downward but all of it upward (`stack.cpp:12-25`) | `join` for the upward direction; an aggregate that repeats the same obb for every child for the downward one. |
 
 Two layouts actively shaped the design:
@@ -1447,7 +1462,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 3 are done; the rest is outstanding.
+Steps 0 to 4 are done; step 5 is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1479,10 +1494,21 @@ Steps 0 to 3 are done; the rest is outstanding.
    the aggregate. The size-alignment check is that zip; what it reaches is
    *Alignment is a promise, and only its arity is checked*.
 
-4. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
-   `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are
-   unaffected. Delete the dead heterogeneous tuple path
-   (`accumulateSizeHintsTuple`, `MapObbs`) at the same time.
+4. **Unify `layout()`** over `map`/`scatter`/`join`. *Done.* One behavioural
+   consequence to know, since the step was otherwise behaviour-preserving: a
+   child's build function now runs from `scatter`'s delegate, which is **once
+   per `DataContext`** rather than once per description. Two contexts over one
+   layout therefore build two sets of children, where before they shared one
+   set of built descriptions. That follows from where the array keeps its state
+   and is the more correct of the two, but it is a change. The builders
+   become a constant `ArraySignal<AnyBuilder>`; `map` into `join` is the hint
+   fan-in, the existing `ObbMap` is an ordinary map over the joined hints, and
+   `scatter` hands each child its obb. The `SizeHintMap`/`ObbMap` signatures
+   are unchanged, so `box`, `stack` and `uniformGrid` are untouched, and the
+   dead heterogeneous tuple path went with it. Nothing about the fan-out needed
+   a primitive the operator set did not have, and the aggregate is aligned by
+   construction as *Alignment is a promise* predicted: the hint fan-in and
+   `scatter` read the array's one shared element signal.
 
 5. **Delete `dynamicBox`.** `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
    route to the unified `layout()`. This is where the missing `handleGravity()`
@@ -1490,7 +1516,7 @@ Steps 0 to 3 are done; the rest is outstanding.
    `dataSourceFromCollection` here, porting `src/bqui/test/databindtest.cpp:18`
    and `src/testapp1/adder.cpp:84`.
 
-Steps 0-3 are `bq` only and land before anything in `bqui` changes.
+Steps 0-3 are `bq` only and landed before anything in `bqui` changed.
 
 ### Tests the departed-key invariant requires
 
