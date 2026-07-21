@@ -1,6 +1,6 @@
 # ase — agent notes
 
-*Last verified against `916c25b` (2026-07-21).*
+*Last verified against `90c50f2` (2026-07-21).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
