@@ -275,22 +275,27 @@ TEST(sharedVector, feedsForEachAndBuildsOncePerKey)
 // Readers run concurrently with each other and with nothing else. The
 // invariant is that every element holds the same number, which only a reader
 // admitted part-way through a write scope could see broken.
+//
+// The readers run a fixed number of times rather than until the writer says
+// stop, because a shared_mutex may prefer readers — glibc's does by default —
+// and readers that only stop when the writer is done could then starve it
+// forever.
 TEST(sharedVector, concurrentReadersNeverSeeAPartialWrite)
 {
     int const elements = 64;
     int const writes = 200;
+    int const reads = 20000;
 
     SharedVector<int> vec(std::vector<int>(elements, 0));
 
-    std::atomic<bool> stop(false);
     std::atomic<int> failures(0);
 
     std::vector<std::thread> readers;
     for (int i = 0; i < 2; ++i)
     {
-        readers.emplace_back([&vec, &stop, &failures]()
+        readers.emplace_back([&vec, &failures]()
             {
-                while (!stop.load())
+                for (int j = 0; j < reads; ++j)
                 {
                     {
                         auto r = vec.read();
@@ -314,8 +319,6 @@ TEST(sharedVector, concurrentReadersNeverSeeAPartialWrite)
         for (int& value : *w)
             value = i;
     }
-
-    stop.store(true);
 
     for (auto& reader : readers)
         reader.join();
