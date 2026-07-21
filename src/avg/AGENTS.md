@@ -1,6 +1,6 @@
 # avg — agent notes
 
-*Last verified against `9c47767` (2026-07-20).*
+*Last verified against `9c47767` (2026-07-21).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -16,6 +16,9 @@ outgrows one file.
 - `ShapeFunction` (`shapefunction.h`) is a time-parameterised shape:
   `(time, DrawContext, size) -> Shape`, wired into the animation system. This is
   what `bqui`'s shape builder wraps.
+- `DrawContext` (`drawcontext.h`) is the memory a draw allocates out of, and
+  nothing else. It takes either a `Painter*` or a bare `pmr::memory_resource*`,
+  so a tree can be drawn and its `Drawing` asserted with no rendering back end.
 - `Drawing` (`drawing.h`) is the flat rasterisable output — a variant of
   `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill`. **Clipping is
   rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
@@ -50,8 +53,9 @@ what upstream would recognise.
 
 ## Text
 
-Text goes through `Font`/`FontManager` (`font.h`, `fontmanager.h`); `DrawContext`
-exposes both the path builder and text shaping. FreeType is the backend.
+Text goes through `Font`/`FontManager` (`font.h`, `fontmanager.h`), which shape
+text into a `Path` out of a caller-supplied `pmr::memory_resource` — the same
+resource a `DrawContext` carries. FreeType is the backend.
 
 For cross-cutting rules (symbol visibility, the include-dir firewall) see
 `docs/conventions.md`; do not restate them here.
