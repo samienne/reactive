@@ -1182,6 +1182,178 @@ Two layouts actively shaped the design:
 `background`/`foreground` (`modifier/background.h:13-18`) and `scrollBar`. They
 take a fixed number of children with fixed roles and stay exactly as they are.
 
+## The mutable source: `SharedVector<T>`
+
+`forEach` consumes a signal; something has to drive that signal. `SharedVector<T>`
+(`src/bq/include/bq/signal/sharedvector.h`) is that something: an implicitly
+shared, lock-guarded `std::vector<T>` that exports its contents as an
+`AnySignal<std::vector<T>>`. It is the ergonomic replacement for `Collection` as
+the *state* end of a changing list, and it is additive — `Collection`,
+`DataSource` and `dataBind` stay until the layout rework removes them with their
+call sites.
+
+### It lives in `bq`
+
+`Collection` is in `bqui`, which is where the old pipeline's whole problem
+starts: a list whose membership changes is not a UI concern, and putting it
+above `bq` meant only widgets could have one. `SharedVector`'s consumer,
+`forEach`, is in `bq`; the type itself needs nothing from `ase`, `avg` or
+`bqui`; and `bq` sits below all three, so `bqui` keeps its access either way
+while `bq`'s own tests and any future non-UI consumer gain it. Everything
+`Collection` reached upward for is dropped rather than followed: it needed
+`bqui::Connection` only for its callback registry, and `SharedVector` has no
+callback registry at all.
+
+The contract itself — scoped handles, the emission rule, the coherence
+guarantee, what the locks do not do — is documented on the type. What follows is
+only the reasoning behind it.
+
+### Why the write scope, and not the mutation, is the unit of emission
+
+Emitting per mutation is the obvious alternative and it is worse in every
+direction: it makes the cheapest possible edit the most expensive one, it gives
+a caller no way to express a compound change as one, and a batching mode bolted
+on afterwards ends up being this rule with a worse name. Publishing at scope end
+is also *exact* — it needs no dirty tracking and no comparison against the
+previous contents to decide whether anything happened, which is why a scope that
+mutates nothing still emits.
+
+### It runs no *unbounded* user code under the lock, which is what `Collection` got wrong
+
+`Collection` invokes its registered callbacks synchronously while holding a
+`btl::SpinLock` (`collection.h:336-352`), so arbitrary caller code runs under a
+spin lock; a callback reaching an `InputHandle::set` puts the collection's lock
+above `InputControl`'s `recursive_mutex`, and anything taking those two in the
+other order deadlocks.
+
+`SharedVector` has no callbacks to invoke. Publication is
+`InputHandle::set(contents)`, and that function takes `InputControl::mutex`,
+assigns a value and bumps a counter. Caller code does run under the lock —
+copying and destroying a `T` — but it is *bounded* code the caller did not
+choose to run there and cannot use to take another lock of its own; that is a
+different thing from a registered callback, and it is the difference that
+matters. Replacing a callback registry with a data sink is what removes the
+hazard; the write lock is not what was wrong with `Collection`.
+
+The lock order is therefore always `SharedVector::mutex` → `InputControl::mutex`
+with no reverse edge — and it is worth writing down *why*, because it is a
+property of this use of an input rather than of `InputControl` in general.
+`InputSignal::initialize`, `update` and `observe` do run graph code under
+`InputControl::mutex`, but only when a signal has been pushed into the input
+with `InputHandle::set(Signal)`. `SharedVector` keeps its handle private and
+never hands it out, so that cannot happen. Exposing the handle would reopen the
+edge silently.
+
+One consequence to accept rather than fix: `InputSignal::update` copies the
+whole vector under `InputControl::mutex`, so a context updating on one thread
+briefly blocks a writer, which in turn blocks readers. Readers are concurrent
+with each other, not with everything.
+
+### Coherence between `read()` and the signal
+
+Publishing **inside** the exclusive write lock is what buys the guarantee, and
+it is worth being precise about why it is safe to do it there rather than after
+releasing: publishing outside the lock lets two writers commit in one order and
+publish in the other, which does not merely delay the signal but leaves it
+holding a state older than `read()` shows, permanently. Under the lock, the two
+orders are the same order.
+
+What remains is not a gap this design introduces: a `SignalContext` picks the
+new contents up at its **next update pass**, so between the write scope ending
+and that pass, `read()` and the graph disagree. That is change-driven evaluation
+working as designed, identical to writing to a `makeInput` from another thread,
+and the only alternative would be for a mutation to drive a frame — which is a
+scheduler's decision, not a container's.
+
+The handles are neither recursive nor upgradeable: opening a second scope on a
+thread that already holds one deadlocks. Documented rather than solved, because
+a recursive write scope would also have to decide what publishing means for an
+inner scope, and nothing needs one.
+
+### It copies the contents once per write scope
+
+Publication copies the whole vector. That is `O(n)` plus `n` element copies per
+write scope, and it is the honest cost to accept today, for a reason that has
+nothing to do with the container: `shareKeyed` rebuilds its whole keyed map on
+every emission (*The pick construction*), so the pipeline is `O(n log n)` per
+update regardless. An incremental container — one that published a delta instead
+of a snapshot — would buy nothing without an incremental keyed source to receive
+it, and would cost the property that makes this one easy to reason about: the
+signal always carries a complete state that existed.
+
+Two cheaper shapes were considered and rejected. Writing straight into
+`InputControl::value` publishes with no copy at all, but reaches into another
+node's representation and forces every reader onto that node's mutex, losing
+concurrent reads. Publishing a `shared_ptr<vector<T> const>` with
+copy-on-write moves the copy earlier and then needs a `map` to dereference it
+for `forEach`, which copies again.
+
+### No container-assigned item identity
+
+`SharedVector` assigns no ids. `forEach` still requires a key function, and
+identity comes from the item's content. A container-scoped id is identity that
+cannot survive serialisation, undo, or a round trip through a server —
+`Collection`'s ids are heap addresses (`collection.h:140`), which is that defect
+in its purest form.
+
+If a caller ever has genuinely keyless items — a list of duplicates the user
+reorders, where "which one is this?" has no answer in the data — the answer is a
+**second, item-scoped container** whose per-item handle *is* the identity, so
+the identity is a thing the caller holds rather than a number the container
+made up. That container is not built and nothing in the tree needs it; it is
+recorded here so the next reader does not reach for ids on `SharedVector`
+instead.
+
+### What survives `DataSource`
+
+`DataSource<T>` is an `evaluate` function returning the current
+`vector<pair<size_t, T>>`, a stream of
+`variant<Insert, Update, Erase, Swap, Move, Refresh>`, and a `Connection` that
+keeps the adapter feeding them alive (`datasource.h:53-57`). Its job is to hand
+`dataBind` **deltas carrying container-assigned ids**. Checked against what it
+does rather than what it is called, `SharedVector` plus `forEach` covers all of
+it but one thing:
+
+- **The six event kinds collapse.** `Insert`, `Erase`, `Swap`, `Move` and
+  `Refresh` all say the same thing — the membership or its order changed — which
+  a snapshot signal says once. `Update` is a value change, which reaches the
+  element through the signal `forEach` already handed its delegate.
+- **The `Connection` goes away.** It exists because the adapter's callback
+  registrations are owned separately from the data (`datasourcefromcollection.h`),
+  and `dataBind` has to smuggle it into a lambda to keep it alive
+  (`databind.h:60-62`). A `SharedVector`'s signal holds the control block
+  directly, so there is nothing separate to keep alive.
+- **A seam closes.** `DataSource` is a pull for the initial state plus a push for
+  everything after, and the two are not synchronised: the adapter starts filling
+  the event stream as soon as it is built, while `dataBind` calls `evaluate`
+  later, at initialize (`databind.h:41-56`). A mutation in between is counted
+  twice — once in the initial state and once as a queued event folded on top. A
+  level-triggered signal has no such seam, because there is only ever one
+  current value.
+- **Identity without a key does not survive**, and that is the deliberate part.
+  `DataSource`'s ids let `dataBind` track items whose content distinguishes
+  nothing. `forEach` requires a key. This is the same gap the item-scoped
+  container above would close, and the reason for leaving it open is recorded
+  there.
+
+So `DataSource` is subsumed as a protocol, and the one thing it expresses that
+`forEach` cannot is the container-assigned identity we are declining to build.
+
+**That last point is not hypothetical, and the audit found it.** `adder`
+(`src/testapp1/adder.cpp:84-108`) is a `Collection<std::string>` whose delegate
+captures the item's id and uses `range.findId(id)` to update and to reorder that
+item — and its "U" button *rewrites the string*. Keyed on content, that item's
+key would change on every edit, and `forEach` would retire the identity and
+rebuild the widget, which is the state loss the whole design exists to prevent.
+
+The migration is therefore a change of data model, not of plumbing: `adder`'s
+element becomes a struct carrying an id the *application* mints, and the key
+function reads that field. That is the position stated above — identity comes
+from the item's content, and content includes an id the caller owns and can
+serialise. It is a real cost of the decision and it lands on the one call site
+that used ids for more than lookup. `databindtest.cpp:18` ignores the id
+entirely and needs nothing.
+
 ## What this supersedes
 
 The existing pipeline, and what `forEach` does instead:
