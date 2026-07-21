@@ -9,63 +9,74 @@
 
 #include "bqui/provider/providebuildparams.h"
 
+#include <bq/signal/arraysignal.h>
+
 namespace bqui::widget
 {
 
 namespace
 {
 
+bq::signal::ArraySignal<widget::AnyBuilder> toArray(
+        std::vector<widget::AnyBuilder> builders)
+{
+    std::vector<bq::signal::ArraySignal<widget::AnyBuilder>> children;
+    children.reserve(builders.size());
+
+    for (auto&& builder : builders)
+    {
+        children.push_back(bq::signal::ArraySignal<widget::AnyBuilder>(
+                    std::move(builder)));
+    }
+
+    return bq::signal::ArraySignal<widget::AnyBuilder>(std::move(children));
+}
+
+bq::signal::AnySignal<widget::Instance> buildChild(
+        widget::AnyBuilder const& builder,
+        bq::signal::AnySignal<avg::Obb> obb)
+{
+    auto transform = obb.map(&avg::Obb::getTransform);
+    auto size = obb.map(&avg::Obb::getSize);
+
+    auto placed = builder.clone()
+        | modifier::transformBuilder(std::move(transform));
+
+    return std::move(placed)(std::move(size)).getInstance();
+}
+
 auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
         std::vector<widget::AnyBuilder> builders)
 {
-    auto hints = btl::fmap(builders, [](auto const& builder)
-            {
-                return builder.getSizeHint();
-            });
+    auto array = toArray(std::move(builders));
 
-    auto hintsSignal = bq::signal::combine(std::move(hints)).share();
+    auto hints = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return builder.getSizeHint();
+                })).share();
 
     auto widget = makeWidgetWithSize(
-            [](auto size, auto obbMap, auto hintsSignal, auto builders)
+            [](auto size, auto obbMap, auto hints, auto array)
             {
-                auto obbs = merge(std::move(size), hintsSignal).map(obbMap).share();
+                auto obbs = merge(std::move(size), std::move(hints))
+                    .map(std::move(obbMap));
 
-                size_t index = 0;
-                auto widgets = btl::fmap(builders, [&index, &obbs](auto&& f)
-                        -> bq::signal::AnySignal<widget::Instance>
-                    {
-                        auto t = obbs.map([index](
-                                    std::vector<avg::Obb> const& obbs)
-                                {
-                                    return obbs.at(index).getTransform();
-                                });
-
-                        auto size = obbs.map([index](
-                                    std::vector<avg::Obb> const& obbs)
-                                {
-                                    return obbs.at(index).getSize();
-                                });
-
-                        auto builder = f.clone()
-                            | modifier::transformBuilder(std::move(t));
-
-                        ++index;
-
-                        return std::move(builder)(std::move(size)).getInstance();
-                    });
+                auto instances = bq::signal::join(bq::signal::scatter(
+                            std::move(array), std::move(obbs), &buildChild));
 
                 return widget::makeWidget()
-                    | modifier::addWidgets(std::move(widgets))
+                    | modifier::addWidgets(std::move(instances))
                     ;
             }
             ,
             std::move(obbMap),
-            hintsSignal,
-            std::move(builders)
+            hints,
+            std::move(array)
             );
 
     return std::move(widget)
-        | modifier::setSizeHint(hintsSignal.map(std::move(sizeHintMap)))
+        | modifier::setSizeHint(hints.map(std::move(sizeHintMap)))
         ;
 }
 
