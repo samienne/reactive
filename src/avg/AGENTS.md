@@ -1,6 +1,6 @@
 # avg — agent notes
 
-*Last verified against `9c47767` (2026-07-21).*
+*Last verified against `44d4091` (2026-07-22).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -35,6 +35,32 @@ outgrows one file.
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
   next need a redraw.
+
+## Render tree snapshots
+
+`rendertree/snapshot.h` describes a tree instead of drawing it, for tooling
+outside the process. `RenderTree::snapshot` mirrors `draw`: same arguments,
+same pure-function contract, same subtree — a transition contributes only the
+branch that is on screen. Each node describes itself through the `snapshot`
+virtual, so adding a node kind means adding that override.
+
+- **Geometry is resolved, not authored.** A node reports its box already
+  composed with every enclosing obb, so a reader places it without a transform
+  of its own. It is derived from the nodes' `Animated<Obb>`, never from
+  `Shape::getControlBb`, so it does not inherit that function's double-transform
+  bug.
+- **Text comes from drawing, not from the tree.** A leaf's content lives inside
+  its draw function, so a leaf is drawn on its own out of the caller's memory
+  and the `TextEntry`s of the result are collected; the drawing is discarded.
+- **Nulls are expected.** An empty tree yields no root, and a node whose child
+  is null yields no child; the walker never assumes a well-formed tree.
+
+`toJson` writes schema version 1: an envelope of `version`, `time`, `obb` and
+`root`, and per node `type`, `obb` (`center`/`size`/`angle`/`scale`), `text`
+and `children`, plus `id` when the node has one and `leaving` when the subtree
+is on its way out. Numbers are `%.9g` with non-finite written as zero. The
+schema is a contract — extend it additively and bump `Snapshot::version` when
+an existing field changes meaning.
 
 ## Animation
 

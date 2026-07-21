@@ -15,6 +15,11 @@ UniqueId::UniqueId() :
 {
 }
 
+uint64_t UniqueId::getValue() const
+{
+    return value_;
+}
+
 bool UniqueId::operator==(UniqueId const& id) const
 {
     return value_ == id.value_;

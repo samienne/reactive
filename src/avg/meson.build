@@ -12,6 +12,7 @@ libavgsrc = [
   'src/rendertree/clipnode.cpp',
   'src/rendertree/idnode.cpp',
   'src/rendertree/rendertree.cpp',
+  'src/rendertree/snapshot.cpp',
   'src/fontmanager.cpp',
   'src/fontimpl.cpp',
   'src/font.cpp',
@@ -79,6 +80,7 @@ avgtest =  executable('avgtest',
   'test/pathtest.cpp',
   'test/pathcrossingtest.cpp',
   'test/pentest.cpp',
+  'test/snapshottest.cpp',
   dependencies: [gtestdep, libavgdep],
   )
 

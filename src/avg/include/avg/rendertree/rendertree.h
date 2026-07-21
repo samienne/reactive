@@ -1,5 +1,7 @@
 #pragma once
 
+#include "snapshot.h"
+
 #include "avg/animated.h"
 #include "avg/drawing.h"
 #include "avg/transform.h"
@@ -34,6 +36,19 @@ namespace avg
                 ) &&;
 
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
+                avg::Obb const& obb,
+                std::chrono::milliseconds time) const;
+
+        /**
+         * @brief Describes what the tree draws into @p obb at @p time.
+         *
+         * A snapshot is a pure function of an immutable tree and a timestamp,
+         * so it describes exactly the frame draw() would produce for the same
+         * arguments and can be taken from any thread: hold the RenderTree of
+         * the frame you want, and give @p drawContext memory no other thread
+         * is allocating from.
+         */
+        Snapshot snapshot(DrawContext const& drawContext,
                 avg::Obb const& obb,
                 std::chrono::milliseconds time) const;
 
