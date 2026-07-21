@@ -47,6 +47,8 @@
 #include <btl/future.h>
 
 #include <iostream>
+#include <string>
+#include <vector>
 
 using namespace bqui;
 
@@ -120,8 +122,22 @@ int main()
                 avg::RepeatMode::reverse
                 ));
 
+    auto showSecond = bq::signal::makeInput(false);
+
     auto widgets = widget::hbox({
         widget::vbox({
+            widget::button(
+                    showSecond.signal.map([](bool b) -> std::string
+                        {
+                            return b ? "Close second window"
+                                : "Open second window";
+                        }),
+                    showSecond.signal.bindToFunction(
+                        [handle = showSecond.handle](bool b) mutable
+                        {
+                            handle.set(!b);
+                        }))
+                | modifier::setSizeHint({ 250, 50 }),
             shape::rectangle()
                 //.size(bq::signal::constant(avg::Vector2f(100, 100)))
                 //.transform(bq::signal::constant(avg::translate(10, 20)))
@@ -179,6 +195,42 @@ int main()
                 bq::signal::constant(0.5f))
     });
 
+    // The second window is a separate array concatenated with the first, which
+    // is what lets the two be built differently: forEach() hands its delegate
+    // the item's value and not its key, so one call builds one kind of window.
+    auto secondWindows = bq::signal::forEach(
+            showSecond.signal.map([](bool b)
+                {
+                    std::vector<std::string> names;
+                    if (b)
+                        names.push_back("Second window");
+                    return names;
+                }),
+            [](std::string const& name) { return name; },
+            [show = showSecond.signal, handle = showSecond.handle]
+            (bq::signal::AnySignal<std::string> name)
+            {
+                // The window closes by leaving the list, so both ways of
+                // closing it — its own title bar and its own button — do the
+                // one thing: take its key out of what the list is built from.
+                return window(std::move(name),
+                        widget::button("Close me",
+                                    show.bindToFunction(
+                                        [handle](bool) mutable
+                                        {
+                                            handle.set(false);
+                                        }))
+                        | modifier::frame()
+                        | modifier::focusGroup()
+                        )
+                    .onClose(send(false, handle));
+            });
+
+    // Closing the main window ends the app; closing the second one only
+    // removes it. run() without a signal cannot tell the two apart, since it
+    // means "run until any window closes".
+    auto running = bq::signal::makeInput(true);
+
     return app()
         .windows({
                 window(
@@ -187,7 +239,8 @@ int main()
                     //| debug::drawKeyboardInputs()
                     | modifier::focusGroup()
                     )
+                    .onClose(send(false, running.handle)),
+                secondWindows
                 })
-        .run();
+        .run(running.signal);
 }
-

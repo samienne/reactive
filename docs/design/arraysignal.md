@@ -1,9 +1,10 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 to 3 of
-> *Implementation order* have landed; everything in `bqui` is
-> outstanding, and this document has been amended to describe what was built
-> rather than what was first proposed. The earlier implementation on PR #100 is
+> **Status: revised design, implementation started.** Steps 0 to 4 of
+> *Implementation order* have landed — all of `bq`, plus `App`'s window list;
+> the layout rework is outstanding. This document has been amended to describe
+> what was built rather than what was first proposed. The earlier
+> implementation on PR #100 is
 > a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
@@ -15,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `86ddac5` (2026-07-21).*
+*Last verified against `916c25b` (2026-07-21).*
 
 ## The problem
 
@@ -277,9 +278,97 @@ first draft:
   occurrence-index disambiguation (`(key, n)` entries) existed only to satisfy
   global uniqueness and is deleted.
 
-The open question the first draft raised here — whether any identity surfaces at
-the exit, for PR #99's window list and `dataBind` — is unchanged and still
-belongs to PR #99. See *Open questions*.
+### No identity surfaces at the exit
+
+**Settled by PR #99's rework, and it is the answer *Identity is internal*
+predicted.** Nothing outside an array needs an id, so there is **no id-pair
+exit**: a consumer of a changing list takes an `ArraySignal<T>` and builds what
+it needs per identity with `map`, rather than being handed
+`AnySignal<vector<pair<size_t, T>>>` and reconciling by hand.
+
+`App` is the worked case. It now takes an `ArraySignal<Window>` and builds one
+`WindowGlue` per identity; the by-id reconcile loop, the producer-assigned
+`size_t`, and the `WindowList` alias are all deleted. What replaced them is not
+a translation of the loop — the loop *is* `ArrayOnce`, and `App` no longer
+contains one. The other consumer the open question named, `dataBind`, is
+retired wholesale at step 6 rather than re-typed, so nothing there reopens it.
+
+Four findings from doing it, because each one generalises past `App`:
+
+- **The consumer's `map` is the reconcile.** `map` runs once per identity and
+  its result is destroyed when the identity leaves, which is exactly
+  create-on-arrive / destroy-on-depart. A consumer whose per-item object is
+  expensive or owns an OS resource needs no more than that.
+- **A non-signal value leaves as a constant.** `App`'s per-item value is a glue,
+  not a signal, and `join` is the only exit. `map`ping it to
+  `constant(glue)` and joining reads oddly the first time and is what the exit
+  is for: *One layout engine* fans in `AnySignal<SizeHint>`s that were already
+  signals and so never met this, which is why `join`'s Doxygen now says so.
+- **The exit gives the consumer a plain vector, and that is enough.** Everything
+  `App` did with ids — iterating live glues, tearing down departed ones — is a
+  fold over that vector. The id was never carrying information the consumer
+  could not read off the list.
+- **The consumer owes no change notification either.** The first attempt kept
+  the window-list observer PR #99 had and only re-typed what it reported. That
+  was backwards: the list is the source of truth, so what an item offers is
+  wired *back into what the list is built from* — a window's close callback
+  removes its own key — and there is nothing left for a notification to be
+  for. A consumer that thinks it needs one is usually holding a second copy of
+  the membership. Nothing of the kind shipped.
+
+### An element's signal may not be read on a clock of its own
+
+**A constraint this design did not state, and the first `bqui` consumer broke
+it.** *The pick construction* requires that a pick be dropped "no later than the
+update that observes the key leaving". A consumer that reads the element's
+signal only inside the array's own update pass gets that for free: the source
+changes, the node retires the key, and nothing evaluates the departed pick
+again. The unified layout engine will be such a consumer, which is why the
+obligation looked like a formality.
+
+`App` was not. Each `WindowGlue` holds the window's title and widget signals in
+its **own** `SignalContext`, updated from OS input handlers. An `Input` is
+global to every context, so a handler that removed a window's key — a window
+with its own close button — made that window's next update read a pick whose key
+had just left, and `requirePresent` threw out of the event loop and took the
+process down. Reproduced in `testapp1`, whose second window is now exactly that
+button.
+
+The fix is not to soften `requirePresent`; a latch here would hand back a stale
+value, which *The pick construction* already rejects. It is to give the element's
+signals one clock: `WindowGlue`'s input handlers now request a frame instead of
+transacting inline, so every per-window update happens after the array has been
+reconciled and a departed window's glue is gone before anything can update it.
+
+State it as a rule for the next consumer:
+
+> **Read an element's signal only where the array is updated.** A consumer that
+> drives per-element signals on a schedule of its own must reconcile the array
+> first, and must destroy what it built for a departed identity before that
+> schedule comes round again.
+
+Note what the fix does *not* rest on. The close path — the idiom for removing a
+window — never transacts at all: the glue's close callback only invokes the
+window's own callbacks and returns, so removal from `onClose` is safe by
+construction. The deferral above is what makes removal safe from a *widget* in
+the window, which is the other half of the idiom.
+
+`App` still does not fully satisfy the rule, and the remainder is recorded in
+`src/bqui/AGENTS.md` rather than hidden: `AnimationGuard` brackets a
+`withAnimation` scope with two synchronous transactions of every window, and a
+list changed from inside the frame phase is reconciled only on the next pass.
+Reaching the first takes an explicit `withAnimation` around a removal, which no
+close path opens by itself. Both need the app loop's update model changed rather
+than a local guard, which is why they are not in this change. The lesson for the
+design is the rule above: a consumer with its own clock is the hard case, and
+the layout engine's being free of it is a property of the layout engine, not of
+the array.
+
+The one thing the caller loses is the ability to have a single `forEach` build
+*differently shaped* items, since the delegate is handed the item's value and
+not its key. That is not a gap: the caller writes one array per shape and
+concatenates them, which is what the braced-list constructor is for.
+`src/testapp1/main.cpp` does exactly this for its second window.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
@@ -1579,25 +1668,10 @@ per item and is not something this design can avoid, so a long-lived window whos
 list churns still accumulates dead entries. Pre-existing, but this is the first
 design that reaches it at churn rate.
 
-**PR #99 (dynamic windows)** is open, and makes `App`'s window list
-`AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
-stable id. It is expected to be reworked onto `ArraySignal<Window>`. Note that
-`App` no longer owns an id allocator under this design — the `ArraySignal` does —
-so the rework is `forEach` over the window list rather than a
-consumer-side reconcile. See *Open questions*.
-
 ## Open questions
 
 Points the design does not settle. Flagged rather than guessed.
 
-- **Does any identity surface at the exit?** Unchanged from the first draft, and
-  still the one open question that changes code outside this design. *Identity is
-  internal* argues that nothing outside needs an id, which taken to its conclusion
-  means there is **no id-pair exit at all**: `App` would take an
-  `ArraySignal<Window>` and use `forEach` rather than being handed
-  `AnySignal<vector<pair<size_t, Window>>>` and reconciling by hand. The two live
-  consumers are PR #99's window list and `dataBind`
-  (`src/bqui/include/bqui/databind.h:22`). Decide it when PR #99 is reworked.
 - **The reactive subtree `AnySignal<ArraySignal<T>>`.** Still unimplemented and
   still unreconciled: the identity algebra says only construction and `forEach`
   mint identity, but this constructor hands out fresh ids on every swap. Either
@@ -1619,7 +1693,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 3 are done; the rest is outstanding.
+Steps 0 to 4 are done; the rest is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1651,18 +1725,40 @@ Steps 0 to 3 are done; the rest is outstanding.
    the aggregate. The size-alignment check is that zip; what it reaches is
    *Alignment is a promise, and only its arity is checked*.
 
-4. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
+4. **`App`'s window list.** *Done.* The first `bqui` consumer, and the one that
+   settled *No identity surfaces at the exit*. `App::windows` takes an
+   `ArraySignal<Window>` and `App::run` builds a `WindowGlue` per identity with
+   `map`, joins the glues through a constant, and reads the live set off the
+   fanned-in vector. Independent of steps 5 and 6 and landed before them.
+
+5. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are
    unaffected. Delete the dead heterogeneous tuple path
    (`accumulateSizeHintsTuple`, `MapObbs`) at the same time.
 
-5. **Delete `dynamicBox`.** `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
+6. **Delete `dynamicBox`.** `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
    route to the unified `layout()`. This is where the missing `handleGravity()`
    and the element-cache bug disappear. Retire `dataBind` /
    `dataSourceFromCollection` here, porting `src/bqui/test/databindtest.cpp:18`
    and `src/testapp1/adder.cpp:84`.
 
 Steps 0-3 are `bq` only and land before anything in `bqui` changes.
+
+Step 4 also fixed an `ase` defect it was the first thing to reach: the WGL
+backend never destroyed a window's `HWND`, so closing a window at runtime left a
+dead one on screen that painted nothing and answered no input. Nothing could
+close a window while the app ran before this step, which is why it had gone
+unnoticed. The GLX backend has always destroyed its window.
+
+### `App::run` can only be tested where the backend is headless
+
+`App::run` opens windows, so on the GLX and WGL backends a test of it needs a
+display and a GPU context that a CI runner does not have.
+`src/bqui/test/apptest.cpp` is therefore compiled only where `ase` builds its
+headless backend, which `ase_is_headless` in `src/ase/meson.build` reports.
+Anything else that wants end-to-end coverage of the app loop inherits the
+constraint, and the way out is to inject the platform into `App` rather than to
+weaken the test — nothing has needed that yet.
 
 ### Tests the departed-key invariant requires
 

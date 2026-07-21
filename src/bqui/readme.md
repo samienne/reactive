@@ -51,6 +51,37 @@ return app()
     .run();
 ```
 
+The window list is a `bq::signal::ArraySignal<Window>`, so a braced list is
+simply the constant case. Build one with `bq::signal::forEach` instead and
+windows open and close as its keys come and go; the ones that stay keep
+everything they had. Concatenate arrays — `.windows({ mainWindow, others })` —
+when the windows are not all built the same way.
+
+The list is the only thing that says which windows exist, so a window closes by
+leaving it: wire `onClose` back to whatever the list is built from. Here the
+list holds one window while `showDetails` is true, so closing that window means
+setting it false.
+
+```cpp
+auto showDetails = bq::signal::makeInput(false);
+
+auto details = bq::signal::forEach(
+        showDetails.signal.map([](bool b) {
+            return b ? std::vector<std::string>{ "Details" }
+                     : std::vector<std::string>{};
+        }),
+        [](std::string const& name) { return name; },
+        [handle = showDetails.handle](bq::signal::AnySignal<std::string> name)
+        {
+            return window(std::move(name), detailsUi())
+                .onClose(send(false, handle));
+        });
+```
+
+`run()` with no arguments means "run until any window closes", which is what a
+single-window app wants. Pass `run(running)` when closing one window should
+remove it rather than stop the app.
+
 Signal changes made inside a `withAnimation` scope are animated.
 
 ## Layout (of the source)
