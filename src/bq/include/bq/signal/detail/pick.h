@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../datacontext.h"
-#include "../frameinfo.h"
-#include "../signal.h"
-#include "../signalresult.h"
-#include "../signaltraits.h"
-#include "../updateresult.h"
-#include "../wrap.h"
+#include "bq/signal/datacontext.h"
+#include "bq/signal/frameinfo.h"
+#include "bq/signal/signal.h"
+#include "bq/signal/signalresult.h"
+#include "bq/signal/signaltraits.h"
+#include "bq/signal/updateresult.h"
+#include "bq/signal/wrap.h"
 
 #include <btl/connection.h>
 #include <btl/uniqueid.h>
@@ -15,23 +15,46 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 namespace bq::signal::detail
 {
+    /** @brief A source's elements arranged for lookup by key.
+     *
+     * Held behind a shared pointer because a shared signal copies its value
+     * into every consumer's data on every changed frame. Passing the map by
+     * value would make that copy O(n) per consumer, so following all n
+     * elements of one source would cost O(n^2) per update in copies alone.
+     */
+    template <typename TKey, typename TValue>
+    using KeyedElements = std::shared_ptr<std::map<TKey, TValue> const>;
+
+    /** @brief Blocks template argument deduction for a parameter. */
+    template <typename T>
+    struct Identity
+    {
+        using type = T;
+    };
+
+    template <typename T>
+    using IdentityT = typename Identity<T>::type;
+
     /** @brief Signal of the element stored under one key of a keyed source.
      *
-     * Reads a fixed key out of a signal of `std::map<TKey, TValue>`. The key
-     * need not be present at every update: while it is absent the signal holds
-     * the last value it saw, so it always has a value to report and reports no
-     * change until the key returns.
+     * Reads a fixed key out of a signal of KeyedElements. The key need not be
+     * present at every update: while it is absent the signal holds the last
+     * value it saw, so it always has a value to report, and reports no change
+     * until the key returns.
      *
      * The latched value is per-context state, looked up by a UniqueId carried
      * in the description, so every instantiation of one description into one
      * context latches together while two contexts stay independent.
+     *
+     * A change to any element of the source is reported as a change of this
+     * signal, whether or not the picked element moved. Apply `tryCheck()` to
+     * suppress the repeats for an element type that can be compared.
      */
     template <typename TKey, typename TValue, typename TSignal>
     class Pick
@@ -39,7 +62,7 @@ namespace bq::signal::detail
     public:
         struct ContextDataType
         {
-            ContextDataType(TValue value) :
+            explicit ContextDataType(TValue value) :
                 value(std::move(value))
             {
             }
@@ -62,6 +85,12 @@ namespace bq::signal::detail
 
         /** @brief Initializes the signal into @p context.
          *
+         * Instantiations of one description are the only owners of their
+         * latch, so a context holding no live instantiation has nothing to
+         * latch and the key must be present in the source. The caller owes
+         * that: build a pick when its key appears, and drop it no later than
+         * the update that observes the key leaving.
+         *
          * @throws std::runtime_error if the key is absent from the source and
          *         the context holds no earlier value for it.
          */
@@ -72,11 +101,11 @@ namespace bq::signal::detail
             auto contextData = context.findData<ContextDataType>(id_);
             if (!contextData)
             {
-                auto const& keyed = sig_.evaluate(context, signalData)
+                auto keyed = sig_.evaluate(context, signalData)
                     .template get<0>();
 
-                auto i = keyed.find(key_);
-                if (i == keyed.end())
+                auto i = keyed->find(key_);
+                if (i == keyed->end())
                     throw std::runtime_error(
                             "pick: key is absent and nothing has been latched");
 
@@ -101,11 +130,11 @@ namespace bq::signal::detail
             if (!result.didChange)
                 return result;
 
-            auto const& keyed = sig_.evaluate(context, data.signalData)
+            auto keyed = sig_.evaluate(context, data.signalData)
                 .template get<0>();
 
-            auto i = keyed.find(key_);
-            if (i == keyed.end())
+            auto i = keyed->find(key_);
+            if (i == keyed->end())
             {
                 result.didChange = false;
                 return result;
@@ -137,9 +166,11 @@ namespace bq::signal::detail
      *               thing that distinguishes one pick from another.
      */
     template <typename TStorage, typename TKey, typename TValue>
-    auto pick(Signal<TStorage, std::map<TKey, TValue>> source, TKey key)
+    auto pick(Signal<TStorage, KeyedElements<TKey, TValue>> source,
+            IdentityT<TKey> key)
     {
-        using Storage = SignalStorageType<TStorage, std::map<TKey, TValue>>;
+        using Storage = SignalStorageType<TStorage,
+              KeyedElements<TKey, TValue>>;
 
         return wrap(Pick<TKey, TValue, Storage>(
                     std::move(source).unwrap(),
@@ -148,7 +179,7 @@ namespace bq::signal::detail
                     ));
     }
 
-    /** @brief Shares a signal of a vector as a signal of a key to element map.
+    /** @brief Shares a signal of a vector as a signal of KeyedElements.
      *
      * Keying rather than sharing the vector itself is what keeps a pick a
      * lookup instead of a scan, so that following every element of a source
@@ -167,16 +198,16 @@ namespace bq::signal::detail
             .map([keyFn=std::forward<TFunc>(keyFn)]
                     (std::vector<T> const& items) mutable
                 {
-                    std::map<TKey, T> keyed;
+                    auto keyed = std::make_shared<std::map<TKey, T>>();
 
                     for (auto const& item : items)
                     {
-                        auto inserted = keyed.insert({ keyFn(item), item });
+                        auto inserted = keyed->insert({ keyFn(item), item });
                         assert(inserted.second);
-                        (void) inserted;
+                        (void)inserted;
                     }
 
-                    return keyed;
+                    return KeyedElements<TKey, T>(std::move(keyed));
                 })
             .share();
     }

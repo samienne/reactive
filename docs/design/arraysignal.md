@@ -1,11 +1,12 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, no implementation.** The earlier implementation on
-> PR #100 is a **superseded spike**: it put the per-identity table in the
-> description rather than in the `SignalContext`, which is a correctness defect,
-> not a limitation. This revision relocates that state and, as a consequence,
-> removes five operators. Start from scratch; read the spike only for the two
-> `bq` `join` fixes it found and for its test cases.
+> **Status: revised design, implementation started at step 1.** Steps 0 and 1 of
+> *Implementation order* have landed; everything from `forEach` onwards is
+> outstanding. The earlier implementation on PR #100 is a **superseded spike**:
+> it put the per-identity table in the description rather than in the
+> `SignalContext`, which is a correctness defect, not a limitation. This revision
+> relocates that state and, as a consequence, removes five operators. Read the
+> spike only for the two `bq` `join` fixes it found and for its test cases.
 >
 > This document remains the design record until the work lands, at which point
 > the stable parts move to their normal homes — the model and its traps to
@@ -484,6 +485,16 @@ search — O(n) per element per update, O(n²) per frame across the array. Shari
 this: the node needs the membership order in its own state regardless, and that
 is where it belongs.
 
+**Share the map behind a pointer, not by value.** Keying removes the scan but not
+the copy: `SharedControl::DataType` holds the shared node's value **by value**
+(`sharedcontrol.h:103`) and re-copies it into every consumer on every changed
+frame (`sharedcontrol.h:199`). Sharing the container itself therefore costs O(n)
+per consumer per update — O(n²) again for an array where every element is picked,
+and n resident copies besides. What the shared signal carries must be a
+`shared_ptr` to an immutable map, so the per-consumer copy is a refcount bump.
+This is a property of `Shared`, not of this design; a by-reference evaluate path
+for shared nodes would remove the constraint, and is worth having independently.
+
 **`pick` latches its last value.** Every signal must always have a value, so
 `pick(key)` cannot return nothing when its key has left the source. The lifetime
 argument says this never happens — the pick signal lives exactly as long as its
@@ -497,8 +508,9 @@ assert rather than something the design leans on.
 
 **The construction is built and proven.** `bq::signal::detail::Pick` and its two
 helpers live in `src/bq/include/bq/signal/detail/pick.h`, with
-`src/bq/test/picktest.cpp` covering the four cases step 1 called for. Three
-results settle points this document had left open or inferred:
+`src/bq/test/picktest.cpp` covering the four cases step 1 called for. Four
+results settle points this document had left open, inferred, or stated too
+strongly:
 
 - Two `SignalContext`s over one `pick` description are wholly independent —
   separate latches, and each evaluates the shared source for itself.
@@ -509,7 +521,19 @@ results settle points this document had left open or inferred:
   sharing is of the state itself and not a coincidence of two copies having seen
   the same values.
 - `pick` reports **no change** while its key is absent, so a latched element is
-  inert rather than merely stale.
+  inert rather than merely stale. It does, however, report a change whenever
+  *any* element of the source changes, because that is what the shared source
+  reports and the element type carries no comparison requirement. Suppressing
+  the repeats is `tryCheck()`'s job, at the point of use — the same answer this
+  document already gives under *Skipping repeats is a property of the data*.
+- **The latch does not remove the ordering argument; it moves it to
+  initialisation.** Instantiations are the only owners of their context data, so
+  a context holding none of them has nothing to latch, and building a pick for a
+  key that is not currently in the source has no value it could report. The node
+  owes the guarantee: create a pick when its key appears, and drop it no later
+  than the update that observes the key leaving. A subtree swapped out and back
+  by `join` or `conditional` breaks that, which is consistent with the reactive
+  subtree minting fresh identity on a swap.
 
 **`scatter` is the same node.** Its aggregate is positional rather than keyed, but
 the scatter node knows the current key order, so it zips aggregate-with-keys into
@@ -1215,6 +1239,12 @@ that the discarded builder may carry a genuinely changed widget — is in
 *Rationale* above and is not merely a cleanup. Both are moot once `dynamicBox`
 is deleted in favour of the unified engine.
 
+**`DataContext` never prunes.** `data_` holds `weak_ptr`s and an expired entry is
+reclaimed only when the *same* id is initialised again (`datacontext.h:73-78`).
+Every id here is minted fresh, so a long-lived window whose list churns
+accumulates dead map nodes for the life of the context. Pre-existing, but this is
+the first design that mints ids at churn rate, so it becomes load-bearing here.
+
 **PR #99 (dynamic windows)** is open, and makes `App`'s window list
 `AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
 stable id. It is expected to be reworked onto `ArraySignal<Window>`. Note that
@@ -1258,9 +1288,8 @@ otherwise start clean.
 Steps 0 and 1 are done; the rest is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** A **prerequisite**, not a
-   nicety. `data_` holds `weak_ptr`s and the assert requires the id to be absent
-   (`datacontext.h:70`), but expired entries linger in the map. This design hits
-   that path directly — a key disappears, every consumer drops it, the entry
+   nicety. `data_` holds `weak_ptr`s and the assert required the id to be absent,
+   but expired entries linger in the map. This design hits that path directly — a key disappears, every consumer drops it, the entry
    expires, the key returns — so a legal sequence fires a debug assert. Allow an
    expired entry.
 

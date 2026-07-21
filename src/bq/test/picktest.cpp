@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -45,7 +46,9 @@ namespace
 } // namespace
 
 // A pick follows its own key's value while the rest of the membership moves
-// around it: elements inserted before it, elements removed, elements reordered.
+// around it. Each membership change carries a change to the picked element as
+// well, so a pick that stopped following would be caught rather than agreeing
+// by accident.
 TEST(pick, followsItsKeyAcrossMembershipChanges)
 {
     auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
@@ -55,22 +58,26 @@ TEST(pick, followsItsKeyAcrossMembershipChanges)
 
     EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
 
-    input.handle.set(std::vector<Item>{ { "c", 3 }, { "a", 1 }, { "b", 2 } });
+    // An element is inserted ahead of it.
+    input.handle.set(std::vector<Item>{ { "c", 3 }, { "a", 1 }, { "b", 20 } });
     context.update(FrameInfo(1, {}));
-    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
-
-    input.handle.set(std::vector<Item>{ { "c", 3 }, { "b", 2 } });
-    context.update(FrameInfo(2, {}));
-    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
-
-    input.handle.set(std::vector<Item>{ { "b", 2 }, { "c", 3 } });
-    context.update(FrameInfo(3, {}));
-    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
-
-    input.handle.set(std::vector<Item>{ { "b", 20 }, { "c", 3 } });
-    context.update(FrameInfo(4, {}));
-    EXPECT_TRUE(context.didChange<0>());
     EXPECT_EQ(20, context.evaluate<0>().get<0>().value);
+
+    // Another element is removed.
+    input.handle.set(std::vector<Item>{ { "c", 3 }, { "b", 30 } });
+    context.update(FrameInfo(2, {}));
+    EXPECT_EQ(30, context.evaluate<0>().get<0>().value);
+
+    // It moves to the other end.
+    input.handle.set(std::vector<Item>{ { "b", 40 }, { "c", 3 } });
+    context.update(FrameInfo(3, {}));
+    EXPECT_EQ(40, context.evaluate<0>().get<0>().value);
+
+    // A pure reorder is invisible to a pick: the keyed source is the same map
+    // either way.
+    input.handle.set(std::vector<Item>{ { "c", 3 }, { "b", 40 } });
+    context.update(FrameInfo(4, {}));
+    EXPECT_EQ(40, context.evaluate<0>().get<0>().value);
 }
 
 // Every signal always has a value, so a pick whose key leaves the source holds
@@ -99,6 +106,33 @@ TEST(pick, latchesWhileItsKeyIsAbsent)
     context.update(FrameInfo(3, {}));
     EXPECT_TRUE(context.didChange<0>());
     EXPECT_EQ(30, context.evaluate<0>().get<0>().value);
+}
+
+// A pick reports a change whenever the source changes, even when the picked
+// element did not move. Suppressing the repeats is the caller's choice, made
+// with the facility bq already has for it.
+TEST(pick, reportsAChangeOfAnyElementAndCheckSuppressesIt)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+    auto shared = shareKeyed(input.signal, itemKey);
+
+    auto value = [](Item const& item)
+    {
+        return item.value;
+    };
+
+    auto context = makeSignalContext(
+            pick(shared, std::string("b")).map(value),
+            pick(shared, std::string("b")).map(value).check());
+
+    // Only "a" moves.
+    input.handle.set(std::vector<Item>{ { "a", 100 }, { "b", 2 } });
+    context.update(FrameInfo(1, {}));
+
+    EXPECT_TRUE(context.didChange<0>());
+    EXPECT_FALSE(context.didChange<1>());
+    EXPECT_EQ(2, context.evaluate<0>().get<0>());
+    EXPECT_EQ(2, context.evaluate<1>().get<0>());
 }
 
 // State lives in the SignalContext, so two contexts over one description share
@@ -142,10 +176,10 @@ TEST(pick, twoContextsOverOneDescriptionAreIndependent)
     EXPECT_EQ(30, first.evaluate<0>().get<0>().value);
 }
 
-// The mirror image: one description instantiated twice into one context finds
-// the same state through its UniqueId. The shared source is evaluated once per
-// pass rather than once per consumer, and both entries latch together.
-TEST(pick, oneDescriptionTwiceInOneContextSharesState)
+// The same sharing along the path a SignalContext actually takes: two entries
+// over one description, one source evaluation per pass, and both entries moving
+// and latching together.
+TEST(pick, twoContextEntriesOverOneDescriptionMoveTogether)
 {
     auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
     auto passes = std::make_shared<int>(0);
@@ -176,10 +210,41 @@ TEST(pick, oneDescriptionTwiceInOneContextSharesState)
     EXPECT_EQ(20, context.evaluate<1>().get<0>().value);
 }
 
-// Sharing is a lookup of the latch itself, not a coincidence of two copies
-// having seen the same values: a second instantiation made after the key has
-// already left the source finds the value the first one latched.
-TEST(pick, aLaterInstantiationInOneContextFindsTheLatch)
+// Two instantiations of one description in one context share their state, and
+// the source behind them is evaluated once per pass rather than once per
+// instantiation. The sharing is of the latch itself, not two copies happening
+// to have seen the same values: the second instantiation is made after the key
+// has already left the source, so without the sharing it would have nothing to
+// latch and would throw.
+TEST(pick, oneDescriptionTwiceInOneContextSharesState)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+    auto passes = std::make_shared<int>(0);
+
+    auto description = pick(countedShareKeyed(input.signal, passes),
+            std::string("b"));
+    auto& sig = description.unwrap();
+
+    DataContext context;
+
+    auto first = sig.initialize(context, FrameInfo(0, {}));
+    EXPECT_EQ(1, *passes);
+    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 1 } });
+    sig.update(context, first, FrameInfo(1, {}));
+    EXPECT_EQ(2, *passes);
+    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
+
+    auto second = sig.initialize(context, FrameInfo(1, {}));
+    EXPECT_EQ(2, *passes);
+    EXPECT_EQ(2, sig.evaluate(context, second).get<0>().value);
+}
+
+// The other side of that: instantiations are the only owners of the latch, so a
+// context that holds none of them has nothing to latch, and a pick built for a
+// key the source does not have has no value it could report.
+TEST(pick, initializingWithNoLatchAndNoKeyThrows)
 {
     auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
 
@@ -189,15 +254,15 @@ TEST(pick, aLaterInstantiationInOneContextFindsTheLatch)
 
     DataContext context;
 
-    auto first = sig.initialize(context, FrameInfo(0, {}));
-    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
+    {
+        auto data = sig.initialize(context, FrameInfo(0, {}));
+        EXPECT_EQ(2, sig.evaluate(context, data).get<0>().value);
+    }
 
     input.handle.set(std::vector<Item>{ { "a", 1 } });
-    sig.update(context, first, FrameInfo(1, {}));
-    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
 
-    auto second = sig.initialize(context, FrameInfo(1, {}));
-    EXPECT_EQ(2, sig.evaluate(context, second).get<0>().value);
+    EXPECT_THROW(sig.initialize(context, FrameInfo(1, {})),
+            std::runtime_error);
 }
 
 // The state of a pick that nothing holds any more expires while its entry stays

@@ -27,9 +27,9 @@ TEST(dataContext, expiredIdCanBeInitializedAgain)
     EXPECT_EQ(7, *context.findData<int>(id));
 }
 
-// Two ids are independent, and re-initializing an expired one leaves the other
-// alone.
-TEST(dataContext, expiryOfOneIdLeavesOthersAlone)
+// Re-initializing an expired id replaces only that id's data. A live id held
+// across the same sequence keeps both its entry and the value behind it.
+TEST(dataContext, reinitializingAnExpiredIdLeavesLiveIdsAlone)
 {
     DataContext context;
     auto first = makeUniqueId();
@@ -42,8 +42,10 @@ TEST(dataContext, expiryOfOneIdLeavesOthersAlone)
         EXPECT_EQ(2, *data);
     }
 
-    context.initializeData<int>(second, 3);
+    auto replaced = context.initializeData<int>(second, 3);
 
+    EXPECT_EQ(3, *replaced);
+    EXPECT_EQ(3, *context.findData<int>(second));
     EXPECT_EQ(1, *context.findData<int>(first));
     EXPECT_EQ(1, *kept);
 }
