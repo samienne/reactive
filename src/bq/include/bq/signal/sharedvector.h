@@ -47,10 +47,12 @@ namespace bq::signal
      * from inside a scope that opens one — do not hold a handle across a call
      * into code that might.
      *
-     * The vector itself does no more than hold contents and hand them to an
-     * input: it invokes no callback of its own, so nothing a caller wrote runs
-     * while the lock is held, and the only other lock ever taken under it is
-     * the input's own, whose critical sections reach nothing here.
+     * The vector invokes no callback of its own, so the only caller-written
+     * code that runs under the lock is `T`'s copy constructor and destructor,
+     * from publishing. The only other lock taken under the write lock is the
+     * input's, and nothing under *that* lock reaches back here: the input's
+     * handle never leaves this vector, so no signal can be pushed into it and
+     * no graph code can run while it is held.
      */
     template <typename T>
     class SharedVector
@@ -107,10 +109,12 @@ namespace bq::signal
          * signal.
          *
          * Publishing copies the contents. If that copy throws — an allocation
-         * failure, or a throwing element copy — the mutations still stand and
-         * the signal keeps the contents it was last given; the next write
-         * scope publishes the current state. The exception does not escape,
-         * because the publication is a destructor.
+         * failure, or a throwing element copy — the exception does not escape,
+         * because the publication is a destructor: the mutations stand and the
+         * signal keeps the contents it was last given. The next write scope
+         * publishes the current state, and if there is no next write scope the
+         * signal stays behind the contents for good, with nothing said about
+         * it.
          */
         class WriteHandle
         {
@@ -151,8 +155,8 @@ namespace bq::signal
 
             void publish() noexcept
             {
-                // A moved-from handle owns nothing and has already had its
-                // scope ended by the handle it was moved into.
+                // Only the handle holding the lock publishes: a moved-from one
+                // gave the scope away and must not end it too.
                 if (!lock_.owns_lock())
                     return;
 
@@ -187,17 +191,16 @@ namespace bq::signal
         {
         }
 
-        /** @brief Copies share one set of contents. */
+        /** @brief Copies share one set of contents.
+         *
+         * There is no move: copying is one atomic increment, and a moved-from
+         * vector would be a null state that every other method would have to
+         * guard against for nothing. A vector is therefore always usable.
+         */
         SharedVector(SharedVector const&) = default;
 
         /** @overload */
-        SharedVector(SharedVector&&) noexcept = default;
-
-        /** @overload */
         SharedVector& operator=(SharedVector const&) = default;
-
-        /** @overload */
-        SharedVector& operator=(SharedVector&&) noexcept = default;
 
         /** @brief Opens a read scope over the contents. */
         ReadHandle read() const
@@ -231,17 +234,16 @@ namespace bq::signal
     private:
         struct Control
         {
+            using InputType = Input<
+                SignalResult<std::vector<T>>,
+                SignalResult<std::vector<T>>>;
+
             explicit Control(std::vector<T> initial) :
                 data(std::move(initial)),
                 input(makeInput(data)),
                 sig(input.signal)
             {
             }
-
-            using InputType = Input<
-                SignalResult<std::vector<T>>,
-                SignalResult<std::vector<T>>
-                >;
 
             std::shared_mutex mutex;
             std::vector<T> data;

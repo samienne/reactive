@@ -72,9 +72,7 @@ TEST(sharedVector, aWriteScopeIsOneEmission)
 }
 
 // What publishes is the scope, not the mutation, so a scope that mutates
-// nothing still emits. Stated as a test because the alternative — comparing
-// against the previous contents — is a plausible thing to add later, and it
-// would change this.
+// nothing still emits.
 TEST(sharedVector, aWriteScopeThatMutatesNothingStillEmits)
 {
     SharedVector<int> vec = { 1 };
@@ -83,7 +81,6 @@ TEST(sharedVector, aWriteScopeThatMutatesNothingStillEmits)
 
     {
         auto w = vec.write();
-        (void)w;
     }
 
     auto r = c.update(FrameInfo(1, {}));
@@ -116,11 +113,11 @@ TEST(sharedVector, writeScopesBetweenTwoPassesCoalesce)
     EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
 }
 
-// Publication happens inside the write lock, so a read that begins after the
-// scope ends can never observe contents the signal has not been given. What
-// the signal has not yet *shown* is a separate thing: a context sees the new
-// contents at its next update pass.
-TEST(sharedVector, aReadNeverRunsAheadOfWhatTheSignalWasGiven)
+// A read shows the new contents at once and a context does not: it sees them
+// at its next update pass. This pins that lag, which is a different statement
+// from the coherence one below — it would hold just as well if publication
+// happened after the write lock was released.
+TEST(sharedVector, aContextLagsAReadUntilItsNextPass)
 {
     SharedVector<int> vec;
 
@@ -137,6 +134,56 @@ TEST(sharedVector, aReadNeverRunsAheadOfWhatTheSignalWasGiven)
     c.update(FrameInfo(1, {}));
 
     EXPECT_EQ(*vec.read(), c.evaluate<0>().get<0>());
+}
+
+// The coherence claim: publication happens inside the write lock, so the input
+// is never left holding a state older than a read that has already returned.
+// Publishing after releasing the lock breaks this — two writers can then commit
+// in one order and publish in the other, and the signal is left permanently
+// behind — but only inside a window this test has to catch rather than force,
+// so it is a detector, not a proof.
+TEST(sharedVector, theSignalIsNeverBehindWhatAReadHasShown)
+{
+    int const writes = 500;
+
+    SharedVector<int> vec = { 0 };
+
+    auto sig = vec.signal();
+
+    std::atomic<int> behind(0);
+    std::atomic<bool> stop(false);
+
+    // Bounded as well as stopped, so that a shared_mutex preferring readers
+    // cannot let this thread hold the writer off forever.
+    std::thread reader([&vec, &sig, &behind, &stop]()
+        {
+            auto c = makeSignalContext(sig);
+
+            for (int frame = 1; frame < 20000 && !stop.load(); ++frame)
+            {
+                int read = 0;
+                {
+                    auto r = vec.read();
+                    read = r->front();
+                }
+
+                c.update(FrameInfo(frame, {}));
+
+                if (c.evaluate<0>().get<0>().front() < read)
+                    ++behind;
+            }
+        });
+
+    for (int i = 1; i <= writes; ++i)
+    {
+        auto w = vec.write();
+        w->front() = i;
+    }
+
+    stop.store(true);
+    reader.join();
+
+    EXPECT_EQ(0, behind.load());
 }
 
 TEST(sharedVector, copiesShareOneSetOfContents)
@@ -200,11 +247,11 @@ TEST(sharedVector, aHandleOutlivesTheVectorItCameFrom)
 TEST(sharedVector, theSignalOutlivesTheVector)
 {
     AnySignal<std::vector<int>> sig = []()
-        {
-            SharedVector<int> vec = { 1, 2 };
+    {
+        SharedVector<int> vec = { 1, 2 };
 
-            return vec.signal();
-        }();
+        return vec.signal();
+    }();
 
     auto c = makeSignalContext(sig);
 

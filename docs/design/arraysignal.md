@@ -1197,17 +1197,21 @@ while `bq`'s own tests and any future non-UI consumer gain it. Everything
 `bqui::Connection` only for its callback registry, and `SharedVector` has no
 callback registry at all.
 
-### The write scope is the unit of emission
+The contract itself — scoped handles, the emission rule, the coherence
+guarantee, what the locks do not do — is documented on the type. What follows is
+only the reasoning behind it.
 
-Contents are reached only through a scoped handle: `read()` takes a shared lock,
-`write()` an exclusive one. The signal is given the new contents when a **write
-handle is destroyed**, not per mutation, so a hundred `push_back`s under one
-handle are one emission carrying the final state. A write scope that mutates
-nothing emits too — what publishes is the scope, not the mutation. That rule is
-worth more than the coalescing it buys: it is the one place a caller can be told
-"batch here", and it needs no dirty tracking or comparison to be exact.
+### Why the write scope, and not the mutation, is the unit of emission
 
-### It runs no user code under the lock, which is what `Collection` got wrong
+Emitting per mutation is the obvious alternative and it is worse in every
+direction: it makes the cheapest possible edit the most expensive one, it gives
+a caller no way to express a compound change as one, and a batching mode bolted
+on afterwards ends up being this rule with a worse name. Publishing at scope end
+is also *exact* — it needs no dirty tracking and no comparison against the
+previous contents to decide whether anything happened, which is why a scope that
+mutates nothing still emits.
+
+### It runs no *unbounded* user code under the lock, which is what `Collection` got wrong
 
 `Collection` invokes its registered callbacks synchronously while holding a
 `btl::SpinLock` (`collection.h:336-352`), so arbitrary caller code runs under a
@@ -1217,19 +1221,35 @@ other order deadlocks.
 
 `SharedVector` has no callbacks to invoke. Publication is
 `InputHandle::set(contents)`, and that function takes `InputControl::mutex`,
-assigns a value and bumps a counter — it calls nothing, and no critical section
-under `InputControl::mutex` reaches back into a `SharedVector`. The lock order
-is therefore always `SharedVector::mutex` → `InputControl::mutex`, and the
-reverse edge does not exist. Replacing a callback registry with a data sink is
-what removes the hazard; the write lock is not what was wrong with `Collection`.
+assigns a value and bumps a counter. Caller code does run under the lock —
+copying and destroying a `T` — but it is *bounded* code the caller did not
+choose to run there and cannot use to take another lock of its own; that is a
+different thing from a registered callback, and it is the difference that
+matters. Replacing a callback registry with a data sink is what removes the
+hazard; the write lock is not what was wrong with `Collection`.
+
+The lock order is therefore always `SharedVector::mutex` → `InputControl::mutex`
+with no reverse edge — and it is worth writing down *why*, because it is a
+property of this use of an input rather than of `InputControl` in general.
+`InputSignal::initialize`, `update` and `observe` do run graph code under
+`InputControl::mutex`, but only when a signal has been pushed into the input
+with `InputHandle::set(Signal)`. `SharedVector` keeps its handle private and
+never hands it out, so that cannot happen. Exposing the handle would reopen the
+edge silently.
+
+One consequence to accept rather than fix: `InputSignal::update` copies the
+whole vector under `InputControl::mutex`, so a context updating on one thread
+briefly blocks a writer, which in turn blocks readers. Readers are concurrent
+with each other, not with everything.
 
 ### Coherence between `read()` and the signal
 
-Publication happens **inside** the exclusive write lock, so a `read()` that
-begins after a write scope ends never observes contents that have not already
-been handed to the input. Two write scopes are totally ordered by the lock and
-so are their publications, so the input can never be left holding an older state
-than a subsequent `read()` shows.
+Publishing **inside** the exclusive write lock is what buys the guarantee, and
+it is worth being precise about why it is safe to do it there rather than after
+releasing: publishing outside the lock lets two writers commit in one order and
+publish in the other, which does not merely delay the signal but leaves it
+holding a state older than `read()` shows, permanently. Under the lock, the two
+orders are the same order.
 
 What remains is not a gap this design introduces: a `SignalContext` picks the
 new contents up at its **next update pass**, so between the write scope ending
