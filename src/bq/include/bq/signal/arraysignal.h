@@ -1,10 +1,9 @@
 #pragma once
 
-#include "detail/pick.h"
-
 #include "combine.h"
 #include "constant.h"
 #include "datacontext.h"
+#include "detail/pick.h"
 #include "frameinfo.h"
 #include "signal.h"
 #include "signalresult.h"
@@ -18,6 +17,7 @@
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -129,19 +129,22 @@ namespace bq::signal
          * two independent sets of values, and two consumers within one context
          * find the one table.
          *
-         * `keyFunc`, `buildFunc` and `idFunc` are invoked as const functions.
-         * They live in the description, which every context shares, so state in
-         * them would be state outside any context.
+         * `keyFunc` and `buildFunc` are invoked as const functions. They live
+         * in the description, which every context shares, so state in them
+         * would be state outside any context. The built value is copied into
+         * the exported element sequence, so it must be copy-constructible.
          *
          * @throws std::runtime_error if two elements of one update share a key.
+         *         Thrown from a refresh, this discards whatever was built for
+         *         the keys already visited, so a build with side effects that
+         *         need undoing does not belong here.
          */
-        template <typename TSource, typename TKeyFunc, typename TBuildFunc,
-                 typename TIdFunc>
+        template <typename TSource, typename TKeyFunc, typename TBuildFunc>
         class ArrayOnce
         {
         public:
-            using Storage = typename AnySignal<std::vector<TSource>>::
-                StorageType;
+            using Storage =
+                typename AnySignal<std::vector<TSource>>::StorageType;
 
             using Key = std::decay_t<std::invoke_result_t<
                 TKeyFunc const&, TSource const&>>;
@@ -158,12 +161,10 @@ namespace bq::signal
                 Elements elements;
             };
 
-            ArrayOnce(Storage sig, TKeyFunc keyFunc, TBuildFunc buildFunc,
-                    TIdFunc idFunc) :
+            ArrayOnce(Storage sig, TKeyFunc keyFunc, TBuildFunc buildFunc) :
                 sig_(std::move(sig)),
                 keyFunc_(std::move(keyFunc)),
-                buildFunc_(std::move(buildFunc)),
-                idFunc_(std::move(idFunc))
+                buildFunc_(std::move(buildFunc))
             {
             }
 
@@ -227,7 +228,7 @@ namespace bq::signal
                     ArrayElement<Value> element =
                         previous != data.built.end()
                         ? previous->second
-                        : ArrayElement<Value>{ (*idFunc_)(key),
+                        : ArrayElement<Value>{ makeArrayId(),
                             (*buildFunc_)(key, item) };
 
                     built.insert({ key, element });
@@ -247,19 +248,16 @@ namespace bq::signal
             Storage sig_;
             mutable btl::CopyWrapper<TKeyFunc> keyFunc_;
             mutable btl::CopyWrapper<TBuildFunc> buildFunc_;
-            mutable btl::CopyWrapper<TIdFunc> idFunc_;
         };
 
-        template <typename TSource, typename TKeyFunc, typename TBuildFunc,
-                 typename TIdFunc>
+        template <typename TSource, typename TKeyFunc, typename TBuildFunc>
         auto makeArrayOnce(AnySignal<std::vector<TSource>> source,
-                TKeyFunc keyFunc, TBuildFunc buildFunc, TIdFunc idFunc)
+                TKeyFunc keyFunc, TBuildFunc buildFunc)
         {
-            return wrap(ArrayOnce<TSource, TKeyFunc, TBuildFunc, TIdFunc>(
+            return wrap(ArrayOnce<TSource, TKeyFunc, TBuildFunc>(
                         std::move(source).unwrap(),
                         std::move(keyFunc),
-                        std::move(buildFunc),
-                        std::move(idFunc)));
+                        std::move(buildFunc)));
         }
 
         /** @brief One element that never changes.
@@ -321,6 +319,14 @@ namespace bq::signal
          * That is what makes a surviving element's state safe from its
          * neighbours, and it is a property of the node rather than of anything
          * the elements do — nothing here needs the elements to be shared.
+         *
+         * observe() connects the elements that are there when it is called and
+         * is **not** rewired by a later membership change: an element that
+         * arrives afterwards is not observed, and one that leaves stays in the
+         * returned connection. Nothing in the toolkit observes a signal today.
+         *
+         * @throws std::runtime_error if one identity appears twice, which means
+         *         an array was concatenated with itself.
          */
         template <typename X>
         class ArrayJoin
@@ -349,6 +355,8 @@ namespace bq::signal
 
                 data.elements = sig_.evaluate(context, data.innerData)
                     .template get<0>();
+
+                requireDistinct(data.elements);
 
                 for (auto const& element : data.elements)
                 {
@@ -379,14 +387,28 @@ namespace bq::signal
             {
                 UpdateResult r = sig_.update(context, data.innerData, frame);
 
+                std::set<ArrayId> arrived;
                 if (r.didChange)
-                    reconcile(context, data, frame);
+                    arrived = reconcile(context, data, frame);
 
                 for (auto& element : data.elements)
                 {
+                    // An arrival was initialized against this very frame, so
+                    // updating it too would advance it twice — for anything
+                    // that folds, that is a wrong value rather than wasted
+                    // work.
+                    if (arrived.count(element.id))
+                        continue;
+
                     r = r + element.value.unwrap().update(context,
                             data.datas.at(element.id), frame);
                 }
+
+                // Nothing collected an arrival's own request to be driven
+                // again, so ask for the next frame on its behalf rather than
+                // let a newly built animation sit still.
+                if (!arrived.empty())
+                    r.nextUpdate = min(r.nextUpdate, signal_time_t(0));
 
                 return r;
             }
@@ -407,13 +429,31 @@ namespace bq::signal
             }
 
         private:
-            void reconcile(DataContext& context, DataType& data,
+            // Returns the identities that arrived, which the caller owes an
+            // update this frame no longer.
+            std::set<ArrayId> reconcile(DataContext& context, DataType& data,
                     FrameInfo const& frame) const
             {
                 Elements elements = sig_.evaluate(context, data.innerData)
                     .template get<0>();
 
+                requireDistinct(elements);
+
+                // Arrivals are initialized into their own storage first, so
+                // nothing in `data` has moved if one of them throws.
                 std::map<ArrayId, InnerData> datas;
+                std::set<ArrayId> arrived;
+
+                for (auto const& element : elements)
+                {
+                    if (data.datas.count(element.id))
+                        continue;
+
+                    datas.emplace(element.id,
+                            element.value.unwrap().initialize(context, frame));
+
+                    arrived.insert(element.id);
+                }
 
                 for (auto const& element : elements)
                 {
@@ -423,12 +463,6 @@ namespace bq::signal
                         datas.emplace(element.id,
                                 std::move(surviving->second));
                     }
-                    else
-                    {
-                        datas.emplace(element.id,
-                                element.value.unwrap().initialize(context,
-                                    frame));
-                    }
                 }
 
                 // Assigning last is what releases the departed elements, and
@@ -436,6 +470,23 @@ namespace bq::signal
                 // initialized.
                 data.elements = std::move(elements);
                 data.datas = std::move(datas);
+
+                return arrived;
+            }
+
+            static void requireDistinct(Elements const& elements)
+            {
+                std::set<ArrayId> seen;
+
+                for (auto const& element : elements)
+                {
+                    if (!seen.insert(element.id).second)
+                    {
+                        throw std::runtime_error("ArraySignal: one identity "
+                                "appears twice, which means an array was "
+                                "concatenated with itself");
+                    }
+                }
             }
 
             Storage sig_;
@@ -472,9 +523,15 @@ namespace bq::signal
      * there is deliberately no `AnyArraySignal`.
      *
      * An array is shared: it holds its elements behind a share(), so two
-     * consumers of one array within one SignalContext see one set of built
-     * values and one evaluation per pass. Two SignalContexts over one array
-     * share nothing at all.
+     * consumers of one array within one SignalContext see **one set of built
+     * values** — the delegate and every map() run once between them, which is
+     * what identity exists to protect. What is not shared is the elements'
+     * instantiated state: each consumer of the exit instantiates the element
+     * signals for itself, exactly as instantiating any signal twice in one
+     * context does. Share inside the delegate if an element's own state has to
+     * be one thing across two consumers.
+     *
+     * Two SignalContexts over one array share nothing at all.
      */
     template <typename T>
     class ArraySignal
@@ -544,11 +601,7 @@ namespace bq::signal
                         {
                             return element.id;
                         },
-                        std::move(build),
-                        [](detail::ArrayId const&)
-                        {
-                            return detail::makeArrayId();
-                        }));
+                        std::move(build)));
         }
 
         /** @brief The identified elements.
@@ -649,11 +702,7 @@ namespace bq::signal
         return ArraySignal<U>::fromElements(detail::makeArrayOnce(
                     std::move(shared),
                     std::move(keyFn),
-                    std::move(build),
-                    [](Key const&)
-                    {
-                        return detail::makeArrayId();
-                    }));
+                    std::move(build)));
     }
 
     /** @overload */

@@ -24,8 +24,7 @@ static_assert(checkSignal<detail::ArrayJoin<int>>());
 static_assert(checkSignal<detail::ArrayOnce<
         int,
         std::function<int(int const&)>,
-        std::function<int(int const&, int const&)>,
-        std::function<detail::ArrayId(int const&)>
+        std::function<int(int const&, int const&)>
         >>());
 
 namespace
@@ -207,6 +206,62 @@ TEST(arraySignal, anEvictedValueIsDestroyed)
     EXPECT_FALSE((*built)[1].expired());
 }
 
+// An element that arrives during an update is initialized against that frame,
+// so it must not also be updated in it. A fold makes the difference visible:
+// advanced twice, an arrival's first value would be counted twice.
+TEST(arraySignal, anArrivingElementIsAdvancedOnce)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+
+    // Deliberately without the check() that itemValue() adds: it would hide a
+    // repeated advance rather than report it.
+    auto sums = join(forEach(
+                AnySignal<std::vector<Item>>(input.signal),
+                itemKey,
+                [](AnySignal<Item> item)
+                {
+                    return AnySignal<int>(item
+                            .map([](Item const& i)
+                                {
+                                    return i.value;
+                                })
+                            .withPrevious([](int sum, int value)
+                                {
+                                    return sum + value;
+                                },
+                                0));
+                }));
+
+    auto c = makeSignalContext(sums);
+
+    EXPECT_EQ(std::vector<int>{ 1 }, c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "b", 5 } }));
+    c.update(FrameInfo(1, {}));
+
+    // b folded its first value exactly once, as a did at construction; were it
+    // advanced twice it would read 10. a reads 2 because a pick reports a
+    // change whenever any element of its source changes, so a's fold takes its
+    // unchanged value again — which is why itemValue() deduplicates and why
+    // this test does not.
+    EXPECT_EQ((std::vector<int>{ 2, 5 }), c.evaluate<0>().get<0>());
+}
+
+// Concatenating an array with itself makes one identity appear twice. The exit
+// reports it rather than quietly giving the two occurrences one set of state
+// and advancing it twice a frame.
+TEST(arraySignal, joinRejectsAnArrayConcatenatedWithItself)
+{
+    ArraySignal<AnySignal<int>> array = AnySignal<int>(constant(1));
+
+    expectThrowsContaining(
+            [&]
+            {
+                makeSignalContext(join(concat(array, array)));
+            },
+            "appears twice");
+}
+
 // A duplicate that appears only after the array has been running fails the
 // same way as one that was there from the start.
 TEST(arraySignal, forEachThrowsOnADuplicateKeyIntroducedByAnUpdate)
@@ -225,7 +280,11 @@ TEST(arraySignal, forEachThrowsOnADuplicateKeyIntroducedByAnUpdate)
 
     input.handle.set(items({ { "a", 1 }, { "a", 2 } }));
 
-    expectThrowsContaining([&] { c.update(FrameInfo(1, {})); },
+    expectThrowsContaining(
+            [&]
+            {
+                c.update(FrameInfo(1, {}));
+            },
             "duplicate key");
 }
 
@@ -495,7 +554,11 @@ TEST(arraySignal, forEachThrowsOnADuplicateKey)
                     return itemValue(std::move(item));
                 }));
 
-    expectThrowsContaining([&] { makeSignalContext(description); },
+    expectThrowsContaining(
+            [&]
+            {
+                makeSignalContext(description);
+            },
             "duplicate key");
 }
 

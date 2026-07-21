@@ -2,9 +2,8 @@
 
 > **Status: revised design, implementation started.** Steps 0 to 2 of
 > *Implementation order* have landed; `scatter` and everything in `bqui` is
-> outstanding. Where the built node contradicts what is written below, the
-> correction is recorded under *Corrections from the implementation* and the
-> surrounding prose has been amended. The earlier implementation on PR #100 is
+> outstanding, and this document has been amended to describe what was built
+> rather than what was first proposed. The earlier implementation on PR #100 is
 > a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
@@ -16,7 +15,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `74a744b` (2026-07-21).*
+*Last verified against `8677be3` (2026-07-21).*
 
 ## The problem
 
@@ -205,7 +204,11 @@ supported source type:
 | `T` (or anything convertible to `T`) | a single constant item |
 | `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
 | `std::vector<ArraySignal<T>>` | ditto, built at runtime |
-| `AnySignal<ArraySignal<T>>` | a reactive subtree (see below; unbuilt) |
+**Every one of them is constant**, and that is the rule: anything that varies
+enters through `forEach`, which asks for the key that says which item is which.
+The one candidate that would break the rule, a reactive subtree taking
+`AnySignal<ArraySignal<T>>`, is unbuilt and unsettled — see *The reactive
+subtree* and *Open questions*.
 
 Two reasons. First, **acceptance is precisely controlled**: each form is opted
 into by writing a constructor, so an accidentally-convertible type cannot slip
@@ -220,9 +223,8 @@ representation is free to change.
 ### It is a uniform recursive tree
 
 Because *everything* converts to `ArraySignal<T>`, including a braced list of
-`ArraySignal<T>`, the type is a tree: a **leaf** is a single item (constant or
-signal) or a signal-of-vector, and a **branch** is a list of children. This
-syntax must work:
+`ArraySignal<T>`, the type is a tree: a **leaf** is a single constant
+item, and a **branch** is a list of children. This syntax must work:
 
 ```cpp
 ArraySignal<AnyWidget> content = {
@@ -276,7 +278,12 @@ belongs to PR #99. See *Open questions*.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
-This constructor makes a whole subtree swappable — conditional branches, a
+**Unbuilt.** It is the one proposed constructor that is not constant, and the
+identity algebra does not yet account for it — see *Open questions*. Recorded
+here because the shape of the answer is settled even though the constructor is
+not.
+
+It would make a whole subtree swappable — conditional branches, a
 section of a list that changes shape wholesale. The rule on swap:
 
 > The new subtree's items are a **new set** and get **fresh ids**, unless
@@ -295,11 +302,11 @@ These are design constraints on the implementation, not incidental details.
 
 - **The "convertible to `T`" constructor must be SFINAE-constrained.** An
   unconstrained `template <typename U> ArraySignal(U&&)` is a better match than the
-  copy and move constructors for a non-const lvalue `ArraySignal`, and it will also
-  swallow `AnySignal<T>` and braced lists that were meant for the dedicated
-  constructors. Constrain it on `std::is_convertible_v<U, T>` *and* exclude
-  `ArraySignal` itself and every other accepted form. This is the single most
-  likely way to get a mysterious compile error or a silently wrong overload.
+  copy and move constructors for a non-const lvalue `ArraySignal`, and it would
+  swallow braced lists meant for the dedicated constructors. Constrain it on
+  `std::is_convertible_v<U, T>` *and* exclude `ArraySignal` itself. This is the
+  single most likely way to get a mysterious compile error or a silently wrong
+  overload.
 
 - **Prefer an explicit `std::initializer_list<ArraySignal<T>>` constructor.** In
   braced initialisation an `initializer_list` constructor wins over everything
@@ -322,13 +329,15 @@ broke.
 > An `ArraySignal` is a **description that builds a signal**. It never
 > participates in a `SignalContext` itself. Every piece of durable state the
 > built signal needs — the key→id map, the per-key `U` table, the membership
-> order — lives in that signal's `DataContext` data, found by a `btl::UniqueId`
-> carried in the description.
+> order, each element's instantiated data — lives in that signal's per-context
+> data.
 
-`SharedControl` is the pattern to copy verbatim: a `UniqueId` in the description,
-`context.findData<T>(id_)` on initialise, create on miss, hold the `shared_ptr`
-in the node's `DataType` (`DataContext` stores `weak_ptr`s, so nothing else keeps
-it alive).
+`SharedControl` is what supplies that, and the array uses it rather than
+reimplementing it: the nodes hold their tables in an ordinary `DataType`, and the
+array holds those nodes behind a `.share()`. `SharedControl` carries the
+`UniqueId`, does the `findData` on initialise and creates on miss, so the tables
+are per-`DataContext` without any node naming an id of its own. See *Sharing is
+intrinsic*.
 
 Four consequences, all of which the rest of this document depends on:
 
@@ -368,17 +377,9 @@ Six things. Every one has an existing `bq` pattern to copy.
 
 ### Construction
 
-| Constructor takes | Meaning |
-| --- | --- |
-| `T` (or anything convertible to `T`) | a single constant item |
-| `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
-| `std::vector<ArraySignal<T>>` | ditto, built at runtime |
-
-`{a, b, c}` compiles, nesting falls out for free, and the type is a uniform
-recursive tree as described above.
-
-**Every constructor is constant**, and that is the whole rule. Anything that
-varies enters through `forEach`.
+The accepted forms are listed under *A constructor per supported type*, and they
+are all constant. `{a, b, c}` compiles, nesting falls out for free, and the type
+is a uniform recursive tree as described above.
 
 **`AnySignal<std::vector<T>>` is deliberately not a constructor.** In the spike
 it was, implemented as `source.map(idx).share()` (`arraysignal.h:450-457`),
@@ -431,7 +432,11 @@ the operator that lets a container reach *inside* the node.
 
 ### `concat`
 
-Joins arrays without touching ids, which are already distinct per node.
+Joins arrays without touching ids. **Every node that builds an array mints its
+own**, `map` included, so ids from two arrays are distinct however the two are
+related: `concat(a, a.map(f))` — the shape of the branch a container makes and
+rejoins — is well-formed. Concatenating an array with *itself* is not, and the
+exit says so rather than giving one identity two places in the list.
 
 ### `scatter` — the fan-out
 
@@ -471,7 +476,8 @@ engine*, where both fan-ins land in this form and no third shape is needed.
 obvious implementation is to `map` the elements into a `combine` and let
 `Signal::join` follow it. It does produce the right values, and it is a trap:
 `Join::update` rebuilds and **re-initialises its whole inner signal whenever the
-outer one changes** (`join.h:88-92`), and here the outer signal changes on every
+outer one changes** (the `didChange` branch of `Join::update`), and here the
+outer signal changes on every
 membership change. Every surviving element would be re-initialised — every `map`
 cache, every `withPrevious` fold, every `iterate` inside a survivor's `U` back to
 its initial value — because one neighbour arrived.
@@ -622,7 +628,18 @@ So sharing is **structurally required**, not an optimisation — and there is no
 separate `SharedArraySignal` type, because keeping the table in the node's
 `DataType` behind a `.share()` *is* sharing. `SharedControl` keys that data by a
 `UniqueId` carried in the description, so every consumer within one context
-finds one table and one evaluation per pass, and two contexts share nothing.
+finds one table, and two contexts share nothing.
+
+Be precise about what that does and does not cover. **The built values are
+shared** — the delegate and every `map` run once between the two branches, which
+is the whole requirement above. **The elements' instantiated state is not**: each
+exit gives every element its own inner data, exactly as instantiating any signal
+twice in one context does. A `withPrevious` inside a delegate's value therefore
+exists once per exit unless the delegate shares it, and the per-element
+evaluation is done once per exit rather than once per pass. That is `bq`'s
+ordinary rule rather than an exception to it, and it is the price of the exit
+being a node that owns its elements' data — see *`join` is a node, not a
+`Join`*.
 
 A consuming variant would have no user on day one, since every container
 branches, so `map` takes `U const&`. It can be added later if a linear consumer
@@ -672,10 +689,12 @@ into.
 
 `arraySignal.map(f, sig1, sig2)` — where `f` receives the item's value plus the
 current values of those signals — should be supported. It is **`combine` sugar
-per element**: the node is still created once per identity, and only values
-recompute. It introduces **no new footgun class**, because the dangerous case is
-already covered by the rule above ("don't construct in `.map`") and is
-unaffected by how many values `f` receives.
+per element**, and it is the one place `f` would run more than once per identity:
+`f` is re-run when one of those extra signals changes, inside a node built once
+when the identity appeared. That does not weaken the rule that an *element's
+value* never changes — the extra signals are not the element — and it introduces
+**no new footgun class**, because the dangerous case is already covered by the
+rule above ("don't construct in `.map`").
 
 The cost is worth stating: a shared signal feeding `n` items fans out to O(n)
 value recomputations when it changes. That is inherent, not a design flaw — all
@@ -881,32 +900,6 @@ pass, and `avg::Animated<T>` is an ordinary value that does not animate in the
 signal domain — it is interpreted by the render tree. The layout pipeline is a
 diamond (membership → builders → hints → obbs → elements), not a cycle.
 
-## Corrections from the implementation
-
-Two things the built node settles differently from the draft above. The prose
-has been amended; they are collected here because each is a claim this document
-made and then had to withdraw.
-
-- **There is no `SharedArraySignal`.** Sharing is intrinsic — see *Sharing is
-  intrinsic*. The consequence is that copying a description no longer implies
-  independent tables; only a second `SignalContext` does.
-
-- **Every node that builds an array mints its own ids**, `map` included, and no
-  per-array id space is needed to make them distinct. A `map` that forwarded its
-  source's ids would make `concat(a, a.map(f))` a duplicate-key error, and that
-  is the shape of the branch a container makes and rejoins. Concatenating an
-  array with *itself* remains an error, which is correct.
-
-An earlier revision of this section carried three more, all of which were
-symptoms of building the exit on the generic `join` rather than as its own node
-— see *`join` is a node, not a `Join`*. They are gone with that choice, and the
-identity algebra the draft claimed holds unaltered: only construction of a
-constant item and `forEach` mint identity, and `map` runs exactly once per
-identity because the value it reads cannot change.
-
-The reactive subtree constructor, `AnySignal<ArraySignal<T>>`, is still not
-built; it remains where *Open questions* leaves it.
-
 ## One layout engine
 
 This is the headline finding, and it was not the goal when the design started.
@@ -978,12 +971,11 @@ need. The honest accounting:
 
 - **Construction.** The unified engine costs one extra node in the graph and N
   key allocations. Once.
-- **Steady state.** For a never-changing membership, the fan-in `Join`
-  initialises its inner signal once and thereafter behaves as a plain `combine` —
-  the re-initialisation branch at `join.h:88-92` is only taken when the *outer*
-  signal changes, and for fixed membership it never does. `scatter` matches
-  identity once at construction, not per emission. **Per frame, both paths do the
-  same work.**
+- **Steady state.** For a never-changing membership the fan-in initialises each
+  element once and thereafter does what a plain `combine` does: the reconcile
+  branch is only taken when the membership changes, and for a fixed list it never
+  does. `scatter` matches identity once at construction, not per emission. **Per
+  frame, both paths do the same work.**
 
 A per-frame cost would be a real argument against unifying. A one-off
 construction cost is not.
