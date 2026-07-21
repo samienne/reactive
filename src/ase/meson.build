@@ -24,6 +24,11 @@ glsrcs = [
   'src/gl/glrenderqueue.cpp'
   ]
 
+# Whether the backend built here is the headless "dummy" one. A test that
+# drives a real window can only run where it is: the GLX and WGL backends need
+# a display and a GPU context that CI does not have.
+ase_is_headless = false
+
 if target_machine.system() == 'linux'
   gldep = dependency('gl')
   x11dep = dependency('x11')
@@ -57,6 +62,7 @@ elif target_machine.system() == 'windows'
     glsrcs
     ]
 else
+  ase_is_headless = true
   system_deps = []
   system_link_args = []
   system_incs = []

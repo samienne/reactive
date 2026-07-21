@@ -80,13 +80,23 @@ libbquidep = declare_dependency(
   include_directories: include_directories('include')
   )
 
-bquitest =  executable('bquitest',
+bquitestsrc = [
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  ]
+
+# App::run opens real windows, so it can only be exercised where ase builds its
+# headless backend.
+if ase_is_headless
+  bquitestsrc += 'test/apptest.cpp'
+endif
+
+bquitest =  executable('bquitest',
+  bquitestsrc,
   dependencies: [gtestdep, libbquidep],
   )
 
