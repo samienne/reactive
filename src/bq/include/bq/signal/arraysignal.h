@@ -32,11 +32,17 @@ namespace bq::signal
     {
         /** @brief The identity of one element of one array.
          *
-         * An id never reaches user code: it is minted by an array's node, in
-         * that node's per-context state, and is only ever matched within the
-         * node that minted it. It is orderable so that it can key a map;
-         * nothing else about it means anything, and in particular its order
-         * says nothing about the order of the elements.
+         * A distinct type rather than a bare btl::UniqueId because it is drawn
+         * from the same counter as the ids that key a DataContext and means
+         * something different: this one names an entry in an array node's own
+         * table. Were they one type, looking an element up in the DataContext —
+         * or the reverse — would compile and quietly find nothing.
+         *
+         * An id never reaches user code: it is minted where the element is,
+         * and is only ever matched within the node that minted it. It is
+         * orderable so that it can key a map; nothing else about it means
+         * anything, and in particular its order says nothing about the order of
+         * the elements.
          */
         class ArrayId
         {
@@ -118,6 +124,19 @@ namespace bq::signal
         constexpr bool isPlainItem =
             std::is_convertible_v<U, T>
             && !IsArraySignal<std::decay_t<U>>::value;
+
+        /** @brief Whether forEach() accepts this key function and delegate.
+         *
+         * Constrained at the call so that a callable of the wrong shape is
+         * reported where it was written rather than as a failure deep inside
+         * the node. Only invocability can be constrained, not the results:
+         * those are what the key and the built value are deduced *from*, so
+         * there is nothing to give is_invocable_r to compare against.
+         */
+        template <typename TKeyFunc, typename TDelegate, typename T>
+        constexpr bool isForEachCallable =
+            std::is_invocable_v<TKeyFunc const&, T const&>
+            && std::is_invocable_v<TDelegate const&, AnySignal<T>>;
 
         /** @brief Builds one value per key and keeps it while the key is
          * there.
@@ -262,51 +281,19 @@ namespace bq::signal
 
         /** @brief One element that never changes.
          *
-         * It has no inner signal at all. The identity is minted when the
-         * element is initialized into a context, so the description carries
-         * none and two contexts over it are unrelated.
+         * A constant needs no node: the identity is minted here, once, and the
+         * element is then an ordinary constant signal. It is the one identity
+         * the description carries, which is harmless because it names nothing
+         * outside the per-context tables that match it — two contexts over one
+         * constant element look their own values up under the same id and never
+         * meet.
          */
         template <typename T>
-        class ArrayConstant
+        AnySignal<ArrayElements<T>> constantElement(T value)
         {
-        public:
-            using Elements = ArrayElements<T>;
-
-            struct DataType
-            {
-                Elements elements;
-            };
-
-            ArrayConstant(T value) :
-                value_(std::move(value))
-            {
-            }
-
-            DataType initialize(DataContext&, FrameInfo const&) const
-            {
-                return DataType { Elements { { makeArrayId(), value_ } } };
-            }
-
-            SignalResult<Elements const&> evaluate(DataContext&,
-                    DataType const& data) const
-            {
-                return SignalResult<Elements const&>(data.elements);
-            }
-
-            UpdateResult update(DataContext&, DataType&, FrameInfo const&)
-            {
-                return {};
-            }
-
-            btl::connection observe(DataContext&, DataType&,
-                    std::function<void()>)
-            {
-                return {};
-            }
-
-        private:
-            T value_;
-        };
+            return constant(ArrayElements<T> {
+                    { makeArrayId(), std::move(value) } });
+        }
 
         /** @brief Fans an array of signals in, keeping each identity's state.
          *
@@ -563,8 +550,8 @@ namespace bq::signal
             detail::isPlainItem<U, T>
             >>
         ArraySignal(U&& value) :
-            ArraySignal(ElementsSignal(wrap(detail::ArrayConstant<T>(
-                                T(std::forward<U>(value))))))
+            ArraySignal(detail::constantElement<T>(
+                        T(std::forward<U>(value))))
         {
         }
 
@@ -581,7 +568,9 @@ namespace bq::signal
          * but only forEach() hands its delegate the signal that carries the
          * item's changing value.
          */
-        template <typename TFunc>
+        template <typename TFunc, typename = std::enable_if_t<
+            std::is_invocable_v<TFunc const&, T const&>
+            >>
         auto map(TFunc func) const
         {
             using Element = detail::ArrayElement<T>;
@@ -674,12 +663,20 @@ namespace bq::signal
      * item on every change and once per key respectively. Keys must be unique
      * within this call and need not be unique anywhere else.
      *
+     * `source` is any signal of a `std::vector<T>`, type-erased or not. `T` is
+     * the element type the delegate is handed; a source of some other element
+     * type goes through an ordinary map() first, which says at the call site
+     * what the conversion is.
+     *
      * @throws std::runtime_error if two items share a key. Thrown from an
      *         update, this leaves the source advanced and the table not, so
      *         the context should be discarded rather than driven again.
      */
-    template <typename T, typename TKeyFunc, typename TDelegate>
-    auto forEach(AnySignal<std::vector<T>> source, TKeyFunc keyFn,
+    template <typename TStorage, typename T, typename TKeyFunc,
+             typename TDelegate, typename = std::enable_if_t<
+                 detail::isForEachCallable<TKeyFunc, TDelegate, T>
+                 >>
+    auto forEach(Signal<TStorage, std::vector<T>> source, TKeyFunc keyFn,
             TDelegate delegate)
     {
         using Key = std::decay_t<std::invoke_result_t<
@@ -706,11 +703,14 @@ namespace bq::signal
     }
 
     /** @overload */
-    template <typename T, typename TKeyFunc, typename TDelegate>
+    template <typename T, typename TKeyFunc, typename TDelegate,
+             typename = std::enable_if_t<
+                 detail::isForEachCallable<TKeyFunc, TDelegate, T>
+                 >>
     auto forEach(std::vector<T> source, TKeyFunc keyFn, TDelegate delegate)
     {
-        return forEach(AnySignal<std::vector<T>>(constant(std::move(source))),
-                std::move(keyFn), std::move(delegate));
+        return forEach(constant(std::move(source)), std::move(keyFn),
+                std::move(delegate));
     }
 
     /** @brief Concatenates arrays, preserving order and every identity.

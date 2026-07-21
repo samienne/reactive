@@ -243,28 +243,33 @@ values of `T`. The `initializer_list` element type being `ArraySignal<T>` rather
 than `T` is how that requirement is met **and** how nesting falls out for free,
 since every accepted form converts to `ArraySignal<T>`.
 
-### Identity is internal, and ids are minted per context at initialisation
+### Identity is internal, and an id is minted where its element is
 
-**Settled:** ids are allocated by the built signal, in its `DataContext` state,
-**when it is initialised into a context**. They are not allocated when the
-`ArraySignal` description is constructed, and they are not carried by the
-description.
+**Settled:** an id is allocated at the point the element it names comes into
+existence. For a `forEach` element that is inside the node, in its per-context
+table, when the key first appears — it can be nowhere else, since the key is not
+known until then. For a constant item it is when the `ArraySignal` is
+constructed, because the element exists from that moment and never changes.
 
-This follows directly from *Where state lives*. An id names an entry in the
-key→`U` table, that table is per-context, so the id space is per-context too.
+So the description does carry the constant items' ids. That is harmless, and the
+reason is the same one that makes the whole scheme safe: **an id never reaches
+user code**. No operator hands one out, nothing outside can construct or compare
+one, and an id names nothing but an entry in the per-context tables that match
+it. Two contexts over one constant element look their own values up under the
+same id and never meet.
 
-The reason it is safe is that **an id never reaches user code**. No operator
-hands one out, nothing outside can construct or compare one, and ids are never
-compared across contexts because there is no way to obtain one in the first
-place.
+An earlier draft required *every* id to be minted per context. That bought
+nothing for a constant — it would mean a node whose only job is to allocate an
+id — and the rule it was protecting is about where the *tables* live, not the
+ids.
 
 Two consequences worth stating, because both simplify the design relative to the
 first draft:
 
-- **`concat` needs no re-namespacing.** Each `forEach` node mints its own ids
-  from its own per-context allocator, so ids from different sources are distinct
-  by construction. The first draft's id-space-plus-index scheme, and the
-  pointer-derived ids that made ids irreproducible between runs, both go away.
+- **`concat` needs no re-namespacing.** Every node that builds an array mints
+  its own ids, so ids from different sources are distinct by construction. The
+  first draft's id-space-plus-index scheme, and the pointer-derived ids that
+  made ids irreproducible between runs, both go away.
 - **The user-facing key contract weakens, which is a gain.** `TKey` no longer has
   to be unique across the whole array — only **within a single `forEach`**. That
   is a far easier promise for a caller to keep, and it makes duplicate detection

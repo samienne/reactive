@@ -17,8 +17,6 @@
 
 using namespace bq::signal;
 
-static_assert(checkSignal<detail::ArrayConstant<int>>());
-
 static_assert(checkSignal<detail::ArrayJoin<int>>());
 
 static_assert(checkSignal<detail::ArrayOnce<
@@ -179,7 +177,7 @@ TEST(arraySignal, anEvictedValueIsDestroyed)
     auto built = std::make_shared<std::vector<std::weak_ptr<int>>>();
 
     auto c = makeSignalContext(join(forEach(
-                    AnySignal<std::vector<Item>>(input.signal),
+                    input.signal,
                     itemKey,
                     [built](AnySignal<Item> item)
                     {
@@ -216,7 +214,7 @@ TEST(arraySignal, anArrivingElementIsAdvancedOnce)
     // Deliberately without the check() that itemValue() adds: it would hide a
     // repeated advance rather than report it.
     auto sums = join(forEach(
-                AnySignal<std::vector<Item>>(input.signal),
+                input.signal,
                 itemKey,
                 [](AnySignal<Item> item)
                 {
@@ -269,7 +267,7 @@ TEST(arraySignal, forEachThrowsOnADuplicateKeyIntroducedByAnUpdate)
     auto input = makeInput(items({ { "a", 1 } }));
 
     auto c = makeSignalContext(join(forEach(
-                    AnySignal<std::vector<Item>>(input.signal),
+                    input.signal,
                     itemKey,
                     [](AnySignal<Item> item)
                     {
@@ -294,7 +292,7 @@ TEST(arraySignal, forEachBuildsOncePerKeyAndFollowsMembership)
     auto builds = std::make_shared<int>(0);
 
     auto c = makeSignalContext(join(forEach(
-                    AnySignal<std::vector<Item>>(input.signal),
+                    input.signal,
                     itemKey,
                     [builds](AnySignal<Item> item)
                     {
@@ -337,7 +335,7 @@ TEST(arraySignal, aReturningKeyIsANewIdentity)
     auto builds = std::make_shared<int>(0);
 
     auto c = makeSignalContext(join(forEach(
-                    AnySignal<std::vector<Item>>(input.signal),
+                    input.signal,
                     itemKey,
                     [builds](AnySignal<Item> item)
                     {
@@ -365,7 +363,7 @@ TEST(arraySignal, shrinksAndGrowsAgain)
     auto builds = std::make_shared<int>(0);
 
     auto c = makeSignalContext(join(forEach(
-                    AnySignal<std::vector<Item>>(input.signal),
+                    input.signal,
                     itemKey,
                     [builds](AnySignal<Item> item)
                     {
@@ -396,7 +394,7 @@ TEST(arraySignal, aSurvivingElementKeepsItsStateThroughItsNeighbours)
     auto input = makeInput(items({ { "a", 1 }, { "b", 10 } }));
 
     auto sums = join(forEach(
-                AnySignal<std::vector<Item>>(input.signal),
+                input.signal,
                 itemKey,
                 [](AnySignal<Item> item)
                 {
@@ -440,7 +438,7 @@ TEST(arraySignal, twoContextsAreIndependent)
     auto builds = std::make_shared<int>(0);
 
     auto description = join(forEach(
-                AnySignal<std::vector<Item>>(input.signal),
+                input.signal,
                 itemKey,
                 [builds](AnySignal<Item> item)
                 {
@@ -481,7 +479,7 @@ TEST(arraySignal, twoConsumersInOneContextShareTheBuiltValues)
     auto builds = std::make_shared<int>(0);
 
     auto array = forEach(
-            AnySignal<std::vector<Item>>(input.signal),
+            input.signal,
             itemKey,
             [builds](AnySignal<Item> item)
             {
@@ -510,7 +508,7 @@ TEST(arraySignal, mapRunsOncePerIdentity)
     auto maps = std::make_shared<int>(0);
 
     auto array = forEach(
-            AnySignal<std::vector<Item>>(input.signal),
+            input.signal,
             itemKey,
             [](AnySignal<Item> item)
             {
@@ -547,7 +545,7 @@ TEST(arraySignal, forEachThrowsOnADuplicateKey)
     auto input = makeInput(items({ { "a", 1 }, { "a", 2 } }));
 
     auto description = join(forEach(
-                AnySignal<std::vector<Item>>(input.signal),
+                input.signal,
                 itemKey,
                 [](AnySignal<Item> item)
                 {
@@ -560,6 +558,56 @@ TEST(arraySignal, forEachThrowsOnADuplicateKey)
                 makeSignalContext(description);
             },
             "duplicate key");
+}
+
+// The source is any signal of a vector, not only a type-erased one. Every other
+// test here passes the concrete signal makeInput() returns; this one pins the
+// erased form, which binds by deduction to the Signal base AnySignal derives
+// from and is subtle enough to be worth compiling on purpose.
+TEST(arraySignal, forEachTakesAnErasedSignal)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+    AnySignal<std::vector<Item>> erased = input.signal;
+
+    auto c = makeSignalContext(join(forEach(erased, itemKey,
+                    [](AnySignal<Item> item)
+                    {
+                        return itemValue(std::move(item));
+                    })));
+
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "b", 20 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ(std::vector<int>{ 20 }, c.evaluate<0>().get<0>());
+}
+
+// A signal that is neither an input nor erased: the source only has to carry a
+// std::vector<T>.
+TEST(arraySignal, forEachTakesADerivedSignal)
+{
+    auto input = makeInput(2);
+
+    auto source = input.signal.map([](int count)
+        {
+            std::vector<Item> result;
+            for (int i = 0; i < count; ++i)
+                result.push_back({ std::to_string(i), i });
+
+            return result;
+        });
+
+    auto c = makeSignalContext(join(forEach(source, itemKey,
+                    [](AnySignal<Item> item)
+                    {
+                        return itemValue(std::move(item));
+                    })));
+
+    EXPECT_EQ((std::vector<int>{ 0, 1 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(3);
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<int>{ 0, 1, 2 }), c.evaluate<0>().get<0>());
 }
 
 TEST(arraySignal, forEachTakesAPlainVector)
