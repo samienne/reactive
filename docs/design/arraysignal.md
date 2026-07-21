@@ -495,6 +495,22 @@ absent. One copy, per-context, entirely legal, and it turns the failure mode fro
 undefined into briefly stale. The invariant then becomes something the tests
 assert rather than something the design leans on.
 
+**The construction is built and proven.** `bq::signal::detail::Pick` and its two
+helpers live in `src/bq/include/bq/signal/detail/pick.h`, with
+`src/bq/test/picktest.cpp` covering the four cases step 1 called for. Three
+results settle points this document had left open or inferred:
+
+- Two `SignalContext`s over one `pick` description are wholly independent —
+  separate latches, and each evaluates the shared source for itself.
+- One description instantiated twice into **one** context shares its latch and
+  evaluates the shared source once per pass, exactly as inferred from
+  `SharedControl`. An instantiation made after the key has already left the
+  source finds the earlier latch rather than failing for want of a value, so the
+  sharing is of the state itself and not a coincidence of two copies having seen
+  the same values.
+- `pick` reports **no change** while its key is absent, so a latched element is
+  inert rather than merely stale.
+
 **`scatter` is the same node.** Its aggregate is positional rather than keyed, but
 the scatter node knows the current key order, so it zips aggregate-with-keys into
 an `AnySignal<std::map<ArrayId, W>>`, shares that, and hands each identity the
@@ -1218,11 +1234,6 @@ Points the design does not settle. Flagged rather than guessed.
   `AnySignal<vector<pair<size_t, Window>>>` and reconciling by hand. The two live
   consumers are PR #99's window list and `dataBind`
   (`src/bqui/include/bqui/databind.h:22`). Decide it when PR #99 is reworked.
-- **Does a description instantiated twice into the *same* context share
-  correctly?** `SharedArraySignal` should get this for free — same `UniqueId`,
-  same `findData` hit, exactly as `SharedControl` does — but this is inference
-  from reading `sharedcontrol.h`, not something the spike tested. It is the first
-  thing step 1 must prove.
 - **The reactive subtree `AnySignal<ArraySignal<T>>`.** Still unimplemented and
   still unreconciled: the identity algebra says only construction and `forEach`
   mint identity, but this constructor hands out fresh ids on every swap. Either
@@ -1243,6 +1254,8 @@ Points the design does not settle. Flagged rather than guessed.
 Written for a from-scratch implementation. The spike on PR #100 is superseded and
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
+
+Steps 0 and 1 are done; the rest is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** A **prerequisite**, not a
    nicety. `data_` holds `weak_ptr`s and the assert requires the id to be absent

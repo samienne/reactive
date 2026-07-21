@@ -17,6 +17,8 @@ libbqdep = declare_dependency(
   )
 
 bqtest = executable('bqtest',
+  'test/datacontexttest.cpp',
+  'test/picktest.cpp',
   'test/signaltest.cpp',
   'test/signalcontexttest.cpp',
   'test/streamtest.cpp',

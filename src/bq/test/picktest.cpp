@@ -1,0 +1,226 @@
+#include <bq/signal/detail/pick.h>
+
+#include <bq/signal/datacontext.h>
+#include <bq/signal/frameinfo.h>
+#include <bq/signal/input.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/signalcontext.h>
+
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <string>
+#include <vector>
+
+using namespace bq::signal;
+using bq::signal::detail::pick;
+using bq::signal::detail::shareKeyed;
+
+namespace
+{
+    struct Item
+    {
+        std::string key;
+        int value;
+    };
+
+    auto itemKey = [](Item const& item)
+    {
+        return item.key;
+    };
+
+    // Counts how many times the source is evaluated, from inside the shared
+    // subgraph so that the count is a count of evaluation passes.
+    template <typename TSignal>
+    auto countedShareKeyed(TSignal source, std::shared_ptr<int> passes)
+    {
+        return shareKeyed(
+                std::move(source).map([passes](std::vector<Item> const& items)
+                    {
+                        ++*passes;
+                        return items;
+                    }),
+                itemKey);
+    }
+} // namespace
+
+// A pick follows its own key's value while the rest of the membership moves
+// around it: elements inserted before it, elements removed, elements reordered.
+TEST(pick, followsItsKeyAcrossMembershipChanges)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+
+    auto context = makeSignalContext(
+            pick(shareKeyed(input.signal, itemKey), std::string("b")));
+
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "c", 3 }, { "a", 1 }, { "b", 2 } });
+    context.update(FrameInfo(1, {}));
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "c", 3 }, { "b", 2 } });
+    context.update(FrameInfo(2, {}));
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "b", 2 }, { "c", 3 } });
+    context.update(FrameInfo(3, {}));
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "b", 20 }, { "c", 3 } });
+    context.update(FrameInfo(4, {}));
+    EXPECT_TRUE(context.didChange<0>());
+    EXPECT_EQ(20, context.evaluate<0>().get<0>().value);
+}
+
+// Every signal always has a value, so a pick whose key leaves the source holds
+// the last value it saw and reports no change. It follows the key again once
+// the key comes back.
+TEST(pick, latchesWhileItsKeyIsAbsent)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+
+    auto context = makeSignalContext(
+            pick(shareKeyed(input.signal, itemKey), std::string("b")));
+
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 1 } });
+    context.update(FrameInfo(1, {}));
+    EXPECT_FALSE(context.didChange<0>());
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 10 } });
+    context.update(FrameInfo(2, {}));
+    EXPECT_FALSE(context.didChange<0>());
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 10 }, { "b", 30 } });
+    context.update(FrameInfo(3, {}));
+    EXPECT_TRUE(context.didChange<0>());
+    EXPECT_EQ(30, context.evaluate<0>().get<0>().value);
+}
+
+// State lives in the SignalContext, so two contexts over one description share
+// nothing: each evaluates the source for itself and each keeps its own latch.
+// Driving one must leave the other exactly where it was.
+TEST(pick, twoContextsOverOneDescriptionAreIndependent)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+    auto passes = std::make_shared<int>(0);
+
+    auto description = pick(countedShareKeyed(input.signal, passes),
+            std::string("b"));
+
+    auto first = makeSignalContext(description);
+    auto second = makeSignalContext(description);
+
+    EXPECT_EQ(2, *passes);
+    EXPECT_EQ(2, first.evaluate<0>().get<0>().value);
+    EXPECT_EQ(2, second.evaluate<0>().get<0>().value);
+
+    // The key leaves, and only the first context is driven. It latches; the
+    // second has not seen the change at all.
+    input.handle.set(std::vector<Item>{ { "a", 1 } });
+    first.update(FrameInfo(1, {}));
+    EXPECT_EQ(3, *passes);
+    EXPECT_FALSE(first.didChange<0>());
+    EXPECT_EQ(2, first.evaluate<0>().get<0>().value);
+    EXPECT_EQ(2, second.evaluate<0>().get<0>().value);
+
+    // The key returns with a new value, still only for the first context.
+    input.handle.set(std::vector<Item>{ { "a", 1 }, { "b", 30 } });
+    first.update(FrameInfo(2, {}));
+    EXPECT_EQ(30, first.evaluate<0>().get<0>().value);
+    EXPECT_EQ(2, second.evaluate<0>().get<0>().value);
+
+    // Driving the second context moves it alone. It never saw the value the
+    // first context latched on the way.
+    input.handle.set(std::vector<Item>{ { "a", 1 }, { "b", 40 } });
+    second.update(FrameInfo(1, {}));
+    EXPECT_EQ(40, second.evaluate<0>().get<0>().value);
+    EXPECT_EQ(30, first.evaluate<0>().get<0>().value);
+}
+
+// The mirror image: one description instantiated twice into one context finds
+// the same state through its UniqueId. The shared source is evaluated once per
+// pass rather than once per consumer, and both entries latch together.
+TEST(pick, oneDescriptionTwiceInOneContextSharesState)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+    auto passes = std::make_shared<int>(0);
+
+    auto description = pick(countedShareKeyed(input.signal, passes),
+            std::string("b"));
+
+    auto context = makeSignalContext(description, description);
+
+    EXPECT_EQ(1, *passes);
+    EXPECT_EQ(2, context.evaluate<0>().get<0>().value);
+    EXPECT_EQ(2, context.evaluate<1>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 1 }, { "b", 20 } });
+    context.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(2, *passes);
+    EXPECT_EQ(20, context.evaluate<0>().get<0>().value);
+    EXPECT_EQ(20, context.evaluate<1>().get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 1 } });
+    context.update(FrameInfo(2, {}));
+
+    EXPECT_EQ(3, *passes);
+    EXPECT_FALSE(context.didChange<0>());
+    EXPECT_FALSE(context.didChange<1>());
+    EXPECT_EQ(20, context.evaluate<0>().get<0>().value);
+    EXPECT_EQ(20, context.evaluate<1>().get<0>().value);
+}
+
+// Sharing is a lookup of the latch itself, not a coincidence of two copies
+// having seen the same values: a second instantiation made after the key has
+// already left the source finds the value the first one latched.
+TEST(pick, aLaterInstantiationInOneContextFindsTheLatch)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+
+    auto description = pick(shareKeyed(input.signal, itemKey),
+            std::string("b"));
+    auto& sig = description.unwrap();
+
+    DataContext context;
+
+    auto first = sig.initialize(context, FrameInfo(0, {}));
+    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
+
+    input.handle.set(std::vector<Item>{ { "a", 1 } });
+    sig.update(context, first, FrameInfo(1, {}));
+    EXPECT_EQ(2, sig.evaluate(context, first).get<0>().value);
+
+    auto second = sig.initialize(context, FrameInfo(1, {}));
+    EXPECT_EQ(2, sig.evaluate(context, second).get<0>().value);
+}
+
+// The state of a pick that nothing holds any more expires while its entry stays
+// in the DataContext's map. Initializing the same description into the same
+// context again must start over from the current source rather than trip over
+// the stale entry.
+TEST(pick, canBeInitializedAgainAfterItsStateExpired)
+{
+    auto input = makeInput(std::vector<Item>{ { "a", 1 }, { "b", 2 } });
+
+    auto description = pick(shareKeyed(input.signal, itemKey),
+            std::string("b"));
+    auto& sig = description.unwrap();
+
+    DataContext context;
+
+    {
+        auto data = sig.initialize(context, FrameInfo(0, {}));
+        EXPECT_EQ(2, sig.evaluate(context, data).get<0>().value);
+    }
+
+    input.handle.set(std::vector<Item>{ { "a", 1 }, { "b", 5 } });
+
+    auto data = sig.initialize(context, FrameInfo(1, {}));
+    EXPECT_EQ(5, sig.evaluate(context, data).get<0>().value);
+}
