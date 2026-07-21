@@ -15,6 +15,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 using namespace bq::signal;
@@ -107,7 +108,36 @@ namespace
 
         ADD_FAILURE() << "expected a std::runtime_error containing " << text;
     }
+
+    using KeyedDelegate = std::function<AnySignal<int>(std::string,
+            AnySignal<Item>)>;
+    using KeyedByRefDelegate = std::function<AnySignal<int>(
+            std::string const&, AnySignal<Item>)>;
+    using KeyedByMutableRefDelegate = std::function<AnySignal<int>(
+            std::string&, AnySignal<Item>)>;
+    using PlainDelegate = std::function<AnySignal<int>(AnySignal<Item>)>;
+    using WrongDelegate = std::function<AnySignal<int>(int, int)>;
 } // namespace
+
+// The two delegate shapes forEach accepts, and the condition its static_assert
+// reports on. A delegate matching neither cannot be given a test that compiles,
+// so what is pinned here is what that assert is written against.
+static_assert(detail::isKeyedForEachDelegate<KeyedDelegate, std::string, Item>);
+static_assert(!detail::isPlainForEachDelegate<KeyedDelegate, Item>);
+static_assert(detail::isPlainForEachDelegate<PlainDelegate, Item>);
+static_assert(!detail::isKeyedForEachDelegate<PlainDelegate, std::string,
+        Item>);
+static_assert(!detail::isKeyedForEachDelegate<WrongDelegate, std::string,
+        Item>);
+static_assert(!detail::isPlainForEachDelegate<WrongDelegate, Item>);
+
+// The key is handed over as a value, so a delegate may read it however a
+// parameter can be read — except by non-const reference, which is what asking
+// to write back to the node's table would look like.
+static_assert(detail::isKeyedForEachDelegate<KeyedByRefDelegate, std::string,
+        Item>);
+static_assert(!detail::isKeyedForEachDelegate<KeyedByMutableRefDelegate,
+        std::string, Item>);
 
 TEST(arraySignal, bracedConstructionNestsAndFlattens)
 {
@@ -348,6 +378,109 @@ TEST(arraySignal, forEachBuildsOncePerKeyAndFollowsMembership)
     c.update(FrameInfo(4, {}));
     EXPECT_EQ(std::vector<int>{ 3 }, c.evaluate<0>().get<0>());
     EXPECT_EQ(3, *builds);
+}
+
+// The delegate is given the key its own element was minted under, and the key
+// is a value rather than a signal because it cannot change. The built value
+// below carries both halves, so a mispairing reads as a wrong string.
+TEST(arraySignal, aKeyedDelegateIsGivenItsOwnKey)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+    auto builds = std::make_shared<int>(0);
+
+    auto c = makeSignalContext(join(forEach(
+                    input.signal,
+                    itemKey,
+                    [builds](std::string key, AnySignal<Item> item)
+                    {
+                        ++*builds;
+
+                        return AnySignal<std::string>(std::move(item).map(
+                                [key](Item const& i)
+                                {
+                                    return key + std::to_string(i.value);
+                                }));
+                    })));
+
+    EXPECT_EQ((std::vector<std::string>{ "a1", "b2" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
+
+    // The key is invariant for the identity, so it still names its element
+    // after the value changed and after the membership moved around it.
+    input.handle.set(items({ { "b", 20 }, { "c", 3 }, { "a", 10 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ((std::vector<std::string>{ "b20", "c3", "a10" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(3, *builds);
+}
+
+// The key is a value and not a reference into the node's own table, so a
+// delegate that keeps it keeps a copy and cannot outlive what it names.
+TEST(arraySignal, theKeyIsGivenAsAValue)
+{
+    auto c = makeSignalContext(join(forEach(
+                    items({ { "a", 1 } }),
+                    itemKey,
+                    [](auto&& key, AnySignal<Item> item)
+                    {
+                        static_assert(std::is_same_v<decltype(key),
+                                std::string&&>);
+
+                        return itemValue(std::move(item));
+                    })));
+
+    EXPECT_EQ(std::vector<int>{ 1 }, c.evaluate<0>().get<0>());
+}
+
+// A delegate that accepts both forms is given the key. It is strictly more to
+// work with, and one that names no parameter for it cannot tell the difference.
+TEST(arraySignal, aGenericDelegateIsGivenTheKeyedForm)
+{
+    auto arity = std::make_shared<std::size_t>(0);
+
+    auto c = makeSignalContext(join(forEach(
+                    items({ { "a", 1 } }),
+                    itemKey,
+                    [arity](auto&&... ts)
+                    {
+                        *arity = sizeof...(ts);
+
+                        return AnySignal<int>(constant(0));
+                    })));
+
+    EXPECT_EQ(std::vector<int>{ 0 }, c.evaluate<0>().get<0>());
+    EXPECT_EQ(2u, *arity);
+}
+
+// The unkeyed form is unchanged, and the two build the same array.
+TEST(arraySignal, bothDelegateFormsBuildTheSameArray)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+
+    auto plain = join(forEach(input.signal, itemKey,
+                [](AnySignal<Item> item)
+                {
+                    return itemValue(std::move(item));
+                }));
+
+    auto keyed = join(forEach(input.signal, itemKey,
+                [](std::string, AnySignal<Item> item)
+                {
+                    return itemValue(std::move(item));
+                }));
+
+    auto c = makeSignalContext(std::move(plain), std::move(keyed));
+
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<1>().get<0>());
+
+    input.handle.set(items({ { "b", 20 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(std::vector<int>{ 20 }, c.evaluate<0>().get<0>());
+    EXPECT_EQ(std::vector<int>{ 20 }, c.evaluate<1>().get<0>());
 }
 
 // A key that leaves is retired, so the same key coming back is a new item
