@@ -10,11 +10,11 @@
 #include <bqui/widget/widget.h>
 
 #include <bqui/buildparams.h>
-#include <bqui/dynamicbox.h>
 #include <bqui/inputarea.h>
 #include <bqui/simplesizehint.h>
 #include <bqui/sizehint.h>
 
+#include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
 #include <bq/signal/input.h>
@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -69,19 +70,30 @@ struct Geometry
 class ProbeSet
 {
 public:
+    ProbeSet();
+
     /**
      * @brief Registers a probe and builds the widget that carries it.
      */
     AnyWidget add(SizeHintResult width, SizeHintResult height);
 
     /**
-     * @brief Builds another widget for the probe added at @p index.
+     * @brief Registers a probe and returns its index.
      *
-     * The new widget carries the same id and the same size hint as the
-     * original one, so a container that is handed a freshly built child list
-     * on every update still sees one continuous probe.
+     * The index is what a dynamic child list carries, so that the widget can
+     * be built from the index signal a forEach delegate is handed rather than
+     * ahead of time.
      */
-    AnyWidget rebuild(size_t index) const;
+    size_t addIndexed(SizeHintResult width, SizeHintResult height);
+
+    /**
+     * @brief Builds the widget for whichever probe @p index names.
+     *
+     * Everything the widget needs is read out of the signal, so one call
+     * covers a probe that is known when the tree is described and one that a
+     * forEach delegate is asked for later.
+     */
+    AnyWidget fromSignal(bq::signal::AnySignal<size_t> index) const;
 
     /**
      * @brief Realises @p widget at @p size and reads every probe back.
@@ -106,37 +118,55 @@ private:
         SizeHintResult height;
     };
 
-    std::vector<Probe> probes_;
+    // Held behind a pointer so that a copy taken by a delegate still sees a
+    // probe the test registers after the tree was described.
+    std::shared_ptr<std::vector<Probe>> probes_;
 };
 
-AnyWidget tagGeometry(btl::UniqueId id)
+ProbeSet::ProbeSet() :
+    probes_(std::make_shared<std::vector<Probe>>())
 {
+}
+
+AnyWidget ProbeSet::add(SizeHintResult width, SizeHintResult height)
+{
+    return fromSignal(bq::signal::constant(addIndexed(width, height)));
+}
+
+size_t ProbeSet::addIndexed(SizeHintResult width, SizeHintResult height)
+{
+    probes_->push_back(Probe{ btl::makeUniqueId(), width, height });
+
+    return probes_->size() - 1;
+}
+
+AnyWidget ProbeSet::fromSignal(bq::signal::AnySignal<size_t> index) const
+{
+    auto probes = probes_;
+
+    auto id = index.map([probes](size_t i)
+            {
+                return probes->at(i).id;
+            });
+
+    auto hint = index.map([probes](size_t i) -> SizeHint
+            {
+                Probe const& probe = probes->at(i);
+
+                return simpleSizeHint(probe.width, probe.height);
+            });
+
     return makeWidget()
         | modifier::makeWidgetModifier(modifier::makeInstanceModifier(
-                    [id](Instance instance)
+                    [](Instance instance, btl::UniqueId id)
                     {
                         auto areas = instance.getInputAreas();
                         areas.push_back(makeInputArea(id, instance.getObb()));
 
                         return std::move(instance)
                             .setInputAreas(std::move(areas));
-                    }))
-        ;
-}
-
-AnyWidget ProbeSet::add(SizeHintResult width, SizeHintResult height)
-{
-    probes_.push_back(Probe{ btl::makeUniqueId(), width, height });
-
-    return rebuild(probes_.size() - 1);
-}
-
-AnyWidget ProbeSet::rebuild(size_t index) const
-{
-    Probe const& probe = probes_.at(index);
-
-    return tagGeometry(probe.id)
-        | modifier::setSizeHint(simpleSizeHint(probe.width, probe.height))
+                    }, std::move(id)))
+        | modifier::setSizeHint(std::move(hint))
         ;
 }
 
@@ -159,9 +189,9 @@ std::vector<std::optional<Geometry>> ProbeSet::read(
         Instance const& instance) const
 {
     std::vector<std::optional<Geometry>> result;
-    result.reserve(probes_.size());
+    result.reserve(probes_->size());
 
-    for (auto const& probe : probes_)
+    for (auto const& probe : *probes_)
     {
         InputArea const* found = nullptr;
         for (auto const& area : instance.getInputAreas())
@@ -222,21 +252,51 @@ SizeHintResult const fillHint = {{ 0.0f, 0.0f, 1000.0f }};
 SizeHintResult const fixed100 = {{ 100.0f, 100.0f, 100.0f }};
 SizeHintResult const fixed150 = {{ 150.0f, 150.0f, 150.0f }};
 
-using KeyedWidgets = std::vector<std::pair<size_t, AnyWidget>>;
+// A child list built at runtime. An AnyWidget converts to a one-element array,
+// so a vector of them is the array of the whole list.
+using Children = std::vector<bq::signal::ArraySignal<AnyWidget>>;
 
 /**
- * @brief The child list dynamicBox takes, built from probe indices.
+ * @brief Counts the times the container asks @p widget to build itself.
  *
- * Each probe is keyed by its own index, so a probe keeps its key across
+ * The count is what the container does with a child, not what produced the
+ * child: a delegate that ran once still says nothing about whether the layout
+ * rebuilt what it was handed.
+ */
+AnyWidget countBuilds(std::shared_ptr<int> builds, AnyWidget widget)
+{
+    return makeWidget([builds, widget]() -> AnyWidget
+            {
+                ++*builds;
+
+                return widget;
+            });
+}
+
+/**
+ * @brief A child list whose membership the test drives.
+ *
+ * Each probe is keyed by its own index, so a probe keeps its identity across
  * additions, removals and reorderings.
  */
-KeyedWidgets keyed(ProbeSet const& probes, std::vector<size_t> const& indices)
+bq::signal::ArraySignal<AnyWidget> dynamicChildren(ProbeSet probes,
+        bq::signal::AnySignal<std::vector<size_t>> indices,
+        std::shared_ptr<int> builds = nullptr)
 {
-    KeyedWidgets result;
-    for (size_t index : indices)
-        result.push_back({ index, probes.rebuild(index) });
+    return bq::signal::forEach(std::move(indices),
+            [](size_t index)
+            {
+                return index;
+            },
+            [probes, builds](bq::signal::AnySignal<size_t> index)
+            {
+                AnyWidget widget = probes.fromSignal(std::move(index));
 
-    return result;
+                if (!builds)
+                    return widget;
+
+                return countBuilds(builds, std::move(widget));
+            });
 }
 
 bq::signal::FrameInfo nextFrame(uint64_t frameId)
@@ -250,7 +310,7 @@ TEST(Layout, hboxDistributesFillerSpace)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(smallHint, fixed50));
     children.push_back(probes.add(stretchyHint, fixed50));
     children.push_back(probes.add(rigidHint, fixed50));
@@ -271,7 +331,7 @@ TEST(Layout, hboxGrantsFullFillerWhenSpaceAllows)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(smallHint, fixed50));
     children.push_back(probes.add(stretchyHint, fixed50));
     children.push_back(probes.add(rigidHint, fixed50));
@@ -290,7 +350,7 @@ TEST(Layout, vboxStacksFromTopDown)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(fixed50, smallHint));
     children.push_back(probes.add(fixed50, stretchyHint));
     children.push_back(probes.add(fixed50, rigidHint));
@@ -311,7 +371,7 @@ TEST(Layout, gravityCentersAChildInsideItsSlot)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(
                 SizeHintResult{{ 20.0f, 50.0f, 50.0f }},
                 SizeHintResult{{ 10.0f, 30.0f, 30.0f }}
@@ -331,7 +391,7 @@ TEST(Layout, hboxAggregatesChildSizeHints)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(smallHint, fixed50));
     children.push_back(probes.add(stretchyHint, fixed50));
     children.push_back(probes.add(rigidHint, fixed50));
@@ -397,7 +457,7 @@ TEST(Layout, fixedChildrenKeepTheirSizeAtTheNaturalSize)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(rigidHint, fixed50));
     children.push_back(probes.add(rigidHint, fixed50));
 
@@ -418,7 +478,7 @@ TEST(Layout, fixedChildrenKeepTheirSizeInAnOversizedBox)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(rigidHint, fixed50));
     children.push_back(probes.add(rigidHint, fixed50));
 
@@ -439,7 +499,7 @@ TEST(Layout, hboxSquashesChildrenBelowTheirMinimum)
 
     SizeHintResult const fixed40 = {{ 40.0f, 40.0f, 40.0f }};
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(fixed40, fixed50));
     children.push_back(probes.add(fixed40, fixed50));
 
@@ -458,7 +518,7 @@ TEST(Layout, hboxPlacesASingleStretchingChild)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(
                 SizeHintResult{{ 10.0f, 20.0f, 100.0f }},
                 fillHint
@@ -480,7 +540,7 @@ TEST(Layout, hboxGivesZeroSizedChildrenNoRoom)
 
     SizeHintResult const zero = {{ 0.0f, 0.0f, 0.0f }};
 
-    std::vector<AnyWidget> children;
+    Children children;
     children.push_back(probes.add(zero, zero));
     children.push_back(probes.add(zero, zero));
 
@@ -497,7 +557,7 @@ TEST(Layout, hboxGivesZeroSizedChildrenNoRoom)
 
 TEST(Layout, emptyBoxHasNoChildrenAndAZeroSizeHint)
 {
-    auto builder = hbox(std::vector<AnyWidget>())(BuildParams());
+    auto builder = hbox({})(BuildParams());
 
     auto sizeHint = builder.getSizeHint();
     auto instanceSignal = std::move(builder)(
@@ -661,11 +721,11 @@ TEST(Layout, nestedBoxesComposeTransforms)
 {
     ProbeSet probes;
 
-    std::vector<AnyWidget> row;
+    Children row;
     row.push_back(probes.add(fixed50, fillHint));
     row.push_back(probes.add(fixed50, fillHint));
 
-    std::vector<AnyWidget> column;
+    Children column;
     column.push_back(hbox(std::move(row)));
     column.push_back(probes.add(fillHint, rigidHint));
 
@@ -682,17 +742,17 @@ TEST(Layout, nestedBoxesComposeTransforms)
     expectGeometry("footer", geometries[2], 0.0f, 0.0f, 200.0f, 30.0f);
 }
 
-TEST(Layout, dynamicBoxPlacesChildrenLeftToRight)
+TEST(Layout, dynamicHboxPlacesChildrenLeftToRight)
 {
     ProbeSet probes;
 
-    KeyedWidgets children;
-    children.push_back({ 0, probes.add(fixed100, fixed50) });
-    children.push_back({ 1, probes.add(fixed50, fixed50) });
+    probes.addIndexed(fixed100, fixed50);
+    probes.addIndexed(fixed50, fixed50);
 
-    auto input = bq::signal::makeInput(std::move(children));
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1 });
 
-    auto instanceSignal = dynamicBox<Axis::x>(input.signal)(BuildParams())(
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal))(
+            BuildParams())(
             bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
         .getInstance();
 
@@ -706,26 +766,25 @@ TEST(Layout, dynamicBoxPlacesChildrenLeftToRight)
     expectGeometry("second", geometries[1], 100.0f, 0.0f, 50.0f, 50.0f);
 }
 
-TEST(Layout, dynamicBoxPlacesAnAddedChild)
+TEST(Layout, dynamicHboxPlacesAnAddedChild)
 {
     ProbeSet probes;
 
-    KeyedWidgets children;
-    children.push_back({ 0, probes.add(fixed100, fixed50) });
-    children.push_back({ 1, probes.add(fixed50, fixed50) });
+    probes.addIndexed(fixed100, fixed50);
+    probes.addIndexed(fixed50, fixed50);
 
-    auto input = bq::signal::makeInput(std::move(children));
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1 });
 
-    auto instanceSignal = dynamicBox<Axis::x>(input.signal)(BuildParams())(
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal))(
+            BuildParams())(
             bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
         .getInstance();
 
     auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
 
-    KeyedWidgets grown = keyed(probes, { 0, 1 });
-    grown.push_back({ 2, probes.add(fixed150, fixed50) });
+    size_t added = probes.addIndexed(fixed150, fixed50);
 
-    input.handle.set(std::move(grown));
+    input.handle.set(std::vector<size_t>{ 0, 1, added });
     context.update(nextFrame(1));
 
     auto geometries = probes.read(context.evaluate<0>().get<0>());
@@ -737,24 +796,24 @@ TEST(Layout, dynamicBoxPlacesAnAddedChild)
     expectGeometry("added", geometries[2], 150.0f, 0.0f, 150.0f, 50.0f);
 }
 
-TEST(Layout, dynamicBoxDropsARemovedChild)
+TEST(Layout, dynamicHboxDropsARemovedChild)
 {
     ProbeSet probes;
 
-    KeyedWidgets children;
-    children.push_back({ 0, probes.add(fixed100, fixed50) });
-    children.push_back({ 1, probes.add(fixed50, fixed50) });
-    children.push_back({ 2, probes.add(fixed150, fixed50) });
+    probes.addIndexed(fixed100, fixed50);
+    probes.addIndexed(fixed50, fixed50);
+    probes.addIndexed(fixed150, fixed50);
 
-    auto input = bq::signal::makeInput(std::move(children));
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
-    auto instanceSignal = dynamicBox<Axis::x>(input.signal)(BuildParams())(
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal))(
+            BuildParams())(
             bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
         .getInstance();
 
     auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
 
-    input.handle.set(keyed(probes, { 0, 2 }));
+    input.handle.set(std::vector<size_t>{ 0, 2 });
     context.update(nextFrame(1));
 
     auto geometries = probes.read(context.evaluate<0>().get<0>());
@@ -766,24 +825,24 @@ TEST(Layout, dynamicBoxDropsARemovedChild)
     expectGeometry("last", geometries[2], 100.0f, 0.0f, 150.0f, 50.0f);
 }
 
-TEST(Layout, dynamicBoxFollowsReorderedKeys)
+TEST(Layout, dynamicHboxFollowsReorderedKeys)
 {
     ProbeSet probes;
 
-    KeyedWidgets children;
-    children.push_back({ 0, probes.add(fixed100, fixed50) });
-    children.push_back({ 1, probes.add(fixed50, fixed50) });
-    children.push_back({ 2, probes.add(fixed150, fixed50) });
+    probes.addIndexed(fixed100, fixed50);
+    probes.addIndexed(fixed50, fixed50);
+    probes.addIndexed(fixed150, fixed50);
 
-    auto input = bq::signal::makeInput(std::move(children));
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
-    auto instanceSignal = dynamicBox<Axis::x>(input.signal)(BuildParams())(
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal))(
+            BuildParams())(
             bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
         .getInstance();
 
     auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
 
-    input.handle.set(keyed(probes, { 2, 0, 1 }));
+    input.handle.set(std::vector<size_t>{ 2, 0, 1 });
     context.update(nextFrame(1));
 
     auto geometries = probes.read(context.evaluate<0>().get<0>());
@@ -797,21 +856,19 @@ TEST(Layout, dynamicBoxFollowsReorderedKeys)
     expectGeometry("last", geometries[2], 0.0f, 0.0f, 150.0f, 50.0f);
 }
 
-// Pins a difference between dynamicBox and the layout() containers rather than
-// asserting correctness: dynamicBox hands each child its slot directly, while
-// layout() puts handleGravity() in front of every child. The probe below asks
-// for 50x30 and gets the whole 50x100 slot; in an hbox it would be 50x30
-// centered at y = 35.
-TEST(Layout, dynamicBoxDoesNotApplyGravity)
+// A dynamic child list is laid out by the same engine as a fixed one, so a
+// child that cannot use its whole slot is centered in it exactly as it is in a
+// fixed hbox. The probe below asks for 50x30 and is given a 50x100 slot.
+TEST(Layout, dynamicHboxAppliesGravity)
 {
     ProbeSet probes;
 
-    KeyedWidgets children;
-    children.push_back({ 0, probes.add(fixed50, rigidHint) });
+    probes.addIndexed(fixed50, rigidHint);
 
-    auto input = bq::signal::makeInput(std::move(children));
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0 });
 
-    auto instanceSignal = dynamicBox<Axis::x>(input.signal)(BuildParams())(
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal))(
+            BuildParams())(
             bq::signal::constant(avg::Vector2f(300.0f, 100.0f)))
         .getInstance();
 
@@ -821,5 +878,51 @@ TEST(Layout, dynamicBoxDoesNotApplyGravity)
 
     ASSERT_EQ(1u, geometries.size());
 
-    expectGeometry("only", geometries[0], 0.0f, 0.0f, 50.0f, 100.0f);
+    expectGeometry("only", geometries[0], 0.0f, 35.0f, 50.0f, 30.0f);
+}
+
+// A child is built when its identity appears and not again, so one that
+// survives a membership change keeps the builder — and everything under it —
+// that it already had, however its siblings come and go around it.
+//
+// The count per child is more than one, because handleGravity() builds the
+// widget it is given a second time to negotiate against its own size hint.
+// That is a property of the modifier rather than of the container, so the cost
+// is derived from the first pass instead of written down here.
+TEST(Layout, dynamicHboxBuildsEachChildOncePerIdentity)
+{
+    ProbeSet probes;
+
+    probes.addIndexed(fixed100, fixed50);
+    probes.addIndexed(fixed50, fixed50);
+
+    auto builds = std::make_shared<int>(0);
+
+    auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1 });
+
+    auto instanceSignal = hbox(dynamicChildren(probes, input.signal, builds))(
+            BuildParams())(
+            bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    ASSERT_GT(*builds, 0);
+    ASSERT_EQ(0, *builds % 2);
+
+    int const perChild = *builds / 2;
+
+    size_t added = probes.addIndexed(fixed150, fixed50);
+
+    input.handle.set(std::vector<size_t>{ added, 0, 1 });
+    context.update(nextFrame(1));
+
+    // Only the arrival is built, and it is built at the front without
+    // disturbing the two it displaced.
+    EXPECT_EQ(3 * perChild, *builds);
+
+    input.handle.set(std::vector<size_t>{ 1, added });
+    context.update(nextFrame(2));
+
+    EXPECT_EQ(3 * perChild, *builds);
 }

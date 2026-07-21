@@ -193,7 +193,7 @@ namespace bqui::widget
     }
 
     template <Axis dir>
-    AnyWidget box(std::vector<AnyWidget> widgets)
+    AnyWidget box(bq::signal::ArraySignal<AnyWidget> widgets)
     {
         return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
                 std::move(widgets));
