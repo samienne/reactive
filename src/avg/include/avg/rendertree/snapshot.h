@@ -2,9 +2,9 @@
 
 #include "uniqueid.h"
 
+#include "avg/avgvisibility.h"
 #include "avg/drawcontext.h"
 #include "avg/obb.h"
-#include "avg/avgvisibility.h"
 
 #include <chrono>
 #include <optional>
@@ -67,7 +67,7 @@ namespace avg
          */
         static constexpr int version = 1;
 
-        std::chrono::milliseconds time { 0 };
+        std::chrono::milliseconds time{ 0 };
 
         /**
          * @brief The box the tree was snapshotted into, usually the window.
@@ -93,9 +93,9 @@ namespace avg
     /**
      * @brief Describes a leaf @p node along with the text it draws.
      *
-     * The text is recovered by drawing @p node on its own out of @p context,
-     * which is the only place a leaf's content exists; the drawing is
-     * discarded.
+     * The text is recovered by running @p node's draw function in full out of
+     * @p context, which is the only place a leaf's content exists; the drawing
+     * is then discarded. A snapshot therefore costs what a frame costs.
      */
     AVG_EXPORT SnapshotNode makeLeafSnapshotNode(
             std::string type,
@@ -106,9 +106,21 @@ namespace avg
             );
 
     /**
-     * @brief Serialises @p snapshot as a JSON document.
+     * @brief Drops the text of @p node and of its descendants that lies
+     * entirely outside @p clip.
      *
-     * Non-finite numbers are written as zero.
+     * A leaf is described on its own, so an enclosing clip has to be applied
+     * afterwards for the snapshot to report only what is on screen.
+     */
+    AVG_EXPORT void clipSnapshotText(SnapshotNode& node, Obb const& clip);
+
+    /**
+     * @brief Serialises @p snapshot as a JSON document of schema version
+     * Snapshot::version.
+     *
+     * A box is written resolved, so its size is the extent it covers rather
+     * than the size it was authored with. Non-finite numbers are written as
+     * zero.
      */
     AVG_EXPORT std::string toJson(Snapshot const& snapshot);
 } // namespace avg

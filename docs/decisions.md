@@ -8,15 +8,15 @@ Each entry is intentionally short: the decision and its rationale.
 ## A render tree snapshot is hand-written JSON, in avg
 
 `avg::RenderTree::snapshot` builds a plain struct tree, and `avg::toJson`
-serialises it with a writer of about eighty lines in `avg` itself. No JSON
-library is vendored, and the writer is not shared with `bqui`.
+serialises it with a small writer in `avg` itself. No JSON library is vendored,
+and the writer is not shared with `bqui`.
 
 **Why:** the payload is one document of known shape — objects, arrays, strings,
 numbers — so a parser-grade dependency buys nothing and costs a subproject on
 every configure. The snapshot is a wire format, so it carries an explicit
 schema version; the struct tree stays separate from its encoding, which is what
 lets a second encoding be added without touching the walk. Sharing a writer
-with `bqui` would invert the dependency order (`avg` is beneath it), and
+with `bqui` would invert the dependency order (`avg` is beneath it), so
 duplicating the escaping rules is the cheaper of the two.
 
 ## `App::run()` with no arguments stops at zero windows, not at the first close

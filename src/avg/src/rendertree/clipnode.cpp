@@ -188,8 +188,11 @@ SnapshotNode ClipNode::snapshot(DrawContext const& context,
     auto result = makeSnapshotNode("ClipNode", *this, parentObb, time);
 
     if (childNode_)
-        result.children.push_back(childNode_->snapshot(context, result.obb,
-                    time));
+    {
+        auto child = childNode_->snapshot(context, result.obb, time);
+        clipSnapshotText(child, result.obb);
+        result.children.push_back(std::move(child));
+    }
 
     return result;
 }

@@ -55,8 +55,10 @@ namespace avg
          * @brief Describes what this node draws at @p time.
          *
          * Reports the same subtree draw() would visit, resolved into the
-         * space of @p parentObb. Nothing is mutated: the memory of @p context
-         * carries only the throwaway drawings the leaves are described from.
+         * space of @p parentObb. The tree is left as it was, and the memory
+         * of @p context carries only the throwaway drawings the leaves are
+         * described from; the shared state a draw reaches, the font cache, is
+         * the same state a frame reaches and guards itself.
          */
         virtual SnapshotNode snapshot(
                 DrawContext const& context,
