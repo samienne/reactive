@@ -33,7 +33,16 @@ namespace bqui::widget
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
             float prev = (i ? combined[i-1] : 0.0f);
-            float m = (size - prev) / (combined[i] - prev);
+            float span = combined[i] - prev;
+
+            // An interval is empty whenever the children ask for no room
+            // across it, which a list of fixed-size children does for two of
+            // the three. How far into an empty interval the size reaches is
+            // then only whether it reaches it at all.
+            float m = span != 0.0f
+                ? (size - prev) / span
+                : (size < prev ? 0.0f : 1.0f);
+
             multiplier[i] = std::max(0.0f, std::min(1.0f, m));
         }
 
@@ -102,7 +111,6 @@ namespace bqui::widget
                 : getLargestHint(xHints);
         }
 
-        //std::vector<SizeHint> const hints_;
         THints const hints_;
     };
 
