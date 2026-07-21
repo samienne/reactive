@@ -790,7 +790,7 @@ namespace bq::signal
      * all of them.
      *
      * The fan-out half of a container: fan the elements in with join(), compute
-     * over all of them at once, and give each one its share back. `func` is
+     * over all of them at once, and give each one its share back. 'func' is
      * invoked once per identity per context, as map()'s function is, and
      * receives the element's value together with a signal carrying that
      * element's entry of every later aggregate. Nothing is rebuilt when the
@@ -798,10 +798,10 @@ namespace bq::signal
      *
      * Every element's slice signal reports a change whenever **any** element's
      * slice does, because they all read one shared source. Suppress the repeats
-     * with `.check()` where they matter — anything that folds over a slice
+     * with '.check()' where they matter — anything that folds over a slice
      * accumulates its unchanged value again without it.
      *
-     * `aggregate` is **positional**: its entry `i` belongs to element `i` of
+     * 'aggregate' is **positional**: its entry 'i' belongs to element 'i' of
      * the current membership. The correspondence is a promise the caller makes
      * and only its arity is checked, on every update in which a slice is read.
      * An aggregate of the right length in the wrong order is accepted and each
