@@ -32,6 +32,27 @@ folder here and leave one-line hooks below.
 - Evaluation is **change-driven**: a signal is recomputed when its inputs
   actually change, not on a fixed frame tick.
 
+## Threading: the context is the unit of concurrency
+
+A `DataContext` is a private member of one `SignalContext`
+(`signalcontext.h:122`), and everything under it is written only by that
+context's `initialize` and `update` passes — each a single synchronous call over
+that context's entries. So **per-context state needs no lock**: two
+instantiations of one description in one context are advanced one after the
+other on one thread. What runs concurrently is *contexts*, over a shared
+description (`signaltest.cpp`'s `signal.share` drives 1024 of them concurrently
+over a thread pool), and each worker's `findData` reaches a different state
+object.
+
+What does need a lock is **description-level state written from another
+thread**. `InputControl` (`input.h:25`) is the case: `InputHandle::set` writes it
+from wherever the caller happens to be. Its per-context `ContextDataType` carries
+no lock, and neither does `Weak`'s (`weak.h:17`).
+
+`SharedControl` is the exception to the shape, not to the rule: its mutex
+(`sharedcontrol.h:54`) sits on per-context data. Do not read it as the pattern to
+copy for a new node's per-context state.
+
 ## Entry points
 
 - State in: `makeInput` (`bq/signal/input.h`) → `{signal, handle}`; push with
@@ -40,6 +61,11 @@ folder here and leave one-line hooks below.
   `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
+
+`bq/signal/detail/` holds work that is built and tested but has no public caller
+yet, in namespace `bq::signal::detail`. Currently `pick.h`: `shareKeyed`, `pick`
+and `requirePresent`, the groundwork for `ArraySignal` — see
+`docs/design/arraysignal.md`.
 
 ## Traps
 

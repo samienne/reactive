@@ -67,7 +67,13 @@ namespace bq::signal
         template <typename TData, typename... TArgs>
         std::shared_ptr<TData> initializeData(DataId id, TArgs&&... args)
         {
-            assert(data_.find(id) == data_.end());
+#ifndef NDEBUG
+            // An entry whose data has been released stays in the map until it
+            // is overwritten, so re-initializing an id is only an error while
+            // the previous data is still alive.
+            auto existing = data_.find(id);
+            assert(existing == data_.end() || existing->second.expired());
+#endif
 
             auto data = std::make_shared<Data<TData>>(std::forward<TArgs>(args)...);
             data_.insert_or_assign(id, std::weak_ptr<Base>(data));
