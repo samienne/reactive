@@ -114,7 +114,7 @@ namespace bq::signal
         {
         };
 
-        /** @brief Whether `U` is accepted as a single constant item of `T`.
+        /** @brief Whether 'U' is accepted as a single constant item of 'T'.
          *
          * An array has its own constructors, so an unconstrained forwarding
          * constructor would swallow it — and it would be a better match than
@@ -148,7 +148,7 @@ namespace bq::signal
          * two independent sets of values, and two consumers within one context
          * find the one table.
          *
-         * `keyFunc` and `buildFunc` are invoked as const functions. They live
+         * 'keyFunc' and 'buildFunc' are invoked as const functions. They live
          * in the description, which every context shares, so state in them
          * would be state outside any context. The built value is copied into
          * the exported element sequence, so it must be copy-constructible.
@@ -427,7 +427,7 @@ namespace bq::signal
                 requireDistinct(elements);
 
                 // Arrivals are initialized into their own storage first, so
-                // nothing in `data` has moved if one of them throws.
+                // nothing in 'data' has moved if one of them throws.
                 std::map<ArrayId, InnerData> datas;
                 std::set<ArrayId> arrived;
 
@@ -495,8 +495,8 @@ namespace bq::signal
      * ArraySignal<int> values = { 1, 2, otherArray };
      * @endcode
      *
-     * `{}` is the empty list, and `{x}` is a one-element list — which exports
-     * the same sequence as the single item `x` would.
+     * '{}' is the empty list, and '{x}' is a one-element list — which exports
+     * the same sequence as the single item 'x' would.
      *
      * **Every constructor is constant.** Anything that varies enters through
      * forEach(), which asks for the key that says which item is which — a
@@ -507,7 +507,7 @@ namespace bq::signal
      * mint identity.
      *
      * The type is type-erased by construction and has no storage-typed twin;
-     * there is deliberately no `AnyArraySignal`.
+     * there is deliberately no 'AnyArraySignal'.
      *
      * An array is shared: it holds its elements behind a share(), so two
      * consumers of one array within one SignalContext see **one set of built
@@ -557,7 +557,7 @@ namespace bq::signal
 
         /** @brief Builds one value per element, exactly once per identity.
          *
-         * `func` is invoked when an identity appears and its result is kept
+         * 'func' is invoked when an identity appears and its result is kept
          * until the identity leaves. It is never re-invoked, because the value
          * it reads cannot change: an element's value is built once when its
          * identity appears, and variation lives inside the signals that value
@@ -646,7 +646,7 @@ namespace bq::signal
     /** @brief Keys a changing list and builds one value per key.
      *
      * The entry into the array domain, and the only operator that mints
-     * identity from a key. `delegate` receives the item's value as a signal and
+     * identity from a key. 'delegate' receives the item's value as a signal and
      * is invoked once per key per context. It is not re-invoked when the item's
      * value changes — the new value arrives through the signal the delegate
      * already holds — so nothing the delegate built is destroyed by a value
@@ -659,11 +659,11 @@ namespace bq::signal
      * departing item and its replacement briefly coexist — a value holding a
      * resource that only one owner may have cannot be built here.
      *
-     * `keyFn` and `delegate` are invoked as const functions, and run for every
+     * 'keyFn' and 'delegate' are invoked as const functions, and run for every
      * item on every change and once per key respectively. Keys must be unique
      * within this call and need not be unique anywhere else.
      *
-     * `source` is any signal of a `std::vector<T>`, type-erased or not. `T` is
+     * 'source' is any signal of a 'std::vector<T>', type-erased or not. 'T' is
      * the element type the delegate is handed; a source of some other element
      * type goes through an ordinary map() first, which says at the call site
      * what the conversion is.
@@ -717,7 +717,7 @@ namespace bq::signal
      *
      * Separately built arrays have distinct identities by construction, so
      * nothing is re-keyed. With the empty array as its identity element this is
-     * a monoid, which is the same statement as `{a, {b, c}}` and `{a, b, c}`
+     * a monoid, which is the same statement as '{a, {b, c}}' and '{a, b, c}'
      * exporting the same list.
      *
      * Concatenating an array with *itself* is the one case that is not
