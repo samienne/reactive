@@ -160,7 +160,7 @@ TEST(introspection, childrenCarryOwnDivergentObb)
         | setSize(avg::Vector2f(100.0f, 20.0f))
         | setRole("Filler");
 
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(std::move(small));
     children.push_back(std::move(wide));
 
@@ -211,7 +211,7 @@ TEST(introspection, stretchedChildObbExceedsNatural)
     // A stretchy child (filled rect, ~zero natural size) placed in an hbox that
     // is realised much larger than natural: its child obb must reflect the
     // stretched bounds, not the small natural size.
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(filledRect() | setRole("Stretchy"));
 
     auto node = introspect(hbox(std::move(children)),
@@ -228,7 +228,7 @@ TEST(introspection, childObbIsWindowSpace)
     // Two fixed-size children in an hbox: the second child's obb must be offset
     // into window space by the first child's width (composed placement
     // transform), not sitting at the origin in its own local space.
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
             | setRole("First"));
     children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
