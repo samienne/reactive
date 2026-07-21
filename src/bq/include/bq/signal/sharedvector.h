@@ -70,8 +70,11 @@ namespace bq::signal
             ReadHandle(ReadHandle const&) = delete;
             ReadHandle(ReadHandle&&) noexcept = default;
 
+            /** @brief A scope is not re-seatable. */
             ReadHandle& operator=(ReadHandle const&) = delete;
-            ReadHandle& operator=(ReadHandle&&) noexcept = default;
+
+            /** @overload */
+            ReadHandle& operator=(ReadHandle&&) = delete;
 
             std::vector<T> const& operator*() const
             {
@@ -115,8 +118,12 @@ namespace bq::signal
             WriteHandle(WriteHandle const&) = delete;
             WriteHandle(WriteHandle&&) noexcept = default;
 
+            /** @brief A scope is not re-seatable: assigning over a handle
+             * would end its scope without saying so. */
             WriteHandle& operator=(WriteHandle const&) = delete;
-            WriteHandle& operator=(WriteHandle&&) noexcept = default;
+
+            /** @overload */
+            WriteHandle& operator=(WriteHandle&&) = delete;
 
             ~WriteHandle()
             {
@@ -179,6 +186,18 @@ namespace bq::signal
             SharedVector(std::vector<T>(initial))
         {
         }
+
+        /** @brief Copies share one set of contents. */
+        SharedVector(SharedVector const&) = default;
+
+        /** @overload */
+        SharedVector(SharedVector&&) noexcept = default;
+
+        /** @overload */
+        SharedVector& operator=(SharedVector const&) = default;
+
+        /** @overload */
+        SharedVector& operator=(SharedVector&&) noexcept = default;
 
         /** @brief Opens a read scope over the contents. */
         ReadHandle read() const
