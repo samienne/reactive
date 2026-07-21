@@ -122,14 +122,10 @@ bqui::widget::AnyWidget adder()
                 return item.first;
             },
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (bq::signal::AnySignal<std::pair<size_t, std::string>> item)
+            (size_t id,
+                bq::signal::AnySignal<std::pair<size_t, std::string>> item)
             -> widget::AnyWidget
             {
-                auto id = item.map([](std::pair<size_t, std::string> const& i)
-                        {
-                            return i.first;
-                        });
-
                 auto value = item.map(
                         [](std::pair<size_t, std::string> const& i)
                         {
@@ -138,8 +134,8 @@ bqui::widget::AnyWidget adder()
 
                 return widget::hbox({
                 widget::button("U",
-                    textInputSignal.merge(id).bindToFunction(
-                    [items] (std::string str, size_t id) mutable
+                    textInputSignal.bindToFunction(
+                    [items, id] (std::string str) mutable
                     {
                         auto range = items.rangeLock();
                         auto i = range.findId(id);
@@ -148,51 +144,42 @@ bqui::widget::AnyWidget adder()
                             range.update(i, std::move(str));
                         }
                     })),
-                widget::button("T", id.map([items](size_t id)
+                widget::button("T", bq::signal::constant([items, id]() mutable
                     {
-                        return std::function<void()>([items, id]() mutable
-                        {
-                            auto a = withAnimation(0.3f, avg::curve::linear);
-                            auto range = items.rangeLock();
-                            auto i = range.findId(id);
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        auto range = items.rangeLock();
+                        auto i = range.findId(id);
 
-                            range.move(i, range.begin());
-                        });
+                        range.move(i, range.begin());
                     }))
                 ,
-                widget::button("S", id.map([items, swapState](size_t id)
+                widget::button("S", bq::signal::constant(
+                    [items, id, swapState]() mutable
                     {
-                        return std::function<void()>(
-                            [items, id, swapState]() mutable
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        if (*swapState == 0)
                         {
-                            auto a = withAnimation(0.3f, avg::curve::linear);
-                            if (*swapState == 0)
-                            {
-                                *swapState = id;
-                            }
-                            else
-                            {
-                                auto range = items.rangeLock();
-                                auto i = range.findId(id);
-                                auto j = range.findId(*swapState);
+                            *swapState = id;
+                        }
+                        else
+                        {
+                            auto range = items.rangeLock();
+                            auto i = range.findId(id);
+                            auto j = range.findId(*swapState);
 
-                                range.swap(i, j);
-                                *swapState = 0;
-                            }
-                        });
+                            range.swap(i, j);
+                            *swapState = 0;
+                        }
                     }))
                 ,
                 widget::label(std::move(value))
                 ,
                 widget::hfiller()
                 ,
-                widget::button("x", id.map([items](size_t id)
+                widget::button("x", bq::signal::constant([id, items]() mutable
                     {
-                        return std::function<void()>([id, items]() mutable
-                        {
-                            auto a = withAnimation(0.3f, avg::curve::linear);
-                            items.rangeLock().eraseWithId(id);
-                        });
+                        auto a = withAnimation(0.3f, avg::curve::linear);
+                        items.rangeLock().eraseWithId(id);
                     }))
                 })
                 | modifier::transition(modifier::transitionLeft())
