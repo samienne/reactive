@@ -1,7 +1,7 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 to 2 of
-> *Implementation order* have landed; `scatter` and everything in `bqui` is
+> **Status: revised design, implementation started.** Steps 0 to 3 of
+> *Implementation order* have landed; everything in `bqui` is
 > outstanding, and this document has been amended to describe what was built
 > rather than what was first proposed. The earlier implementation on PR #100 is
 > a **superseded spike**:
@@ -15,7 +15,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `8677be3` (2026-07-21).*
+*Last verified against `86ddac5` (2026-07-21).*
 
 ## The problem
 
@@ -457,9 +457,17 @@ container expressible: fan the children's hints in, compute over all of them, an
 give each child its share back.
 
 The aggregate is positional and must be aligned with the current membership; the
-node checks its size on every update. That is the single remaining runtime
-contract, and it lives in one place instead of being re-asserted at each call
-site.
+node checks its size on every update in which a slice is read. That is the single
+remaining runtime contract, and it lives in one place instead of being re-asserted
+at each call site. What that check does and does not reach is *Alignment is a
+promise, and only its arity is checked* below.
+
+**`scatter` is `forEach`'s node with a different source**, as this document
+predicted, and it needed no new state of its own: the built array is `ArrayOnce`
+keyed by the element's identity, exactly as `map` is, and the slice signal is the
+`pick` construction over a `merge` of the array's own elements with the
+aggregate, keyed by identity and shared. The size check is the map that builds
+that keyed source.
 
 ### `join` — the only exit
 
@@ -869,12 +877,65 @@ concept in the public model; asserting instead would be the same failure with
 less to go on, since `b_ndebug` is off here and an assert takes the process down
 without a message.
 
-### `scatter`'s aggregate must be size-aligned with the current membership
+### Alignment is a promise, and only its arity is checked
 
-Checked in the node on every update. This is the same strength as the spike's
+`scatter`'s aggregate is positional, and the node checks that it has one entry
+per element. This is the same strength as the spike's
 `assert(obbs.size() == builders.size())` (`dynamicbox.h:70`) and the static
 engine's unchecked `obbs.at(index)` contract (`layout.cpp:37-47`), except that it
-is stated once and enforced in one place.
+is stated once and enforced in one place. A size check cannot catch a
+permutation, so it is worth being exact about what is left.
+
+**Through the intended construction, misalignment is unreachable.** When the
+aggregate is derived from the same array — `map` into `join`, then an ordinary
+`map` over the fanned-in vector — both the aggregate and the sequence `scatter`
+zips it against read the array's *one shared* element signal, which is evaluated
+once per pass. Every step between preserves order. So within a pass the two
+orders are the same order, by construction rather than by promise.
+
+Three things break that, and none is caught:
+
+- An aggregate derived from a **different array**, or supplied out of band. The
+  count can match while the entries describe other elements.
+- An **order-changing step** between the fan-in and `scatter` — a sort, or a
+  filter that is padded back to length.
+- An aggregate that describes an **earlier update's membership**, because it is
+  an input the caller pushes separately or because it is routed through a fold.
+  A membership change that keeps the count — one element swapped for another —
+  then hands the arrival its predecessor's slice.
+
+The last is the one a caller reaches by accident, and it is the same failure as
+*Nothing may be position-keyed across updates*, one level up.
+
+**A stronger cheap check was considered and rejected.** The node could require
+that the aggregate reports a change in every update in which the membership
+changed, which catches all three cases above. It also fires on a correct
+program: an aggregate that legitimately does not vary with a same-size
+membership change reports no change, and `stack` — which repeats one obb for
+every child (`stack.cpp:12-25`) — is exactly that. A hard error here takes the
+context down and the caller cannot suppress it, so a check that rejects correct
+code is worse than the hazard it removes. The size check is therefore the
+strongest check available that does not reintroduce keyed aggregates.
+
+**Folding the fan-in into `scatter` is the structural fix, and is not worth it
+yet.** A `scatter` that took a per-element contribution and an aggregate
+function would join internally, so the vector the aggregate function receives
+would be this array's current membership by construction — the third case above
+disappears, and the second becomes local (the function may still permute the
+vector it was just handed, and only its length can be checked). It does not
+remove the positional contract; it moves it one call inward, into the same
+`ObbMap`-shaped function that holds it today.
+
+Against that: a container needs the joined contributions for its **own upward
+size hint** as well as for the fan-out, so an internally-joining `scatter` forces
+a second `join` over the same array. Each exit gives every element its own inner
+data (*Sharing is intrinsic*), so that is a per-frame cost and a duplicated
+per-element instantiation, not a one-off — the kind of cost *Cost: the static
+path is lighter at construction, not at steady state* says is the one that
+counts. It could be avoided by having the operator also return the joined vector,
+at the price of a two-part return. **Recommendation: keep the positional
+aggregate.** Revisit if the layout rework produces a real misalignment, at which
+point the joined-vector-returning form is the shape to reach for.
 
 ### Nothing may be position-keyed across updates
 
@@ -1395,7 +1456,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 2 are done; the rest is outstanding.
+Steps 0 to 3 are done; the rest is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1421,8 +1482,11 @@ Steps 0 to 2 are done; the rest is outstanding.
    landed first, as their own commit; they are still needed by `Signal::join`
    generally, but the array exit no longer uses it.
 
-3. **`scatter`.** Structurally the same node as `forEach` with a different
-   source; the size-alignment check lives here.
+3. **`scatter`.** *Done.* Structurally the same node as `forEach` with a
+   different source — `ArrayOnce` keyed by identity, with the slice signal built
+   by the same `pick` construction over a keyed zip of the array's elements with
+   the aggregate. The size-alignment check is that zip; what it reaches is
+   *Alignment is a promise, and only its arity is checked*.
 
 4. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

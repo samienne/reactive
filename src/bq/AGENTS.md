@@ -60,9 +60,11 @@ copy for a new node's per-context state.
 - Derive/combine: `map` (`bq/signal/map.h`), `merge` (`bq/signal/merge.h`),
   `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
 - Lists whose *membership* changes: `ArraySignal<T>`, entered by `forEach` and
-  left by `join`, with `concat` and `ArraySignal::map` between
+  left by `join`, with `concat`, `ArraySignal::map` and `scatter` between
   (`bq/signal/arraysignal.h`), built over `bq/signal/detail/pick.h`. Its design
   record, and the parts still outstanding, are in `docs/design/arraysignal.md`.
+  `scatter`'s aggregate is positional and only its arity is checked; what that
+  does and does not catch is in the design record.
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 

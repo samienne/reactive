@@ -3,12 +3,14 @@
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
 #include <bq/signal/input.h>
+#include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 #include <bq/signal/signaltraits.h>
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -66,6 +68,27 @@ namespace
                     return i.value;
                 })
             .check();
+    }
+
+    // The array a keyed source builds, whose elements carry the item's value.
+    auto keyedItems = [](AnySignal<std::vector<Item>> source)
+    {
+        return forEach(std::move(source), itemKey,
+                [](AnySignal<Item> item)
+                {
+                    return itemValue(std::move(item));
+                });
+    };
+
+    // Both halves of what a scattered element was handed, so that a wrong
+    // slice reads as a wrong number rather than as a missing one.
+    AnySignal<int> valueWithSlice(AnySignal<int> const& value,
+            AnySignal<int> slice)
+    {
+        return merge(value, std::move(slice)).map([](int v, int s)
+                {
+                    return 100 * v + s;
+                });
     }
 
     template <typename TFunc>
@@ -621,4 +644,394 @@ TEST(arraySignal, forEachTakesAPlainVector)
                     })));
 
     EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
+}
+
+TEST(arraySignal, scatterGivesEachElementItsOwnSlice)
+{
+    ArraySignal<int> array = { 1, 2, 3 };
+
+    auto scattered = scatter(array,
+            constant(std::vector<int>{ 10, 20, 30 }),
+            [](int value, AnySignal<int> slice)
+            {
+                return AnySignal<int>(slice.map([value](int s)
+                            {
+                                return 100 * value + s;
+                            }));
+            });
+
+    auto c = makeSignalContext(join(scattered));
+
+    EXPECT_EQ((std::vector<int>{ 110, 220, 330 }),
+            c.evaluate<0>().get<0>());
+}
+
+// The construction scatter exists for: fan the elements in, compute over all
+// of them, and hand each one its share back. A positional aggregate makes an
+// element's own slice the slice of wherever it now is, so what this pins is
+// that a reorder recomputes it: were the map kept from the previous update,
+// a would still read the 1 it was given at position 0. The identity keying is
+// what the elementwise aggregate below tests.
+TEST(arraySignal, scatterFollowsMembershipThroughAReorder)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+
+    auto array = keyedItems(input.signal);
+
+    auto aggregate = join(array).map([](std::vector<int> const& values)
+        {
+            std::vector<int> result;
+            for (std::size_t i = 0; i != values.size(); ++i)
+                result.push_back(10 * static_cast<int>(i) + values[i]);
+
+            return result;
+        });
+
+    auto c = makeSignalContext(join(scatter(array, aggregate,
+                    &valueWithSlice)));
+
+    EXPECT_EQ((std::vector<int>{ 101, 212 }), c.evaluate<0>().get<0>());
+
+    // Both identities survive, and each one's slice is the one computed for
+    // where it is now: a is at position 1 and reads 11, not the 1 it read at
+    // position 0.
+    input.handle.set(items({ { "b", 2 }, { "a", 1 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ((std::vector<int>{ 202, 111 }), c.evaluate<0>().get<0>());
+}
+
+// The property the design exists for, at the fan-out: a neighbour arriving and
+// leaving must not disturb what a survivor has accumulated from its slices.
+// The aggregate here is elementwise, so a survivor's slice is stable while its
+// position is not.
+TEST(arraySignal, aScatteredSurvivorKeepsItsSliceAndItsState)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 10 } }));
+
+    auto array = keyedItems(input.signal);
+
+    auto aggregate = join(array).map([](std::vector<int> const& values)
+        {
+            std::vector<int> result;
+            for (int value : values)
+                result.push_back(10 * value);
+
+            return result;
+        });
+
+    auto sums = join(scatter(array, aggregate,
+                [](AnySignal<int> const&, AnySignal<int> slice)
+                {
+                    return AnySignal<int>(std::move(slice)
+                            .check()
+                            .withPrevious([](int sum, int value)
+                                {
+                                    return sum + value;
+                                },
+                                0));
+                }));
+
+    auto c = makeSignalContext(sums);
+
+    EXPECT_EQ((std::vector<int>{ 10, 100 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "b", 5 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<int>{ 10, 150 }), c.evaluate<0>().get<0>());
+
+    // An arrival ahead of both, which moves every position but no slice.
+    input.handle.set(items({ { "c", 100 }, { "a", 1 }, { "b", 5 } }));
+    c.update(FrameInfo(2, {}));
+    EXPECT_EQ((std::vector<int>{ 1000, 10, 150 }), c.evaluate<0>().get<0>());
+
+    // And a departure.
+    input.handle.set(items({ { "c", 100 }, { "b", 5 } }));
+    c.update(FrameInfo(3, {}));
+    EXPECT_EQ((std::vector<int>{ 1000, 150 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "c", 100 }, { "b", 1 } }));
+    c.update(FrameInfo(4, {}));
+    EXPECT_EQ((std::vector<int>{ 1000, 160 }), c.evaluate<0>().get<0>());
+}
+
+// The delegate runs when an identity appears, as map's function does: neither a
+// changed item value nor a changed aggregate rebuilds anything.
+TEST(arraySignal, scatterRunsItsDelegateOncePerIdentity)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+    auto offset = makeInput(std::vector<int>{ 1000 });
+    auto builds = std::make_shared<int>(0);
+
+    auto array = keyedItems(input.signal);
+
+    auto c = makeSignalContext(join(scatter(array, offset.signal,
+                    [builds](AnySignal<int> const& value,
+                        AnySignal<int> slice)
+                    {
+                        ++*builds;
+                        return valueWithSlice(value, std::move(slice));
+                    })));
+
+    EXPECT_EQ((std::vector<int>{ 1100 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(1, *builds);
+
+    input.handle.set(items({ { "a", 2 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<int>{ 1200 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(1, *builds);
+
+    offset.handle.set(std::vector<int>{ 2000 });
+    c.update(FrameInfo(2, {}));
+    EXPECT_EQ((std::vector<int>{ 2200 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(1, *builds);
+
+    input.handle.set(items({ { "a", 2 }, { "b", 3 } }));
+    offset.handle.set(std::vector<int>{ 2000, 3000 });
+    c.update(FrameInfo(3, {}));
+    EXPECT_EQ((std::vector<int>{ 2200, 3300 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
+}
+
+// Emptying the array releases the last pick on the slice signal, whose
+// per-context data may then expire. A later arrival has to find or rebuild it
+// rather than fail, which is the same sequence forEach's shrink and grow
+// covers one level down.
+TEST(arraySignal, scatterShrinksToEmptyAndGrowsAgain)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+
+    auto array = keyedItems(input.signal);
+
+    auto aggregate = join(array).map([](std::vector<int> const& values)
+        {
+            std::vector<int> result;
+            for (int value : values)
+                result.push_back(10 * value);
+
+            return result;
+        });
+
+    auto c = makeSignalContext(join(scatter(array, aggregate,
+                    &valueWithSlice)));
+
+    EXPECT_EQ((std::vector<int>{ 110 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({}));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ(std::vector<int>(), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "b", 2 } }));
+    c.update(FrameInfo(2, {}));
+    EXPECT_EQ((std::vector<int>{ 220 }), c.evaluate<0>().get<0>());
+}
+
+// scatter() itself only describes the graph, so the mismatch surfaces from
+// whatever reads a slice — here, realizing the description.
+TEST(arraySignal, scatterRejectsAnAggregateOfTheWrongSize)
+{
+    ArraySignal<int> array = { 1, 2 };
+
+    auto scattered = scatter(array, constant(std::vector<int>{ 10 }),
+            [](int, AnySignal<int> slice)
+            {
+                return slice;
+            });
+
+    expectThrowsContaining(
+            [&]
+            {
+                makeSignalContext(join(scattered));
+            },
+            "aggregate size 1 does not match membership size 2");
+}
+
+// A mismatch that appears only after the array has been running fails the same
+// way as one that was there from the start: the membership grew away from the
+// aggregate, and the update that observes it reports it.
+TEST(arraySignal, scatterRejectsAMembershipThatGrewPastItsAggregate)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+
+    auto c = makeSignalContext(join(scatter(keyedItems(input.signal),
+                    constant(std::vector<int>{ 10 }), &valueWithSlice)));
+
+    EXPECT_EQ((std::vector<int>{ 110 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "b", 2 } }));
+
+    expectThrowsContaining(
+            [&]
+            {
+                c.update(FrameInfo(1, {}));
+            },
+            "aggregate size 1 does not match membership size 2");
+}
+
+// The other direction, which is the one a container reaches when a child is
+// removed: every surviving element is still there to read a slice, and the
+// aggregate now has one too many.
+TEST(arraySignal, scatterRejectsAMembershipThatShrankBelowItsAggregate)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+
+    auto c = makeSignalContext(join(scatter(keyedItems(input.signal),
+                    constant(std::vector<int>{ 10, 20 }), &valueWithSlice)));
+
+    EXPECT_EQ((std::vector<int>{ 110, 220 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 } }));
+
+    expectThrowsContaining(
+            [&]
+            {
+                c.update(FrameInfo(1, {}));
+            },
+            "aggregate size 2 does not match membership size 1");
+}
+
+// Two consumers of one scattered array in one context share its built values,
+// as two consumers of any array do.
+TEST(arraySignal, twoConsumersOfOneScatterShareItsBuiltValues)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+    auto builds = std::make_shared<int>(0);
+
+    auto array = keyedItems(input.signal);
+
+    auto aggregate = join(array).map([](std::vector<int> const& values)
+        {
+            std::vector<int> result;
+            for (int value : values)
+                result.push_back(10 * value);
+
+            return result;
+        });
+
+    auto scattered = scatter(array, aggregate,
+            [builds](AnySignal<int> const& value, AnySignal<int> slice)
+            {
+                ++*builds;
+                return valueWithSlice(value, std::move(slice));
+            });
+
+    auto c = makeSignalContext(join(scattered), join(scattered));
+
+    EXPECT_EQ(1, *builds);
+    EXPECT_EQ((std::vector<int>{ 110 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 110 }), c.evaluate<1>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "b", 2 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(2, *builds);
+    EXPECT_EQ((std::vector<int>{ 110, 220 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 110, 220 }), c.evaluate<1>().get<0>());
+}
+
+// A self-concatenated array gives one identity two slices. The node keyed by
+// identity is what reports it, before any slice is read.
+TEST(arraySignal, scatterRejectsAnArrayConcatenatedWithItself)
+{
+    ArraySignal<int> array = { 1 };
+
+    expectThrowsContaining(
+            [&]
+            {
+                makeSignalContext(join(scatter(concat(array, array),
+                                constant(std::vector<int>{ 10, 20 }),
+                                [](int, AnySignal<int> slice)
+                                {
+                                    return slice;
+                                })));
+            },
+            "duplicate key");
+}
+
+TEST(arraySignal, twoContextsOverOneScatterAreIndependent)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+    auto builds = std::make_shared<int>(0);
+
+    auto array = keyedItems(input.signal);
+
+    auto aggregate = join(array).map([](std::vector<int> const& values)
+        {
+            std::vector<int> result;
+            for (int value : values)
+                result.push_back(10 * value);
+
+            return result;
+        });
+
+    auto description = join(scatter(array, aggregate,
+                [builds](AnySignal<int> const& value, AnySignal<int> slice)
+                {
+                    ++*builds;
+                    return valueWithSlice(value, std::move(slice));
+                }));
+
+    auto first = makeSignalContext(description);
+    auto second = makeSignalContext(description);
+
+    EXPECT_EQ(2, *builds);
+    EXPECT_EQ((std::vector<int>{ 110 }), first.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 110 }), second.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "b", 2 } }));
+    first.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(3, *builds);
+    EXPECT_EQ((std::vector<int>{ 110, 220 }), first.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 110 }), second.evaluate<0>().get<0>());
+}
+
+// The residual hazard, pinned rather than described: the aggregate is
+// positional, so one of the right length in the wrong order passes the only
+// check there is and every element is handed a neighbour's slice. Aligned, the
+// elements below would read 110, 220 and 330.
+TEST(arraySignal, scatterCannotDetectAMisorderedAggregate)
+{
+    ArraySignal<int> array = { 1, 2, 3 };
+
+    auto aggregate = values(array).map([](std::vector<int> const& v)
+        {
+            std::vector<int> result(v.rbegin(), v.rend());
+            for (int& value : result)
+                value *= 10;
+
+            return result;
+        });
+
+    auto c = makeSignalContext(join(scatter(array, aggregate,
+                    [](int value, AnySignal<int> slice)
+                    {
+                        return AnySignal<int>(slice.map([value](int s)
+                                    {
+                                        return 100 * value + s;
+                                    }));
+                    })));
+
+    EXPECT_EQ((std::vector<int>{ 130, 220, 310 }),
+            c.evaluate<0>().get<0>());
+}
+
+// The same hazard reached the way a caller is most likely to reach it: an
+// aggregate that is not derived from this array, and so still describes the
+// membership of an earlier update. The count matches, so nothing is reported
+// and c is handed the slice computed for b.
+TEST(arraySignal, scatterCannotDetectAnAggregateFromAnEarlierMembership)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+    auto aggregate = makeInput(std::vector<int>{ 10, 20 });
+
+    auto c = makeSignalContext(join(scatter(keyedItems(input.signal),
+                    aggregate.signal, &valueWithSlice)));
+
+    EXPECT_EQ((std::vector<int>{ 110, 220 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 1 }, { "c", 3 } }));
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ((std::vector<int>{ 110, 320 }), c.evaluate<0>().get<0>());
 }
