@@ -759,41 +759,6 @@ namespace bq::signal
                 std::move(delegate));
     }
 
-    /** @brief Keys a changing list, and lets the items be the array's own
-     * elements.
-     *
-     * The degenerate case of the form above, with the identity as its
-     * delegate: nothing is built per key, so the element is the item itself.
-     *
-     * An element's value is the one its item had when its key appeared, and a
-     * later item under that key is ignored — an array element cannot vary at a
-     * fixed identity, which is the whole of what identity buys. The key must
-     * therefore be the item's own identity rather than something derived from
-     * a part of it that might change.
-     *
-     * This form takes no pick, which the form above needs to deliver a
-     * changing value to its delegate. An element built here reads nothing that
-     * a departing key can invalidate, so a consumer that drives its elements on
-     * a clock of its own is safe with this form and is not with the other.
-     *
-     * @throws std::runtime_error if two items share a key, as above.
-     */
-    template <typename TStorage, typename T, typename TKeyFunc,
-             typename = std::enable_if_t<
-                 std::is_invocable_v<TKeyFunc const&, T const&>
-                 >>
-    ArraySignal<T> forEach(Signal<TStorage, std::vector<T>> source,
-            TKeyFunc keyFn)
-    {
-        using Key = std::decay_t<std::invoke_result_t<
-            TKeyFunc const&, T const&>>;
-
-        return ArraySignal<T>::fromElements(detail::makeArrayOnce(
-                    AnySignal<std::vector<T>>(std::move(source)),
-                    std::move(keyFn),
-                    [](Key const&, T const& item) { return item; }));
-    }
-
     /** @brief Concatenates arrays, preserving order and every identity.
      *
      * Separately built arrays have distinct identities by construction, so
@@ -890,10 +855,7 @@ namespace bq::signal
      *
      * The only exit from the array domain, and the reason the element type has
      * to be a signal: an array of anything else has nothing to fan in. Map it
-     * to something joinable first. A value that carries no variation of its own
-     * leaves as `constant(value)`: the exit hands back a vector of the
-     * elements' current values, and a constant's current value is the thing
-     * itself.
+     * to something joinable first.
      *
      * A membership change initializes what arrived and releases what left. A
      * surviving element is carried across untouched, so whatever its signal has

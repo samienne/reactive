@@ -44,10 +44,18 @@ namespace bqui
 
         bq::signal::AnySignal<std::vector<Window>> signal() const;
 
-        bq::signal::ArraySignal<Window> const& array() const;
+        /** @brief The collection as an array, one identity per window.
+         *
+         * The element is the window's own signal, which is what forEach()
+         * hands its delegate. A consumer reads it once, when the identity
+         * appears; there is nothing later to read, because an element cannot
+         * vary at a fixed identity.
+         */
+        bq::signal::ArraySignal<bq::signal::AnySignal<Window>> const&
+            array() const;
 
     private:
         bq::signal::SharedVector<Window> windows_;
-        bq::signal::ArraySignal<Window> array_;
+        bq::signal::ArraySignal<bq::signal::AnySignal<Window>> array_;
     };
 } // namespace bqui

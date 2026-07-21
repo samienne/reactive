@@ -363,39 +363,38 @@ for the design is the rule above: a consumer with its own clock is the hard
 case, and the layout engine's being free of it is a property of the layout
 engine, not of the array.
 
-The section after next records the way out that the rule does not need at all,
-and which is what `App`'s own window collection uses.
-
 The one thing the caller loses is the ability to have a single `forEach` build
 *differently shaped* items, since the delegate is handed the item's value and
 not its key. That is not a gap: the caller writes one array per shape and
 concatenates them, which is what the braced-list constructor is for.
 
-### The way out of the constraint: `forEach` with no delegate
+### Reading an element's signal once is enough, and is not the same as reading it on a clock
 
-**Settled when `App` grew its own window collection.** The constraint above is
-not a property of arrays; it is a property of the *pick* the three-argument
-`forEach` builds to deliver a changing value to its delegate. Drop the delegate
-and the pick goes with it: `forEach(source, keyFn)` mints identity and lets the
-items be the elements, so an element reads nothing that a departing key can
-invalidate and a consumer with a clock of its own is safe by construction.
+**Settled when `App` grew its own window collection.** The rule above forbids
+*driving* an element's signal on a schedule of the consumer's own. It does not
+forbid **reading it once**, when the identity appears, which is what a consumer
+that builds something per element wants anyway.
 
-What it costs is exactly what the pick bought — an element's value is the one
-its key arrived with, and a later item under the same key is not seen. So the
-form applies when the key *is* the item's identity and the item does not vary at
-that identity, which is the case whenever the source is a list of things being
-added to and removed from rather than edited in place.
+`App` is the worked case in both directions. `App::run` maps
+`ArraySignal<AnySignal<Window>>` to one `WindowGlue` per identity, and the glue
+holds the element signal in a `SignalContext` that it evaluates in its
+constructor and **never updates**. There is nothing later to read — an element
+cannot vary at a fixed identity — so the read that would encounter a departed
+key never happens. Everything the glue drives per frame is the *window's own*
+signals, its title and its widgets, which came out of that one read and are not
+the array's.
 
-`App`'s own window collection is that case: a `SharedVector<Window>` keyed on
-`Window::getId`, where a window's title and widgets are its own signals and
-never come from the array. Self-removal — a window's own close button removing
-its entry — is therefore safe from an ordinary handler, from an animated one,
-and from anywhere else, without the deferral the caller-supplied path relies on.
-The deferral stays for that path, which still uses the three-argument form.
+That is what makes self-removal safe on this path, and it is worth being precise
+about why, because the tempting wrong answer is to freeze the value into the
+array. An operator that handed back the item's value rather than its signal
+would discard later values under the same key, silently, for every caller — a
+different operator wearing the identity delegate's name. The freeze belongs to
+the consumer that knows its elements do not vary, not to the vocabulary.
 
-The rule for a consumer with its own clock is now a choice rather than an
-obligation: read an element's signal only where the array is updated, **or**
-build the array with no delegate so that there is no element signal to read.
+So the rule stands unchanged, with its scope made explicit:
+
+> An element's signal may be **read once**, when its identity appears. What it
+> may not be is *driven* — updated on a clock the array does not control.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
@@ -1756,10 +1755,10 @@ Steps 0 to 4 are done; the rest is outstanding.
    settled *No identity surfaces at the exit*. `App::run` builds a `WindowGlue`
    per identity with `map`, joins the glues through a constant, and reads the
    live set off the fanned-in vector. `App` then grew a window collection of its
-   own — a `SharedVector<Window>` keyed by the delegate-free `forEach`, which is
-   where that form came from — with `addWindowArray` keeping the general path
-   for a caller whose windows follow a model of its own. Independent of steps 5
-   and 6 and landed before them.
+   own — a `SharedVector<Window>` through `forEach` with the identity delegate,
+   whose elements are the window signals — with `addWindowArray` keeping the
+   general path for a caller whose windows follow a model of its own.
+   Independent of steps 5 and 6 and landed before them.
 
 5. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

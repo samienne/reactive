@@ -88,15 +88,30 @@ public:
 
     // The app's own collection first, then each caller-supplied array in the
     // order it was added. Taking this is what fixes the set of arrays.
-    bq::signal::ArraySignal<Window> takeAllWindows()
+    //
+    // A caller's array carries values, because everything that builds one
+    // hands the value over: the constructors take items, and forEach()'s
+    // delegate returns one. The app's own collection carries the element
+    // signals forEach() hands that delegate. Lifting the values to constants
+    // is what makes the two one array — and a constant is what a value that
+    // carries no variation of its own becomes anyway.
+    bq::signal::ArraySignal<bq::signal::AnySignal<Window>> takeAllWindows()
     {
         std::lock_guard<std::mutex> lock(mutex_);
 
         started_ = true;
 
-        std::vector<bq::signal::ArraySignal<Window>> parts {
-            windows_->array() };
-        parts.insert(parts.end(), arrays_.begin(), arrays_.end());
+        std::vector<bq::signal::ArraySignal<bq::signal::AnySignal<Window>>>
+            parts { windows_->array() };
+
+        for (auto const& array : arrays_)
+        {
+            parts.push_back(array.map([](Window const& window)
+                        {
+                            return bq::signal::AnySignal<Window>(
+                                    bq::signal::constant(window));
+                        }));
+        }
 
         return bq::signal::concat(std::move(parts));
     }
@@ -123,13 +138,14 @@ class WindowGlue
 {
 public:
     WindowGlue(ase::Platform &platform, ase::RenderContext& context,
-            Window window)
+            bq::signal::AnySignal<Window> window)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_),
         memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(context),
-        window_(std::move(window)),
+        windowSignal_(std::move(window)),
+        window_(windowSignal_.evaluate<0>().get<0>()),
         painter_(memory_, context_),
         size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
         widgetInstanceSignal_(window_.getWidget()(
@@ -500,6 +516,13 @@ private:
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
     ase::RenderContext& context_;
+
+    // Read once, here, and never updated. An element of an array cannot vary
+    // at a fixed identity, so there is nothing later to read; and this signal
+    // is the array's, so updating it on the window's own clock is exactly what
+    // a consumer with a clock of its own must not do — it would read a key
+    // that may have left.
+    bq::signal::SignalContext<bq::signal::AnySignal<Window>> windowSignal_;
     Window window_;
     avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
@@ -612,10 +635,11 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
     // survives an edit keeps the glue it already had. A glue is not a signal,
     // and join() is the only way out of the array, so each one leaves as a
     // constant.
-    auto makeGlue = [&platform, &context](Window const& window)
+    auto makeGlue = [&platform, &context](
+            bq::signal::AnySignal<Window> const& window)
     {
         btl::shared<WindowGlue> glue = std::make_shared<WindowGlue>(platform,
-                context, btl::clone(window));
+                context, window);
 
         return GlueSignal(bq::signal::constant(std::move(glue)));
     };

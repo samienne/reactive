@@ -13,6 +13,10 @@ WindowList::WindowList() :
                 [](Window const& window)
                 {
                     return window.getId();
+                },
+                [](bq::signal::AnySignal<Window> window)
+                {
+                    return window;
                 }))
 {
 }
@@ -117,7 +121,8 @@ bq::signal::AnySignal<std::vector<Window>> WindowList::signal() const
     return windows_.signal();
 }
 
-bq::signal::ArraySignal<Window> const& WindowList::array() const
+bq::signal::ArraySignal<bq::signal::AnySignal<Window>> const&
+    WindowList::array() const
 {
     return array_;
 }

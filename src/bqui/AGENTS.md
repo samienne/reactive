@@ -45,8 +45,9 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 of them and they do not overlap:
 
 - **The app's own collection** (`src/windowlist.h`), a
-  `bq::signal::SharedVector<Window>` keyed into an array by the delegate-free
-  `bq::signal::forEach`, with `Window::getId` as the key. `App::addWindows`
+  `bq::signal::SharedVector<Window>` keyed into an array by
+  `bq::signal::forEach` with `Window::getId` as the key and the identity
+  delegate, so the elements are `AnySignal<Window>`. `App::addWindows`
   appends to it, `App::removeWindow` and `Window::close` remove from it, and
   `App::getWindows` / `App::getWindowsSignal` read it — as a snapshot and as a
   signal respectively.
@@ -116,17 +117,24 @@ Removal itself never evaluates a signal on either path. `WindowGlue`'s close
 callback invokes the window's own callbacks and then removes it, and a removal
 writes the `SharedVector`, whose publication only sets an input.
 
-**The app's own collection is structurally free of the departed-key hazard.**
-The delegate-free `forEach` mints identity and nothing else — there is no pick,
-because the element *is* the item — so a glue reads no signal that a departing
-key can invalidate. That is what makes self-removal safe from anywhere,
-including from a handler that transacts synchronously. It is a property of that
-array form and not of `App`, so it is stated where the form is, in
-`bq/signal/arraysignal.h`.
+**A glue reads its window's signal once and never updates it.**
+`WindowGlue::windowSignal_` is a `SignalContext` over the element signal,
+evaluated in the constructor to produce `window_` and left alone thereafter.
+There is nothing later to read — an element cannot vary at a fixed identity — so
+the read that would encounter a departed key never happens, and everything the
+glue drives per frame is the window's *own* title and widget signals, which came
+out of that one read.
 
-A caller-supplied array built with the three-argument `forEach` does carry picks
-and does keep the constraint: an element's signal must not be read on a clock of
-its own. The gaps below are gaps in that path only.
+Do not be tempted to update it. That is the consumer-with-its-own-clock case the
+design forbids, and it is the one thing that would put the departed-key throw
+back on this path.
+
+Both kinds of window reach the glue the same way: a caller-supplied
+`ArraySignal<Window>` is lifted to `ArraySignal<AnySignal<Window>>` with a
+`map` to `constant`, so `App::run` joins one array and not two shapes. What
+differs is what is *inside* the window: a caller's window built by a
+three-argument `forEach` delegate may hold a pick in its title or widgets, and
+those the glue does drive per frame. The gaps below are gaps in that path only.
 
 - `AnimationGuard` transacts every glue from its constructor and destructor, and
   `withAnimation` is called from input handlers. A handler that both animates
