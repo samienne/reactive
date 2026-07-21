@@ -20,9 +20,17 @@
 #include <bqui/datasourcefromcollection.h>
 #include <bqui/datasource.h>
 #include <bqui/withanimation.h>
-#include <bqui/databind.h>
 
+#include <bq/signal/arraysignal.h>
+#include <bq/signal/evaluateoninit.h>
 #include <bq/signal/signal.h>
+
+#include <bq/stream/iterate.h>
+
+#include <functional>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include <avg/curve/curves.h>
 #include <avg/rendertree.h>
@@ -62,6 +70,33 @@ namespace
                 widget::button("Sort", bq::signal::constant(std::move(onSort)))
             });
     }
+
+    using Items = std::vector<std::pair<size_t, std::string>>;
+
+    /** @brief The collection's current contents, as a signal.
+     *
+     * Every event re-reads the collection rather than replaying the change it
+     * describes. Nothing is lost by the coarseness: forEach keys the result by
+     * the collection's own id, so an item that stays put is not rebuilt
+     * whatever the event was.
+     */
+    bq::signal::AnySignal<Items> collectionItems(
+            Collection<std::string>& collection)
+    {
+        auto source = dataSourceFromCollection(collection);
+        auto evaluate = std::move(source.evaluate);
+
+        return bq::stream::iterate(
+                [evaluate, connection=std::make_shared<Connection>(
+                    std::move(source.connection))]
+                (Items, DataSource<std::string>::Event const&)
+                {
+                    return evaluate();
+                },
+                bq::signal::evaluateOnInit(evaluate),
+                std::move(source.input)
+                );
+    }
 } // anonymous namespace
 
 bqui::widget::AnyWidget adder()
@@ -81,15 +116,30 @@ bqui::widget::AnyWidget adder()
 
     auto swapState = std::make_shared<size_t>();
 
-    auto widgets = dataBind<std::string>(
-            dataSourceFromCollection(items),
-            [items, textInputSignal=std::move(textInput.signal), swapState]
-            (bq::signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+    auto widgets = bq::signal::forEach(collectionItems(items),
+            [](std::pair<size_t, std::string> const& item)
             {
+                return item.first;
+            },
+            [items, textInputSignal=std::move(textInput.signal), swapState]
+            (bq::signal::AnySignal<std::pair<size_t, std::string>> item)
+            -> widget::AnyWidget
+            {
+                auto id = item.map([](std::pair<size_t, std::string> const& i)
+                        {
+                            return i.first;
+                        });
+
+                auto value = item.map(
+                        [](std::pair<size_t, std::string> const& i)
+                        {
+                            return i.second;
+                        });
+
                 return widget::hbox({
                 widget::button("U",
-                    textInputSignal.bindToFunction(
-                    [items, id] (std::string str) mutable
+                    textInputSignal.merge(id).bindToFunction(
+                    [items] (std::string str, size_t id) mutable
                     {
                         auto range = items.rangeLock();
                         auto i = range.findId(id);
@@ -98,42 +148,51 @@ bqui::widget::AnyWidget adder()
                             range.update(i, std::move(str));
                         }
                     })),
-                widget::button("T", bq::signal::constant([items, id]() mutable
+                widget::button("T", id.map([items](size_t id)
                     {
-                        auto a = withAnimation(0.3f, avg::curve::linear);
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
-
-                        range.move(i, range.begin());
-                        }))
-                ,
-                widget::button("S", bq::signal::constant(
-                    [items, id, swapState]() mutable
-                    {
-                        auto a = withAnimation(0.3f, avg::curve::linear);
-                        if (*swapState == 0)
+                        return std::function<void()>([items, id]() mutable
                         {
-                            *swapState = id;
-                        }
-                        else
-                        {
+                            auto a = withAnimation(0.3f, avg::curve::linear);
                             auto range = items.rangeLock();
                             auto i = range.findId(id);
-                            auto j = range.findId(*swapState);
 
-                            range.swap(i, j);
-                            *swapState = 0;
-                        }
+                            range.move(i, range.begin());
+                        });
+                    }))
+                ,
+                widget::button("S", id.map([items, swapState](size_t id)
+                    {
+                        return std::function<void()>(
+                            [items, id, swapState]() mutable
+                        {
+                            auto a = withAnimation(0.3f, avg::curve::linear);
+                            if (*swapState == 0)
+                            {
+                                *swapState = id;
+                            }
+                            else
+                            {
+                                auto range = items.rangeLock();
+                                auto i = range.findId(id);
+                                auto j = range.findId(*swapState);
+
+                                range.swap(i, j);
+                                *swapState = 0;
+                            }
+                        });
                     }))
                 ,
                 widget::label(std::move(value))
                 ,
                 widget::hfiller()
                 ,
-                widget::button("x", bq::signal::constant([id, items]() mutable
+                widget::button("x", id.map([items](size_t id)
                     {
-                        auto a = withAnimation(0.3f, avg::curve::linear);
-                        items.rangeLock().eraseWithId(id);
+                        return std::function<void()>([id, items]() mutable
+                        {
+                            auto a = withAnimation(0.3f, avg::curve::linear);
+                            items.rangeLock().eraseWithId(id);
+                        });
                     }))
                 })
                 | modifier::transition(modifier::transitionLeft())

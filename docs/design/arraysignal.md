@@ -1,8 +1,8 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 to 4 of
-> *Implementation order* have landed; `dynamicBox` and the `Collection`
-> pipeline are
+> **Status: revised design, implementation started.** Steps 0 to 5 of
+> *Implementation order* have landed; the `Collection` / `DataSource`
+> pipeline is
 > outstanding, and this document has been amended to describe what was built
 > rather than what was first proposed. The earlier implementation on PR #100 is
 > a **superseded spike**:
@@ -16,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `c9cd3aa` (2026-07-21).*
+*Last verified against `e367f88` (2026-07-21).*
 
 ## The problem
 
@@ -970,10 +970,10 @@ diamond (membership → builders → hints → obbs → elements), not a cycle.
 ## One layout engine
 
 This is the headline finding, and it was not the goal when the design started.
-`bqui` has **two** layout engines: the static one (`layout()`, used by `box`,
+`bqui` had **two** layout engines: the static one (`layout()`, used by `box`,
 `stack` and `uniformGrid`) and the dynamic one (`dynamicBox`, used by `hbox` and
-`vbox` when the child list is a signal). The operator set above does not add a
-third. It **collapses the two into one**.
+`vbox` when the child list was a signal). The operator set above did not add a
+third. It **collapsed the two into one**, in steps 4 and 5.
 
 ### `layout()`'s own type aliases already are this API
 
@@ -1065,7 +1065,7 @@ different way.
 
 Keyed fan-out removes both: `scatter` matches by identity, and checks the
 aggregate's size against the current membership in one place. Step 4 took the
-static half; `dynamicBox`'s assert goes with step 5.
+static half; `dynamicBox`'s assert went with step 5.
 
 The check is stronger than the one it replaced, in a way a caller outside the
 tree can feel: `at()` threw only when the `ObbMap` returned **fewer** obbs than
@@ -1075,12 +1075,12 @@ nothing here changes.
 
 ### The maintenance argument is the strongest one
 
-`dynamicBox` is missing `handleGravity()`. `layout()` applies it to every child
-before building it; `dynamicBox` does not apply it anywhere. `dynamicBox` also
-has the element-cache correctness bug described under *Rationale*.
+`dynamicBox` was missing `handleGravity()`. `layout()` applies it to every child
+before building it; `dynamicBox` did not apply it anywhere. `dynamicBox` also had
+the element-cache correctness bug described under *Rationale*.
 
-Neither is a hard problem. Both exist **because `dynamicBox` is a second
-implementation of `layout()` that drifted** — every fix to one has to be
+Neither was a hard problem. Both existed **because `dynamicBox` was a second
+implementation of `layout()` that drifted** — every fix to one had to be
 remembered for the other, and it was not. One engine makes drift structurally
 impossible, which is worth more than either individual fix.
 
@@ -1136,8 +1136,8 @@ fan-out, hand-rolled — `scatter`.
 ### The missing `handleGravity()` is fixed structurally
 
 `layout()` pipes every child through `modifier::handleGravity()` before building
-it. `dynamicBox` does not, so a gravity set on a child of an
-`hbox`/`vbox` with a dynamic child list is silently ignored.
+it. `dynamicBox` did not, so a gravity set on a child of an
+`hbox`/`vbox` with a dynamic child list was silently ignored.
 
 Unifying fixes this by construction rather than by remembering to add a line.
 `handleGravity` is a three-pass negotiation — it asks the child for
@@ -1221,16 +1221,17 @@ shape (`databind.h:22`). `forEach` is the same operator with the delegate
 generalised to any `U`, the source generalised past `DataSource`, and the
 identity supplied by a key function instead of by the collection.
 
-**`dynamicBox`** (`src/bqui/include/bqui/dynamicbox.h:23`, the signal-taking
-overload of `hbox`/`vbox` — `src/bqui/src/widget/hbox.cpp:18`,
-`src/bqui/src/widget/vbox.cpp:20`) **goes away entirely.** Earlier drafts kept it
-and merely gave it an overload; the *One layout engine* finding supersedes that.
-`hbox`/`vbox` take an `ArraySignal<AnyWidget>`, and both the static and the
-dynamic case run through the single unified `layout()`.
+**`dynamicBox`** is **gone**, as of step 5. Earlier drafts kept it and merely
+gave it an overload; the *One layout engine* finding superseded that. `hbox` and
+`vbox` take an `ArraySignal<AnyWidget>` — one overload each, not two, because a
+`std::vector<AnyWidget>` overload alongside the array one makes `hbox({a, b, c})`
+ambiguous. `layout()` keeps a vector overload for `stack` and `uniformGrid`,
+which are only ever called with a named vector.
 
-Existing callers are `src/bqui/test/databindtest.cpp:18` and
-`src/testapp1/adder.cpp:84`; both are `Collection` → `dataSourceFromCollection`
-→ `dataBind` → `vbox`, and both become a single `forEach`.
+`dataBind`'s one remaining *production* caller was `src/testapp1/adder.cpp:84`,
+and it had to be ported in the same change — see *Step 5 was not separable*.
+`src/bqui/test/databindtest.cpp:18` still calls it, and still compiles, because
+it never fed the result to a box.
 
 ## Rationale: why the delegate must take a signal
 
@@ -1462,7 +1463,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 4 are done; step 5 is outstanding.
+Steps 0 to 5 are done; step 6 is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1496,8 +1497,9 @@ Steps 0 to 4 are done; step 5 is outstanding.
 
 4. **Unify `layout()`** over `map`/`scatter`/`join`. *Done.* One behavioural
    consequence to know, since the step was otherwise behaviour-preserving: a
-   child's build function now runs from `scatter`'s delegate, which is **once
-   per `DataContext`** rather than once per description. Two contexts over one
+   child's build is now done inside the array — the widget-to-builder step in a
+   `map` and the builder-to-instance step in `scatter`'s delegate — which is
+   **once per `DataContext`** rather than once per description. Two contexts over one
    layout therefore build two sets of children, where before they shared one
    set of built descriptions. That follows from where the array keeps its state
    and is the more correct of the two, but it is a change. The builders
@@ -1510,13 +1512,69 @@ Steps 0 to 4 are done; step 5 is outstanding.
    construction as *Alignment is a promise* predicted: the hint fan-in and
    `scatter` read the array's one shared element signal.
 
-5. **Delete `dynamicBox`.** `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
-   route to the unified `layout()`. This is where the missing `handleGravity()`
-   and the element-cache bug disappear. Retire `dataBind` /
-   `dataSourceFromCollection` here, porting `src/bqui/test/databindtest.cpp:18`
-   and `src/testapp1/adder.cpp:84`.
+5. **Delete `dynamicBox`.** *Done.* `hbox`/`vbox` take an
+   `ArraySignal<AnyWidget>` and route to the unified `layout()`. Both defects
+   went with the implementation rather than being fixed: `layout()` puts
+   `modifier::handleGravity()` in front of every child, and the element cache
+   has no successor to be wrong in — `scatter` matches by identity and nothing
+   scans a previous result. The `withPrevious` fold, the positional re-keying
+   block and the `assert(obbs.size() == builders.size())` all went too.
+   `handleGravity` composed into the delegate exactly as predicted: it needs
+   the child's own hint, its gravity and its assigned outer size, and the
+   delegate has the first two through the child's value and the third through
+   the identity-matched obb.
+
+   One thing the audit missed and the rewrite had to put back: `dynamicBox` gave
+   every child an `avg::UniqueId` through `modifier::setElementId`, and the
+   static engine did not. `avg::ContainerNode` matches children by id when they
+   have one and **by position otherwise**, so without it a removal from a
+   dynamic list pairs the departing child with whichever one now occupies its
+   slot, and the wrong row animates out. The unified engine mints the id in
+   `scatter`'s delegate, which is once per identity, so both paths now have it.
+   The static path pays one node per child for a match that agrees with the
+   positional one; losing identity is a correctness regression and gaining it is
+   a cost, so that is the direction to err in.
+
+6. **Retire `Collection`, `DataSource` and `dataBind`.** Outstanding. `adder`
+   no longer uses `dataBind`, so its remaining caller is
+   `src/bqui/test/databindtest.cpp:18`. Decide *Whether `Collection<T>` and
+   `DataSource<T>` are removed or kept* here.
 
 Steps 0-3 are `bq` only and landed before anything in `bqui` changed.
+
+### Step 5 was not separable from porting `dataBind`'s caller
+
+Recorded because the plan above assumed it was. Deleting `dynamicBox` deletes
+the only consumer of an `AnySignal<std::vector<std::pair<size_t, AnyWidget>>>`,
+which is `dataBind`'s exported shape, so `src/testapp1/adder.cpp` had to move to
+`forEach` in the same change. There is no adapter that could have deferred it:
+turning a signal *of widgets* into an `ArraySignal<AnyWidget>` would mean
+reading a widget out of a signal while describing the graph, which is precisely
+what cannot be done and precisely why `dynamicBox` had to either discard a
+changed widget or rebuild it.
+
+Three things fell out of doing it:
+
+- **A `Collection` reaches `forEach` through an ordinary fold.** The adapter
+  re-reads the collection on every event rather than replaying the event, which
+  is a few lines against `dataBind`'s branch per event kind. Nothing is lost by
+  the coarseness: `forEach` keys by the collection's own id, so an item that
+  stays put is not rebuilt whatever the event was.
+- **`forEach`'s delegate is not given its key**, and a delegate that needs the
+  item's identity — `adder`'s buttons act on a collection id — must re-derive it
+  from the item signal and produce its callables through a `map`. `dataBind`'s
+  delegate took the id directly, so this is a real ergonomic regression at the
+  one call site that exists. It is *not* the rejected index of *No index is
+  passed to the delegate*: a key is stable identity, which is the thing an index
+  is not. Handing the key to the delegate is a small change to `forEach` and
+  should be decided on its own; it was not made here.
+- **A value change now reaches every item, not one.** `dataBind` pushed a
+  changed value through that item's own `InputHandle`. A `pick` is a plain `map`
+  over one shared keyed source, so every item's signal reports a change whenever
+  any item does, and each row re-derives its label and its callables. Correct,
+  and O(rows) per event rather than O(1). This is exactly the case *`scatter`*'s
+  documentation tells callers to suppress with `.check()` where it matters; no
+  call site here matters yet.
 
 ### Tests the departed-key invariant requires
 
