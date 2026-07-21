@@ -40,6 +40,7 @@ namespace avg
                 );
 
         ContainerNode(ContainerNode const&) = default;
+        ContainerNode& operator=(ContainerNode const&) = default;
 
         void addChild(std::shared_ptr<RenderTreeNode> node);
         void addChildBehind(std::shared_ptr<RenderTreeNode> node);

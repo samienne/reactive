@@ -445,11 +445,9 @@ TEST(async, futureFail)
     auto failCalled = std::make_shared<std::promise<void>>();
     auto failLatch = failCalled->get_future();
 
-    auto f = btl::async([]()
+    auto f = btl::async([]() -> int
             {
                 throw std::runtime_error("test error");
-
-                return 10;
             })
             .onFailure([failCalled](std::exception_ptr const&)
             {
@@ -466,11 +464,9 @@ TEST(async, whenAllFail)
 {
     for (int i = 0; i < 20000; ++i)
     {
-        auto f1 = btl::async([]()
+        auto f1 = btl::async([]() -> int
                 {
                     throw std::runtime_error("test error");
-
-                    return 10;
                 });
 
         auto f2 = btl::async([]()
