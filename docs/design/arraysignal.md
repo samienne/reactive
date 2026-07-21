@@ -514,6 +514,12 @@ same relationship `Signal` has to a `.share()`d signal: `SharedArraySignal`
 carries a `UniqueId`, and every consumer instantiating it in one context finds
 the same table via `findData`.
 
+**Sharing within one context is a supported, existing mechanism, not something
+this design has to invent.** `SharedSignal` is the reference implementation —
+follow it. Sharing *between* contexts is the thing that must not happen, and the
+two are easy to conflate: the first implementation's failure was that it had no
+way to tell them apart, because its table was not keyed by context at all.
+
 **Implement only the shared form.** The consuming variant would have no user on
 day one, since every container branches. Its `map` therefore takes `U const&`
 rather than consuming. The consuming variant can be added later if a linear
@@ -1208,7 +1214,9 @@ consumer-side reconcile. See *Open questions*.
 
 ## Open questions
 
-Points the design does not settle. Flagged rather than guessed.
+Points the design does not settle. Flagged rather than guessed. Sharing within a
+single context is *not* one of them — it is a supported mechanism with an
+existing reference implementation; see *Sharing: `SharedArraySignal`*.
 
 - **Does any identity surface at the exit?** Unchanged from the first draft, and
   still the one open question that changes code outside this design. *Identity is
@@ -1218,11 +1226,6 @@ Points the design does not settle. Flagged rather than guessed.
   `AnySignal<vector<pair<size_t, Window>>>` and reconciling by hand. The two live
   consumers are PR #99's window list and `dataBind`
   (`src/bqui/include/bqui/databind.h:22`). Decide it when PR #99 is reworked.
-- **Does a description instantiated twice into the *same* context share
-  correctly?** `SharedArraySignal` should get this for free — same `UniqueId`,
-  same `findData` hit, exactly as `SharedControl` does — but this is inference
-  from reading `sharedcontrol.h`, not something the spike tested. It is the first
-  thing step 1 must prove.
 - **The reactive subtree `AnySignal<ArraySignal<T>>`.** Still unimplemented and
   still unreconciled: the identity algebra says only construction and `forEach`
   mint identity, but this constructor hands out fresh ids on every swap. Either
