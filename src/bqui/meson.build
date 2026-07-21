@@ -49,6 +49,7 @@ libbquisrc = [
   'src/keyboardinput.cpp',
   'src/inputarea.cpp',
   'src/window.cpp',
+  'src/windowlist.cpp',
   'src/app.cpp',
   'src/connection.cpp',
   'src/annotation.cpp',
@@ -82,6 +83,7 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/collectiontest.cpp',
+  'test/windowtest.cpp',
   'test/databindtest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',

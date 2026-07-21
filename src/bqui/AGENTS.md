@@ -1,6 +1,6 @@
 # bqui — agent notes
 
-*Last verified against `90c50f2` (2026-07-21).*
+*Last verified against `e2f0ee7` (2026-07-22).*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -41,58 +41,92 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 ## The app loop (`app.cpp`)
 
-**The window list is the only thing that says which windows exist.** `App` holds
-it as a `bq::signal::ArraySignal<Window>` and `App::run` maps it to one
-`WindowGlue` per identity and joins the glues, so the array itself creates a
-glue when an identity appears and destroys it — closing the window — when the
-identity leaves; a surviving window is never rebuilt. A `WindowGlue` owns
-everything for one window: its `ase::Window`, painter, per-window signal
-contexts, and input state. The glues are re-read from the joined signal only on
-the frames in which membership changed, and `AnimationGuard` walks that cached
-vector.
+**A window list is the only thing that says which windows exist.** There are two
+of them and they do not overlap:
 
-`App` therefore reports nothing about the open windows and has no hook for
-observing them. A window closes by leaving the list, so what a window offers —
-`Window::onClose`, a button in its own UI — is wired to whatever the list is
-built from, and the removal flows back through the array. `src/testapp1` is the
-worked example: its second window's title bar and its own button both take the
-same key out of the same input.
+- **The app's own collection** (`src/windowlist.h`), a
+  `bq::signal::SharedVector<Window>` keyed into an array by the delegate-free
+  `bq::signal::forEach`, with `Window::getId` as the key. `App::addWindows`
+  appends to it, `App::removeWindow` and `Window::close` remove from it, and
+  `App::getWindows` / `App::getWindowsSignal` read it — as a snapshot and as a
+  signal respectively.
+- **Caller-supplied arrays**, added with `App::addWindowArray`. The caller's own
+  model is the source of truth for those, so nothing in `App` mutates them and
+  `close()` does not reach them.
 
-Two ordering rules hold that together, and both are load-bearing rather than
+`App::run` concatenates the two, maps the result to one `WindowGlue` per
+identity and joins the glues, so the array itself creates a glue when an
+identity appears and destroys it — closing the window — when the identity
+leaves; a surviving window is never rebuilt. A `WindowGlue` owns everything for
+one window: its `ase::Window`, painter, per-window signal contexts, and input
+state. The glues are re-read from the joined signal only on the frames in which
+membership changed, and `AnimationGuard` walks that cached vector. The no-signal
+`run()` overload stops when that cached vector is empty, which is why it counts
+both kinds of window.
+
+### How `Window::close()` reaches the list
+
+Through `WindowHandle`, which carries the window's `btl::UniqueId` and a
+`std::weak_ptr<WindowList>` behind a shared control block. `WindowList::add`
+stamps the list into every handle it takes, so a copy of a window taken *before*
+it was added closes it just as well. Weak, because a window outlives its app
+whenever a widget or a callback still names one: `close()` on a window whose app
+is gone finds nothing to lock and returns.
+
+`WindowList` is its own object rather than a member of `AppDeferred` for exactly
+that: it is what a window may hold, and holding `AppDeferred` weakly would mean
+holding the render state and the glue vector too.
+
+The handle is separately constructible so that a widget inside the window can
+hold one. A window that captured itself would own the widget that owns it, and a
+widget that captured the `App` would close a cycle through the collection;
+`WindowHandle` is what neither of those is.
+
+### Ordering
+
+Two rules hold the frame phase together, and both are load-bearing rather than
 tidiness:
 
 - **A window's signals are updated in the frame phase, never from an input
   handler.** The handler marks the window for redraw and returns; the platform
   runs the frame after `App::run`'s callback has reconciled the list, so a
-  window whose key has just left is destroyed before anything updates it. A
-  handler that transacted inline updated a signal naming a key it had itself
-  removed, and that signal throws once the key is gone — a window with its own
-  close button took the process down that way.
+  window whose key has just left is destroyed before anything updates it.
 - **A glue is released only after the main render queue has caught up.** An
   in-flight frame holds the window's framebuffer, which holds the window by
   reference.
 
-The close path itself never transacts: `WindowGlue`'s close callback only
-invokes the window's own callbacks, so removing a window from its `onClose` is
-safe by construction rather than by the rule above. That is worth knowing
-because it is what makes the idiom safe.
+Removal itself never evaluates a signal on either path. `WindowGlue`'s close
+callback invokes the window's own callbacks and then removes it, and a removal
+writes the `SharedVector`, whose publication only sets an input.
 
-Two paths still break the first rule and are **known gaps**, not oversights to
-re-derive:
+**The app's own collection is structurally free of the departed-key hazard.**
+The delegate-free `forEach` mints identity and nothing else — there is no pick,
+because the element *is* the item — so a glue reads no signal that a departing
+key can invalidate. That is what makes self-removal safe from anywhere,
+including from a handler that transacts synchronously. It is a property of that
+array form and not of `App`, so it is stated where the form is, in
+`bq/signal/arraysignal.h`.
+
+A caller-supplied array built with the three-argument `forEach` does carry picks
+and does keep the constraint: an element's signal must not be read on a clock of
+its own. The gaps below are gaps in that path only.
 
 - `AnimationGuard` transacts every glue from its constructor and destructor, and
   `withAnimation` is called from input handlers. A handler that both animates
-  and removes a window still throws, for the window that left. Reaching it takes
-  an explicit `withAnimation` scope around the removal; the close path does not
-  open one. Fixing it means the animation bracket no longer being a pair of
-  synchronous transactions.
+  and removes a window transacts the departing window synchronously. For an
+  app-owned window that is harmless, by the paragraph above; for one from a
+  caller-supplied array it still throws.
 - A window list changed from *within* the frame phase — one window's update
   removing another's key — is reconciled only on the next pass, so the other
-  window can update once with its key already gone.
+  window can update once with its key already gone. Same restriction: it is the
+  pick that throws.
 
-Neither is reachable from `test/apptest.cpp`: the dummy backend never runs a
-window's frame callback at all, so that binary covers the array plumbing and
-nothing about this ordering. Run `testapp1` to exercise it.
+None of this is reachable from `test/apptest.cpp`: the dummy backend never runs
+a window's frame callback at all, so that binary covers the array plumbing and
+nothing about the ordering. `test/windowtest.cpp` covers the collection and the
+handle's lifetime without a backend at all. Run `testapp1` to exercise the rest
+— its extra windows are app-owned, and their close button both animates and
+removes itself.
 
 ## Traps
 

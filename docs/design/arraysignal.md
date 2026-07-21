@@ -16,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `90c50f2` (2026-07-21).*
+*Last verified against `e2f0ee7` (2026-07-22).*
 
 ## The problem
 
@@ -353,22 +353,49 @@ window's own callbacks and returns, so removal from `onClose` is safe by
 construction. The deferral above is what makes removal safe from a *widget* in
 the window, which is the other half of the idiom.
 
-`App` still does not fully satisfy the rule, and the remainder is recorded in
-`src/bqui/AGENTS.md` rather than hidden: `AnimationGuard` brackets a
-`withAnimation` scope with two synchronous transactions of every window, and a
-list changed from inside the frame phase is reconciled only on the next pass.
-Reaching the first takes an explicit `withAnimation` around a removal, which no
-close path opens by itself. Both need the app loop's update model changed rather
-than a local guard, which is why they are not in this change. The lesson for the
-design is the rule above: a consumer with its own clock is the hard case, and
-the layout engine's being free of it is a property of the layout engine, not of
-the array.
+`App` still does not fully satisfy the rule for a caller-supplied array, and the
+remainder is recorded in `src/bqui/AGENTS.md` rather than hidden:
+`AnimationGuard` brackets a `withAnimation` scope with two synchronous
+transactions of every window, and a list changed from inside the frame phase is
+reconciled only on the next pass. Both need the app loop's update model changed
+rather than a local guard, which is why they are not in this change. The lesson
+for the design is the rule above: a consumer with its own clock is the hard
+case, and the layout engine's being free of it is a property of the layout
+engine, not of the array.
+
+The section after next records the way out that the rule does not need at all,
+and which is what `App`'s own window collection uses.
 
 The one thing the caller loses is the ability to have a single `forEach` build
 *differently shaped* items, since the delegate is handed the item's value and
 not its key. That is not a gap: the caller writes one array per shape and
 concatenates them, which is what the braced-list constructor is for.
-`src/testapp1/main.cpp` does exactly this for its second window.
+
+### The way out of the constraint: `forEach` with no delegate
+
+**Settled when `App` grew its own window collection.** The constraint above is
+not a property of arrays; it is a property of the *pick* the three-argument
+`forEach` builds to deliver a changing value to its delegate. Drop the delegate
+and the pick goes with it: `forEach(source, keyFn)` mints identity and lets the
+items be the elements, so an element reads nothing that a departing key can
+invalidate and a consumer with a clock of its own is safe by construction.
+
+What it costs is exactly what the pick bought — an element's value is the one
+its key arrived with, and a later item under the same key is not seen. So the
+form applies when the key *is* the item's identity and the item does not vary at
+that identity, which is the case whenever the source is a list of things being
+added to and removed from rather than edited in place.
+
+`App`'s own window collection is that case: a `SharedVector<Window>` keyed on
+`Window::getId`, where a window's title and widgets are its own signals and
+never come from the array. Self-removal — a window's own close button removing
+its entry — is therefore safe from an ordinary handler, from an animated one,
+and from anywhere else, without the deferral the caller-supplied path relies on.
+The deferral stays for that path, which still uses the three-argument form.
+
+The rule for a consumer with its own clock is now a choice rather than an
+obligation: read an element's signal only where the array is updated, **or**
+build the array with no delegate so that there is no element signal to read.
 
 ### The reactive subtree: `AnySignal<ArraySignal<T>>`
 
@@ -1726,10 +1753,13 @@ Steps 0 to 4 are done; the rest is outstanding.
    *Alignment is a promise, and only its arity is checked*.
 
 4. **`App`'s window list.** *Done.* The first `bqui` consumer, and the one that
-   settled *No identity surfaces at the exit*. `App::windows` takes an
-   `ArraySignal<Window>` and `App::run` builds a `WindowGlue` per identity with
-   `map`, joins the glues through a constant, and reads the live set off the
-   fanned-in vector. Independent of steps 5 and 6 and landed before them.
+   settled *No identity surfaces at the exit*. `App::run` builds a `WindowGlue`
+   per identity with `map`, joins the glues through a constant, and reads the
+   live set off the fanned-in vector. `App` then grew a window collection of its
+   own — a `SharedVector<Window>` keyed by the delegate-free `forEach`, which is
+   where that form came from — with `addWindowArray` keeping the general path
+   for a caller whose windows follow a model of its own. Independent of steps 5
+   and 6 and landed before them.
 
 5. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

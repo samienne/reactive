@@ -1,9 +1,9 @@
 #include "bqui/app.h"
 
 #include "bqui/window.h"
-#include "bqui/send.h"
 
 #include "debug.h"
+#include "windowlist.h"
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
@@ -37,6 +37,7 @@
 
 #include <chrono>
 #include <functional>
+#include <mutex>
 #include <unordered_map>
 #include <memory>
 #include <optional>
@@ -64,13 +65,36 @@ using GlueSignal = bq::signal::AnySignal<btl::shared<WindowGlue>>;
 class BQUI_EXPORT AppDeferred
 {
 public:
-    AppDeferred()
+    AppDeferred() :
+        windows_(std::make_shared<WindowList>())
     {
         TracyAppInfo("Reactive application", 20);
     }
 
-    bq::signal::ArraySignal<Window> windows_;
+    void addArray(bq::signal::ArraySignal<Window> windows)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        arrays_.push_back(std::move(windows));
+    }
+
+    // The app's own collection first, then each caller-supplied array in the
+    // order it was added.
+    bq::signal::ArraySignal<Window> allWindows() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        std::vector<bq::signal::ArraySignal<Window>> parts { windows_->array() };
+        parts.insert(parts.end(), arrays_.begin(), arrays_.end());
+
+        return bq::signal::concat(std::move(parts));
+    }
+
+    std::shared_ptr<WindowList> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
+
+private:
+    mutable std::mutex mutex_;
+    std::vector<bq::signal::ArraySignal<Window>> arrays_;
 };
 
 class WindowGlue
@@ -100,7 +124,15 @@ public:
                 return onFrame(frame);
                 });
 
-        aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
+        aseWindow.setCloseCallback([this]()
+        {
+            // Removing the window is what closes it, and the callbacks run
+            // first so that one of them still sees the window open. Neither
+            // step evaluates a signal, which is what makes closing safe from
+            // an event handler.
+            window_.invokeOnClose();
+            window_.close();
+        });
         aseWindow.setResizeCallback([this]()
                 {
                     resized_ = true;
@@ -472,14 +504,51 @@ App::App() :
 {
 }
 
-App App::windows(bq::signal::ArraySignal<Window> windows) &&
+App& App::addWindows(std::vector<Window> windows)
 {
-    d()->windows_ = std::move(windows);
+    d()->windows_->add(std::move(windows));
 
-    return std::move(*this);
+    return *this;
 }
 
-int App::run(bq::signal::AnySignal<bool> runningSignal) &&
+App& App::addWindow(Window window)
+{
+    return addWindows(std::vector<Window> { std::move(window) });
+}
+
+App& App::addWindowArray(bq::signal::ArraySignal<Window> windows)
+{
+    d()->addArray(std::move(windows));
+
+    return *this;
+}
+
+void App::removeWindow(btl::UniqueId id)
+{
+    d()->windows_->remove(id);
+}
+
+std::vector<Window> App::getWindows() const
+{
+    return d()->windows_->get();
+}
+
+bq::signal::AnySignal<std::vector<Window>> App::getWindowsSignal() const
+{
+    return d()->windows_->signal();
+}
+
+int App::run(bq::signal::AnySignal<bool> running)
+{
+    return runUntil(std::move(running));
+}
+
+int App::run()
+{
+    return runUntil(std::nullopt);
+}
+
+int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
@@ -499,7 +568,7 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     };
 
     auto glues = bq::signal::makeSignalContext(
-            bq::signal::join(d()->windows_.map(makeGlue)));
+            bq::signal::join(d()->allWindows().map(makeGlue)));
 
     auto mainQueue = context.getMainRenderQueue();
 
@@ -527,18 +596,33 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
 
     DBG("Reactive running...");
 
-    auto running = bq::signal::makeSignalContext(runningSignal);
-    platform.run(context, [&](ase::Frame const& aseFrame) -> bool
-        {
-            bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+    using RunningContext =
+        bq::signal::SignalContext<bq::signal::AnySignal<bool>>;
 
-            if (glues.update(frame).didChange)
-                collect();
+    std::optional<RunningContext> running;
+    if (runningSignal)
+        running.emplace(*runningSignal);
 
-            running.update(frame);
+    // Without a signal the app runs while a window is open, so with none open
+    // it has nothing to run for. The platform loop would drive an empty frame
+    // and stop on the next pass; stopping here says so plainly.
+    if (running || !d()->windowGlues_.empty())
+    {
+        platform.run(context, [&](ase::Frame const& aseFrame) -> bool
+            {
+                bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
 
-            return running.evaluate<0>().get<0>();
-        });
+                if (glues.update(frame).didChange)
+                    collect();
+
+                if (!running)
+                    return !d()->windowGlues_.empty();
+
+                running->update(frame);
+
+                return running->evaluate<0>().get<0>();
+            });
+    }
 
     DBG("Shutting down...");
 
@@ -555,21 +639,6 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     d()->windowGlues_.clear();
 
     return 0;
-}
-
-int App::run() &&
-{
-    auto running = bq::signal::makeInput(true);
-
-    // Wiring the handler through the array reaches a window that opens later
-    // just as it reaches one that was there from the start.
-    d()->windows_ = d()->windows_.map(
-            [handle = running.handle](Window const& window)
-            {
-                return btl::clone(window).onClose(send(false, handle));
-            });
-
-    return std::move(*this).run(running.signal);
 }
 
 AnimationGuard App::withAnimation(avg::AnimationOptions options)

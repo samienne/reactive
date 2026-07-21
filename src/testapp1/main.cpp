@@ -71,6 +71,32 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "easeInOutBounce", avg::curve::easeInOutBounce },
 };
 
+// The window's own close button holds the handle, not the window: a window
+// captured inside its own widget would own the widget that owns it. The
+// handle is minted first for exactly this.
+Window makeSecondWindow()
+{
+    WindowHandle handle;
+
+    return window(
+            bq::signal::constant<std::string>("Second window"),
+            widget::button("Close me",
+                    bq::signal::constant(std::function<void()>(
+                            [handle]()
+                            {
+                                // Animating and removing in one handler is the
+                                // combination that transacts a departing
+                                // window synchronously, so this is where it is
+                                // exercised.
+                                auto a = withAnimation(0.3f,
+                                        avg::curve::easeOutCubic);
+                                handle.close();
+                            })))
+                | modifier::frame()
+                | modifier::focusGroup(),
+            handle);
+}
+
 int main()
 {
     auto textState = bq::signal::makeInput(widget::TextEditState{"Test123"});
@@ -122,18 +148,49 @@ int main()
                 avg::RepeatMode::reverse
                 ));
 
-    auto showSecond = bq::signal::makeInput(false);
+    // The tracked window follows an input of the caller's own rather than the
+    // app's collection, which is the other way to have windows: the array is
+    // the source of truth, so every way of closing the window takes its key out
+    // of the input.
+    auto showTracked = bq::signal::makeInput(false);
+
+    auto trackedWindows = bq::signal::forEach(
+            showTracked.signal.map([](bool b)
+                {
+                    std::vector<std::string> names;
+                    if (b)
+                        names.push_back("Tracked window");
+                    return names;
+                }),
+            [](std::string const& name) { return name; },
+            [handle = showTracked.handle]
+            (bq::signal::AnySignal<std::string> name)
+            {
+                return window(std::move(name),
+                        widget::button("Close me", bq::signal::constant(
+                                    std::function<void()>(send(false, handle))))
+                        | modifier::frame()
+                        | modifier::focusGroup()
+                        )
+                    .onClose(send(false, handle));
+            });
 
     auto widgets = widget::hbox({
         widget::vbox({
+            // Every press opens another window. The app owns them, so each one
+            // closes by its own means and the app runs until none is left.
+            widget::button("Open another window",
+                    bq::signal::constant(std::function<void()>(
+                            []() { app().addWindow(makeSecondWindow()); })))
+                | modifier::setSizeHint({ 250, 50 }),
             widget::button(
-                    showSecond.signal.map([](bool b) -> std::string
+                    showTracked.signal.map([](bool b) -> std::string
                         {
-                            return b ? "Close second window"
-                                : "Open second window";
+                            return b ? "Close tracked window"
+                                : "Open tracked window";
                         }),
-                    showSecond.signal.bindToFunction(
-                        [handle = showSecond.handle](bool b) mutable
+                    showTracked.signal.bindToFunction(
+                        [handle = showTracked.handle](bool b) mutable
                         {
                             handle.set(!b);
                         }))
@@ -195,52 +252,13 @@ int main()
                 bq::signal::constant(0.5f))
     });
 
-    // The second window is a separate array concatenated with the first, which
-    // is what lets the two be built differently: forEach() hands its delegate
-    // the item's value and not its key, so one call builds one kind of window.
-    auto secondWindows = bq::signal::forEach(
-            showSecond.signal.map([](bool b)
-                {
-                    std::vector<std::string> names;
-                    if (b)
-                        names.push_back("Second window");
-                    return names;
-                }),
-            [](std::string const& name) { return name; },
-            [show = showSecond.signal, handle = showSecond.handle]
-            (bq::signal::AnySignal<std::string> name)
-            {
-                // The window closes by leaving the list, so both ways of
-                // closing it — its own title bar and its own button — do the
-                // one thing: take its key out of what the list is built from.
-                return window(std::move(name),
-                        widget::button("Close me",
-                                    show.bindToFunction(
-                                        [handle](bool) mutable
-                                        {
-                                            handle.set(false);
-                                        }))
-                        | modifier::frame()
-                        | modifier::focusGroup()
-                        )
-                    .onClose(send(false, handle));
-            });
-
-    // Closing the main window ends the app; closing the second one only
-    // removes it. run() without a signal cannot tell the two apart, since it
-    // means "run until any window closes".
-    auto running = bq::signal::makeInput(true);
-
     return app()
-        .windows({
-                window(
+        .addWindow(window(
                     bq::signal::constant<std::string>("Test program"),
                     std::move(widgets)
                     //| debug::drawKeyboardInputs()
                     | modifier::focusGroup()
-                    )
-                    .onClose(send(false, running.handle)),
-                secondWindows
-                })
-        .run(running.signal);
+                    ))
+        .addWindowArray(std::move(trackedWindows))
+        .run();
 }

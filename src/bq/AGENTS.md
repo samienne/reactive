@@ -66,7 +66,10 @@ copy for a new node's per-context state.
   (`bq/signal/arraysignal.h`), built over `bq/signal/detail/pick.h`. Its design
   record, and the parts still outstanding, are in `docs/design/arraysignal.md`.
   `scatter`'s aggregate is positional and only its arity is checked; what that
-  does and does not catch is in the design record.
+  does and does not catch is in the design record. `forEach` without a delegate
+  is the degenerate form whose elements are the items themselves; it builds no
+  pick, which is what makes it safe for a consumer that drives its elements on a
+  clock of its own.
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 

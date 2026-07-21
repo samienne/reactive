@@ -1,9 +1,27 @@
 # Decisions
 
-*Last verified against `9cbe4cb` (2026-07-20).*
+*Last verified against `e2f0ee7` (2026-07-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## `App::run()` with no arguments stops at zero windows, not at the first close
+
+`run()` used to stop when *any* window closed; it now runs until no window is
+open. `run(running)` is unchanged and stops when its signal says so.
+
+**Why:** the app owns its windows now, so closing one is a removal and not an
+exit — that is what makes a close button, a title bar, and `removeWindow` one
+thing. "Stop at the first close" only ever described a single-window app, and it
+described it by accident: with one window the two rules agree. An app that wants
+the old behaviour asks for it with `run(running)` and an `onClose` that sets the
+signal false, which is what `run()` itself used to do internally.
+
+**The cost is real and accepted.** A multi-window app that relied on the main
+window closing the whole app now has to say so. There is no deprecation path
+worth building for it: the call is the same and only the meaning changed, so a
+compiler cannot help, and the behaviour it changes to is the one a reader
+expects from the name.
 
 ## bqui's type-erased classes use no `extern template`
 

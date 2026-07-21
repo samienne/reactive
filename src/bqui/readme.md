@@ -47,40 +47,38 @@ shape::rectangle().rotate(0.2f).stroke(pen);   // rectangle, circle, ellipse
 
 ```cpp
 return app()
-    .windows({ window(bq::signal::constant<std::string>("Title"), ui) })
+    .addWindow(window(bq::signal::constant<std::string>("Title"), ui))
     .run();
 ```
 
-The window list is a `bq::signal::ArraySignal<Window>`, so a braced list is
-simply the constant case. Build one with `bq::signal::forEach` instead and
-windows open and close as its keys come and go; the ones that stay keep
-everything they had. Concatenate arrays — `.windows({ mainWindow, others })` —
-when the windows are not all built the same way.
+The app owns the windows added this way, and `run()` with no arguments runs
+until none of them is left. Windows may be added while it runs, so opening a
+second window is a button handler away.
 
-The list is the only thing that says which windows exist, so a window closes by
-leaving it: wire `onClose` back to whatever the list is built from. Here the
-list holds one window while `showDetails` is true, so closing that window means
-setting it false.
+A window closes by leaving the app's collection. Its title bar does that by
+itself, and so does `Window::close()`; `App::removeWindow` takes an identity
+instead. A window closing no longer stops the app — the last one closing does.
+
+For a close button *inside* the window, mint the window's handle first and give
+the widget that, rather than the window: a window captured in its own widget
+would own the widget that owns it.
 
 ```cpp
-auto showDetails = bq::signal::makeInput(false);
+WindowHandle handle;
 
-auto details = bq::signal::forEach(
-        showDetails.signal.map([](bool b) {
-            return b ? std::vector<std::string>{ "Details" }
-                     : std::vector<std::string>{};
-        }),
-        [](std::string const& name) { return name; },
-        [handle = showDetails.handle](bq::signal::AnySignal<std::string> name)
-        {
-            return window(std::move(name), detailsUi())
-                .onClose(send(false, handle));
-        });
+return window(bq::signal::constant<std::string>("Details"),
+        widget::button("Close",
+            bq::signal::constant(std::function<void()>(
+                    [handle]() { handle.close(); }))),
+        handle);
 ```
 
-`run()` with no arguments means "run until any window closes", which is what a
-single-window app wants. Pass `run(running)` when closing one window should
-remove it rather than stop the app.
+Windows may also be driven from a model of the caller's own, as a
+`bq::signal::ArraySignal<Window>` passed to `App::addWindowArray`: they open and
+close as the array's keys come and go, and the ones that stay keep everything
+they had. That array is then the source of truth for the windows in it, so those
+windows close by their keys leaving it — wire `Window::onClose` back to whatever
+it was built from — and the app's own collection does not hold them.
 
 Signal changes made inside a `withAnimation` scope are animated.
 

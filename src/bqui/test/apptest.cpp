@@ -9,9 +9,12 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -130,7 +133,7 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
                 return true;
             });
 
-    App().windows(std::move(windows)).run(running);
+    App().addWindowArray(std::move(windows)).run(running);
 
     EXPECT_LT(frames, maxFrames);
 
@@ -178,7 +181,7 @@ TEST(App, staticWindowsAllOpenOnce)
                 return true;
             });
 
-    App().windows(std::move(windows)).run(running);
+    App().addWindowArray(std::move(windows)).run(running);
 
     EXPECT_LT(frames, maxFrames);
 
@@ -186,4 +189,117 @@ TEST(App, staticWindowsAllOpenOnce)
 
     for (auto const& probe : probes)
         EXPECT_TRUE(probe.expired());
+}
+
+// The app's own collection and a caller-supplied array are both open at once,
+// and each is closed by its own means.
+TEST(App, ownedAndSuppliedWindowsCoexist)
+{
+    Opens opens;
+
+    auto names = bq::signal::makeInput(
+            std::vector<std::string>{ "supplied" });
+
+    auto supplied = bq::signal::forEach(names.signal,
+            [](std::string const& name) { return name; },
+            [&](bq::signal::AnySignal<std::string> name)
+            {
+                return window(name.map(countReads(opens)),
+                        widget::makeWidget());
+            });
+
+    App app;
+    Window owned = makeWindow("owned", opens, std::make_shared<int>(0));
+
+    app.addWindow(owned);
+    app.addWindowArray(std::move(supplied));
+
+    int frames = 0;
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames)
+                    return false;
+
+                switch (i)
+                {
+                case 0:
+                    // Neither means of closing reaches the other's list.
+                    owned.close();
+                    break;
+
+                case 1:
+                    names.handle.set(std::vector<std::string>{});
+                    break;
+
+                default:
+                    return false;
+                }
+
+                step.handle.set(i + 1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+    EXPECT_EQ(opens, (Opens{ { "owned", 1 }, { "supplied", 1 } }));
+    EXPECT_TRUE(app.getWindows().empty());
+}
+
+TEST(App, runWithNoWindowsReturnsImmediately)
+{
+    EXPECT_EQ(0, App().run());
+}
+
+// run() with no signal means "run while a window is open", which is a change
+// from "run until any window closes": closing one of several now removes it.
+TEST(App, runStopsWhenTheLastWindowCloses)
+{
+    App app;
+
+    std::atomic<bool> started { false };
+    std::atomic<bool> returned { false };
+    std::atomic<bool> ranOnAfterTheFirstClose { false };
+
+    Opens opens;
+
+    // The title is read when the window's glue is built, which happens inside
+    // run(), so this is the loop reporting that it has started.
+    Window first = window(
+            bq::signal::constant<std::string>("first").map(
+                [&](std::string const& title)
+                {
+                    started = true;
+                    return title;
+                }),
+            widget::makeWidget());
+
+    Window second = makeWindow("second", opens, std::make_shared<int>(0));
+
+    app.addWindows({ first, second });
+
+    std::thread closer([&]()
+        {
+            while (!started)
+                std::this_thread::yield();
+
+            first.close();
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            ranOnAfterTheFirstClose = !returned;
+
+            second.close();
+        });
+
+    EXPECT_EQ(0, app.run());
+    returned = true;
+
+    closer.join();
+
+    EXPECT_TRUE(ranOnAfterTheFirstClose);
+    EXPECT_TRUE(app.getWindows().empty());
 }

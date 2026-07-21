@@ -646,6 +646,55 @@ TEST(arraySignal, forEachTakesAPlainVector)
     EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
 }
 
+// Without a delegate the item is the element, so the array carries the values
+// straight through and follows the membership.
+TEST(arraySignal, forEachWithoutADelegateCarriesTheItems)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+
+    auto c = makeSignalContext(values(forEach(input.signal, itemKey)
+                .map([](Item const& item) { return item.value; })));
+
+    EXPECT_EQ((std::vector<int>{ 1, 2 }), c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "b", 2 }, { "c", 3 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<int>{ 2, 3 }), c.evaluate<0>().get<0>());
+}
+
+// The element is built once per identity, so a new value under a key that is
+// already there is not seen. That is the reason the key has to be the item's
+// own identity.
+TEST(arraySignal, forEachWithoutADelegateKeepsTheValueTheKeyArrivedWith)
+{
+    auto input = makeInput(items({ { "a", 1 } }));
+
+    auto c = makeSignalContext(values(forEach(input.signal, itemKey)
+                .map([](Item const& item) { return item.value; })));
+
+    EXPECT_EQ(std::vector<int>{ 1 }, c.evaluate<0>().get<0>());
+
+    input.handle.set(items({ { "a", 2 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ(std::vector<int>{ 1 }, c.evaluate<0>().get<0>());
+}
+
+TEST(arraySignal, forEachWithoutADelegateThrowsOnADuplicateKey)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "a", 2 } }));
+
+    expectThrowsContaining(
+            [&]
+            {
+                makeSignalContext(values(forEach(input.signal, itemKey)
+                            .map([](Item const& item)
+                                {
+                                    return item.value;
+                                })));
+            },
+            "duplicate key");
+}
+
 TEST(arraySignal, scatterGivesEachElementItsOwnSlice)
 {
     ArraySignal<int> array = { 1, 2, 3 };

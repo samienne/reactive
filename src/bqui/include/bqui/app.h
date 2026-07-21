@@ -9,9 +9,11 @@
 #include <avg/curve/curves.h>
 
 #include <btl/shared.h>
+#include <btl/uniqueid.h>
 #include <btl/visibility.h>
 
 #include <optional>
+#include <vector>
 
 namespace bqui
 {
@@ -23,32 +25,69 @@ namespace bqui
     public:
         explicit App();
 
-        /** @brief Sets the windows the app opens.
+        /** @brief Opens windows the app owns.
          *
-         * The list is the only thing that says which windows exist. A braced
-         * list is a constant array, so `windows({ a, b })` opens two windows
-         * and never changes; a list built with bq::signal::forEach() opens and
-         * closes windows as its keys come and go, and every window that stays
-         * keeps everything it had — its widgets, their state, and its own OS
-         * window.
+         * Appends to the app's own collection, which is the list of windows
+         * the app manages: a window in it closes when it is removed, whether
+         * by Window::close(), by removeWindow(), or by its own title bar.
+         * Windows may be added while the app runs.
          *
-         * A window closes by leaving the list, so wire what a window offers to
-         * whatever the list is built from: `Window::onClose` on a window whose
-         * key comes from an input removes that key.
+         * @throws std::invalid_argument if a window is already open. A window
+         *         and its copies are one window — they share one identity — so
+         *         adding a copy of an open window is adding it twice.
          */
-        App windows(bq::signal::ArraySignal<Window> windows) &&;
+        App& addWindows(std::vector<Window> windows);
 
-        /** @brief Runs until `running` is false. */
-        int run(bq::signal::AnySignal<bool> running) &&;
+        /** @overload */
+        App& addWindow(Window window);
+
+        /** @brief Opens a list of windows the caller drives.
+         *
+         * The general form, for a caller whose windows follow a model of its
+         * own: the array is the source of truth for the windows in it, so they
+         * open and close as its keys come and go, and every window that stays
+         * keeps everything it had — its widgets, their state, and its own OS
+         * window. The app does not copy such a list into its own collection,
+         * and cannot: removing one of these windows means removing its key
+         * from whatever the array was built from, so `Window::close()` and
+         * removeWindow() do nothing for them.
+         *
+         * Both kinds of window are open at once, and run() counts them all.
+         */
+        App& addWindowArray(bq::signal::ArraySignal<Window> windows);
+
+        /** @brief Closes the app's window with this identity.
+         *
+         * Does nothing if no window in the app's own collection has it.
+         */
+        void removeWindow(btl::UniqueId id);
+
+        /** @brief The app's own windows as they are right now.
+         *
+         * The snapshot form, for code outside a signal graph — counting the
+         * open windows, or finding one to remove. Windows added through
+         * addWindowArray() are not here; they are the caller's to enumerate.
+         */
+        std::vector<Window> getWindows() const;
+
+        /** @brief The app's own windows, as a signal.
+         *
+         * The reactive form of the same collection, for building a UI that
+         * follows it — a window list, or a title that counts. Feed it to
+         * bq::signal::forEach() keyed on `Window::getId` to build something per
+         * window.
+         */
+        bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
+
+        /** @brief Runs until `running` is false, whatever the windows do. */
+        int run(bq::signal::AnySignal<bool> running);
 
         /** @overload
          *
-         * Runs until a window closes — **any** window, including one that
-         * opened later. That is what a single-window app wants; a list whose
-         * windows come and go wants the overload above, so that closing one
-         * window can mean removing it rather than stopping.
+         * Runs until no window is open — every window, from either kind of
+         * list. Returns immediately if none is open to begin with.
          */
-        int run() &&;
+        int run();
 
         [[nodiscard]]
         AnimationGuard withAnimation(avg::AnimationOptions options);
@@ -56,6 +95,8 @@ namespace bqui
         friend class AnimationGuard;
 
     private:
+        int runUntil(std::optional<bq::signal::AnySignal<bool>> running);
+
         inline AppDeferred* d()
         {
             return deferred_.get();
