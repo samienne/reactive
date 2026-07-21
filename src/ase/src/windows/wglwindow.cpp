@@ -426,6 +426,13 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
     genericWindow_.setScalingFactor(scalingFactor);
 }
 
+WglWindow::~WglWindow()
+{
+    // The window class is CS_OWNDC, so the DC belongs to the window and goes
+    // with it; releasing it separately would be a no-op.
+    DestroyWindow(hwnd_);
+}
+
 HWND WglWindow::getHwnd() const
 {
     return hwnd_;

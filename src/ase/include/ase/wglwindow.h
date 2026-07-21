@@ -15,6 +15,11 @@ namespace ase
     public:
         WglWindow(WglPlatform& platform, Vector2i size, float scalingFactor);
 
+        WglWindow(WglWindow const&) = delete;
+        WglWindow& operator=(WglWindow const&) = delete;
+
+        ~WglWindow();
+
         HWND getHwnd() const;
         HDC getDc() const;
 

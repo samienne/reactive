@@ -234,7 +234,11 @@ Window WglPlatform::makeWindow(Vector2i size)
     try
     {
         auto wglWindow = std::make_shared<WglWindow>(*this, size, 1.0f);
-        windows.insert(std::make_pair(wglWindow->getHwnd(), wglWindow));
+        // Assign rather than insert: Windows reuses an HWND once its window is
+        // gone, and an expired entry under that handle lingers here until the
+        // next pass of handleEvents(), where insert() would keep it and leave
+        // the new window without a receiver for its events.
+        windows[wglWindow->getHwnd()] = wglWindow;
         return Window(std::move(wglWindow));
     }
     catch(std::exception& e)
