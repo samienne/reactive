@@ -1,6 +1,6 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started at step 1.** Steps 0 and 1 of
+> **Status: revised design, implementation started.** Steps 0 and 1 of
 > *Implementation order* have landed; everything from `forEach` onwards is
 > outstanding. The earlier implementation on PR #100 is a **superseded spike**:
 > it put the per-identity table in the description rather than in the
@@ -1245,7 +1245,7 @@ that the discarded builder may carry a genuinely changed widget — is in
 is deleted in favour of the unified engine.
 
 **`DataContext` never prunes.** `data_` holds `weak_ptr`s and an expired entry is
-reclaimed only when the *same* id is initialised again (`datacontext.h:73-78`).
+reclaimed only when the *same* id is initialised again (`datacontext.h:70-79`).
 Every id here is minted fresh, so a long-lived window whose list churns
 accumulates dead map nodes for the life of the context. Pre-existing, but this is
 the first design that mints ids at churn rate, so it becomes load-bearing here.
@@ -1292,13 +1292,15 @@ otherwise start clean.
 
 Steps 0 and 1 are done; the rest is outstanding.
 
-0. **Fix `DataContext::initializeData`'s assert.** A **prerequisite**, not a
-   nicety. `data_` holds `weak_ptr`s and the assert required the id to be absent,
-   but expired entries linger in the map. This design hits that path directly — a key disappears, every consumer drops it, the entry
-   expires, the key returns — so a legal sequence fires a debug assert. Allow an
-   expired entry.
+0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
+   not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
+   absent, but expired entries linger in the map. This design hits that path
+   directly — a key disappears, every consumer drops it, the entry expires, the
+   key returns — so a legal sequence fired the assert. An expired entry is now
+   allowed.
 
-1. **Prove the pick construction.** The smallest thing that can fail. Build the
+1. **Prove the pick construction.** *Done.* The smallest thing that can fail.
+   Build the
    shared keyed source and one `pick(key)` signal by hand, and show: it tracks its
    key across membership changes; it yields no value when its key leaves, and
    asking for one anyway throws; two `SignalContext`s over the same description

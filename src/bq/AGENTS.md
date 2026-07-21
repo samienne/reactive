@@ -40,8 +40,9 @@ context's `initialize` and `update` passes — each a single synchronous call ov
 that context's entries. So **per-context state needs no lock**: two
 instantiations of one description in one context are advanced one after the
 other on one thread. What runs concurrently is *contexts*, over a shared
-description (`signaltest.cpp`'s `signal.share` drives 1024 of them on 1024
-threads), and each thread's `findData` reaches a different state object.
+description (`signaltest.cpp`'s `signal.share` drives 1024 of them concurrently
+over a thread pool), and each worker's `findData` reaches a different state
+object.
 
 What does need a lock is **description-level state written from another
 thread**. `InputControl` (`input.h:25`) is the case: `InputHandle::set` writes it
@@ -60,6 +61,11 @@ copy for a new node's per-context state.
   `combine`/`join`/`conditional` (same folder). `constant` (`bq/signal/constant.h`).
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
+
+`bq/signal/detail/` holds work that is built and tested but has no public caller
+yet, in namespace `bq::signal::detail`. Currently `pick.h`: `shareKeyed`, `pick`
+and `requirePresent`, the groundwork for `ArraySignal` — see
+`docs/design/arraysignal.md`.
 
 ## Traps
 

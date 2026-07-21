@@ -1,8 +1,9 @@
 #pragma once
 
-#include "bq/signal/signal.h"
+#include <bq/signal/signal.h>
 
 #include <btl/demangle.h>
+#include <btl/typetraits.h>
 
 #include <cassert>
 #include <map>
@@ -27,16 +28,6 @@ namespace bq::signal::detail
     template <typename TKey, typename TValue>
     using KeyedElements = std::shared_ptr<std::map<TKey, TValue> const>;
 
-    /** @brief Blocks template argument deduction for a parameter. */
-    template <typename T>
-    struct NonDeduced
-    {
-        using type = T;
-    };
-
-    template <typename T>
-    using NonDeducedT = typename NonDeduced<T>::type;
-
     /** @brief Follows the element stored under one key of a keyed source.
      *
      * Yields no value for an update in which the key is absent from the
@@ -49,7 +40,7 @@ namespace bq::signal::detail
      */
     template <typename TStorage, typename TKey, typename TValue>
     auto pick(Signal<TStorage, KeyedElements<TKey, TValue>> source,
-            NonDeducedT<TKey> key)
+            btl::make_type_t<TKey> key)
     {
         return std::move(source).map(
                 [key=std::move(key)](KeyedElements<TKey, TValue> const& keyed)
@@ -62,7 +53,7 @@ namespace bq::signal::detail
                 });
     }
 
-    /** @brief Asserts that a signal has a value, and drops the optional.
+    /** @brief Requires that a signal has a value, and drops the optional.
      *
      * An empty value is a hard error rather than a state to recover from: the
      * caller has said the value is there by construction, so its absence is a
