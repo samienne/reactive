@@ -85,6 +85,14 @@ namespace avg
                     );
         }
 
+        SnapshotNode snapshot(DrawContext const& context,
+                avg::Obb const& parentObb,
+                std::chrono::milliseconds time) const override
+        {
+            return makeLeafSnapshotNode("ShapeNode", *this, context, parentObb,
+                    time);
+        }
+
         UpdateResult update(
                 RenderTree const& /*oldTree*/,
                 RenderTree const& /*newTree*/,

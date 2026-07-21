@@ -76,6 +76,24 @@ std::pair<Drawing, bool> RenderTree::draw(
     return root_->draw(context, obb, time);
 }
 
+Snapshot RenderTree::snapshot(
+        DrawContext const& drawContext,
+        avg::Obb const& obb,
+        std::chrono::milliseconds time) const
+{
+    ZoneScopedN("RenderTree::snapshot");
+
+    Snapshot result;
+
+    result.time = time;
+    result.obb = obb;
+
+    if (root_)
+        result.root = root_->snapshot(drawContext, obb, time);
+
+    return result;
+}
+
 RenderTree RenderTree::transform(Transform const& transform) &&
 {
     if (root_)
