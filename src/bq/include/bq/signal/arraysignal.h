@@ -6,7 +6,6 @@
 #include "constant.h"
 #include "datacontext.h"
 #include "frameinfo.h"
-#include "join.h"
 #include "signal.h"
 #include "signalresult.h"
 #include "signaltraits.h"
@@ -111,15 +110,13 @@ namespace bq::signal
 
         /** @brief Whether `U` is accepted as a single constant item of `T`.
          *
-         * A signal and an array of their own have their own constructors, so an
-         * unconstrained forwarding constructor would swallow both — and it
-         * would be a better match than the copy constructor for a non-const
-         * array lvalue besides.
+         * An array has its own constructors, so an unconstrained forwarding
+         * constructor would swallow it — and it would be a better match than
+         * the copy constructor for a non-const array lvalue besides.
          */
         template <typename U, typename T>
         constexpr bool isPlainItem =
             std::is_convertible_v<U, T>
-            && !std::is_convertible_v<U, AnySignal<T>>
             && !IsArraySignal<std::decay_t<U>>::value;
 
         /** @brief Builds one value per key and keeps it while the key is
@@ -265,41 +262,31 @@ namespace bq::signal
                         std::move(idFunc)));
         }
 
-        /** @brief One element whose value comes from a signal.
+        /** @brief One element that never changes.
          *
-         * A new value is a new identity. Nothing built this value from an
-         * identity that outlives the change, so whatever an operator built
-         * once per identity has to be built again — which is the rebuild an
-         * array of a varying single item is defined to cost. Only this element
-         * is disturbed.
+         * It has no inner signal at all. The identity is minted when the
+         * element is initialized into a context, so the description carries
+         * none and two contexts over it are unrelated.
          */
         template <typename T>
-        class ArraySingle
+        class ArrayConstant
         {
         public:
-            using Storage = typename AnySignal<T>::StorageType;
             using Elements = ArrayElements<T>;
 
             struct DataType
             {
-                typename Storage::DataType innerData;
                 Elements elements;
             };
 
-            ArraySingle(Storage sig) :
-                sig_(std::move(sig))
+            ArrayConstant(T value) :
+                value_(std::move(value))
             {
             }
 
-            DataType initialize(DataContext& context,
-                    FrameInfo const& frame) const
+            DataType initialize(DataContext&, FrameInfo const&) const
             {
-                DataType data { sig_.initialize(context, frame), {} };
-
-                setValue(data, sig_.evaluate(context, data.innerData)
-                        .template get<0>());
-
-                return data;
+                return DataType { Elements { { makeArrayId(), value_ } } };
             }
 
             SignalResult<Elements const&> evaluate(DataContext&,
@@ -308,15 +295,97 @@ namespace bq::signal
                 return SignalResult<Elements const&>(data.elements);
             }
 
+            UpdateResult update(DataContext&, DataType&, FrameInfo const&)
+            {
+                return {};
+            }
+
+            btl::connection observe(DataContext&, DataType&,
+                    std::function<void()>)
+            {
+                return {};
+            }
+
+        private:
+            T value_;
+        };
+
+        /** @brief Fans an array of signals in, keeping each identity's state.
+         *
+         * A membership change would make the generic Join rebuild and
+         * re-initialize its whole inner signal, which starts every surviving
+         * element over. This node keeps one inner data **per identity**
+         * instead: an update carries a survivor's data across untouched,
+         * initializes only what arrived, and releases only what left.
+         *
+         * That is what makes a surviving element's state safe from its
+         * neighbours, and it is a property of the node rather than of anything
+         * the elements do — nothing here needs the elements to be shared.
+         */
+        template <typename X>
+        class ArrayJoin
+        {
+        public:
+            using Elements = ArrayElements<AnySignal<X>>;
+            using Storage = typename AnySignal<Elements>::StorageType;
+            using InnerData = SignalDataTypeT<AnySignal<X>>;
+
+            struct DataType
+            {
+                typename Storage::DataType innerData;
+                Elements elements;
+                std::map<ArrayId, InnerData> datas;
+            };
+
+            ArrayJoin(Storage sig) :
+                sig_(std::move(sig))
+            {
+            }
+
+            DataType initialize(DataContext& context,
+                    FrameInfo const& frame) const
+            {
+                DataType data { sig_.initialize(context, frame), {}, {} };
+
+                data.elements = sig_.evaluate(context, data.innerData)
+                    .template get<0>();
+
+                for (auto const& element : data.elements)
+                {
+                    data.datas.emplace(element.id,
+                            element.value.unwrap().initialize(context, frame));
+                }
+
+                return data;
+            }
+
+            SignalResult<std::vector<X>> evaluate(DataContext& context,
+                    DataType const& data) const
+            {
+                std::vector<X> result;
+                result.reserve(data.elements.size());
+
+                for (auto const& element : data.elements)
+                {
+                    result.push_back(element.value.unwrap().evaluate(context,
+                                data.datas.at(element.id)).template get<0>());
+                }
+
+                return SignalResult<std::vector<X>>(std::move(result));
+            }
+
             UpdateResult update(DataContext& context, DataType& data,
                     FrameInfo const& frame)
             {
                 UpdateResult r = sig_.update(context, data.innerData, frame);
 
                 if (r.didChange)
+                    reconcile(context, data, frame);
+
+                for (auto& element : data.elements)
                 {
-                    setValue(data, sig_.evaluate(context, data.innerData)
-                            .template get<0>());
+                    r = r + element.value.unwrap().update(context,
+                            data.datas.at(element.id), frame);
                 }
 
                 return r;
@@ -325,15 +394,48 @@ namespace bq::signal
             btl::connection observe(DataContext& context, DataType& data,
                     std::function<void()> callback)
             {
-                return sig_.observe(context, data.innerData,
-                        std::move(callback));
+                btl::connection c = sig_.observe(context, data.innerData,
+                        callback);
+
+                for (auto& element : data.elements)
+                {
+                    c += element.value.unwrap().observe(context,
+                            data.datas.at(element.id), callback);
+                }
+
+                return c;
             }
 
         private:
-            static void setValue(DataType& data, T const& value)
+            void reconcile(DataContext& context, DataType& data,
+                    FrameInfo const& frame) const
             {
-                data.elements.clear();
-                data.elements.push_back({ makeArrayId(), value });
+                Elements elements = sig_.evaluate(context, data.innerData)
+                    .template get<0>();
+
+                std::map<ArrayId, InnerData> datas;
+
+                for (auto const& element : elements)
+                {
+                    auto surviving = data.datas.find(element.id);
+                    if (surviving != data.datas.end())
+                    {
+                        datas.emplace(element.id,
+                                std::move(surviving->second));
+                    }
+                    else
+                    {
+                        datas.emplace(element.id,
+                                element.value.unwrap().initialize(context,
+                                    frame));
+                    }
+                }
+
+                // Assigning last is what releases the departed elements, and
+                // it releases them only once everything that arrived has been
+                // initialized.
+                data.elements = std::move(elements);
+                data.datas = std::move(datas);
             }
 
             Storage sig_;
@@ -352,16 +454,19 @@ namespace bq::signal
      * itself one and nesting needs no special case in a consumer:
      *
      * @code
-     * ArraySignal<int> values = { 1, 2, someSignal, otherArray };
+     * ArraySignal<int> values = { 1, 2, otherArray };
      * @endcode
      *
      * `{}` is the empty list, and `{x}` is a one-element list — which exports
      * the same sequence as the single item `x` would.
      *
-     * A list whose membership varies is not a constructor: it is forEach(),
-     * which asks for the key that says which item is which. There is no
-     * constructor from AnySignal<std::vector<T>>, because keying such a list by
-     * position is not identity preservation.
+     * **Every constructor is constant.** Anything that varies enters through
+     * forEach(), which asks for the key that says which item is which — a
+     * varying list, and equally a single varying item. Constructing from a
+     * signal would leave the variation nowhere to live but the element itself,
+     * which means rebuilding the element, which is the state loss identity
+     * exists to prevent. Only construction of a constant item and forEach()
+     * mint identity.
      *
      * The type is type-erased by construction and has no storage-typed twin;
      * there is deliberately no `AnyArraySignal`.
@@ -396,41 +501,28 @@ namespace bq::signal
         {
         }
 
-        /** @brief Constructs a single item whose value varies over time.
-         *
-         * A changed value rebuilds this element, and only this element. The
-         * signal is deduplicated first, so a repeat of the value it already
-         * holds is not a rebuild — but only where `T` is equality-comparable,
-         * since tryCheck() is silently a passthrough where it is not.
-         */
-        template <typename TStorage>
-        ArraySignal(Signal<TStorage, T> value) :
-            ArraySignal(ElementsSignal(wrap(detail::ArraySingle<T>(
-                                AnySignal<T>(value.tryCheck()).unwrap()))))
-        {
-        }
-
         /** @brief Constructs a single constant item. */
         template <typename U, typename = std::enable_if_t<
             detail::isPlainItem<U, T>
             >>
         ArraySignal(U&& value) :
-            ArraySignal(AnySignal<T>(constant(T(std::forward<U>(value)))))
+            ArraySignal(ElementsSignal(wrap(detail::ArrayConstant<T>(
+                                T(std::forward<U>(value))))))
         {
         }
 
-        /** @brief Builds one value per element, once per identity.
+        /** @brief Builds one value per element, exactly once per identity.
          *
          * `func` is invoked when an identity appears and its result is kept
-         * until the identity leaves, so it is not re-invoked because a value
-         * changed — a value change reaches what was built through the signals
-         * that were wired into it.
+         * until the identity leaves. It is never re-invoked, because the value
+         * it reads cannot change: an element's value is built once when its
+         * identity appears, and variation lives inside the signals that value
+         * wraps rather than in the value itself.
          *
-         * That still makes this the wrong place to construct anything holding
-         * state that must survive: an element of a value-dynamic array gets a
-         * new identity whenever its value changes, and `func` runs again for
-         * it. Transform data here; build in forEach(), where the identity is
-         * keyed and outlives the value.
+         * Transform data here; build in forEach(). Both take a function from an
+         * element to something else and the type system cannot tell them apart,
+         * but only forEach() hands its delegate the signal that carries the
+         * item's changing value.
          */
         template <typename TFunc>
         auto map(TFunc func) const
@@ -605,28 +697,14 @@ namespace bq::signal
      * to be a signal: an array of anything else has nothing to fan in. Map it
      * to something joinable first.
      *
-     * Each element's signal is shared once per identity, so a membership change
-     * rebuilds the fan-in without disturbing what a surviving element's signal
-     * has accumulated.
+     * A membership change initializes what arrived and releases what left. A
+     * surviving element is carried across untouched, so whatever its signal has
+     * accumulated survives its neighbours coming and going without the caller
+     * having to share anything.
      */
     template <typename X>
     AnySignal<std::vector<X>> join(ArraySignal<AnySignal<X>> array)
     {
-        auto shared = array.map([](AnySignal<X> const& sig)
-            {
-                return AnySignal<X>(sig.share());
-            });
-
-        return shared.elements()
-            .map([](detail::ArrayElements<AnySignal<X>> const& elements)
-                {
-                    std::vector<AnySignal<X>> sigs;
-                    sigs.reserve(elements.size());
-                    for (auto const& element : elements)
-                        sigs.push_back(element.value);
-
-                    return AnySignal<std::vector<X>>(combine(std::move(sigs)));
-                })
-            .join();
+        return wrap(detail::ArrayJoin<X>(array.elements().unwrap()));
     }
 } // namespace bq::signal

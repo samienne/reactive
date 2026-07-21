@@ -160,21 +160,24 @@ oversight.
 
 This split is the load-bearing idea; everything else follows from it.
 
-**Value dynamism** — the structure is fixed and the contents change. A list of
-three `AnySignal<T>` leaves is value-dynamic: there are always exactly three
-items, in the same order, and each one's value varies over time. Identity is
-**stable by construction** — item *k* is item *k* forever — so no identity
-machinery is needed, and none should be paid for.
+**Value dynamism** — the structure is fixed and the contents change. Three items,
+in the same order forever, each one's value varying over time. Identity is
+**stable by construction** — item *k* is item *k* forever.
 
 **Structural dynamism** — membership itself changes: the list grows, shrinks, or
 reorders. This is the *only* place identity is needed, because "which item is
 this?" no longer has a positional answer. `forEach` is what supplies it.
 
-`ArraySignal<T>` expresses both. Its literal forms (a value, a signal, a nested
-braced list) are value-dynamic. Structural dynamism enters an `ArraySignal` only
-through `forEach` — or through the reactive-subtree constructor, which is
-structural dynamism at the coarsest possible granularity (the whole subtree is
-replaced).
+Both enter an `ArraySignal` through **`forEach`**, and value dynamism lives
+*inside* an element rather than at the element: the delegate is handed a signal,
+and the element's value — what the delegate built from that signal — never
+changes afterwards. `ArraySignal`'s own constructors are all constant. The
+alternative, a constructor taking a bare `AnySignal<T>`, is rejected under
+*Construction*: an element with no delegate has nowhere to put the variation but
+the element itself.
+
+The reactive-subtree constructor is structural dynamism at the coarsest possible
+granularity (the whole subtree is replaced), and is still unbuilt.
 
 ## `ArraySignal<T>`
 
@@ -200,11 +203,9 @@ supported source type:
 | Constructor takes | Meaning |
 | --- | --- |
 | `T` (or anything convertible to `T`) | a single constant item |
-| `AnySignal<T>` | a single item whose value varies |
-| `AnySignal<std::vector<T>>` | a varying list of items |
 | `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
 | `std::vector<ArraySignal<T>>` | ditto, built at runtime |
-| `AnySignal<ArraySignal<T>>` | a reactive subtree (see below) |
+| `AnySignal<ArraySignal<T>>` | a reactive subtree (see below; unbuilt) |
 
 Two reasons. First, **acceptance is precisely controlled**: each form is opted
 into by writing a constructor, so an accidentally-convertible type cannot slip
@@ -370,12 +371,14 @@ Six things. Every one has an existing `bq` pattern to copy.
 | Constructor takes | Meaning |
 | --- | --- |
 | `T` (or anything convertible to `T`) | a single constant item |
-| `AnySignal<T>` | a single item whose value varies |
 | `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
 | `std::vector<ArraySignal<T>>` | ditto, built at runtime |
 
 `{a, b, c}` compiles, nesting falls out for free, and the type is a uniform
 recursive tree as described above.
+
+**Every constructor is constant**, and that is the whole rule. Anything that
+varies enters through `forEach`.
 
 **`AnySignal<std::vector<T>>` is deliberately not a constructor.** In the spike
 it was, implemented as `source.map(idx).share()` (`arraysignal.h:450-457`),
@@ -386,24 +389,23 @@ identity preservation; it is the bug this design exists to remove. To turn a
 varying list into an `ArraySignal` you must go through `forEach` and say what the
 key is.
 
-The single-item `AnySignal<T>` constructor is kept, and it **rebuilds** when the
-value changes. That is honest and accepted: if an `AnySignal<AnyWidget>` genuinely
-changes, resetting that element's state is unavoidable (see *Rationale*). It is
-one element and nothing else in the array is disturbed.
+**The single-item `AnySignal<T>` constructor is gone too**, and for the same
+reason one step down. Earlier drafts kept it and accepted that a changed value
+rebuilds that element. But an element built from a bare signal has nowhere for
+the variation to live *except* the element: there is no delegate, so nothing was
+handed a signal to keep. Every other entry to the array puts the variation inside
+what the delegate built, which is why the delegate and every `map` run exactly
+once and stay run.
 
-A rebuild is expressed as a **new identity for that element**, not as a new value
-at a fixed one. It has to be: `map` runs once per identity, so an element that
-kept its identity through a value change would have its new value silently
-ignored by everything downstream — which is exactly `dynamicBox`'s bug. This is
-the third site that mints identity, alongside construction of a constant item and
-`forEach`.
+Keeping it would have cost the whole identity algebra. A value change at fixed
+identity is silently ignored by everything downstream — `dynamicBox`'s bug — so
+the constructor would have had to mint a *new* identity per value change, adding
+a third minting site and making "`map` runs once per identity" mean two different
+things depending on which constructor an element came from. A single varying item
+goes through `forEach` with a key, like every other varying thing.
 
-The signal is deduplicated with `tryCheck()` first, so a repeat of the value it
-already holds is not a rebuild. That protection is real only where `T` is
-equality-comparable: `tryCheck()` is *silently* a passthrough where it is not, so
-an `AnySignal<AnyWidget>` rebuilds on every change its source reports, equal or
-not. That is the trap already recorded under *Skipping repeats is a property of
-the data*, met here for the first time.
+So: **only construction of a constant item and `forEach` mint identity**, and an
+element's value never changes once built.
 
 ### `forEach` — the entry
 
@@ -462,6 +464,34 @@ and simply cannot be exited; you `map` it to something joinable first.
 
 This restriction was checked against the real work, not assumed — see *One layout
 engine*, where both fan-ins land in this form and no third shape is needed.
+
+#### `join` is a node, not a `Join`
+
+**Settled, and the one place where reusing an existing operator is wrong.** The
+obvious implementation is to `map` the elements into a `combine` and let
+`Signal::join` follow it. It does produce the right values, and it is a trap:
+`Join::update` rebuilds and **re-initialises its whole inner signal whenever the
+outer one changes** (`join.h:88-92`), and here the outer signal changes on every
+membership change. Every surviving element would be re-initialised — every `map`
+cache, every `withPrevious` fold, every `iterate` inside a survivor's `U` back to
+its initial value — because one neighbour arrived.
+
+That failure is invisible in the values; it shows only in accumulated state,
+which is exactly the state this whole design exists to protect. It is also the
+spike's original failure mode wearing a different hat.
+
+So the exit is its own node, holding **one inner data per identity** in its
+per-context `DataType`, keyed by the element's id. An update carries a survivor's
+data across untouched, initialises only what arrived, and releases only what
+left. A survivor is never re-initialised, so nothing downstream has to defend
+against it.
+
+The tempting patch — leave the generic `Join` in place and `.share()` each
+element's signal once per identity so re-initialisation finds its state again —
+works, and should be recognised as the wrong fix. It makes correctness rest on
+every element being shared, and it mints a `UniqueId` per identity at update
+time, which grows `DataContext` at membership-churn rate. The node has neither
+property: it adds no `DataContext` entry at all.
 
 ### What is gone
 
@@ -609,13 +639,12 @@ looks right and silently throws away user state.
   changes — the new value arrives through the signal the delegate already holds.
   Nothing is constructed on a value change, so nothing is destroyed. **This is
   what preserves widget state.**
-- **`map` is value-level.** Its function is `U -> V`, and it is re-run whenever
-  the element it reads is rebuilt — which for a value-dynamic element is every
-  value change, since a rebuild is a new identity. Perfect for data; ruinous for
-  widgets, because building a widget here reconstructs it — and everything it
-  holds — whenever that happens. Nothing in the type system distinguishes a
-  `map` over a `forEach`-keyed array, where it does run exactly once, from a
-  `map` over a value-dynamic one, where it does not.
+- **`map` is value-level.** Its function is `U -> V`, and it runs exactly once
+  per identity, because the `U` it reads cannot change — the delegate produced it
+  once and it wraps the signals that vary. What makes `map` the wrong place to
+  build a widget is not that it re-runs; it is that it is handed a *value* and
+  never the item's signal, so a widget built here can only be rebuilt when the
+  identity is replaced, and has no way to receive a changed value otherwise.
 
 The rule, stated plainly, is the one sentence to carry out of this document:
 
@@ -831,19 +860,19 @@ Not once per identity globally. Two contexts realise two independent sets of
 `U`s, which is correct: contexts are parallel, and widget state must not leak
 between them. Do not write code that assumes a global call count.
 
-### A value change at fixed identity rebuilds, and that is accepted
+### An element's value never changes
 
-If the single-item `AnySignal<T>` constructor's value changes, or an
-`AnySignal<AnyWidget>` genuinely changes, that element's state resets. This is
-unavoidable and is not a trap to be engineered around — *Rationale* explains why
-structural matching is wrong rather than merely hard, and widget memoisation
-cannot rescue it because `widget::Button(...)` and `signal::input` necessarily
-mint fresh identity on every call.
+Not a limitation but the invariant everything else rests on: a value is built
+when its identity appears and is kept until the identity leaves. `map` therefore
+runs exactly once per identity, and what varies varies *inside* the value,
+through the signal the delegate was handed.
 
-The first draft recorded a "first value wins, and it cannot be asserted" rule
-here. That rule described `forEach`'s delegate — which does run exactly once —
-and was wrongly generalised to every path into the array. It is stated on
-`forEach` above and removed from here.
+An earlier draft recorded the opposite here — that a value change at fixed
+identity resets that element's state, and that this was accepted. It described
+the `AnySignal<T>` constructor, which no longer exists (see *Construction*). The
+underlying point stands where it belongs: a `forEach` whose *key* changes retires
+the old identity and builds a new one, and *Rationale* is why matching them up
+instead would be wrong rather than merely hard.
 
 ### There is no frame-lag hazard
 
@@ -854,44 +883,26 @@ diamond (membership → builders → hints → obbs → elements), not a cycle.
 
 ## Corrections from the implementation
 
-Five things the built node settles differently from the draft above. The prose
-has been amended; they are collected here because each one is a claim this
-document made and then had to withdraw.
+Two things the built node settles differently from the draft above. The prose
+has been amended; they are collected here because each is a claim this document
+made and then had to withdraw.
 
 - **There is no `SharedArraySignal`.** Sharing is intrinsic — see *Sharing is
   intrinsic*. The consequence is that copying a description no longer implies
   independent tables; only a second `SignalContext` does.
 
-- **`join` must share each element's signal once per identity.** A membership
-  change rebuilds the fan-in, which re-initialises every element's signal, and a
-  `map` cache or a `withPrevious` fold inside a *surviving* element's `U` lives
-  in that per-instantiation data and would restart. Sharing at the top of each
-  element, once per identity, moves that state into the `DataContext` where
-  re-initialisation finds it again. Without it the spike's exact failure — a
-  sibling's fold resetting on an unrelated insert — reappears, and the test that
-  covers it is the one that catches it.
-
-- **A value change at fixed identity is a new identity**, not a new value at the
-  old one. See *Construction*.
-
-- **The two accounts of `map` were incompatible** — "re-run on every value
-  change, implemented as a per-element `sig.map(f)`" against "runs once per
-  identity, takes `U const&`". The second is what is built. Value dynamism
-  reaches a `map` through the identity change above, not through re-running `f`
-  inside a node that outlives it.
-
-- **No per-array id space is needed.** Ids come from the same counter as every
-  other `bq::signal` id, so they are distinct across nodes by construction and
-  `concat` needs no re-namespacing — the conclusion the draft reached, but by way
-  of a per-context allocator that turns out to be unnecessary. **Every** node
-  that builds an array mints its own, `map` included; a `map` that forwarded its
+- **Every node that builds an array mints its own ids**, `map` included, and no
+  per-array id space is needed to make them distinct. A `map` that forwarded its
   source's ids would make `concat(a, a.map(f))` a duplicate-key error, and that
   is the shape of the branch a container makes and rejoins. Concatenating an
   array with *itself* remains an error, which is correct.
 
-- **`join`'s per-identity share mints a `DataContext` id at churn rate**, and
-  `DataContext` never prunes. See *Future directions*: what was a noted
-  pre-existing wart is now a prerequisite, not an observation.
+An earlier revision of this section carried three more, all of which were
+symptoms of building the exit on the generic `join` rather than as its own node
+— see *`join` is a node, not a `Join`*. They are gone with that choice, and the
+identity algebra the draft claimed holds unaltered: only construction of a
+constant item and `forEach` mint identity, and `map` runs exactly once per
+identity because the value it reads cannot change.
 
 The reactive subtree constructor, `AnySignal<ArraySignal<T>>`, is still not
 built; it remains where *Open questions* leaves it.
@@ -1326,15 +1337,17 @@ that the discarded builder may carry a genuinely changed widget — is in
 *Rationale* above and is not merely a cleanup. Both are moot once `dynamicBox`
 is deleted in favour of the unified engine.
 
-**`DataContext` never prunes** — and this is now a **prerequisite, not a future
-direction.** `data_` holds `weak_ptr`s and an expired entry is reclaimed only
-when the *same* id is initialised again (`datacontext.h:70-79`). Every other
-`initializeData` caller mints its id when the description is constructed, so the
-map is bounded by the size of the graph. `join` mints one per element identity
-per context, at update time, because that is where the per-identity share is
-built — so a long-lived window whose list churns grows `data_` without bound for
-the life of the context. Prune before the unified layout engine ships (step 4),
-or the churn becomes a leak in every dynamic list.
+**`DataContext` never prunes.** `data_` holds `weak_ptr`s and an expired entry is
+reclaimed only when the *same* id is initialised again (`datacontext.h:70-79`).
+The array machinery itself mints **no** `DataContext` id per identity — an
+`ArrayId` keys only the nodes' own tables, and every `share()` in the
+implementation is built when the description is, not per element. What does mint
+at churn rate is a **delegate that builds something stateful**: a `forEach`
+delegate returning a widget creates that widget's `Input`s and `share()`s, each
+of which mints a `UniqueId` when the delegate runs. That is inherent to building
+per item and is not something this design can avoid, so a long-lived window whose
+list churns still accumulates dead entries. Pre-existing, but this is the first
+design that reaches it at churn rate.
 
 **PR #99 (dynamic windows)** is open, and makes `App`'s window list
 `AnySignal<std::vector<std::pair<size_t, Window>>>` with a caller-assigned
@@ -1393,19 +1406,17 @@ Steps 0 to 2 are done; the rest is outstanding.
    get independent state; and the same description instantiated twice into *one*
    context shares the source. Nothing else proceeds until this is green.
 
-2. **The node: `forEach`, `concat`, `map`, `join`.** *Done.* One node,
-   `detail::ArrayOnce`, carries the key→id map and the `U` table in its
-   `DataType`; the array holds it behind a `.share()`, which is what makes that
-   data per-context and shared within one. `forEach` and `map` differ only in
-   their key, build and id functions. The two `join` fixes landed first, as
-   their own commit.
+2. **The node: `forEach`, `concat`, `map`, `join`.** *Done.* `detail::ArrayOnce`
+   carries the key→id map and the `U` table in its `DataType`; the array holds it
+   behind a `.share()`, which is what makes that data per-context and shared
+   within one. `forEach` and `map` differ only in their key, build and id
+   functions. The exit is a second node, `detail::ArrayJoin`, holding one inner
+   data per identity — see *`join` is a node, not a `Join`*. The two `join` fixes
+   landed first, as their own commit; they are still needed by `Signal::join`
+   generally, but the array exit no longer uses it.
 
 3. **`scatter`.** Structurally the same node as `forEach` with a different
    source; the size-alignment check lives here.
-
-3b. **Prune `DataContext`.** A prerequisite for step 4 rather than a cleanup —
-   `join` mints an id per element identity at update time. See *Future
-   directions*.
 
 4. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

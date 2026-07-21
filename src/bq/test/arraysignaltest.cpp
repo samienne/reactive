@@ -17,7 +17,9 @@
 
 using namespace bq::signal;
 
-static_assert(checkSignal<detail::ArraySingle<int>>());
+static_assert(checkSignal<detail::ArrayConstant<int>>());
+
+static_assert(checkSignal<detail::ArrayJoin<int>>());
 
 static_assert(checkSignal<detail::ArrayOnce<
         int,
@@ -143,14 +145,13 @@ TEST(arraySignal, arraysDerivedFromOneSourceConcatenate)
     EXPECT_EQ((std::vector<int>{ 2, 4, 3, 6 }), c.evaluate<0>().get<0>());
 }
 
-// A single item whose value varies is a rebuild of that element: it takes a
-// new identity, so what was built from it is built again.
-TEST(arraySignal, aVaryingSingleItemRebuildsItself)
+// Every constructor is constant, so a constructed element's value never
+// changes and nothing built from it is ever built twice.
+TEST(arraySignal, aConstructedElementIsBuiltOnce)
 {
-    auto input = makeInput(1);
     auto builds = std::make_shared<int>(0);
 
-    ArraySignal<int> array = { 0, AnySignal<int>(input.signal) };
+    ArraySignal<int> array = { 1, 2 };
 
     auto doubled = array.map([builds](int value)
         {
@@ -158,26 +159,16 @@ TEST(arraySignal, aVaryingSingleItemRebuildsItself)
             return 2 * value;
         });
 
-    auto c = makeSignalContext(values(doubled));
+    auto c = makeSignalContext(values(doubled), values(doubled));
 
-    EXPECT_EQ((std::vector<int>{ 0, 2 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 2, 4 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ((std::vector<int>{ 2, 4 }), c.evaluate<1>().get<0>());
     EXPECT_EQ(2, *builds);
 
-    input.handle.set(5);
     c.update(FrameInfo(1, {}));
 
-    EXPECT_EQ((std::vector<int>{ 0, 10 }), c.evaluate<0>().get<0>());
-
-    // Only the element that changed was rebuilt.
-    EXPECT_EQ(3, *builds);
-
-    // A repeat of the value it already holds is not a change, so it is not a
-    // rebuild either.
-    input.handle.set(5);
-    c.update(FrameInfo(2, {}));
-
-    EXPECT_EQ((std::vector<int>{ 0, 10 }), c.evaluate<0>().get<0>());
-    EXPECT_EQ(3, *builds);
+    EXPECT_EQ((std::vector<int>{ 2, 4 }), c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
 }
 
 // An evicted value is destroyed rather than retained against the key coming
