@@ -16,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `e367f88` (2026-07-21).*
+*Last verified against `25d8623` (2026-07-21).*
 
 ## The problem
 
@@ -419,7 +419,9 @@ element's value never changes once built.
 ```
 forEach(AnySignal<std::vector<T>> source,
         keyFn   : T const& -> TKey,
-        delegate: AnySignal<T> -> U)          -> ArraySignal<U>
+        delegate: (AnySignal<T>) -> U
+               or (TKey, AnySignal<T>) -> U)
+                                              -> ArraySignal<U>
 ```
 
 The delegate runs **once per identity, per context**. `U` need not be a signal;
@@ -768,9 +770,12 @@ ordered and comparable — `std::map` is the internal store, chosen for simplici
 over a hash map (no hash requirement on user keys, no `std::hash`
 specialisations to write).
 
-**delegate** is `(AnySignal<T>) -> U`, and that is the **only** form.
-A `(T) -> U` shorthand was considered and deliberately rejected; the *Rationale*
-section is that argument, and it is the most important part of this document.
+**delegate** is `(AnySignal<T>) -> U` or `(TKey, AnySignal<T>) -> U`, and those
+are the **only** forms. A `(T) -> U` shorthand was considered and deliberately
+rejected; the *Rationale* section is that argument, and it is the most important
+part of this document. Which of the two a delegate takes, and why the key is a
+value rather than a signal, is argued under *No index is passed to the delegate
+— but the key is*.
 
 ### Behaviour
 
@@ -802,7 +807,7 @@ section is that argument, and it is the most important part of this document.
   than kept, because it added a concept to the model in exchange for defining
   behaviour after a programming error.
 
-### No index is passed to the delegate
+### No index is passed to the delegate — but the key is
 
 Deliberately. An index is *positional*, and position is exactly what keyed
 identity abandons. A delegate that closes over an index would have to re-run for
@@ -816,6 +821,51 @@ T>>>` before `forEach` sees it. With that comes a warning worth stating loudly:
 > **Key on the item's identity, not the injected index.** Keying on the index
 > makes every key change when the list reorders, which discards every id and
 > rebuilds everything — precisely the failure mode indices were avoiding.
+
+**The key is categorically different, and `forEach` does hand it over.** Read
+the argument above closely: every word of it is about *position*. A key is the
+one thing in this design that a neighbour's arrival cannot change — an element's
+key is what says which element it is, and it is fixed for the identity's whole
+life by construction. So the objection that rules out an index does not reach
+it, and nothing else does either: a delegate closing over its key closes over a
+constant.
+
+The delegate therefore takes either shape, and `forEach` picks by asking which
+one the callable accepts:
+
+```
+(AnySignal<T>) -> U
+(TKey, AnySignal<T>) -> U
+```
+
+Three decisions inside that, none of them free:
+
+- **Key first.** It reads as key-then-value, which is the conventional order for
+  a keyed callback. The retired `dataBind` put it last
+  (`(AnySignal<T> value, size_t id)`), so this is a deliberate break with the
+  one local precedent rather than an oversight — that precedent is a single
+  call site and the order it chose is the unusual one.
+- **By value, not as a signal.** This is the whole point. Handing the key over
+  as an `AnySignal<TKey>` would model a constant as time-varying, and the cost
+  is not theoretical: it is exactly what forced `adder`'s buttons to build their
+  callables through a `map` over the item signal when only the unkeyed form
+  existed.
+- **A generic delegate gets the keyed form.** `[](auto&&...)` satisfies both,
+  and there is no way to ask which one the author meant. The key is strictly
+  more to work with and a delegate that names no parameter for it cannot tell
+  the difference, so preferring the keyed form is the choice that loses nothing.
+
+A delegate matching neither shape is a `static_assert` naming both, not a
+deduction failure inside the node: the rest of `forEach`'s body is discarded by
+an `if constexpr` on the same condition, so nothing downstream of the assert
+fails as well. The call site still sees a function returning `void`, so it is
+one further error rather than none — the node's own instantiation trace, which
+is the unreadable part, is what goes away.
+
+`map` is **not** given the same treatment. Its function is value-level and runs
+inside a node that already knows the identity, but an `ArraySignal`'s identities
+are internal and no key survives `map` — there is nothing to hand over. The
+asymmetry is a consequence of *Identity is internal*, not an inconsistency.
 
 ### Skipping repeats is a property of the data, not a requirement on `T`
 
@@ -1560,14 +1610,14 @@ Three things fell out of doing it:
   is a few lines against `dataBind`'s branch per event kind. Nothing is lost by
   the coarseness: `forEach` keys by the collection's own id, so an item that
   stays put is not rebuilt whatever the event was.
-- **`forEach`'s delegate is not given its key**, and a delegate that needs the
-  item's identity — `adder`'s buttons act on a collection id — must re-derive it
-  from the item signal and produce its callables through a `map`. `dataBind`'s
-  delegate took the id directly, so this is a real ergonomic regression at the
-  one call site that exists. It is *not* the rejected index of *No index is
-  passed to the delegate*: a key is stable identity, which is the thing an index
-  is not. Handing the key to the delegate is a small change to `forEach` and
-  should be decided on its own; it was not made here.
+- **`forEach`'s delegate was not given its key**, so a delegate that needs the
+  item's identity — `adder`'s buttons act on a collection id — had to re-derive
+  it from the item signal and produce its callables through a `map`.
+  `dataBind`'s delegate took the id directly, so this was a real ergonomic
+  regression at the one call site that existed. It was *not* the rejected index
+  of *No index is passed to the delegate*: a key is stable identity, which is
+  the thing an index is not. **Fixed since**, by the keyed delegate form — that
+  section carries the argument, and `adder` is back to capturing its id.
 - **A value change now reaches every item, not one.** `dataBind` pushed a
   changed value through that item's own `InputHandle`. A `pick` is a plain `map`
   over one shared keyed source, so every item's signal reports a change whenever
