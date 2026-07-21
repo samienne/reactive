@@ -87,7 +87,7 @@ float cubicDerivative(float p1, float p2, float p3, float p4,
     //-3 p_1 t^2  +  9 p_2 t^2  -  9 p_3 t^2  +  3 p_4 t^2  +  6 p_1 t
     //-  12 p_2 t  +  6 p_3 t  -  3 p_1  +  3 p_2
     return -3.0f*p1*t*t + 9.0f*p2*t*t - 9.0f*p3*t*t + 3.0f*p4*t*t + 6.0f*p1*t
-        - 12.0*p2*t + 6.0f*p3*t - 3.0f*p1 + 3.0f*p2;
+        - 12.0f*p2*t + 6.0f*p3*t - 3.0f*p1 + 3.0f*p2;
 }
 
 Vector2f cubicDerivative(Vector2f p1, Vector2f p2,
@@ -529,7 +529,7 @@ Path::Path(btl::Buffer&& buffer) :
 
 void Path::ensureUniqueness()
 {
-    if (deferred_.unique())
+    if (deferred_.use_count() == 1)
         return;
 
     if (d())

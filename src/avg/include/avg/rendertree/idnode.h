@@ -26,6 +26,7 @@ namespace avg
                 );
 
         IdNode(IdNode const&) = default;
+        IdNode& operator=(IdNode const&) = default;
 
         UpdateResult update(
                 RenderTree const& oldTree,

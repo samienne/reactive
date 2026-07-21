@@ -90,7 +90,7 @@ namespace bq::signal::detail
      * lookup instead of a scan, so that following every element of a source
      * costs O(n log n) per update rather than O(n^2).
      *
-     * `keyFn` is invoked as a const function, so it cannot carry state. It
+     * 'keyFn' is invoked as a const function, so it cannot carry state. It
      * lives in the description, which every context over that description
      * shares, so state in it would be state outside any context.
      *
