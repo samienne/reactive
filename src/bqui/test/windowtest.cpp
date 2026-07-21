@@ -179,6 +179,45 @@ TEST(AppWindows, aWindowCannotBeOpenedTwiceWithinOneCall)
     EXPECT_TRUE(app.getWindows().empty());
 }
 
+// A window belongs to one app, because close() has to know which list to
+// leave. Being open in one is what makes it unavailable, not having ever been
+// added.
+TEST(AppWindows, aWindowCannotBeOpenInTwoApps)
+{
+    App first;
+    App second;
+
+    Window a = makeWindow("a");
+    first.addWindow(a);
+
+    EXPECT_THROW(second.addWindow(a), std::invalid_argument);
+    EXPECT_TRUE(second.getWindows().empty());
+
+    first.removeWindow(a.getId());
+
+    second.addWindow(a);
+
+    EXPECT_EQ(std::vector<std::string>{ "a" }, titles(second.getWindows()));
+
+    // The window follows: it is the second app it closes out of now.
+    a.close();
+
+    EXPECT_TRUE(second.getWindows().empty());
+}
+
+TEST(AppWindows, aWindowThatWasClosedCanBeOpenedAgain)
+{
+    App app;
+
+    Window a = makeWindow("a");
+    app.addWindow(a);
+    a.close();
+
+    app.addWindow(a);
+
+    EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
+}
+
 TEST(AppWindows, theWindowSignalFollowsTheCollection)
 {
     App app;

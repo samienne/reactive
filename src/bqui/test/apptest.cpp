@@ -13,6 +13,7 @@
 #include <chrono>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -289,6 +290,45 @@ TEST(App, ownedAndSuppliedWindowsCoexist)
 TEST(App, runWithNoWindowsReturnsImmediately)
 {
     EXPECT_EQ(0, App().run());
+}
+
+// The arrays are joined once, at the start, so one added later would open
+// nothing. Saying so beats a window that never appears.
+TEST(App, addingAnArrayWhileRunningIsRejected)
+{
+    Opens opens;
+
+    App app;
+    app.addWindow(makeWindow("owned", opens, std::make_shared<int>(0)));
+
+    bool rejected = false;
+    int frames = 0;
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames || i != 0)
+                    return false;
+
+                try
+                {
+                    app.addWindowArray(bq::signal::ArraySignal<Window>());
+                }
+                catch (std::logic_error const&)
+                {
+                    rejected = true;
+                }
+
+                step.handle.set(1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+    EXPECT_TRUE(rejected);
 }
 
 // run() with no signal runs while a window is open, so closing one of several

@@ -62,7 +62,9 @@ namespace bqui
     private:
         friend class WindowList;
 
+        bool hasList() const;
         void setList(std::weak_ptr<WindowList> list) const;
+        void clearList() const;
 
         struct Impl;
 

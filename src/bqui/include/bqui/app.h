@@ -32,9 +32,13 @@ namespace bqui
          * by Window::close(), by removeWindow(), or by its own title bar.
          * Windows may be added while the app runs.
          *
-         * @throws std::invalid_argument if a window is already open. A window
-         *         and its copies are one window — they share one identity — so
-         *         adding a copy of an open window is adding it twice.
+         * @throws std::invalid_argument if a window is already open, here or
+         *         in another app. A window and its copies are one window —
+         *         they share one identity — so adding a copy of an open window
+         *         is adding it twice, and a window belongs to one app because
+         *         close() has to know which list to leave. A window that has
+         *         been removed belongs to no app again and may be opened
+         *         anywhere.
          */
         App& addWindows(std::vector<Window> windows);
 
@@ -54,10 +58,11 @@ namespace bqui
          *
          * Both kinds of window are open at once, and run() counts them all.
          *
-         * Unlike the app's own collection, the set of arrays is fixed when
-         * run() starts: an array added after that is not opened. Add windows
-         * while the app runs through addWindows(), or put them in an array
-         * that is already there.
+         * @throws std::logic_error if the app is already running. Unlike the
+         *         app's own collection, the set of arrays is fixed when run()
+         *         starts, because they are joined once. Add windows while the
+         *         app runs through addWindows(), or take them from an array
+         *         that is already there.
          */
         App& addWindowArray(bq::signal::ArraySignal<Window> windows);
 
@@ -84,7 +89,15 @@ namespace bqui
          */
         bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
 
-        /** @brief Runs until `running` is false, whatever the windows do. */
+        /** @brief Runs until `running` is false, whatever the windows do.
+         *
+         * The thread that calls this is the app's thread: run() and
+         * withAnimation() belong to it, and every window is built, drawn and
+         * driven there. The window collection is the exception and is safe to
+         * reach from anywhere — addWindows(), removeWindow(), getWindows() and
+         * Window::close() all go through a lock-guarded vector, so a worker
+         * that finishes can open or close a window itself.
+         */
         int run(bq::signal::AnySignal<bool> running);
 
         /** @overload

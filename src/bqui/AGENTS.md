@@ -66,9 +66,20 @@ both kinds of window.
 
 The concatenation happens once, at the start. The app's own collection is a live
 signal and so follows additions while the app runs; a *further array* added
-after `run` started is not seen, and picking one up would need the reactive
-subtree (`AnySignal<ArraySignal<T>>`) that `docs/design/arraysignal.md` still
-lists as open.
+after `run` started could not be seen, so `addWindowArray` rejects it rather
+than opening nothing. Picking one up would need the reactive subtree
+(`AnySignal<ArraySignal<T>>`) that `docs/design/arraysignal.md` still lists as
+open.
+
+A window belongs to one app: `WindowList::add` rejects a window whose handle
+already names a live list, and `remove` clears the handle so a closed window can
+be opened again. Without that a window could be open in one app and closable
+only from another.
+
+The glues are released by a scope guard in `run`, not at the end of it. They
+outlive the call — they are the app's — but the `ase::Platform` and
+`ase::RenderContext` they are made of do not, so a run that ends by exception
+must not leave one behind.
 
 ### How `Window::close()` reaches the list
 

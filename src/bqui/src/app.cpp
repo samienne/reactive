@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -74,14 +75,24 @@ public:
     void addArray(bq::signal::ArraySignal<Window> windows)
     {
         std::lock_guard<std::mutex> lock(mutex_);
+
+        if (started_)
+        {
+            throw std::logic_error("App: a window array cannot be added once "
+                    "the app is running. The arrays are joined once, at the "
+                    "start; add windows to the app's own collection instead.");
+        }
+
         arrays_.push_back(std::move(windows));
     }
 
     // The app's own collection first, then each caller-supplied array in the
-    // order it was added.
-    bq::signal::ArraySignal<Window> allWindows() const
+    // order it was added. Taking this is what fixes the set of arrays.
+    bq::signal::ArraySignal<Window> takeAllWindows()
     {
         std::lock_guard<std::mutex> lock(mutex_);
+
+        started_ = true;
 
         std::vector<bq::signal::ArraySignal<Window>> parts {
             windows_->array() };
@@ -90,12 +101,22 @@ public:
         return bq::signal::concat(std::move(parts));
     }
 
+    // Whether there is anything at all to open, without building a signal
+    // context to ask.
+    bool hasNoWindows() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        return arrays_.empty() && windows_->get().empty();
+    }
+
     std::shared_ptr<WindowList> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
 
 private:
     mutable std::mutex mutex_;
     std::vector<bq::signal::ArraySignal<Window>> arrays_;
+    bool started_ = false;
 };
 
 class WindowGlue
@@ -127,6 +148,13 @@ public:
 
         aseWindow.setCloseCallback([this]()
         {
+            // The glue outlives the removal by up to a frame, so a second
+            // close event would otherwise run the window's callbacks again.
+            if (closed_)
+                return;
+
+            closed_ = true;
+
             // Removing the window is what closes it, and the callbacks run
             // first so that one of them still sees the window open. Neither
             // step evaluates a signal, which is what makes closing safe from
@@ -497,8 +525,26 @@ private:
     std::optional<std::chrono::milliseconds> nextUpdate_;
     bool animating_ = true;
     bool resized_ = true;
+    bool closed_ = false;
 };
 
+
+// Releases the app's glues, whatever ends the run. A glue holds an
+// ase::Window and a framebuffer belonging to the render context the run
+// created, so leaving one behind outlives what it is made of.
+struct GlueScope
+{
+    ~GlueScope()
+    {
+        // A frame that drew a window can still be in flight, and it holds that
+        // window's framebuffer.
+        queue.finish();
+        app.windowGlues_.clear();
+    }
+
+    AppDeferred& app;
+    ase::RenderQueue& queue;
+};
 
 App::App() :
     deferred_(std::make_shared<AppDeferred>())
@@ -551,6 +597,12 @@ int App::run()
 
 int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
 {
+    // Without a signal the app runs while a window is open, so with none to
+    // open it has nothing to run for — and answering that before a platform
+    // exists is what lets it be answered where there is no display.
+    if (!runningSignal && d()->hasNoWindows())
+        return 0;
+
     ase::Platform platform = ase::makeDefaultPlatform();
 
     ase::RenderContext context = platform.makeRenderContext();
@@ -569,9 +621,14 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
     };
 
     auto glues = bq::signal::makeSignalContext(
-            bq::signal::join(d()->allWindows().map(makeGlue)));
+            bq::signal::join(d()->takeAllWindows().map(makeGlue)));
 
     auto mainQueue = context.getMainRenderQueue();
+
+    // The glues outlive this call — they are the app's, not the loop's — but
+    // the platform and the render context they hold do not, so they have to be
+    // released before this returns however it returns.
+    GlueScope glueScope { *d(), mainQueue };
 
     auto collect = [&]()
     {
@@ -604,9 +661,6 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
     if (runningSignal)
         running.emplace(*runningSignal);
 
-    // Without a signal the app runs while a window is open, so with none open
-    // it has nothing to run for. The platform loop would drive an empty frame
-    // and stop on the next pass; stopping here says so plainly.
     if (running || !d()->windowGlues_.empty())
     {
         platform.run(context, [&](ase::Frame const& aseFrame) -> bool
@@ -635,9 +689,6 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
         DBG("Window \"%1\" had FPS of %2.", glue->getTitle(),
                 (double)glue->getFrames() / time.count());
     }
-
-    mainQueue.finish();
-    d()->windowGlues_.clear();
 
     return 0;
 }

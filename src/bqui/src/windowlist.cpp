@@ -40,6 +40,13 @@ void WindowList::add(std::vector<Window> windows)
                     "cannot be opened twice.");
         }
 
+        if (window.getHandle().hasList())
+        {
+            throw std::invalid_argument("App: this window is open in another "
+                    "app. A window belongs to one app, because close() has to "
+                    "know which list to leave.");
+        }
+
         ids.push_back(id);
     }
 
@@ -53,9 +60,28 @@ void WindowList::add(std::vector<Window> windows)
 
 void WindowList::remove(btl::UniqueId id)
 {
+    // Nothing to publish if the window is not here, and publishing is a copy
+    // of every window that is. Losing the race against a concurrent removal
+    // only costs one such copy, so the check needs no more than a read scope.
+    {
+        auto handle = windows_.read();
+
+        auto found = std::find_if(handle->begin(), handle->end(),
+                [id](Window const& window)
+                {
+                    return window.getId() == id;
+                });
+
+        if (found == handle->end())
+            return;
+    }
+
     // Declared before the write scope so that it outlives it: destroying a
-    // window runs the caller's own code, which must not run under a lock that
-    // the same code might try to take.
+    // window destroys its widgets, which is the caller's own code and must not
+    // run under a lock that the same code might try to take. What that does
+    // not reach is the copy the signal was last given, which the write scope
+    // releases as it publishes — a SharedVector always copies and destroys T
+    // under its lock, and says so.
     std::vector<Window> departing;
 
     {
@@ -73,6 +99,12 @@ void WindowList::remove(btl::UniqueId id)
 
         handle->erase(departed, handle->end());
     }
+
+    // A window that has left belongs to no app again, so it can be opened in
+    // one — this one or another — without being taken for a window that is
+    // already open.
+    for (auto const& window : departing)
+        window.getHandle().clearList();
 }
 
 std::vector<Window> WindowList::get() const

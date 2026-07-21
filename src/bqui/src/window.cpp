@@ -46,10 +46,22 @@ void WindowHandle::close() const
         list->remove(impl_->id);
 }
 
+bool WindowHandle::hasList() const
+{
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->list.lock() != nullptr;
+}
+
 void WindowHandle::setList(std::weak_ptr<WindowList> list) const
 {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     impl_->list = std::move(list);
+}
+
+void WindowHandle::clearList() const
+{
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->list.reset();
 }
 
 Window::Window(widget::AnyWidget widget,
