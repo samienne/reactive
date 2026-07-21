@@ -319,6 +319,57 @@ TEST(signal, join)
     EXPECT_EQ("?", r2.get<2>());
 }
 
+// A signal whose value is type-erased is still a signal, so joining it must
+// follow it rather than treat it as an ordinary value and hold it constant.
+TEST(signal, joinFollowsATypeErasedInnerSignal)
+{
+    auto inner = makeInput(10);
+    auto selector = makeInput(true);
+
+    auto outer = selector.signal.map([inner](bool)
+        {
+            return AnySignal<int>(inner.signal);
+        });
+
+    auto c = makeSignalContext(outer.join());
+
+    EXPECT_EQ(10, c.evaluate<0>().get<0>());
+
+    inner.handle.set(20);
+    c.update(FrameInfo(1, {}));
+
+    EXPECT_EQ(20, c.evaluate<0>().get<0>());
+}
+
+// The same, on an outer signal that is itself type-erased: the storage type of
+// an AnySignal is not its (void) template argument, so joining one has to name
+// the storage rather than the argument.
+TEST(signal, joinWorksOnATypeErasedOuterSignal)
+{
+    auto first = makeInput(1);
+    auto second = makeInput(2);
+    auto selector = makeInput(true);
+
+    AnySignal<AnySignal<int>> outer = selector.signal.map(
+            [first, second](bool useFirst)
+            {
+                return useFirst ? AnySignal<int>(first.signal)
+                    : AnySignal<int>(second.signal);
+            });
+
+    auto c = makeSignalContext(outer.join());
+
+    EXPECT_EQ(1, c.evaluate<0>().get<0>());
+
+    selector.handle.set(false);
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ(2, c.evaluate<0>().get<0>());
+
+    second.handle.set(22);
+    c.update(FrameInfo(2, {}));
+    EXPECT_EQ(22, c.evaluate<0>().get<0>());
+}
+
 TEST(signal, combine)
 {
     std::vector<int> v1 = { 10, 20, 30, 40, 50 };

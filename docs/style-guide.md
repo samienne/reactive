@@ -1,6 +1,6 @@
 # Style guide
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `8677be3` (2026-07-21).*
 
 Prescriptive rules for how code and docs are written here — the rubric a review
 (human or agent) checks a change against. It grows as we settle on how things
@@ -24,6 +24,9 @@ should be shaped. Where a rule has a *why* or a mechanism, it points at
 - Use the `Any`-prefixed, type-erased forms (`AnySignal<T>`, `AnyWidget`,
   `AnyShape`, …) in public signatures and in prose. Only refer to the concrete
   `Signal<TStorage, Ts...>` form when explaining the type erasure itself.
+- `bq::signal::ArraySignal<T>` is the one type-erased public type without the
+  prefix. Do not add an `AnyArraySignal` alias, and do not give it a storage
+  parameter to restore the symmetry with `Signal`. (Why: `conventions.md`.)
 - Public headers go under `src/<lib>/include/<lib>/` (the include firewall).
 
 ## Templates and builders

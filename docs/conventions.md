@@ -1,6 +1,6 @@
 # Conventions & gotchas
 
-*Last verified against `9c47767` (2026-07-20).*
+*Last verified against `8677be3` (2026-07-21).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -10,6 +10,14 @@ before editing the corresponding area.
 - **`Any` prefix = type erasure.** `AnySignal<T>`, `AnyWidget`, `AnyShape`,
   `AnyWidgetModifier` are the type-erased forms of their concrete templated
   counterparts (e.g. `Signal<TStorage, Ts...>`). Store and pass the `Any` form.
+- **`bq::signal::ArraySignal<T>` is the one exception.** The `Any` prefix marks
+  the erased half of a pair whose other half is storage-typed, and that pair
+  exists so a chain of combinators can stay free of virtual dispatch. An array is
+  heap-backed regardless, so the per-element indirection a storage-typed twin
+  would avoid is already paid: it would buy nothing and double the surface.
+  `ArraySignal` is therefore type-erased by construction, and the asymmetry with
+  `Signal` is the decision rather than an oversight. The rule that follows is in
+  `docs/style-guide.md`.
 - Project is *Reactive*; the libraries are `bq` (signal core) and `bqui` (UI).
   The repo is still named `reactive` from before the rename.
 
