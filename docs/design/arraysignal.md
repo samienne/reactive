@@ -1,8 +1,11 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 and 1 of
-> *Implementation order* have landed; everything from `forEach` onwards is
-> outstanding. The earlier implementation on PR #100 is a **superseded spike**:
+> **Status: revised design, implementation started.** Steps 0 to 2 of
+> *Implementation order* have landed; `scatter` and everything in `bqui` is
+> outstanding. Where the built node contradicts what is written below, the
+> correction is recorded under *Corrections from the implementation* and the
+> surrounding prose has been amended. The earlier implementation on PR #100 is
+> a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
 > relocates that state and, as a consequence, removes five operators. Read the
@@ -13,7 +16,7 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `9c47767` (2026-07-21).*
+*Last verified against `74a744b` (2026-07-21).*
 
 ## The problem
 
@@ -328,9 +331,10 @@ it alive).
 
 Four consequences, all of which the rest of this document depends on:
 
-- **Copying a description and instantiating both copies yields two independent
-  tables.** That is correct and is exactly what copying a signal does. Sharing is
-  opt-in and explicit, precisely as `.share()` is.
+- **Two `SignalContext`s over one description yield two independent tables.**
+  Copies of the description do *not*: an array holds its elements behind a
+  `.share()`, so every copy carries the same `UniqueId` and every consumer within
+  one context finds the one table. See *Sharing is intrinsic*.
 - **The `U`s are unobservable from outside the graph.** They are built inside the
   node, in context state, and no operator hands one out. Anything you want to do
   with a `U` must therefore be expressed as an operator that runs *inside*.
@@ -385,7 +389,14 @@ key is.
 The single-item `AnySignal<T>` constructor is kept, and it **rebuilds** when the
 value changes. That is honest and accepted: if an `AnySignal<AnyWidget>` genuinely
 changes, resetting that element's state is unavoidable (see *Rationale*). It is
-one element, the identity is fixed, and nothing else in the array is disturbed.
+one element and nothing else in the array is disturbed.
+
+A rebuild is expressed as a **new identity for that element**, not as a new value
+at a fixed one. It has to be: `map` runs once per identity, so an element that
+kept its identity through a value change would have its new value silently
+ignored by everything downstream — which is exactly `dynamicBox`'s bug. This is
+the third site that mints identity, alongside construction of a constant item and
+`forEach`.
 
 ### `forEach` — the entry
 
@@ -562,7 +573,7 @@ an `AnySignal<std::map<ArrayId, W>>`, shares that, and hands each identity the
 identical `pick`. `forEach` and `scatter` differ only in where their source comes
 from.
 
-## Sharing: `SharedArraySignal`
+## Sharing is intrinsic
 
 The layout pipeline **branches**. The same `ArraySignal<Builder>` feeds the size
 hint fan-in and, after the obb round trip, the element fan-in. With a
@@ -570,15 +581,15 @@ description that is instantiated independently by each consumer, those two exits
 build two nodes, two key→`U` tables, and call the delegate twice — duplicating
 exactly the widget state that identity preservation exists to protect.
 
-So a shared form is **structurally required**, not an optimisation. It is the
-same relationship `Signal` has to a `.share()`d signal: `SharedArraySignal`
-carries a `UniqueId`, and every consumer instantiating it in one context finds
-the same table via `findData`.
+So sharing is **structurally required**, not an optimisation — and there is no
+separate `SharedArraySignal` type, because keeping the table in the node's
+`DataType` behind a `.share()` *is* sharing. `SharedControl` keys that data by a
+`UniqueId` carried in the description, so every consumer within one context
+finds one table and one evaluation per pass, and two contexts share nothing.
 
-**Implement only the shared form.** The consuming variant would have no user on
-day one, since every container branches. Its `map` therefore takes `U const&`
-rather than consuming. The consuming variant can be added later if a linear
-consumer ever appears; naming can be revisited then.
+A consuming variant would have no user on day one, since every container
+branches, so `map` takes `U const&`. It can be added later if a linear consumer
+ever appears; naming can be revisited then.
 
 ## `forEach` vs `map` — the central distinction
 
@@ -591,11 +602,13 @@ looks right and silently throws away user state.
   changes — the new value arrives through the signal the delegate already holds.
   Nothing is constructed on a value change, so nothing is destroyed. **This is
   what preserves widget state.**
-- **`map` is value-level.** Its function is `T -> U`, re-run on every value
-  change. Implemented as a per-element `sig.map(f)`, so the `Map` node is created
-  once per identity and `f` re-runs *inside* the already-built graph. Perfect for
-  data; ruinous for widgets, because building a widget here reconstructs it — and
-  everything it holds — on every change.
+- **`map` is value-level.** Its function is `U -> V`, and it is re-run whenever
+  the element it reads is rebuilt — which for a value-dynamic element is every
+  value change, since a rebuild is a new identity. Perfect for data; ruinous for
+  widgets, because building a widget here reconstructs it — and everything it
+  holds — whenever that happens. Nothing in the type system distinguishes a
+  `map` over a `forEach`-keyed array, where it does run exactly once, from a
+  `map` over a value-dynamic one, where it does not.
 
 The rule, stated plainly, is the one sentence to carry out of this document:
 
@@ -831,6 +844,47 @@ Retained from the first draft: the pipeline is acyclic and settles in one update
 pass, and `avg::Animated<T>` is an ordinary value that does not animate in the
 signal domain — it is interpreted by the render tree. The layout pipeline is a
 diamond (membership → builders → hints → obbs → elements), not a cycle.
+
+## Corrections from the implementation
+
+Five things the built node settles differently from the draft above. The prose
+has been amended; they are collected here because each one is a claim this
+document made and then had to withdraw.
+
+- **There is no `SharedArraySignal`.** Sharing is intrinsic — see *Sharing is
+  intrinsic*. The consequence is that copying a description no longer implies
+  independent tables; only a second `SignalContext` does.
+
+- **`join` must share each element's signal once per identity.** A membership
+  change rebuilds the fan-in, which re-initialises every element's signal, and a
+  `map` cache or a `withPrevious` fold inside a *surviving* element's `U` lives
+  in that per-instantiation data and would restart. Sharing at the top of each
+  element, once per identity, moves that state into the `DataContext` where
+  re-initialisation finds it again. Without it the spike's exact failure — a
+  sibling's fold resetting on an unrelated insert — reappears, and the test that
+  covers it is the one that catches it.
+
+- **A value change at fixed identity is a new identity**, not a new value at the
+  old one. See *Construction*.
+
+- **The two accounts of `map` were incompatible** — "re-run on every value
+  change, implemented as a per-element `sig.map(f)`" against "runs once per
+  identity, takes `U const&`". The second is what is built. Value dynamism
+  reaches a `map` through the identity change above, not through re-running `f`
+  inside a node that outlives it.
+
+- **No per-array id space is needed.** Ids come from the same global counter as
+  every other `UniqueId`, so they are distinct across nodes by construction and
+  `concat` needs no re-namespacing — the conclusion the draft reached, but by way
+  of a per-context allocator that turns out to be unnecessary.
+
+One thing the node does that the draft does not mention: it reports `didChange`
+only when the **id sequence** changed. A value change therefore does not rebuild
+the fan-in, which is what makes `join`'s re-initialisation branch a
+membership-change cost rather than a per-frame one.
+
+The reactive subtree constructor, `AnySignal<ArraySignal<T>>`, is still not
+built; it remains where *Open questions* leaves it.
 
 ## One layout engine
 
@@ -1308,7 +1362,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 and 1 are done; the rest is outstanding.
+Steps 0 to 2 are done; the rest is outstanding.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1325,11 +1379,12 @@ Steps 0 and 1 are done; the rest is outstanding.
    get independent state; and the same description instantiated twice into *one*
    context shares the source. Nothing else proceeds until this is green.
 
-2. **The node: `forEach`, `concat`, `map`, `join`.** The `UniqueId` +
-   `findData` + `DataType` pattern from `SharedControl`, with the key→id map, the
-   `U` table and the membership order in context state. Re-land the two `join`
-   fixes from the spike here (or, better, as their own PR first — they are
-   independent bugs).
+2. **The node: `forEach`, `concat`, `map`, `join`.** *Done.* One node,
+   `detail::ArrayOnce`, carries the key→id map and the `U` table in its
+   `DataType`; the array holds it behind a `.share()`, which is what makes that
+   data per-context and shared within one. `forEach` and `map` differ only in
+   their key, build and id functions. The two `join` fixes landed first, as
+   their own commit.
 
 3. **`scatter`.** Structurally the same node as `forEach` with a different
    source; the size-alignment check lives here.
