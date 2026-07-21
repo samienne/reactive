@@ -5,6 +5,7 @@
 #include "datacontext.h"
 #include "detail/pick.h"
 #include "frameinfo.h"
+#include "merge.h"
 #include "signal.h"
 #include "signalresult.h"
 #include "signaltraits.h"
@@ -14,11 +15,14 @@
 #include <btl/copywrapper.h>
 #include <btl/uniqueid.h>
 
+#include <cstddef>
 #include <functional>
 #include <initializer_list>
 #include <map>
+#include <memory>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -137,6 +141,11 @@ namespace bq::signal
         constexpr bool isForEachCallable =
             std::is_invocable_v<TKeyFunc const&, T const&>
             && std::is_invocable_v<TDelegate const&, AnySignal<T>>;
+
+        /** @brief Whether scatter() accepts this delegate. */
+        template <typename TFunc, typename T, typename W>
+        constexpr bool isScatterCallable =
+            std::is_invocable_v<TFunc const&, T const&, AnySignal<W>>;
 
         /** @brief Builds one value per key and keeps it while the key is
          * there.
@@ -293,6 +302,43 @@ namespace bq::signal
         {
             return constant(ArrayElements<T> {
                     { makeArrayId(), std::move(value) } });
+        }
+
+        /** @brief Attaches a positional aggregate to the identities it is
+         * aligned with, so that each entry can be followed by identity rather
+         * than by position.
+         *
+         * @throws std::runtime_error if the aggregate does not have one entry
+         *         per element, or if one identity appears twice — which the
+         *         node keyed by identity rejects first, so reaching it here
+         *         means that order has changed.
+         */
+        template <typename T, typename W>
+        KeyedElements<ArrayId, W> keyByIdentity(
+                ArrayElements<T> const& elements,
+                std::vector<W> const& aggregate)
+        {
+            if (elements.size() != aggregate.size())
+            {
+                throw std::runtime_error("scatter: aggregate size "
+                        + std::to_string(aggregate.size())
+                        + " does not match membership size "
+                        + std::to_string(elements.size()));
+            }
+
+            auto keyed = std::make_shared<std::map<ArrayId, W>>();
+
+            for (std::size_t i = 0; i != elements.size(); ++i)
+            {
+                if (!keyed->insert({ elements[i].id, aggregate[i] }).second)
+                {
+                    throw std::runtime_error("scatter: one identity appears "
+                            "twice, which means an array was concatenated "
+                            "with itself");
+                }
+            }
+
+            return KeyedElements<ArrayId, W>(std::move(keyed));
         }
 
         /** @brief Fans an array of signals in, keeping each identity's state.
@@ -738,6 +784,71 @@ namespace bq::signal
     {
         return concat(std::vector<ArraySignal<T>>{ std::move(first),
                 ArraySignal<T>(std::forward<Ts>(rest))... });
+    }
+
+    /** @brief Hands every element its own slice of an aggregate computed over
+     * all of them.
+     *
+     * The fan-out half of a container: fan the elements in with join(), compute
+     * over all of them at once, and give each one its share back. `func` is
+     * invoked once per identity per context, as map()'s function is, and
+     * receives the element's value together with a signal carrying that
+     * element's entry of every later aggregate. Nothing is rebuilt when the
+     * aggregate changes.
+     *
+     * Every element's slice signal reports a change whenever **any** element's
+     * slice does, because they all read one shared source. Suppress the repeats
+     * with `.check()` where they matter — anything that folds over a slice
+     * accumulates its unchanged value again without it.
+     *
+     * `aggregate` is **positional**: its entry `i` belongs to element `i` of
+     * the current membership. The correspondence is a promise the caller makes
+     * and only its arity is checked, on every update in which a slice is read.
+     * An aggregate of the right length in the wrong order is accepted and each
+     * element is handed the wrong slice, so derive it from this same array by
+     * order-preserving steps — map() into join(), then an ordinary map() over
+     * the fanned-in vector — and do not route it through anything that sorts,
+     * filters, or holds a value from an earlier update.
+     *
+     * @throws std::runtime_error if the aggregate does not have one entry per
+     *         element. Thrown when a slice is read, so it surfaces from
+     *         whatever consumes the result rather than from scatter() itself.
+     */
+    template <typename T, typename TStorage, typename W, typename TFunc,
+             typename = std::enable_if_t<
+                 detail::isScatterCallable<TFunc, T, W>
+                 >>
+    auto scatter(ArraySignal<T> array,
+            Signal<TStorage, std::vector<W>> aggregate, TFunc func)
+    {
+        using Element = detail::ArrayElement<T>;
+        using Elements = detail::ArrayElements<T>;
+
+        using U = std::decay_t<std::invoke_result_t<
+            TFunc const&, T const&, AnySignal<W>>>;
+
+        auto slices = merge(array.elements(), std::move(aggregate))
+            .map([](Elements const& elements, std::vector<W> const& entries)
+                {
+                    return detail::keyByIdentity(elements, entries);
+                })
+            .share();
+
+        auto build = [slices, func=std::move(func)](detail::ArrayId const& id,
+                Element const& element)
+            {
+                return func(element.value, AnySignal<W>(detail::requirePresent(
+                                detail::pick(slices, id),
+                                "a slice of scatter")));
+            };
+
+        return ArraySignal<U>::fromElements(detail::makeArrayOnce(
+                    array.elements(),
+                    [](Element const& element)
+                    {
+                        return element.id;
+                    },
+                    std::move(build)));
     }
 
     /** @brief Fans the elements in, in membership order.
