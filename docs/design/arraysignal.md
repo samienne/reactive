@@ -473,11 +473,13 @@ once, and then, per identity as each key first appears,
 shared.map(pick(key))            // AnySignal<T>
 ```
 
-`pick(key)` is an ordinary recipe carrying only a key by value. `.share()`
-already supplies per-context state keyed by a `UniqueId` through `SharedControl`,
-and its frame check (`sharedcontrol.h:187`) means the source is updated once per
-pass no matter how many pick-signals pull on it. Nothing custom, nothing outside
-the context.
+`pick(key)` is an ordinary recipe carrying only a key by value, and both steps
+are plain `map`s. `.share()` already supplies per-context state keyed by a
+`UniqueId` through `SharedControl`, and its frame check (`sharedcontrol.h:187`)
+means the source is updated once per pass no matter how many pick-signals pull on
+it. **No custom signal node, and no per-context state of its own** — that is the
+whole point of the construction, and anything that reintroduces either should be
+treated as a sign the construction has been misread.
 
 **Key it, do not scan it.** Sharing a `vector<pair<TKey, T>>` forces each pick to
 search — O(n) per element per update, O(n²) per frame across the array. Sharing a
@@ -495,45 +497,48 @@ and n resident copies besides. What the shared signal carries must be a
 This is a property of `Shared`, not of this design; a by-reference evaluate path
 for shared nodes would remove the constraint, and is worth having independently.
 
-**`pick` latches its last value.** Every signal must always have a value, so
-`pick(key)` cannot return nothing when its key has left the source. The lifetime
-argument says this never happens — the pick signal lives exactly as long as its
-`U`, the node destroys `U` in the same `update` that observes the removal, and
-the exit evaluates after that update — but that is an *ordering* argument, and
-the point of this revision is to stop depending on ordering arguments. So the
-pick node keeps the last value in its own `DataType` and holds it when the key is
-absent. One copy, per-context, entirely legal, and it turns the failure mode from
-undefined into briefly stale. The invariant then becomes something the tests
-assert rather than something the design leans on.
+**An absent key yields no value, and asking for it anyway is a hard error.**
+`pick(key)` produces an `AnySignal<std::optional<T>>`, empty for any update in
+which the key is not in the source. A consumer that needs the element — the
+`forEach` delegate does, since it is handed an `AnySignal<T>` — unwraps with a
+second plain `map` that throws when the value is missing.
 
-**The construction is built and proven.** `bq::signal::detail::Pick` and its two
-helpers live in `src/bq/include/bq/signal/detail/pick.h`, with
-`src/bq/test/picktest.cpp` covering the four cases step 1 called for. Four
-results settle points this document had left open, inferred, or stated too
-strongly:
+An earlier revision of this document specified a **latch** here instead: the pick
+would hold the last value it saw, so that a departed key produced a stale value
+rather than nothing. That is withdrawn. The key's presence cannot be encoded in
+the type system and cannot be guaranteed by construction, so its absence has to
+surface at runtime; a latch converts that into a **silently stale value**, which
+is a worse failure than a loud one and hides the bug that caused it. The latch
+also did not buy what it promised — it removed the ordering argument from
+`evaluate` only by moving it to `initialize`, where a context holding no live
+instantiation had nothing to latch and had to fail anyway.
 
-- Two `SignalContext`s over one `pick` description are wholly independent —
-  separate latches, and each evaluates the shared source for itself.
-- One description instantiated twice into **one** context shares its latch and
-  evaluates the shared source once per pass, exactly as inferred from
-  `SharedControl`. An instantiation made after the key has already left the
-  source finds the earlier latch rather than failing for want of a value, so the
-  sharing is of the state itself and not a coincidence of two copies having seen
-  the same values.
-- `pick` reports **no change** while its key is absent, so a latched element is
-  inert rather than merely stale. It does, however, report a change whenever
-  *any* element of the source changes, because that is what the shared source
+The obligation the latch was meant to soften therefore stands, and is now
+enforced rather than papered over: **build a pick when its key appears, and drop
+it no later than the update that observes the key leaving.** `forEach` owes that.
+A subtree swapped out and back by `join` or `conditional` breaks it, which is
+consistent with the reactive subtree minting fresh identity on a swap.
+
+**The construction is built.** `pick`, `requirePresent` and `shareKeyed` live in
+`src/bq/include/bq/signal/detail/pick.h` — three function templates over
+`map`/`share`, no node and no context data — with `src/bq/test/picktest.cpp`
+covering the cases step 1 called for. Two results settle points this document had
+inferred or stated too strongly:
+
+- Two `SignalContext`s over one `pick` description are wholly independent, and
+  one description instantiated twice into **one** context finds the shared
+  source's state already there and evaluates it once per pass, exactly as
+  inferred from `SharedControl`.
+- A pick reports a change whenever **any** element of the source changes, not
+  only when the picked element moves, because that is what the shared source
   reports and the element type carries no comparison requirement. Suppressing
   the repeats is `tryCheck()`'s job, at the point of use — the same answer this
   document already gives under *Skipping repeats is a property of the data*.
-- **The latch does not remove the ordering argument; it moves it to
-  initialisation.** Instantiations are the only owners of their context data, so
-  a context holding none of them has nothing to latch, and building a pick for a
-  key that is not currently in the source has no value it could report. The node
-  owes the guarantee: create a pick when its key appears, and drop it no later
-  than the update that observes the key leaving. A subtree swapped out and back
-  by `join` or `conditional` breaks that, which is consistent with the reactive
-  subtree minting fresh identity on a swap.
+
+Note also that the project builds with `b_ndebug` off, so `assert` is live in
+every configuration here. A debug-assert / release-throw pair does not exist for
+us: the assert would always win and the throw would be unreachable. Hard errors
+of this kind are therefore a throw alone.
 
 **`scatter` is the same node.** Its aggregate is positional rather than keyed, but
 the scatter node knows the current key order, so it zips aggregate-with-keys into
@@ -1295,10 +1300,10 @@ Steps 0 and 1 are done; the rest is outstanding.
 
 1. **Prove the pick construction.** The smallest thing that can fail. Build the
    shared keyed source and one `pick(key)` signal by hand, and show: it tracks its
-   key across membership changes; it latches when its key leaves; two
-   `SignalContext`s over the same description get independent state; and the same
-   description instantiated twice into *one* context shares state. Nothing else
-   proceeds until this is green.
+   key across membership changes; it yields no value when its key leaves, and
+   asking for one anyway throws; two `SignalContext`s over the same description
+   get independent state; and the same description instantiated twice into *one*
+   context shares the source. Nothing else proceeds until this is green.
 
 2. **The node: `forEach`, `concat`, `map`, `join`.** The `UniqueId` +
    `findData` + `DataType` pattern from `SharedControl`, with the key→id map, the
@@ -1329,8 +1334,8 @@ exercise what the first implementation got wrong. They are cheap and they are th
 regression net for the state-location rule:
 
 - **Shrink then grow.** Remove the last element, update, add one back. This is the
-  sequence that fires the `DataContext` assert of step 0, and the one that
-  exercises `pick`'s latch.
+  sequence that fires the `DataContext` assert of step 0, and the one in which a
+  pick must go empty and be picked up again rather than reporting a stale value.
 - **Remove while a sibling still reads.** A surviving element's signals must be
   untouched by a neighbour's removal — the spike's failure mode was a sibling's
   fold resetting on an unrelated insert.

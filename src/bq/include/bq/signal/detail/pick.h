@@ -1,21 +1,17 @@
 #pragma once
 
-#include "bq/signal/datacontext.h"
-#include "bq/signal/frameinfo.h"
 #include "bq/signal/signal.h"
-#include "bq/signal/signalresult.h"
-#include "bq/signal/signaltraits.h"
-#include "bq/signal/updateresult.h"
-#include "bq/signal/wrap.h"
 
-#include <btl/connection.h>
-#include <btl/uniqueid.h>
+#include <btl/demangle.h>
 
 #include <cassert>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -41,133 +37,11 @@ namespace bq::signal::detail
     template <typename T>
     using NonDeducedT = typename NonDeduced<T>::type;
 
-    /** @brief Signal of the element stored under one key of a keyed source.
+    /** @brief Follows the element stored under one key of a keyed source.
      *
-     * Reads a fixed key out of a signal of KeyedElements. The key need not be
-     * present at every update: while it is absent the signal holds the last
-     * value it saw, so it always has a value to report, and reports no change
-     * until the key returns.
-     *
-     * The latched value is per-context state, looked up by a UniqueId carried
-     * in the description, so every instantiation of one description into one
-     * context latches together while two contexts stay independent.
-     *
-     * A change to any element of the source is reported as a change of this
-     * signal, whether or not the picked element moved. Apply `tryCheck()` to
-     * suppress the repeats for an element type that can be compared.
-     */
-    template <typename TKey, typename TValue, typename TSignal>
-    class Pick
-    {
-    public:
-        /** @brief The latched value, held once per context.
-         *
-         * Carries no lock. A DataContext belongs to one SignalContext and its
-         * data is written only by that context's initialize and update passes,
-         * so instantiations sharing this state are advanced one after another
-         * on a single thread. Concurrency in bq is between contexts, and
-         * between contexts each thread reaches a different one of these.
-         */
-        struct ContextDataType
-        {
-            explicit ContextDataType(TValue value) :
-                value(std::move(value))
-            {
-            }
-
-            TValue value;
-        };
-
-        struct DataType
-        {
-            typename TSignal::DataType signalData;
-            std::shared_ptr<ContextDataType> contextData;
-        };
-
-        Pick(TSignal sig, TKey key, btl::UniqueId id) :
-            sig_(std::move(sig)),
-            key_(std::move(key)),
-            id_(id)
-        {
-        }
-
-        /** @brief Initializes the signal into @p context.
-         *
-         * Instantiations of one description are the only owners of their
-         * latch, so a context holding no live instantiation has nothing to
-         * latch and the key must be present in the source. The caller owes
-         * that: build a pick when its key appears, and drop it no later than
-         * the update that observes the key leaving.
-         *
-         * @throws std::runtime_error if the key is absent from the source and
-         *         the context holds no earlier value for it.
-         */
-        DataType initialize(DataContext& context, FrameInfo const& frame) const
-        {
-            auto signalData = sig_.initialize(context, frame);
-
-            auto contextData = context.findData<ContextDataType>(id_);
-            if (!contextData)
-            {
-                auto keyed = sig_.evaluate(context, signalData)
-                    .template get<0>();
-
-                auto i = keyed->find(key_);
-                if (i == keyed->end())
-                    throw std::runtime_error(
-                            "pick: key is absent and nothing has been latched");
-
-                contextData = context.initializeData<ContextDataType>(id_,
-                        i->second);
-            }
-
-            return { std::move(signalData), std::move(contextData) };
-        }
-
-        SignalResult<TValue const&> evaluate(DataContext&,
-                DataType const& data) const
-        {
-            return SignalResult<TValue const&>(data.contextData->value);
-        }
-
-        UpdateResult update(DataContext& context, DataType& data,
-                FrameInfo const& frame)
-        {
-            UpdateResult result = sig_.update(context, data.signalData, frame);
-
-            if (!result.didChange)
-                return result;
-
-            auto keyed = sig_.evaluate(context, data.signalData)
-                .template get<0>();
-
-            auto i = keyed->find(key_);
-            if (i == keyed->end())
-            {
-                result.didChange = false;
-                return result;
-            }
-
-            data.contextData->value = i->second;
-
-            return result;
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
-        {
-            return sig_.observe(context, data.signalData,
-                    std::forward<TCallback>(callback));
-        }
-
-    private:
-        TSignal sig_;
-        TKey key_;
-        btl::UniqueId id_;
-    };
-
-    /** @brief Builds a signal of one element of a keyed source.
+     * Yields no value for an update in which the key is absent from the
+     * source. A consumer that requires the element to be there says so with
+     * requirePresent().
      *
      * @param source A keyed source, normally the result of shareKeyed().
      * @param key    The key to follow. It is carried by value and is the only
@@ -177,14 +51,38 @@ namespace bq::signal::detail
     auto pick(Signal<TStorage, KeyedElements<TKey, TValue>> source,
             NonDeducedT<TKey> key)
     {
-        using Storage = SignalStorageType<TStorage,
-              KeyedElements<TKey, TValue>>;
+        return std::move(source).map(
+                [key=std::move(key)](KeyedElements<TKey, TValue> const& keyed)
+                {
+                    auto i = keyed->find(key);
+                    if (i == keyed->end())
+                        return std::optional<TValue>();
 
-        return wrap(Pick<TKey, TValue, Storage>(
-                    std::move(source).unwrap(),
-                    std::move(key),
-                    makeUniqueId()
-                    ));
+                    return std::optional<TValue>(i->second);
+                });
+    }
+
+    /** @brief Asserts that a signal has a value, and drops the optional.
+     *
+     * An empty value is a hard error rather than a state to recover from: the
+     * caller has said the value is there by construction, so its absence is a
+     * bug in whatever was supposed to keep it there. For a pick that means the
+     * caller owes the key's presence — build a pick when its key appears, and
+     * drop it no later than the update that observes the key leaving.
+     *
+     * @throws std::runtime_error if the signal has no value.
+     */
+    template <typename TStorage, typename T>
+    auto requirePresent(Signal<TStorage, std::optional<T>> source)
+    {
+        return std::move(source).map([](std::optional<T> const& value) -> T
+                {
+                    if (!value)
+                        throw std::runtime_error("requirePresent: no value of "
+                                + btl::demangle(typeid(T).name()));
+
+                    return *value;
+                });
     }
 
     /** @brief Shares a signal of a vector as a signal of KeyedElements.
