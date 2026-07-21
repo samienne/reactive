@@ -16,6 +16,12 @@ namespace avg
 
         UniqueId& operator=(UniqueId const&) = default;
 
+        /**
+         * @brief The identity as a number, for reporting it outside the
+         * process.
+         */
+        uint64_t getValue() const;
+
         bool operator==(UniqueId const& id) const;
         bool operator!=(UniqueId const& id) const;
         bool operator<(UniqueId const& id) const;
