@@ -22,6 +22,7 @@ IdNode::IdNode(
     RenderTreeNode(std::move(id), obb),
     childNode_(std::move(childNode))
 {
+    assert(childNode_);
 }
 
 UpdateResult IdNode::update(
