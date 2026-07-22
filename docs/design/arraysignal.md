@@ -758,6 +758,12 @@ separate `SharedArraySignal` type, because keeping the table in the node's
 `UniqueId` carried in the description, so every consumer within one context
 finds one table, and two contexts share nothing.
 
+**Sharing within one context is a supported, existing mechanism, not something
+this design has to invent.** `SharedSignal` is the reference implementation —
+follow it. Sharing *between* contexts is the thing that must not happen, and the
+two are easy to conflate: the first implementation's failure was that it had no
+way to tell them apart, because its table was not keyed by context at all.
+
 Be precise about what that does and does not cover. **The built values are
 shared** — the delegate and every `map` run once between the two branches, which
 is the whole requirement above. **The elements' instantiated state is not**: each
@@ -769,9 +775,10 @@ ordinary rule rather than an exception to it, and it is the price of the exit
 being a node that owns its elements' data — see *`join` is a node, not a
 `Join`*.
 
-A consuming variant would have no user on day one, since every container
-branches, so `map` takes `U const&`. It can be added later if a linear consumer
-ever appears; naming can be revisited then.
+**Implement only the shared form.** The consuming variant would have no user on
+day one, since every container branches. Its `map` therefore takes `U const&`
+rather than consuming. The consuming variant can be added later if a linear
+consumer ever appears; naming can be revisited then.
 
 ## `forEach` vs `map` — the central distinction
 
@@ -1696,7 +1703,9 @@ design that reaches it at churn rate.
 
 ## Open questions
 
-Points the design does not settle. Flagged rather than guessed.
+Points the design does not settle. Flagged rather than guessed. Sharing within a
+single context is *not* one of them — it is a supported mechanism with an
+existing reference implementation; see *Sharing: `SharedArraySignal`*.
 
 - **The reactive subtree `AnySignal<ArraySignal<T>>`.** Still unimplemented and
   still unreconciled: the identity algebra says only construction and `forEach`

@@ -14,8 +14,7 @@
 namespace ase
 {
 
-WglFramebuffer::WglFramebuffer(WglPlatform& platform, WglWindow& window) :
-    platform_(platform),
+WglFramebuffer::WglFramebuffer(WglWindow& window) :
     window_(window)
 {
 }

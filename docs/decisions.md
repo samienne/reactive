@@ -23,6 +23,21 @@ worth building for it: the call is the same and only the meaning changed, so a
 compiler cannot help, and the behaviour it changes to is the one a reader
 expects from the name.
 
+## A draw context is memory, nothing more
+
+`avg::DrawContext` can be constructed from a `pmr::memory_resource*` as well as
+from an `avg::Painter*`, and holds only the resource.
+
+**Why:** drawing a render tree produces `avg::Drawing`s, `Shape`s and `Path`s,
+all of which allocate out of the context and none of which touch a graphics
+back end — the painter was only ever asked for its memory. Splitting the
+constructor out makes the whole render tree drawable, and its output
+assertable, with no `ase::RenderContext` and therefore no window, which is what
+lets the unit tests cover drawing at all. The alternative — compiling ase's
+`dummy` back end alongside the real one to get a headless `Painter` — buys a
+whole headless *platform*, which is worth having on its own terms and is a
+separate concern; drawing does not need it.
+
 ## bqui's type-erased classes use no `extern template`
 
 `Widget`, `Element`, `WidgetModifier`, `ElementModifier` and `BuilderModifier`

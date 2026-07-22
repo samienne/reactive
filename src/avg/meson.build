@@ -29,13 +29,33 @@ libavgsrc = [
   'src/obb.cpp',
   'src/rendering.cpp',
   'src/targetimage.cpp',
-  'src/clipper/clipper.cpp',
   ]
+
+# Clipper is vendored third-party code. It builds as its own target so its
+# diagnostics are silenced without lowering the warning level of code we wrote.
+# warning_level=0 alone only drops the /W flag; the explicit flag is what
+# silences the compiler's default-on diagnostics.
+if meson.get_compiler('cpp').get_argument_syntax() == 'msvc'
+  clipper_args = ['/W0']
+else
+  clipper_args = ['-w']
+endif
+
+libclipper = static_library(
+  'clipper',
+  'src/clipper/clipper.cpp',
+  cpp_args: clipper_args,
+  dependencies: [libbtldep, libeigendep],
+  override_options: ['warning_level=0'],
+  gnu_symbol_visibility: 'hidden',
+  pic: true
+  )
 
 libavg = library(
   'avg',
   libavgsrc,
   include_directories: include_directories('include', 'include/avg', 'src'),
+  link_with: libclipper,
   dependencies: [libasedep, libfreetypedep, mapboxdep],
   cpp_args: ['-DAVG_EXPORT_SYMBOLS'],
   gnu_symbol_visibility: 'hidden'
@@ -52,6 +72,7 @@ avgtest =  executable('avgtest',
   'test/avgtransformtest.cpp',
   'test/brushtest.cpp',
   'test/colortest.cpp',
+  'test/drawtest.cpp',
   'test/fonttest.cpp',
   'test/hashtest.cpp',
   'test/pathtest.cpp',

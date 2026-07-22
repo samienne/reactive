@@ -132,8 +132,6 @@ namespace utf8
             default:
                return 0;
             }
-
-            return 0;
         }
 
         char const* ptr() const

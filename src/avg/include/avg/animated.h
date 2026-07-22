@@ -374,10 +374,14 @@ namespace avg
                 });
         }
 
+        /** With an empty Ts... the expansion below is empty, so the
+         * by-value parameters go unread. */
         template <size_t... S>
-        static auto updatedTuples(std::tuple<Ts...> const& a, std::tuple<Ts...> b,
+        static auto updatedTuples(
+                std::tuple<Ts...> const& a,
+                [[maybe_unused]] std::tuple<Ts...> b,
                 std::optional<AnimationOptions> const& options,
-                std::chrono::milliseconds time,
+                [[maybe_unused]] std::chrono::milliseconds time,
                 std::index_sequence<S...>)
         {
             return std::make_tuple(

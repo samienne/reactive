@@ -6,12 +6,11 @@ namespace ase
 {
     class GlDispatchedContext;
     class GlxWindow;
-    class GlxPlatform;
 
     class GlxFramebuffer : public GlBaseFramebuffer
     {
     public:
-        GlxFramebuffer(GlxPlatform& platform, GlxWindow& window);
+        explicit GlxFramebuffer(GlxWindow& window);
 
         GlxFramebuffer(GlxFramebuffer const&) = delete;
         GlxFramebuffer(GlxFramebuffer&&) = delete;
@@ -39,7 +38,6 @@ namespace ase
         void unsetStencilTarget() override;
 
     private:
-        GlxPlatform& platform_;
         GlxWindow& window_;
     };
 } // namespace ase

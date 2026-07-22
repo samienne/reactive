@@ -1,28 +1,34 @@
 #include "drawcontext.h"
 
+#include "painter.h"
+
 namespace avg
 {
 
 DrawContext::DrawContext(Painter* painter) :
-    painter_(painter)
+    memory_(painter->getResource())
+{
+}
 
+DrawContext::DrawContext(pmr::memory_resource* memory) :
+    memory_(memory)
 {
 }
 
 bool DrawContext::operator==(DrawContext const& other) const
 {
-    return painter_ == other.painter_;
+    return memory_ == other.memory_;
 }
 
 pmr::memory_resource* DrawContext::getResource() const
 {
-    return painter_->getResource();
+    return memory_;
 }
 
 PathBuilder DrawContext::pathBuilder() const
 {
-    return PathBuilder(getResource());
+    return PathBuilder(memory_);
 }
 
-} // namespace reactive
+} // namespace avg
 

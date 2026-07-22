@@ -70,7 +70,7 @@ Transform const& SoftMesh::getTransform() const
 
 SoftMeshDeferred* SoftMesh::getUnique()
 {
-    if (deferred_.unique())
+    if (deferred_.use_count() == 1)
         return deferred_.get();
 
     auto d = pmr::make_shared<SoftMeshDeferred>(getResource(), getResource());

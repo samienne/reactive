@@ -17,7 +17,7 @@
 
 #include <memory>
 #include <iostream>
-#include <codecvt>
+#include <string>
 #include <cstdint>
 
 namespace ase
@@ -34,19 +34,22 @@ namespace
 
     std::string convertFromUtf16(wchar_t c)
     {
-        std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> convert;
+        int const len = WideCharToMultiByte(CP_UTF8, 0, &c, 1, nullptr, 0,
+                nullptr, nullptr);
 
-        wchar_t buf[2];
-        buf[0] = c;
-        buf[1] = 0;
+        if (len <= 0)
+            return std::string();
 
-        return convert.to_bytes(buf);
+        std::string result(static_cast<size_t>(len), '\0');
+
+        WideCharToMultiByte(CP_UTF8, 0, &c, 1, result.data(), len,
+                nullptr, nullptr);
+
+        return result;
     }
 
     uint32_t getKeyModifiers()
     {
-        uint32_t result = 0;
-
         bool shift = (GetKeyState(VK_SHIFT) & (1 << 31)) != 0;
         bool alt = (GetKeyState(VK_MENU) & (1 << 31)) != 0;
         bool winL = (GetKeyState(VK_LWIN) & (1 << 31)) != 0;
@@ -58,16 +61,6 @@ namespace
             | ((winL || winR) ? (uint32_t)KeyModifier::Meta : 0)
             | (control ? (uint32_t)KeyModifier::Control : 0)
             ;
-    }
-
-    void printModifiers(uint32_t modifiers)
-    {
-        std::cout << "modifiers: "
-            << "s: " << ((modifiers & (uint32_t)KeyModifier::Shift) != 0) << " "
-            << "a: " << ((modifiers & (uint32_t)KeyModifier::Alt) != 0) << " "
-            << "m: " << ((modifiers & (uint32_t)KeyModifier::Meta) != 0) << " "
-            << "c: " << ((modifiers & (uint32_t)KeyModifier::Control) != 0)
-            << std::endl;
     }
 
     KeyCode translateKey(uint32_t c)
@@ -378,7 +371,7 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
         float scalingFactor) :
     platform_(platform),
     genericWindow_(size, scalingFactor),
-    defaultFramebuffer_(std::make_shared<WglFramebuffer>(platform, *this))
+    defaultFramebuffer_(std::make_shared<WglFramebuffer>(*this))
 {
     HINSTANCE hInst = GetModuleHandle(NULL);
 
@@ -388,7 +381,7 @@ WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
             "Basic window",
             WS_OVERLAPPEDWINDOW,
             CW_USEDEFAULT, CW_USEDEFAULT,
-            size[0], size[1],
+            static_cast<int>(size[0]), static_cast<int>(size[1]),
             NULL, // parent
             NULL, // Menu
             hInst,
@@ -635,13 +628,11 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
         case WM_KEYDOWN:
         case WM_KEYUP:
         {
-            //printModifiers(getKeyModifiers());
-
             bool down = uMsg == WM_KEYDOWN || uMsg == WM_SYSKEYDOWN;
 
             genericWindow_.injectKeyEvent(
                     down ? KeyState::down : KeyState::up,
-                    translateKey(wParam),
+                    translateKey(static_cast<uint32_t>(wParam)),
                     getKeyModifiers(),
                     ""
                     );
@@ -652,13 +643,15 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
         case WM_CHAR:
         {
             if (wParam != VK_BACK) // Skip backspace
-                genericWindow_.injectTextEvent(convertFromUtf16(wParam));
+                genericWindow_.injectTextEvent(
+                        convertFromUtf16(static_cast<wchar_t>(wParam)));
             break;
         }
 
         case WM_UNICHAR:
         {
-            std::cout << utf8::encode(wParam) << std::endl;
+            std::cout << utf8::encode(static_cast<uint32_t>(wParam))
+                << std::endl;
             break;
         }
 

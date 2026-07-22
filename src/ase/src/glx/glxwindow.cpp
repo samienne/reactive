@@ -66,7 +66,7 @@ GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
         float scalingFactor) :
     platform_(platform),
     genericWindow_(size, scalingFactor),
-    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(platform, *this))
+    defaultFramebuffer_(std::make_shared<GlxFramebuffer>(*this))
 {
     unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
     unsigned int height = static_cast<unsigned int>((float)size[1] * scalingFactor);
