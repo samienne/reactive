@@ -15,12 +15,17 @@
 #include <bqui/shape/shape.h>
 #include <bqui/shape/rectangle.h>
 
+#include <bqui/widget/label.h>
+
 #include <bq/signal/signal.h>
 #include <bq/signal/input.h>
 
 #include <ase/platform.h>
 #include <ase/dummyplatform.h>
 #include <avg/color.h>
+#include <avg/obb.h>
+#include <avg/vector.h>
+#include <avg/rendertree/snapshot.h>
 
 #include <btl/uniqueid.h>
 
@@ -194,6 +199,26 @@ namespace
             return node;
         }
 
+        // A synthetic render-tree snapshot with a recognizable root node and a
+        // single text run, so a render reply can be asserted against without a
+        // real render tree. The text is keyed to the window name so a
+        // multi-window reply can be matched entry-by-entry.
+        avg::Snapshot snapshot() const override
+        {
+            avg::SnapshotNode root;
+            root.type = "FakeShape";
+            root.obb = avg::Obb(avg::Vector2f(100.0f, 50.0f));
+            root.text.push_back(avg::SnapshotText{
+                    "fake:" + name_,
+                    avg::Obb(avg::Vector2f(80.0f, 20.0f)) });
+
+            avg::Snapshot snap;
+            snap.time = std::chrono::milliseconds(0);
+            snap.obb = avg::Obb(avg::Vector2f(200.0f, 100.0f));
+            snap.root = std::move(root);
+            return snap;
+        }
+
         void advance(std::chrono::microseconds dt) override
         {
             ++advances_;
@@ -310,6 +335,39 @@ TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
 
     auto stray = btl::makeUniqueId();
     auto err = s.call("window.introspect", { { "window", stray.getValue() } });
+    EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
+}
+
+// window.renderTree resolves the window by id and returns its render-tree
+// snapshot as a raw JSON sub-object (avg's schema), not a quoted string. The
+// fake's synthetic snapshot carries a known node type and text run.
+TEST(session, renderTreeResolvesByIdAndErrorsOnUnknown)
+{
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    FakeAgentWindow b(idB, "w1");
+    SessionFixture s("rendertree", { a, b });
+
+    auto reply = s.call("window.renderTree", { { "window", idB.getValue() } });
+    auto const& tree = reply.at("result").at("renderTree");
+
+    // Embedded as an object, so it is navigable in place rather than a string.
+    ASSERT_TRUE(tree.is_object());
+    EXPECT_EQ(avg::Snapshot::version, tree.at("version").get<int>());
+
+    auto const& root = tree.at("root");
+    EXPECT_EQ("FakeShape", root.at("type").get<std::string>());
+    ASSERT_EQ(1u, root.at("text").size());
+    EXPECT_EQ("fake:w1", root.at("text").at(0).at("text").get<std::string>());
+
+    // Observation only: neither window advances.
+    EXPECT_EQ(0, a.advances());
+    EXPECT_EQ(0, b.advances());
+
+    // An unknown id is invalid params, like window.introspect.
+    auto stray = btl::makeUniqueId();
+    auto err = s.call("window.renderTree", { { "window", stray.getValue() } });
     EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
 }
 
@@ -464,8 +522,8 @@ TEST(session, describeReportsTheRegistry)
     EXPECT_TRUE(has("window.list"));
     EXPECT_TRUE(has("window.introspect"));
     EXPECT_TRUE(has("window.inject"));
-    // renderTree lands one layer up (avg snapshot); it is not in this build.
-    EXPECT_FALSE(has("window.renderTree"));
+    // renderTree is served in this build (it rides on avg's snapshot).
+    EXPECT_TRUE(has("window.renderTree"));
 
     // The parameter schema is first-class: window.introspect requires `window`.
     ASSERT_TRUE(introspectParams.is_array());
@@ -826,6 +884,99 @@ TEST(session, describeListIntrospectDriveARealApp)
     auto count1 = findCount(intro1.at("result").at("introspection"));
     ASSERT_TRUE(count1.has_value());
     EXPECT_EQ(1.0, *count1);
+
+    rpc(*agent, id++, "app.shutdown");
+    appThread.join();
+}
+
+// --- Render integration: a real render tree over the wire ----------------
+
+namespace
+{
+    // Whether a rendertree node (or any descendant) draws the given text run.
+    bool treeHasText(json const& node, std::string const& text)
+    {
+        auto runs = node.find("text");
+        if (runs != node.end() && runs->is_array())
+            for (auto const& run : *runs)
+            {
+                auto t = run.find("text");
+                if (t != run.end() && t->is_string() && *t == text)
+                    return true;
+            }
+
+        auto children = node.find("children");
+        if (children != node.end() && children->is_array())
+            for (auto const& child : *children)
+                if (treeHasText(child, text))
+                    return true;
+
+        return false;
+    }
+
+    // Whether a rendertree node (or any descendant) has the given node type.
+    bool treeHasType(json const& node, std::string const& type)
+    {
+        auto t = node.find("type");
+        if (t != node.end() && t->is_string() && *t == type)
+            return true;
+
+        auto children = node.find("children");
+        if (children != node.end() && children->is_array())
+            for (auto const& child : *children)
+                if (treeHasType(child, type))
+                    return true;
+
+        return false;
+    }
+} // namespace
+
+// A real headless app whose one window draws a "hello" label: window.renderTree
+// returns that window's render-tree snapshot as a schema-version-1 document
+// embedded as a raw object, and the drawn text is recoverable from it.
+TEST(session, renderTreeReturnsARealWindowsRenderTree)
+{
+    auto endpoint = uniqueEndpoint("agentrender");
+    auto listener = listen(endpoint);
+
+    std::thread appThread([&]
+    {
+        App()
+            .platform(ase::makeDummyPlatform())
+            .agentic(true)
+            .agentEndpoint(endpoint)
+            .addWindow(
+                    window(bq::signal::constant<std::string>("Render"),
+                        label("hello")))
+            .run();
+    });
+
+    auto agent = listener->accept();
+    int id = 1;
+
+    // Build one frame so the render tree exists (agentic mode never free-runs).
+    auto step = rpc(*agent, id++, "app.step", { { "dt_us", 16667 } });
+    EXPECT_EQ("paused", step.at("result").at("state"));
+
+    // Address the one window by id.
+    auto list = rpc(*agent, id++, "window.list");
+    ASSERT_EQ(1u, list.at("result").at("windows").size());
+    uint64_t windowId =
+        list.at("result").at("windows").at(0).at("id").get<uint64_t>();
+
+    // Observe the render tree: a schema-version-1 object, not a quoted string.
+    auto reply = rpc(*agent, id++, "window.renderTree",
+            { { "window", windowId } });
+    auto const& tree = reply.at("result").at("renderTree");
+    ASSERT_TRUE(tree.is_object());
+    EXPECT_EQ(avg::Snapshot::version, tree.at("version").get<int>());
+
+    auto const& root = tree.at("root");
+    ASSERT_TRUE(root.is_object());
+
+    // The label is a shape leaf that draws the text "hello".
+    EXPECT_TRUE(treeHasType(root, "ShapeNode"));
+    EXPECT_TRUE(treeHasText(root, "hello"));
 
     rpc(*agent, id++, "app.shutdown");
     appThread.join();

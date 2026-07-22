@@ -14,6 +14,8 @@
 #include <bq/signal/signalcontext.h>
 
 #include <avg/rendertree.h>
+#include <avg/rendertree/snapshot.h>
+#include <avg/drawcontext.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -592,6 +594,19 @@ public:
         return widget::resolveIntrospection(widgetInstance_.getIntrospection());
     }
 
+    // The render tree's current frame as a value snapshot. Headless and const:
+    // it draws through a memory-only DrawContext (not the window painter) to
+    // recover leaf text, then discards the drawing. Matches render()'s obb and
+    // time so an agent observes exactly what the window presents.
+    avg::Snapshot snapshot() const
+    {
+        return renderTree_.snapshot(
+                avg::DrawContext(pmr::new_delete_resource()),
+                avg::Obb(aseWindow.getSize().cast<float>()),
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    agentTime_));
+    }
+
 private:
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;
@@ -681,6 +696,11 @@ namespace
         widget::Introspection introspect() const override
         {
             return glue_.getResolvedIntrospection();
+        }
+
+        avg::Snapshot snapshot() const override
+        {
+            return glue_.snapshot();
         }
 
         void advance(std::chrono::microseconds dt) override
