@@ -374,6 +374,64 @@ TEST(session, injectToUnknownWindowIsInvalidParams)
     EXPECT_EQ(0, a.buttonInjects());
 }
 
+TEST(session, injectRejectsOutOfRangeIndicesAtomically)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("injectrange", { a });
+
+    // A zero button would underflow the seam's button array; reject it and
+    // apply none of the batch.
+    auto badButton = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "kind", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "button", 0 }, { "state", "down" } } }) },
+            });
+    EXPECT_EQ(-32602, badButton.at("error").at("code").get<int>());
+    EXPECT_EQ(0, a.buttonInjects());
+
+    // An out-of-range pointer id is rejected the same way.
+    auto badPointer = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "kind", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "pointer", 99 }, { "button", 1 }, { "state", "down" } } }) },
+            });
+    EXPECT_EQ(-32602, badPointer.at("error").at("code").get<int>());
+    EXPECT_EQ(0, a.buttonInjects());
+
+    // A valid batch after the rejections still applies normally.
+    auto good = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "kind", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "button", 1 }, { "state", "down" } } }) },
+            });
+    EXPECT_TRUE(good.at("result").is_object());
+    EXPECT_EQ(1, a.buttonInjects());
+}
+
+TEST(session, injectRejectsBatchAtomicallyBeforeApplying)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("injectatomic", { a });
+
+    // First event is valid, second is malformed: the whole batch must reject
+    // without the first event reaching the seam.
+    auto err = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "kind", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "button", 1 }, { "state", "down" } },
+                { { "kind", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "button", 0 }, { "state", "up" } } }) },
+            });
+    EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
+    EXPECT_EQ(0, a.buttonInjects());
+}
+
 TEST(session, describeReportsTheRegistry)
 {
     FakeAgentWindow a(btl::makeUniqueId(), "w0");

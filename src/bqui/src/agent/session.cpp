@@ -137,6 +137,44 @@ void applyInjection(AgentWindow& window, json const& event)
     }
 }
 
+/**
+ * @brief Reject an injection event whose indices would escape the window seam.
+ *
+ * The seam indexes fixed 15-slot arrays: a pointer id must be `<= 15` and a
+ * button number `1..15` (a `0` button underflows into an out-of-bounds write).
+ * Throws @ref RpcError with @ref kInvalidParams naming the offending field on
+ * the first violation, so the inject handler can reject a batch before it
+ * touches the seam.
+ */
+void validateInjection(json const& event)
+{
+    if (!event.is_object())
+        throw RpcError{ kInvalidParams, "each inject event must be an object" };
+
+    auto kind = stringField(event, "kind");
+
+    bool const isPointer = kind == "pointerButton" || kind == "pointerMove"
+        || kind == "hover";
+
+    if (isPointer)
+    {
+        double pointer = numberField(event, "pointer", 0.0);
+        if (pointer < 0.0 || pointer > 15.0)
+            throw RpcError{ kInvalidParams,
+                "'pointer' must be in [0, 15], got "
+                    + std::to_string(pointer) };
+    }
+
+    if (kind == "pointerButton")
+    {
+        double button = numberField(event, "button", 1.0);
+        if (button < 1.0 || button > 15.0)
+            throw RpcError{ kInvalidParams,
+                "'button' must be in [1, 15], got "
+                    + std::to_string(button) };
+    }
+}
+
 // The live window addressed by id, or null if none carries it.
 AgentWindow* findWindow(AgentWindows const& windows, uint64_t id)
 {
@@ -609,6 +647,11 @@ private:
         auto events = params.find("events");
         if (events == params.end() || !events->is_array())
             throw RpcError{ kInvalidParams, "'events' must be an array" };
+
+        // Validate the whole batch before touching the seam so a malformed
+        // event rejects atomically — none of the batch is applied.
+        for (auto const& event : *events)
+            validateInjection(event);
 
         // Injected onto the window's inject seam now; the next app.step's
         // advance is what processes them.
