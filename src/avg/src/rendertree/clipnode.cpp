@@ -180,6 +180,23 @@ std::pair<Drawing, bool> ClipNode::draw(DrawContext const& context,
     };
 }
 
+SnapshotNode ClipNode::snapshot(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time
+        ) const
+{
+    auto result = makeSnapshotNode("ClipNode", *this, parentObb, time);
+
+    if (childNode_)
+    {
+        auto child = childNode_->snapshot(context, result.obb, time);
+        clipSnapshotText(child, result.obb);
+        result.children.push_back(std::move(child));
+    }
+
+    return result;
+}
+
 std::type_index ClipNode::getType() const
 {
     return typeid(ClipNode);
