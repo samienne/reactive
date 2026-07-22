@@ -28,7 +28,8 @@ namespace bqui::agent
      * window-space coordinates (the ones an agent reads back from an obb), read
      * the resolved introspection, and advance the window one frame with an
      * agent-supplied dt. `App` provides the concrete implementation over its
-     * windows.
+     * windows. Identity is the `id` alone; a title is content, carried inside
+     * the introspection, never on the wire as identity.
      */
     class BQUI_EXPORT AgentWindow
     {
@@ -37,9 +38,6 @@ namespace bqui::agent
 
         /** @brief This window's stable identity, its address on the wire. */
         virtual btl::UniqueId id() const = 0;
-
-        /** @brief This window's current title. */
-        virtual std::string title() const = 0;
 
         virtual void injectPointerButton(unsigned int pointerIndex,
                 unsigned int buttonIndex, ase::Vector2f pos,
@@ -90,16 +88,21 @@ namespace bqui::agent
     };
 
     /**
-     * @brief Serve the agent over `transport` until it quits or disconnects.
+     * @brief Serve the inspector protocol over `transport` until shutdown.
      *
-     * Synchronous request/response over the connected transport: receive one
-     * command, apply it to the live windows, send back a snapshot of them,
-     * repeat. Commands are `step` (route each inject to its target window by
-     * id, advance every live window one dt so click handlers run — these may
-     * open or close windows — then reconcile one app frame and snapshot the
-     * new set), `snapshot` (reconcile without advancing, then observe), and
-     * `quit`. A malformed command is answered with an error, not a crash; a
-     * clean channel close ends the loop.
+     * The app launches **paused**: this blocks on `transport.receive()` and
+     * advances nothing until asked. Each received frame carries one JSON-RPC 2.0
+     * message, routed by `method` through the method registry to a handler and
+     * answered with the client's `id` — a `result`, or an `error` with a
+     * standard code (-32700 parse, -32600 invalid request, -32601 method not
+     * found, -32602 invalid params, -32603 internal). A message without an `id`
+     * is a notification and draws no reply.
+     *
+     * `app.step` is the only method that advances time: it advances every live
+     * window by `dt_us`, then reconciles one app frame (materialising windows
+     * opened or dropping those closed), `count` times. `app.shutdown` (or a
+     * clean channel close) returns from this loop; the caller releases the
+     * windows. See `system.describe` for the full registry.
      */
     BQUI_EXPORT void runSession(AgentApp const& app, Transport& transport);
 

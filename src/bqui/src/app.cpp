@@ -646,11 +646,6 @@ namespace
             return glue_.getId();
         }
 
-        std::string title() const override
-        {
-            return glue_.getTitle();
-        }
-
         void injectPointerButton(unsigned int pointerIndex,
                 unsigned int buttonIndex, ase::Vector2f pos,
                 ase::ButtonState state) override

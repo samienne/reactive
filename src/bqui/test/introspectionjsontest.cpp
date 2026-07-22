@@ -1,4 +1,5 @@
-#include <bqui/agent/introspectionjson.h>
+#include "agent/introspectionjson.h"
+
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
 
@@ -6,20 +7,14 @@
 #include <avg/transform.h>
 #include <avg/vector.h>
 
-#include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
 
-#include <string>
+#include <gtest/gtest.h>
 
 using namespace bqui;
 using namespace bqui::widget;
 
-namespace
-{
-    bool contains(std::string const& haystack, std::string const& needle)
-    {
-        return haystack.find(needle) != std::string::npos;
-    }
-} // namespace
+using nlohmann::json;
 
 TEST(introspectionJson, serialisesRoleNameAndCapabilities)
 {
@@ -30,12 +25,13 @@ TEST(introspectionJson, serialisesRoleNameAndCapabilities)
     node.obb = avg::Obb(avg::Vector2f(60.0f, 24.0f),
             avg::translate(70.0f, 12.0f));
 
-    auto json = agent::toJson(node);
+    auto j = agent::toJson(node);
 
-    EXPECT_TRUE(contains(json, "\"role\":\"Button\""));
-    EXPECT_TRUE(contains(json, "\"name\":\"saveButton\""));
-    EXPECT_TRUE(contains(json, "\"capabilities\":[\"Clickable\",\"Focusable\"]"));
-    EXPECT_TRUE(contains(json, "\"children\":[]"));
+    EXPECT_EQ("Button", j.at("role"));
+    EXPECT_EQ("saveButton", j.at("name"));
+    EXPECT_EQ(json({ "Clickable", "Focusable" }), j.at("capabilities"));
+    EXPECT_TRUE(j.at("children").is_array());
+    EXPECT_TRUE(j.at("children").empty());
 }
 
 TEST(introspectionJson, omitsNameWhenUnset)
@@ -43,10 +39,10 @@ TEST(introspectionJson, omitsNameWhenUnset)
     Introspection node;
     node.role = "Widget";
 
-    auto json = agent::toJson(node);
+    auto j = agent::toJson(node);
 
-    EXPECT_FALSE(contains(json, "\"name\""));
-    EXPECT_TRUE(contains(json, "\"role\":\"Widget\""));
+    EXPECT_FALSE(j.contains("name"));
+    EXPECT_EQ("Widget", j.at("role"));
 }
 
 TEST(introspectionJson, encodesObbAsCenterSizeAngle)
@@ -57,12 +53,14 @@ TEST(introspectionJson, encodesObbAsCenterSizeAngle)
     node.obb = avg::Obb(avg::Vector2f(40.0f, 20.0f),
             avg::translate(40.0f, 10.0f));
 
-    auto json = agent::toJson(node);
+    auto j = agent::toJson(node);
 
-    EXPECT_TRUE(contains(json, "\"obb\":{"));
-    EXPECT_TRUE(contains(json, "\"center\":{\"x\":60,\"y\":20}"));
-    EXPECT_TRUE(contains(json, "\"size\":{\"w\":40,\"h\":20}"));
-    EXPECT_TRUE(contains(json, "\"angle\":0"));
+    auto const& obb = j.at("obb");
+    EXPECT_DOUBLE_EQ(60.0, obb.at("center").at("x").get<double>());
+    EXPECT_DOUBLE_EQ(20.0, obb.at("center").at("y").get<double>());
+    EXPECT_DOUBLE_EQ(40.0, obb.at("size").at("w").get<double>());
+    EXPECT_DOUBLE_EQ(20.0, obb.at("size").at("h").get<double>());
+    EXPECT_DOUBLE_EQ(0.0, obb.at("angle").get<double>());
 }
 
 TEST(introspectionJson, serialisesNestedDataObjectAndArray)
@@ -83,24 +81,20 @@ TEST(introspectionJson, serialisesNestedDataObjectAndArray)
             DataValue(false)
             });
 
-    auto json = agent::toJson(node);
+    auto j = agent::toJson(node);
+    auto const& data = j.at("data");
 
-    EXPECT_TRUE(contains(json, "\"text\":\"hi\""));
-    EXPECT_TRUE(contains(json, "\"count\":3"));
-    EXPECT_TRUE(contains(json, "\"on\":true"));
-    EXPECT_TRUE(contains(json, "\"nested\":{\"k\":\"v\"}"));
-    EXPECT_TRUE(contains(json, "\"list\":[\"a\",2,false]"));
-}
+    EXPECT_EQ("hi", data.at("text"));
+    EXPECT_DOUBLE_EQ(3.0, data.at("count").get<double>());
+    EXPECT_EQ(true, data.at("on").get<bool>());
+    EXPECT_EQ("v", data.at("nested").at("k"));
 
-TEST(introspectionJson, escapesStringSpecialCharacters)
-{
-    Introspection node;
-    node.role = "Widget";
-    node.data["s"] = DataValue(std::string("a\"b\\c\n\t"));
-
-    auto json = agent::toJson(node);
-
-    EXPECT_TRUE(contains(json, "\"s\":\"a\\\"b\\\\c\\n\\t\""));
+    auto const& list = data.at("list");
+    ASSERT_TRUE(list.is_array());
+    ASSERT_EQ(3u, list.size());
+    EXPECT_EQ("a", list.at(0));
+    EXPECT_DOUBLE_EQ(2.0, list.at(1).get<double>());
+    EXPECT_EQ(false, list.at(2).get<bool>());
 }
 
 TEST(introspectionJson, recursesIntoChildren)
@@ -114,13 +108,12 @@ TEST(introspectionJson, recursesIntoChildren)
     parent.capabilities = { Capability::Clickable };
     parent.children.push_back(makeIntrospectionChild(std::move(child)));
 
-    auto json = agent::toJson(parent);
+    auto j = agent::toJson(parent);
 
-    EXPECT_TRUE(contains(json, "\"role\":\"CheckBoxLabel\""));
-    EXPECT_TRUE(contains(json, "\"children\":[{"));
-    EXPECT_TRUE(contains(json, "\"role\":\"Label\""));
-    EXPECT_TRUE(contains(json, "\"text\":\"Accept\""));
-    // No trailing comma before the closing of the children array.
-    EXPECT_FALSE(contains(json, ",]"));
-    EXPECT_FALSE(contains(json, ",}"));
+    EXPECT_EQ("CheckBoxLabel", j.at("role"));
+    ASSERT_EQ(1u, j.at("children").size());
+
+    auto const& childJson = j.at("children").at(0);
+    EXPECT_EQ("Label", childJson.at("role"));
+    EXPECT_EQ("Accept", childJson.at("data").at("text"));
 }

@@ -1,10 +1,10 @@
-#include "bqui/agent/introspectionjson.h"
+#include "introspectionjson.h"
 
 #include "bqui/widget/datavalue.h"
 
+#include <nlohmann/json.hpp>
+
 #include <cmath>
-#include <cstdio>
-#include <sstream>
 #include <variant>
 
 namespace bqui::agent
@@ -13,221 +13,95 @@ namespace bqui::agent
 namespace
 {
 
-void writeString(std::ostream& out, std::string const& value)
+// A non-finite double has no JSON literal; keep the output valid by folding it
+// to 0 rather than emitting a document nlohmann would refuse to serialise.
+double finiteOrZero(double value)
 {
-    out << '"';
-    for (char c : value)
-    {
-        switch (c)
-        {
-            case '"': out << "\\\""; break;
-            case '\\': out << "\\\\"; break;
-            case '\b': out << "\\b"; break;
-            case '\f': out << "\\f"; break;
-            case '\n': out << "\\n"; break;
-            case '\r': out << "\\r"; break;
-            case '\t': out << "\\t"; break;
-            default:
-                if (static_cast<unsigned char>(c) < 0x20)
-                {
-                    char buf[8];
-                    std::snprintf(buf, sizeof(buf), "\\u%04x",
-                            static_cast<unsigned char>(c));
-                    out << buf;
-                }
-                else
-                {
-                    out << c;
-                }
-                break;
-        }
-    }
-    out << '"';
+    return std::isfinite(value) ? value : 0.0;
 }
 
-void writeNumber(std::ostream& out, double value)
+nlohmann::json toJson(widget::DataValue const& value)
 {
-    // JSON has no non-finite literals, so keep the output valid.
-    if (!std::isfinite(value))
-    {
-        out << '0';
-        return;
-    }
-
-    // "%g" is round-trippable at 9 significant digits and drops the trailing
-    // decimal point for integers; the default "C" locale keeps the point a dot.
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%.9g", value);
-    out << buf;
-}
-
-void writeVector(std::ostream& out, char const* firstKey, float first,
-        char const* secondKey, float second)
-{
-    out << '{';
-    writeString(out, firstKey);
-    out << ':';
-    writeNumber(out, first);
-    out << ',';
-    writeString(out, secondKey);
-    out << ':';
-    writeNumber(out, second);
-    out << '}';
-}
-
-void writeDataValue(std::ostream& out, widget::DataValue const& value)
-{
-    std::visit([&out](auto const& v)
+    return std::visit([](auto const& v) -> nlohmann::json
     {
         using T = std::decay_t<decltype(v)>;
 
         if constexpr (std::is_same_v<T, std::string>)
         {
-            writeString(out, v);
+            return v;
         }
         else if constexpr (std::is_same_v<T, double>)
         {
-            writeNumber(out, v);
+            return finiteOrZero(v);
         }
         else if constexpr (std::is_same_v<T, bool>)
         {
-            out << (v ? "true" : "false");
+            return v;
         }
         else if constexpr (std::is_same_v<T, widget::DataMap>)
         {
-            out << '{';
-            bool first = true;
+            auto object = nlohmann::json::object();
             for (auto const& entry : v)
-            {
-                if (!first)
-                    out << ',';
-                first = false;
-
-                writeString(out, entry.first);
-                out << ':';
-                writeDataValue(out, entry.second);
-            }
-            out << '}';
+                object[entry.first] = toJson(entry.second);
+            return object;
         }
         else if constexpr (std::is_same_v<T, widget::DataArray>)
         {
-            out << '[';
-            bool first = true;
+            auto array = nlohmann::json::array();
             for (auto const& element : v)
-            {
-                if (!first)
-                    out << ',';
-                first = false;
-
-                writeDataValue(out, element);
-            }
-            out << ']';
+                array.push_back(toJson(element));
+            return array;
         }
     }, value.value);
 }
 
-void writeObb(std::ostream& out, avg::Obb const& obb)
+nlohmann::json toJson(avg::Obb const& obb)
 {
     auto center = obb.getCenter();
     auto size = obb.getSize();
 
-    out << "{";
-    writeString(out, "center");
-    out << ':';
-    writeVector(out, "x", center[0], "y", center[1]);
-    out << ',';
-    writeString(out, "size");
-    out << ':';
-    writeVector(out, "w", size[0], "h", size[1]);
-    out << ',';
-    writeString(out, "angle");
-    out << ':';
-    writeNumber(out, obb.getTransform().getRotation());
-    out << '}';
-}
-
-void writeNode(std::ostream& out, widget::Introspection const& node)
-{
-    out << '{';
-
-    if (node.name)
-    {
-        writeString(out, "name");
-        out << ':';
-        writeString(out, *node.name);
-        out << ',';
-    }
-
-    writeString(out, "role");
-    out << ':';
-    writeString(out, node.role);
-
-    out << ',';
-    writeString(out, "capabilities");
-    out << ":[";
-    bool firstCapability = true;
-    for (auto capability : node.capabilities)
-    {
-        if (!firstCapability)
-            out << ',';
-        firstCapability = false;
-
-        writeString(out, widget::toString(capability));
-    }
-    out << ']';
-
-    out << ',';
-    writeString(out, "obb");
-    out << ':';
-    writeObb(out, node.obb);
-
-    out << ',';
-    writeString(out, "data");
-    out << ":{";
-    bool firstData = true;
-    for (auto const& entry : node.data)
-    {
-        if (!firstData)
-            out << ',';
-        firstData = false;
-
-        writeString(out, entry.first);
-        out << ':';
-        writeDataValue(out, entry.second);
-    }
-    out << '}';
-
-    out << ',';
-    writeString(out, "children");
-    out << ":[";
-    bool firstChild = true;
-    for (auto const& child : node.children)
-    {
-        if (!firstChild)
-            out << ',';
-        firstChild = false;
-
-        writeNode(out, *child);
-    }
-    out << ']';
-
-    out << '}';
+    return {
+        { "center", {
+            { "x", finiteOrZero(center[0]) },
+            { "y", finiteOrZero(center[1]) },
+        } },
+        { "size", {
+            { "w", finiteOrZero(size[0]) },
+            { "h", finiteOrZero(size[1]) },
+        } },
+        { "angle", finiteOrZero(obb.getTransform().getRotation()) },
+    };
 }
 
 } // namespace
 
-std::string toJson(widget::Introspection const& node)
+nlohmann::json toJson(widget::Introspection const& node)
 {
-    std::ostringstream out;
-    writeNode(out, node);
-    return out.str();
-}
+    nlohmann::json result = nlohmann::json::object();
 
-std::string toJsonString(std::string const& value)
-{
-    std::ostringstream out;
-    writeString(out, value);
-    return out.str();
+    if (node.name)
+        result["name"] = *node.name;
+
+    result["role"] = node.role;
+
+    auto capabilities = nlohmann::json::array();
+    for (auto capability : node.capabilities)
+        capabilities.push_back(widget::toString(capability));
+    result["capabilities"] = std::move(capabilities);
+
+    result["obb"] = toJson(node.obb);
+
+    auto data = nlohmann::json::object();
+    for (auto const& entry : node.data)
+        data[entry.first] = toJson(entry.second);
+    result["data"] = std::move(data);
+
+    auto children = nlohmann::json::array();
+    for (auto const& child : node.children)
+        children.push_back(toJson(*child));
+    result["children"] = std::move(children);
+
+    return result;
 }
 
 } // namespace bqui::agent

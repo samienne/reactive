@@ -1,6 +1,5 @@
 libbquisrc = [
   'src/agent/introspectionjson.cpp',
-  'src/agent/json.cpp',
   'src/agent/session.cpp',
   'src/agent/streamtransport.cpp',
   'src/agent/pipetransport.cpp',
@@ -77,11 +76,19 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
+# nlohmann/json owns the agent layer's JSON-RPC envelope and serialisation. It
+# is header-only and confined to the agent layer's own .cpp files (json.hpp is
+# never pulled into a public header), so it is a dependency of the bqui library
+# only — deliberately *not* re-exported through libbquidep, keeping its compile
+# cost from spreading to dependents.
+nlohmanndep = dependency('nlohmann_json', include_type: 'system',
+    default_options: subproject_warnings)
+
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep,
+  dependencies: bquidep + [nlohmanndep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
   gnu_symbol_visibility: 'hidden'
   )
@@ -98,7 +105,6 @@ bquitestsrc = [
   'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
-  'test/jsontest.cpp',
   'test/layouttest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
@@ -117,9 +123,13 @@ if ase_is_headless
   bquitestsrc += 'test/apptest.cpp'
 endif
 
+# The agent tests speak framed JSON-RPC and exercise the introspection→json
+# adapter directly, so the test binary sees nlohmann and the library's private
+# src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  include_directories: include_directories('src'),
   )
 
 test('bqui', bquitest, timeout: 1200,
