@@ -116,15 +116,6 @@ public:
         return bq::signal::concat(std::move(parts));
     }
 
-    // Whether there is anything at all to open, without building a signal
-    // context to ask.
-    bool hasNoWindows() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        return arrays_.empty() && windows_->get().empty();
-    }
-
     std::shared_ptr<WindowList> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
 
@@ -615,17 +606,19 @@ int App::run(bq::signal::AnySignal<bool> running)
 
 int App::run()
 {
-    return runUntil(std::nullopt);
+    // The default policy runs the app while a window is open in its own
+    // collection, and stops when the last one leaves. A caller that wants
+    // another — to count array-supplied windows too, or to keep running past an
+    // empty collection — passes its own signal to run(running).
+    return runUntil(getWindowsSignal().map(
+                [](std::vector<Window> const& windows)
+                {
+                    return !windows.empty();
+                }));
 }
 
-int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
+int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    // Without a signal the app runs while a window is open, so with none to
-    // open it has nothing to run for — and answering that before a platform
-    // exists is what lets it be answered where there is no display.
-    if (!runningSignal && d()->hasNoWindows())
-        return 0;
-
     ase::Platform platform = ase::makeDefaultPlatform();
 
     ase::RenderContext context = platform.makeRenderContext();
@@ -647,6 +640,17 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
     auto glues = bq::signal::makeSignalContext(
             bq::signal::join(d()->takeAllWindows().map(makeGlue)));
 
+    // The running bool advances on the same clock, a frame's two phases apart:
+    // the glues are reconciled first, and only then is the running signal
+    // evaluated, so a handler it runs sees the window set the frame has already
+    // settled on — a window destroyed for leaving its key is gone by then. That
+    // ordering is why the glues and the running bool are separate contexts
+    // driven in step, not one context updated once: a single update() would run
+    // the running signal before the reconcile, not after. The two do share the
+    // app's own window collection, but only as a bq::signal::Input value, which
+    // every context reads coherently from the frame it is set.
+    auto runningContext = bq::signal::makeSignalContext(std::move(running));
+
     auto mainQueue = context.getMainRenderQueue();
 
     // The glues outlive this call — they are the app's, not the loop's — but
@@ -654,54 +658,47 @@ int App::runUntil(std::optional<bq::signal::AnySignal<bool>> runningSignal)
     // released before this returns however it returns.
     GlueScope glueScope { *d(), mainQueue };
 
-    auto collect = [&]()
-    {
-        std::vector<btl::shared<WindowGlue>> departing =
-            glues.evaluate<0>().get<0>();
-
-        // A frame that drew a departing window can still be in flight, and it
-        // holds that window's framebuffer, so nothing may release a glue until
-        // the queue has caught up.
-        mainQueue.finish();
-
-        // Swap and then clear, rather than assign: destroying a window runs
-        // event handlers that reach back into the live set, which must be the
-        // new one by then.
-        d()->windowGlues_.swap(departing);
-        departing.clear();
-    };
-
-    collect();
-
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
 
     DBG("Reactive running...");
 
-    using RunningContext =
-        bq::signal::SignalContext<bq::signal::AnySignal<bool>>;
+    bool seeded = false;
 
-    std::optional<RunningContext> running;
-    if (runningSignal)
-        running.emplace(*runningSignal);
+    platform.run(context, [&](ase::Frame const& aseFrame) -> bool
+        {
+            bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
 
-    if (running || !d()->windowGlues_.empty())
-    {
-        platform.run(context, [&](ase::Frame const& aseFrame) -> bool
+            glues.update(frame);
+
+            // Seed the glues on the first frame, then re-collect whenever the
+            // set of window identities changes.
+            if (!seeded || glues.didChange<0>())
             {
-                bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+                std::vector<btl::shared<WindowGlue>> departing =
+                    glues.evaluate<0>().get<0>();
 
-                if (glues.update(frame).didChange)
-                    collect();
+                // A frame that drew a departing window can still be in flight,
+                // and it holds that window's framebuffer, so nothing may
+                // release a glue until the queue has caught up.
+                mainQueue.finish();
 
-                if (!running)
-                    return !d()->windowGlues_.empty();
+                // Swap and then clear, rather than assign: destroying a window
+                // runs event handlers that reach back into the live set, which
+                // must be the new one by then.
+                d()->windowGlues_.swap(departing);
+                departing.clear();
 
-                running->update(frame);
+                seeded = true;
+            }
 
-                return running->evaluate<0>().get<0>();
-            });
-    }
+            // Evaluated after the reconcile, so a running signal derived from
+            // the window collection — the default one is — sees the frame's
+            // settled set.
+            runningContext.update(frame);
+
+            return runningContext.evaluate<0>().get<0>();
+        });
 
     DBG("Shutting down...");
 

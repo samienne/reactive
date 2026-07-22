@@ -7,15 +7,22 @@ Each entry is intentionally short: the decision and its rationale.
 
 ## `App::run()` with no arguments stops at zero windows, not at the first close
 
-`run()` used to stop when *any* window closed; it now runs until no window is
-open. `run(running)` is unchanged and stops when its signal says so.
+`run()` used to stop when *any* window closed; it now runs while a window
+remains in the app's own collection. It is not a rule of the loop: `run()` with
+no argument builds a default `running` signal from that collection — true while
+it holds a window, false when the last one leaves — and passes it to the same
+loop `run(running)` drives, which is unchanged and stops when its signal says
+so. The default counts only the app's own windows, not those from
+`addWindowArray`; a caller who wants to count those, or to outlive an empty
+collection, passes a `running` signal of its own.
 
 **Why:** the app owns its windows now, so closing one is a removal and not an
 exit — that is what makes a close button, a title bar, and `removeWindow` one
 thing. "Stop at the first close" only ever described a single-window app, and it
-described it by accident: with one window the two rules agree. An app that wants
-the old behaviour asks for it with `run(running)` and an `onClose` that sets the
-signal false, which is what `run()` itself used to do internally.
+described it by accident: with one window the two rules agree. Making the default
+an ordinary signal rather than a special case in the loop is what lets a caller
+replace it: an app that wants the old behaviour passes `run(running)` an
+`onClose` that sets the signal false.
 
 **The cost is real and accepted.** A multi-window app that relied on the main
 window closing the whole app now has to say so. There is no deprecation path

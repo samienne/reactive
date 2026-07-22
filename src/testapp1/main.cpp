@@ -84,12 +84,6 @@ Window makeSecondWindow()
                     bq::signal::constant(std::function<void()>(
                             [handle]()
                             {
-                                // Animating and removing in one handler is the
-                                // combination that transacts a departing
-                                // window synchronously, so this is where it is
-                                // exercised.
-                                auto a = withAnimation(0.3f,
-                                        avg::curve::easeOutCubic);
                                 handle.close();
                             })))
                 | modifier::frame()

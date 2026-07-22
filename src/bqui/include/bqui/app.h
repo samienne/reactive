@@ -56,7 +56,10 @@ namespace bqui
          * from whatever the array was built from, so 'Window::close()' and
          * removeWindow() do nothing for them.
          *
-         * Both kinds of window are open at once, and run() counts them all.
+         * Both kinds of window are open at once. The default run() stops on the
+         * app's own collection alone, though, so an app whose windows are all in
+         * an array wants a 'running' signal of its own — run() with no argument
+         * would see an empty collection and return at once.
          *
          * @throws std::logic_error if the app is already running. Unlike the
          *         app's own collection, the set of arrays is fixed when run()
@@ -102,8 +105,14 @@ namespace bqui
 
         /** @overload
          *
-         * Runs until no window is open — every window, from either kind of
-         * list. Returns immediately if none is open to begin with.
+         * Runs while the app's own collection has a window in it, and stops
+         * when the last one is removed. This is a default 'running' signal
+         * derived from that collection, not a rule of the loop: it counts only
+         * the windows added through addWindows() and removeWindow(), not those
+         * from addWindowArray(), and a caller that wants another policy —
+         * counting array-supplied windows, or outliving an empty collection —
+         * passes its own signal to run(running). An app with no window in its
+         * own collection to begin with returns at once.
          */
         int run();
 
@@ -113,7 +122,7 @@ namespace bqui
         friend class AnimationGuard;
 
     private:
-        int runUntil(std::optional<bq::signal::AnySignal<bool>> running);
+        int runUntil(bq::signal::AnySignal<bool> running);
 
         inline AppDeferred* d()
         {
