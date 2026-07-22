@@ -1,6 +1,6 @@
 # Conventions & gotchas
 
-*Last verified against `8677be3` (2026-07-21).*
+*Last verified against `30c2979` (2026-07-21).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -103,6 +103,21 @@ methods (`&&`). Inside such a method, `*this` is an **lvalue**, so calling
 another `&&`-qualified overload on it requires `std::move(*this)`. Forgetting
 this is a latent bug (see above): `return foo(...)` may need to be
 `return std::move(*this).foo(...)`.
+
+## A signal consumed twice duplicates everything behind it
+
+Consuming a signal from two places without a `.share()` between them
+instantiates and evaluates the whole chain behind it **once per consumer, per
+pass**. Treat that as a defect rather than a style preference: the values still
+agree, so nothing fails — the work is simply done twice, and anything stateful
+in the chain exists twice.
+
+Nothing catches it but reading the code. Signals were once **move-only**, with
+an explicit `.clone()` to opt into copying, precisely so a second consumer could
+not appear by accident; copying was enabled later because move-only was too
+painful to write against. The surviving `.clone()` methods, and the habit of
+passing signals into widget-building functions as parameters rather than
+capturing them, are residue of that era.
 
 ## `merge()` has no zero-argument form
 
