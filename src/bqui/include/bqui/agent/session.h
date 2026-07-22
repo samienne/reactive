@@ -90,18 +90,22 @@ namespace bqui::agent
     /**
      * @brief Serve the inspector protocol over `transport` until shutdown.
      *
-     * The app launches **paused**: this blocks on `transport.receive()` and
-     * advances nothing until asked. Each received frame carries one JSON-RPC 2.0
-     * message, routed by `method` through the method registry to a handler and
-     * answered with the client's `id` — a `result`, or an `error` with a
-     * standard code (-32700 parse, -32600 invalid request, -32601 method not
-     * found, -32602 invalid params, -32603 internal). A message without an `id`
-     * is a notification and draws no reply.
+     * The app launches **paused**. A dedicated reader thread decodes frames off
+     * `transport` into a thread-safe command queue; this (the app) thread runs a
+     * single-threaded state machine over that queue and is the only one that
+     * touches windows, sends responses, and emits notifications. Each frame
+     * carries one JSON-RPC 2.0 message, routed by `method` through the registry
+     * to a handler and answered with the client's `id` — a `result`, or an
+     * `error` with a standard code (-32700 parse, -32600 invalid request, -32601
+     * method not found, -32602 invalid params, -32603 internal). A message
+     * without an `id` is a notification and draws no reply.
      *
-     * `app.step` is the only method that advances time: it advances every live
-     * window by `dt_us`, then reconciles one app frame (materialising windows
-     * opened or dropping those closed), `count` times. `app.shutdown` (or a
-     * clean channel close) returns from this loop; the caller releases the
+     * `app.run` free-runs frames (advance every live window, then reconcile one
+     * fused app frame) until `app.pause`; `app.step` advances a bounded `count`
+     * and stays paused. The queue is drained at a frame boundary either way, so
+     * a query sees a whole, untorn frame whether running or paused. `app.shutdown`
+     * (or a clean channel close) ends the loop: this closes the transport to
+     * wake and join the reader thread, then returns so the caller releases the
      * windows. See `system.describe` for the full registry.
      */
     BQUI_EXPORT void runSession(AgentApp const& app, Transport& transport);

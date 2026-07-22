@@ -29,6 +29,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -82,6 +84,72 @@ namespace
         transport.send(request.dump());
         auto reply = transport.receive();
         return reply ? json::parse(*reply) : json();
+    }
+
+    // Send a request without waiting for its reply — the caller reads it later
+    // through awaitResponse, past any interleaved notifications.
+    void sendRequest(Transport& transport, int id, std::string const& method,
+            json params = json::object())
+    {
+        json request = {
+            { "jsonrpc", "2.0" },
+            { "id", id },
+            { "method", method },
+        };
+        if (!params.empty())
+            request["params"] = params;
+
+        transport.send(request.dump());
+    }
+
+    // Read frames until the response with `id` arrives, tallying any `frame`
+    // notifications seen on the way (they interleave with responses while the
+    // app free-runs). Returns a null json if the channel closes first.
+    json awaitResponse(Transport& transport, int id, int* frameNotifs = nullptr)
+    {
+        for (;;)
+        {
+            auto raw = transport.receive();
+            if (!raw)
+                return json();
+
+            json msg = json::parse(*raw, nullptr, false);
+            if (msg.is_discarded())
+                continue;
+
+            auto method = msg.find("method");
+            if (method != msg.end() && *method == "frame")
+            {
+                if (frameNotifs)
+                    ++*frameNotifs;
+                continue;
+            }
+
+            auto msgId = msg.find("id");
+            if (msgId != msg.end() && msgId->is_number()
+                    && msgId->get<int>() == id)
+                return msg;
+        }
+    }
+
+    // Read frames until at least one `frame` notification arrives (proof the
+    // app advanced a frame while running). Returns false if the channel closes.
+    bool awaitFrameNotification(Transport& transport)
+    {
+        for (;;)
+        {
+            auto raw = transport.receive();
+            if (!raw)
+                return false;
+
+            json msg = json::parse(*raw, nullptr, false);
+            if (!msg.is_discarded())
+            {
+                auto method = msg.find("method");
+                if (method != msg.end() && *method == "frame")
+                    return true;
+            }
+        }
     }
 
     // A click (down then up) at a point as a window.inject events array.
@@ -330,8 +398,11 @@ TEST(session, describeReportsTheRegistry)
     };
 
     EXPECT_TRUE(has("system.describe"));
+    EXPECT_TRUE(has("app.run"));
+    EXPECT_TRUE(has("app.pause"));
     EXPECT_TRUE(has("app.step"));
     EXPECT_TRUE(has("app.shutdown"));
+    EXPECT_TRUE(has("app.setFrameNotifications"));
     EXPECT_TRUE(has("window.list"));
     EXPECT_TRUE(has("window.introspect"));
     EXPECT_TRUE(has("window.inject"));
@@ -343,6 +414,192 @@ TEST(session, describeReportsTheRegistry)
     ASSERT_EQ(1u, introspectParams.size());
     EXPECT_EQ("window", introspectParams.at(0).at("name"));
     EXPECT_EQ(true, introspectParams.at(0).at("required"));
+}
+
+// --- Flow control: run / pause / step / notifications / shutdown ----------
+
+TEST(session, runThenPauseReportsAdvancedFrame)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("runpause", { a });
+
+    // Turn on frame notifications so the client can wait for a concrete frame
+    // rather than racing the free run with a sleep.
+    int nId = s.nextId++;
+    sendRequest(*s.client, nId, "app.setFrameNotifications",
+            { { "enabled", true } });
+    awaitResponse(*s.client, nId);
+
+    int runId = s.nextId++;
+    sendRequest(*s.client, runId, "app.run");
+    EXPECT_EQ("running",
+            awaitResponse(*s.client, runId).at("result").at("state"));
+
+    // At least one frame ran while free-running.
+    ASSERT_TRUE(awaitFrameNotification(*s.client));
+
+    int pauseId = s.nextId++;
+    sendRequest(*s.client, pauseId, "app.pause");
+    auto pauseReply = awaitResponse(*s.client, pauseId);
+    EXPECT_EQ("paused", pauseReply.at("result").at("state"));
+    EXPECT_GE(pauseReply.at("result").at("frame").get<uint64_t>(), 1u);
+    EXPECT_GE(a.advances(), 1);
+}
+
+TEST(session, pausedFrameIsStableWithoutAStep)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("stable", { a });
+
+    // Reach a known frame from paused; no notifications, so nothing interleaves.
+    int stepId = s.nextId++;
+    sendRequest(*s.client, stepId, "app.step", { { "count", 3 } });
+    uint64_t frame =
+        awaitResponse(*s.client, stepId).at("result").at("frame").get<uint64_t>();
+    EXPECT_EQ(3u, frame);
+    EXPECT_EQ(3, a.advances());
+
+    // A pause (a query at a frame boundary) shows the same frame — paused holds.
+    int pauseId = s.nextId++;
+    sendRequest(*s.client, pauseId, "app.pause");
+    EXPECT_EQ(frame,
+            awaitResponse(*s.client, pauseId).at("result").at("frame")
+                .get<uint64_t>());
+
+    // And a window.list issued while paused advances nothing further.
+    int listId = s.nextId++;
+    sendRequest(*s.client, listId, "window.list");
+    awaitResponse(*s.client, listId);
+    EXPECT_EQ(3, a.advances());
+}
+
+TEST(session, stepFromPausedAdvancesExactlyAndStaysPaused)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("steppaused", { a });
+
+    int firstId = s.nextId++;
+    sendRequest(*s.client, firstId, "app.step", { { "count", 4 } });
+    auto first = awaitResponse(*s.client, firstId);
+    EXPECT_EQ("paused", first.at("result").at("state"));
+    EXPECT_EQ(4u, first.at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(4, a.advances());
+
+    // Still paused: a following default step continues from 4, one at a time.
+    int secondId = s.nextId++;
+    sendRequest(*s.client, secondId, "app.step");
+    auto second = awaitResponse(*s.client, secondId);
+    EXPECT_EQ(5u, second.at("result").at("frame").get<uint64_t>());
+    EXPECT_EQ(5, a.advances());
+}
+
+TEST(session, queryWhileRunningIsCoherentAndKeepsRunning)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("querying", { a });
+
+    int nId = s.nextId++;
+    sendRequest(*s.client, nId, "app.setFrameNotifications",
+            { { "enabled", true } });
+    awaitResponse(*s.client, nId);
+
+    int runId = s.nextId++;
+    sendRequest(*s.client, runId, "app.run");
+    awaitResponse(*s.client, runId);
+    ASSERT_TRUE(awaitFrameNotification(*s.client));
+
+    // A query mid-run returns coherent data (the one live window)...
+    int listId = s.nextId++;
+    sendRequest(*s.client, listId, "window.list");
+    auto list = awaitResponse(*s.client, listId);
+    ASSERT_EQ(1u, list.at("result").at("windows").size());
+    EXPECT_EQ(idA.getValue(),
+            list.at("result").at("windows").at(0).at("id").get<uint64_t>());
+
+    // ...and the app is still running afterward (more frames arrive).
+    ASSERT_TRUE(awaitFrameNotification(*s.client));
+}
+
+TEST(session, frameNotificationsOffIsSilent)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("silent", { a });
+
+    // Default is off: run, then pause, and no frame notification interleaves.
+    int runId = s.nextId++;
+    sendRequest(*s.client, runId, "app.run");
+    awaitResponse(*s.client, runId);
+
+    int pauseId = s.nextId++;
+    sendRequest(*s.client, pauseId, "app.pause");
+    int notifs = 0;
+    awaitResponse(*s.client, pauseId, &notifs);
+    EXPECT_EQ(0, notifs);
+}
+
+TEST(session, frameNotificationsOnEmitFrames)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    SessionFixture s("emitting", { a });
+
+    int nId = s.nextId++;
+    sendRequest(*s.client, nId, "app.setFrameNotifications",
+            { { "enabled", true } });
+    awaitResponse(*s.client, nId);
+
+    int runId = s.nextId++;
+    sendRequest(*s.client, runId, "app.run");
+    awaitResponse(*s.client, runId);
+
+    EXPECT_TRUE(awaitFrameNotification(*s.client));
+}
+
+TEST(session, cleanShutdownFromRunningTerminates)
+{
+    auto idA = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+
+    auto endpoint = uniqueEndpoint("runshutdown");
+    auto listener = listen(endpoint);
+
+    std::atomic<bool> returned{ false };
+    std::thread server([&]
+        {
+            auto conn = listener->accept();
+            runSession(staticApp({ a }), *conn);
+            returned.store(true);
+        });
+
+    auto client = connect(endpoint);
+    int id = 1;
+
+    sendRequest(*client, id, "app.run");
+    EXPECT_EQ("running",
+            awaitResponse(*client, id++).at("result").at("state"));
+
+    // Shutdown while the reader is blocked in receive(): the app thread must
+    // wake it (close the transport) and join it, then return from runSession.
+    sendRequest(*client, id, "app.shutdown");
+    EXPECT_TRUE(awaitResponse(*client, id++).at("result").is_object());
+
+    // Bound the wait — a correct shutdown returns promptly. Poll rather than
+    // block, so a regression fails loudly instead of hanging the whole suite.
+    for (int i = 0; i < 500 && !returned.load(); ++i)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    EXPECT_TRUE(returned.load());
+
+    if (returned.load())
+        server.join();
+    else
+        server.detach(); // Already failed; do not hang the test binary.
+
+    client.reset();
 }
 
 // --- Envelope unit tests --------------------------------------------------

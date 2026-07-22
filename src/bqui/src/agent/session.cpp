@@ -5,11 +5,17 @@
 #include <nlohmann/json.hpp>
 
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <functional>
+#include <iterator>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 namespace bqui::agent
@@ -152,11 +158,100 @@ uint64_t requireWindowId(json const& params)
 }
 
 /**
+ * @brief The one object shared by the reader thread and the app thread.
+ *
+ * A thread-safe FIFO of inbound frames plus a closed flag. The reader thread
+ * only `push`es (and `close`s on end-of-stream); the app thread only consumes
+ * (`waitPop` when paused, `drainAll` when running) and observes `closed`. A
+ * mutex plus condition variable is the whole synchronisation boundary between
+ * the two threads — nothing else is shared.
+ */
+class CommandQueue
+{
+public:
+    /** @brief Enqueue one frame and wake a waiting consumer (reader thread). */
+    void push(std::string frame)
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            frames_.push_back(std::move(frame));
+        }
+        cv_.notify_all();
+    }
+
+    /** @brief Mark the channel closed and wake every waiter (reader thread). */
+    void close()
+    {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            closed_ = true;
+        }
+        cv_.notify_all();
+    }
+
+    /**
+     * @brief Block for the next frame; nullopt once closed and drained.
+     *
+     * The paused app thread parks here rather than spinning.
+     */
+    std::optional<std::string> waitPop()
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        cv_.wait(lock, [this] { return closed_ || !frames_.empty(); });
+
+        if (frames_.empty())
+            return std::nullopt;
+
+        std::string frame = std::move(frames_.front());
+        frames_.pop_front();
+        return frame;
+    }
+
+    /** @brief Take every currently-queued frame without blocking. */
+    std::vector<std::string> drainAll()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<std::string> out(
+                std::make_move_iterator(frames_.begin()),
+                std::make_move_iterator(frames_.end()));
+        frames_.clear();
+        return out;
+    }
+
+    /** @brief Whether the reader has signalled end-of-stream. */
+    bool closed() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return closed_;
+    }
+
+    /**
+     * @brief Block until closed, or until `timeout` elapses.
+     *
+     * The app thread uses this during shutdown: the reader closes the queue on
+     * its way out, so a return of true means the reader has finished and can be
+     * joined without blocking.
+     */
+    bool waitClosedFor(std::chrono::milliseconds timeout)
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        return cv_.wait_for(lock, timeout, [this] { return closed_; });
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::condition_variable cv_;
+    std::deque<std::string> frames_;
+    bool closed_ = false;
+};
+
+/**
  * @brief The inspector-protocol server: a method registry and its dispatch loop.
  *
- * Holds the app seam, the monotonic frame counter, and the loop flag. Launches
- * paused: run() blocks on the transport and advances nothing until an app.step
- * arrives.
+ * Holds the app seam, the monotonic frame counter, and the run state. Launches
+ * paused: run() starts a reader thread feeding a command queue, then runs a
+ * single-threaded state machine over {PAUSED, RUNNING} — the app thread is the
+ * only one that touches windows, sends responses, and emits notifications.
  */
 class Session
 {
@@ -168,19 +263,135 @@ public:
 
     void run(Transport& transport)
     {
-        running_ = true;
-        while (running_)
-        {
-            auto message = transport.receive();
-            if (!message)
-                break; // A clean channel close ends the session.
+        CommandQueue queue;
 
-            if (auto reply = handleFrame(*message))
-                transport.send(*reply);
+        // The reader thread does one thing: decode frames and enqueue them. It
+        // never sends and never touches windows, so the queue is the only object
+        // it shares with the app thread.
+        std::thread reader([&transport, &queue]
+            {
+                for (;;)
+                {
+                    auto frame = transport.receive();
+                    if (!frame)
+                    {
+                        queue.close(); // Peer gone: end-of-stream.
+                        break;
+                    }
+                    queue.push(std::move(*frame));
+                }
+            });
+
+        try
+        {
+            runStateMachine(transport, queue);
         }
+        catch (std::exception const&)
+        {
+            // A send that fails mid-session (the peer vanished, so a response or
+            // frame notification hit a broken channel) is end-of-session, not a
+            // fault to propagate: fall through to the clean shutdown below, which
+            // wakes and joins the reader exactly as an orderly exit would.
+        }
+
+        // Clean shutdown: wake the reader out of its blocked receive() so it can
+        // be joined. close() unblocks an in-progress receive() with nullopt and
+        // makes every later one return nullopt too. The reader acknowledges by
+        // closing the queue as it exits, so re-nudge until it does — covering the
+        // narrow window where close() lands just before the reader blocks. The
+        // queue mutex is never held across the join.
+        transport.close();
+        while (!queue.waitClosedFor(std::chrono::milliseconds(5)))
+            transport.close();
+
+        reader.join();
     }
 
 private:
+    enum class State { Paused, Running };
+
+    // The single-threaded state machine. The app thread owns every window, the
+    // send side, and the frame counter; it drains the queue at a frame boundary
+    // so a query always sees a whole, untorn frame.
+    void runStateMachine(Transport& transport, CommandQueue& queue)
+    {
+        state_ = State::Paused;
+        shuttingDown_ = false;
+
+        while (!shuttingDown_)
+        {
+            if (state_ == State::Running)
+            {
+                // Drain and dispatch every pending command at this boundary.
+                for (auto& frame : queue.drainAll())
+                {
+                    dispatch(transport, frame);
+                    if (shuttingDown_)
+                        break;
+                }
+
+                if (shuttingDown_)
+                    break;
+
+                // A closed queue with nothing left to do means the peer is gone.
+                if (queue.closed())
+                    break;
+
+                // Still running: advance exactly one frame, then announce it.
+                if (state_ == State::Running)
+                {
+                    advanceFrame(std::chrono::microseconds(kNominalFrameUs));
+                    if (frameNotifications_)
+                        sendFrameNotification(transport,
+                                std::chrono::microseconds(kNominalFrameUs));
+                }
+            }
+            else
+            {
+                // Paused: park on the queue until a command arrives or it closes.
+                auto frame = queue.waitPop();
+                if (!frame)
+                    break; // Closed and drained: the peer is gone.
+
+                dispatch(transport, *frame);
+            }
+        }
+    }
+
+    // Decode, route, and answer one frame from this (the app) thread — the only
+    // thread that sends. A notification draws no reply.
+    void dispatch(Transport& transport, std::string const& frame)
+    {
+        if (auto reply = handleFrame(frame))
+            transport.send(*reply);
+    }
+
+    // Advance every live window by dt, then reconcile one fused app frame so any
+    // window opened or closed this frame materialises. Re-fetch the set each
+    // time, since a frame can change it. Bumps the monotonic frame counter.
+    void advanceFrame(std::chrono::microseconds dt)
+    {
+        auto windows = app_.liveWindows();
+        for (auto& window : windows)
+            window.get().advance(dt);
+
+        app_.reconcile(dt);
+        ++frame_;
+    }
+
+    void sendFrameNotification(Transport& transport, std::chrono::microseconds dt)
+    {
+        json note = {
+            { "jsonrpc", "2.0" },
+            { "method", "frame" },
+            { "params", {
+                { "index", frame_ },
+                { "dt_us", dt.count() },
+            } },
+        };
+        transport.send(note.dump());
+    }
+
     Method const* findMethod(std::string const& name) const
     {
         for (auto const& method : registry_)
@@ -316,6 +527,18 @@ private:
         return { { "methods", methods } };
     }
 
+    json run(json const&)
+    {
+        state_ = State::Running;
+        return { { "state", "running" } };
+    }
+
+    json pause(json const&)
+    {
+        state_ = State::Paused;
+        return { { "state", "paused" }, { "frame", frame_ } };
+    }
+
     json step(json const& params)
     {
         auto count = static_cast<int64_t>(numberField(params, "count", 1.0));
@@ -326,26 +549,24 @@ private:
                 numberField(params, "dt_us",
                     static_cast<double>(kNominalFrameUs))));
 
-        // The existing per-frame model: advance every live window by dt (so its
-        // handlers run, opening or closing windows), then reconcile one fused
-        // app frame to materialise those changes. Re-fetch each frame, since a
-        // frame can change the set.
         for (int64_t i = 0; i < count; ++i)
-        {
-            auto windows = app_.liveWindows();
-            for (auto& window : windows)
-                window.get().advance(dt);
+            advanceFrame(dt);
 
-            app_.reconcile(dt);
-            ++frame_;
-        }
-
+        // A step is an explicit, bounded advance: it always leaves the app
+        // paused, whichever state it was called from.
+        state_ = State::Paused;
         return { { "state", "paused" }, { "frame", frame_ } };
+    }
+
+    json setFrameNotifications(json const& params)
+    {
+        frameNotifications_ = boolField(params, "enabled", false);
+        return json::object();
     }
 
     json shutdown(json const&)
     {
-        running_ = false;
+        shuttingDown_ = true;
         return json::object();
     }
 
@@ -404,13 +625,15 @@ private:
             {},
             [this](json const& p) { return describe(p); } });
 
-        // app.run / app.pause and the reader-thread concurrency model are a
-        // later layer; app.run is registered as a documented seam that reports
-        // it is not built in this configuration.
         registry_.push_back({ "app.run",
-            "Enter running mode (not implemented in this build).",
+            "Enter running mode: free-run frames until paused or shut down.",
             {},
-            [this](json const& p) { return runNotImplemented(p); } });
+            [this](json const& p) { return run(p); } });
+
+        registry_.push_back({ "app.pause",
+            "Enter paused mode: hold the current frame until told otherwise.",
+            {},
+            [this](json const& p) { return pause(p); } });
 
         registry_.push_back({ "app.step",
             "Advance `count` frames by `dt_us` each, then stay paused.",
@@ -424,6 +647,12 @@ private:
             "End the session and let the app release its windows.",
             {},
             [this](json const& p) { return shutdown(p); } });
+
+        registry_.push_back({ "app.setFrameNotifications",
+            "Toggle per-frame `frame` notifications while running (off by "
+            "default).",
+            { { "enabled", "boolean", true } },
+            [this](json const& p) { return setFrameNotifications(p); } });
 
         registry_.push_back({ "window.list",
             "List the live windows by id.",
@@ -444,16 +673,12 @@ private:
             [this](json const& p) { return windowInject(p); } });
     }
 
-    json runNotImplemented(json const&) const
-    {
-        throw RpcError{ kInternalError,
-            "app.run is not implemented in this build" };
-    }
-
     AgentApp const& app_;
     std::vector<Method> registry_;
     uint64_t frame_ = 0;
-    bool running_ = true;
+    State state_ = State::Paused;
+    bool shuttingDown_ = false;
+    bool frameNotifications_ = false;
 };
 
 } // namespace
