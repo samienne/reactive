@@ -19,4 +19,7 @@ namespace bqui::agent
      * no parser.
      */
     BQUI_EXPORT std::string toJson(widget::Introspection const& node);
+
+    /** @brief Serialise a string as a JSON string literal (quoted, escaped). */
+    BQUI_EXPORT std::string toJsonString(std::string const& value);
 } // namespace bqui::agent

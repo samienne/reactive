@@ -23,6 +23,8 @@
 #include <ase/dummyplatform.h>
 #include <avg/color.h>
 
+#include <btl/uniqueid.h>
+
 #include <gtest/gtest.h>
 
 #include <memory>
@@ -66,11 +68,16 @@ namespace
 
 namespace
 {
-    // A test double recording what the session drives it with.
+    // A test double recording what the session drives it with. It carries a
+    // distinct id and title so the session can address it on the wire.
     class FakeAgentWindow : public AgentWindow
     {
     public:
-        explicit FakeAgentWindow(std::string name) : name_(std::move(name)) {}
+        FakeAgentWindow(btl::UniqueId id, std::string name)
+            : id_(id), name_(std::move(name)) {}
+
+        btl::UniqueId id() const override { return id_; }
+        std::string title() const override { return name_; }
 
         void injectPointerButton(unsigned int, unsigned int, ase::Vector2f,
                 ase::ButtonState) override { ++buttonInjects_; }
@@ -99,12 +106,24 @@ namespace
         std::string const& text() const { return text_; }
 
     private:
+        btl::UniqueId id_;
         std::string name_;
         int buttonInjects_ = 0;
         int advances_ = 0;
         std::chrono::microseconds totalDt_{0};
         std::string text_;
     };
+
+    // An AgentApp over a fixed window set: the reconcile is a no-op (the fakes
+    // never open or close), and the live set is always the same fakes. Enough
+    // to exercise the session's routing and advancing without a real App.
+    AgentApp staticApp(AgentWindows windows)
+    {
+        AgentApp app;
+        app.reconcile = [](std::chrono::microseconds) {};
+        app.liveWindows = [windows] { return windows; };
+        return app;
+    }
 
     // Run a session over `fakes` on a background thread against a loopback
     // endpoint, returning the connected agent side plus the server thread.
@@ -122,7 +141,7 @@ namespace
             serverThread = std::thread([this, windows]
                 {
                     auto server = listener->accept();
-                    runSession(windows, *server);
+                    runSession(staticApp(windows), *server);
                 });
 
             agent = connect(endpoint);
@@ -147,8 +166,10 @@ namespace
 
 TEST(session, snapshotReturnsAllWindowsWithoutAdvancing)
 {
-    FakeAgentWindow a("w0");
-    FakeAgentWindow b("w1");
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    FakeAgentWindow b(idB, "w1");
     SessionFixture s("snap", { a, b });
 
     auto reply = s.request(R"({"type":"snapshot"})");
@@ -161,8 +182,12 @@ TEST(session, snapshotReturnsAllWindowsWithoutAdvancing)
 
     auto const& w0 = windows->asArray()[0];
     auto const& w1 = windows->asArray()[1];
-    EXPECT_EQ(0.0, w0.find("index").value_or(JsonValue()).asNumber(-1));
-    EXPECT_EQ(1.0, w1.find("index").value_or(JsonValue()).asNumber(-1));
+    EXPECT_EQ(static_cast<double>(idA.getValue()),
+            w0.find("id").value_or(JsonValue()).asNumber(-1));
+    EXPECT_EQ(static_cast<double>(idB.getValue()),
+            w1.find("id").value_or(JsonValue()).asNumber(-1));
+    EXPECT_EQ("w0", w0.find("title").value_or(JsonValue()).asString());
+    EXPECT_EQ("w1", w1.find("title").value_or(JsonValue()).asString());
     EXPECT_EQ("w0", w0.find("introspection").value_or(JsonValue())
             .find("name").value_or(JsonValue()).asString());
     EXPECT_EQ("w1", w1.find("introspection").value_or(JsonValue())
@@ -172,16 +197,20 @@ TEST(session, snapshotReturnsAllWindowsWithoutAdvancing)
     EXPECT_EQ(0, b.advances());
 }
 
-TEST(session, stepRoutesInjectByIndexAndAdvancesAllWindows)
+TEST(session, stepRoutesInjectByIdAndAdvancesAllWindows)
 {
-    FakeAgentWindow a("w0");
-    FakeAgentWindow b("w1");
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    FakeAgentWindow b(idB, "w1");
     SessionFixture s("step", { a, b });
 
-    // Inject targets window 1 only; the step advances the whole app.
+    // Inject targets window b by id only; the step advances the whole app.
     auto reply = s.request(
             R"({"type":"step","dt_us":16667,"inject":[)"
-            R"({"kind":"pointerButton","window":1,"x":1,"y":2,"button":1,"state":"down"}]})");
+            R"({"kind":"pointerButton","window":)"
+            + std::to_string(idB.getValue())
+            + R"(,"x":1,"y":2,"button":1,"state":"down"}]})");
     ASSERT_TRUE(reply);
 
     EXPECT_EQ(0, a.buttonInjects());
@@ -190,13 +219,15 @@ TEST(session, stepRoutesInjectByIndexAndAdvancesAllWindows)
     EXPECT_EQ(1, b.advances());
 }
 
-TEST(session, injectDefaultsToWindowZero)
+TEST(session, injectDefaultsToFirstWindow)
 {
-    FakeAgentWindow a("w0");
-    FakeAgentWindow b("w1");
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    FakeAgentWindow b(idB, "w1");
     SessionFixture s("default", { a, b });
 
-    // No "window" field -> window 0.
+    // No "window" field -> the first window.
     s.request(R"({"type":"step","dt_us":0,"inject":[)"
               R"({"kind":"pointerButton","x":1,"y":2}]})");
 
@@ -204,14 +235,20 @@ TEST(session, injectDefaultsToWindowZero)
     EXPECT_EQ(0, b.buttonInjects());
 }
 
-TEST(session, outOfRangeWindowIndexIsSkipped)
+TEST(session, unknownWindowIdIsSkipped)
 {
-    FakeAgentWindow a("w0");
-    FakeAgentWindow b("w1");
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeAgentWindow a(idA, "w0");
+    FakeAgentWindow b(idB, "w1");
     SessionFixture s("oob", { a, b });
 
+    // An id that names no live window (never assigned to either fake).
+    auto strayId = btl::makeUniqueId();
     auto reply = s.request(R"({"type":"step","dt_us":0,"inject":[)"
-                           R"({"kind":"pointerButton","window":5,"x":1,"y":2}]})");
+                           R"({"kind":"pointerButton","window":)"
+                           + std::to_string(strayId.getValue())
+                           + R"(,"x":1,"y":2}]})");
     ASSERT_TRUE(reply);
 
     // The stray inject hit no window, but the step still advanced both.
@@ -223,7 +260,7 @@ TEST(session, outOfRangeWindowIndexIsSkipped)
 
 TEST(session, malformedAndUnknownCommandsGetAnError)
 {
-    FakeAgentWindow a("w0");
+    FakeAgentWindow a(btl::makeUniqueId(), "w0");
     SessionFixture s("errors", { a });
 
     auto malformed = s.request("not json");
@@ -239,7 +276,7 @@ TEST(session, malformedAndUnknownCommandsGetAnError)
 
 TEST(session, cleanCloseEndsTheSession)
 {
-    FakeAgentWindow a("w0");
+    FakeAgentWindow a(btl::makeUniqueId(), "w0");
     auto endpoint = uniqueEndpoint("close");
     auto listener = listen(endpoint);
 
@@ -247,7 +284,7 @@ TEST(session, cleanCloseEndsTheSession)
     std::thread serverThread([&]
         {
             auto server = listener->accept();
-            runSession(windows, *server);
+            runSession(staticApp(windows), *server);
         });
 
     auto agent = connect(endpoint);
@@ -372,6 +409,168 @@ TEST(session, observeClickObserveRoundTripDrivesARealApp)
     auto snap2 = agent->receive();
     ASSERT_TRUE(snap2);
     EXPECT_EQ(2.0, readCount(*snap2));
+
+    agent->send(R"({"type":"quit"})");
+    appThread.join();
+}
+
+// --- Dynamic-windows integration: the window set is live -----------------
+
+namespace
+{
+    // The "windows" array of a snapshot (empty if the snapshot is malformed).
+    JsonArray snapshotWindows(std::string const& snapshot)
+    {
+        auto value = parseJson(snapshot);
+        if (!value)
+            return {};
+
+        auto windows = value->find("windows");
+        if (!windows || !windows->isArray())
+            return {};
+
+        return windows->asArray();
+    }
+
+    // The snapshot entry whose title matches, or nullopt.
+    std::optional<JsonValue> windowByTitle(std::string const& snapshot,
+            std::string const& title)
+    {
+        for (auto const& w : snapshotWindows(snapshot))
+            if (w.find("title").value_or(JsonValue()).asString() == title)
+                return w;
+
+        return std::nullopt;
+    }
+
+    // Whether an introspection subtree carries a node with the given name.
+    bool treeHasName(JsonValue const& node, std::string const& name)
+    {
+        if (node.find("name").value_or(JsonValue()).asString() == name)
+            return true;
+
+        auto children = node.find("children");
+        if (children && children->isArray())
+            for (auto const& child : children->asArray())
+                if (treeHasName(child, name))
+                    return true;
+
+        return false;
+    }
+
+    // A window whose introspection is present and carries the named node —
+    // proof the tree is non-empty and belongs to that window.
+    bool introspectionHasName(JsonValue const& window, std::string const& name)
+    {
+        auto tree = window.find("introspection");
+        return tree && tree->isObject() && treeHasName(*tree, name);
+    }
+
+    // A click (down then up) at a point, routed to a specific window by id.
+    std::string clickWindowStep(uint64_t id, float x, float y)
+    {
+        auto point = "\"x\":" + std::to_string(x) + ",\"y\":" + std::to_string(y);
+        auto win = "\"window\":" + std::to_string(id);
+        return std::string("{\"type\":\"step\",\"dt_us\":16667,\"inject\":[")
+            + "{\"kind\":\"pointerButton\"," + win + "," + point
+            + ",\"button\":1,\"state\":\"down\"},"
+            + "{\"kind\":\"pointerButton\"," + win + "," + point
+            + ",\"button\":1,\"state\":\"up\"}]}";
+    }
+
+    uint64_t wireId(JsonValue const& window)
+    {
+        return static_cast<uint64_t>(
+                window.find("id").value_or(JsonValue()).asNumber());
+    }
+} // namespace
+
+// A window opened by a click is visible in the same step's snapshot, and a
+// window it closes is gone from the next — the agent sees a live set, keyed by
+// id and title rather than a frozen array index.
+TEST(session, dynamicWindowsOpenAndCloseDuringASession)
+{
+    auto endpoint = uniqueEndpoint("agentdynamic");
+    auto listener = listen(endpoint);
+
+    App app;
+    app.platform(ase::makeDummyPlatform())
+        .agentic(true)
+        .agentEndpoint(endpoint);
+
+    // The child closes itself on a click. Its id is known only once it exists,
+    // so the handler reads it through a slot filled after construction.
+    auto childId = std::make_shared<std::optional<btl::UniqueId>>();
+    App childApp = app;
+    Window child = window(
+            bq::signal::constant<std::string>("child"),
+            shape::rectangle().fill(avg::Color(0.2f, 0.2f, 0.2f, 1.0f))
+                | modifier::onClick(1,
+                        [childApp, childId](ClickEvent const&) mutable
+                        {
+                            if (*childId)
+                                childApp.removeWindow(**childId);
+                        })
+                | modifier::setName("childRoot"));
+    *childId = child.getId();
+
+    // The main window opens the child on a click, once.
+    App mainApp = app;
+    auto opened = std::make_shared<bool>(false);
+    Window main = window(
+            bq::signal::constant<std::string>("main"),
+            shape::rectangle().fill(avg::Color(0.0f, 0.0f, 0.0f, 1.0f))
+                | modifier::onClick(1,
+                        [mainApp, child, opened](ClickEvent const&) mutable
+                        {
+                            if (!*opened)
+                            {
+                                *opened = true;
+                                mainApp.addWindow(child);
+                            }
+                        })
+                | modifier::setName("mainRoot"));
+
+    app.addWindow(main);
+
+    std::thread appThread([&] { app.run(); });
+
+    auto agent = listener->accept();
+
+    // Observe: exactly one window, "main".
+    agent->send(R"({"type":"snapshot"})");
+    auto snap0 = agent->receive();
+    ASSERT_TRUE(snap0);
+    ASSERT_EQ(1u, snapshotWindows(*snap0).size());
+    auto mainEntry = windowByTitle(*snap0, "main");
+    ASSERT_TRUE(mainEntry);
+    uint64_t mainId = wireId(*mainEntry);
+
+    // Act: click main's centre. Its handler opens the child, and the same
+    // step's snapshot must already show both windows.
+    agent->send(clickWindowStep(mainId, 400.0f, 300.0f));
+    auto snap1 = agent->receive();
+    ASSERT_TRUE(snap1);
+    ASSERT_EQ(2u, snapshotWindows(*snap1).size());
+
+    auto mainAfter = windowByTitle(*snap1, "main");
+    auto childAfter = windowByTitle(*snap1, "child");
+    ASSERT_TRUE(mainAfter);
+    ASSERT_TRUE(childAfter);
+    EXPECT_TRUE(introspectionHasName(*mainAfter, "mainRoot"));
+    EXPECT_TRUE(introspectionHasName(*childAfter, "childRoot"));
+
+    uint64_t childWireId = wireId(*childAfter);
+    EXPECT_NE(mainId, childWireId);
+
+    // Act: click the child's centre. Its handler closes it, and the next
+    // snapshot is back to just "main".
+    agent->send(clickWindowStep(childWireId, 400.0f, 300.0f));
+    auto snap2 = agent->receive();
+    ASSERT_TRUE(snap2);
+    ASSERT_EQ(1u, snapshotWindows(*snap2).size());
+    EXPECT_TRUE(windowByTitle(*snap2, "main"));
+    EXPECT_FALSE(windowByTitle(*snap2, "child"));
 
     agent->send(R"({"type":"quit"})");
     appThread.join();

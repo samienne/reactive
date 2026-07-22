@@ -72,13 +72,22 @@ void applyInjection(AgentWindow& window, JsonValue const& event)
     }
 }
 
-// The target window of an inject event, or null if the index is out of range.
+// The target window of an inject event, addressed by window id. An absent
+// "window" field defaults to the first live window; an id that names no live
+// window (e.g. one that has since closed) resolves to null and is skipped.
 AgentWindow* targetWindow(AgentWindows const& windows, JsonValue const& event)
 {
-    auto index = static_cast<size_t>(
-            event.find("window").value_or(JsonValue()).asNumber(0.0));
+    auto field = event.find("window");
+    if (!field)
+        return windows.empty() ? nullptr : &windows.front().get();
 
-    return index < windows.size() ? &windows[index].get() : nullptr;
+    auto id = btl::UniqueId(static_cast<uint64_t>(field->asNumber(0.0)));
+
+    for (auto& window : windows)
+        if (window.get().id() == id)
+            return &window.get();
+
+    return nullptr;
 }
 
 std::string snapshotResponse(AgentWindows const& windows)
@@ -90,8 +99,11 @@ std::string snapshotResponse(AgentWindows const& windows)
         if (i > 0)
             out += ',';
 
-        out += "{\"index\":" + std::to_string(i) + ",\"introspection\":"
-            + toJson(windows[i].get().introspect()) + "}";
+        auto& window = windows[i].get();
+
+        out += "{\"id\":" + std::to_string(window.id().getValue())
+            + ",\"title\":" + toJsonString(window.title())
+            + ",\"introspection\":" + toJson(window.introspect()) + "}";
     }
 
     out += "]}";
@@ -105,7 +117,7 @@ std::string errorResponse(std::string const& message)
 
 } // namespace
 
-void runSession(AgentWindows const& windows, Transport& transport)
+void runSession(AgentApp const& app, Transport& transport)
 {
     for (;;)
     {
@@ -127,6 +139,11 @@ void runSession(AgentWindows const& windows, Transport& transport)
 
         if (type == "step")
         {
+            // The windows as they stand before the step: injects route to
+            // these, and these advance. A window opened by one of them does
+            // not exist to route to, and must not be advanced twice.
+            auto windows = app.liveWindows();
+
             auto inject = command->find("inject");
             if (inject && inject->isArray())
                 for (auto const& event : inject->asArray())
@@ -135,14 +152,24 @@ void runSession(AgentWindows const& windows, Transport& transport)
 
             auto dt = std::chrono::microseconds(static_cast<int64_t>(
                     command->find("dt_us").value_or(JsonValue()).asNumber(0.0)));
+
+            // Advancing runs the click handlers, which may open or close
+            // windows; the reconcile after materialises those changes.
             for (auto& window : windows)
                 window.get().advance(dt);
 
-            transport.send(snapshotResponse(windows));
+            app.reconcile(dt);
+
+            // Re-fetch: a window opened this step is in the new set and a
+            // closed one is gone, so the snapshot shows the step's own effect.
+            transport.send(snapshotResponse(app.liveWindows()));
         }
         else if (type == "snapshot")
         {
-            transport.send(snapshotResponse(windows));
+            // Reconcile without advancing, so a window opened on a prior step
+            // (but not yet collected) is visible, without moving any clock.
+            app.reconcile(std::chrono::microseconds(0));
+            transport.send(snapshotResponse(app.liveWindows()));
         }
         else
         {
@@ -151,11 +178,10 @@ void runSession(AgentWindows const& windows, Transport& transport)
     }
 }
 
-void runSession(AgentWindows const& windows,
-        std::string const& endpoint)
+void runSession(AgentApp const& app, std::string const& endpoint)
 {
     auto transport = connect(endpoint);
-    runSession(windows, *transport);
+    runSession(app, *transport);
 }
 
 } // namespace bqui::agent

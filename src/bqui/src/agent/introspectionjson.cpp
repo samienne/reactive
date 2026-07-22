@@ -223,4 +223,11 @@ std::string toJson(widget::Introspection const& node)
     return out.str();
 }
 
+std::string toJsonString(std::string const& value)
+{
+    std::ostringstream out;
+    writeString(out, value);
+    return out.str();
+}
+
 } // namespace bqui::agent

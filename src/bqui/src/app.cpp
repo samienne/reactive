@@ -564,6 +564,11 @@ public:
         return titleSignal_.evaluate<0>().get<0>();
     }
 
+    btl::UniqueId getId() const
+    {
+        return window_.getId();
+    }
+
     widget::Instance const& getWidgetInstance() const
     {
         return widgetInstance_;
@@ -636,6 +641,16 @@ namespace
     public:
         explicit GlueAgentWindow(WindowGlue& glue) : glue_(glue) {}
 
+        btl::UniqueId id() const override
+        {
+            return glue_.getId();
+        }
+
+        std::string title() const override
+        {
+            return glue_.getTitle();
+        }
+
         void injectPointerButton(unsigned int pointerIndex,
                 unsigned int buttonIndex, ase::Vector2f pos,
                 ase::ButtonState state) override
@@ -681,23 +696,6 @@ namespace
     private:
         WindowGlue& glue_;
     };
-
-    void runAgentSession(
-            std::vector<btl::shared<WindowGlue>>& glues,
-            std::string const& endpoint)
-    {
-        std::vector<GlueAgentWindow> adapters;
-        adapters.reserve(glues.size());
-        for (auto& glue : glues)
-            adapters.emplace_back(*glue);
-
-        agent::AgentWindows windows;
-        windows.reserve(adapters.size());
-        for (auto& adapter : adapters)
-            windows.push_back(adapter);
-
-        agent::runSession(windows, endpoint);
-    }
 } // anonymous namespace
 
 
@@ -882,17 +880,53 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     // Agentic mode replaces the free-running loop with an observe->act->observe
     // loop the external agent drives over the channel. Platform choice is
-    // orthogonal, though it is normally paired with the headless one. The glues
-    // collected above are the app's windows; the agent drives the first.
-    if (agentic && !d()->windowGlues_.empty())
+    // orthogonal, though it is normally paired with the headless one. The
+    // session may start with no windows: the agent can open the first one, and
+    // the window set stays live because the agent's own clock drives the same
+    // fused reconcile the normal loop uses.
+    if (agentic)
     {
         std::string endpoint =
             d()->agentEndpointOverride_.value_or(agentEndpointEnv());
 
         if (!endpoint.empty())
         {
-            runAgentSession(d()->windowGlues_, endpoint);
-            d()->windowGlues_.clear();
+            // Storage the live-window provider hands the session: rebuilt on
+            // each call, so a returned set is valid only until the next call.
+            std::vector<GlueAgentWindow> adapters;
+
+            agent::AgentApp agentApp;
+
+            // One fused app frame on the agent's clock: update the glue array
+            // (index 0), and reconcile only when the window identities change,
+            // exactly as the normal loop below does.
+            agentApp.reconcile = [&](std::chrono::microseconds dt)
+            {
+                bq::signal::FrameInfo frame{ getNextFrameId(), dt };
+                signalContext.update(frame);
+                if (signalContext.didChange<0>())
+                    collect();
+            };
+
+            // Adapters over the app's current windows.
+            agentApp.liveWindows = [&]() -> agent::AgentWindows
+            {
+                adapters.clear();
+                adapters.reserve(d()->windowGlues_.size());
+                for (auto& glue : d()->windowGlues_)
+                    adapters.emplace_back(*glue);
+
+                agent::AgentWindows windows;
+                windows.reserve(adapters.size());
+                for (auto& adapter : adapters)
+                    windows.push_back(adapter);
+
+                return windows;
+            };
+
+            agent::runSession(agentApp, endpoint);
+
+            // GlueScope releases the glues on return, whatever ended the run.
             return 0;
         }
     }
