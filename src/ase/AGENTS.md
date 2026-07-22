@@ -11,9 +11,32 @@ are in the top-level `docs/`.
 - `src/gl/` — the shared OpenGL implementation.
 - `src/glx/`, `src/windows/` — the Linux (GLX) and Windows (WGL) bindings;
   `wglrendercontext`/`wglwindow` are the Windows rendering path.
-- `src/dummy/` — the headless backend for tests.
+- `src/dummy/` — the headless backend. It opens no OS window and drives a
+  deterministic, fixed-`dt`, frame-budgeted loop (`DummyPlatform::run`/`step`),
+  so a run is bounded and reproducible. `DummyWindow` delegates callback storage
+  and dispatch to the shared `GenericWindow` (same as `WglWindow`/`GlxWindow`).
+  It is compiled on **every** platform (see `dummysrcs` in `meson.build`) so any
+  app can run headless.
+- `GenericWindow` (`src/genericwindow.cpp`) is a shared, backend-internal helper
+  holding the window's callbacks and the event-injection logic; every concrete
+  window owns one privately. Programmatic input goes through the abstract
+  `WindowImpl`/`Window` `inject*` methods (which forward to it), never through
+  `GenericWindow` directly — it stays off the public surface.
 
 ## Notes
+
+- Every platform's `run()` owns the frame loop and the clock: each iteration it
+  samples `std::steady_clock` (the dummy uses a fixed `dt`), builds the `Frame`,
+  runs `handleEvents()` and the app frame callback, then calls the clock-agnostic
+  `PlatformImpl::step(Frame const&)` — the minimal primitive that just injects the
+  frame into the windows (advancing each live `window->frame`). An external driver
+  can call `step()` with its own controlled time.
+- Two platform factories: `makeDefaultPlatform()` returns the OS backend (WGL/GLX,
+  or the dummy where there is none — `dummydefaultplatform.cpp` defines it there),
+  and `makeDummyPlatform()` always returns the headless one. `bqui::App::run`
+  selects between them via env (`REACTIVE_HEADLESS`/`REACTIVE_PLATFORM=dummy`) or a
+  programmatic override; platform (headful/headless) and mode (normal/agentic) are
+  orthogonal.
 
 - The Windows GPU/rendering path lives under `src/windows/` and `src/gl/` — this
   is where to look for Windows rendering performance or context-selection issues

@@ -1,4 +1,14 @@
 libbquisrc = [
+  'src/agent/introspectionjson.cpp',
+  'src/agent/session.cpp',
+  'src/agent/streamtransport.cpp',
+  'src/agent/pipetransport.cpp',
+  'src/agent/pipelistener.cpp',
+  'src/agent/sockettransport.cpp',
+  'src/agent/socketlistener.cpp',
+  'src/agent/tcptransport.cpp',
+  'src/agent/tcplistener.cpp',
+  'src/agent/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -69,27 +79,48 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
+# nlohmann/json owns the agent layer's JSON-RPC envelope and serialisation. It
+# is header-only and confined to the agent layer's own .cpp files (json.hpp is
+# never pulled into a public header), so it is a dependency of the bqui library
+# only — deliberately *not* re-exported through libbquidep, keeping its compile
+# cost from spreading to dependents.
+nlohmanndep = dependency('nlohmann_json', include_type: 'system',
+    default_options: subproject_warnings)
+
+# The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
+# Windows; POSIX sockets need no extra link.
+bqui_link_args = []
+if target_machine.system() == 'windows'
+  bqui_link_args += ['ws2_32.lib']
+endif
+
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep,
+  dependencies: bquidep + [nlohmanndep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
+  link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
   )
 
 libbquidep = declare_dependency(
   link_with: libbqui,
   dependencies: bquidep,
+  link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
 
 bquitestsrc = [
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
+  'test/headlessapptest.cpp',
+  'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
   'test/windowtest.cpp',
@@ -104,9 +135,13 @@ if ase_is_headless
   bquitestsrc += 'test/apptest.cpp'
 endif
 
+# The agent tests speak framed JSON-RPC and exercise the introspection→json
+# adapter directly, so the test binary sees nlohmann and the library's private
+# src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  include_directories: include_directories('src'),
   )
 
 test('bqui', bquitest, timeout: 1200,

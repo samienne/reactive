@@ -32,6 +32,7 @@ namespace ase
         Window makeWindow(Vector2i size) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
+        void step(Frame const& frame) override;
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) override;
         void requestFrame() override;

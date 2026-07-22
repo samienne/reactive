@@ -2,6 +2,8 @@
 
 #include "bqui/window.h"
 
+#include "bqui/agent/session.h"
+
 #include "debug.h"
 #include "windowlist.h"
 
@@ -22,8 +24,7 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/rendercontext.h>
-#include <ase/platform.h>
+#include <ase/dummyplatform.h>
 
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
@@ -35,6 +36,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <mutex>
@@ -45,17 +47,55 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 namespace bqui
 {
 
 namespace
 {
-    uint64_t s_frameId_ = 0;
+    // A process-wide frame counter: several windows (and, in tests, several
+    // apps on their own threads) draw from it, so the increment is atomic.
+    std::atomic<uint64_t> s_frameId_{ 0 };
 
     uint64_t getNextFrameId()
     {
         return ++s_frameId_;
+    }
+
+    // A truthy env var: set and neither empty nor "0".
+    bool envFlag(char const* name)
+    {
+        char const* value = std::getenv(name);
+        return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
+    }
+
+    bool envEquals(char const* name, char const* expected)
+    {
+        char const* value = std::getenv(name);
+        return value && std::strcmp(value, expected) == 0;
+    }
+
+    // Headless when REACTIVE_HEADLESS is truthy or REACTIVE_PLATFORM=dummy.
+    bool wantsHeadlessEnv()
+    {
+        return envFlag("REACTIVE_HEADLESS")
+            || envEquals("REACTIVE_PLATFORM", "dummy");
+    }
+
+    // Agentic mode when REACTIVE_AGENT is truthy or REACTIVE_MODE=agent.
+    // Orthogonal to the platform choice.
+    bool wantsAgentEnv()
+    {
+        return envFlag("REACTIVE_AGENT")
+            || envEquals("REACTIVE_MODE", "agent");
+    }
+
+    std::string agentEndpointEnv()
+    {
+        char const* value = std::getenv("REACTIVE_AGENT_ENDPOINT");
+        return value ? std::string(value) : std::string();
     }
 } // anonymous namespace
 
@@ -118,6 +158,13 @@ public:
 
     std::shared_ptr<WindowList> windows_;
     std::vector<btl::shared<WindowGlue>> windowGlues_;
+
+    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    // A programmatic override wins over the env var so tests need no global env.
+    std::optional<ase::Platform> platformOverride_;
+    std::optional<bool> headlessOverride_;
+    std::optional<bool> agentOverride_;
+    std::optional<std::string> agentEndpointOverride_;
 
 private:
     mutable std::mutex mutex_;
@@ -443,7 +490,11 @@ public:
         return onFrame( { timer_, dt });
     }
 
-    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
+    // Advance the reactive state one frame: apply pending events and
+    // time-dependent signals via the transaction, producing the current
+    // (stateless) render tree and introspection. Does not draw. Returns the
+    // transaction's requested time-to-next-update.
+    std::optional<bq::signal::signal_time_t> update(ase::Frame const& frame)
     {
         ZoneScoped;
 
@@ -456,10 +507,18 @@ public:
             resized_ = false;
         }
 
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
-                timer_);
+        return makeTransaction(frame.dt, std::nullopt);
+    }
 
-        auto timeToNext = makeTransaction(frame.dt, std::nullopt);
+    // Draw the current render tree at the given time and present it. A pure
+    // evaluation of the stateless tree — no state advance — so it can be called
+    // at any time point independently of update().
+    void render(std::chrono::microseconds time)
+    {
+        ZoneScoped;
+
+        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
+                time);
 
         if (animating_)
         {
@@ -479,6 +538,15 @@ public:
         painter_.flush();
 
         ++frames_;
+    }
+
+    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
+    {
+        ZoneScoped;
+
+        auto timeToNext = update(frame);
+
+        render(frame.time);
 
         if (animating_)
             return std::chrono::microseconds(0);
@@ -496,9 +564,32 @@ public:
         return titleSignal_.evaluate<0>().get<0>();
     }
 
+    btl::UniqueId getId() const
+    {
+        return window_.getId();
+    }
+
     widget::Instance const& getWidgetInstance() const
     {
         return widgetInstance_;
+    }
+
+    ase::Window& getWindow()
+    {
+        return aseWindow;
+    }
+
+    // Advance one frame with an externally supplied dt: build the frame from a
+    // controlled clock and run update then render, so an agent drives time.
+    void stepFrame(std::chrono::microseconds dt)
+    {
+        agentTime_ += dt;
+        onFrame(ase::Frame{ agentTime_, dt });
+    }
+
+    widget::Introspection getResolvedIntrospection() const
+    {
+        return widget::resolveIntrospection(widgetInstance_.getIntrospection());
     }
 
 private:
@@ -533,6 +624,7 @@ private:
     std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
+    std::chrono::microseconds agentTime_ = std::chrono::microseconds(0);
     avg::RenderTree renderTree_;
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
@@ -541,6 +633,65 @@ private:
     bool resized_ = true;
     bool closed_ = false;
 };
+
+namespace
+{
+    class GlueAgentWindow : public agent::AgentWindow
+    {
+    public:
+        explicit GlueAgentWindow(WindowGlue& glue) : glue_(glue) {}
+
+        btl::UniqueId id() const override
+        {
+            return glue_.getId();
+        }
+
+        void injectPointerButton(unsigned int pointerIndex,
+                unsigned int buttonIndex, ase::Vector2f pos,
+                ase::ButtonState state) override
+        {
+            glue_.getWindow().injectPointerButtonEvent(pointerIndex,
+                    buttonIndex, pos, state);
+        }
+
+        void injectPointerMove(unsigned int pointerIndex,
+                ase::Vector2f pos) override
+        {
+            glue_.getWindow().injectPointerMoveEvent(pointerIndex, pos);
+        }
+
+        void injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+                bool state) override
+        {
+            glue_.getWindow().injectHoverEvent(pointerIndex, pos, state);
+        }
+
+        void injectKey(ase::KeyState state, ase::KeyCode code,
+                uint32_t modifiers, std::string text) override
+        {
+            glue_.getWindow().injectKeyEvent(state, code, modifiers,
+                    std::move(text));
+        }
+
+        void injectText(std::string text) override
+        {
+            glue_.getWindow().injectTextEvent(std::move(text));
+        }
+
+        widget::Introspection introspect() const override
+        {
+            return glue_.getResolvedIntrospection();
+        }
+
+        void advance(std::chrono::microseconds dt) override
+        {
+            glue_.stepFrame(dt);
+        }
+
+    private:
+        WindowGlue& glue_;
+    };
+} // anonymous namespace
 
 
 // Releases the app's glues, whatever ends the run. A glue holds an
@@ -575,6 +726,30 @@ App& App::addWindows(std::vector<Window> windows)
 App& App::addWindow(Window window)
 {
     return addWindows(std::vector<Window> { std::move(window) });
+}
+
+App& App::platform(ase::Platform platform)
+{
+    d()->platformOverride_ = std::move(platform);
+    return *this;
+}
+
+App& App::headless(bool headless)
+{
+    d()->headlessOverride_ = headless;
+    return *this;
+}
+
+App& App::agentic(bool agentic)
+{
+    d()->agentOverride_ = agentic;
+    return *this;
+}
+
+App& App::agentEndpoint(std::string endpoint)
+{
+    d()->agentEndpointOverride_ = std::move(endpoint);
+    return *this;
 }
 
 App& App::addWindowArray(bq::signal::ArraySignal<Window> windows)
@@ -619,7 +794,28 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    ase::Platform platform = ase::makeDefaultPlatform();
+    // Platform: explicit override, else headless env, else the OS default.
+    bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
+
+    ase::Platform platform = d()->platformOverride_
+        ? *d()->platformOverride_
+        : (headless ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
+
+    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    bool agentic = d()->agentOverride_.value_or(wantsAgentEnv());
+
+    // A headless run is bounded and deterministic; REACTIVE_FRAMES caps the
+    // frame budget (the default keeps a headless run from spinning forever).
+    if (headless && !d()->platformOverride_)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+                platform.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+        }
+    }
 
     ase::RenderContext context = platform.makeRenderContext();
 
@@ -676,6 +872,59 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // Seed the initial windows: the context's constructor evaluated index 0
     // once, so it already holds the initial glue vector.
     collect();
+
+    // Agentic mode replaces the free-running loop with an observe->act->observe
+    // loop the external agent drives over the channel. Platform choice is
+    // orthogonal, though it is normally paired with the headless one. The
+    // session may start with no windows: the agent can open the first one, and
+    // the window set stays live because the agent's own clock drives the same
+    // fused reconcile the normal loop uses.
+    if (agentic)
+    {
+        std::string endpoint =
+            d()->agentEndpointOverride_.value_or(agentEndpointEnv());
+
+        if (!endpoint.empty())
+        {
+            // Storage the live-window provider hands the session: rebuilt on
+            // each call, so a returned set is valid only until the next call.
+            std::vector<GlueAgentWindow> adapters;
+
+            agent::AgentApp agentApp;
+
+            // One fused app frame on the agent's clock: update the glue array
+            // (index 0), and reconcile only when the window identities change,
+            // exactly as the normal loop below does.
+            agentApp.reconcile = [&](std::chrono::microseconds dt)
+            {
+                bq::signal::FrameInfo frame{ getNextFrameId(), dt };
+                signalContext.update(frame);
+                if (signalContext.didChange<0>())
+                    collect();
+            };
+
+            // Adapters over the app's current windows.
+            agentApp.liveWindows = [&]() -> agent::AgentWindows
+            {
+                adapters.clear();
+                adapters.reserve(d()->windowGlues_.size());
+                for (auto& glue : d()->windowGlues_)
+                    adapters.emplace_back(*glue);
+
+                agent::AgentWindows windows;
+                windows.reserve(adapters.size());
+                for (auto& adapter : adapters)
+                    windows.push_back(adapter);
+
+                return windows;
+            };
+
+            agent::runSession(agentApp, endpoint);
+
+            // GlueScope releases the glues on return, whatever ended the run.
+            return 0;
+        }
+    }
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();

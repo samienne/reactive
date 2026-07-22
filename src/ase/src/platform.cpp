@@ -31,6 +31,11 @@ RenderContext Platform::makeRenderContext()
     return d()->makeRenderContext();
 }
 
+void Platform::step(Frame const& frame)
+{
+    d()->step(frame);
+}
+
 void Platform::run(RenderContext& renderContext,
         std::function<bool(Frame const&)> frameCallback)
 {

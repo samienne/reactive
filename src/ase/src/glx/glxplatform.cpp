@@ -338,6 +338,18 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
+void GlxPlatform::step(Frame const& frame)
+{
+    for (auto& weakWindow : d()->windows_)
+    {
+        if (auto window = weakWindow.lock())
+        {
+            if (window->needsRedraw())
+                window->frame(frame);
+        }
+    }
+}
+
 void GlxPlatform::run(RenderContext& renderContext,
         std::function<bool(Frame const&)> frameCallback)
 {
@@ -345,12 +357,12 @@ void GlxPlatform::run(RenderContext& renderContext,
 
     bool const lockStep = true;
     int const targetFps = 60;
-    auto const step = std::chrono::microseconds(1000000 / targetFps);
+    auto const frameStep = std::chrono::microseconds(1000000 / targetFps);
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
     auto lastFrame = startTime;
-    auto nextFrame = startTime + step;
+    auto nextFrame = startTime + frameStep;
 
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
@@ -375,23 +387,16 @@ void GlxPlatform::run(RenderContext& renderContext,
         if (!frameCallback(frame))
             break;
 
-        for (auto& weakWindow : d()->windows_)
-        {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                    window->frame(frame);
-            }
-        }
+        step(frame);
 
         ase::CommandBuffer commandBuffer;
         frameFutures.push(commandBuffer.pushFence());
         mainQueue.submit(std::move(commandBuffer));
 
         auto now = clock.now();
-        nextFrame += step;
+        nextFrame += frameStep;
         while (nextFrame < now)
-            nextFrame += step;
+            nextFrame += frameStep;
 
         /*
         auto frameTime = std::chrono::duration_cast<

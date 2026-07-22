@@ -8,11 +8,14 @@
 
 #include <avg/curve/curves.h>
 
+#include <ase/platform.h>
+
 #include <btl/shared.h>
 #include <btl/uniqueid.h>
 #include <btl/visibility.h>
 
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bqui
@@ -44,6 +47,35 @@ namespace bqui
 
         /** @overload */
         App& addWindow(Window window);
+
+        /** @brief Force a specific ase platform (e.g. a headless one),
+         * bypassing env selection. Lets a test run headless without a
+         * process-global env var.
+         */
+        App& platform(ase::Platform platform);
+
+        /** @brief Force headless (dummy) or headful, overriding the
+         * REACTIVE_HEADLESS / REACTIVE_PLATFORM env vars.
+         */
+        App& headless(bool headless);
+
+        /** @brief Force agentic mode on/off, overriding the REACTIVE_AGENT /
+         * REACTIVE_MODE env vars.
+         *
+         * Orthogonal to the platform choice. In agentic mode the app connects
+         * to an endpoint and is driven by an external agent instead of
+         * free-running.
+         */
+        App& agentic(bool agentic);
+
+        /** @brief Set the agent channel endpoint, overriding
+         * REACTIVE_AGENT_ENDPOINT, so a test need not set a process-global env.
+         *
+         * A fully-local IPC endpoint the external agent listens on and the app
+         * connects to: a named-pipe name (`\\.\pipe\<name>`) on Windows, or a
+         * Unix-domain socket path on POSIX.
+         */
+        App& agentEndpoint(std::string endpoint);
 
         /** @brief Opens a list of windows the caller drives.
          *

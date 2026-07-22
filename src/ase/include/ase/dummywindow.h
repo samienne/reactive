@@ -1,6 +1,7 @@
 #pragma once
 
 #include "framebuffer.h"
+#include "genericwindow.h"
 #include "windowimpl.h"
 
 namespace ase
@@ -8,7 +9,7 @@ namespace ase
     class ASE_EXPORT DummyWindow : public WindowImpl
     {
     public:
-        DummyWindow();
+        DummyWindow(Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -37,10 +38,26 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
         void setTextCallback(std::function<void(TextEvent const&)> cb) override;
 
+        void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos,
+                ButtonState buttonState) override;
+        void injectPointerMoveEvent(unsigned int pointerIndex,
+                Vector2f pos) override;
+        void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state) override;
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text) override;
+        void injectTextEvent(std::string text) override;
+
+        bool needsRedraw() const;
+
+        /** @brief Drive the stored frame callback for one frame, so the headless
+         * platform can advance this window. */
+        std::optional<std::chrono::microseconds> frame(Frame const& frame);
+
     private:
+        GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;
-        std::string title_;
     };
 } // namespace ase
-

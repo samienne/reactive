@@ -153,6 +153,26 @@ handle's lifetime without a backend at all. Run `testapp1` to exercise the rest
 — its extra windows are app-owned, and their close button both animates and
 removes itself.
 
+## Agent layer
+
+`agent/` is the headless agent-control surface, independent of the widget
+pipeline:
+
+- `introspectionjson.h` — `toJson` serialises a resolved `Introspection` tree
+  (absolute window-space obbs) to JSON: the observe payload.
+- `transport.h` — a swappable, length-prefixed framed message channel
+  (`connect`/`listen`+`accept`); the local IPC is a named pipe on Windows and a
+  Unix-domain socket elsewhere. It carries bytes only, no protocol knowledge.
+- `json.h` — a tiny read-only JSON parser for the small inbound commands.
+- `session.h` — `runSession` serves the agent over a `Transport`
+  (step/snapshot/quit), driving a set of `AgentWindow`s (inject / introspect /
+  advance). The protocol is multi-window: `snapshot` returns every window in a
+  `windows` array (each tagged with its `index`), an inject routes to a window
+  by its `window` field (its position in that array; default 0), and `step`
+  advances the whole app one `dt`. `App::run` hands its windows to it in agentic
+  mode (`REACTIVE_MODE=agent`), connecting to `REACTIVE_AGENT_ENDPOINT` instead
+  of free-running; the `WindowGlue → AgentWindow` adapter stays private to `App`.
+
 ## Traps
 
 - `Widget`/`Element`/the modifiers have **no `extern template` declaration and
