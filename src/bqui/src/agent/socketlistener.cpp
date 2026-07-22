@@ -47,7 +47,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<Transport> connect(std::string const& endpoint)
+std::unique_ptr<Transport> unixConnect(std::string const& endpoint)
 {
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)
@@ -64,7 +64,7 @@ std::unique_ptr<Transport> connect(std::string const& endpoint)
     return std::make_unique<SocketTransport>(fd);
 }
 
-std::unique_ptr<TransportListener> listen(std::string const& endpoint)
+std::unique_ptr<TransportListener> unixListen(std::string const& endpoint)
 {
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0)

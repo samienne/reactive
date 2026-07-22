@@ -4,13 +4,19 @@
 
 #include "streamtransport.h"
 
+#include <memory>
 #include <stdexcept>
+#include <string>
 
 #include <windows.h>
 
 namespace bqui::agent
 {
     std::runtime_error lastError(char const* what);
+
+    /** @brief Connect to / listen on a Windows named-pipe endpoint. */
+    std::unique_ptr<Transport> pipeConnect(std::string const& endpoint);
+    std::unique_ptr<TransportListener> pipeListen(std::string const& endpoint);
 
     /** @brief A StreamTransport over a Windows named-pipe handle. */
     class PipeTransport : public StreamTransport

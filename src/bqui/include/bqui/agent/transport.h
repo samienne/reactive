@@ -14,8 +14,8 @@ namespace bqui::agent
      * Moves whole messages, not bytes: `send` writes one frame and `receive`
      * returns one, hiding partial reads/writes and the length framing. It knows
      * nothing about message contents. The local IPC implementation is a named
-     * pipe on Windows and a Unix-domain socket elsewhere; a future TCP transport
-     * can sit behind the same interface.
+     * pipe on Windows and a Unix-domain socket elsewhere; a TCP transport sits
+     * behind the same interface for a cross-platform, cross-host client.
      */
     class BQUI_EXPORT Transport
     {
@@ -51,8 +51,11 @@ namespace bqui::agent
     /**
      * @brief Connect to an endpoint as a client.
      *
-     * The endpoint is a single string: a `\\.\pipe\<name>` named pipe on
-     * Windows, or a Unix-domain socket path elsewhere.
+     * The endpoint's shape selects the transport: `tcp://<host>:<port>`,
+     * `<host>:<port>`, or `:<port>` (host defaults to loopback) is a TCP
+     * connection; anything else is the platform's local IPC — a
+     * `\\.\pipe\<name>` named pipe on Windows, or a Unix-domain socket path
+     * elsewhere.
      */
     BQUI_EXPORT std::unique_ptr<Transport> connect(std::string const& endpoint);
 

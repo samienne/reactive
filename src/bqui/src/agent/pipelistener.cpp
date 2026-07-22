@@ -47,7 +47,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<Transport> connect(std::string const& endpoint)
+std::unique_ptr<Transport> pipeConnect(std::string const& endpoint)
 {
     // Race with the server: the pipe may not exist yet, or all its instances
     // may be busy between accepts. Retry briefly rather than failing.
@@ -71,7 +71,7 @@ std::unique_ptr<Transport> connect(std::string const& endpoint)
     }
 }
 
-std::unique_ptr<TransportListener> listen(std::string const& endpoint)
+std::unique_ptr<TransportListener> pipeListen(std::string const& endpoint)
 {
     return std::make_unique<PipeListener>(endpoint);
 }

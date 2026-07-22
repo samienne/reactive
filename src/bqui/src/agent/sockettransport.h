@@ -4,6 +4,7 @@
 
 #include "streamtransport.h"
 
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -14,6 +15,10 @@ namespace bqui::agent
 {
     std::runtime_error lastError(char const* what);
     sockaddr_un makeAddress(std::string const& path);
+
+    /** @brief Connect to / listen on a Unix-domain socket endpoint. */
+    std::unique_ptr<Transport> unixConnect(std::string const& endpoint);
+    std::unique_ptr<TransportListener> unixListen(std::string const& endpoint);
 
     /** @brief A StreamTransport over a connected Unix-domain socket. */
     class SocketTransport : public StreamTransport

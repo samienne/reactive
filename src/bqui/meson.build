@@ -6,6 +6,9 @@ libbquisrc = [
   'src/agent/pipelistener.cpp',
   'src/agent/sockettransport.cpp',
   'src/agent/socketlistener.cpp',
+  'src/agent/tcptransport.cpp',
+  'src/agent/tcplistener.cpp',
+  'src/agent/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -84,18 +87,27 @@ bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
+# The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
+# Windows; POSIX sockets need no extra link.
+bqui_link_args = []
+if target_machine.system() == 'windows'
+  bqui_link_args += ['ws2_32.lib']
+endif
+
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
   dependencies: bquidep + [nlohmanndep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
+  link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
   )
 
 libbquidep = declare_dependency(
   link_with: libbqui,
   dependencies: bquidep,
+  link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
 
