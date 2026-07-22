@@ -53,7 +53,7 @@ namespace bqui
          * keeps everything it had — its widgets, their state, and its own OS
          * window. The app does not copy such a list into its own collection,
          * and cannot: removing one of these windows means removing its key
-         * from whatever the array was built from, so `Window::close()` and
+         * from whatever the array was built from, so 'Window::close()' and
          * removeWindow() do nothing for them.
          *
          * Both kinds of window are open at once, and run() counts them all.
@@ -84,12 +84,12 @@ namespace bqui
          *
          * The reactive form of the same collection, for building a UI that
          * follows it — a window list, or a title that counts. Feed it to
-         * bq::signal::forEach() keyed on `Window::getId` to build something per
+         * bq::signal::forEach() keyed on 'Window::getId' to build something per
          * window.
          */
         bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
 
-        /** @brief Runs until `running` is false, whatever the windows do.
+        /** @brief Runs until 'running' is false, whatever the windows do.
          *
          * The thread that calls this is the app's thread: run() and
          * withAnimation() belong to it, and every window is built, drawn and
