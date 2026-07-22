@@ -86,6 +86,15 @@ TcpTransport::~TcpTransport()
         closeRawSocket(static_cast<RawSocket>(sock_));
 }
 
+void TcpTransport::close()
+{
+    // shutdown() wakes a blocked recv() with EOF while leaving the socket valid
+    // for the destructor to close once; on Windows a reset (WSAECONNRESET) or a
+    // graceful zero-length recv both already end readAll().
+    if (static_cast<RawSocket>(sock_) != kInvalidSocket)
+        shutdownRawSocket(static_cast<RawSocket>(sock_));
+}
+
 void TcpTransport::writeAll(void const* data, size_t size)
 {
     auto bytes = static_cast<char const*>(data);

@@ -6,6 +6,10 @@ namespace bqui::agent
 Transport::~Transport() = default;
 TransportListener::~TransportListener() = default;
 
+// The base channel cannot be interrupted; a framed transport over a real
+// handle overrides this to wake a blocked reader.
+void Transport::close() {}
+
 std::array<unsigned char, kLengthPrefixSize> encodeLength(uint32_t length)
 {
     return {

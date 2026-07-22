@@ -35,6 +35,16 @@ SocketTransport::~SocketTransport()
         ::close(fd_);
 }
 
+void SocketTransport::close()
+{
+    // shutdown() (not close()) is the race-free wake: it leaves the fd valid —
+    // so a concurrent read() cannot alias a reused descriptor — while turning
+    // a blocked read() into an immediate EOF and making every later read()
+    // return EOF too. The destructor still closes the fd exactly once.
+    if (fd_ >= 0)
+        ::shutdown(fd_, SHUT_RDWR);
+}
+
 void SocketTransport::writeAll(void const* data, size_t size)
 {
     auto bytes = static_cast<char const*>(data);

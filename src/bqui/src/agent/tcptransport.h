@@ -49,6 +49,8 @@ namespace bqui::agent
         explicit TcpTransport(TcpSocket sock);
         ~TcpTransport() override;
 
+        void close() override;
+
     protected:
         void writeAll(void const* data, size_t size) override;
         bool readAll(void* data, size_t size) override;

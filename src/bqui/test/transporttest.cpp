@@ -4,7 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
+#include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -100,6 +103,103 @@ TEST(transport, receiveReturnsNulloptOnCleanClose)
 
     // The peer is gone, so the next receive reports a clean close.
     EXPECT_FALSE(server->receive().has_value());
+}
+
+TEST(transport, closeUnblocksABlockedReceive)
+{
+    // The session's shutdown hinge: a reader parked in receive() with nothing
+    // arriving must be woken by close() from another thread, so it can be
+    // joined. This is the exact primitive the app thread relies on to end a run.
+    auto endpoint = uniqueEndpoint("closewake");
+    auto listener = listen(endpoint);
+
+    std::unique_ptr<Transport> server;
+    std::thread acceptThread([&] { server = listener->accept(); });
+    auto client = connect(endpoint);
+    acceptThread.join();
+    ASSERT_TRUE(server);
+
+    std::atomic<bool> returned{ false };
+    std::optional<std::string> result;
+    std::thread reader([&]
+    {
+        result = server->receive();
+        returned.store(true);
+    });
+
+    // Let the reader reach its blocking read, then close. close() must be race
+    // free either way: a read already parked, or one about to park, both end.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    server->close();
+
+    reader.join(); // Must not hang.
+    EXPECT_TRUE(returned.load());
+    EXPECT_FALSE(result.has_value());
+
+    client.reset();
+}
+
+TEST(transport, sendSucceedsWhileAnotherThreadBlocksInReceive)
+{
+    // The core of the flow-control model: one thread parks in receive() while
+    // another sends on the same transport. A synchronous handle would serialise
+    // the two and deadlock; the transport must be genuinely full-duplex.
+    auto endpoint = uniqueEndpoint("duplex");
+    auto listener = listen(endpoint);
+
+    std::unique_ptr<Transport> server;
+    std::thread acceptThread([&] { server = listener->accept(); });
+    auto client = connect(endpoint);
+    acceptThread.join();
+    ASSERT_TRUE(server);
+
+    std::atomic<bool> readerDone{ false };
+    std::optional<std::string> got;
+    std::thread reader([&]
+    {
+        got = server->receive(); // No client frame is coming; this parks.
+        readerDone.store(true);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // Send while the reader is parked — must complete, not deadlock.
+    server->send("ping");
+    auto echoed = client->receive();
+    ASSERT_TRUE(echoed);
+    EXPECT_EQ("ping", *echoed);
+
+    // Unblock and join the parked reader.
+    server->close();
+    reader.join();
+    EXPECT_TRUE(readerDone.load());
+    EXPECT_FALSE(got.has_value());
+
+    client.reset();
+}
+
+TEST(transport, acceptWaitsForADelayedClient)
+{
+    // Force the listener to park in accept() before the client appears, so the
+    // asynchronous connect path (not the already-connected fast path) is taken.
+    auto endpoint = uniqueEndpoint("delayed");
+    auto listener = listen(endpoint);
+
+    std::unique_ptr<Transport> server;
+    std::thread acceptThread([&] { server = listener->accept(); });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto client = connect(endpoint);
+    acceptThread.join();
+    ASSERT_TRUE(server);
+
+    // The connection is usable after the delayed accept.
+    client->send("late");
+    auto received = server->receive();
+    ASSERT_TRUE(received);
+    EXPECT_EQ("late", *received);
+
+    client.reset();
 }
 
 // --- TCP transport --------------------------------------------------------

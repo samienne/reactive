@@ -31,6 +31,20 @@ namespace bqui::agent
          * @return The message, or nullopt when the peer has closed the channel.
          */
         virtual std::optional<std::string> receive() = 0;
+
+        /**
+         * @brief Interrupt a blocked `receive()` so its thread can be joined.
+         *
+         * Called from a different thread than the one blocked in `receive()`:
+         * after this returns, an in-progress `receive()` unblocks with nullopt
+         * and every later `receive()` returns nullopt at once, so a dedicated
+         * reader thread can be joined without hanging. It does not free the
+         * underlying handle — the destructor still does that, exactly once —
+         * and it is idempotent, so calling it more than once is safe. The base
+         * is a no-op; the framed transports override it. Never touches the send
+         * path, so a concurrent `send()` on the owning thread stays valid.
+         */
+        virtual void close();
     };
 
     /**

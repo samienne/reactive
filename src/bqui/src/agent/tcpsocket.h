@@ -26,12 +26,16 @@ namespace bqui::agent
     using RawSocket = SOCKET;
     inline constexpr RawSocket kInvalidSocket = INVALID_SOCKET;
     inline void closeRawSocket(RawSocket sock) { ::closesocket(sock); }
+    // Wake a blocked recv() in another thread without freeing the socket, so
+    // the reader gets an immediate EOF and the fd stays valid until close.
+    inline void shutdownRawSocket(RawSocket sock) { ::shutdown(sock, SD_BOTH); }
     inline int lastSocketError() { return ::WSAGetLastError(); }
     inline constexpr int kConnResetError = WSAECONNRESET;
 #else
     using RawSocket = int;
     inline constexpr RawSocket kInvalidSocket = -1;
     inline void closeRawSocket(RawSocket sock) { ::close(sock); }
+    inline void shutdownRawSocket(RawSocket sock) { ::shutdown(sock, SHUT_RDWR); }
     inline int lastSocketError() { return errno; }
     inline constexpr int kConnResetError = ECONNRESET;
 #endif

@@ -27,6 +27,8 @@ namespace bqui::agent
         explicit SocketTransport(int fd);
         ~SocketTransport() override;
 
+        void close() override;
+
     protected:
         void writeAll(void const* data, size_t size) override;
         bool readAll(void* data, size_t size) override;
