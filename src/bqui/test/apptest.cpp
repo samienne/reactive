@@ -134,10 +134,13 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
     // the next one by advancing the input it is derived from. Step 0 runs when
     // the context is built, before the first frame.
     //
-    // Editing the window list from here is the one case of doing so during the
-    // frame phase that is sound: App reconciles the list before it evaluates
-    // this, so a step sees what the step before it asked for and no window is
-    // updated after its key left.
+    // Editing the window list from here is sound, but its effect is observed a
+    // frame later: the app context evaluates this running signal each frame and
+    // reconciles the glue list AFTER, so a step that removes a key does not see
+    // the teardown until a subsequent frame. The step that removes "first"
+    // (case 1) therefore cannot yet see its glue gone; the survivor-outlived-
+    // the-departed check is made a step later (case 3), once the reconcile has
+    // destroyed the departed glue on an earlier frame.
     auto running = step.signal.map(
             [&](int i) -> bool
             {
@@ -156,6 +159,11 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
                     break;
 
                 case 2:
+                    // Let the reconcile that removes "first" complete on this
+                    // frame before observing its effect on the next.
+                    break;
+
+                case 3:
                     survivorOutlivedTheDeparted = probes.size() == 2u
                         && probes[0].expired()
                         && !probes[1].expired();

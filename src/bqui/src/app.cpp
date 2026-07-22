@@ -637,19 +637,15 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return GlueSignal(bq::signal::constant(std::move(glue)));
     };
 
-    auto glues = bq::signal::makeSignalContext(
-            bq::signal::join(d()->takeAllWindows().map(makeGlue)));
-
-    // The running bool advances on the same clock, a frame's two phases apart:
-    // the glues are reconciled first, and only then is the running signal
-    // evaluated, so a handler it runs sees the window set the frame has already
-    // settled on — a window destroyed for leaving its key is gone by then. That
-    // ordering is why the glues and the running bool are separate contexts
-    // driven in step, not one context updated once: a single update() would run
-    // the running signal before the reconcile, not after. The two do share the
-    // app's own window collection, but only as a bq::signal::Input value, which
-    // every context reads coherently from the frame it is set.
-    auto runningContext = bq::signal::makeSignalContext(std::move(running));
+    // One app-level context drives the glue array (index 0) and the running
+    // signal (index 1) together each frame. Per-window signal contexts still
+    // live inside each glue. The glue reconcile — collect() below — runs after
+    // update(), so a running signal observes the window collection (which
+    // close()/removeWindow update directly) rather than intra-frame glue
+    // teardown.
+    auto signalContext = bq::signal::makeSignalContext(
+            bq::signal::join(d()->takeAllWindows().map(makeGlue)),
+            std::move(running));
 
     auto mainQueue = context.getMainRenderQueue();
 
@@ -658,46 +654,47 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // released before this returns however it returns.
     GlueScope glueScope { *d(), mainQueue };
 
+    // Reconciles the app's glues from the context's current glue vector
+    // (index 0), run whenever the set of window identities changes.
+    auto collect = [&]()
+    {
+        std::vector<btl::shared<WindowGlue>> departing =
+            signalContext.evaluate<0>().get<0>();
+
+        // A frame that drew a departing window can still be in flight, and it
+        // holds that window's framebuffer, so nothing may release a glue until
+        // the queue has caught up.
+        mainQueue.finish();
+
+        // Swap and then clear, rather than assign: destroying a window runs
+        // event handlers that reach back into the live set, which must be the
+        // new one by then.
+        d()->windowGlues_.swap(departing);
+        departing.clear();
+    };
+
+    // Seed the initial windows: the context's constructor evaluated index 0
+    // once, so it already holds the initial glue vector.
+    collect();
+
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
 
     DBG("Reactive running...");
 
-    bool seeded = false;
-
     platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
 
-            glues.update(frame);
+            signalContext.update(frame);
 
-            // Seed the glues on the first frame, then re-collect whenever the
-            // set of window identities changes.
-            if (!seeded || glues.didChange<0>())
-            {
-                std::vector<btl::shared<WindowGlue>> departing =
-                    glues.evaluate<0>().get<0>();
+            // Reconcile only when the window identities change; the running
+            // bool typically changes every frame and must not force a needless
+            // finish()/reconcile.
+            if (signalContext.didChange<0>())
+                collect();
 
-                // A frame that drew a departing window can still be in flight,
-                // and it holds that window's framebuffer, so nothing may
-                // release a glue until the queue has caught up.
-                mainQueue.finish();
-
-                // Swap and then clear, rather than assign: destroying a window
-                // runs event handlers that reach back into the live set, which
-                // must be the new one by then.
-                d()->windowGlues_.swap(departing);
-                departing.clear();
-
-                seeded = true;
-            }
-
-            // Evaluated after the reconcile, so a running signal derived from
-            // the window collection — the default one is — sees the frame's
-            // settled set.
-            runningContext.update(frame);
-
-            return runningContext.evaluate<0>().get<0>();
+            return signalContext.evaluate<1>().get<0>();
         });
 
     DBG("Shutting down...");
