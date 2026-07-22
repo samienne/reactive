@@ -182,6 +182,18 @@ namespace avg
 
         pmr::memory_resource* getResource() const;
 
+        /** @brief Returns the transform that resolves the path into world space. */
+        Transform const& getTransform() const;
+
+        /**
+         * @brief Tests whether a point lies inside the filled path.
+         *
+         * The point is in the path's resolved space. Each subpath is treated as
+         * implicitly closed, and the given fill rule decides membership from the
+         * crossings of a ray cast from the point.
+         */
+        bool contains(Vector2f p, FillRule rule = FILL_EVENODD) const;
+
         bool operator==(Path const& rhs) const;
         bool operator!=(Path const& rhs) const;
 

@@ -1,5 +1,6 @@
 #include "path.h"
 
+#include "pathcrossing.h"
 #include "obb.h"
 #include "region.h"
 #include "polyline.h"
@@ -278,6 +279,46 @@ Path::~Path()
 pmr::memory_resource* Path::getResource() const
 {
     return memory_;
+}
+
+Transform const& Path::getTransform() const
+{
+    return transform_;
+}
+
+bool Path::contains(Vector2f p, FillRule rule) const
+{
+    // Cast a ray from the point in a generic direction that avoids running
+    // along axis-aligned or diagonal edges, then count the crossings ahead of
+    // the point.
+    Vector2f dir(0.9999691f, 0.0078539f);
+
+    auto crossings = pathLineCrossings(*this, p, dir);
+
+    int parity = 0;
+    int winding = 0;
+    for (auto const& c : crossings)
+    {
+        if (c.lineParam <= 0.0f)
+            continue;
+
+        ++parity;
+        winding += c.windingSign;
+    }
+
+    switch (rule)
+    {
+        case FILL_EVENODD:
+            return (parity & 1) != 0;
+        case FILL_NONZERO:
+            return winding != 0;
+        case FILL_POSITIVE:
+            return winding > 0;
+        case FILL_NEGATIVE:
+            return winding < 0;
+    }
+
+    return false;
 }
 
 bool Path::operator==(Path const& rhs) const
