@@ -1,6 +1,9 @@
 #include "bqui/modifier/onclick.h"
 
 #include "bqui/modifier/onpointerup.h"
+#include "bqui/modifier/setwidgetintrospection.h"
+
+#include "bqui/widget/introspection.h"
 
 #include "bqui/clickevent.h"
 
@@ -30,12 +33,14 @@ AnyWidgetModifier onClick(unsigned int button,
         return EventResult::possible;
     };
 
-    return makeWidgetModifierWithSize([](auto widget, auto size, auto f, auto cb)
+    return makeWidgetModifierWithSize(
+        [](auto widget, auto size, auto f, auto cb)
         {
             return std::move(widget)
                 | onPointerUp(
                         merge(std::move(cb), std::move(size))
                         .bindToFunction(std::move(f)))
+                | addCapability(widget::Capability::Clickable)
                 ;
         },
         std::move(f),

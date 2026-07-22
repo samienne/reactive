@@ -3,6 +3,9 @@
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
 #include "bqui/modifier/setsizehint.h"
+#include "bqui/modifier/setwidgetintrospection.h"
+
+#include "bqui/widget/datavalue.h"
 
 #include "bqui/provider/providetheme.h"
 
@@ -54,10 +57,17 @@ SizeHint makeLabelSizeHint(std::string const& text, Theme const& theme)
 auto makeLabel(bq::signal::AnySignal<Theme> theme,
         bq::signal::AnySignal<std::string> text)
 {
+    auto textData = text.map([](std::string text)
+            {
+                return DataValue(std::move(text));
+            });
+
     return makeWidget()
         | modifier::onDraw(drawLabel, text)
         | modifier::setSizeHint(merge(text, std::move(theme)).map(makeLabelSizeHint))
         | modifier::margin(bq::signal::constant(5.0f))
+        | modifier::setRole("Label")
+        | modifier::setData("text", std::move(textData))
         ;
 }
 

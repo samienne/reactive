@@ -6,8 +6,11 @@
 #include "bqui/modifier/transform.h"
 #include "bqui/modifier/addwidgets.h"
 #include "bqui/modifier/handlegravity.h"
+#include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/provider/providebuildparams.h"
+
+#include <bq/signal/combine.h>
 
 namespace bqui::widget
 {
@@ -56,6 +59,7 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 
                 return widget::makeWidget()
                     | modifier::addWidgets(std::move(widgets))
+                    | modifier::setRole("Layout")
                     ;
             }
             ,
@@ -100,4 +104,3 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
     );
 }
 }
-
