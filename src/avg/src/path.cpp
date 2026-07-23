@@ -1,6 +1,5 @@
 #include "path.h"
 
-#include "pathcrossing.h"
 #include "obb.h"
 #include "region.h"
 #include "polyline.h"
@@ -293,7 +292,7 @@ bool Path::contains(Vector2f p, FillRule rule) const
     // the point.
     Vector2f dir(0.9999691f, 0.0078539f);
 
-    auto crossings = pathLineCrossings(*this, p, dir);
+    auto crossings = lineCrossings(p, dir);
 
     int parity = 0;
     int winding = 0;

@@ -1,4 +1,3 @@
-#include <avg/pathcrossing.h>
 #include <avg/path.h>
 #include <avg/pathbuilder.h>
 #include <avg/fillrule.h>
@@ -69,7 +68,7 @@ std::vector<PathCrossing> sortedByX(std::vector<PathCrossing> crossings)
 TEST(PathCrossing, horizontalLineThroughSquare)
 {
     auto crossings = sortedByX(
-            pathLineCrossings(square(), Vector2f(5.0f, 5.0f),
+            square().lineCrossings(Vector2f(5.0f, 5.0f),
                 Vector2f(1.0f, 0.0f)));
 
     ASSERT_EQ(2u, crossings.size());
@@ -90,7 +89,7 @@ TEST(PathCrossing, horizontalLineThroughSquare)
 
 TEST(PathCrossing, verticalLineThroughSquare)
 {
-    auto crossings = pathLineCrossings(square(), Vector2f(5.0f, 5.0f),
+    auto crossings = square().lineCrossings(Vector2f(5.0f, 5.0f),
             Vector2f(0.0f, 1.0f));
 
     EXPECT_EQ(2u, crossings.size());
@@ -99,7 +98,7 @@ TEST(PathCrossing, verticalLineThroughSquare)
 TEST(PathCrossing, diagonalLineThroughSquare)
 {
     auto crossings = sortedByX(
-            pathLineCrossings(square(), Vector2f(5.0f, 5.0f),
+            square().lineCrossings(Vector2f(5.0f, 5.0f),
                 Vector2f(2.0f, 1.0f)));
 
     ASSERT_EQ(2u, crossings.size());
@@ -197,7 +196,7 @@ TEST(PathCrossing, conicLobeContainment)
 TEST(PathCrossing, conicCrossingCount)
 {
     // A line below the apex cuts the curved top twice.
-    auto crossings = pathLineCrossings(conicDome(), Vector2f(0.0f, 2.0f),
+    auto crossings = conicDome().lineCrossings(Vector2f(0.0f, 2.0f),
             Vector2f(1.0f, 0.0f));
 
     EXPECT_EQ(2u, crossings.size());
@@ -208,12 +207,12 @@ TEST(PathCrossing, tangentTouchIsNotCounted)
     Path dome = conicDome();
 
     // The line y = 5 grazes the apex: a double root, no sign change.
-    auto grazing = pathLineCrossings(dome, Vector2f(0.0f, 5.0f),
+    auto grazing = dome.lineCrossings(Vector2f(0.0f, 5.0f),
             Vector2f(1.0f, 0.0f));
     EXPECT_EQ(0u, grazing.size());
 
     // Just below the apex the line genuinely cuts through, twice.
-    auto cutting = pathLineCrossings(dome, Vector2f(0.0f, 4.9f),
+    auto cutting = dome.lineCrossings(Vector2f(0.0f, 4.9f),
             Vector2f(1.0f, 0.0f));
     EXPECT_EQ(2u, cutting.size());
 }
@@ -245,7 +244,7 @@ TEST(PathCrossing, cubicThreeRealRoots)
         .close()
         .build();
 
-    auto crossings = pathLineCrossings(p, Vector2f(0.0f, 5.0f),
+    auto crossings = p.lineCrossings(Vector2f(0.0f, 5.0f),
             Vector2f(1.0f, 0.0f));
 
     ASSERT_EQ(4u, crossings.size());
@@ -264,7 +263,7 @@ TEST(PathCrossing, sharedVertexCountsOnce)
     // The line y = 5 passes exactly through the left and right vertices of the
     // diamond. Each shared vertex must be counted once.
     auto crossings = sortedByX(
-            pathLineCrossings(diamond(), Vector2f(5.0f, 5.0f),
+            diamond().lineCrossings(Vector2f(5.0f, 5.0f),
                 Vector2f(1.0f, 0.0f)));
 
     ASSERT_EQ(2u, crossings.size());
@@ -278,7 +277,7 @@ TEST(PathCrossing, vertexTouchIsNotCounted)
 {
     // The line y = 0 touches only the bottom vertex of the diamond, where both
     // edges rise away from it: a touch, not a crossing.
-    auto crossings = pathLineCrossings(diamond(), Vector2f(5.0f, 0.0f),
+    auto crossings = diamond().lineCrossings(Vector2f(5.0f, 0.0f),
             Vector2f(1.0f, 0.0f));
 
     EXPECT_EQ(0u, crossings.size());
@@ -312,7 +311,7 @@ TEST(PathCrossing, arcWrapsAngleOrigin)
         .build();
 
     auto crossings = sortedByX(
-            pathLineCrossings(arc, Vector2f(0.0f, 0.0f),
+            arc.lineCrossings(Vector2f(0.0f, 0.0f),
                 Vector2f(1.0f, 0.0f)));
 
     // The circle meets the line at angle 0 (inside the sweep) and angle pi
@@ -340,7 +339,7 @@ TEST(PathCrossing, emptyPath)
 {
     Path p(res());
 
-    EXPECT_TRUE(pathLineCrossings(p, Vector2f(0.0f, 0.0f),
+    EXPECT_TRUE(p.lineCrossings(Vector2f(0.0f, 0.0f),
                 Vector2f(1.0f, 0.0f)).empty());
     EXPECT_FALSE(p.contains(Vector2f(0.0f, 0.0f)));
 }
@@ -351,14 +350,14 @@ TEST(PathCrossing, singlePointPath)
         .start(3.0f, 3.0f)
         .build();
 
-    EXPECT_TRUE(pathLineCrossings(p, Vector2f(0.0f, 0.0f),
+    EXPECT_TRUE(p.lineCrossings(Vector2f(0.0f, 0.0f),
                 Vector2f(1.0f, 0.0f)).empty());
     EXPECT_FALSE(p.contains(Vector2f(3.0f, 3.0f)));
 }
 
 TEST(PathCrossing, degenerateDirection)
 {
-    EXPECT_TRUE(pathLineCrossings(square(), Vector2f(5.0f, 5.0f),
+    EXPECT_TRUE(square().lineCrossings(Vector2f(5.0f, 5.0f),
                 Vector2f(0.0f, 0.0f)).empty());
 }
 
@@ -371,7 +370,7 @@ TEST(PathCrossing, respectsTransform)
     EXPECT_TRUE(p.contains(Vector2f(105.0f, 5.0f)));
     EXPECT_FALSE(p.contains(Vector2f(5.0f, 5.0f)));
 
-    auto crossings = pathLineCrossings(p, Vector2f(105.0f, 5.0f),
+    auto crossings = p.lineCrossings(Vector2f(105.0f, 5.0f),
             Vector2f(1.0f, 0.0f));
     EXPECT_EQ(2u, crossings.size());
 }
@@ -380,7 +379,7 @@ TEST(PathCrossing, fullCrossingListForKnownLine)
 {
     // Assert the complete crossing list for a horizontal line through a square.
     auto crossings = sortedByX(
-            pathLineCrossings(square(), Vector2f(5.0f, 5.0f),
+            square().lineCrossings(Vector2f(5.0f, 5.0f),
                 Vector2f(1.0f, 0.0f)));
 
     ASSERT_EQ(2u, crossings.size());
@@ -396,4 +395,32 @@ TEST(PathCrossing, fullCrossingListForKnownLine)
     // Winding signs cancel over a full loop.
     int sum = crossings[0].windingSign + crossings[1].windingSign;
     EXPECT_EQ(0, sum);
+}
+
+TEST(PathCrossing, memberLineCrossingsSurface)
+{
+    // Exercise lineCrossings as a Path member, holding the path in a named
+    // value so the call is made on an lvalue Path.
+    Path p = square();
+
+    std::vector<PathCrossing> crossings = p.lineCrossings(
+            Vector2f(5.0f, 5.0f), Vector2f(1.0f, 0.0f));
+
+    EXPECT_EQ(2u, crossings.size());
+
+    // A degenerate direction still yields no crossings through the member.
+    EXPECT_TRUE(
+            p.lineCrossings(Vector2f(5.0f, 5.0f), Vector2f(0.0f, 0.0f))
+                .empty());
+}
+
+TEST(PathCrossing, memberContainsSurface)
+{
+    // Exercise contains as a Path member with each fill rule reachable.
+    Path p = square();
+
+    EXPECT_TRUE(p.contains(Vector2f(5.0f, 5.0f)));
+    EXPECT_TRUE(p.contains(Vector2f(5.0f, 5.0f), FILL_EVENODD));
+    EXPECT_TRUE(p.contains(Vector2f(5.0f, 5.0f), FILL_NONZERO));
+    EXPECT_FALSE(p.contains(Vector2f(15.0f, 5.0f)));
 }
