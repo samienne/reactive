@@ -41,36 +41,29 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 ## The app loop (`app.cpp`)
 
-**A window list is the only thing that says which windows exist.** There are two
-of them and they do not overlap:
+**One imperative collection says which windows exist.** It lives in
+`src/windowlist.h` as a `bq::signal::SharedVector<Window>` behind a thin
+`WindowList`. `App::addWindows` appends to it, `App::removeWindow` and
+`Window::close` remove from it, and `App::getWindows` / `App::getWindowsSignal`
+read it — as a snapshot and as a signal respectively. The signal is an
+observation for a UI that wants to follow the set; it is not the source, and
+nothing derives the windows from it.
 
-- **The app's own collection** (`src/windowlist.h`), a
-  `bq::signal::SharedVector<Window>` keyed into an array by
-  `bq::signal::forEach` with `Window::getId` as the key and the identity
-  delegate, so the elements are `AnySignal<Window>`. `App::addWindows`
-  appends to it, `App::removeWindow` and `Window::close` remove from it, and
-  `App::getWindows` / `App::getWindowsSignal` read it — as a snapshot and as a
-  signal respectively.
-- **Caller-supplied arrays**, added with `App::addWindowArray`. The caller's own
-  model is the source of truth for those, so nothing in `App` mutates them and
-  `close()` does not reach them.
+`App::run` keeps a live `WindowGlue` per window, `windowGlues_`, keyed by window
+id. A `WindowGlue` owns everything for one window: its `ase::Window`, painter,
+per-window signal contexts, and input state, and it holds the window itself as a
+plain value. Each frame the loop **syncs** the glues to the collection with a
+plain O(n) set-diff: it reads `getWindows()`, builds a glue for any window that
+has none, and tears down any glue whose window has left. A window that survives
+an edit keeps the glue it already had — it is never rebuilt. `AnimationGuard`
+walks `windowGlues_`. The no-signal `run()` overload derives its `running` signal
+from `getWindowsSignal` and stops when the collection is empty.
 
-`App::run` concatenates the two, maps the result to one `WindowGlue` per
-identity and joins the glues, so the array itself creates a glue when an
-identity appears and destroys it — closing the window — when the identity
-leaves; a surviving window is never rebuilt. A `WindowGlue` owns everything for
-one window: its `ase::Window`, painter, per-window signal contexts, and input
-state. The glues are re-read from the joined signal only on the frames in which
-membership changed, and `AnimationGuard` walks that cached vector. The no-signal
-`run()` overload stops when that cached vector is empty, which is why it counts
-both kinds of window.
-
-The concatenation happens once, at the start. The app's own collection is a live
-signal and so follows additions while the app runs; a *further array* added
-after `run` started could not be seen, so `addWindowArray` rejects it rather
-than opening nothing. Picking one up would need the reactive subtree
-(`AnySignal<ArraySignal<T>>`) that `docs/design/arraysignal.md` still lists as
-open.
+The sync replaced an earlier signal-driven design (see `docs/decisions.md`): the
+window set used to be an `ArraySignal<Window>` mapped to one glue per identity
+and joined, with a `collect()` reconcile off the joined signal and a second
+`addWindowArray` path. There is no array, no join, and no `addWindowArray` now;
+the plain set-diff is all the matching a by-value identity needs.
 
 A window belongs to one app: `WindowList::add` rejects a window whose handle
 already names a live list, and `remove` clears the handle so a closed window can
@@ -107,51 +100,42 @@ tidiness:
 
 - **A window's signals are updated in the frame phase, never from an input
   handler.** The handler marks the window for redraw and returns; the platform
-  runs the frame after `App::run`'s callback has reconciled the list, so a
-  window whose key has just left is destroyed before anything updates it.
+  runs the frame after `App::run`'s callback has synced the glues to the
+  collection, so a window that has just been removed is torn down before
+  anything updates it.
 - **A glue is released only after the main render queue has caught up.** An
   in-flight frame holds the window's framebuffer, which holds the window by
-  reference.
+  reference, so the sync calls `mainQueue.finish()` before it destroys a
+  departed glue.
 
-Removal itself never evaluates a signal on either path. `WindowGlue`'s close
-callback invokes the window's own callbacks and then removes it, and a removal
-writes the `SharedVector`, whose publication only sets an input.
+Removal itself never evaluates a signal. `WindowGlue`'s close callback invokes
+the window's own callbacks and then removes it, and a removal writes the
+`SharedVector`, whose publication only sets an input.
 
-**A glue reads its window's signal once and never updates it.**
-`WindowGlue::windowSignal_` is a `SignalContext` over the element signal,
-evaluated in the constructor to produce `window_` and left alone thereafter.
-There is nothing later to read — an element cannot vary at a fixed identity — so
-the read that would encounter a departed key never happens, and everything the
-glue drives per frame is the window's *own* title and widget signals, which came
-out of that one read.
+**A glue holds its window as a plain value.** `window_` is the `Window` the app
+handed the glue when it opened the window, and the glue never replaces it.
+Everything it drives per frame is the window's *own* title and widget signals,
+which are the window's, not a per-frame read of the collection. There is
+therefore no departed-key hazard on this path — the collection can change and a
+surviving glue keeps driving the value it already holds.
 
-Do not be tempted to update it. That is the consumer-with-its-own-clock case the
-design forbids, and it is the one thing that would put the departed-key throw
-back on this path.
+The teardown ordering is the one subtlety worth stating: the sync builds the new
+complete glue set, swaps it into `windowGlues_`, and *then* destroys the departed
+glues, because destroying a window runs event handlers that reach back into the
+live set, which must be the new one by then.
 
-Both kinds of window reach the glue the same way: a caller-supplied
-`ArraySignal<Window>` is lifted to `ArraySignal<AnySignal<Window>>` with a
-`map` to `constant`, so `App::run` joins one array and not two shapes. What
-differs is what is *inside* the window: a caller's window built by a
-three-argument `forEach` delegate may hold a pick in its title or widgets, and
-those the glue does drive per frame. The gaps below are gaps in that path only.
+`AnimationGuard` transacts every glue from its constructor and destructor, and
+`withAnimation` is called from input handlers. A handler that both animates and
+removes a window transacts the departing window synchronously, which is harmless
+now: the value is stable and the close path only invokes the window's own
+callbacks and returns.
 
-- `AnimationGuard` transacts every glue from its constructor and destructor, and
-  `withAnimation` is called from input handlers. A handler that both animates
-  and removes a window transacts the departing window synchronously. For an
-  app-owned window that is harmless, by the paragraph above; for one from a
-  caller-supplied array it still throws.
-- A window list changed from *within* the frame phase — one window's update
-  removing another's key — is reconciled only on the next pass, so the other
-  window can update once with its key already gone. Same restriction: it is the
-  pick that throws.
-
-None of this is reachable from `test/apptest.cpp`: the dummy backend never runs
-a window's frame callback at all, so that binary covers the array plumbing and
-nothing about the ordering. `test/windowtest.cpp` covers the collection and the
-handle's lifetime without a backend at all. Run `testapp1` to exercise the rest
-— its extra windows are app-owned, and their close button both animates and
-removes itself.
+`test/apptest.cpp` drives the collection through a scripted `running` signal on
+the headless dummy backend, but the backend never runs a window's frame callback,
+so it covers add/remove/close and the glue lifecycle, not the per-frame drawing.
+`test/windowtest.cpp` covers the collection and the handle's lifetime without a
+backend at all. Run `testapp1` to exercise the rest — its extra windows are
+app-owned, and their close button both animates and removes itself.
 
 ## Traps
 

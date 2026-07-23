@@ -1,10 +1,10 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** Steps 0 to 4 of
-> *Implementation order* have landed — all of `bq`, plus `App`'s window list;
-> the layout rework is outstanding. This document has been amended to describe
-> what was built rather than what was first proposed. The earlier
-> implementation on PR #100 is
+> **Status: revised design, implementation started.** All of `bq` —
+> `ArraySignal`, `forEach`, `scatter`/`join`, `SharedVector` — has landed; the
+> layout rework is outstanding. This document has been amended to describe what
+> was built rather than what was first proposed. The earlier implementation on
+> PR #100 is
 > a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
@@ -16,7 +16,17 @@
 > `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
 > contract to Doxygen in the new headers — and this file goes away.
 
-*Last verified against `77e391f` (2026-07-22).*
+> **`App` is no longer a consumer of this design.** An early step made `App`'s
+> window set an `ArraySignal<Window>`; that has since been reverted — the window
+> collection is imperative again (add/remove/close), because a window is an OS
+> resource the app creates and destroys, not a value derived from a signal (see
+> `docs/decisions.md`). The `bq` operators stay: the **layout engine** is their
+> real consumer, and it is the one this document is ultimately for. The sections
+> below still cite `App` as the worked case for the *exit* and the
+> *element-signal* rules because it was the case that settled them; treat those
+> as the reasoning that produced the rules, not as a description of `App` today.
+
+*Last verified against `77e391f` (2026-07-22), amended for the `App` revert.*
 
 ## The problem
 
@@ -286,12 +296,13 @@ exit**: a consumer of a changing list takes an `ArraySignal<T>` and builds what
 it needs per identity with `map`, rather than being handed
 `AnySignal<vector<pair<size_t, T>>>` and reconciling by hand.
 
-`App` is the worked case. It now takes an `ArraySignal<Window>` and builds one
-`WindowGlue` per identity; the by-id reconcile loop, the producer-assigned
-`size_t`, and the `WindowList` alias are all deleted. What replaced them is not
-a translation of the loop — the loop *is* `ArrayOnce`, and `App` no longer
-contains one. The other consumer the open question named, `dataBind`, is
-retired wholesale at step 6 rather than re-typed, so nothing there reopens it.
+`App` was the worked case (it has since reverted to an imperative collection —
+see the note at the top — but it is what settled this). It took an
+`ArraySignal<Window>` and built one `WindowGlue` per identity; the by-id
+reconcile loop and the producer-assigned `size_t` were deleted, and what
+replaced them was not a translation of the loop — the loop *is* `ArrayOnce`. The
+other consumer the open question named, `dataBind`, is retired wholesale at step
+6 rather than re-typed, so nothing there reopens it.
 
 Four findings from doing it, because each one generalises past `App`:
 
@@ -1760,14 +1771,15 @@ Steps 0 to 4 are done; the rest is outstanding.
    the aggregate. The size-alignment check is that zip; what it reaches is
    *Alignment is a promise, and only its arity is checked*.
 
-4. **`App`'s window list.** *Done.* The first `bqui` consumer, and the one that
-   settled *No identity surfaces at the exit*. `App::run` builds a `WindowGlue`
-   per identity with `map`, joins the glues through a constant, and reads the
-   live set off the fanned-in vector. `App` then grew a window collection of its
-   own — a `SharedVector<Window>` through `forEach` with the identity delegate,
-   whose elements are the window signals — with `addWindowArray` keeping the
-   general path for a caller whose windows follow a model of its own.
-   Independent of steps 5 and 6 and landed before them.
+4. **`App`'s window list.** *Reverted.* This was the first `bqui` consumer and
+   the one that settled *No identity surfaces at the exit*: `App::run` built a
+   `WindowGlue` per identity with `map`, joined the glues through a constant, and
+   read the live set off the fanned-in vector, over a `SharedVector<Window>`
+   keyed by `forEach`, with an `addWindowArray` path for a caller's own model.
+   It has since been undone — `App`'s window collection is imperative again (see
+   `docs/decisions.md`), because a window is an OS resource rather than
+   signal-derived data. The rules it settled stand; `App` no longer exercises
+   them. The **layout engine** (steps 5-6) is the consumer that does.
 
 5. **Unify `layout()`** over `map`/`scatter`/`join`, keeping the existing
    `SizeHintMap`/`ObbMap` signature so `box`, `stack` and `uniformGrid` are

@@ -74,12 +74,11 @@ return window(bq::signal::constant<std::string>("Details"),
         handle);
 ```
 
-Windows may also be driven from a model of the caller's own, as a
-`bq::signal::ArraySignal<Window>` passed to `App::addWindowArray`: they open and
-close as the array's keys come and go, and the ones that stay keep everything
-they had. That array is then the source of truth for the windows in it, so those
-windows close by their keys leaving it — wire `Window::onClose` back to whatever
-it was built from — and the app's own collection does not hold them.
+The collection is imperative: `App::addWindow`/`addWindows` open windows and
+`removeWindow`/`Window::close` close them, before and while the app runs.
+`App::getWindowsSignal` observes the set for a UI that follows it — a window
+list, or a title that counts — but that signal reports the collection, it does
+not drive it.
 
 Signal changes made inside a `withAnimation` scope are animated.
 

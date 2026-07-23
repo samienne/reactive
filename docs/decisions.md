@@ -5,16 +5,45 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## `App`'s window collection is imperative, not an `ArraySignal`
+
+`App` holds its windows in a plain, thread-safe collection
+(`bq::signal::SharedVector<Window>` behind `WindowList`) reached with
+`addWindow`/`addWindows`, `removeWindow` and `Window::close`. `getWindows`
+snapshots it and `getWindowsSignal` observes it, but that signal is a *report*,
+not the source: nothing derives the windows from a signal. The run loop reads
+the collection each frame and syncs one `WindowGlue` per window to it with a
+plain O(n) set-diff — build a glue for a window that has none, tear down a glue
+whose window has left.
+
+An earlier design (PR #121's first form) made the window set an
+`ArraySignal<Window>`: the loop mapped the array to one glue per identity, joined
+the glues, and reconciled a cached glue vector from that signal each frame, with
+a second caller-driven `addWindowArray` path for windows a caller's own model
+owned.
+
+**Why the change:** a window is an imperative OS resource — an `ase::Window`, a
+framebuffer, input state — created and destroyed by the app, not a value derived
+from data. Modelling the *set* of them as a signal solved a matching problem the
+signal itself created: `forEach` earns its keep when a delegate must not rebuild
+a surviving item as its neighbours change, but `App` never had that problem —
+the window *is* the stable identity, held by value, and a set-diff over ids is
+all "keep the survivor, drop the departed" needs. Removing the signal layer
+deleted `addWindowArray`, `takeAllWindows`, the `join`-of-glues, the fused
+two-signal loop context, and the signal-driven `collect()` reconcile, and left a
+shorter run loop whose glue lifecycle reads straight down the page. `ArraySignal`
+and `forEach` stay in `bq` — the layout engine is their real consumer; `App`
+simply was not one.
+
 ## `App::run()` with no arguments stops at zero windows, not at the first close
 
 `run()` used to stop when *any* window closed; it now runs while a window
-remains in the app's own collection. It is not a rule of the loop: `run()` with
-no argument builds a default `running` signal from that collection — true while
-it holds a window, false when the last one leaves — and passes it to the same
-loop `run(running)` drives, which is unchanged and stops when its signal says
-so. The default counts only the app's own windows, not those from
-`addWindowArray`; a caller who wants to count those, or to outlive an empty
-collection, passes a `running` signal of its own.
+remains in the collection. It is not a rule of the loop: `run()` with no
+argument builds a default `running` signal from that collection — true while it
+holds a window, false when the last one leaves — and passes it to the same loop
+`run(running)` drives, which is unchanged and stops when its signal says so. A
+caller who wants another policy, such as outliving an empty collection, passes a
+`running` signal of its own.
 
 **Why:** the app owns its windows now, so closing one is a removal and not an
 exit — that is what makes a close button, a title bar, and `removeWindow` one
