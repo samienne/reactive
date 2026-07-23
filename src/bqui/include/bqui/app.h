@@ -1,6 +1,7 @@
 #pragma once
 
 #include "window.h"
+#include "widget/widget.h"
 #include "bquivisibility.h"
 
 #include <bq/signal/signal.h>
@@ -24,31 +25,32 @@ namespace bqui
     public:
         explicit App();
 
-        /** @brief Opens windows the app owns.
+        /** @brief Opens a window the app owns, mounting the given widget in it.
          *
-         * Appends to the app's collection, which is the list of windows the app
-         * manages: a window in it closes when it is removed, whether by
-         * Window::close(), by removeWindow(), or by its own title bar. The
-         * collection is an imperative one — added to and removed from directly,
-         * not derived from a signal — so windows may be added and removed both
-         * before and while the app runs.
+         * The window is added to the app's collection and the widget becomes
+         * its mounted content: the app builds the window's impl from the two
+         * and drives it. The widget is mount-time content, not part of the
+         * window's persistent identity — removing the window unmounts and
+         * destroys the widget, and adding the same window again re-supplies a
+         * fresh one. The collection is imperative — added to and removed from
+         * directly, not derived from a signal — so a window may be added and
+         * removed both before and while the app runs.
          *
-         * @throws std::invalid_argument if a window is already open, here or
-         *         in another app. A window and its copies are one window —
-         *         they share one identity — so adding a copy of an open window
-         *         is adding it twice, and a window belongs to one app because
-         *         close() has to know which list to leave. A window that has
+         * @throws std::invalid_argument if the window is already open, here or
+         *         in another app. A window and its copies are one window — they
+         *         share one identity — so adding a copy of an open window is
+         *         adding it twice, and a window belongs to one app because
+         *         close() has to know which app to leave. A window that has
          *         been removed belongs to no app again and may be opened
          *         anywhere.
          */
-        App& addWindows(std::vector<Window> windows);
-
-        /** @overload */
-        App& addWindow(Window window);
+        App& addWindow(Window window, widget::AnyWidget widget);
 
         /** @brief Closes the app's window with this identity.
          *
-         * Does nothing if no window in the collection has it.
+         * Does nothing if no window in the collection has it. The window's own
+         * data outlives this whenever a Window naming it is still held; only its
+         * mounted widget is torn down.
          */
         void removeWindow(btl::UniqueId id);
 
@@ -64,7 +66,7 @@ namespace bqui
          * The reactive form of the same collection, for building a UI that
          * follows it — a window list, or a title that counts. This is an
          * observation of the imperative collection, not its source: adding and
-         * removing windows still goes through addWindows()/removeWindow()/
+         * removing windows still goes through addWindow()/removeWindow()/
          * Window::close(), and this signal reports the result.
          */
         bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
@@ -74,7 +76,7 @@ namespace bqui
          * The thread that calls this is the app's thread: run() and
          * withAnimation() belong to it, and every window is built, drawn and
          * driven there. The window collection is the exception and is safe to
-         * reach from anywhere — addWindows(), removeWindow(), getWindows() and
+         * reach from anywhere — addWindow(), removeWindow(), getWindows() and
          * Window::close() all go through a lock-guarded vector, so a worker
          * that finishes can open or close a window itself.
          */

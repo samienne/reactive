@@ -1,13 +1,15 @@
 #include "bqui/app.h"
 
 #include "bqui/window.h"
+#include "bqui/modifier/background.h"
 
 #include "debug.h"
-#include "windowlist.h"
+#include "windowdata.h"
 
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
+#include <bq/signal/sharedvector.h>
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>
@@ -36,10 +38,13 @@
 #include <algorithm>
 #include <chrono>
 #include <functional>
+#include <mutex>
+#include <stdexcept>
 #include <unordered_map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <cstdint>
 
@@ -56,44 +61,71 @@ namespace
     }
 } // anonymous namespace
 
-class WindowGlue;
+class WindowImpl;
 
-class BQUI_EXPORT AppDeferred
+class BQUI_EXPORT AppDeferred :
+    public std::enable_shared_from_this<AppDeferred>
 {
 public:
-    AppDeferred() :
-        windows_(std::make_shared<WindowList>())
+    AppDeferred()
     {
         TracyAppInfo("Reactive application", 20);
     }
 
-    std::shared_ptr<WindowList> windows_;
+    /** @brief Removes the window with this id from the collection.
+     *
+     * The channel Window::close() reaches: a window holds its app weakly and
+     * closes by leaving its collection. Thread-safe, and a no-op if no window
+     * here has the id. The window's impl is torn down by the run loop's next
+     * sync, not here, because an OS window is released on the app thread.
+     */
+    void removeWindow(btl::UniqueId id);
 
-    // The app's live glues, one per open window, keyed by window id. The run
-    // loop syncs this to the window collection each frame: it builds a glue
-    // for any window not yet here and tears down any glue whose window has
-    // left. AnimationGuard walks it to transact every open window.
-    std::vector<btl::shared<WindowGlue>> windowGlues_;
+    std::vector<Window> getWindows() const
+    {
+        return *windows_.read();
+    }
+
+    // The app's window collection: one imperative, thread-safe, observable set
+    // of open windows. addWindow appends, removeWindow/close remove, and the
+    // run loop reads it each frame. getWindowsSignal exports it for a UI that
+    // follows the set; nothing derives the windows from that signal.
+    bq::signal::SharedVector<Window> windows_;
+
+    // Windows added but not yet mounted, each with the widget to mount. An OS
+    // window is built on the app thread, so addWindow — callable from any
+    // thread — only enqueues here, and the run loop's sync drains it and builds
+    // the impls. Guarded because addWindow and the drain run on different
+    // threads.
+    std::mutex pendingMutex_;
+    std::vector<std::pair<Window, widget::AnyWidget>> pendingMounts_;
+
+    // The app's live impls, one per mounted window, keyed by window id. The run
+    // loop syncs this each frame: it mounts a pending widget for any window not
+    // yet here and tears down any impl whose window has left. AnimationGuard
+    // walks it to transact every open window. App-thread-only.
+    std::vector<btl::shared<WindowImpl>> windowImpls_;
 };
 
-class WindowGlue
+class WindowImpl
 {
 public:
-    WindowGlue(ase::Platform &platform, ase::RenderContext& context,
-            Window window)
+    WindowImpl(ase::Platform &platform, ase::RenderContext& context,
+            Window window, widget::AnyWidget widget)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_),
         memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(context),
-        window_(std::move(window)),
+        windowData_(window.data()),
         painter_(memory_, context_),
         size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
-        widgetInstanceSignal_(window_.getWidget()(
+        widgetInstanceSignal_((std::move(widget)
+                    | modifier::background())(
                     BuildParams{}
                     )(std::move(size_.signal)).getInstance()),
         widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
-        titleSignal_(window_.getTitle()),
+        titleSignal_(windowData_->getTitle()),
         drawing_(memory_)
     {
         aseWindow.setVisible(true);
@@ -105,7 +137,7 @@ public:
 
         aseWindow.setCloseCallback([this]()
         {
-            // The glue outlives the removal by up to a frame, so a second
+            // The impl outlives the removal by up to a frame, so a second
             // close event would otherwise run the window's callbacks again.
             if (closed_)
                 return;
@@ -116,8 +148,8 @@ public:
             // first so that one of them still sees the window open. Neither
             // step evaluates a signal, which is what makes closing safe from
             // an event handler.
-            window_.invokeOnClose();
-            window_.close();
+            windowData_->invokeOnClose();
+            windowData_->close();
         });
         aseWindow.setResizeCallback([this]()
                 {
@@ -271,10 +303,10 @@ public:
         });
     }
 
-    WindowGlue(WindowGlue const &) = delete;
-    WindowGlue &operator=(WindowGlue const &) = delete;
+    WindowImpl(WindowImpl const &) = delete;
+    WindowImpl &operator=(WindowImpl const &) = delete;
 
-    virtual ~WindowGlue()
+    virtual ~WindowImpl()
     {
         std::cout << "Maximum concurrent allocations: "
             << memoryStatistics_.maximum_concurrent_bytes_allocated()
@@ -438,7 +470,7 @@ public:
 
     btl::UniqueId getId() const
     {
-        return window_.getId();
+        return windowData_->getId();
     }
 
     uint64_t getFrames() const
@@ -463,10 +495,11 @@ private:
     ase::Window aseWindow;
     ase::RenderContext& context_;
 
-    // The window this glue drives. A window is a plain value the app hands the
-    // glue when it opens the window and never replaces; everything the glue
-    // drives per frame is the window's own title and widget signals.
-    Window window_;
+    // The persistent data of the window this impl drives. The impl owns the
+    // window's contents (its widget, below) but not its identity: the data
+    // outlives the impl whenever a Window naming it is still held. Everything
+    // the impl drives per frame is the window's own title and widget signals.
+    std::shared_ptr<WindowData> windowData_;
     avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
         bq::signal::SignalResult<ase::Vector2f>> size_;
@@ -495,53 +528,138 @@ private:
 };
 
 
-// Releases the app's glues, whatever ends the run. A glue holds an
+// Releases the app's impls, whatever ends the run. An impl holds an
 // ase::Window and a framebuffer belonging to the render context the run
 // created, so leaving one behind outlives what it is made of.
-struct GlueScope
+struct ImplScope
 {
-    ~GlueScope()
+    ~ImplScope()
     {
         // A frame that drew a window can still be in flight, and it holds that
         // window's framebuffer.
         queue.finish();
-        app.windowGlues_.clear();
+        app.windowImpls_.clear();
     }
 
     AppDeferred& app;
     ase::RenderQueue& queue;
 };
 
+void WindowData::close() const
+{
+    std::shared_ptr<AppDeferred> app;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        app = app_.lock();
+    }
+
+    if (app)
+        app->removeWindow(id_);
+}
+
+void AppDeferred::removeWindow(btl::UniqueId id)
+{
+    // Nothing to publish if the window is not here, and publishing is a copy
+    // of every window that is. Losing the race against a concurrent removal
+    // only costs one such copy, so the check needs no more than a read scope.
+    {
+        auto handle = windows_.read();
+
+        auto found = std::find_if(handle->begin(), handle->end(),
+                [id](Window const& window)
+                {
+                    return window.getId() == id;
+                });
+
+        if (found == handle->end())
+            return;
+    }
+
+    // Declared before the write scope so that it outlives it: a departed
+    // window's data may run user code as it is released, which must not run
+    // under a lock that the same code might try to take.
+    std::vector<Window> departing;
+
+    {
+        auto handle = windows_.write();
+
+        auto departed = std::stable_partition(handle->begin(), handle->end(),
+                [id](Window const& window)
+                {
+                    return window.getId() != id;
+                });
+
+        departing.insert(departing.end(),
+                std::make_move_iterator(departed),
+                std::make_move_iterator(handle->end()));
+
+        handle->erase(departed, handle->end());
+    }
+
+    // A window that has left belongs to no app again, so it can be opened in
+    // one — this one or another — without being taken for a window that is
+    // already open. The window's impl is torn down by the run loop's next
+    // sync, which sees the window gone from the collection.
+    for (auto const& window : departing)
+        window.data()->clearApp();
+}
+
 App::App() :
     deferred_(std::make_shared<AppDeferred>())
 {
 }
 
-App& App::addWindows(std::vector<Window> windows)
+App& App::addWindow(Window window, widget::AnyWidget widget)
 {
-    d()->windows_->add(std::move(windows));
+    {
+        auto handle = d()->windows_.write();
+
+        bool alreadyOpen = std::any_of(handle->begin(), handle->end(),
+                [&](Window const& w) { return w.getId() == window.getId(); });
+
+        if (alreadyOpen)
+        {
+            throw std::invalid_argument("App: this window is already open. A "
+                    "window and its copies are one window, and one window "
+                    "cannot be opened twice.");
+        }
+
+        if (window.data()->hasApp())
+        {
+            throw std::invalid_argument("App: this window is open in another "
+                    "app. A window belongs to one app, because close() has to "
+                    "know which app to leave.");
+        }
+
+        window.data()->setApp(d()->weak_from_this());
+
+        handle->push_back(window);
+    }
+
+    // The window is in the collection now; the widget waits here for the run
+    // loop to build its impl on the app thread.
+    {
+        std::lock_guard<std::mutex> lock(d()->pendingMutex_);
+        d()->pendingMounts_.emplace_back(std::move(window), std::move(widget));
+    }
 
     return *this;
 }
 
-App& App::addWindow(Window window)
-{
-    return addWindows(std::vector<Window> { std::move(window) });
-}
-
 void App::removeWindow(btl::UniqueId id)
 {
-    d()->windows_->remove(id);
+    d()->removeWindow(id);
 }
 
 std::vector<Window> App::getWindows() const
 {
-    return d()->windows_->get();
+    return d()->getWindows();
 }
 
 bq::signal::AnySignal<std::vector<Window>> App::getWindowsSignal() const
 {
-    return d()->windows_->signal();
+    return d()->windows_.signal();
 }
 
 int App::run(bq::signal::AnySignal<bool> running)
@@ -570,60 +688,77 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     auto mainQueue = context.getMainRenderQueue();
 
-    // The glues outlive this call — they are the app's, not the loop's — but
+    // The impls outlive this call — they are the app's, not the loop's — but
     // the platform and the render context they hold do not, so they have to be
     // released before this returns however it returns.
-    GlueScope glueScope { *d(), mainQueue };
+    ImplScope implScope { *d(), mainQueue };
 
-    // The running signal is the loop's only signal now. The glues are a plain
+    // The running signal is the loop's only signal now. The impls are a plain
     // imperative collection synced below, not a signal, so there is nothing to
     // fuse it with; it lives in its own context and is evaluated each frame.
     auto runningContext = bq::signal::makeSignalContext(std::move(running));
 
-    // Syncs the live glues to the window collection: builds a glue for any
-    // window not yet glued, tears down any glue whose window has left. This
-    // plain set-diff is what a signal-driven reconcile used to be — the window
-    // collection (which close()/removeWindow update directly) is read straight,
-    // once per frame.
+    // Syncs the live impls to the window collection: mounts a pending widget's
+    // impl for any window not yet mounted, tears down any impl whose window has
+    // left. This plain set-diff is what a signal-driven reconcile used to be —
+    // the window collection (which close()/removeWindow update directly) is
+    // read straight, once per frame, and the widgets to mount are drained from
+    // the pending queue addWindow fills.
     auto sync = [&]()
     {
-        std::vector<Window> windows = d()->windows_->get();
+        std::vector<Window> windows = d()->getWindows();
 
-        // The next live set: surviving glues carried over, new ones built. A
-        // window that survives keeps the glue it already had.
-        std::vector<btl::shared<WindowGlue>> next;
+        // The next live set: surviving impls carried over, newly mounted ones
+        // added below. A window that survives keeps the impl it already had.
+        std::vector<btl::shared<WindowImpl>> next;
         next.reserve(windows.size());
 
-        // Glues whose window has left. Held apart and destroyed last, after the
+        // Impls whose window has left. Held apart and destroyed last, after the
         // live set is the new one.
-        std::vector<btl::shared<WindowGlue>> departing;
+        std::vector<btl::shared<WindowImpl>> departing;
 
-        for (auto& glue : d()->windowGlues_)
+        for (auto& impl : d()->windowImpls_)
         {
             bool present = std::any_of(windows.begin(), windows.end(),
-                    [&](Window const& w) { return w.getId() == glue->getId(); });
+                    [&](Window const& w) { return w.getId() == impl->getId(); });
 
             if (present)
-                next.push_back(std::move(glue));
+                next.push_back(std::move(impl));
             else
-                departing.push_back(std::move(glue));
+                departing.push_back(std::move(impl));
         }
 
-        for (auto const& window : windows)
+        // Drain the pending mounts and build an impl for each window still in
+        // the collection that has none. A pending widget whose window has since
+        // left is dropped — a re-add re-supplies one — and one whose window is
+        // already mounted (a remove and re-add that has not yet cycled through
+        // a teardown) is dropped too.
+        std::vector<std::pair<Window, widget::AnyWidget>> pending;
         {
-            bool glued = std::any_of(next.begin(), next.end(),
-                    [&](btl::shared<WindowGlue> const& g)
+            std::lock_guard<std::mutex> lock(d()->pendingMutex_);
+            pending.swap(d()->pendingMounts_);
+        }
+
+        for (auto& mount : pending)
+        {
+            btl::UniqueId id = mount.first.getId();
+
+            bool present = std::any_of(windows.begin(), windows.end(),
+                    [&](Window const& w) { return w.getId() == id; });
+
+            bool mounted = std::any_of(next.begin(), next.end(),
+                    [&](btl::shared<WindowImpl> const& impl)
                     {
-                        return g->getId() == window.getId();
+                        return impl->getId() == id;
                     });
 
-            if (!glued)
-                next.push_back(std::make_shared<WindowGlue>(platform, context,
-                            window));
+            if (present && !mounted)
+                next.push_back(std::make_shared<WindowImpl>(platform, context,
+                            std::move(mount.first), std::move(mount.second)));
         }
 
         // A frame that drew a departing window can still be in flight, and it
-        // holds that window's framebuffer, so nothing may release a glue until
+        // holds that window's framebuffer, so nothing may release an impl until
         // the queue has caught up.
         if (!departing.empty())
             mainQueue.finish();
@@ -631,7 +766,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         // Swap the new complete set in, then clear the departed: destroying a
         // window runs event handlers that reach back into the live set, which
         // must be the new one by then.
-        d()->windowGlues_.swap(next);
+        d()->windowImpls_.swap(next);
         departing.clear();
     };
 
@@ -649,9 +784,9 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
             runningContext.update(frame);
 
-            // Sync the glues to the window collection after the running signal
+            // Sync the impls to the window collection after the running signal
             // has updated, so a running signal derived from the collection
-            // observes it rather than intra-frame glue teardown.
+            // observes it rather than intra-frame impl teardown.
             sync();
 
             return runningContext.evaluate<0>().get<0>();
@@ -662,10 +797,10 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& glue : d()->windowGlues_)
+    for (auto const& impl : d()->windowImpls_)
     {
-        DBG("Window \"%1\" had FPS of %2.", glue->getTitle(),
-                (double)glue->getFrames() / time.count());
+        DBG("Window \"%1\" had FPS of %2.", impl->getTitle(),
+                (double)impl->getFrames() / time.count());
     }
 
     return 0;
@@ -681,9 +816,9 @@ AnimationGuard::AnimationGuard(AppDeferred& app,
     app_(&app),
     options_(options)
 {
-    for (auto& glue : app_->windowGlues_)
+    for (auto& impl : app_->windowImpls_)
     {
-        glue->makeTransaction(
+        impl->makeTransaction(
                 std::chrono::milliseconds(0),
                 std::nullopt
                 );
@@ -695,9 +830,9 @@ AnimationGuard::~AnimationGuard()
     if (!app_)
         return;
 
-    for (auto& glue : app_->windowGlues_)
+    for (auto& impl : app_->windowImpls_)
     {
-        glue->makeTransaction(
+        impl->makeTransaction(
                 std::chrono::milliseconds(0),
                 options_
                 );

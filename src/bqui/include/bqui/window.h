@@ -1,82 +1,40 @@
 #pragma once
 
-#include "widget/widget.h"
-
 #include "bquivisibility.h"
 
 #include <bq/signal/signal.h>
 
-#include <btl/cloneoncopy.h>
 #include <btl/uniqueid.h>
 
 #include <functional>
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace bqui
 {
-    class WindowList;
+    class WindowData;
+    class App;
+    class AppDeferred;
+    class WindowImpl;
 
-    /** @brief A window's identity, and the means to close it.
+    /** @brief A window the app owns, as a small value handle.
      *
-     * Every Window has one, and copies of a window share it. It is small and
-     * holds nothing of the window's contents, so a widget *inside* the window
-     * can hold one — construct the handle first, capture it in the widget, and
-     * pass it to window(). A window that captured itself instead would own the
-     * widget that owns it.
+     * A Window is a handle over shared state (its identity, title and close
+     * callbacks): copies of a window are one window and share that state, and
+     * the state lives as long as any copy does — across a remove and a later
+     * re-add. The window holds none of its own contents; the widget is supplied
+     * to App::addWindow at mount time and lives in the app-owned impl.
      *
-     * A handle only reaches the app the window was added to, and reaches it
-     * weakly: a handle for a window that was never added, or whose app has been
-     * destroyed, still answers getId() and does nothing on close().
+     * Because of that, a widget inside the window may capture the very Window
+     * that owns it — a close button is @c [w]{ w.close(); } — with no retain
+     * cycle: the app holds the widget, the widget holds the Window, and the
+     * Window points back at the app only weakly.
      */
-    class BQUI_EXPORT WindowHandle
-    {
-    public:
-        /** @brief Mints a fresh identity, belonging to no app. */
-        WindowHandle();
-
-        WindowHandle(WindowHandle const&) = default;
-        WindowHandle& operator=(WindowHandle const&) = default;
-
-        WindowHandle(WindowHandle&&) noexcept = default;
-        WindowHandle& operator=(WindowHandle&&) noexcept = default;
-
-        ~WindowHandle();
-
-        /** @brief The identity this handle names, for App::removeWindow(). */
-        btl::UniqueId getId() const;
-
-        /** @brief Removes the window from the app that owns it.
-         *
-         * Does nothing if the window is not in an app, or if the app is gone.
-         * Removing a window that is not there is not an error either — closing
-         * twice is a race a UI can lose without anything being wrong.
-         */
-        void close() const;
-
-    private:
-        friend class WindowList;
-
-        bool hasList() const;
-        void setList(std::weak_ptr<WindowList> list) const;
-        void clearList() const;
-
-        struct Impl;
-
-        std::shared_ptr<Impl> impl_;
-    };
-
     class BQUI_EXPORT Window
     {
     public:
-        Window(widget::AnyWidget widget,
-                bq::signal::AnySignal<std::string> const& title);
-
-        /** @brief Constructs a window with an identity minted beforehand. */
-        Window(widget::AnyWidget widget,
-                bq::signal::AnySignal<std::string> const& title,
-                WindowHandle handle);
+        /** @brief Mints a window with a fresh identity, belonging to no app. */
+        explicit Window(bq::signal::AnySignal<std::string> const& title);
 
         Window(Window const&) = default;
         Window& operator=(Window const&) = default;
@@ -84,9 +42,8 @@ namespace bqui
         Window(Window&&) = default;
         Window& operator=(Window&&) = default;
 
+        /** @brief Adds a callback run when the window's title bar closes it. */
         Window onClose(std::function<void()> const& cb) &&;
-
-        widget::AnyWidget getWidget() const;
 
         bq::signal::AnySignal<std::string> const& getTitle() const;
 
@@ -100,9 +57,11 @@ namespace bqui
          */
         btl::UniqueId getId() const;
 
-        WindowHandle const& getHandle() const;
-
-        /** @brief Removes this window from the app that owns it. */
+        /** @brief Removes this window from the app that owns it.
+         *
+         * A no-op if the window is in no app, or if that app is gone. Closing
+         * twice is a race a UI can lose without anything being wrong.
+         */
         void close() const;
 
         Window clone() const
@@ -111,19 +70,18 @@ namespace bqui
         }
 
     private:
-        friend class WindowList;
+        friend class App;
+        friend class AppDeferred;
+        friend class WindowImpl;
 
-        widget::AnyWidget widget_;
-        bq::signal::AnySignal<std::string> title_;
-        std::vector<std::function<void()>> closeCallbacks_;
-        WindowHandle handle_;
+        std::shared_ptr<WindowData> const& data() const
+        {
+            return data_;
+        }
+
+        std::shared_ptr<WindowData> data_;
     };
 
-    BQUI_EXPORT auto window(bq::signal::AnySignal<std::string> const& title,
-            widget::AnyWidget widget) -> Window;
-
-    /** @overload */
-    BQUI_EXPORT auto window(bq::signal::AnySignal<std::string> const& title,
-            widget::AnyWidget widget, WindowHandle handle) -> Window;
+    /** @brief Mints a window with the given title. */
+    BQUI_EXPORT Window window(bq::signal::AnySignal<std::string> const& title);
 }
-

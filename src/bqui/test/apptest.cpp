@@ -2,6 +2,7 @@
 #include <bqui/window.h>
 
 #include <bqui/widget/widget.h>
+#include <bqui/modifier/onclick.h>
 
 #include <bq/signal/constant.h>
 #include <bq/signal/input.h>
@@ -12,6 +13,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -23,23 +25,23 @@ using namespace bqui;
 
 // Each test builds its own App rather than calling app(), whose App shares one
 // AppDeferred with every other caller — two tests would then run the same
-// window list.
+// window collection.
 //
 // The app's window collection is imperative: addWindow/removeWindow/close reach
-// it directly, and the run loop syncs one WindowGlue per window to it each
-// frame. Nothing about a window is observable through App directly beyond
-// getWindows(), so these tests watch the windows themselves. Two things are
-// observable from outside without any hook:
+// it directly, and the run loop mounts one WindowImpl per window to it each
+// frame. Two things are observable from outside without any App-level hook:
 //
-//   - A window's title is read once per window that opens, when the glue builds
-//     its SignalContext; every later read is cached, and the dummy platform
-//     runs no window frames that could invalidate it. Counting reads of a title
-//     therefore counts openings, and a window rebuilt behind our backs counts
-//     twice. A title read is equally the report that the window is open, which
-//     is the only thing a test running concurrently with the app loop can wait
-//     for.
-//   - A probe held by a window's close callback lives exactly as long as that
-//     window does — as long as the collection or a glue still holds it.
+//   - A window's title is read once when its impl mounts, when the impl builds
+//     its title SignalContext; every later read is cached, and the dummy
+//     platform runs no window frames that could invalidate it. Counting reads
+//     of a title therefore counts mountings, and a title read is equally the
+//     report that the window has opened.
+//   - A probe captured in a window's *widget* lives exactly as long as its
+//     mounted impl does: the widget is the impl's, torn down when the window
+//     leaves the collection. A window's persistent data does not hold it, so
+//     the probe expiring is the impl being torn down — the observable proof of
+//     an unmount, and, when the widget captured the owning Window, of that
+//     capture not leaking.
 
 namespace
 {
@@ -55,12 +57,20 @@ namespace
         };
     }
 
-    Window makeWindow(std::string title, Opens& opens, Probe probe)
+    // A widget whose mounted instance retains the probe: the click handler it
+    // carries holds it, so the probe lives as long as the impl and expires when
+    // the window unmounts.
+    widget::AnyWidget probeWidget(Probe probe)
+    {
+        return widget::makeWidget()
+            | modifier::onClick(0, bq::signal::constant(
+                        std::function<void()>([probe]() {})));
+    }
+
+    Window makeWindow(std::string title, Opens& opens)
     {
         return window(
-                bq::signal::constant(std::move(title)).map(countReads(opens)),
-                widget::makeWidget())
-            .onClose([probe]() {});
+                bq::signal::constant(std::move(title)).map(countReads(opens)));
     }
 
     // The dummy platform's loop has no bound of its own, so a regression that
@@ -68,7 +78,8 @@ namespace
     constexpr int maxFrames = 100;
 
     // A title that reports the window opening. The title is read once, when the
-    // glue builds its SignalContext, which is the app loop opening the window.
+    // impl builds its title SignalContext, which is the app loop mounting the
+    // window.
     auto reportOpen(std::string title, std::atomic<bool>& opened)
     {
         return bq::signal::constant(std::move(title)).map(
@@ -100,10 +111,291 @@ namespace
     }
 } // namespace
 
-// A window that survives an edit keeps the glue it already had — its title is
+// A window added with its widget mounts and opens: its title is read once, and
+// it is in the collection. The script drives itself through a caller-supplied
+// 'running' signal, which also controls the loop.
+TEST(App, addWindowMountsAndOpens)
+{
+    Opens opens;
+
+    App app;
+
+    Window w = makeWindow("only", opens);
+    app.addWindow(w, probeWidget(std::make_shared<int>(0)));
+
+    int frames = 0;
+    bool openWhileRunning = false;
+
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames)
+                    return false;
+
+                switch (i)
+                {
+                case 0:
+                    // Runs when the context is built, before the initial sync
+                    // mounts the window; nothing to observe yet.
+                    break;
+
+                case 1:
+                    // The initial sync has mounted the window by now.
+                    openWhileRunning = opens["only"] == 1
+                        && app.getWindows().size() == 1u;
+                    break;
+
+                default:
+                    return false;
+                }
+
+                step.handle.set(i + 1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+    EXPECT_TRUE(openWhileRunning);
+    EXPECT_EQ(opens, (Opens{ { "only", 1 } }));
+}
+
+// The crucial cycle-safety case. A window's widget is a close button that
+// captures the *owning* Window and closes through it. Because the widget lives
+// in the app-owned impl and the Window points back at the app only weakly, this
+// closes no cycle: after the window is closed the impl is torn down, its widget
+// with it, and the probe the widget held expires. A retain cycle would keep the
+// impl alive and the probe would never expire.
+TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
+{
+    App app;
+
+    std::weak_ptr<int> probe;
+
+    Window w = window(bq::signal::constant<std::string>("cycle"));
+
+    {
+        Probe held = std::make_shared<int>(0);
+        probe = held;
+
+        // The widget captures the owning window (to close it) and the probe.
+        app.addWindow(w, widget::makeWidget()
+                | modifier::onClick(0, bq::signal::constant(
+                        std::function<void()>([w, held]() { w.close(); }))));
+    }
+
+    int frames = 0;
+    bool tornDown = false;
+
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames)
+                    return false;
+
+                switch (i)
+                {
+                case 0:
+                    // Built before the initial sync mounts the window; the
+                    // widget (and its probe) waits in the pending queue.
+                    break;
+
+                case 1:
+                    // Mounted now; the probe is held by the window's widget.
+                    EXPECT_FALSE(probe.expired());
+                    break;
+
+                case 2:
+                    // Close through the captured owning handle.
+                    w.close();
+                    break;
+
+                case 3:
+                    // Let the frame that removed it tear its impl down.
+                    break;
+
+                case 4:
+                    tornDown = probe.expired();
+                    break;
+
+                default:
+                    return false;
+                }
+
+                step.handle.set(i + 1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+
+    // The impl — and the widget that captured the owning window — is gone, so
+    // the probe it held has expired: the capture did not leak the window.
+    EXPECT_TRUE(tornDown);
+    EXPECT_TRUE(probe.expired());
+    EXPECT_TRUE(app.getWindows().empty());
+}
+
+// Removing a window during the run tears its impl down there and then, while
+// the window's own data — held by a Window the caller kept — lives on and still
+// reads its props.
+TEST(App, removeDuringRunTearsDownButDataPersists)
+{
+    App app;
+
+    std::weak_ptr<int> probe;
+
+    Window w = window(bq::signal::constant<std::string>("kept"));
+
+    {
+        Probe held = std::make_shared<int>(0);
+        probe = held;
+        app.addWindow(w, probeWidget(held));
+    }
+
+    int frames = 0;
+    bool aliveWhileOpen = false;
+    bool goneAfterClose = false;
+
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames)
+                    return false;
+
+                switch (i)
+                {
+                case 0:
+                    // Built before the initial sync mounts the window.
+                    break;
+
+                case 1:
+                    aliveWhileOpen = !probe.expired();
+                    app.removeWindow(w.getId());
+                    break;
+
+                case 2:
+                    break;
+
+                case 3:
+                    goneAfterClose = probe.expired();
+                    break;
+
+                default:
+                    return false;
+                }
+
+                step.handle.set(i + 1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+    EXPECT_TRUE(aliveWhileOpen);
+    EXPECT_TRUE(goneAfterClose);
+    EXPECT_TRUE(app.getWindows().empty());
+
+    // The widget is gone, but the window's data is not: the Window still reads
+    // its title.
+    EXPECT_EQ("kept", bq::signal::makeSignalContext(w.getTitle())
+            .evaluate<0>().get<0>());
+}
+
+// Adding the same window again after it was removed remounts it with a fresh
+// widget; the old widget is torn down and the new one is what the window runs.
+TEST(App, reAddAfterRemoveRemountsWithFreshWidget)
+{
+    App app;
+
+    std::weak_ptr<int> first;
+    std::weak_ptr<int> second;
+
+    Window w = window(bq::signal::constant<std::string>("remount"));
+
+    {
+        Probe held = std::make_shared<int>(0);
+        first = held;
+        app.addWindow(w, probeWidget(held));
+    }
+
+    int frames = 0;
+    bool firstGone = false;
+    bool secondAlive = false;
+
+    auto step = bq::signal::makeInput(0);
+
+    auto running = step.signal.map(
+            [&](int i) -> bool
+            {
+                if (++frames > maxFrames)
+                    return false;
+
+                switch (i)
+                {
+                case 0:
+                    // Built before the initial sync mounts the first widget.
+                    break;
+
+                case 1:
+                    // The first widget is mounted; remove it to unmount.
+                    app.removeWindow(w.getId());
+                    break;
+
+                case 2:
+                    // The old impl is torn down; re-add with a fresh widget.
+                    {
+                        Probe held = std::make_shared<int>(0);
+                        second = held;
+                        app.addWindow(w, probeWidget(held));
+                    }
+                    break;
+
+                case 3:
+                    // Let the re-add mount.
+                    break;
+
+                case 4:
+                    firstGone = first.expired();
+                    secondAlive = !second.expired();
+                    break;
+
+                case 5:
+                    app.removeWindow(w.getId());
+                    break;
+
+                default:
+                    return false;
+                }
+
+                step.handle.set(i + 1);
+
+                return true;
+            });
+
+    app.run(running);
+
+    EXPECT_LT(frames, maxFrames);
+    EXPECT_TRUE(firstGone);
+    EXPECT_TRUE(secondAlive);
+    EXPECT_TRUE(first.expired());
+    EXPECT_TRUE(second.expired());
+    EXPECT_TRUE(app.getWindows().empty());
+}
+
+// A window that survives an edit keeps the impl it already had — its title is
 // not read twice — and a window that is removed is torn down there and then,
-// while the survivor lives on. The script drives the collection imperatively
-// through a caller-supplied 'running' signal, which also controls the loop.
+// while the survivor lives on.
 TEST(App, windowsOpenAndCloseImperatively)
 {
     Opens opens;
@@ -111,22 +403,15 @@ TEST(App, windowsOpenAndCloseImperatively)
 
     App app;
 
-    // Opens a window the app owns, records a weak probe on it, and returns its
-    // id so the script can remove it later. No strong Window handle is kept, so
-    // a probe expires exactly when the collection and the glue let go.
     std::vector<btl::UniqueId> ids;
     auto open = [&](std::string title)
     {
-        Probe probe = std::make_shared<int>(0);
-        probes.push_back(probe);
+        Probe held = std::make_shared<int>(0);
+        probes.push_back(held);
 
-        Window w = window(
-                bq::signal::constant(std::move(title)).map(countReads(opens)),
-                widget::makeWidget())
-            .onClose([probe]() {});
-
+        Window w = makeWindow(std::move(title), opens);
         ids.push_back(w.getId());
-        app.addWindow(std::move(w));
+        app.addWindow(w, probeWidget(held));
     };
 
     open("first");
@@ -136,16 +421,6 @@ TEST(App, windowsOpenAndCloseImperatively)
 
     auto step = bq::signal::makeInput(0);
 
-    // The script drives itself. A SignalContext caches each signal's value and
-    // re-evaluates only on a frame the signal reports changed, so a step earns
-    // the next one by advancing the input it is derived from. Step 0 runs when
-    // the context is built, before the first frame, so "second" is open by the
-    // time the loop seeds its glues.
-    //
-    // Editing the collection here is seen the same frame: the loop syncs its
-    // glues to getWindows() after this running signal has updated, so a removal
-    // is torn down on the frame it happens. The survivor-outlived-the-departed
-    // check is still made a step later, for slack.
     auto running = step.signal.map(
             [&](int i) -> bool
             {
@@ -163,7 +438,7 @@ TEST(App, windowsOpenAndCloseImperatively)
                     break;
 
                 case 2:
-                    // Let the frame that removed "first" tear its glue down.
+                    // Let the frame that removed "first" tear its impl down.
                     break;
 
                 case 3:
@@ -195,36 +470,30 @@ TEST(App, windowsOpenAndCloseImperatively)
     // left.
     EXPECT_EQ(opens, (Opens{ { "first", 1 }, { "second", 1 } }));
 
-    // Both were removed by the script, so both are gone by the time the loop
-    // stops.
     ASSERT_EQ(probes.size(), 2u);
     EXPECT_TRUE(probes[0].expired());
     EXPECT_TRUE(probes[1].expired());
     EXPECT_TRUE(app.getWindows().empty());
 }
 
-// Windows added before the run all open once, and all are gone when the app
-// that owns them is.
+// Windows added before the run all mount once, and all are torn down when the
+// app that owns them is destroyed.
 TEST(App, addedWindowsAllOpenOnce)
 {
     Opens opens;
-    std::vector<Probe> owned { std::make_shared<int>(0),
-        std::make_shared<int>(0), std::make_shared<int>(0) };
-
-    std::vector<std::weak_ptr<int>> probes { owned[0], owned[1], owned[2] };
+    std::vector<std::weak_ptr<int>> probes;
 
     int frames = 0;
 
     {
         App app;
 
-        app.addWindows({
-                makeWindow("a", opens, owned[0]),
-                makeWindow("b", opens, owned[1]),
-                makeWindow("c", opens, owned[2])
-                });
-
-        owned.clear();
+        for (auto title : { "a", "b", "c" })
+        {
+            Probe held = std::make_shared<int>(0);
+            probes.push_back(held);
+            app.addWindow(makeWindow(title, opens), probeWidget(held));
+        }
 
         auto step = bq::signal::makeInput(0);
 
@@ -246,8 +515,8 @@ TEST(App, addedWindowsAllOpenOnce)
         EXPECT_EQ(opens, (Opens{ { "a", 1 }, { "b", 1 }, { "c", 1 } }));
     }
 
-    // The app is destroyed with its three windows still open, which releases
-    // them.
+    // The app is destroyed with its three windows still mounted, which releases
+    // their impls and the widgets they held.
     for (auto const& probe : probes)
         EXPECT_TRUE(probe.expired());
 }
@@ -267,26 +536,19 @@ TEST(App, runStopsWhenTheLastWindowCloses)
 
     App app;
 
-    Window first = window(reportOpen("first", firstOpened),
-            widget::makeWidget());
-    Window second = window(bq::signal::constant<std::string>("second"),
-            widget::makeWidget());
+    Window first = window(reportOpen("first", firstOpened));
+    Window second = window(bq::signal::constant<std::string>("second"));
+    Window later = window(reportOpen("later", laterOpened));
 
-    // A window added after another has closed opens only if the loop is still
-    // running, which is the whole of what this test asserts. Waiting for that
-    // window to open is waiting for an event the app produces, rather than for
-    // a stretch of wall clock in which it might have.
-    Window later = window(reportOpen("later", laterOpened),
-            widget::makeWidget());
-
-    app.addWindows({ first, second });
+    app.addWindow(first, widget::makeWidget());
+    app.addWindow(second, widget::makeWidget());
 
     std::thread closer([&]()
         {
             if (waitFor(firstOpened))
             {
                 first.close();
-                app.addWindow(later);
+                app.addWindow(later, widget::makeWidget());
                 waitFor(laterOpened);
             }
 

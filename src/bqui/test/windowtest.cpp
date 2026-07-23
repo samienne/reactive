@@ -9,6 +9,7 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -17,17 +18,25 @@
 
 using namespace bqui;
 
-// The app's window collection, without running the app. Everything here is
-// true of an App that has never opened a window, which is what lets these
-// tests run on a backend that has no display; App::run itself is covered in
-// apptest.cpp, where the backend is headless.
+// The app's window collection, without running the app. A window is a handle
+// over its own persistent data, and everything here is true of that data and
+// of the collection an App holds it in — which is why these tests need no
+// display. App::run itself is covered in apptest.cpp, where the backend is
+// headless.
+//
+// A window's widget is mount-time content supplied to addWindow; it is not part
+// of the window and these tests never run it, so they pass an empty one.
 
 namespace
 {
     Window makeWindow(std::string title)
     {
-        return window(bq::signal::constant(std::move(title)),
-                widget::makeWidget());
+        return window(bq::signal::constant(std::move(title)));
+    }
+
+    void add(App& app, Window window)
+    {
+        app.addWindow(std::move(window), widget::makeWidget());
     }
 
     std::vector<std::string> titles(std::vector<Window> const& windows)
@@ -53,12 +62,13 @@ TEST(AppWindows, copiesAreOneWindow)
     EXPECT_NE(w.getId(), makeWindow("a").getId());
 }
 
-TEST(AppWindows, addWindowsAppends)
+TEST(AppWindows, addWindowAppends)
 {
     App app;
 
-    app.addWindow(makeWindow("a"));
-    app.addWindows({ makeWindow("b"), makeWindow("c") });
+    add(app, makeWindow("a"));
+    add(app, makeWindow("b"));
+    add(app, makeWindow("c"));
 
     EXPECT_EQ((std::vector<std::string>{ "a", "b", "c" }),
             titles(app.getWindows()));
@@ -70,7 +80,8 @@ TEST(AppWindows, removeWindowRemovesByIdentity)
 
     Window a = makeWindow("a");
     Window b = makeWindow("b");
-    app.addWindows({ a, b });
+    add(app, a);
+    add(app, b);
 
     app.removeWindow(a.getId());
 
@@ -80,7 +91,7 @@ TEST(AppWindows, removeWindowRemovesByIdentity)
 TEST(AppWindows, removingAWindowThatIsNotThereDoesNothing)
 {
     App app;
-    app.addWindow(makeWindow("a"));
+    add(app, makeWindow("a"));
 
     app.removeWindow(makeWindow("b").getId());
 
@@ -93,7 +104,8 @@ TEST(AppWindows, aWindowClosesItself)
 
     Window a = makeWindow("a");
     Window b = makeWindow("b");
-    app.addWindows({ a, b });
+    add(app, a);
+    add(app, b);
 
     a.close();
 
@@ -106,21 +118,21 @@ TEST(AppWindows, aWindowClosesItself)
     EXPECT_EQ(std::vector<std::string>{ "b" }, titles(app.getWindows()));
 }
 
-// The handle can be minted before the window, which is what lets a widget
-// inside the window close it: a window that captured itself would own the
-// widget that owns it.
+// A widget inside the window may hold the very Window that owns it and close it
+// through that. A window is a small handle now, so this closes no cycle: the
+// app owns the widget, the widget owns the window, and the window points back
+// at the app only weakly.
 TEST(AppWindows, aWidgetInsideTheWindowCanCloseIt)
 {
     App app;
 
-    WindowHandle handle;
-    std::function<void()> closeFromTheWidget = [handle]() { handle.close(); };
+    Window w = makeWindow("a");
+    std::function<void()> closeFromTheWidget = [w]() { w.close(); };
 
-    app.addWindow(window(bq::signal::constant<std::string>("a"),
-                widget::makeWidget(), handle));
+    app.addWindow(w, widget::makeWidget());
 
     ASSERT_EQ(1u, app.getWindows().size());
-    EXPECT_EQ(handle.getId(), app.getWindows()[0].getId());
+    EXPECT_EQ(w.getId(), app.getWindows()[0].getId());
 
     closeFromTheWidget();
 
@@ -134,7 +146,7 @@ TEST(AppWindows, closingAWindowThatWasNeverAddedDoesNothing)
     a.close();
 
     App app;
-    app.addWindow(a);
+    add(app, a);
 
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }
@@ -147,7 +159,7 @@ TEST(AppWindows, closingAWindowWhoseAppIsGoneDoesNothing)
     app.emplace();
 
     Window a = makeWindow("a");
-    app->addWindow(a);
+    add(*app, a);
 
     app.reset();
 
@@ -159,43 +171,28 @@ TEST(AppWindows, aWindowCannotBeOpenedTwice)
     App app;
 
     Window a = makeWindow("a");
-    app.addWindow(a);
+    add(app, a);
 
-    EXPECT_THROW(app.addWindow(a), std::invalid_argument);
+    EXPECT_THROW(add(app, a), std::invalid_argument);
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }
 
-TEST(AppWindows, aWindowCannotBeOpenedTwiceWithinOneCall)
-{
-    App app;
-
-    Window a = makeWindow("a");
-
-    EXPECT_THROW(app.addWindows({ a, makeWindow("b"), a }),
-            std::invalid_argument);
-
-    // The batch was rejected whole, so the window that was fine is not open
-    // either.
-    EXPECT_TRUE(app.getWindows().empty());
-}
-
-// A window belongs to one app, because close() has to know which list to
-// leave. Being open in one is what makes it unavailable, not having ever been
-// added.
+// A window belongs to one app, because close() has to know which app to leave.
+// Being open in one is what makes it unavailable, not having ever been added.
 TEST(AppWindows, aWindowCannotBeOpenInTwoApps)
 {
     App first;
     App second;
 
     Window a = makeWindow("a");
-    first.addWindow(a);
+    add(first, a);
 
-    EXPECT_THROW(second.addWindow(a), std::invalid_argument);
+    EXPECT_THROW(add(second, a), std::invalid_argument);
     EXPECT_TRUE(second.getWindows().empty());
 
     first.removeWindow(a.getId());
 
-    second.addWindow(a);
+    add(second, a);
 
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(second.getWindows()));
 
@@ -210,10 +207,10 @@ TEST(AppWindows, aWindowThatWasClosedCanBeOpenedAgain)
     App app;
 
     Window a = makeWindow("a");
-    app.addWindow(a);
+    add(app, a);
     a.close();
 
-    app.addWindow(a);
+    add(app, a);
 
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }
@@ -221,14 +218,14 @@ TEST(AppWindows, aWindowThatWasClosedCanBeOpenedAgain)
 TEST(AppWindows, theWindowSignalFollowsTheCollection)
 {
     App app;
-    app.addWindow(makeWindow("a"));
+    add(app, makeWindow("a"));
 
     auto c = bq::signal::makeSignalContext(app.getWindowsSignal());
 
     EXPECT_EQ(std::vector<std::string>{ "a" },
             titles(c.evaluate<0>().get<0>()));
 
-    app.addWindow(makeWindow("b"));
+    add(app, makeWindow("b"));
     c.update(bq::signal::FrameInfo(1, {}));
 
     EXPECT_EQ((std::vector<std::string>{ "a", "b" }),
@@ -242,7 +239,7 @@ TEST(AppWindows, copiesShareTheCollection)
     App app;
     App copy = app;
 
-    copy.addWindow(makeWindow("a"));
+    add(copy, makeWindow("a"));
 
     EXPECT_EQ(std::vector<std::string>{ "a" }, titles(app.getWindows()));
 }

@@ -1,9 +1,38 @@
 # Decisions
 
-*Last verified against `77e391f` (2026-07-22).*
+*Last verified against `f52d7f2` (2026-07-23), for the window-handle rework.*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## A `Window` is a handle; its widget is supplied at `addWindow`
+
+A `Window` is a small value handle over shared, persistent data (identity,
+title, close callbacks) — `std::shared_ptr<WindowData>`. It holds none of the
+window's contents. The widget is supplied to `App::addWindow(window, widget)` at
+mount time and lives in the app-owned `WindowImpl` (which absorbed the old
+`WindowGlue`), not on the window. `removeWindow`/`Window::close` unmount and
+destroy the impl and its widget; the window's data persists as long as a
+`Window` naming it is held, so a re-add is a clean remount that re-supplies a
+fresh widget. `WindowData` links back to the app only weakly, so it is a
+strong-leaf.
+
+**Why:** it decouples the widget from the window so a widget can capture the
+very `Window` that owns it — a close button is `[w]{ w.close(); }` — with no
+retain cycle. The strong chain is `App → WindowImpl → widget → closure → Window
+→ WindowData`, and `WindowData`'s only link back (to the app) is weak, so
+closing the window tears the impl down and the captured handle with it. Before
+this, the widget lived on the `Window`, so a window captured in its own widget
+owned the widget that owned it; the workaround was a separate `WindowHandle`
+minted ahead of the window and captured in its place. Folding that weak
+back-reference into `WindowData` and moving the widget to the impl deletes
+`WindowHandle` outright — the `Window` is the handle now — and makes
+remove/re-add an ordinary unmount/remount rather than a special case.
+
+The cost is that the widget is no longer part of a window's identity: a re-add
+must re-supply one, and there is no way to persist a widget across a remove. That
+is the intended model — the widget is mount-time content — not a limitation to
+route around.
 
 ## `App`'s window collection is imperative, not an `ArraySignal`
 

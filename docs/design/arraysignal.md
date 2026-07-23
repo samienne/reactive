@@ -25,8 +25,13 @@
 > below still cite `App` as the worked case for the *exit* and the
 > *element-signal* rules because it was the case that settled them; treat those
 > as the reasoning that produced the rules, not as a description of `App` today.
+> `App` has since evolved further still — a `Window` is a handle and its widget
+> is supplied at `addWindow`, and the per-window `WindowGlue` those sections name
+> is now `WindowImpl` (see `docs/decisions.md`) — but none of that changes the
+> `ArraySignal` reasoning below, which describes the reverted experiment.
 
-*Last verified against `77e391f` (2026-07-22), amended for the `App` revert.*
+*Last verified against `77e391f` (2026-07-22), amended for the `App` revert and
+the later window-handle rework.*
 
 ## The problem
 
