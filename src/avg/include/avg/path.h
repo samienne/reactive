@@ -15,12 +15,52 @@
 #include <pmr/memory_resource.h>
 
 #include <memory>
+#include <vector>
+#include <cstddef>
 
 namespace avg
 {
     class Region;
     class PathDeferred;
     class Transform;
+
+    /**
+     * @brief A single transversal crossing of an infinite line against a path.
+     *
+     * The crossing is reported in the path's resolved space, with the path's
+     * transform already applied. Tangential touches, where the line grazes a
+     * curve or vertex without passing through it, are not reported, and a
+     * segment lying exactly along the line is a measure-zero coincidence that
+     * yields no crossing.
+     */
+    struct PathCrossing
+    {
+        /** @brief The intersection point in resolved path space. */
+        Vector2f point;
+
+        /**
+         * @brief Signed distance of point from linePoint along lineDir.
+         *
+         * Positive values lie on the lineDir side of linePoint, so a caller can
+         * treat the line as a ray by keeping crossings with lineParam greater
+         * than zero.
+         */
+        float lineParam;
+
+        /** @brief Parameter within the crossed segment, in the range [0, 1). */
+        float segmentT;
+
+        /** @brief Index of the crossed segment in the walked segment sequence. */
+        std::size_t segmentIndex;
+
+        /**
+         * @brief Sign of the path tangent crossed with lineDir, either +1 or -1.
+         *
+         * Summing these over one-sided crossings gives the winding number; the
+         * even-odd rule is the parity of the crossing count.
+         */
+        int windingSign;
+    };
 
     class AVG_EXPORT Path final
     {
@@ -181,6 +221,44 @@ namespace avg
         ~Path();
 
         pmr::memory_resource* getResource() const;
+
+        /** @brief Returns the transform that resolves the path into world space. */
+        Transform const& getTransform() const;
+
+        /**
+         * @brief Tests whether a point lies inside the filled path.
+         *
+         * The point is given in the path's resolved space, the same space the
+         * path's transform maps into. Each subpath is treated as implicitly
+         * closed, and membership is decided from the crossings a ray cast from
+         * the point makes with the outline. The fill rule chooses how those
+         * crossings are read: FILL_EVENODD takes the parity of the count, while
+         * FILL_NONZERO, FILL_POSITIVE and FILL_NEGATIVE test the signed winding
+         * number for being non-zero, positive or negative.
+         *
+         * The ray is cast in a generic direction, so an edge running exactly
+         * along it is a measure-zero case that does not perturb the count.
+         */
+        bool contains(Vector2f p, FillRule rule = FILL_EVENODD) const;
+
+        /**
+         * @brief Computes every crossing of an infinite line against the path.
+         *
+         * The line passes through linePoint with direction lineDir, which need
+         * not be a unit vector, and both are in the path's resolved space. Each
+         * segment is intersected analytically rather than by flattening: a line
+         * gives a linear equation, a conic a quadratic, a cubic a cubic, and an
+         * arc a line-circle intersection.
+         *
+         * Every subpath is treated as implicitly closed, matching fill
+         * semantics, so an open subpath gains a closing edge from its last point
+         * back to its start. A crossing at a vertex shared by two segments is
+         * reported once, tangential touches are not reported, and a segment
+         * lying exactly along the line is a measure-zero coincidence that yields
+         * no crossing. A degenerate lineDir of zero length yields no crossings.
+         */
+        std::vector<PathCrossing> lineCrossings(Vector2f linePoint,
+                Vector2f lineDir) const;
 
         bool operator==(Path const& rhs) const;
         bool operator!=(Path const& rhs) const;
