@@ -1,9 +1,92 @@
 # Decisions
 
-*Last verified against `9c47767` (2026-07-21).*
+*Last verified against `f52d7f2` (2026-07-23), for the window-handle rework.*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## A `Window` is a handle; its widget is supplied at `addWindow`
+
+A `Window` is a small value handle over shared, persistent data (identity,
+title, close callbacks) — `std::shared_ptr<WindowData>`. It holds none of the
+window's contents. The widget is supplied to `App::addWindow(window, widget)` at
+mount time and lives in the app-owned `WindowImpl` (which absorbed the old
+`WindowGlue`), not on the window. `removeWindow`/`Window::close` unmount and
+destroy the impl and its widget; the window's data persists as long as a
+`Window` naming it is held, so a re-add is a clean remount that re-supplies a
+fresh widget. `WindowData` links back to the app only weakly, so it is a
+strong-leaf.
+
+**Why:** it decouples the widget from the window so a widget can capture the
+very `Window` that owns it — a close button is `[w]{ w.close(); }` — with no
+retain cycle. The strong chain is `App → WindowImpl → widget → closure → Window
+→ WindowData`, and `WindowData`'s only link back (to the app) is weak, so
+closing the window tears the impl down and the captured handle with it. Before
+this, the widget lived on the `Window`, so a window captured in its own widget
+owned the widget that owned it; the workaround was a separate `WindowHandle`
+minted ahead of the window and captured in its place. Folding that weak
+back-reference into `WindowData` and moving the widget to the impl deletes
+`WindowHandle` outright — the `Window` is the handle now — and makes
+remove/re-add an ordinary unmount/remount rather than a special case.
+
+The cost is that the widget is no longer part of a window's identity: a re-add
+must re-supply one, and there is no way to persist a widget across a remove. That
+is the intended model — the widget is mount-time content — not a limitation to
+route around.
+
+## `App`'s window collection is imperative, not an `ArraySignal`
+
+`App` holds its windows in a plain, thread-safe collection
+(`bq::signal::SharedVector<Window>` behind `WindowList`) reached with
+`addWindow`/`addWindows`, `removeWindow` and `Window::close`. `getWindows`
+snapshots it and `getWindowsSignal` observes it, but that signal is a *report*,
+not the source: nothing derives the windows from a signal. The run loop reads
+the collection each frame and syncs one `WindowGlue` per window to it with a
+plain O(n) set-diff — build a glue for a window that has none, tear down a glue
+whose window has left.
+
+An earlier design (PR #121's first form) made the window set an
+`ArraySignal<Window>`: the loop mapped the array to one glue per identity, joined
+the glues, and reconciled a cached glue vector from that signal each frame, with
+a second caller-driven `addWindowArray` path for windows a caller's own model
+owned.
+
+**Why the change:** a window is an imperative OS resource — an `ase::Window`, a
+framebuffer, input state — created and destroyed by the app, not a value derived
+from data. Modelling the *set* of them as a signal solved a matching problem the
+signal itself created: `forEach` earns its keep when a delegate must not rebuild
+a surviving item as its neighbours change, but `App` never had that problem —
+the window *is* the stable identity, held by value, and a set-diff over ids is
+all "keep the survivor, drop the departed" needs. Removing the signal layer
+deleted `addWindowArray`, `takeAllWindows`, the `join`-of-glues, the fused
+two-signal loop context, and the signal-driven `collect()` reconcile, and left a
+shorter run loop whose glue lifecycle reads straight down the page. `ArraySignal`
+and `forEach` stay in `bq` — the layout engine is their real consumer; `App`
+simply was not one.
+
+## `App::run()` with no arguments stops at zero windows, not at the first close
+
+`run()` used to stop when *any* window closed; it now runs while a window
+remains in the collection. It is not a rule of the loop: `run()` with no
+argument builds a default `running` signal from that collection — true while it
+holds a window, false when the last one leaves — and passes it to the same loop
+`run(running)` drives, which is unchanged and stops when its signal says so. A
+caller who wants another policy, such as outliving an empty collection, passes a
+`running` signal of its own.
+
+**Why:** the app owns its windows now, so closing one is a removal and not an
+exit — that is what makes a close button, a title bar, and `removeWindow` one
+thing. "Stop at the first close" only ever described a single-window app, and it
+described it by accident: with one window the two rules agree. Making the default
+an ordinary signal rather than a special case in the loop is what lets a caller
+replace it: an app that wants the old behaviour passes `run(running)` an
+`onClose` that sets the signal false.
+
+**The cost is real and accepted.** A multi-window app that relied on the main
+window closing the whole app now has to say so. There is no deprecation path
+worth building for it: the call is the same and only the meaning changed, so a
+compiler cannot help, and the behaviour it changes to is the one a reader
+expects from the name.
 
 ## A draw context is memory, nothing more
 

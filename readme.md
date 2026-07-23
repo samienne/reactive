@@ -34,19 +34,17 @@ using namespace bqui;
 int main()
 {
     return app()
-        .windows({
-            window(
-                bq::signal::constant<std::string>("Hello"),
-                widget::label("Hello, world!")
-            )
-        })
+        .addWindow(window(
+            bq::signal::constant<std::string>("Hello"),
+            widget::label("Hello, world!")
+        ))
         .run();
 }
 ```
 
-`app()` creates an application, `.windows({ ... })` gives it one or more windows,
-and `.run()` opens them and runs until they close. Each `window` takes a title
-and a widget to show.
+`app()` creates an application, `.addWindow(...)` gives it a window, and
+`.run()` opens the windows and runs until none is left. Each `window` takes a
+title and a widget to show.
 
 ---
 
@@ -307,9 +305,8 @@ widget::AnyWidget counter()
 int main()
 {
     return app()
-        .windows({
-            window(bq::signal::constant<std::string>("Counter"), counter())
-        })
+        .addWindow(window(bq::signal::constant<std::string>("Counter"),
+                    counter()))
         .run();
 }
 ```

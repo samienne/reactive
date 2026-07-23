@@ -1,47 +1,47 @@
 #include "bqui/window.h"
 
-#include "bqui/modifier/background.h"
+#include "windowdata.h"
+
+#include <memory>
+#include <utility>
 
 namespace bqui
 {
 
-Window::Window(widget::AnyWidget widget,
-        bq::signal::AnySignal<std::string> const& title) :
-    widget_(std::move(widget)),
-    title_(title.share())
+Window::Window(bq::signal::AnySignal<std::string> const& title) :
+    data_(std::make_shared<WindowData>(title))
 {
 }
 
 Window Window::onClose(std::function<void()> const& cb) &&
 {
-    closeCallbacks_.push_back(cb);
+    data_->addCloseCallback(cb);
     return std::move(*this);
-}
-
-widget::AnyWidget Window::getWidget() const
-{
-    return widget_.clone()
-        | modifier::background()
-        ;
 }
 
 bq::signal::AnySignal<std::string> const& Window::getTitle() const
 {
-    return title_;
+    return data_->getTitle();
 }
 
 void Window::invokeOnClose() const
 {
-    auto cbs = closeCallbacks_;
-    for (auto const& cb : cbs)
-        cb();
+    data_->invokeOnClose();
 }
 
-auto window(bq::signal::AnySignal<std::string> const& title, widget::AnyWidget widget)
-    -> Window
+btl::UniqueId Window::getId() const
 {
-    return Window(std::move(widget), title);
+    return data_->getId();
+}
+
+void Window::close() const
+{
+    data_->close();
+}
+
+Window window(bq::signal::AnySignal<std::string> const& title)
+{
+    return Window(title);
 }
 
 }
-

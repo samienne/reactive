@@ -80,13 +80,27 @@ libbquidep = declare_dependency(
   include_directories: include_directories('include')
   )
 
-bquitest =  executable('bquitest',
+bquitestsrc = [
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  'test/windowtest.cpp',
+  ]
+
+# App::run opens real windows, so it can only be exercised where ase builds its
+# headless backend. This gate is the minimal thing needed to run apptest.cpp
+# against ase's dummy backend; the proper headless platform (env-selected and
+# frame-stepped) arrives in a follow-up (PR #96), and this should be revisited
+# to use it once that lands.
+if ase_is_headless
+  bquitestsrc += 'test/apptest.cpp'
+endif
+
+bquitest =  executable('bquitest',
+  bquitestsrc,
   dependencies: [gtestdep, libbquidep],
   )
 
