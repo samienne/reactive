@@ -3,7 +3,6 @@
 #include "window.h"
 #include "bquivisibility.h"
 
-#include <bq/signal/arraysignal.h>
 #include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
@@ -27,10 +26,12 @@ namespace bqui
 
         /** @brief Opens windows the app owns.
          *
-         * Appends to the app's own collection, which is the list of windows
-         * the app manages: a window in it closes when it is removed, whether
-         * by Window::close(), by removeWindow(), or by its own title bar.
-         * Windows may be added while the app runs.
+         * Appends to the app's collection, which is the list of windows the app
+         * manages: a window in it closes when it is removed, whether by
+         * Window::close(), by removeWindow(), or by its own title bar. The
+         * collection is an imperative one — added to and removed from directly,
+         * not derived from a signal — so windows may be added and removed both
+         * before and while the app runs.
          *
          * @throws std::invalid_argument if a window is already open, here or
          *         in another app. A window and its copies are one window —
@@ -45,50 +46,26 @@ namespace bqui
         /** @overload */
         App& addWindow(Window window);
 
-        /** @brief Opens a list of windows the caller drives.
-         *
-         * The general form, for a caller whose windows follow a model of its
-         * own: the array is the source of truth for the windows in it, so they
-         * open and close as its keys come and go, and every window that stays
-         * keeps everything it had — its widgets, their state, and its own OS
-         * window. The app does not copy such a list into its own collection,
-         * and cannot: removing one of these windows means removing its key
-         * from whatever the array was built from, so 'Window::close()' and
-         * removeWindow() do nothing for them.
-         *
-         * Both kinds of window are open at once. The default run() stops on the
-         * app's own collection alone, though, so an app whose windows are all in
-         * an array wants a 'running' signal of its own — run() with no argument
-         * would see an empty collection and return at once.
-         *
-         * @throws std::logic_error if the app is already running. Unlike the
-         *         app's own collection, the set of arrays is fixed when run()
-         *         starts, because they are joined once. Add windows while the
-         *         app runs through addWindows(), or take them from an array
-         *         that is already there.
-         */
-        App& addWindowArray(bq::signal::ArraySignal<Window> windows);
-
         /** @brief Closes the app's window with this identity.
          *
-         * Does nothing if no window in the app's own collection has it.
+         * Does nothing if no window in the collection has it.
          */
         void removeWindow(btl::UniqueId id);
 
-        /** @brief The app's own windows as they are right now.
+        /** @brief The app's windows as they are right now.
          *
          * The snapshot form, for code outside a signal graph — counting the
-         * open windows, or finding one to remove. Windows added through
-         * addWindowArray() are not here; they are the caller's to enumerate.
+         * open windows, or finding one to remove.
          */
         std::vector<Window> getWindows() const;
 
-        /** @brief The app's own windows, as a signal.
+        /** @brief The app's windows, as a signal.
          *
          * The reactive form of the same collection, for building a UI that
-         * follows it — a window list, or a title that counts. Feed it to
-         * bq::signal::forEach() keyed on 'Window::getId' to build something per
-         * window.
+         * follows it — a window list, or a title that counts. This is an
+         * observation of the imperative collection, not its source: adding and
+         * removing windows still goes through addWindows()/removeWindow()/
+         * Window::close(), and this signal reports the result.
          */
         bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
 
@@ -105,14 +82,11 @@ namespace bqui
 
         /** @overload
          *
-         * Runs while the app's own collection has a window in it, and stops
-         * when the last one is removed. This is a default 'running' signal
-         * derived from that collection, not a rule of the loop: it counts only
-         * the windows added through addWindows() and removeWindow(), not those
-         * from addWindowArray(), and a caller that wants another policy —
-         * counting array-supplied windows, or outliving an empty collection —
-         * passes its own signal to run(running). An app with no window in its
-         * own collection to begin with returns at once.
+         * Runs while the collection has a window in it, and stops when the last
+         * one is removed. This is a default 'running' signal derived from that
+         * collection, not a rule of the loop: a caller that wants another policy
+         * — outliving an empty collection, say — passes its own signal to
+         * run(running). An app with no window to begin with returns at once.
          */
         int run();
 

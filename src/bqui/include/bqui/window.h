@@ -52,10 +52,6 @@ namespace bqui
          * Does nothing if the window is not in an app, or if the app is gone.
          * Removing a window that is not there is not an error either — closing
          * twice is a race a UI can lose without anything being wrong.
-         *
-         * Only the app's own collection is reached. A window supplied through
-         * an ArraySignal belongs to whatever the caller built that array from,
-         * and comes out of the caller's own state.
          */
         void close() const;
 

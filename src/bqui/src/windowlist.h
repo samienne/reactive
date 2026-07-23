@@ -2,7 +2,6 @@
 
 #include "bqui/window.h"
 
-#include <bq/signal/arraysignal.h>
 #include <bq/signal/sharedvector.h>
 #include <bq/signal/signal.h>
 
@@ -21,8 +20,11 @@ namespace bqui
      * rather than a use of freed memory.
      *
      * The contents are a bq::signal::SharedVector, so the list is safe to
-     * mutate from any thread; the array it exports is a description built once
-     * and never replaced.
+     * mutate from any thread. It is an imperative collection: add(), remove()
+     * and get() reach the contents directly, and signal() exports them for a UI
+     * that wants to observe the set. The app's run loop reads get() each frame
+     * and syncs its live windows to it; nothing derives the windows from a
+     * signal.
      */
     class WindowList : public std::enable_shared_from_this<WindowList>
     {
@@ -44,18 +46,7 @@ namespace bqui
 
         bq::signal::AnySignal<std::vector<Window>> signal() const;
 
-        /** @brief The collection as an array, one identity per window.
-         *
-         * The element is the window's own signal, which is what forEach()
-         * hands its delegate. A consumer reads it once, when the identity
-         * appears; there is nothing later to read, because an element cannot
-         * vary at a fixed identity.
-         */
-        bq::signal::ArraySignal<bq::signal::AnySignal<Window>> const&
-            array() const;
-
     private:
         bq::signal::SharedVector<Window> windows_;
-        bq::signal::ArraySignal<bq::signal::AnySignal<Window>> array_;
     };
 } // namespace bqui

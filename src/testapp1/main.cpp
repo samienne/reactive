@@ -33,7 +33,6 @@
 
 #include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
-#include <bqui/send.h>
 #include <bqui/window.h>
 #include <bqui/app.h>
 #include <bqui/withanimation.h>
@@ -142,32 +141,30 @@ int main()
                 avg::RepeatMode::reverse
                 ));
 
-    // The tracked window follows an input of the caller's own rather than the
-    // app's collection, which is the other way to have windows: the array is
-    // the source of truth, so every way of closing the window takes its key out
-    // of the input.
+    // A tracked window the app owns, toggled by a button and closable by its
+    // own close button. 'showTracked' tracks whether it is open so the button
+    // reads the right label; opening adds the window, and every way of closing
+    // it — the button below, the window's own close button, the title bar —
+    // removes it and flips the flag back through onClose.
     auto showTracked = bq::signal::makeInput(false);
+    WindowHandle trackedHandle;
 
-    auto trackedWindows = bq::signal::forEach(
-            showTracked.signal.map([](bool b)
-                {
-                    std::vector<std::string> names;
-                    if (b)
-                        names.push_back("Tracked window");
-                    return names;
-                }),
-            [](std::string const& name) { return name; },
-            [handle = showTracked.handle]
-            (bq::signal::AnySignal<std::string> name)
-            {
-                return window(std::move(name),
-                        widget::button("Close me", bq::signal::constant(
-                                    std::function<void()>(send(false, handle))))
+    auto openTracked = [trackedHandle, opened = showTracked.handle]() mutable
+    {
+        opened.set(true);
+
+        app().addWindow(window(
+                    bq::signal::constant<std::string>("Tracked window"),
+                    widget::button("Close me", bq::signal::constant(
+                            std::function<void()>([trackedHandle]() mutable
+                                {
+                                    trackedHandle.close();
+                                })))
                         | modifier::frame()
-                        | modifier::focusGroup()
-                        )
-                    .onClose(send(false, handle));
-            });
+                        | modifier::focusGroup(),
+                    trackedHandle)
+                .onClose([opened]() mutable { opened.set(false); }));
+    };
 
     auto widgets = widget::hbox({
         widget::vbox({
@@ -184,9 +181,12 @@ int main()
                                 : "Open tracked window";
                         }),
                     showTracked.signal.bindToFunction(
-                        [handle = showTracked.handle](bool b) mutable
+                        [trackedHandle, openTracked](bool b) mutable
                         {
-                            handle.set(!b);
+                            if (b)
+                                trackedHandle.close();
+                            else
+                                openTracked();
                         }))
                 | modifier::setSizeHint({ 250, 50 }),
             shape::rectangle()
@@ -253,6 +253,5 @@ int main()
                     //| debug::drawKeyboardInputs()
                     | modifier::focusGroup()
                     ))
-        .addWindowArray(std::move(trackedWindows))
         .run();
 }

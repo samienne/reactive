@@ -8,18 +8,7 @@
 namespace bqui
 {
 
-WindowList::WindowList() :
-    array_(bq::signal::forEach(windows_.signal(),
-                [](Window const& window)
-                {
-                    return window.getId();
-                },
-                [](bq::signal::AnySignal<Window> window)
-                {
-                    return window;
-                }))
-{
-}
+WindowList::WindowList() = default;
 
 void WindowList::add(std::vector<Window> windows)
 {
@@ -119,12 +108,6 @@ std::vector<Window> WindowList::get() const
 bq::signal::AnySignal<std::vector<Window>> WindowList::signal() const
 {
     return windows_.signal();
-}
-
-bq::signal::ArraySignal<bq::signal::AnySignal<Window>> const&
-    WindowList::array() const
-{
-    return array_;
 }
 
 } // namespace bqui

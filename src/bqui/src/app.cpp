@@ -5,8 +5,6 @@
 #include "debug.h"
 #include "windowlist.h"
 
-#include <bq/signal/arraysignal.h>
-#include <bq/signal/constant.h>
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
@@ -35,13 +33,12 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <functional>
-#include <mutex>
 #include <unordered_map>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -61,8 +58,6 @@ namespace
 
 class WindowGlue;
 
-using GlueSignal = bq::signal::AnySignal<btl::shared<WindowGlue>>;
-
 class BQUI_EXPORT AppDeferred
 {
 public:
@@ -72,71 +67,26 @@ public:
         TracyAppInfo("Reactive application", 20);
     }
 
-    void addArray(bq::signal::ArraySignal<Window> windows)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        if (started_)
-        {
-            throw std::logic_error("App: a window array cannot be added once "
-                    "the app is running. The arrays are joined once, at the "
-                    "start; add windows to the app's own collection instead.");
-        }
-
-        arrays_.push_back(std::move(windows));
-    }
-
-    // The app's own collection first, then each caller-supplied array in the
-    // order it was added. Taking this is what fixes the set of arrays.
-    //
-    // A caller's array carries values, because everything that builds one
-    // hands the value over: the constructors take items, and forEach()'s
-    // delegate returns one. The app's own collection carries the element
-    // signals forEach() hands that delegate. Lifting the values to constants
-    // is what makes the two one array — and a constant is what a value that
-    // carries no variation of its own becomes anyway.
-    bq::signal::ArraySignal<bq::signal::AnySignal<Window>> takeAllWindows()
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-
-        started_ = true;
-
-        std::vector<bq::signal::ArraySignal<bq::signal::AnySignal<Window>>>
-            parts { windows_->array() };
-
-        for (auto const& array : arrays_)
-        {
-            parts.push_back(array.map([](Window const& window)
-                        {
-                            return bq::signal::AnySignal<Window>(
-                                    bq::signal::constant(window));
-                        }));
-        }
-
-        return bq::signal::concat(std::move(parts));
-    }
-
     std::shared_ptr<WindowList> windows_;
-    std::vector<btl::shared<WindowGlue>> windowGlues_;
 
-private:
-    mutable std::mutex mutex_;
-    std::vector<bq::signal::ArraySignal<Window>> arrays_;
-    bool started_ = false;
+    // The app's live glues, one per open window, keyed by window id. The run
+    // loop syncs this to the window collection each frame: it builds a glue
+    // for any window not yet here and tears down any glue whose window has
+    // left. AnimationGuard walks it to transact every open window.
+    std::vector<btl::shared<WindowGlue>> windowGlues_;
 };
 
 class WindowGlue
 {
 public:
     WindowGlue(ase::Platform &platform, ase::RenderContext& context,
-            bq::signal::AnySignal<Window> window)
+            Window window)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_),
         memory_(&memoryStatistics_),
         aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
         context_(context),
-        windowSignal_(std::move(window)),
-        window_(windowSignal_.evaluate<0>().get<0>()),
+        window_(std::move(window)),
         painter_(memory_, context_),
         size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
         widgetInstanceSignal_(window_.getWidget()(
@@ -486,6 +436,11 @@ public:
         return timeToNext;
     }
 
+    btl::UniqueId getId() const
+    {
+        return window_.getId();
+    }
+
     uint64_t getFrames() const
     {
         return frames_;
@@ -508,12 +463,9 @@ private:
     ase::Window aseWindow;
     ase::RenderContext& context_;
 
-    // Read once, here, and never updated. An element of an array cannot vary
-    // at a fixed identity, so there is nothing later to read; and this signal
-    // is the array's, so updating it on the window's own clock is exactly what
-    // a consumer with a clock of its own must not do — it would read a key
-    // that may have left.
-    bq::signal::SignalContext<bq::signal::AnySignal<Window>> windowSignal_;
+    // The window this glue drives. A window is a plain value the app hands the
+    // glue when it opens the window and never replaces; everything the glue
+    // drives per frame is the window's own title and widget signals.
     Window window_;
     avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
@@ -577,13 +529,6 @@ App& App::addWindow(Window window)
     return addWindows(std::vector<Window> { std::move(window) });
 }
 
-App& App::addWindowArray(bq::signal::ArraySignal<Window> windows)
-{
-    d()->addArray(std::move(windows));
-
-    return *this;
-}
-
 void App::removeWindow(btl::UniqueId id)
 {
     d()->windows_->remove(id);
@@ -608,8 +553,8 @@ int App::run()
 {
     // The default policy runs the app while a window is open in its own
     // collection, and stops when the last one leaves. A caller that wants
-    // another — to count array-supplied windows too, or to keep running past an
-    // empty collection — passes its own signal to run(running).
+    // another — to keep running past an empty collection — passes its own
+    // signal to run(running).
     return runUntil(getWindowsSignal().map(
                 [](std::vector<Window> const& windows)
                 {
@@ -623,30 +568,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     ase::RenderContext context = platform.makeRenderContext();
 
-    // One glue per window identity: the array builds it when the identity
-    // appears and destroys it when the identity leaves, so a window that
-    // survives an edit keeps the glue it already had. A glue is not a signal,
-    // and join() is the only way out of the array, so each one leaves as a
-    // constant.
-    auto makeGlue = [&platform, &context](
-            bq::signal::AnySignal<Window> const& window)
-    {
-        btl::shared<WindowGlue> glue = std::make_shared<WindowGlue>(platform,
-                context, window);
-
-        return GlueSignal(bq::signal::constant(std::move(glue)));
-    };
-
-    // One app-level context drives the glue array (index 0) and the running
-    // signal (index 1) together each frame. Per-window signal contexts still
-    // live inside each glue. The glue reconcile — collect() below — runs after
-    // update(), so a running signal observes the window collection (which
-    // close()/removeWindow update directly) rather than intra-frame glue
-    // teardown.
-    auto signalContext = bq::signal::makeSignalContext(
-            bq::signal::join(d()->takeAllWindows().map(makeGlue)),
-            std::move(running));
-
     auto mainQueue = context.getMainRenderQueue();
 
     // The glues outlive this call — they are the app's, not the loop's — but
@@ -654,28 +575,68 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // released before this returns however it returns.
     GlueScope glueScope { *d(), mainQueue };
 
-    // Reconciles the app's glues from the context's current glue vector
-    // (index 0), run whenever the set of window identities changes.
-    auto collect = [&]()
+    // The running signal is the loop's only signal now. The glues are a plain
+    // imperative collection synced below, not a signal, so there is nothing to
+    // fuse it with; it lives in its own context and is evaluated each frame.
+    auto runningContext = bq::signal::makeSignalContext(std::move(running));
+
+    // Syncs the live glues to the window collection: builds a glue for any
+    // window not yet glued, tears down any glue whose window has left. This
+    // plain set-diff is what a signal-driven reconcile used to be — the window
+    // collection (which close()/removeWindow update directly) is read straight,
+    // once per frame.
+    auto sync = [&]()
     {
-        std::vector<btl::shared<WindowGlue>> departing =
-            signalContext.evaluate<0>().get<0>();
+        std::vector<Window> windows = d()->windows_->get();
+
+        // The next live set: surviving glues carried over, new ones built. A
+        // window that survives keeps the glue it already had.
+        std::vector<btl::shared<WindowGlue>> next;
+        next.reserve(windows.size());
+
+        // Glues whose window has left. Held apart and destroyed last, after the
+        // live set is the new one.
+        std::vector<btl::shared<WindowGlue>> departing;
+
+        for (auto& glue : d()->windowGlues_)
+        {
+            bool present = std::any_of(windows.begin(), windows.end(),
+                    [&](Window const& w) { return w.getId() == glue->getId(); });
+
+            if (present)
+                next.push_back(std::move(glue));
+            else
+                departing.push_back(std::move(glue));
+        }
+
+        for (auto const& window : windows)
+        {
+            bool glued = std::any_of(next.begin(), next.end(),
+                    [&](btl::shared<WindowGlue> const& g)
+                    {
+                        return g->getId() == window.getId();
+                    });
+
+            if (!glued)
+                next.push_back(std::make_shared<WindowGlue>(platform, context,
+                            window));
+        }
 
         // A frame that drew a departing window can still be in flight, and it
         // holds that window's framebuffer, so nothing may release a glue until
         // the queue has caught up.
-        mainQueue.finish();
+        if (!departing.empty())
+            mainQueue.finish();
 
-        // Swap and then clear, rather than assign: destroying a window runs
-        // event handlers that reach back into the live set, which must be the
-        // new one by then.
-        d()->windowGlues_.swap(departing);
+        // Swap the new complete set in, then clear the departed: destroying a
+        // window runs event handlers that reach back into the live set, which
+        // must be the new one by then.
+        d()->windowGlues_.swap(next);
         departing.clear();
     };
 
-    // Seed the initial windows: the context's constructor evaluated index 0
-    // once, so it already holds the initial glue vector.
-    collect();
+    // Seed the initial windows before the first frame.
+    sync();
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
@@ -686,15 +647,14 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
 
-            signalContext.update(frame);
+            runningContext.update(frame);
 
-            // Reconcile only when the window identities change; the running
-            // bool typically changes every frame and must not force a needless
-            // finish()/reconcile.
-            if (signalContext.didChange<0>())
-                collect();
+            // Sync the glues to the window collection after the running signal
+            // has updated, so a running signal derived from the collection
+            // observes it rather than intra-frame glue teardown.
+            sync();
 
-            return signalContext.evaluate<1>().get<0>();
+            return runningContext.evaluate<0>().get<0>();
         });
 
     DBG("Shutting down...");

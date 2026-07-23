@@ -3,9 +3,10 @@
 
 #include <bqui/widget/widget.h>
 
-#include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
 #include <bq/signal/input.h>
+
+#include <btl/uniqueid.h>
 
 #include <gtest/gtest.h>
 
@@ -13,7 +14,6 @@
 #include <chrono>
 #include <map>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -25,10 +25,11 @@ using namespace bqui;
 // AppDeferred with every other caller — two tests would then run the same
 // window list.
 //
-// App::getWindows reports the app's own collection, and nothing at all about a
-// caller-supplied array or about what has actually been opened, so these tests
-// watch the windows themselves for the rest. Two things are observable from
-// outside without any hook:
+// The app's window collection is imperative: addWindow/removeWindow/close reach
+// it directly, and the run loop syncs one WindowGlue per window to it each
+// frame. Nothing about a window is observable through App directly beyond
+// getWindows(), so these tests watch the windows themselves. Two things are
+// observable from outside without any hook:
 //
 //   - A window's title is read once per window that opens, when the glue builds
 //     its SignalContext; every later read is cached, and the dummy platform
@@ -38,7 +39,7 @@ using namespace bqui;
 //     is the only thing a test running concurrently with the app loop can wait
 //     for.
 //   - A probe held by a window's close callback lives exactly as long as that
-//     window does.
+//     window does — as long as the collection or a glue still holds it.
 
 namespace
 {
@@ -99,30 +100,36 @@ namespace
     }
 } // namespace
 
-// A window whose key stays is not rebuilt when its neighbours come and go —
-// neither its delegate nor its glue runs twice — and a window whose key leaves
-// is destroyed there and then.
-TEST(App, windowsOpenAndCloseWithTheirKeys)
+// A window that survives an edit keeps the glue it already had — its title is
+// not read twice — and a window that is removed is torn down there and then,
+// while the survivor lives on. The script drives the collection imperatively
+// through a caller-supplied 'running' signal, which also controls the loop.
+TEST(App, windowsOpenAndCloseImperatively)
 {
-    auto titles = bq::signal::makeInput(std::vector<std::string>{ "first" });
-
-    int builds = 0;
     Opens opens;
     std::vector<std::weak_ptr<int>> probes;
 
-    auto windows = bq::signal::forEach(titles.signal,
-            [](std::string const& title) { return title; },
-            [&](bq::signal::AnySignal<std::string> title)
-            {
-                ++builds;
+    App app;
 
-                Probe probe = std::make_shared<int>(0);
-                probes.push_back(probe);
+    // Opens a window the app owns, records a weak probe on it, and returns its
+    // id so the script can remove it later. No strong Window handle is kept, so
+    // a probe expires exactly when the collection and the glue let go.
+    std::vector<btl::UniqueId> ids;
+    auto open = [&](std::string title)
+    {
+        Probe probe = std::make_shared<int>(0);
+        probes.push_back(probe);
 
-                return window(title.map(countReads(opens)),
-                        widget::makeWidget())
-                    .onClose([probe]() {});
-            });
+        Window w = window(
+                bq::signal::constant(std::move(title)).map(countReads(opens)),
+                widget::makeWidget())
+            .onClose([probe]() {});
+
+        ids.push_back(w.getId());
+        app.addWindow(std::move(w));
+    };
+
+    open("first");
 
     int frames = 0;
     bool survivorOutlivedTheDeparted = false;
@@ -132,15 +139,13 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
     // The script drives itself. A SignalContext caches each signal's value and
     // re-evaluates only on a frame the signal reports changed, so a step earns
     // the next one by advancing the input it is derived from. Step 0 runs when
-    // the context is built, before the first frame.
+    // the context is built, before the first frame, so "second" is open by the
+    // time the loop seeds its glues.
     //
-    // Editing the window list from here is sound, but its effect is observed a
-    // frame later: the app context evaluates this running signal each frame and
-    // reconciles the glue list AFTER, so a step that removes a key does not see
-    // the teardown until a subsequent frame. The step that removes "first"
-    // (case 1) therefore cannot yet see its glue gone; the survivor-outlived-
-    // the-departed check is made a step later (case 3), once the reconcile has
-    // destroyed the departed glue on an earlier frame.
+    // Editing the collection here is seen the same frame: the loop syncs its
+    // glues to getWindows() after this running signal has updated, so a removal
+    // is torn down on the frame it happens. The survivor-outlived-the-departed
+    // check is still made a step later, for slack.
     auto running = step.signal.map(
             [&](int i) -> bool
             {
@@ -150,17 +155,15 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
                 switch (i)
                 {
                 case 0:
-                    titles.handle.set(
-                            std::vector<std::string>{ "first", "second" });
+                    open("second");
                     break;
 
                 case 1:
-                    titles.handle.set(std::vector<std::string>{ "second" });
+                    app.removeWindow(ids[0]);
                     break;
 
                 case 2:
-                    // Let the reconcile that removes "first" complete on this
-                    // frame before observing its effect on the next.
+                    // Let the frame that removed "first" tear its glue down.
                     break;
 
                 case 3:
@@ -169,6 +172,10 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
                         && !probes[1].expired();
                     break;
 
+                case 4:
+                    app.removeWindow(ids[1]);
+                    break;
+
                 default:
                     return false;
                 }
@@ -178,25 +185,27 @@ TEST(App, windowsOpenAndCloseWithTheirKeys)
                 return true;
             });
 
-    App().addWindowArray(std::move(windows)).run(running);
+    app.run(running);
 
     EXPECT_LT(frames, maxFrames);
 
-    EXPECT_EQ(builds, 2);
     EXPECT_TRUE(survivorOutlivedTheDeparted);
 
     // The survivor opened when it arrived and not again when its neighbour
     // left.
     EXPECT_EQ(opens, (Opens{ { "first", 1 }, { "second", 1 } }));
 
+    // Both were removed by the script, so both are gone by the time the loop
+    // stops.
     ASSERT_EQ(probes.size(), 2u);
     EXPECT_TRUE(probes[0].expired());
     EXPECT_TRUE(probes[1].expired());
+    EXPECT_TRUE(app.getWindows().empty());
 }
 
-// A braced list is a constant array: every window in it opens once and every
-// one is gone when the app is.
-TEST(App, staticWindowsAllOpenOnce)
+// Windows added before the run all open once, and all are gone when the app
+// that owns them is.
+TEST(App, addedWindowsAllOpenOnce)
 {
     Opens opens;
     std::vector<Probe> owned { std::make_shared<int>(0),
@@ -204,95 +213,43 @@ TEST(App, staticWindowsAllOpenOnce)
 
     std::vector<std::weak_ptr<int>> probes { owned[0], owned[1], owned[2] };
 
-    bq::signal::ArraySignal<Window> windows = {
-        makeWindow("a", opens, owned[0]),
-        makeWindow("b", opens, owned[1]),
-        makeWindow("c", opens, owned[2])
-    };
-
-    owned.clear();
-
     int frames = 0;
-    auto step = bq::signal::makeInput(0);
 
-    auto running = step.signal.map(
-            [&](int i) -> bool
-            {
-                if (++frames > maxFrames || i != 0)
-                    return false;
+    {
+        App app;
 
-                step.handle.set(1);
+        app.addWindows({
+                makeWindow("a", opens, owned[0]),
+                makeWindow("b", opens, owned[1]),
+                makeWindow("c", opens, owned[2])
+                });
 
-                return true;
-            });
+        owned.clear();
 
-    App().addWindowArray(std::move(windows)).run(running);
+        auto step = bq::signal::makeInput(0);
 
-    EXPECT_LT(frames, maxFrames);
+        auto running = step.signal.map(
+                [&](int i) -> bool
+                {
+                    if (++frames > maxFrames || i != 0)
+                        return false;
 
-    EXPECT_EQ(opens, (Opens{ { "a", 1 }, { "b", 1 }, { "c", 1 } }));
+                    step.handle.set(1);
 
+                    return true;
+                });
+
+        app.run(running);
+
+        EXPECT_LT(frames, maxFrames);
+
+        EXPECT_EQ(opens, (Opens{ { "a", 1 }, { "b", 1 }, { "c", 1 } }));
+    }
+
+    // The app is destroyed with its three windows still open, which releases
+    // them.
     for (auto const& probe : probes)
         EXPECT_TRUE(probe.expired());
-}
-
-// The app's own collection and a caller-supplied array are both open at once,
-// and each is closed by its own means.
-TEST(App, ownedAndSuppliedWindowsCoexist)
-{
-    Opens opens;
-
-    auto names = bq::signal::makeInput(
-            std::vector<std::string>{ "supplied" });
-
-    auto supplied = bq::signal::forEach(names.signal,
-            [](std::string const& name) { return name; },
-            [&](bq::signal::AnySignal<std::string> name)
-            {
-                return window(name.map(countReads(opens)),
-                        widget::makeWidget());
-            });
-
-    App app;
-    Window owned = makeWindow("owned", opens, std::make_shared<int>(0));
-
-    app.addWindow(owned);
-    app.addWindowArray(std::move(supplied));
-
-    int frames = 0;
-    auto step = bq::signal::makeInput(0);
-
-    auto running = step.signal.map(
-            [&](int i) -> bool
-            {
-                if (++frames > maxFrames)
-                    return false;
-
-                switch (i)
-                {
-                case 0:
-                    // Neither means of closing reaches the other's list.
-                    owned.close();
-                    break;
-
-                case 1:
-                    names.handle.set(std::vector<std::string>{});
-                    break;
-
-                default:
-                    return false;
-                }
-
-                step.handle.set(i + 1);
-
-                return true;
-            });
-
-    app.run(running);
-
-    EXPECT_LT(frames, maxFrames);
-    EXPECT_EQ(opens, (Opens{ { "owned", 1 }, { "supplied", 1 } }));
-    EXPECT_TRUE(app.getWindows().empty());
 }
 
 TEST(App, runWithNoWindowsReturnsImmediately)
@@ -300,59 +257,20 @@ TEST(App, runWithNoWindowsReturnsImmediately)
     EXPECT_EQ(0, App().run());
 }
 
-// The arrays are joined once, at the start, so one added later would open
-// nothing. Saying so beats a window that never appears.
-TEST(App, addingAnArrayWhileRunningIsRejected)
-{
-    Opens opens;
-
-    App app;
-    app.addWindow(makeWindow("owned", opens, std::make_shared<int>(0)));
-
-    bool rejected = false;
-    int frames = 0;
-    auto step = bq::signal::makeInput(0);
-
-    auto running = step.signal.map(
-            [&](int i) -> bool
-            {
-                if (++frames > maxFrames || i != 0)
-                    return false;
-
-                try
-                {
-                    app.addWindowArray(bq::signal::ArraySignal<Window>());
-                }
-                catch (std::logic_error const&)
-                {
-                    rejected = true;
-                }
-
-                step.handle.set(1);
-
-                return true;
-            });
-
-    app.run(running);
-
-    EXPECT_LT(frames, maxFrames);
-    EXPECT_TRUE(rejected);
-}
-
 // run() with no signal runs while a window is open, so closing one of several
-// removes it and only the last one stops the app.
+// removes it and only the last one stops the app. A window added while the loop
+// runs opens, which is what proves the loop was still running.
 TEST(App, runStopsWhenTheLastWindowCloses)
 {
     std::atomic<bool> firstOpened { false };
     std::atomic<bool> laterOpened { false };
 
-    Opens opens;
-
     App app;
 
     Window first = window(reportOpen("first", firstOpened),
             widget::makeWidget());
-    Window second = makeWindow("second", opens, std::make_shared<int>(0));
+    Window second = window(bq::signal::constant<std::string>("second"),
+            widget::makeWidget());
 
     // A window added after another has closed opens only if the loop is still
     // running, which is the whole of what this test asserts. Waiting for that
