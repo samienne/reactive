@@ -1,6 +1,5 @@
-#include "pathcrossing.h"
-
 #include "path.h"
+
 #include "transform.h"
 
 #include <algorithm>
@@ -481,8 +480,8 @@ int gapSign(std::vector<Seg> const& segs, Vector2f linePoint, Vector2f n,
 
 } // anonymous namespace
 
-std::vector<PathCrossing> pathLineCrossings(Path const& path,
-        Vector2f linePoint, Vector2f lineDir)
+std::vector<PathCrossing> Path::lineCrossings(Vector2f linePoint,
+        Vector2f lineDir) const
 {
     std::vector<PathCrossing> result;
 
@@ -493,7 +492,7 @@ std::vector<PathCrossing> pathLineCrossings(Path const& path,
     Vector2f unitDir = lineDir / dirLen;
     Vector2f n = perp(lineDir);
 
-    std::vector<std::vector<Seg>> subpaths = resolveSubpaths(path);
+    std::vector<std::vector<Seg>> subpaths = resolveSubpaths(*this);
 
     std::size_t globalBase = 0;
     for (auto const& segs : subpaths)
