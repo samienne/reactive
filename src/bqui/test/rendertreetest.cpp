@@ -51,10 +51,8 @@ using Children = std::vector<bq::signal::ArraySignal<AnyWidget>>;
 /**
  * @brief Where one probe was drawn, and which probe it was.
  *
- * The color is the identity: it is carried by the draw function a render
- * tree node holds, so it says which probe's drawing this is however the tree
- * was spliced. The bounds are in window coordinates, with the origin at the
- * bottom-left corner.
+ * The bounds are in window coordinates, with the origin at the bottom-left
+ * corner.
  */
 struct DrawnRect
 {
@@ -146,11 +144,7 @@ AnyWidget blankProbe(size_t index)
 /**
  * @brief Splices and draws a render tree the way the window loop does.
  *
- * Every realised Instance is spliced onto the tree the previous one produced,
- * which is what turns a change in the widget tree into an animation and what
- * makes the tree pair its nodes up. Drawing is a pure function of the
- * timestamp, so a draw part-way through an animation shows which node is
- * moving where.
+ * Drawing is a pure function of the passed time.
  */
 class TreeDriver
 {
@@ -166,11 +160,11 @@ public:
     {
         avg::RenderTree next = instance.getRenderTree();
 
-        tree_ = std::move(std::move(tree_).update(
+        tree_ = std::move(tree_).update(
                 std::move(next),
                 animationOptions_,
                 time
-                ).first);
+                ).first;
     }
 
     std::vector<DrawnRect> draw(Milliseconds time)
@@ -283,11 +277,7 @@ bq::signal::FrameInfo nextFrame(uint64_t frameId)
 
 TEST(RenderTree, everyChildDrawsInTheSlotTheLayoutGaveIt)
 {
-    // Where a child ends up on screen is decided entirely inside the render
-    // tree: the layout hands each child a transform, every enclosing node
-    // contributes its own on the way down, and only the drawing says what the
-    // sum of them was. A node that repeats a transform its child already
-    // carries draws that child at twice the offset it was laid out at.
+    // A repeated transform would draw a child at twice its slot offset.
     Children children;
     children.push_back(drawProbe(0));
     children.push_back(drawProbe(1));
@@ -311,10 +301,7 @@ TEST(RenderTree, everyChildDrawsInTheSlotTheLayoutGaveIt)
 
 TEST(RenderTree, aChildThatDrawsNothingContributesNothing)
 {
-    // A layout names each of its children so that the tree can pair them up,
-    // and a child that draws nothing has no node to name. Naming one anyway
-    // leaves a node that cannot be drawn, which nothing notices until the
-    // first frame.
+    // A named child that draws nothing would leave a node that cannot be drawn.
     Children children;
     children.push_back(drawProbe(0));
     children.push_back(blankProbe(1));
@@ -337,10 +324,8 @@ TEST(RenderTree, aChildThatDrawsNothingContributesNothing)
 
 TEST(RenderTree, removingAMiddleChildLeavesItsNeighboursNodes)
 {
-    // The tree pairs a child up with the child of the same name, so a removal
-    // takes out the node that was removed. Pairing by position instead pairs
-    // the departing child with whichever one now sits in its slot, and the
-    // last child — which nothing now pairs with — is the one that leaves.
+    // Pairing children by position rather than by name would remove the wrong
+    // child when a middle one leaves.
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
@@ -378,10 +363,8 @@ TEST(RenderTree, removingAMiddleChildLeavesItsNeighboursNodes)
 
 TEST(RenderTree, reorderingMovesNodesRatherThanRebuildingThem)
 {
-    // A node paired with its own name animates from where it was to where it
-    // now belongs. One that was rebuilt instead has nothing to animate from
-    // and appears at its destination immediately, so a draw part-way through
-    // tells the two apart.
+    // A reordered node should animate from its old slot; a rebuilt one would
+    // appear at its destination immediately.
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
