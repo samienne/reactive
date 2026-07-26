@@ -69,9 +69,11 @@ General rules:
 - **Doxygen documents usage, not design.** A header's docs say what a type or
   function is *for* and how to call it — the interface contract a caller needs.
   They do not explain how it is implemented or why it was designed that way; a
-  user should not have to care about the internals (lifetimes, ownership,
-  mechanism). Design rationale → `decisions.md`; mechanism → the library's
-  `AGENTS.md`.
+  user should not have to care about the internals (data structures,
+  algorithms, caching, internal mechanism). Ownership and lifetime stay in
+  Doxygen when they are part of the caller's contract — e.g. how long a returned
+  signal or view remains valid. Design rationale → `decisions.md`; mechanism →
+  the library's `AGENTS.md`.
 - **Docs may point at code; code never points at docs.**
 - **One home per fact:** concepts/usage → `readme.md`; API contract → Doxygen;
   cross-cutting model/conventions/decisions → top-level `docs/`; library-specific

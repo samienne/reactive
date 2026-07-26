@@ -21,11 +21,9 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
   claim, rather than trusting the prose.
 - For code changes: correctness and logic first, then rubric compliance.
 - Weight findings by impact: a wrong/misleading claim outranks a cosmetic one.
-- **Flag comments that narrate mechanism or design reasoning, and Doxygen that
-  gives design rationale.** These are noise and a maintenance burden — every
-  change forces revisiting them and they rot. Usage/interface belongs in Doxygen,
-  the *why* in `decisions.md`, mechanism in `AGENTS.md`; only a terse note on a
-  genuinely surprising line or non-obvious invariant stays inline. `[should-fix]`.
+- **Weight comment/Doxygen narration of mechanism or design rationale heavily
+  — flag it** (see `style-guide.md` → Comments and the Doxygen bullet under
+  Documentation). `[should-fix]`.
 
 ## Known false-positives — do not flag
 
