@@ -28,10 +28,7 @@ namespace avg
      * @brief A single transversal crossing of an infinite line against a path.
      *
      * The crossing is reported in the path's resolved space, with the path's
-     * transform already applied. Tangential touches, where the line grazes a
-     * curve or vertex without passing through it, are not reported, and a
-     * segment lying exactly along the line is a measure-zero coincidence that
-     * yields no crossing.
+     * transform already applied.
      */
     struct PathCrossing
     {
@@ -230,14 +227,11 @@ namespace avg
          *
          * The point is given in the path's resolved space, the same space the
          * path's transform maps into. Each subpath is treated as implicitly
-         * closed, and membership is decided from the crossings a ray cast from
-         * the point makes with the outline. The fill rule chooses how those
-         * crossings are read: FILL_EVENODD takes the parity of the count, while
-         * FILL_NONZERO, FILL_POSITIVE and FILL_NEGATIVE test the signed winding
-         * number for being non-zero, positive or negative.
-         *
-         * The ray is cast in a generic direction, so an edge running exactly
-         * along it is a measure-zero case that does not perturb the count.
+         * closed. A point lying exactly on an edge or vertex has a well-defined
+         * but implementation-chosen classification. The fill rule chooses how
+         * membership is decided: FILL_EVENODD takes the parity of the crossing
+         * count, while FILL_NONZERO, FILL_POSITIVE and FILL_NEGATIVE test the
+         * signed winding number for being non-zero, positive or negative.
          */
         bool contains(Vector2f p, FillRule rule = FILL_EVENODD) const;
 
@@ -245,10 +239,7 @@ namespace avg
          * @brief Computes every crossing of an infinite line against the path.
          *
          * The line passes through linePoint with direction lineDir, which need
-         * not be a unit vector, and both are in the path's resolved space. Each
-         * segment is intersected analytically rather than by flattening: a line
-         * gives a linear equation, a conic a quadratic, a cubic a cubic, and an
-         * arc a line-circle intersection.
+         * not be a unit vector, and both are in the path's resolved space.
          *
          * Every subpath is treated as implicitly closed, matching fill
          * semantics, so an open subpath gains a closing edge from its last point
