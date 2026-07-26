@@ -36,10 +36,9 @@ namespace bqui::widget
 
     /** @brief Places a list of children, whose membership may change.
      *
-     * The one layout engine. Children enter as an array, so a fixed list and
-     * one driven by forEach() are the same case: every child is built once per
-     * identity, and an insertion or a removal leaves its siblings — and
-     * whatever they have accumulated — untouched.
+     * Children enter as an array. Every child is built once per identity, and
+     * an insertion or a removal leaves its siblings — and whatever they have
+     * accumulated — untouched.
      *
      * `sizeHintMap` computes the container's own hint from the children's, and
      * `obbMap` places them; both see every child's hint at once. `obbMap` must
