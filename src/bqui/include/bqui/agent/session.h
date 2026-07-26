@@ -6,6 +6,8 @@
 
 #include "bqui/bquivisibility.h"
 
+#include <avg/rendertree/snapshot.h>
+
 #include <ase/keycode.h>
 #include <ase/keyevent.h>
 #include <ase/pointerbuttonevent.h>
@@ -52,6 +54,9 @@ namespace bqui::agent
 
         /** @brief The current resolved (window-space) introspection. */
         virtual widget::Introspection introspect() const = 0;
+
+        /** @brief The current render-tree snapshot, in window space. */
+        virtual avg::Snapshot snapshot() const = 0;
 
         /** @brief Advance this window one frame by `dt` (update then draw). */
         virtual void advance(std::chrono::microseconds dt) = 0;

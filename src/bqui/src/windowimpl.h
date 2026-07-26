@@ -19,6 +19,7 @@
 #include <bq/signal/signal.h>
 
 #include <avg/rendertree.h>
+#include <avg/rendertree/snapshot.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -423,6 +424,17 @@ public:
 
         return animating_ ? std::optional<std::chrono::microseconds>(std::chrono::microseconds(0))
                           : std::nullopt;
+    }
+
+    // The render tree's current frame as a value snapshot. Matches render()'s
+    // obb and time so an agent observes exactly what the window presents.
+    avg::Snapshot snapshot() const
+    {
+        return renderTree_.snapshot(
+                avg::DrawContext(pmr::new_delete_resource()),
+                avg::Obb(aseWindow.getSize().cast<float>()),
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    agentTime_));
     }
 
     btl::UniqueId getId() const

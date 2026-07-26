@@ -15,6 +15,8 @@
 #include <bq/signal/sharedvector.h>
 
 #include <avg/rendertree.h>
+#include <avg/rendertree/snapshot.h>
+#include <avg/drawcontext.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -186,6 +188,11 @@ namespace
         widget::Introspection introspect() const override
         {
             return glue_.getResolvedIntrospection();
+        }
+
+        avg::Snapshot snapshot() const override
+        {
+            return glue_.snapshot();
         }
 
         void advance(std::chrono::microseconds dt) override
