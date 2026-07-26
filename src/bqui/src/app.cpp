@@ -1,13 +1,16 @@
 #include "bqui/app.h"
 
 #include "bqui/window.h"
-#include "bqui/send.h"
+#include "bqui/modifier/background.h"
 
 #include "debug.h"
+#include "windowdata.h"
+#include "windowimpl.h"
 
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
+#include <bq/signal/sharedvector.h>
 
 #include <avg/rendertree.h>
 #include <avg/painter.h>
@@ -33,28 +36,24 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <algorithm>
 #include <chrono>
+#include <functional>
+#include <mutex>
+#include <stdexcept>
 #include <unordered_map>
 #include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 #include <cstdint>
 
 namespace bqui
 {
 
-namespace
-{
-    uint64_t s_frameId_ = 0;
-
-    uint64_t getNextFrameId()
-    {
-        return ++s_frameId_;
-    }
-} // anonymous namespace
-
-class WindowGlue;
-
-class BQUI_EXPORT AppDeferred
+class BQUI_EXPORT AppDeferred :
+    public std::enable_shared_from_this<AppDeferred>
 {
 public:
     AppDeferred()
@@ -62,443 +61,253 @@ public:
         TracyAppInfo("Reactive application", 20);
     }
 
-    std::vector<Window> windows_;
-    std::vector<btl::shared<WindowGlue>> windowGlues_;
+    /** @brief Removes the window with this id from the collection.
+     *
+     * Thread-safe, and a no-op if no window here has the id. The window's impl
+     * is torn down by the run loop's next sync, not here, because an OS window
+     * is released on the app thread.
+     */
+    void removeWindow(btl::UniqueId id);
+
+    std::vector<Window> getWindows() const
+    {
+        return *windows_.read();
+    }
+
+    bq::signal::SharedVector<Window> windows_;
+
+    std::mutex pendingMutex_;
+    std::vector<std::pair<Window, widget::AnyWidget>> pendingMounts_;
+
+    std::vector<btl::shared<WindowImpl>> windowImpls_;
 };
 
-class WindowGlue
+// Releases the app's impls, whatever ends the run. An impl holds an
+// ase::Window and a framebuffer belonging to the run's render context, so
+// leaving one behind would outlive what it is made of.
+struct ImplScope
 {
-public:
-    WindowGlue(ase::Platform &platform, ase::RenderContext& context,
-            Window window)
-        : memoryPool_(pmr::new_delete_resource()),
-        memoryStatistics_(&memoryPool_),
-        memory_(&memoryStatistics_),
-        aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
-        context_(context),
-        window_(std::move(window)),
-        painter_(memory_, context_),
-        size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
-        widgetInstanceSignal_(window_.getWidget()(
-                    BuildParams{}
-                    )(std::move(size_.signal)).getInstance()),
-        widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
-        titleSignal_(window_.getTitle()),
-        drawing_(memory_)
+    ~ImplScope()
     {
-        aseWindow.setVisible(true);
-        aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
-
-        aseWindow.setFrameCallback([this](ase::Frame const& frame) {
-                return onFrame(frame);
-                });
-
-        aseWindow.setCloseCallback([this]() { window_.invokeOnClose(); });
-        aseWindow.setResizeCallback([this]()
-                {
-                    resized_ = true;
-                    animating_ = true;
-                });
-
-        aseWindow.setButtonCallback([this](ase::PointerButtonEvent const &e)
-        {
-            if (e.state == ase::ButtonState::down)
-            {
-                auto areas = widgetInstance_.getInputAreas();
-                for (auto const &a : areas)
-                {
-                    if (a.acceptsButtonEvent(e))
-                    {
-                        a.emitButtonEvent(e);
-                        areas_[e.button].push_back(a);
-
-                        makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-                    }
-                }
-            }
-            else if (e.state == ase::ButtonState::up)
-            {
-                for (auto const &a : areas_[e.button])
-                {
-                    a.emitButtonEvent(e);
-                }
-
-                areas_[e.button].clear();
-
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-            }
-
-        });
-
-        aseWindow.setPointerCallback([this](ase::PointerMoveEvent const &e)
-        {
-            if (currentHoverArea_.has_value() && !currentHoverArea_->contains(e.pos))
-            {
-                currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
-                currentHoverArea_ = std::nullopt;
-            }
-
-            auto areas = widgetInstance_.getInputAreas();
-            for (auto const &a : areas)
-            {
-                if (a.contains(e.pos))
-                {
-
-                    if (!currentHoverArea_.has_value() ||
-                        currentHoverArea_->getId() != a.getId())
-                    {
-                        if (currentHoverArea_.has_value())
-                        {
-                            currentHoverArea_->emitHoverEvent(HoverEvent{false, false});
-                        }
-
-                        currentHoverArea_ = a;
-
-                        a.emitHoverEvent(HoverEvent{true, true});
-                    }
-
-                    break;
-                }
-            }
-
-            bool accepted = false;
-            for (auto &item : areas_)
-            {
-                if (!e.buttons.at(item.first - 1))
-                    continue;
-
-                std::vector<InputArea> newAreas;
-                for (auto &&area : item.second)
-                {
-                    EventResult r = area.emitMoveEvent(e);
-                    if (r == EventResult::accept)
-                    {
-                        newAreas.clear();
-                        newAreas.emplace_back(std::move(area));
-                        accepted = true;
-                        break;
-                    }
-                    else if (r == EventResult::possible)
-                    {
-                        newAreas.push_back(std::move(area));
-                    }
-                    else if (r == EventResult::reject)
-                    {
-                    }
-                }
-
-                item.second = std::move(newAreas);
-
-                if (accepted)
-                    break;
-            }
-        });
-
-        aseWindow.setDragCallback([](ase::PointerDragEvent const & /*e*/)
-                {
-                });
-
-        aseWindow.setKeyCallback([this](ase::KeyEvent const &e)
-        {
-            if (currentKeyHandler_.has_value() && e.isDown())
-            {
-                (*currentKeyHandler_)(e);
-                keys_[e.getKey()] = *currentKeyHandler_;
-
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-            }
-            else
-            {
-                auto i = keys_.find(e.getKey());
-                if (i == keys_.end())
-                    return;
-                auto f = i->second;
-                keys_.erase(i);
-
-                f(e);
-
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-            }
-        });
-
-        aseWindow.setTextCallback([this](ase::TextEvent const& e)
-        {
-            if (currentTextHandler_.has_value())
-            {
-                (*currentTextHandler_)(e);
-
-                makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-            }
-        });
-
-        aseWindow.setHoverCallback([this](ase::HoverEvent const &e)
-        {
-            if (!e.hover)
-            {
-                if (currentHoverArea_.has_value())
-                {
-                    currentHoverArea_->emitHoverEvent(e);
-                    currentHoverArea_ = std::nullopt;
-
-                    makeTransaction(bq::signal::signal_time_t(0), std::nullopt);
-                }
-            }
-        });
+        // A frame that drew a window can still be in flight, and it holds that
+        // window's framebuffer.
+        queue.finish();
+        app.windowImpls_.clear();
     }
 
-    WindowGlue(WindowGlue const &) = delete;
-    WindowGlue &operator=(WindowGlue const &) = delete;
-
-    virtual ~WindowGlue()
-    {
-        std::cout << "Maximum concurrent allocations: "
-            << memoryStatistics_.maximum_concurrent_bytes_allocated()
-            << std::endl;
-    }
-
-    std::optional<bq::signal::signal_time_t> makeTransaction(
-            std::chrono::microseconds dt,
-            std::optional<avg::AnimationOptions> const& animationOptions
-            )
-    {
-        ZoneScoped;
-
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
-
-        bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
-
-        auto updateResult = widgetInstanceSignal_.update(frameInfo);
-        updateResult = updateResult + titleSignal_.update(frameInfo);
-
-
-        if (titleSignal_.didChange<0>())
-            aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
-
-        if (widgetInstanceSignal_.didChange<0>())
-        {
-            ZoneScopedN("Widget instance signal evaluation");
-
-            widgetInstance_ = widgetInstanceSignal_.evaluate<0>().get<0>();
-
-            // If there's an area with the same id -> update
-            auto areas = widgetInstance_.getInputAreas();
-            for (auto&& area : areas_)
-            {
-                for (InputArea& area3 : area.second)
-                {
-                    for (InputArea& area2 : areas)
-                    {
-                        if (area3.getId() == area2.getId())
-                        {
-                            area3 = std::move(area2);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            auto inputs = widgetInstance_.getKeyboardInputs();
-            for (auto&& input : inputs)
-            {
-                auto handle = input.getFocusHandle();
-
-                bool focus = input.getRequestFocus() || input.hasFocus();
-                if (focus && handle.has_value())
-                {
-                    if (input.getRequestFocus())
-                    {
-                        if (currentHandle_.has_value())
-                            currentHandle_->set(false);
-                        handle->set(true);
-                    }
-
-                    currentHandle_ = handle;
-                    currentKeyHandler_ = input.getKeyHandler();
-                    currentTextHandler_ = input.getTextHandler();
-
-                    if (input.getRequestFocus())
-                        break;
-                }
-            }
-
-            if (!currentHandle_.has_value() && !inputs.empty())
-            {
-                auto handle = inputs[0];
-                currentHandle_ = handle.getFocusHandle();
-                if (currentHandle_.has_value())
-                    currentHandle_->set(true);
-                currentKeyHandler_ = handle.getKeyHandler();
-                currentTextHandler_ = handle.getTextHandler();
-            }
-        }
-
-        if (widgetInstanceSignal_.didChange<0>()
-                || (nextUpdate_ && *nextUpdate_ <= timer)
-                )
-        {
-            ZoneScopedN("RenderTree update");
-            auto [renderTree, nextUpdate] = std::move(renderTree_).update(
-                    btl::clone(widgetInstance_.getRenderTree()),
-                    animationOptions,
-                    timer
-                    );
-
-            if (nextUpdate_ && *nextUpdate_ < timer)
-                nextUpdate_ = std::nullopt;
-
-            if (nextUpdate && *nextUpdate < timer)
-                nextUpdate = std::nullopt;
-
-            nextUpdate_ = avg::earlier(nextUpdate_, nextUpdate);
-
-            renderTree_ = std::move(renderTree);
-
-            animating_ = true;
-
-            aseWindow.requestFrame();
-        }
-
-        return updateResult.nextUpdate;
-    }
-
-    std::optional<bq::signal::signal_time_t> frame(std::chrono::microseconds dt)
-    {
-        ZoneScoped;
-
-        return onFrame( { timer_, dt });
-    }
-
-    std::optional<std::chrono::microseconds> onFrame(ase::Frame const& frame)
-    {
-        ZoneScoped;
-
-        timer_ = frame.time;
-
-        if (resized_)
-        {
-            size_.handle.set(aseWindow.getSize().cast<float>());
-            painter_.setSize(aseWindow.getSize());
-            resized_ = false;
-        }
-
-        auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
-                timer_);
-
-        auto timeToNext = makeTransaction(frame.dt, std::nullopt);
-
-        if (animating_)
-        {
-            auto [drawing, cont] = renderTree_.draw(
-                    avg::DrawContext(&painter_),
-                    avg::Obb(aseWindow.getSize().cast<float>()),
-                    timer
-                    );
-
-            drawing_ = std::move(drawing);
-            animating_ = cont;
-        }
-
-        painter_.clearWindow(aseWindow);
-        painter_.paintToWindow(aseWindow, drawing_);
-        painter_.presentWindow(aseWindow);
-        painter_.flush();
-
-        ++frames_;
-
-        if (animating_)
-            return std::chrono::microseconds(0);
-
-        return timeToNext;
-    }
-
-    uint64_t getFrames() const
-    {
-        return frames_;
-    }
-
-    std::string getTitle() const
-    {
-        return titleSignal_.evaluate<0>().get<0>();
-    }
-
-    widget::Instance const& getWidgetInstance() const
-    {
-        return widgetInstance_;
-    }
-
-private:
-    pmr::unsynchronized_pool_resource memoryPool_;
-    pmr::statistics_resource memoryStatistics_;
-    pmr::memory_resource* memory_;
-    ase::Window aseWindow;
-    ase::RenderContext& context_;
-    Window window_;
-    avg::Painter painter_;
-    bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
-        bq::signal::SignalResult<ase::Vector2f>> size_;
-    bq::signal::SignalContext<bq::signal::AnySignal<widget::Instance>>
-        widgetInstanceSignal_;
-    widget::Instance widgetInstance_;
-    bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
-    //RenderCache cache_;
-    std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
-    std::unordered_map<ase::KeyCode,
-        std::function<void(ase::KeyEvent const&)>> keys_;
-    std::optional<bq::signal::InputHandle<bool>> currentHandle_;
-    std::optional<KeyboardInput::KeyHandler> currentKeyHandler_;
-    std::optional<KeyboardInput::TextHandler> currentTextHandler_;
-    uint64_t frames_ = 0;
-    std::optional<InputArea> currentHoverArea_;
-
-    std::chrono::microseconds timer_ = std::chrono::microseconds(0);
-    avg::RenderTree renderTree_;
-    std::optional<avg::AnimationOptions> animationOptions_;
-    avg::Drawing drawing_;
-    std::optional<std::chrono::milliseconds> nextUpdate_;
-    bool animating_ = true;
-    bool resized_ = true;
+    AppDeferred& app;
+    ase::RenderQueue& queue;
 };
 
+void WindowData::close() const
+{
+    std::shared_ptr<AppDeferred> app;
+
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        app = app_.lock();
+    }
+
+    if (app)
+        app->removeWindow(id_);
+}
+
+void AppDeferred::removeWindow(btl::UniqueId id)
+{
+    {
+        auto handle = windows_.read();
+
+        auto found = std::find_if(handle->begin(), handle->end(),
+                [id](Window const& window)
+                {
+                    return window.getId() == id;
+                });
+
+        if (found == handle->end())
+            return;
+    }
+
+    std::vector<Window> departing;
+
+    {
+        auto handle = windows_.write();
+
+        auto departed = std::stable_partition(handle->begin(), handle->end(),
+                [id](Window const& window)
+                {
+                    return window.getId() != id;
+                });
+
+        departing.insert(departing.end(),
+                std::make_move_iterator(departed),
+                std::make_move_iterator(handle->end()));
+
+        handle->erase(departed, handle->end());
+    }
+
+    for (auto const& window : departing)
+        window.data()->clearApp();
+}
 
 App::App() :
     deferred_(std::make_shared<AppDeferred>())
 {
 }
 
-App App::windows(std::initializer_list<Window> windows) &&
+App& App::addWindow(Window window, widget::AnyWidget widget)
 {
-    for (auto const& w : windows)
-        d()->windows_.push_back(btl::clone(w));
+    {
+        auto handle = d()->windows_.write();
 
-    return std::move(*this);
+        bool alreadyOpen = std::any_of(handle->begin(), handle->end(),
+                [&](Window const& w) { return w.getId() == window.getId(); });
+
+        if (alreadyOpen)
+        {
+            throw std::invalid_argument("App: this window is already open. A "
+                    "window and its copies are one window, and one window "
+                    "cannot be opened twice.");
+        }
+
+        if (window.data()->hasApp())
+        {
+            throw std::invalid_argument("App: this window is open in another "
+                    "app. A window belongs to one app, because close() has to "
+                    "know which app to leave.");
+        }
+
+        window.data()->setApp(d()->weak_from_this());
+
+        handle->push_back(window);
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(d()->pendingMutex_);
+        d()->pendingMounts_.emplace_back(std::move(window), std::move(widget));
+    }
+
+    return *this;
 }
 
-int App::run(bq::signal::AnySignal<bool> runningSignal) &&
+void App::removeWindow(btl::UniqueId id)
+{
+    d()->removeWindow(id);
+}
+
+std::vector<Window> App::getWindows() const
+{
+    return d()->getWindows();
+}
+
+bq::signal::AnySignal<std::vector<Window>> App::getWindowsSignal() const
+{
+    return d()->windows_.signal();
+}
+
+int App::run(bq::signal::AnySignal<bool> running)
+{
+    return runUntil(std::move(running));
+}
+
+int App::run()
+{
+    return runUntil(getWindowsSignal().map(
+                [](std::vector<Window> const& windows)
+                {
+                    return !windows.empty();
+                }));
+}
+
+int App::runUntil(bq::signal::AnySignal<bool> running)
 {
     ase::Platform platform = ase::makeDefaultPlatform();
 
-    d()->windowGlues_.reserve(d()->windows_.size());
-
     ase::RenderContext context = platform.makeRenderContext();
 
-    for (auto&& w : d()->windows_)
+    auto mainQueue = context.getMainRenderQueue();
+
+    // The impls outlive this call — they are the app's, not the loop's — but
+    // the platform and render context they hold do not, so they must be
+    // released before this returns, however it returns.
+    ImplScope implScope { *d(), mainQueue };
+
+    auto runningContext = bq::signal::makeSignalContext(std::move(running));
+
+    // Syncs the live impls to the window collection: mounts an impl for any
+    // window not yet mounted, tears down any impl whose window has left. The
+    // collection (which close()/removeWindow update directly) is read straight,
+    // once per frame, and the widgets to mount are drained from the pending
+    // queue addWindow fills.
+    auto sync = [&]()
     {
-        d()->windowGlues_.push_back(std::make_shared<WindowGlue>(
-            platform, context, std::move(w)));
-    }
+        std::vector<Window> windows = d()->getWindows();
+
+        std::vector<btl::shared<WindowImpl>> next;
+        next.reserve(windows.size());
+
+        std::vector<btl::shared<WindowImpl>> departing;
+
+        for (auto& impl : d()->windowImpls_)
+        {
+            bool present = std::any_of(windows.begin(), windows.end(),
+                    [&](Window const& w) { return w.getId() == impl->getId(); });
+
+            if (present)
+                next.push_back(std::move(impl));
+            else
+                departing.push_back(std::move(impl));
+        }
+
+        std::vector<std::pair<Window, widget::AnyWidget>> pending;
+        {
+            std::lock_guard<std::mutex> lock(d()->pendingMutex_);
+            pending.swap(d()->pendingMounts_);
+        }
+
+        for (auto& mount : pending)
+        {
+            btl::UniqueId id = mount.first.getId();
+
+            bool present = std::any_of(windows.begin(), windows.end(),
+                    [&](Window const& w) { return w.getId() == id; });
+
+            bool mounted = std::any_of(next.begin(), next.end(),
+                    [&](btl::shared<WindowImpl> const& impl)
+                    {
+                        return impl->getId() == id;
+                    });
+
+            if (present && !mounted)
+                next.push_back(std::make_shared<WindowImpl>(platform, context,
+                            std::move(mount.first), std::move(mount.second)));
+        }
+
+        // A frame that drew a departing window can still be in flight, and it
+        // holds that window's framebuffer, so nothing may release an impl until
+        // the queue has caught up.
+        if (!departing.empty())
+            mainQueue.finish();
+
+        d()->windowImpls_.swap(next);
+        departing.clear();
+    };
+
+    sync();
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
 
     DBG("Reactive running...");
 
-    auto running = bq::signal::makeSignalContext(runningSignal);
     platform.run(context, [&](ase::Frame const& aseFrame) -> bool
         {
             bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
-            running.update(frame);
 
-            return running.evaluate<0>().get<0>();
+            runningContext.update(frame);
+
+            sync();
+
+            return runningContext.evaluate<0>().get<0>();
         });
 
     DBG("Shutting down...");
@@ -506,24 +315,13 @@ int App::run(bq::signal::AnySignal<bool> runningSignal) &&
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& glue : d()->windowGlues_)
+    for (auto const& impl : d()->windowImpls_)
     {
-        DBG("Window \"%1\" had FPS of %2.", glue->getTitle(),
-                (double)glue->getFrames() / time.count());
+        DBG("Window \"%1\" had FPS of %2.", impl->getTitle(),
+                (double)impl->getFrames() / time.count());
     }
 
-    d()->windowGlues_.clear();
-
     return 0;
-}
-
-int App::run() &&
-{
-    auto running = bq::signal::makeInput(true);
-    for (auto&& w : d()->windows_)
-        w = std::move(w).onClose(send(false, running.handle));
-
-    return std::move(*this).run(running.signal);
 }
 
 AnimationGuard App::withAnimation(avg::AnimationOptions options)
@@ -536,9 +334,9 @@ AnimationGuard::AnimationGuard(AppDeferred& app,
     app_(&app),
     options_(options)
 {
-    for (auto& glue : app_->windowGlues_)
+    for (auto& impl : app_->windowImpls_)
     {
-        glue->makeTransaction(
+        impl->makeTransaction(
                 std::chrono::milliseconds(0),
                 std::nullopt
                 );
@@ -550,9 +348,9 @@ AnimationGuard::~AnimationGuard()
     if (!app_)
         return;
 
-    for (auto& glue : app_->windowGlues_)
+    for (auto& impl : app_->windowImpls_)
     {
-        glue->makeTransaction(
+        impl->makeTransaction(
                 std::chrono::milliseconds(0),
                 options_
                 );

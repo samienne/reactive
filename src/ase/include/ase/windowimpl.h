@@ -15,6 +15,7 @@
 #include <string>
 #include <functional>
 #include <chrono>
+#include <optional>
 
 namespace ase
 {
