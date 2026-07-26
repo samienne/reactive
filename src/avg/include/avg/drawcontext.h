@@ -12,9 +12,6 @@ namespace avg
 
     /**
      * @brief The memory a draw allocates its result out of.
-     *
-     * Drawing a render tree produces paths, shapes and drawings and nothing
-     * else, so memory is all a node ever asks of its context.
      */
     class AVG_EXPORT DrawContext
     {
@@ -28,8 +25,7 @@ namespace avg
          * @brief Allocates out of @p memory alone, with no rendering back end.
          *
          * A tree drawn this way yields the same avg::Drawing it would on
-         * screen, so drawing can be exercised where no graphics context
-         * exists.
+         * screen.
          */
         explicit DrawContext(pmr::memory_resource* memory);
 
