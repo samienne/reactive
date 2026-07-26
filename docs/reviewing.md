@@ -21,6 +21,9 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
   claim, rather than trusting the prose.
 - For code changes: correctness and logic first, then rubric compliance.
 - Weight findings by impact: a wrong/misleading claim outranks a cosmetic one.
+- **Weight comment/Doxygen narration of mechanism or design rationale heavily
+  — flag it** (see `style-guide.md` → Comments and the Doxygen bullet under
+  Documentation). `[should-fix]`.
 
 ## Known false-positives — do not flag
 

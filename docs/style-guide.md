@@ -66,6 +66,14 @@ General rules:
 
 - **API reference is Doxygen in the public headers.** Never transcribe
   signatures into Markdown.
+- **Doxygen documents usage, not design.** A header's docs say what a type or
+  function is *for* and how to call it — the interface contract a caller needs.
+  They do not explain how it is implemented or why it was designed that way; a
+  user should not have to care about the internals (data structures,
+  algorithms, caching, internal mechanism). Ownership and lifetime stay in
+  Doxygen when they are part of the caller's contract — e.g. how long a returned
+  signal or view remains valid. Design rationale → `decisions.md`; mechanism →
+  the library's `AGENTS.md`.
 - **Docs may point at code; code never points at docs.**
 - **One home per fact:** concepts/usage → `readme.md`; API contract → Doxygen;
   cross-cutting model/conventions/decisions → top-level `docs/`; library-specific
@@ -84,9 +92,15 @@ General rules:
   previous version did, a reference to some discussion. That knowledge rots as a
   comment and confuses code readers; put it in an agent topic file (or
   `decisions.md` if it is a decision).
+- **Don't narrate how the code works or why it is designed this way.** If a
+  reader can see it from the code, the comment is noise; and it is a maintenance
+  burden — every change forces re-reading and re-checking the comments around it,
+  so they silently rot. The bar for an inline comment is a *surprise*, not an
+  *explanation*.
 - A short comment explaining a **non-obvious invariant or a genuinely surprising
   line** — timeless rationale the code reader needs — is good and stays inline.
-  The rule targets context and history, not all rationale.
+  The rule targets context, history, and mechanism, not this narrow kind of
+  rationale.
 - Prefer a small KB topic file over a long, context-heavy comment. Comments
   *describe*; the knowledge base *explains and remembers*.
 
