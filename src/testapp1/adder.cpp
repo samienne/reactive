@@ -73,13 +73,7 @@ namespace
 
     using Items = std::vector<std::pair<size_t, std::string>>;
 
-    /** @brief The collection's current contents, as a signal.
-     *
-     * Every event re-reads the collection rather than replaying the change it
-     * describes. Nothing is lost by the coarseness: forEach keys the result by
-     * the collection's own id, so an item that stays put is not rebuilt
-     * whatever the event was.
-     */
+    /** @brief The collection's current contents, as a signal. */
     bq::signal::AnySignal<Items> collectionItems(
             Collection<std::string>& collection)
     {
