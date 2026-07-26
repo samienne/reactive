@@ -221,7 +221,7 @@ std::string toJson(Snapshot const& snapshot)
 {
     std::ostringstream out;
 
-    // snprintf would take the decimal separator from the process locale.
+    // Numbers must use '.' regardless of the process locale.
     out.imbue(std::locale::classic());
     out << std::setprecision(9);
 
