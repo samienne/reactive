@@ -21,7 +21,7 @@ namespace btl
         /** @brief What the stored bytes are, so a backend waits the right way. */
         enum class Kind
         {
-            None,
+            Invalid, // Xlib #defines None, so avoid that name here.
             Fd,     // POSIX file descriptor: select/poll.
             Socket, // Win32 SOCKET: WSAEventSelect onto an event.
             Handle, // Win32 waitable HANDLE (e.g. an overlapped-I/O event).
@@ -31,7 +31,7 @@ namespace btl
 
         bool valid() const noexcept
         {
-            return kind_ != Kind::None;
+            return kind_ != Kind::Invalid;
         }
 
         Kind kind() const noexcept
@@ -44,7 +44,7 @@ namespace btl
 
         alignas(alignof(std::max_align_t)) unsigned char
             storage_[2 * sizeof(void*)] = {};
-        Kind kind_ = Kind::None;
+        Kind kind_ = Kind::Invalid;
     };
 
     /** @brief The one door platform conversion code uses to fill or read a
