@@ -33,7 +33,6 @@
 
 #include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
-#include <bqui/send.h>
 #include <bqui/window.h>
 #include <bqui/app.h>
 #include <bqui/withanimation.h>
@@ -47,6 +46,8 @@
 #include <btl/future.h>
 
 #include <iostream>
+#include <string>
+#include <vector>
 
 using namespace bqui;
 
@@ -68,6 +69,22 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "easeOutBounce", avg::curve::easeOutBounce },
     { "easeInOutBounce", avg::curve::easeInOutBounce },
 };
+
+void openSecondWindow()
+{
+    Window w = window(bq::signal::constant<std::string>("Second window"));
+
+    app().addWindow(
+            w,
+            widget::button("Close me",
+                    bq::signal::constant(std::function<void()>(
+                            [w]()
+                            {
+                                w.close();
+                            })))
+                | modifier::frame()
+                | modifier::focusGroup());
+}
 
 int main()
 {
@@ -120,8 +137,50 @@ int main()
                 avg::RepeatMode::reverse
                 ));
 
+    auto showTracked = bq::signal::makeInput(false);
+    Window trackedWindow = window(
+            bq::signal::constant<std::string>("Tracked window"));
+    trackedWindow = std::move(trackedWindow).onClose(
+            [opened = showTracked.handle]() mutable { opened.set(false); });
+
+    auto openTracked = [trackedWindow, opened = showTracked.handle]() mutable
+    {
+        opened.set(true);
+
+        Window w = trackedWindow;
+
+        app().addWindow(
+                trackedWindow,
+                widget::button("Close me", bq::signal::constant(
+                        std::function<void()>([w]() mutable
+                            {
+                                w.close();
+                            })))
+                    | modifier::frame()
+                    | modifier::focusGroup());
+    };
+
     auto widgets = widget::hbox({
         widget::vbox({
+            widget::button("Open another window",
+                    bq::signal::constant(std::function<void()>(
+                            []() { openSecondWindow(); })))
+                | modifier::setSizeHint({ 250, 50 }),
+            widget::button(
+                    showTracked.signal.map([](bool b) -> std::string
+                        {
+                            return b ? "Close tracked window"
+                                : "Open tracked window";
+                        }),
+                    showTracked.signal.bindToFunction(
+                        [trackedWindow, openTracked](bool b) mutable
+                        {
+                            if (b)
+                                trackedWindow.close();
+                            else
+                                openTracked();
+                        }))
+                | modifier::setSizeHint({ 250, 50 }),
             shape::rectangle()
                 //.size(bq::signal::constant(avg::Vector2f(100, 100)))
                 //.transform(bq::signal::constant(avg::translate(10, 20)))
@@ -180,14 +239,11 @@ int main()
     });
 
     return app()
-        .windows({
-                window(
-                    bq::signal::constant<std::string>("Test program"),
-                    std::move(widgets)
-                    //| debug::drawKeyboardInputs()
-                    | modifier::focusGroup()
-                    )
-                })
+        .addWindow(
+                window(bq::signal::constant<std::string>("Test program")),
+                std::move(widgets)
+                //| debug::drawKeyboardInputs()
+                | modifier::focusGroup()
+                )
         .run();
 }
-

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "window.h"
+#include "widget/widget.h"
 #include "bquivisibility.h"
 
 #include <bq/signal/signal.h>
@@ -8,7 +9,11 @@
 #include <avg/curve/curves.h>
 
 #include <btl/shared.h>
+#include <btl/uniqueid.h>
 #include <btl/visibility.h>
+
+#include <optional>
+#include <vector>
 
 namespace bqui
 {
@@ -20,10 +25,56 @@ namespace bqui
     public:
         explicit App();
 
-        App windows(std::initializer_list<Window> windows) &&;
+        /** @brief Opens a window the app owns, mounting the given widget in it.
+         *
+         * The widget becomes the window's mounted content, not part of its
+         * identity: removing the window destroys the widget, and adding the same
+         * window again re-supplies a fresh one. The collection is imperative, so
+         * a window may be added and removed both before and while the app runs.
+         *
+         * @throws std::invalid_argument if the window is already open, here or
+         *         in another app. A window and its copies are one window, so
+         *         adding a copy of an open window is adding it twice. A removed
+         *         window belongs to no app again and may be opened anywhere.
+         */
+        App& addWindow(Window window, widget::AnyWidget widget);
 
-        int run(bq::signal::AnySignal<bool> running) &&;
-        int run() &&;
+        /** @brief Closes the app's window with this identity.
+         *
+         * Does nothing if no window in the collection has it. The window's own
+         * data outlives this whenever a Window naming it is still held; only its
+         * mounted widget is torn down.
+         */
+        void removeWindow(btl::UniqueId id);
+
+        /** @brief The app's windows as they are right now.
+         *
+         * The snapshot form, for code outside a signal graph — counting the
+         * open windows, or finding one to remove.
+         */
+        std::vector<Window> getWindows() const;
+
+        /** @brief The app's windows, as a signal.
+         *
+         * The reactive form of the same collection, for a UI that follows it.
+         */
+        bq::signal::AnySignal<std::vector<Window>> getWindowsSignal() const;
+
+        /** @brief Runs until 'running' is false, whatever the windows do.
+         *
+         * The calling thread is the app's thread: run() and withAnimation()
+         * belong to it, and every window is built, drawn and driven there. The
+         * window collection is the exception — addWindow(), removeWindow(),
+         * getWindows() and Window::close() are lock-guarded, so a worker thread
+         * can open or close a window itself.
+         */
+        int run(bq::signal::AnySignal<bool> running);
+
+        /** @overload
+         *
+         * Runs until the last window is closed.
+         */
+        int run();
 
         [[nodiscard]]
         AnimationGuard withAnimation(avg::AnimationOptions options);
@@ -31,6 +82,8 @@ namespace bqui
         friend class AnimationGuard;
 
     private:
+        int runUntil(bq::signal::AnySignal<bool> running);
+
         inline AppDeferred* d()
         {
             return deferred_.get();
