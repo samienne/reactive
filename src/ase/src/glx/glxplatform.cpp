@@ -11,6 +11,9 @@
 
 #include "debug.h"
 
+#include <btl/runloop.h>
+#include <btl/posix/nativehandle_posix.h>
+
 #include <GL/glx.h>
 
 #include <X11/extensions/sync.h>
@@ -355,7 +358,19 @@ void GlxPlatform::run(RenderContext& renderContext,
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    while (true)
+    // Service the X connection through the run loop: when its socket has data,
+    // drain every queued event. handleEvents() is also called per frame below,
+    // which is what actually guarantees delivery today - a busy render loop, and
+    // Xlib can buffer events without new socket data (so select would not
+    // re-fire). This source prepares for on-demand pacing, where the loop blocks
+    // and the fd wakes it.
+    btl::SourceId const xSource = runLoop().addReadable(
+            btl::fromFd(ConnectionNumber(d()->dpy_)),
+            [this]() { handleEvents(); });
+
+    // Drive frames through the run loop; each frame re-posts the next, a false
+    // callback stops it.
+    std::function<void()> tick = [&]()
     {
         std::chrono::steady_clock::time_point thisFrame;
         if (lockStep)
@@ -373,7 +388,10 @@ void GlxPlatform::run(RenderContext& renderContext,
         Frame frame { time, dt };
 
         if (!frameCallback(frame))
-            break;
+        {
+            runLoop().stop();
+            return;
+        }
 
         for (auto& weakWindow : d()->windows_)
         {
@@ -413,7 +431,14 @@ void GlxPlatform::run(RenderContext& renderContext,
         }
 
         lastFrame = thisFrame;
-    }
+
+        runLoop().post(tick);
+    };
+
+    runLoop().post(tick);
+    runLoop().run();
+
+    runLoop().remove(xSource);
 
     while (!frameFutures.empty())
     {

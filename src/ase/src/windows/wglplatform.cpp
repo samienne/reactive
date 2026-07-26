@@ -13,6 +13,7 @@
 #include "tracy/Tracy.hpp"
 
 #include <btl/future.h>
+#include <btl/runloop.h>
 
 #include <windows.h>
 
@@ -297,7 +298,12 @@ void WglPlatform::run(RenderContext& renderContext,
     std::queue<btl::future::Future<>> frameFutures;
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    while (true)
+    // Drive frames through the run loop so sources registered on it (a future
+    // remote socket, timers) are serviced between frames. Each frame pumps the
+    // Win32 message queue, renders, then re-posts the next; a false callback
+    // stops the loop. The message pump stays here in ase - btl has no HWND
+    // awareness.
+    std::function<void()> tick = [&]()
     {
         auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -310,7 +316,10 @@ void WglPlatform::run(RenderContext& renderContext,
         Frame frame { time, dt };
 
         if (!frameCallback(frame))
-            break;
+        {
+            runLoop().stop();
+            return;
+        }
 
         for (auto& weakWindow : windows)
         {
@@ -354,7 +363,12 @@ void WglPlatform::run(RenderContext& renderContext,
         }
 
         lastFrame = thisFrame;
-    }
+
+        runLoop().post(tick);
+    };
+
+    runLoop().post(tick);
+    runLoop().run();
 
     while (!frameFutures.empty())
     {
