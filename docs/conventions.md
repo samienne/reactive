@@ -123,12 +123,10 @@ pass**. Treat that as a defect rather than a style preference: the values still
 agree, so nothing fails — the work is simply done twice, and anything stateful
 in the chain exists twice.
 
-Nothing catches it but reading the code. Signals were once **move-only**, with
-an explicit `.clone()` to opt into copying, precisely so a second consumer could
-not appear by accident; copying was enabled later because move-only was too
-painful to write against. The surviving `.clone()` methods, and the habit of
-passing signals into widget-building functions as parameters rather than
-capturing them, are residue of that era.
+Nothing catches it but reading the code — signals are freely copyable, so the
+compiler is no help. The surviving `.clone()` methods, and the habit of passing
+signals into widget-building functions as parameters rather than capturing them,
+are residue of an earlier move-only design (see `docs/decisions.md`).
 
 ## `merge()` has no zero-argument form
 
