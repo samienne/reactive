@@ -8,21 +8,35 @@ namespace btl
 {
     /** @brief An opaque, non-owning reference to an OS handle.
      *
-     * Carries a platform handle (a POSIX fd, a Win32 SOCKET, ...) without
-     * exposing its type, so a NativeHandle can pass through headers that must
-     * not pull in winsock or windows.h. It is a trivially copyable value with no
-     * ownership: it names a handle the caller still owns and must keep alive
-     * while registered. Build one only through the per-platform conversion
+     * Carries a platform handle (a POSIX fd, a Win32 SOCKET or HANDLE, ...)
+     * without exposing its type, so a NativeHandle can pass through headers that
+     * must not pull in winsock or windows.h. It is a trivially copyable value
+     * with no ownership: it names a handle the caller still owns and must keep
+     * alive while registered. Build one only through the per-platform conversion
      * headers (btl/posix/nativehandle_posix.h, btl/win32/nativehandle_win32.h).
      */
     class NativeHandle
     {
     public:
+        /** @brief What the stored bytes are, so a backend waits the right way. */
+        enum class Kind
+        {
+            None,
+            Fd,     // POSIX file descriptor: select/poll.
+            Socket, // Win32 SOCKET: WSAEventSelect onto an event.
+            Handle, // Win32 waitable HANDLE (e.g. an overlapped-I/O event).
+        };
+
         NativeHandle() = default;
 
         bool valid() const noexcept
         {
-            return valid_;
+            return kind_ != Kind::None;
+        }
+
+        Kind kind() const noexcept
+        {
+            return kind_;
         }
 
     private:
@@ -30,7 +44,7 @@ namespace btl
 
         alignas(alignof(std::max_align_t)) unsigned char
             storage_[2 * sizeof(void*)] = {};
-        bool valid_ = false;
+        Kind kind_ = Kind::None;
     };
 
     /** @brief The one door platform conversion code uses to fill or read a
@@ -39,7 +53,7 @@ namespace btl
     struct NativeHandleAccess
     {
         template <typename T>
-        static NativeHandle make(T value)
+        static NativeHandle make(T value, NativeHandle::Kind kind)
         {
             static_assert(std::is_trivially_copyable<T>::value,
                     "native handle payload must be trivially copyable");
@@ -48,7 +62,7 @@ namespace btl
 
             NativeHandle handle;
             std::memcpy(handle.storage_, &value, sizeof(T));
-            handle.valid_ = true;
+            handle.kind_ = kind;
             return handle;
         }
 

@@ -7,7 +7,7 @@ namespace btl
     /** @brief Wrap a POSIX file descriptor as a NativeHandle. */
     inline NativeHandle fromFd(int fd)
     {
-        return NativeHandleAccess::make(fd);
+        return NativeHandleAccess::make(fd, NativeHandle::Kind::Fd);
     }
 
     /** @brief Read the file descriptor back out. Only valid on POSIX handles. */

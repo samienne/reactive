@@ -54,7 +54,8 @@ namespace
         ~Win32RunLoop() override
         {
             for (auto& entry : sources_)
-                WSACloseEvent(entry.second.event);
+                if (entry.second.ownsEvent)
+                    WSACloseEvent(entry.second.event);
             if (wakeup_)
                 CloseHandle(wakeup_);
         }
@@ -62,6 +63,8 @@ namespace
         SourceId addReadable(NativeHandle handle,
                 std::function<void()> onReadable) override
         {
+            if (handle.kind() == NativeHandle::Kind::Handle)
+                return addHandle(handle, std::move(onReadable));
             return addSocket(handle, std::move(onReadable),
                     FD_READ | FD_ACCEPT | FD_CLOSE);
         }
@@ -69,6 +72,8 @@ namespace
         SourceId addWritable(NativeHandle handle,
                 std::function<void()> onWritable) override
         {
+            if (handle.kind() == NativeHandle::Kind::Handle)
+                return addHandle(handle, std::move(onWritable));
             return addSocket(handle, std::move(onWritable), FD_WRITE | FD_CLOSE);
         }
 
@@ -94,7 +99,8 @@ namespace
             auto it = sources_.find(id);
             if (it != sources_.end())
             {
-                WSACloseEvent(it->second.event);
+                if (it->second.ownsEvent)
+                    WSACloseEvent(it->second.event);
                 sources_.erase(it);
             }
         }
@@ -153,8 +159,9 @@ namespace
     private:
         struct Source
         {
-            WSAEVENT event;
-            SOCKET socket;
+            HANDLE event;   // a WSAEVENT we own (socket), or a caller HANDLE.
+            SOCKET socket;  // INVALID_SOCKET for a handle source.
+            bool ownsEvent; // true: we created the event and must close it.
             std::function<void()> callback;
         };
 
@@ -172,7 +179,18 @@ namespace
             WSAEventSelect(socket, event, events);
 
             SourceId id = nextId_++;
-            sources_[id] = Source{ event, socket, std::move(callback) };
+            sources_[id] = Source{ event, socket, true, std::move(callback) };
+            return id;
+        }
+
+        // A handle source waits on a caller-owned waitable HANDLE directly (an
+        // overlapped-I/O event, a manual-reset event): no WSAEventSelect, no
+        // network-event enumeration, and we never close it.
+        SourceId addHandle(NativeHandle handle, std::function<void()> callback)
+        {
+            SourceId id = nextId_++;
+            sources_[id] = Source{ toHandle(handle), INVALID_SOCKET, false,
+                    std::move(callback) };
             return id;
         }
 
@@ -182,8 +200,14 @@ namespace
             if (it == sources_.end())
                 return;
 
-            WSANETWORKEVENTS network;
-            WSAEnumNetworkEvents(it->second.socket, it->second.event, &network);
+            // Sockets need their pending network events drained; a handle source
+            // has none, its callback drains the I/O (and resets the event).
+            if (it->second.socket != INVALID_SOCKET)
+            {
+                WSANETWORKEVENTS network;
+                WSAEnumNetworkEvents(
+                        it->second.socket, it->second.event, &network);
+            }
 
             // The callback may remove this or other sources, so copy it out.
             std::function<void()> callback = it->second.callback;

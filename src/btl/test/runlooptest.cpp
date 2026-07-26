@@ -145,3 +145,32 @@ TEST(RunLoop, readableFiresWhenPeerWrites)
     closeSock(pair.first);
     closeSock(pair.second);
 }
+
+#ifdef _WIN32
+// A waitable HANDLE (here a manual-reset event, as a named pipe's overlapped
+// event would be) is a first-class readable source on Windows.
+TEST(RunLoop, readableFiresOnSignaledHandleThenStopsAfterRemove)
+{
+    btl::RunLoop loop;
+
+    HANDLE event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr); // manual-reset
+
+    int fires = 0;
+    btl::SourceId id = loop.addReadable(btl::fromHandle(event), [&]
+        {
+            ++fires;
+            loop.remove(id); // stop watching; the event stays signaled.
+            // If remove() failed, the still-signaled (level-triggered) event
+            // would fire again before this timer stops the loop.
+            loop.addTimer(20ms, [&] { loop.stop(); });
+        });
+
+    ::SetEvent(event); // signaled before run(): readable from the start.
+
+    loop.run();
+
+    EXPECT_EQ(fires, 1); // fired once, and remove() kept it from re-firing.
+
+    ::CloseHandle(event);
+}
+#endif
