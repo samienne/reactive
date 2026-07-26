@@ -34,13 +34,7 @@ namespace bqui::widget
 
     struct Introspection;
 
-    /**
-     * @brief An immutable, structurally shared child node.
-     *
-     * Subtrees are shared by pointer, so transforming or rebuilding one node
-     * leaves untouched siblings shared rather than copied (the same idiom as
-     * avg's render tree).
-     */
+    /** @brief An immutable, structurally shared child node. */
     using IntrospectionChild = std::shared_ptr<Introspection const>;
 
     /**
@@ -53,12 +47,9 @@ namespace bqui::widget
      * (setName/setRole/setData/addCapability/setWidgetIntrospection) — a curated
      * surface, not a reflection of a widget's internals.
      *
-     * `obb` is stored in the node's own **local** space, and its transform
-     * places the node (and, as their frame, its children) relative to the parent
-     * — mirroring how avg's render tree stores a local transform per node.
-     * `Instance::transform` composes onto this obb in O(1) without rewriting the
-     * subtree; the absolute window-space obbs are produced by a single top-down
-     * pass (`resolveIntrospection`) at the consumer boundary.
+     * `obb` is stored in the node's own **local** space; the absolute
+     * window-space obbs are produced by `resolveIntrospection` at the consumer
+     * boundary.
      *
      * `children` is author-controlled: opaque widgets emit none, containers
      * aggregate, and an affordance whose geometry diverges from its parent is
@@ -91,9 +82,6 @@ namespace bqui::widget
     /**
      * @brief Place a node relative to an outer frame by composing `t` onto its
      * own obb.
-     *
-     * O(1): the shared child subtree is left untouched, its obbs staying local;
-     * the composition is folded in later by `resolveIntrospection`.
      */
     inline Introspection transformIntrospection(Introspection node,
             avg::Transform const& t)
