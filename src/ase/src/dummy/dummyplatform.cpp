@@ -33,8 +33,20 @@ void DummyPlatform::run(RenderContext&,
         std::function<bool(Frame const&)> frameCallback)
 {
     Frame frame{};
-    while (frameCallback(frame)) {
-    }
+
+    // Drive frames through the run loop so any sources registered on it (a
+    // remote socket, a timer) are serviced between frames. Each frame re-posts
+    // the next; a false return stops the loop.
+    std::function<void()> tick = [&]()
+    {
+        if (frameCallback(frame))
+            runLoop().post(tick);
+        else
+            runLoop().stop();
+    };
+
+    runLoop().post(tick);
+    runLoop().run();
 }
 
 void DummyPlatform::requestFrame()
