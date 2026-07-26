@@ -141,13 +141,7 @@ namespace bq::signal
         constexpr bool isForEachKeyFunc =
             std::is_invocable_v<TKeyFunc const&, T const&>;
 
-        /** @brief Whether `TDelegate` is forEach()'s keyed delegate form.
-         *
-         * The key is a prvalue here because that is how it is handed over: a
-         * delegate that keeps it keeps a copy of its own, and one that binds a
-         * reference to it is doing what binding a reference to any parameter
-         * does.
-         */
+        /** @brief Whether `TDelegate` is forEach()'s keyed delegate form. */
         template <typename TDelegate, typename TKey, typename T>
         constexpr bool isKeyedForEachDelegate =
             std::is_invocable_v<TDelegate const&, TKey, AnySignal<T>>;
@@ -157,12 +151,7 @@ namespace bq::signal
         constexpr bool isPlainForEachDelegate =
             std::is_invocable_v<TDelegate const&, AnySignal<T>>;
 
-        /** @brief Invokes a forEach() delegate in whichever form it takes.
-         *
-         * A delegate that accepts both — a generic lambda does — is given
-         * the key. It is strictly more to work with, and one that names no
-         * parameter for it is unaffected.
-         */
+        /** @brief Invokes a forEach() delegate in whichever form it takes. */
         template <typename TDelegate, typename TKey, typename T>
         auto invokeForEachDelegate(TDelegate const& delegate, TKey key,
                 AnySignal<T> value)
@@ -715,10 +704,8 @@ namespace bq::signal
      * (TKey, AnySignal<T>) -> U
      * @endcode
      *
-     * The key comes first, and by value rather than as a signal, because it
-     * cannot change: it is the identity, and a delegate handed it as a signal
-     * would have to map over a constant to reach it. A delegate that accepts
-     * both forms — a generic lambda does — is given the key.
+     * The key comes first, and by value rather than as a signal. A delegate
+     * that accepts both forms — a generic lambda does — is given the key.
      *
      * Eviction is strict. When a key leaves, its identity is dropped and what
      * the delegate built for it is destroyed in that same update; a key that
@@ -757,9 +744,8 @@ namespace bq::signal
         static_assert(isDelegate, "forEach's delegate must be const callable "
                 "as (TKey, AnySignal<T>) or as (AnySignal<T>)");
 
-        // Everything below is discarded when the delegate is neither form, so
-        // that the assert above is not followed by a page of failures from
-        // inside the node. The call still sees a function returning void.
+        // Guarded so a non-delegate stops at the assert, not a page of
+        // node-internal errors.
         if constexpr (isDelegate)
         {
             using U = detail::ForEachResult<TDelegate, Key, T>;
