@@ -85,6 +85,16 @@ namespace bqui::widget
             return instance_->clone().map(&Instance::getKeyboardInputs);
         }
 
+        // Flatten per-node local obbs to absolute window space (see
+        // resolveIntrospection).
+        auto getIntrospection() const
+        {
+            return instance_->clone().map([](Instance const& instance)
+                {
+                    return resolveIntrospection(instance.getIntrospection());
+                });
+        }
+
     private:
         btl::CloneOnCopy<TInstance> instance_;
         BuildParams params_;

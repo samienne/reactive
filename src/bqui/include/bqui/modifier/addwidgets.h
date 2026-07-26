@@ -44,10 +44,17 @@ namespace bqui::modifier
                 if (input.isFocusable())
                     inputs.push_back(input);
 
+        widget::Introspection introspection = i.getIntrospection();
+        introspection.children.reserve(instances.size());
+        for (auto const& instance : instances)
+            introspection.children.push_back(
+                    widget::makeIntrospectionChild(instance.getIntrospection()));
+
         return std::move(i)
             .setRenderTree(avg::RenderTree(std::move(container)))
             .setInputAreas(std::move(areas))
             .setKeyboardInputs(std::move(inputs))
+            .setIntrospection(std::move(introspection))
             ;
     }
 
