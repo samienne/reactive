@@ -35,10 +35,8 @@ namespace bqui::widget
             float prev = (i ? combined[i-1] : 0.0f);
             float span = combined[i] - prev;
 
-            // An interval is empty whenever the children ask for no room
-            // across it, which a list of fixed-size children does for two of
-            // the three. How far into an empty interval the size reaches is
-            // then only whether it reaches it at all.
+            // Empty interval (span 0): avoid the divide; the size either
+            // reaches it (1) or it does not (0).
             float m = span != 0.0f
                 ? (size - prev) / span
                 : (size < prev ? 0.0f : 1.0f);
