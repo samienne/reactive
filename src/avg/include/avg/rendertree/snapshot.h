@@ -42,12 +42,7 @@ namespace avg
         std::optional<UniqueId> id;
         Obb obb;
 
-        /**
-         * @brief The node is still drawn but is on its way out.
-         *
-         * Set for a container child that has been removed and for a transition
-         * that is running backwards.
-         */
+        /** @brief The node is still drawn but is on its way out. */
         bool leaving = false;
 
         std::vector<SnapshotText> text;
@@ -93,9 +88,8 @@ namespace avg
     /**
      * @brief Describes a leaf @p node along with the text it draws.
      *
-     * The text is recovered by running @p node's draw function in full out of
-     * @p context, which is the only place a leaf's content exists; the drawing
-     * is then discarded. A snapshot therefore costs what a frame costs.
+     * Costs a full draw pass, since a leaf's text exists only inside its draw
+     * function.
      */
     AVG_EXPORT SnapshotNode makeLeafSnapshotNode(
             std::string type,
@@ -108,9 +102,6 @@ namespace avg
     /**
      * @brief Drops the text of @p node and of its descendants that lies
      * entirely outside @p clip.
-     *
-     * A leaf is described on its own, so an enclosing clip has to be applied
-     * afterwards for the snapshot to report only what is on screen.
      */
     AVG_EXPORT void clipSnapshotText(SnapshotNode& node, Obb const& clip);
 
