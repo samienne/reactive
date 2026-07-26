@@ -117,6 +117,17 @@ lets the unit tests cover drawing at all. The alternative — compiling ase's
 whole headless *platform*, which is worth having on its own terms and is a
 separate concern; drawing does not need it.
 
+## Signals are copyable, not move-only
+
+`bq::signal` is freely copyable. It was once **move-only**, with an explicit
+`.clone()` to opt into copying, so a second consumer of a signal could not
+appear by accident.
+
+**Why the change:** move-only was too painful to write against. The cost is that
+accidental duplication of a signal chain (see `docs/conventions.md`) no longer
+fails to compile — only review catches it. The surviving `.clone()` methods and
+the parameter-passing habit are residue of the move-only era.
+
 ## bqui's type-erased classes use no `extern template`
 
 `Widget`, `Element`, `WidgetModifier`, `ElementModifier` and `BuilderModifier`
