@@ -6,7 +6,7 @@
 #define NOMINMAX
 #endif
 
-#include "../runloopimpl.h"
+#include "runloopimpl.h"
 
 #include <btl/win32/nativehandle_win32.h>
 
@@ -14,9 +14,11 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <stdexcept>
 #include <vector>
 
 #pragma comment(lib, "ws2_32.lib")
@@ -61,7 +63,7 @@ namespace
         }
 
         SourceId addReadable(NativeHandle handle,
-                std::function<void()> onReadable) override
+                Callback onReadable) override
         {
             if (handle.kind() == NativeHandle::Kind::Handle)
                 return addHandle(handle, std::move(onReadable));
@@ -70,7 +72,7 @@ namespace
         }
 
         SourceId addWritable(NativeHandle handle,
-                std::function<void()> onWritable) override
+                Callback onWritable) override
         {
             if (handle.kind() == NativeHandle::Kind::Handle)
                 return addHandle(handle, std::move(onWritable));
@@ -78,14 +80,14 @@ namespace
         }
 
         TimerId addTimer(std::chrono::microseconds delay,
-                std::function<void()> callback) override
+                Callback callback) override
         {
             TimerId id = nextId_++;
             timers_[id] = Timer{ Clock::now() + delay, std::move(callback) };
             return id;
         }
 
-        void post(std::function<void()> task) override
+        void post(Callback task) override
         {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
@@ -112,7 +114,9 @@ namespace
 
         void run() override
         {
-            running_ = true;
+            if (running_.exchange(true))
+                throw std::logic_error("btl::RunLoop::run() is already running");
+            enterLoopThread();
             while (running_)
             {
                 ResetEvent(wakeup_);
@@ -162,16 +166,16 @@ namespace
             HANDLE event;   // a WSAEVENT we own (socket), or a caller HANDLE.
             SOCKET socket;  // INVALID_SOCKET for a handle source.
             bool ownsEvent; // true: we created the event and must close it.
-            std::function<void()> callback;
+            Callback callback;
         };
 
         struct Timer
         {
             Clock::time_point deadline;
-            std::function<void()> callback;
+            Callback callback;
         };
 
-        SourceId addSocket(NativeHandle handle, std::function<void()> callback,
+        SourceId addSocket(NativeHandle handle, Callback callback,
                 long events)
         {
             SOCKET socket = toSocket(handle);
@@ -186,7 +190,7 @@ namespace
         // A handle source waits on a caller-owned waitable HANDLE directly (an
         // overlapped-I/O event, a manual-reset event): no WSAEventSelect, no
         // network-event enumeration, and we never close it.
-        SourceId addHandle(NativeHandle handle, std::function<void()> callback)
+        SourceId addHandle(NativeHandle handle, Callback callback)
         {
             SourceId id = nextId_++;
             sources_[id] = Source{ toHandle(handle), INVALID_SOCKET, false,
@@ -210,20 +214,20 @@ namespace
             }
 
             // The callback may remove this or other sources, so copy it out.
-            std::function<void()> callback = it->second.callback;
-            callback();
+            Callback callback = it->second.callback;
+            invoke(callback);
         }
 
         void drainPosts()
         {
-            std::vector<std::function<void()>> tasks;
+            std::vector<Callback> tasks;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 tasks.swap(posted_);
             }
             for (auto& task : tasks)
             {
-                task();
+                invoke(task);
                 if (!running_)
                     return;
             }
@@ -260,9 +264,9 @@ namespace
                 if (it == timers_.end())
                     continue; // cancelled by an earlier callback this pass.
 
-                std::function<void()> callback = std::move(it->second.callback);
+                Callback callback = std::move(it->second.callback);
                 timers_.erase(it); // one-shot.
-                callback();
+                invoke(callback);
                 if (!running_)
                     return;
             }
@@ -273,14 +277,14 @@ namespace
         std::map<SourceId, Source> sources_;
         std::map<TimerId, Timer> timers_;
         std::mutex mutex_;
-        std::vector<std::function<void()>> posted_;
+        std::vector<Callback> posted_;
         std::uint64_t nextId_ = 1;
-        bool running_ = false;
+        std::atomic<bool> running_{ false };
     };
 }
 
-    std::unique_ptr<RunLoopImpl> makeRunLoopImpl()
+    std::shared_ptr<RunLoopImpl> makePlatformSpecificRunLoopImpl()
     {
-        return std::make_unique<Win32RunLoop>();
+        return std::make_shared<Win32RunLoop>();
     }
 }

@@ -12,7 +12,7 @@ endif
 
 libbtl = static_library('btl',
   btl_srcs,
-  include_directories: include_directories('include'),
+  include_directories: include_directories('include', 'src'),
   cpp_args: btl_args,
   pic: true,
   )

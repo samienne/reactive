@@ -19,6 +19,7 @@ using Sock = int;
 #endif
 
 using namespace std::chrono_literals;
+using Controller = btl::RunLoop::Controller;
 
 namespace
 {
@@ -85,10 +86,13 @@ TEST(RunLoop, timerFiresThenStops)
     btl::RunLoop loop;
 
     bool fired = false;
-    loop.addTimer(5ms, [&]
+    loop.post([&](Controller& c)
         {
-            fired = true;
-            loop.stop();
+            c.addTimer(5ms, [&](Controller& cc)
+                {
+                    fired = true;
+                    cc.stop();
+                }).detach();
         });
 
     loop.run(); // returns once stop() runs from the timer.
@@ -107,11 +111,11 @@ TEST(RunLoop, postRunsOnTheLoopThread)
     std::thread poster([&]
         {
             std::this_thread::sleep_for(10ms);
-            loop.post([&]
+            loop.post([&](Controller& c)
                 {
                     taskThread = std::this_thread::get_id();
                     ran = true;
-                    loop.stop();
+                    c.stop();
                 });
         });
 
@@ -129,18 +133,51 @@ TEST(RunLoop, readableFiresWhenPeerWrites)
     auto pair = makePair();
 
     bool readable = false;
-    loop.addReadable(wrap(pair.first), [&]
+    loop.post([&](Controller& c)
         {
-            readable = true;
-            loop.stop();
+            c.addReadable(wrap(pair.first), [&](Controller& cc)
+                {
+                    readable = true;
+                    cc.stop();
+                }).detach();
         });
 
-    // Peer writes, so pair.first is readable when the loop starts.
+    // Peer writes, so pair.first is readable when the source is registered.
     writeByte(pair.second);
 
     loop.run();
 
     EXPECT_TRUE(readable);
+
+    closeSock(pair.first);
+    closeSock(pair.second);
+}
+
+TEST(RunLoop, droppingSourceHandleRemovesIt)
+{
+    btl::RunLoop loop;
+
+    auto pair = makePair();
+
+    int fires = 0;
+    loop.post([&](Controller& c)
+        {
+            {
+                auto source = c.addReadable(wrap(pair.first), [&](Controller&)
+                    {
+                        ++fires;
+                    });
+                // source drops here, on the loop thread, so it is removed before
+                // the loop waits - the pending write must not fire it.
+            }
+            c.addTimer(20ms, [](Controller& t) { t.stop(); }).detach();
+        });
+
+    writeByte(pair.second);
+
+    loop.run();
+
+    EXPECT_EQ(fires, 0);
 
     closeSock(pair.first);
     closeSock(pair.second);
@@ -156,13 +193,17 @@ TEST(RunLoop, readableFiresOnSignaledHandleThenStopsAfterRemove)
     HANDLE event = ::CreateEventW(nullptr, TRUE, FALSE, nullptr); // manual-reset
 
     int fires = 0;
-    btl::SourceId id = loop.addReadable(btl::fromHandle(event), [&]
+    btl::RunLoop::Source source;
+    loop.post([&](Controller& c)
         {
-            ++fires;
-            loop.remove(id); // stop watching; the event stays signaled.
-            // If remove() failed, the still-signaled (level-triggered) event
-            // would fire again before this timer stops the loop.
-            loop.addTimer(20ms, [&] { loop.stop(); });
+            source = c.addReadable(btl::fromHandle(event), [&](Controller& cc)
+                {
+                    ++fires;
+                    cc.remove(source.id()); // stop watching; event stays signaled.
+                    // If remove() failed, the still-signaled (level-triggered)
+                    // event would fire again before this timer stops the loop.
+                    cc.addTimer(20ms, [](Controller& t) { t.stop(); }).detach();
+                });
         });
 
     ::SetEvent(event); // signaled before run(): readable from the start.

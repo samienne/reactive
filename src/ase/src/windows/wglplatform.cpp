@@ -303,7 +303,8 @@ void WglPlatform::run(RenderContext& renderContext,
     // Win32 message queue, renders, then re-posts the next; a false callback
     // stops the loop. The message pump stays here in ase - btl has no HWND
     // awareness.
-    std::function<void()> tick = [&]()
+    std::function<void(btl::RunLoop::Controller&)> tick =
+        [&](btl::RunLoop::Controller& controller)
     {
         auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -317,7 +318,7 @@ void WglPlatform::run(RenderContext& renderContext,
 
         if (!frameCallback(frame))
         {
-            runLoop().stop();
+            controller.stop();
             return;
         }
 
@@ -364,7 +365,7 @@ void WglPlatform::run(RenderContext& renderContext,
 
         lastFrame = thisFrame;
 
-        runLoop().post(tick);
+        controller.post(tick);
     };
 
     runLoop().post(tick);

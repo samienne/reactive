@@ -37,12 +37,13 @@ void DummyPlatform::run(RenderContext&,
     // Drive frames through the run loop so any sources registered on it (a
     // remote socket, a timer) are serviced between frames. Each frame re-posts
     // the next; a false return stops the loop.
-    std::function<void()> tick = [&]()
+    std::function<void(btl::RunLoop::Controller&)> tick =
+        [&](btl::RunLoop::Controller& controller)
     {
         if (frameCallback(frame))
-            runLoop().post(tick);
+            controller.post(tick);
         else
-            runLoop().stop();
+            controller.stop();
     };
 
     runLoop().post(tick);

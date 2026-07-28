@@ -12,13 +12,13 @@ namespace btl
     /** @brief Wrap a Win32 SOCKET as a NativeHandle. */
     inline NativeHandle fromSocket(SOCKET socket)
     {
-        return NativeHandleAccess::make(socket, NativeHandle::Kind::Socket);
+        return makeNativeHandle(socket, NativeHandle::Kind::Socket);
     }
 
     /** @brief Read the SOCKET back out. Only valid on Win32 socket handles. */
     inline SOCKET toSocket(NativeHandle const& handle)
     {
-        return NativeHandleAccess::load<SOCKET>(handle);
+        return loadNativeHandle<SOCKET>(handle);
     }
 
     /** @brief Wrap a Win32 waitable HANDLE (e.g. an overlapped-I/O event) as a
@@ -26,12 +26,12 @@ namespace btl
      */
     inline NativeHandle fromHandle(HANDLE handle)
     {
-        return NativeHandleAccess::make(handle, NativeHandle::Kind::Handle);
+        return makeNativeHandle(handle, NativeHandle::Kind::Handle);
     }
 
     /** @brief Read the HANDLE back out. Only valid on Win32 handle handles. */
     inline HANDLE toHandle(NativeHandle const& native)
     {
-        return NativeHandleAccess::load<HANDLE>(native);
+        return loadNativeHandle<HANDLE>(native);
     }
 }

@@ -40,38 +40,39 @@ namespace btl
         }
 
     private:
-        friend struct NativeHandleAccess;
+        template <typename T>
+        friend NativeHandle makeNativeHandle(T value, Kind kind);
+        template <typename T>
+        friend T loadNativeHandle(NativeHandle const& handle);
 
         alignas(alignof(std::max_align_t)) unsigned char
             storage_[2 * sizeof(void*)] = {};
         Kind kind_ = Kind::Invalid;
     };
 
-    /** @brief The one door platform conversion code uses to fill or read a
-     * NativeHandle's bytes. Not for general use.
-     */
-    struct NativeHandleAccess
+    /** @brief Pack a value into a NativeHandle. For the conversion headers. */
+    template <typename T>
+    NativeHandle makeNativeHandle(T value, NativeHandle::Kind kind)
     {
-        template <typename T>
-        static NativeHandle make(T value, NativeHandle::Kind kind)
-        {
-            static_assert(std::is_trivially_copyable<T>::value,
-                    "native handle payload must be trivially copyable");
-            static_assert(sizeof(T) <= sizeof(NativeHandle::storage_),
-                    "native handle payload does not fit; bump the storage size");
+        static_assert(std::is_trivially_copyable<T>::value,
+                "native handle payload must be trivially copyable");
+        static_assert(sizeof(T) <= sizeof(NativeHandle::storage_),
+                "native handle payload does not fit; bump the storage size");
 
-            NativeHandle handle;
-            std::memcpy(handle.storage_, &value, sizeof(T));
-            handle.kind_ = kind;
-            return handle;
-        }
+        NativeHandle handle;
+        std::memcpy(handle.storage_, &value, sizeof(T));
+        handle.kind_ = kind;
+        return handle;
+    }
 
-        template <typename T>
-        static T load(NativeHandle const& handle)
-        {
-            T value{};
-            std::memcpy(&value, handle.storage_, sizeof(T));
-            return value;
-        }
-    };
+    /** @brief Read a value back out of a NativeHandle. For the conversion
+     * headers.
+     */
+    template <typename T>
+    T loadNativeHandle(NativeHandle const& handle)
+    {
+        T value{};
+        std::memcpy(&value, handle.storage_, sizeof(T));
+        return value;
+    }
 }

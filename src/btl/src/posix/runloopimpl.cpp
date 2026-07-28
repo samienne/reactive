@@ -1,4 +1,4 @@
-#include "../runloopimpl.h"
+#include "runloopimpl.h"
 
 #include <btl/posix/nativehandle_posix.h>
 
@@ -7,9 +7,11 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <map>
 #include <mutex>
+#include <stdexcept>
 #include <vector>
 
 namespace btl
@@ -45,26 +47,26 @@ namespace
         }
 
         SourceId addReadable(NativeHandle handle,
-                std::function<void()> onReadable) override
+                Callback onReadable) override
         {
             return addFd(handle, std::move(onReadable), /*write=*/false);
         }
 
         SourceId addWritable(NativeHandle handle,
-                std::function<void()> onWritable) override
+                Callback onWritable) override
         {
             return addFd(handle, std::move(onWritable), /*write=*/true);
         }
 
         TimerId addTimer(std::chrono::microseconds delay,
-                std::function<void()> callback) override
+                Callback callback) override
         {
             TimerId id = nextId_++;
             timers_[id] = Timer{ Clock::now() + delay, std::move(callback) };
             return id;
         }
 
-        void post(std::function<void()> task) override
+        void post(Callback task) override
         {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
@@ -85,7 +87,9 @@ namespace
 
         void run() override
         {
-            running_ = true;
+            if (running_.exchange(true))
+                throw std::logic_error("btl::RunLoop::run() is already running");
+            enterLoopThread();
             while (running_)
             {
                 drainPipe();
@@ -132,16 +136,16 @@ namespace
         {
             int fd;
             bool write;
-            std::function<void()> callback;
+            Callback callback;
         };
 
         struct Timer
         {
             Clock::time_point deadline;
-            std::function<void()> callback;
+            Callback callback;
         };
 
-        SourceId addFd(NativeHandle handle, std::function<void()> callback,
+        SourceId addFd(NativeHandle handle, Callback callback,
                 bool write)
         {
             SourceId id = nextId_++;
@@ -166,14 +170,14 @@ namespace
 
         void drainPosts()
         {
-            std::vector<std::function<void()>> tasks;
+            std::vector<Callback> tasks;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 tasks.swap(posted_);
             }
             for (auto& task : tasks)
             {
-                task();
+                invoke(task);
                 if (!running_)
                     return;
             }
@@ -197,8 +201,8 @@ namespace
                 if (it == sources_.end())
                     continue; // removed by an earlier callback this pass.
 
-                std::function<void()> callback = it->second.callback;
-                callback();
+                Callback callback = it->second.callback;
+                invoke(callback);
                 if (!running_)
                     return;
             }
@@ -238,9 +242,9 @@ namespace
                 if (it == timers_.end())
                     continue;
 
-                std::function<void()> callback = std::move(it->second.callback);
+                Callback callback = std::move(it->second.callback);
                 timers_.erase(it); // one-shot.
-                callback();
+                invoke(callback);
                 if (!running_)
                     return;
             }
@@ -250,14 +254,14 @@ namespace
         std::map<SourceId, Source> sources_;
         std::map<TimerId, Timer> timers_;
         std::mutex mutex_;
-        std::vector<std::function<void()>> posted_;
+        std::vector<Callback> posted_;
         std::uint64_t nextId_ = 1;
-        bool running_ = false;
+        std::atomic<bool> running_{ false };
     };
 }
 
-    std::unique_ptr<RunLoopImpl> makeRunLoopImpl()
+    std::shared_ptr<RunLoopImpl> makePlatformSpecificRunLoopImpl()
     {
-        return std::make_unique<PosixRunLoop>();
+        return std::make_shared<PosixRunLoop>();
     }
 }

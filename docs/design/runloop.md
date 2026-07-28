@@ -1,11 +1,10 @@
 # Design: `btl::RunLoop`, the platform run loop
 
-> **Status: design record, not yet implemented.** This file pins the principles
-> agreed before code so the first implementation does not have to be reworked as
-> functionality is added. Verified against `4edc9a0` (2026-07-26). When the work
-> lands, the stable parts move to their normal homes - the API contract to
-> Doxygen in the new `btl` headers, the settled *why* to `docs/decisions.md` -
-> and this file is trimmed to the parts still ahead of the code.
+> **Status: implemented (sockets, timers, post; POSIX + Win32).** This file pins
+> the principles behind the design; the API contract itself is Doxygen in the
+> `btl` headers. Verified against the `runloop-design` branch (2026-07-29). The
+> parts still ahead of the code are the deferred backends and source kinds noted
+> below.
 
 ## Purpose
 
@@ -55,44 +54,58 @@ vsync source (which is delivered *by* the native loop) cannot reach it.
 
 ## Interface
 
-A concrete value type, move-only, with an internal pimpl:
+`RunLoop` is a move-only value with an internal pimpl. Its public surface is
+deliberately small - `run`, `post`, `stop` - because it is the *only* part that
+is shared across threads. Everything else (registering sources and timers,
+removing them) lives on a **`RunLoop::Controller`**, which the loop hands to every
+callback for the length of that call. So the registration API is reachable only
+from the loop thread: you are either already in a callback (you have a
+`Controller`), or you `post` yourself onto the loop thread to get one.
 
-```cpp
-namespace btl
-{
-    class RunLoop
-    {
-    public:
-        RunLoop();
-        ~RunLoop();
-        RunLoop(RunLoop&&) noexcept;
-        RunLoop& operator=(RunLoop&&) noexcept;
-
-        SourceId addReadable(NativeHandle, std::function<void()> onReadable);
-        SourceId addWritable(NativeHandle, std::function<void()> onWritable);
-        TimerId  addTimer(std::chrono::microseconds delay, std::function<void()>);
-        void     post(std::function<void()>);   // thread-safe: wake + run on loop thread
-        void     remove(SourceId);
-        void     cancel(TimerId);
-
-        void     run();    // yield control; may never return
-        void     stop();   // wake and exit; callable from any thread or callback
-
-    private:
-        std::unique_ptr<class RunLoopImpl> impl_;   // the only allocation; per-platform
-    };
-}
-```
+Registering returns an RAII handle - `RunLoop::Source` / `RunLoop::Timer` - that
+removes its registration when dropped. `detach()` opts out (a fire-and-forget
+one-shot timer, or a source that lives as long as the loop).
 
 Contract to pin, because it differs across backends:
 
 - **Level-triggered** readiness: a readable/writable callback keeps firing while
   the handle stays ready (matches `select`), rather than edge-triggered `epoll`
   semantics.
-- **Single-thread affinity**: a `RunLoop` and its sources belong to one thread.
-  Anything from another thread goes through `post`.
-- **Removal from within a callback is allowed** - a source may `remove()` itself.
+- **Removal from within a callback is allowed** - a callback may drop a handle or
+  `Controller::remove` a source by id.
 - `run()` may not return; see the core principle.
+
+## Thread safety and ownership
+
+Only `post` and `stop` cross threads. The split is what makes that safe *by
+construction*: the non-thread-safe API cannot even be named off the loop thread,
+because a `Controller` only exists inside a loop-thread callback. A worker thread
+holds at most a `RunLoop&` (for `post`/`stop`); to touch sources it posts a task
+and is handed a `Controller` on the loop thread.
+
+The payoff is that the loop's own state needs almost no locking:
+
+- **Shared, so protected:** the posted-task queue (a mutex) and the running flag
+  (an atomic). `post` appends under the lock and wakes the loop; `stop` clears the
+  flag and wakes it.
+- **Loop-thread-only, so lock-free:** the source and timer maps and the id
+  counter. Nothing off the loop thread reaches them, so they carry no mutex.
+
+Lifetime rules:
+
+- `run()` pins a local `shared_ptr` to the impl before dispatching, so the loop
+  survives its owning `RunLoop` being destroyed mid-run (for instance,
+  reentrantly from a callback). When `run()` unwinds, that pin drops and the impl
+  is freed on the loop thread.
+- `~RunLoop()` asks the loop to stop but does **not** block - a join would
+  deadlock the reentrant-destroy case, which is the only in-run destruction the
+  contract allows. Destroy a `RunLoop` on its loop thread, or after `run()` has
+  returned; do not destroy it from another thread while `run()` is blocked
+  elsewhere.
+- Calling `run()` again while it is already running throws.
+- A handle's destructor may run on any thread: it removes its registration
+  directly if it is on the loop thread, and otherwise posts the removal (a no-op
+  if the loop is already gone).
 
 ## `NativeHandle`
 
@@ -100,24 +113,15 @@ The loop refers to an OS handle without exposing the platform type. `NativeHandl
 is an **opaque, fixed-size inline buffer** - non-owning, no RAII, trivially
 copyable, and free of any platform header:
 
-```cpp
-// btl/nativehandle.h  (public, <cstdint> only)
-class NativeHandle
-{
-public:
-    NativeHandle() = default;            // invalid
-    bool valid() const;
-private:
-    alignas(std::max_align_t) unsigned char storage_[2 * sizeof(void*)] = {};
-    bool valid_ = false;
-    friend struct NativeHandleAccess;    // the only door for platform code
-};
-```
+`NativeHandle` is a fixed-size inline byte buffer plus a small `Kind` tag,
+default-invalid, with no platform header in the public type. The bytes are filled
+and read only by two friend function templates (`makeNativeHandle` /
+`loadNativeHandle`) that the per-platform conversion headers call - no general
+access, no allocation.
 
-- **The kind is hidden inside the bytes.** Whether the handle is a POSIX fd, a
-  Win32 `SOCKET`, or a Win32 `HANDLE` is a private contract between each
-  platform's conversion header and its `RunLoopImpl`; it is *not* a public enum,
-  so there is nothing to map at the public level.
+- **The `Kind` tag says how to wait** (POSIX fd, Win32 `SOCKET`, Win32 `HANDLE`)
+  so a backend picks the right wait primitive, but the payload type itself never
+  escapes the platform conversion header.
 - **Per-platform conversion headers, included only in platform code:**
 
   ```
@@ -237,9 +241,10 @@ Linux, macOS, and Windows CI legs.
 one `addReadable` source (reader thread and command queue gone), and run/pause/step
 become `FrameClock` timer and `post` operations.
 
-Deferred behind the same interface, needing no rework to add later: the iOS,
-Android, and web `RunLoopImpl`s; FS-watch and file I/O sources; Win32 `HANDLE`
-kinds; and the `addWritable` backend.
+Win32 `HANDLE` sources (for overlapped-I/O events, e.g. named pipes) are also
+implemented. Deferred behind the same interface, needing no rework to add later:
+the iOS, Android, and web `RunLoopImpl`s; FS-watch and file I/O sources; and the
+`addWritable` backend.
 
 ## Sequencing
 

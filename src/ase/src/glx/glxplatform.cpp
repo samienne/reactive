@@ -364,13 +364,12 @@ void GlxPlatform::run(RenderContext& renderContext,
     // Xlib can buffer events without new socket data (so select would not
     // re-fire). This source prepares for on-demand pacing, where the loop blocks
     // and the fd wakes it.
-    btl::SourceId const xSource = runLoop().addReadable(
-            btl::fromFd(ConnectionNumber(d()->dpy_)),
-            [this]() { handleEvents(); });
+    btl::RunLoop::Source xSource;
 
     // Drive frames through the run loop; each frame re-posts the next, a false
     // callback stops it.
-    std::function<void()> tick = [&]()
+    std::function<void(btl::RunLoop::Controller&)> tick =
+        [&](btl::RunLoop::Controller& controller)
     {
         std::chrono::steady_clock::time_point thisFrame;
         if (lockStep)
@@ -389,7 +388,7 @@ void GlxPlatform::run(RenderContext& renderContext,
 
         if (!frameCallback(frame))
         {
-            runLoop().stop();
+            controller.stop();
             return;
         }
 
@@ -432,13 +431,19 @@ void GlxPlatform::run(RenderContext& renderContext,
 
         lastFrame = thisFrame;
 
-        runLoop().post(tick);
+        controller.post(tick);
     };
 
-    runLoop().post(tick);
+    // Register the X source and start the frame loop on the loop thread; the
+    // Source is removed when xSource goes out of scope below.
+    runLoop().post([&](btl::RunLoop::Controller& controller)
+        {
+            xSource = controller.addReadable(
+                    btl::fromFd(ConnectionNumber(d()->dpy_)),
+                    [this](btl::RunLoop::Controller&) { handleEvents(); });
+            controller.post(tick);
+        });
     runLoop().run();
-
-    runLoop().remove(xSource);
 
     while (!frameFutures.empty())
     {
