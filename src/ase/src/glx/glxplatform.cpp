@@ -355,15 +355,9 @@ void GlxPlatform::run(RenderContext& renderContext,
     auto lastFrame = startTime;
     auto nextFrame = startTime + step;
 
-    std::queue<btl::future::Future<>> frameFutures;
+    auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    // Service the X connection through the run loop: when its socket has data,
-    // drain every queued event. handleEvents() is also called per frame below,
-    // which is what actually guarantees delivery today - a busy render loop, and
-    // Xlib can buffer events without new socket data (so select would not
-    // re-fire). This source prepares for on-demand pacing, where the loop blocks
-    // and the fd wakes it.
     btl::RunLoop::Source xSource;
 
     // Drive frames through the run loop; each frame re-posts the next, a false
@@ -392,18 +386,28 @@ void GlxPlatform::run(RenderContext& renderContext,
             return;
         }
 
-        for (auto& weakWindow : d()->windows_)
+        // Skip producing a new frame while the GPU still has earlier ones in
+        // flight; a fence completion frees a slot and a re-post picks it up.
+        if (*framesInFlight < 2)
         {
-            if (auto window = weakWindow.lock())
+            for (auto& weakWindow : d()->windows_)
             {
-                if (window->needsRedraw())
-                    window->frame(frame);
+                if (auto window = weakWindow.lock())
+                {
+                    if (window->needsRedraw())
+                        window->frame(frame);
+                }
             }
-        }
 
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
+            ase::CommandBuffer commandBuffer;
+            ++*framesInFlight;
+            commandBuffer.pushFence([this, framesInFlight]
+                {
+                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
+                        { --*framesInFlight; });
+                });
+            mainQueue.submit(std::move(commandBuffer));
+        }
 
         auto now = clock.now();
         nextFrame += step;
@@ -421,21 +425,11 @@ void GlxPlatform::run(RenderContext& renderContext,
         }
         */
 
-        if (frameFutures.size() > 1)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
-
         lastFrame = thisFrame;
 
         controller.post(tick);
     };
 
-    // Register the X source and start the frame loop on the loop thread; the
-    // Source is removed when xSource goes out of scope below.
     runLoop().post([&](btl::RunLoop::Controller& controller)
         {
             xSource = controller.addReadable(
@@ -445,13 +439,7 @@ void GlxPlatform::run(RenderContext& renderContext,
         });
     runLoop().run();
 
-    while (!frameFutures.empty())
-    {
-        ZoneScopedN("Wait for frame to finish");
-        ZoneValue(frameFutures.size());
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+    mainQueue.finish();
 
     DBG("Shutting down GlxPlatform..");
 }

@@ -295,14 +295,9 @@ void WglPlatform::run(RenderContext& renderContext,
     auto lastFrame = startTime;
     auto nextFrame = startTime + std::chrono::microseconds(16667);
 
-    std::queue<btl::future::Future<>> frameFutures;
+    auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    // Drive frames through the run loop so sources registered on it (a future
-    // remote socket, timers) are serviced between frames. Each frame pumps the
-    // Win32 message queue, renders, then re-posts the next; a false callback
-    // stops the loop. The message pump stays here in ase - btl has no HWND
-    // awareness.
     std::function<void(btl::RunLoop::Controller&)> tick =
         [&](btl::RunLoop::Controller& controller)
     {
@@ -322,18 +317,28 @@ void WglPlatform::run(RenderContext& renderContext,
             return;
         }
 
-        for (auto& weakWindow : windows)
+        // Skip producing a new frame while the GPU still has earlier ones in
+        // flight; a fence completion frees a slot and a re-post picks it up.
+        if (*framesInFlight < 2)
         {
-            if (auto window = weakWindow.second.lock())
+            for (auto& weakWindow : windows)
             {
-                if (window->needsRedraw())
-                    window->frame(frame);
+                if (auto window = weakWindow.second.lock())
+                {
+                    if (window->needsRedraw())
+                        window->frame(frame);
+                }
             }
-        }
 
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
+            ase::CommandBuffer commandBuffer;
+            ++*framesInFlight;
+            commandBuffer.pushFence([this, framesInFlight]
+                {
+                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
+                        { --*framesInFlight; });
+                });
+            mainQueue.submit(std::move(commandBuffer));
+        }
 
         auto now = clock.now();
         nextFrame += std::chrono::microseconds(16667);
@@ -355,14 +360,6 @@ void WglPlatform::run(RenderContext& renderContext,
         }
         */
 
-        if (frameFutures.size() > 1)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
-
         lastFrame = thisFrame;
 
         controller.post(tick);
@@ -371,13 +368,7 @@ void WglPlatform::run(RenderContext& renderContext,
     runLoop().post(tick);
     runLoop().run();
 
-    while (!frameFutures.empty())
-    {
-        ZoneScopedN("Wait for frame to finish");
-        ZoneValue(frameFutures.size());
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+    mainQueue.finish();
 
     DBG("Shutting down WglPlatform...");
 }
