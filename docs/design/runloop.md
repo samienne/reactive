@@ -163,20 +163,12 @@ and fight the compositor there. So the vsync source lives in `ase`:
 It rides on the `RunLoop`; on the push platforms it is delivered by the same
 native loop that `RunLoopImpl` adapts, alongside the sockets.
 
-`bqui`'s **`FrameClock`** is the pacing policy on top:
-
-- **On-demand:** an FRP invalidation `post`s a render. An idle UI schedules
-  nothing, so the loop sleeps in the wait until real I/O or a real change - zero
-  idle wakeups. This is the natural fit for a reactive toolkit that already knows
-  when content changed.
-- **Animating:** an animation source drives renders off the vsync source.
-- **Adaptive / GPU-bound:** the render measures itself and schedules the next via
-  `addTimer(max(0, interval - elapsed))` - a 0 delay means "keep rendering", a
-  positive delay waits out the remaining budget.
-
-A `btl` timer is only the desktop vsync fallback. `FrameClock` may still offer
-multiple frame callbacks, a settable interval, and pause/step as ergonomics over
-the primitives - it just is not part of the reactor.
+`bqui`'s **`FrameClock`** is the pacing policy on top - on-demand via
+`signal::observe`, animating off the vsync source, with the GPU fence completing
+*onto* the loop rather than blocking it. The full frame and window model - the
+per-window armable vsync source, the on-demand cadence, and the window/surface
+split for mobile - is its own design: [`frameclock.md`](frameclock.md). A `btl`
+timer is only the desktop vsync fallback; frames are not part of the reactor.
 
 ## Relationship to the threadpool
 
