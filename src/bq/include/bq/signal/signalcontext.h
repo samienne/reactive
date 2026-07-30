@@ -4,6 +4,8 @@
 #include "datacontext.h"
 #include "signaltraits.h"
 
+#include <btl/connection.h>
+
 #include <tuple>
 #include <array>
 #include <cstddef>
@@ -71,6 +73,17 @@ namespace bq::signal
             return false;
         }
 
+        /** Registers a wakeup for an external change to any of the context's
+         * signals. The callback fires when a source outside the graph changes a
+         * leaf, without the graph being evaluated; the returned connection
+         * unregisters it. */
+        template <typename TCallback>
+        btl::connection observe(TCallback&& callback)
+        {
+            return observeImpl(std::forward<TCallback>(callback),
+                    std::index_sequence_for<TSignals...>{});
+        }
+
     private:
         template <size_t... Is>
         std::tuple<SignalDataTypeT<TSignals>...> initializeData(
@@ -113,6 +126,17 @@ namespace bq::signal
             UpdateResult result = (UpdateResult{} + ... + updateEntry<Is>(frame));
             dataContext_.swapFrameData();
             return result;
+        }
+
+        // The callback is copied into each leaf, so it is passed as an lvalue
+        // rather than moved into the fold.
+        template <typename TCallback, size_t... Is>
+        btl::connection observeImpl(TCallback&& callback, std::index_sequence<Is...>)
+        {
+            btl::connection c;
+            ((c += std::get<Is>(signals_).unwrap().observe(
+                    dataContext_, std::get<Is>(data_), callback)), ...);
+            return c;
         }
 
         // evaluate() must be usable on a const SignalContext, but the signal

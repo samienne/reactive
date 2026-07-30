@@ -4,9 +4,14 @@
 #include "signalresult.h"
 #include "datacontext.h"
 
+#include <btl/connection.h>
+
 #include <mutex>
 #include <memory>
 #include <cstdint>
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace bq::signal
 {
@@ -28,6 +33,8 @@ namespace bq::signal
         std::optional<Weak<Ts...>> sig;
         uint64_t valueIndex = 0;
         uint64_t signalIndex = 0;
+        std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
+        uint64_t nextId = 1;
     };
 
     template <typename... Ts>
@@ -60,30 +67,40 @@ namespace bq::signal
             >>
         void set(Us&&... us)
         {
-            if (auto control = control_.lock())
+            auto control = control_.lock();
+            if (!control)
+                return;
+
+            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
             {
                 std::unique_lock lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
                 control->valueIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
+                std::swap(callbacks, control->callbacks);
             }
+
+            for (auto&& cb : callbacks)
+                std::move(cb.second)();
         }
 
         void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
         {
-            if (auto control = control_.lock())
+            auto control = control_.lock();
+            if (!control)
+                return;
+
+            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
             {
                 std::unique_lock lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
                 control->signalIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                /*
-                control->sigData = control->sig->initialize(control->context);
-                control->value = control->sig->evaluate(control->context,
-                        *control->sigData);
-                ++control->index;
-                */
+                std::swap(callbacks, control->callbacks);
             }
+
+            for (auto&& cb : callbacks)
+                std::move(cb.second)();
         }
 
     private:
@@ -241,16 +258,38 @@ namespace bq::signal
 
             ContextDataType& contextData = *data.contextData;
 
+            auto id = control_->nextId++;
+            control_->callbacks.emplace_back(id, callback);
+
+            std::weak_ptr<InputControl<Ts...>> weakControl = control_;
+            btl::connection connection = btl::connection::on_disconnect(
+                    [id, weakControl]()
+                    {
+                        if (auto control = weakControl.lock())
+                        {
+                            std::unique_lock lock(control->mutex);
+                            for (auto i = control->callbacks.begin();
+                                    i != control->callbacks.end(); ++i)
+                            {
+                                if (id == i->first)
+                                {
+                                    control->callbacks.erase(i);
+                                    break;
+                                }
+                            }
+                        }
+                    });
+
             if (control_->sig && contextData.sigData)
             {
-                return control_->sig->observe(
+                connection += control_->sig->observe(
                         context,
                         *contextData.sigData,
-                        std::forward<TCallback>(callback)
+                        callback
                         );
             }
 
-            return {};
+            return connection;
         }
 
     private:
