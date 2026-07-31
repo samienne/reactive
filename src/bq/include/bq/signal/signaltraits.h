@@ -5,7 +5,6 @@
 #include "signalresult.h"
 #include "datacontext.h"
 
-#include <btl/connection.h>
 #include <btl/cloneoncopy.h>
 #include <btl/all.h>
 #include <btl/typetraits.h>
@@ -40,7 +39,7 @@ namespace bq::signal
             std::declval<std::decay_t<T>>().observe(
                 std::declval<DataContext&>(),
                 std::declval<std::decay_t<initialize_t<T>>&>(),
-                std::function<void()>()
+                ObserveCallback()
                 )
             );
 
@@ -55,7 +54,7 @@ namespace bq::signal
         observe_t<T>
         >> : btl::All<
             std::is_same<UpdateResult, update_t<T>>,
-            std::is_same<btl::connection, observe_t<T>>,
+            std::is_same<void, observe_t<T>>,
             std::is_nothrow_move_constructible<std::decay_t<T>>,
             std::is_copy_constructible<std::decay_t<T>>,
             std::is_copy_assignable<std::decay_t<T>>
@@ -66,7 +65,7 @@ namespace bq::signal
     {
         static_assert(IsSignalResult<std::decay_t<evaluate_t<T>>>::value);
         static_assert(std::is_same_v<UpdateResult, update_t<T>>);
-        static_assert(std::is_same_v<btl::connection, observe_t<T>>);
+        static_assert(std::is_same_v<void, observe_t<T>>);
         static_assert(std::is_nothrow_move_constructible_v<std::decay_t<T>>);
         static_assert(std::is_copy_constructible_v<std::decay_t<T>>);
         static_assert(std::is_copy_assignable_v<std::decay_t<T>>);

@@ -13,6 +13,7 @@
 #include <btl/spinlock.h>
 #include <btl/shared.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <mutex>
 
@@ -27,8 +28,7 @@ namespace bq::stream
             std::mutex mutex;
             std::vector<T> newValues;
             std::vector<T> values;
-            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
-            uint64_t nextId = 1;
+            std::vector<signal::ObserveCallback> callbacks;
         };
 
         struct DataType
@@ -58,7 +58,7 @@ namespace bq::stream
                         }
 
                         for (auto&& cb : callbacks)
-                            std::move(cb.second)();
+                            cb();
 
                         return true;
                     })
@@ -84,31 +84,16 @@ namespace bq::stream
             return { {}, !data.control->values.empty() };
         }
 
-        btl::connection observe(signal::DataContext&, DataType& data,
-                std::function<void()> callback)
+        void observe(signal::DataContext&, DataType& data,
+                signal::ObserveCallback callback)
         {
             std::unique_lock lock(data.control->mutex);
-            auto id = data.control->nextId++;
 
-            data.control->callbacks.emplace_back(id, callback);
-
-            std::weak_ptr<Control> weakControl = data.control;
-
-            return btl::connection::on_disconnect([id, weakControl]()
-                {
-                    if (auto control = weakControl.lock())
-                    {
-                        for (auto i = control->callbacks.begin();
-                                i != control->callbacks.end(); ++i)
-                        {
-                            if (id == i->first)
-                            {
-                                control->callbacks.erase(i);
-                                break;
-                            }
-                        }
-                    }
-                });
+            auto& cbs = data.control->callbacks;
+            cbs.erase(std::remove_if(cbs.begin(), cbs.end(),
+                    [](signal::ObserveCallback const& cb) { return !cb; }),
+                    cbs.end());
+            cbs.push_back(std::move(callback));
         }
 
     private:

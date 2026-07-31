@@ -50,11 +50,9 @@ namespace bq::signal
             return { std::nullopt, false };
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext&, DataType&, TCallback&&)
+        void observe(DataContext&, DataType&, ObserveCallback)
         {
             // nothing to observe
-            return btl::connection();
         }
 
     private:

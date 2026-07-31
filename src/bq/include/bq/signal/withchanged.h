@@ -67,10 +67,10 @@ namespace bq::signal
             };
         }
 
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> callback)
+        void observe(DataContext& context, DataType& data,
+                ObserveCallback callback)
         {
-            return sig_.observe(context, data.innerData, std::move(callback));
+            sig_.observe(context, data.innerData, std::move(callback));
         }
 
     private:

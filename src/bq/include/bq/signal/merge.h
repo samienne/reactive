@@ -46,11 +46,10 @@ namespace bq::signal
                     std::make_index_sequence<sizeof...(Ts)>());
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
+        void observe(DataContext& context, DataType& data,
+                ObserveCallback callback)
         {
-            return doObserve(context, data, std::forward<TCallback>(callback),
+            doObserve(context, data, std::move(callback),
                     std::make_index_sequence<sizeof...(Ts)>());
         }
 
@@ -86,12 +85,12 @@ namespace bq::signal
                         context, std::get<S>(data.sigData), frame));
         }
 
-        template <typename TCallback, size_t... S>
-        auto doObserve(DataContext& context, DataType& data,
-                TCallback&& callback, std::index_sequence<S...>)
+        template <size_t... S>
+        void doObserve(DataContext& context, DataType& data,
+                ObserveCallback const& callback, std::index_sequence<S...>)
         {
-            return (btl::connection() + ... + std::get<S>(sigs_).observe(
-                        context, std::get<S>(data.sigData), callback));
+            (std::get<S>(sigs_).observe(
+                        context, std::get<S>(data.sigData), callback), ...);
         }
 
     private:

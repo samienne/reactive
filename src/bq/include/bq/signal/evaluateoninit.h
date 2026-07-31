@@ -39,9 +39,8 @@ namespace bq::signal
             return {};
         }
 
-        btl::connection observe(DataContext&, DataType&, std::function<void()>)
+        void observe(DataContext&, DataType&, ObserveCallback)
         {
-            return {};
         }
 
     private:

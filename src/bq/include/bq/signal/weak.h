@@ -96,14 +96,12 @@ namespace bq::signal
             return { data.contextData->nextUpdate, data.contextData->didChange };
         }
 
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> callback)
+        void observe(DataContext& context, DataType& data,
+                ObserveCallback callback)
         {
             if (auto control = control_.lock())
-                return control->baseObserve(context,
+                control->baseObserve(context,
                         *data.contextData->innerData, std::move(callback));
-
-            return {};
         }
 
     private:

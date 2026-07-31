@@ -4,8 +4,7 @@
 #include "signalresult.h"
 #include "datacontext.h"
 
-#include <btl/connection.h>
-
+#include <algorithm>
 #include <mutex>
 #include <memory>
 #include <cstdint>
@@ -33,8 +32,7 @@ namespace bq::signal
         std::optional<Weak<Ts...>> sig;
         uint64_t valueIndex = 0;
         uint64_t signalIndex = 0;
-        std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
-        uint64_t nextId = 1;
+        std::vector<ObserveCallback> callbacks;
     };
 
     template <typename... Ts>
@@ -71,7 +69,7 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
+            std::vector<ObserveCallback> callbacks;
             {
                 std::unique_lock lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
@@ -81,7 +79,7 @@ namespace bq::signal
             }
 
             for (auto&& cb : callbacks)
-                std::move(cb.second)();
+                cb();
         }
 
         void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
@@ -90,7 +88,7 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
+            std::vector<ObserveCallback> callbacks;
             {
                 std::unique_lock lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
@@ -100,7 +98,7 @@ namespace bq::signal
             }
 
             for (auto&& cb : callbacks)
-                std::move(cb.second)();
+                cb();
         }
 
     private:
@@ -251,45 +249,26 @@ namespace bq::signal
             return { std::nullopt, didChange };
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        void observe(DataContext& context, DataType& data, ObserveCallback callback)
         {
             std::unique_lock lock(control_->mutex);
 
             ContextDataType& contextData = *data.contextData;
 
-            auto id = control_->nextId++;
-            control_->callbacks.emplace_back(id, callback);
-
-            std::weak_ptr<InputControl<Ts...>> weakControl = control_;
-            btl::connection connection = btl::connection::on_disconnect(
-                    [id, weakControl]()
-                    {
-                        if (auto control = weakControl.lock())
-                        {
-                            std::unique_lock lock(control->mutex);
-                            for (auto i = control->callbacks.begin();
-                                    i != control->callbacks.end(); ++i)
-                            {
-                                if (id == i->first)
-                                {
-                                    control->callbacks.erase(i);
-                                    break;
-                                }
-                            }
-                        }
-                    });
+            auto& cbs = control_->callbacks;
+            cbs.erase(std::remove_if(cbs.begin(), cbs.end(),
+                    [](ObserveCallback const& cb) { return !cb; }), cbs.end());
 
             if (control_->sig && contextData.sigData)
             {
-                connection += control_->sig->observe(
+                control_->sig->observe(
                         context,
                         *contextData.sigData,
                         callback
                         );
             }
 
-            return connection;
+            cbs.push_back(std::move(callback));
         }
 
     private:

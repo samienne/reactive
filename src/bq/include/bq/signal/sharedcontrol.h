@@ -5,8 +5,6 @@
 #include "frameinfo.h"
 #include "datacontext.h"
 
-#include <btl/connection.h>
-
 #include <cstdint>
 #include <mutex>
 
@@ -28,8 +26,8 @@ namespace bq::signal
                 BaseDataType const& data) = 0;
         virtual UpdateResult baseUpdate(DataContext& context, BaseDataType& data,
                 FrameInfo const& frame) = 0;
-        virtual btl::connection baseObserve(DataContext& context, BaseDataType& data,
-                std::function<void()> callback) = 0;
+        virtual void baseObserve(DataContext& context, BaseDataType& data,
+                ObserveCallback callback) = 0;
     };
 
     template <typename TStorage, typename... Ts>
@@ -130,11 +128,11 @@ namespace bq::signal
             return update(context, static_cast<DataType&>(data), frame);
         }
 
-        btl::connection baseObserve(DataContext& context,
+        void baseObserve(DataContext& context,
                 typename Super::BaseDataType& data,
-                std::function<void()> callback) override
+                ObserveCallback callback) override
         {
-            return observe(context, static_cast<DataType&>(data),
+            observe(context, static_cast<DataType&>(data),
                     std::move(callback));
         }
 
@@ -201,16 +199,13 @@ namespace bq::signal
             return contextData->updateResult;
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        void observe(DataContext& context, DataType& data, ObserveCallback callback)
         {
             if (ContextDataType* contextData = data.lock())
             {
                 std::unique_lock lock(contextData->mutex_);
-                return sig_.observe(context, contextData->innerData, callback);
+                sig_.observe(context, contextData->innerData, std::move(callback));
             }
-
-            return {};
         }
 
     private:

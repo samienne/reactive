@@ -18,10 +18,11 @@ using namespace bq;
 using namespace bq::signal;
 using namespace bq::stream;
 
-// observe() registers a callback on every leaf that an external source can wake,
-// so that the wake fires immediately without evaluating the graph. Nothing in
-// the toolkit drives observe today; these tests pin the mechanism down by
-// driving the signal impls directly, exactly as SignalContext does internally.
+// observe() registers a wakeup on every leaf that an external source can wake,
+// so the wake fires immediately without evaluating the graph. The registration
+// is scoped by a guard: it fires while the guard is alive and stops once the
+// guard drops. These tests drive the signal impls directly, exactly as
+// SignalContext does internally, pairing each callback with a guard by hand.
 
 namespace
 {
@@ -49,7 +50,8 @@ TEST(Observe, collectLeafFires)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     EXPECT_FALSE(fired);
     p.handle.push(42);
@@ -67,7 +69,8 @@ TEST(Observe, wakeDoesNotEvaluate)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     p.handle.push(42);
     EXPECT_TRUE(fired);
@@ -91,7 +94,8 @@ TEST(Observe, collectIsOneShot)
     auto data = initialize(ctx, sig);
 
     int count = 0;
-    auto c1 = sig.unwrap().observe(ctx, data, [&] { ++count; });
+    auto g1 = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(g1, [&] { ++count; }));
 
     p.handle.push(1);
     EXPECT_EQ(1, count);
@@ -101,14 +105,14 @@ TEST(Observe, collectIsOneShot)
     EXPECT_EQ(1, count);
 
     // Re-arming makes it fire again.
-    auto c2 = sig.unwrap().observe(ctx, data, [&] { ++count; });
+    auto g2 = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(g2, [&] { ++count; }));
     p.handle.push(3);
     EXPECT_EQ(2, count);
 }
 
-// Disconnecting the returned connection unregisters the callback before it can
-// fire.
-TEST(Observe, disconnectStopsFiring)
+// Dropping the guard unregisters the callback before it can fire.
+TEST(Observe, guardDropStopsFiring)
 {
     auto p = pipe<int>();
     auto sig = collect(std::move(p.stream));
@@ -117,8 +121,9 @@ TEST(Observe, disconnectStopsFiring)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
-    conn.disconnect();
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
+    guard.reset();
 
     p.handle.push(42);
     EXPECT_FALSE(fired);
@@ -136,7 +141,8 @@ TEST(Observe, throughMap)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     p.handle.push(7);
     EXPECT_TRUE(fired);
@@ -158,7 +164,8 @@ TEST(Observe, throughMerge)
     // the second still armed to fire on its push. So each external change fires
     // exactly once.
     int count = 0;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { ++count; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { ++count; }));
 
     pa.handle.push(1);
     EXPECT_EQ(1, count);
@@ -182,12 +189,14 @@ TEST(Observe, throughCombine)
     auto data = initialize(ctx, sig);
 
     bool firedA = false;
-    auto connA = sig.unwrap().observe(ctx, data, [&] { firedA = true; });
+    auto guardA = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guardA, [&] { firedA = true; }));
     pa.handle.push(1);
     EXPECT_TRUE(firedA);
 
     bool firedB = false;
-    auto connB = sig.unwrap().observe(ctx, data, [&] { firedB = true; });
+    auto guardB = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guardB, [&] { firedB = true; }));
     pb.handle.push(2);
     EXPECT_TRUE(firedB);
 }
@@ -212,8 +221,9 @@ TEST(Observe, throughConditional)
     // does not (it is neither initialized nor observed).
     bool firedTrue = false;
     bool firedFalse = false;
-    auto conn = sig.unwrap().observe(ctx, data,
-            [&] { firedTrue = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data,
+            ObserveCallback(guard, [&] { firedTrue = true; }));
     pt.handle.push(1);
     pf.handle.push(2);
     EXPECT_TRUE(firedTrue);
@@ -221,13 +231,14 @@ TEST(Observe, throughConditional)
 
     // Switch the active branch and drive an update so the conditional swaps in
     // the false branch's data.
-    conn.disconnect();
+    guard.reset();
     cond.handle.set(false);
     sig.unwrap().update(ctx, data, FrameInfo(1, {}));
 
     // Re-observing now registers on the false branch.
-    auto conn2 = sig.unwrap().observe(ctx, data,
-            [&] { firedFalse = true; });
+    auto guard2 = makeObserveGuard();
+    sig.unwrap().observe(ctx, data,
+            ObserveCallback(guard2, [&] { firedFalse = true; }));
     pf.handle.push(3);
     EXPECT_TRUE(firedFalse);
 }
@@ -244,7 +255,8 @@ TEST(Observe, throughJoin)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     p.handle.push(42);
     EXPECT_TRUE(fired);
@@ -264,7 +276,8 @@ TEST(Observe, throughArrayJoin)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     p.handle.push(42);
     EXPECT_TRUE(fired);
@@ -281,7 +294,9 @@ TEST(Observe, inputLeafFires)
     auto data = initialize(ctx, input.signal);
 
     bool fired = false;
-    auto conn = input.signal.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    input.signal.unwrap().observe(ctx, data,
+            ObserveCallback(guard, [&] { fired = true; }));
 
     EXPECT_FALSE(fired);
     input.handle.set(10);
@@ -302,7 +317,9 @@ TEST(Observe, inputIsOneShot)
     auto data = initialize(ctx, input.signal);
 
     int count = 0;
-    auto c1 = input.signal.unwrap().observe(ctx, data, [&] { ++count; });
+    auto g1 = makeObserveGuard();
+    input.signal.unwrap().observe(ctx, data,
+            ObserveCallback(g1, [&] { ++count; }));
 
     input.handle.set(1);
     EXPECT_EQ(1, count);
@@ -310,13 +327,15 @@ TEST(Observe, inputIsOneShot)
     input.handle.set(2);
     EXPECT_EQ(1, count);
 
-    auto c2 = input.signal.unwrap().observe(ctx, data, [&] { ++count; });
+    auto g2 = makeObserveGuard();
+    input.signal.unwrap().observe(ctx, data,
+            ObserveCallback(g2, [&] { ++count; }));
     input.handle.set(3);
     EXPECT_EQ(2, count);
 }
 
-// Disconnecting an input observer unregisters it before set() can wake it.
-TEST(Observe, inputDisconnectStops)
+// Dropping an input observer's guard unregisters it before set() can wake it.
+TEST(Observe, inputGuardDropStops)
 {
     auto input = makeInput<int>(0);
 
@@ -324,8 +343,10 @@ TEST(Observe, inputDisconnectStops)
     auto data = initialize(ctx, input.signal);
 
     bool fired = false;
-    auto conn = input.signal.unwrap().observe(ctx, data, [&] { fired = true; });
-    conn.disconnect();
+    auto guard = makeObserveGuard();
+    input.signal.unwrap().observe(ctx, data,
+            ObserveCallback(guard, [&] { fired = true; }));
+    guard.reset();
 
     input.handle.set(1);
     EXPECT_FALSE(fired);
@@ -342,7 +363,8 @@ TEST(Observe, inputThroughMap)
     auto data = initialize(ctx, sig);
 
     bool fired = false;
-    auto conn = sig.unwrap().observe(ctx, data, [&] { fired = true; });
+    auto guard = makeObserveGuard();
+    sig.unwrap().observe(ctx, data, ObserveCallback(guard, [&] { fired = true; }));
 
     input.handle.set(4);
     EXPECT_TRUE(fired);
@@ -350,7 +372,7 @@ TEST(Observe, inputThroughMap)
 
 // ---------------------------------------------------------------------------
 // SignalContext::observe -- the public entry point, registering a wakeup
-// across every signal the context holds.
+// across every signal the context holds and returning a guard that scopes it.
 // ---------------------------------------------------------------------------
 
 // A context over a collect leaf: observe() wakes on a stream emission, and the
@@ -362,7 +384,7 @@ TEST(SignalContextObserve, collectWakesWithoutEvaluating)
     auto c = makeSignalContext(collect(std::move(p.stream)));
 
     bool fired = false;
-    auto conn = c.observe([&] { fired = true; });
+    auto guard = c.observe([&] { fired = true; });
 
     EXPECT_FALSE(fired);
     p.handle.push(42);
@@ -383,7 +405,7 @@ TEST(SignalContextObserve, inputWakesOnSet)
     auto c = makeSignalContext(input.signal);
 
     bool fired = false;
-    auto conn = c.observe([&] { fired = true; });
+    auto guard = c.observe([&] { fired = true; });
 
     EXPECT_FALSE(fired);
     input.handle.set(10);
@@ -398,7 +420,7 @@ TEST(SignalContextObserve, throughMap)
     auto c = makeSignalContext(input.signal.map([](int n) { return n * 2; }));
 
     bool fired = false;
-    auto conn = c.observe([&] { fired = true; });
+    auto guard = c.observe([&] { fired = true; });
 
     input.handle.set(4);
     EXPECT_TRUE(fired);
@@ -415,7 +437,7 @@ TEST(SignalContextObserve, acrossAllSignals)
             collect(std::move(pb.stream)));
 
     int count = 0;
-    auto conn = c.observe([&] { ++count; });
+    auto guard = c.observe([&] { ++count; });
 
     pa.handle.push(1);
     EXPECT_EQ(1, count);
@@ -432,7 +454,7 @@ TEST(SignalContextObserve, isOneShot)
     auto c = makeSignalContext(input.signal);
 
     int count = 0;
-    auto conn = c.observe([&] { ++count; });
+    auto guard = c.observe([&] { ++count; });
 
     input.handle.set(1);
     EXPECT_EQ(1, count);
@@ -442,20 +464,20 @@ TEST(SignalContextObserve, isOneShot)
     EXPECT_EQ(1, count);
 
     // Re-arming makes it fire again.
-    auto conn2 = c.observe([&] { ++count; });
+    auto guard2 = c.observe([&] { ++count; });
     input.handle.set(3);
     EXPECT_EQ(2, count);
 }
 
-// Dropping the returned connection unregisters the wakeup before the change.
-TEST(SignalContextObserve, disconnectStopsFiring)
+// Dropping the returned guard unregisters the wakeup before the change.
+TEST(SignalContextObserve, guardDropStopsFiring)
 {
     auto p = pipe<int>();
     auto c = makeSignalContext(collect(std::move(p.stream)));
 
     bool fired = false;
     {
-        auto conn = c.observe([&] { fired = true; });
+        auto guard = c.observe([&] { fired = true; });
     }
 
     p.handle.push(42);

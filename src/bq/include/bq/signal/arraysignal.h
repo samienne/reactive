@@ -228,11 +228,10 @@ namespace bq::signal
                 return r;
             }
 
-            btl::connection observe(DataContext& context, DataType& data,
-                    std::function<void()> callback)
+            void observe(DataContext& context, DataType& data,
+                    ObserveCallback callback)
             {
-                return sig_.observe(context, data.innerData,
-                        std::move(callback));
+                sig_.observe(context, data.innerData, std::move(callback));
             }
 
         private:
@@ -355,8 +354,8 @@ namespace bq::signal
          *
          * observe() connects the elements that are there when it is called and
          * is **not** rewired by a later membership change: an element that
-         * arrives afterwards is not observed, and one that leaves stays in the
-         * returned connection. Nothing in the toolkit observes a signal today.
+         * arrives afterwards is not observed, and one that leaves stays
+         * registered on its now-detached leaf until the observer's guard drops.
          *
          * @throws std::runtime_error if one identity appears twice, which means
          *         an array was concatenated with itself.
@@ -446,19 +445,16 @@ namespace bq::signal
                 return r;
             }
 
-            btl::connection observe(DataContext& context, DataType& data,
-                    std::function<void()> callback)
+            void observe(DataContext& context, DataType& data,
+                    ObserveCallback callback)
             {
-                btl::connection c = sig_.observe(context, data.innerData,
-                        callback);
+                sig_.observe(context, data.innerData, callback);
 
                 for (auto& element : data.elements)
                 {
-                    c += element.value.unwrap().observe(context,
+                    element.value.unwrap().observe(context,
                             data.datas.at(element.id), callback);
                 }
-
-                return c;
             }
 
         private:

@@ -89,11 +89,9 @@ namespace bq::signal
             return sig_.update(context, data.signalData, frame);
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
+        void observe(DataContext& context, DataType& data, ObserveCallback callback)
         {
-            return sig_.observe(context, data.signalData, std::forward<TCallback>(
-                        callback));
+            sig_.observe(context, data.signalData, std::move(callback));
         }
 
     private:

@@ -8,11 +8,57 @@
 #include <typeindex>
 #include <memory>
 #include <unordered_map>
+#include <functional>
 #include <cassert>
 
 namespace bq::signal
 {
     BQ_EXPORT btl::UniqueId makeUniqueId();
+
+    /** Lifetime token for an observation. observe() ties every wakeup it
+     * registers to one of these; the wakeups fire while it is alive and drop
+     * when it does. */
+    using ObserveGuard = std::shared_ptr<void>;
+
+    /** Creates a fresh guard for a caller about to observe. */
+    inline ObserveGuard makeObserveGuard()
+    {
+        return std::make_shared<char>();
+    }
+
+    /** A wake callback paired with the guard that scopes it.
+     *
+     * observe() stores these on the external leaves it reaches rather than
+     * returning an unregistration handle: the callback fires only while its
+     * guard is alive, so an observer disarms by dropping the guard. A leaf drops
+     * a dead registration the next time it is observed or fires. */
+    class ObserveCallback
+    {
+    public:
+        ObserveCallback() = default;
+
+        ObserveCallback(ObserveGuard const& guard, std::function<void()> callback) :
+            guard_(guard),
+            callback_(std::move(callback))
+        {
+        }
+
+        /** True while the owning observer is still armed. */
+        explicit operator bool() const
+        {
+            return !guard_.expired();
+        }
+
+        void operator()() const
+        {
+            if (auto alive = guard_.lock())
+                callback_();
+        }
+
+    private:
+        std::weak_ptr<void> guard_;
+        std::function<void()> callback_;
+    };
 
     class BQ_EXPORT DataContext
     {
