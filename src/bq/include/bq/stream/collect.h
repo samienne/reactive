@@ -13,7 +13,6 @@
 #include <btl/spinlock.h>
 #include <btl/shared.h>
 
-#include <algorithm>
 #include <cstdint>
 #include <mutex>
 
@@ -28,7 +27,7 @@ namespace bq::stream
             std::mutex mutex;
             std::vector<T> newValues;
             std::vector<T> values;
-            std::vector<signal::ObserveCallback> callbacks;
+            std::weak_ptr<signal::ObserveControl> observe;
         };
 
         struct DataType
@@ -42,24 +41,23 @@ namespace bq::stream
         {
         }
 
-        DataType initialize(signal::DataContext&, signal::FrameInfo const&) const
+        DataType initialize(signal::DataContext& context,
+                signal::FrameInfo const&) const
         {
             auto control = std::make_shared<Control>();
+            control->observe = context.observeControl();
             return {
                 control,
                 stream_.fmap([control](auto value)
                     {
-                        decltype(control->callbacks) callbacks;
-
+                        std::weak_ptr<signal::ObserveControl> observe;
                         {
-                            std::unique_lock lock(control->mutex);
+                            std::unique_lock<std::mutex> lock(control->mutex);
                             control->newValues.push_back(std::move(value));
-                            std::swap(callbacks, control->callbacks);
+                            observe = control->observe;
                         }
-
-                        for (auto&& cb : callbacks)
-                            cb();
-
+                        if (auto c = observe.lock())
+                            c->fire();
                         return true;
                     })
             };
@@ -82,18 +80,6 @@ namespace bq::stream
             std::swap(data.control->values, data.control->newValues);
 
             return { {}, !data.control->values.empty() };
-        }
-
-        void observe(signal::DataContext&, DataType& data,
-                signal::ObserveCallback callback)
-        {
-            std::unique_lock lock(data.control->mutex);
-
-            auto& cbs = data.control->callbacks;
-            cbs.erase(std::remove_if(cbs.begin(), cbs.end(),
-                    [](signal::ObserveCallback const& cb) { return !cb; }),
-                    cbs.end());
-            cbs.push_back(std::move(callback));
         }
 
     private:

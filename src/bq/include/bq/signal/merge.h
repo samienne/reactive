@@ -46,13 +46,6 @@ namespace bq::signal
                     std::make_index_sequence<sizeof...(Ts)>());
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            doObserve(context, data, std::move(callback),
-                    std::make_index_sequence<sizeof...(Ts)>());
-        }
-
     private:
         template <size_t... S>
         DataType doInitialize(DataContext& context, FrameInfo const& frame,
@@ -83,14 +76,6 @@ namespace bq::signal
         {
             return (UpdateResult {} + ... + std::get<S>(sigs_).update(
                         context, std::get<S>(data.sigData), frame));
-        }
-
-        template <size_t... S>
-        void doObserve(DataContext& context, DataType& data,
-                ObserveCallback const& callback, std::index_sequence<S...>)
-        {
-            (std::get<S>(sigs_).observe(
-                        context, std::get<S>(data.sigData), callback), ...);
         }
 
     private:

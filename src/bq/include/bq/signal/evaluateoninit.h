@@ -39,10 +39,6 @@ namespace bq::signal
             return {};
         }
 
-        void observe(DataContext&, DataType&, ObserveCallback)
-        {
-        }
-
     private:
         TFunc func_;
     };

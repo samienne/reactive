@@ -96,14 +96,6 @@ namespace bq::signal
             return { data.contextData->nextUpdate, data.contextData->didChange };
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            if (auto control = control_.lock())
-                control->baseObserve(context,
-                        *data.contextData->innerData, std::move(callback));
-        }
-
     private:
         btl::UniqueId id_;
         std::weak_ptr<SharedControlBase<Ts...>> control_;

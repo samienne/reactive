@@ -95,16 +95,6 @@ namespace bq::signal
             return r;
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback const& callback)
-        {
-            conditionSignal_.observe(context, data.conditionData, callback);
-            if (data.condition)
-                trueSignal_.unwrap().observe(context, data.signalData, callback);
-            else
-                falseSignal_.unwrap().observe(context, data.signalData, callback);
-        }
-
     private:
         TCondition conditionSignal_;
         AnySignal<Ts...> trueSignal_;

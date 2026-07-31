@@ -32,8 +32,6 @@ namespace bq::signal
                 DataBase const& data) const = 0;
         virtual UpdateResult update(DataContext& context, DataBase& data,
                 FrameInfo const& frame) = 0;
-        virtual void observe(DataContext& context, DataBase& data,
-                ObserveCallback callback) = 0;
     };
 
     template <typename TStorage, typename... Ts>
@@ -74,12 +72,6 @@ namespace bq::signal
                 FrameInfo const& frame) override
         {
             return sig_.update(context, getStorageData(baseData), frame);
-        }
-
-        void observe(DataContext& context, BaseDataType& data,
-                ObserveCallback callback) override
-        {
-            sig_.observe(context, getStorageData(data), std::move(callback));
         }
 
     private:
@@ -128,12 +120,6 @@ namespace bq::signal
                 FrameInfo const& frame)
         {
             return sig_->update(context, *data.data, frame);
-        }
-
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            sig_->observe(context, *data.data, std::move(callback));
         }
 
         template <typename... Us, typename = std::enable_if_t<

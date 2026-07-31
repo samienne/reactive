@@ -56,12 +56,6 @@ namespace bq::signal
             return impl_->update(context, data, frame);
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            impl_->observe(context, data, std::move(callback));
-        }
-
         Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> weak() const
         {
             /*

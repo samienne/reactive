@@ -71,25 +71,12 @@ namespace bq::signal
             return false;
         }
 
-        /** Registers a wakeup for an external change to any of the context's
-         * signals. The callback fires when a source outside the graph changes a
-         * leaf, without the graph being evaluated. The returned guard scopes the
-         * registration: drop it to unregister. */
-        template <typename TCallback>
-        ObserveGuard observe(TCallback&& callback)
+        /** Arms a wakeup for external changes to any leaf this context reaches.
+         * The callback fires without the graph being evaluated. It stays armed
+         * for the context's lifetime. */
+        void observe(std::function<void()> callback)
         {
-            auto guard = makeObserveGuard();
-            observe(guard, std::forward<TCallback>(callback));
-            return guard;
-        }
-
-        /** Registers a wakeup under a caller-owned guard, so several observes
-         * can share one lifetime. The registration lives while the guard does. */
-        template <typename TCallback>
-        void observe(ObserveGuard const& guard, TCallback&& callback)
-        {
-            observeImpl(ObserveCallback(guard, std::forward<TCallback>(callback)),
-                    std::index_sequence_for<TSignals...>{});
+            dataContext_.observe(std::move(callback));
         }
 
     private:
@@ -134,14 +121,6 @@ namespace bq::signal
             UpdateResult result = (UpdateResult{} + ... + updateEntry<Is>(frame));
             dataContext_.swapFrameData();
             return result;
-        }
-
-        // The callback is copied into each leaf.
-        template <size_t... Is>
-        void observeImpl(ObserveCallback const& callback, std::index_sequence<Is...>)
-        {
-            (std::get<Is>(signals_).unwrap().observe(
-                    dataContext_, std::get<Is>(data_), callback), ...);
         }
 
         // evaluate() must be usable on a const SignalContext, but the signal

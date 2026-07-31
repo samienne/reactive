@@ -51,13 +51,6 @@ namespace bq::signal
             return r;
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            for (size_t i = 0; i < sigs_.size(); ++i)
-                sigs_[i].unwrap().observe(context, data.datas[i], callback);
-        }
-
     private:
         std::vector<AnySignal<T>> sigs_;
     };

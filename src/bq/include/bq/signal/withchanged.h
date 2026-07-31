@@ -67,12 +67,6 @@ namespace bq::signal
             };
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            sig_.observe(context, data.innerData, std::move(callback));
-        }
-
     private:
         TStorage sig_;
         bool ignoreChange_ = false;

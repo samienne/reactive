@@ -228,12 +228,6 @@ namespace bq::signal
                 return r;
             }
 
-            void observe(DataContext& context, DataType& data,
-                    ObserveCallback callback)
-            {
-                sig_.observe(context, data.innerData, std::move(callback));
-            }
-
         private:
             // Returns whether the membership changed, which is the whole of
             // what an update can change: a value is built once per identity.
@@ -352,11 +346,6 @@ namespace bq::signal
          * neighbours, and it is a property of the node rather than of anything
          * the elements do — nothing here needs the elements to be shared.
          *
-         * observe() connects the elements that are there when it is called and
-         * is **not** rewired by a later membership change: an element that
-         * arrives afterwards is not observed, and one that leaves stays
-         * registered on its now-detached leaf until the observer's guard drops.
-         *
          * @throws std::runtime_error if one identity appears twice, which means
          *         an array was concatenated with itself.
          */
@@ -443,18 +432,6 @@ namespace bq::signal
                     r.nextUpdate = min(r.nextUpdate, signal_time_t(0));
 
                 return r;
-            }
-
-            void observe(DataContext& context, DataType& data,
-                    ObserveCallback callback)
-            {
-                sig_.observe(context, data.innerData, callback);
-
-                for (auto& element : data.elements)
-                {
-                    element.value.unwrap().observe(context,
-                            data.datas.at(element.id), callback);
-                }
             }
 
         private:

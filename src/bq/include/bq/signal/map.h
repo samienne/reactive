@@ -89,11 +89,6 @@ namespace bq::signal
             return sig_.update(context, data.signalData, frame);
         }
 
-        void observe(DataContext& context, DataType& data, ObserveCallback callback)
-        {
-            sig_.observe(context, data.signalData, std::move(callback));
-        }
-
     private:
         mutable btl::CopyWrapper<TFunc> func_;
         TSignal sig_;

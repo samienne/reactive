@@ -52,12 +52,6 @@ namespace bq::signal
             return r;
         }
 
-        void observe(DataContext& context, DataType& data,
-                ObserveCallback callback)
-        {
-            sig_.observe(context, data.innerData, std::move(callback));
-        }
-
     private:
         TSignal sig_;
     };

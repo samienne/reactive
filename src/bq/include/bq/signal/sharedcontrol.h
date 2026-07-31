@@ -26,8 +26,6 @@ namespace bq::signal
                 BaseDataType const& data) = 0;
         virtual UpdateResult baseUpdate(DataContext& context, BaseDataType& data,
                 FrameInfo const& frame) = 0;
-        virtual void baseObserve(DataContext& context, BaseDataType& data,
-                ObserveCallback callback) = 0;
     };
 
     template <typename TStorage, typename... Ts>
@@ -128,14 +126,6 @@ namespace bq::signal
             return update(context, static_cast<DataType&>(data), frame);
         }
 
-        void baseObserve(DataContext& context,
-                typename Super::BaseDataType& data,
-                ObserveCallback callback) override
-        {
-            observe(context, static_cast<DataType&>(data),
-                    std::move(callback));
-        }
-
         SharedControl(StorageType sig) :
             id_(makeUniqueId()),
             sig_(std::move(sig))
@@ -197,15 +187,6 @@ namespace bq::signal
                 data.value = contextData->currentValue;
 
             return contextData->updateResult;
-        }
-
-        void observe(DataContext& context, DataType& data, ObserveCallback callback)
-        {
-            if (ContextDataType* contextData = data.lock())
-            {
-                std::unique_lock lock(contextData->mutex_);
-                sig_.observe(context, contextData->innerData, std::move(callback));
-            }
         }
 
     private:

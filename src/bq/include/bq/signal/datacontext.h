@@ -9,54 +9,37 @@
 #include <memory>
 #include <unordered_map>
 #include <functional>
+#include <mutex>
 #include <cassert>
 
 namespace bq::signal
 {
     BQ_EXPORT btl::UniqueId makeUniqueId();
 
-    /** Lifetime token for an observation. observe() ties every wakeup it
-     * registers to one of these; the wakeups fire while it is alive and drop
-     * when it does. */
-    using ObserveGuard = std::shared_ptr<void>;
-
-    /** Creates a fresh guard for a caller about to observe. */
-    inline ObserveGuard makeObserveGuard()
-    {
-        return std::make_shared<char>();
-    }
-
-    /** A wake callback paired with the guard that scopes it.
-     *
-     * observe() stores these on the external leaves it reaches rather than
-     * returning an unregistration handle: the callback fires only while its
-     * guard is alive, so an observer disarms by dropping the guard. A leaf drops
-     * a dead registration the next time it is observed or fires. */
-    class ObserveCallback
+    /** Per-context wakeup for external leaf changes. observe() arms it with a
+     * callback; external leaves (input, collect) fire it when they change,
+     * without evaluating the graph. It stays armed for the context's lifetime;
+     * coalescing of repeated fires is the caller's concern (the frame loop
+     * throttles requestFrame). */
+    class ObserveControl
     {
     public:
-        ObserveCallback() = default;
-
-        ObserveCallback(ObserveGuard const& guard, std::function<void()> callback) :
-            guard_(guard),
-            callback_(std::move(callback))
+        void arm(std::function<void()> callback)
         {
+            std::lock_guard<std::mutex> lock(mutex_);
+            callback_ = std::move(callback);
         }
 
-        /** True while the owning observer is still armed. */
-        explicit operator bool() const
+        void fire()
         {
-            return !guard_.expired();
-        }
-
-        void operator()() const
-        {
-            if (auto alive = guard_.lock())
-                callback_();
+            std::function<void()> callback;
+            { std::lock_guard<std::mutex> lock(mutex_); callback = callback_; }
+            if (callback)
+                callback();
         }
 
     private:
-        std::weak_ptr<void> guard_;
+        std::mutex mutex_;
         std::function<void()> callback_;
     };
 
@@ -164,11 +147,26 @@ namespace bq::signal
             frameData_.clear();
         }
 
+        /** Arms this context's wakeup; the callback fires on the next external
+         * change to any leaf reached by this context. */
+        void observe(std::function<void()> callback)
+        {
+            observeControl_->arm(std::move(callback));
+        }
+
+        /** The wakeup an external leaf registers itself with at init. */
+        std::weak_ptr<ObserveControl> observeControl() const
+        {
+            return observeControl_;
+        }
+
     private:
         btl::UniqueId id_;
         std::unordered_map<DataId, std::weak_ptr<Base>> data_;
         std::vector<std::shared_ptr<Base>> frameData_;
         std::vector<std::shared_ptr<Base>> prevFrameData_;
+        std::shared_ptr<ObserveControl> observeControl_ =
+            std::make_shared<ObserveControl>();
     };
 } // namespace bq::signal
 

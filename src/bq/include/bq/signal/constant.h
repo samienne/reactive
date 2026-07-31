@@ -50,11 +50,6 @@ namespace bq::signal
             return { std::nullopt, false };
         }
 
-        void observe(DataContext&, DataType&, ObserveCallback)
-        {
-            // nothing to observe
-        }
-
     private:
         btl::CopyWrapper<T> constant_;
     };

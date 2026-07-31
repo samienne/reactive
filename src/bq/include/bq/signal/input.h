@@ -32,7 +32,8 @@ namespace bq::signal
         std::optional<Weak<Ts...>> sig;
         uint64_t valueIndex = 0;
         uint64_t signalIndex = 0;
-        std::vector<ObserveCallback> callbacks;
+        std::vector<std::pair<uint64_t, std::weak_ptr<ObserveControl>>> observers;
+        uint64_t nextObserverId = 1;
     };
 
     template <typename... Ts>
@@ -69,17 +70,28 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<ObserveCallback> callbacks;
+            std::vector<std::weak_ptr<ObserveControl>> toFire;
             {
-                std::unique_lock lock(control->mutex);
+                std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
                 control->valueIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                std::swap(callbacks, control->callbacks);
+                for (auto it = control->observers.begin();
+                        it != control->observers.end(); )
+                {
+                    if (it->second.expired())
+                        it = control->observers.erase(it);
+                    else
+                    {
+                        toFire.push_back(it->second);
+                        ++it;
+                    }
+                }
             }
 
-            for (auto&& cb : callbacks)
-                cb();
+            for (auto& w : toFire)
+                if (auto c = w.lock())
+                    c->fire();
         }
 
         void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
@@ -88,17 +100,28 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<ObserveCallback> callbacks;
+            std::vector<std::weak_ptr<ObserveControl>> toFire;
             {
-                std::unique_lock lock(control->mutex);
+                std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
                 control->signalIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                std::swap(callbacks, control->callbacks);
+                for (auto it = control->observers.begin();
+                        it != control->observers.end(); )
+                {
+                    if (it->second.expired())
+                        it = control->observers.erase(it);
+                    else
+                    {
+                        toFire.push_back(it->second);
+                        ++it;
+                    }
+                }
             }
 
-            for (auto&& cb : callbacks)
-                cb();
+            for (auto& w : toFire)
+                if (auto c = w.lock())
+                    c->fire();
         }
 
     private:
@@ -116,6 +139,21 @@ namespace bq::signal
             {
             }
 
+            ~ContextDataType()
+            {
+                if (auto control = inputControl.lock())
+                {
+                    std::unique_lock<std::recursive_mutex> lock(control->mutex);
+                    auto& obs = control->observers;
+                    for (auto it = obs.begin(); it != obs.end(); ++it)
+                        if (it->first == observerId)
+                        {
+                            obs.erase(it);
+                            break;
+                        }
+                }
+            }
+
             std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
             SignalResult<Ts...> value;
             std::optional<signal_time_t> updateTime;
@@ -123,6 +161,8 @@ namespace bq::signal
             uint64_t frameId = 0;
             uint64_t index = 0;
             bool didChange = false;
+            std::weak_ptr<InputControl<Ts...>> inputControl;
+            uint64_t observerId = 0;
         };
 
         struct DataType
@@ -147,6 +187,11 @@ namespace bq::signal
                         control_->id_, control_->value);
 
                 contextData->index = control_->valueIndex;
+
+                auto id = control_->nextObserverId++;
+                control_->observers.emplace_back(id, context.observeControl());
+                contextData->inputControl = control_;
+                contextData->observerId = id;
 
                 if (control_->sig)
                 {
@@ -247,28 +292,6 @@ namespace bq::signal
             }
 
             return { std::nullopt, didChange };
-        }
-
-        void observe(DataContext& context, DataType& data, ObserveCallback callback)
-        {
-            std::unique_lock lock(control_->mutex);
-
-            ContextDataType& contextData = *data.contextData;
-
-            auto& cbs = control_->callbacks;
-            cbs.erase(std::remove_if(cbs.begin(), cbs.end(),
-                    [](ObserveCallback const& cb) { return !cb; }), cbs.end());
-
-            if (control_->sig && contextData.sigData)
-            {
-                control_->sig->observe(
-                        context,
-                        *contextData.sigData,
-                        callback
-                        );
-            }
-
-            cbs.push_back(std::move(callback));
         }
 
     private:
