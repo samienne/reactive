@@ -98,17 +98,14 @@ TEST(signal, constant)
 
     FrameInfo frame(1, signal_time_t(10));
 
-    auto r = c.update(frame);
-    EXPECT_EQ(r.nextUpdate, std::nullopt);
+    c.update(frame);
 }
 
 TEST(signal, signalContext)
 {
     auto c = makeSignalContext(constant(42));
 
-    UpdateResult r = c.update(FrameInfo(1, signal_time_t(0)));
-
-    EXPECT_EQ(std::nullopt, r.nextUpdate);
+    c.update(FrameInfo(1, signal_time_t(0)));
 
     EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
 
@@ -134,8 +131,7 @@ TEST(signal, signalInput)
 
     EXPECT_EQ(42, c.evaluate<0>().get<0>());
 
-    auto r = c.update(FrameInfo(1, {}));
-    EXPECT_EQ(std::nullopt, r.nextUpdate);
+    c.update(FrameInfo(1, {}));
 
     EXPECT_EQ(22, c.evaluate<0>().get<0>());
 
@@ -160,7 +156,6 @@ TEST(signal, map)
     auto r = c.update(FrameInfo(1, {}));
 
     EXPECT_FALSE(r.didChange);
-    EXPECT_EQ(std::nullopt, r.nextUpdate);
 
     input.handle.set(12);
 
@@ -170,7 +165,6 @@ TEST(signal, map)
 
     EXPECT_EQ(24, c.evaluate<0>().get<0>());
     EXPECT_TRUE(r.didChange);
-    EXPECT_EQ(std::nullopt, r.nextUpdate);
 }
 
 TEST(signal, mapReferenceToTemp)

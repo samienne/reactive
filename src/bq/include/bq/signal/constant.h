@@ -47,7 +47,7 @@ namespace bq::signal
 
         UpdateResult update(DataContext&, DataType&, FrameInfo const&)
         {
-            return { std::nullopt, false };
+            return { false };
         }
 
     private:

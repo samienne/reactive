@@ -55,7 +55,7 @@ namespace bq::signal
                     data.value = std::move(value);
             }
 
-            return { r.nextUpdate, didReallyChange };
+            return { didReallyChange };
         }
 
     private:

@@ -79,7 +79,7 @@ namespace bq::stream
             data.control->values.clear();
             std::swap(data.control->values, data.control->newValues);
 
-            return { {}, !data.control->values.empty() };
+            return { !data.control->values.empty() };
         }
 
     private:

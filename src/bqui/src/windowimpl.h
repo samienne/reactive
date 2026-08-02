@@ -255,7 +255,7 @@ public:
             << std::endl;
     }
 
-    std::optional<bq::signal::signal_time_t> makeTransaction(
+    void makeTransaction(
             std::chrono::microseconds dt,
             std::optional<avg::AnimationOptions> const& animationOptions
             )
@@ -266,8 +266,8 @@ public:
 
         bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        auto updateResult = widgetInstanceSignal_.update(frameInfo);
-        updateResult = updateResult + titleSignal_.update(frameInfo);
+        widgetInstanceSignal_.update(frameInfo);
+        titleSignal_.update(frameInfo);
 
 
         if (titleSignal_.didChange<0>())
@@ -356,8 +356,6 @@ public:
 
             aseWindow.requestFrame();
         }
-
-        return updateResult.nextUpdate;
     }
 
     std::optional<bq::signal::signal_time_t> frame(std::chrono::microseconds dt)
@@ -383,7 +381,7 @@ public:
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
                 timer_);
 
-        auto timeToNext = makeTransaction(frame.dt, std::nullopt);
+        makeTransaction(frame.dt, std::nullopt);
 
         if (animating_)
         {
@@ -407,7 +405,7 @@ public:
         if (animating_)
             return std::chrono::microseconds(0);
 
-        return timeToNext;
+        return std::nullopt;
     }
 
     btl::UniqueId getId() const

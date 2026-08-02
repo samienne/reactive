@@ -28,7 +28,6 @@ namespace bq::signal
             SignalResult<Ts...> value;
             uint64_t frameId = 0;
             bool didChange = false;
-            std::optional<signal_time_t> nextUpdate;
         };
 
         struct DataType
@@ -80,20 +79,18 @@ namespace bq::signal
                             *data.contextData->innerData, frame);
                     data.contextData->value = control->baseEvaluate(context,
                             *data.contextData->innerData);
-                    data.contextData->nextUpdate = result.nextUpdate;
                     data.contextData->didChange = result.didChange;
                     return result;
                 }
                 else
                 {
-                    data.contextData->nextUpdate = std::nullopt;
                     data.contextData->didChange = false;
                 }
 
                 data.contextData->frameId = frame.getFrameId();
             }
 
-            return { data.contextData->nextUpdate, data.contextData->didChange };
+            return { data.contextData->didChange };
         }
 
     private:

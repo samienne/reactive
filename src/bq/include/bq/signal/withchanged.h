@@ -62,7 +62,6 @@ namespace bq::signal
             data.innerDidChange = r.didChange;
 
             return {
-                r.nextUpdate,
                 didChange
             };
         }

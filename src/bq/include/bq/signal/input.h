@@ -118,8 +118,6 @@ namespace bq::signal
 
             std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
             SignalResult<Ts...> value;
-            std::optional<signal_time_t> updateTime;
-            signal_time_t time = signal_time_t(0);
             uint64_t frameId = 0;
             uint64_t index = 0;
             bool didChange = false;
@@ -197,19 +195,10 @@ namespace bq::signal
 
             if (!newFrame)
             {
-                if (contextData.updateTime)
-                {
-                    return {
-                        *contextData.updateTime - contextData.time,
-                            contextData.didChange
-                    };
-                }
-
-                return { std::nullopt, contextData.didChange };
+                return { contextData.didChange };
             }
 
             contextData.frameId = frame.getFrameId();
-            contextData.time += frame.getDeltaTime();
 
             bool didChange = false;
             bool const newSignal = contextData.index < control_->signalIndex;
@@ -239,10 +228,6 @@ namespace bq::signal
                 }
 
                 didChange = didChange || r.didChange;
-
-                contextData.updateTime.reset();
-                if (r.nextUpdate)
-                    contextData.updateTime = contextData.time + *r.nextUpdate;
             }
 
             bool const newValue = (contextData.index < control_->valueIndex);
@@ -255,15 +240,7 @@ namespace bq::signal
 
             contextData.didChange = didChange;
 
-            if (contextData.updateTime)
-            {
-                return {
-                    *contextData.updateTime - contextData.time,
-                    didChange
-                };
-            }
-
-            return { std::nullopt, didChange };
+            return { didChange };
         }
 
     private:

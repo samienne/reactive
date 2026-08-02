@@ -425,12 +425,6 @@ namespace bq::signal
                             data.datas.at(element.id), frame);
                 }
 
-                // Nothing collected an arrival's own request to be driven
-                // again, so ask for the next frame on its behalf rather than
-                // let a newly built animation sit still.
-                if (!arrived.empty())
-                    r.nextUpdate = min(r.nextUpdate, signal_time_t(0));
-
                 return r;
             }
 
