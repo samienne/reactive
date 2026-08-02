@@ -266,6 +266,36 @@ void GlxWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
     genericWindow_.setTextCallback(std::move(cb));
 }
 
+void GlxWindow::injectPointerButtonEvent(unsigned int pointerIndex,
+        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
+{
+    genericWindow_.injectPointerButtonEvent(pointerIndex, buttonIndex, pos,
+            buttonState);
+}
+
+void GlxWindow::injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos)
+{
+    genericWindow_.injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void GlxWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+        bool state)
+{
+    genericWindow_.injectHoverEvent(pointerIndex, pos, state);
+}
+
+void GlxWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
+        uint32_t modifiers, std::string text)
+{
+    genericWindow_.injectKeyEvent(keyState, keyCode, modifiers,
+            std::move(text));
+}
+
+void GlxWindow::injectTextEvent(std::string text)
+{
+    genericWindow_.injectTextEvent(std::move(text));
+}
+
 void GlxWindow::handleEvent(_XEvent const& e)
 {
     // Skip events that are not for us.
