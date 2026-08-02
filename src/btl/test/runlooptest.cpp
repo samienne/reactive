@@ -214,4 +214,53 @@ TEST(RunLoop, readableFiresOnSignaledHandleThenStopsAfterRemove)
 
     ::CloseHandle(event);
 }
+
+// The thread message queue is a readable source: a message posted to the loop
+// thread wakes the loop (MsgWaitForMultipleObjectsEx) and fires the source,
+// whose callback drains the queue with PeekMessage.
+TEST(RunLoop, messageQueueFiresOnPostedThreadMessage)
+{
+    btl::RunLoop loop;
+
+    std::atomic<DWORD> loopThreadId{ 0 };
+    std::atomic<bool> ready{ false };
+    bool fired = false; // written on the loop thread, read after join.
+
+    std::thread worker([&]
+        {
+            loopThreadId = ::GetCurrentThreadId();
+
+            // Force the thread message queue to exist so PostThreadMessage can
+            // target it, then let the main thread post.
+            MSG msg;
+            ::PeekMessageW(&msg, nullptr, WM_USER, WM_USER, PM_NOREMOVE);
+            ready = true;
+
+            loop.post([&](Controller& c)
+                {
+                    c.addReadable(btl::fromMessageQueue(), [&](Controller& cc)
+                        {
+                            MSG m;
+                            while (::PeekMessageW(&m, nullptr, 0, 0, PM_REMOVE))
+                                if (m.message == WM_USER)
+                                    fired = true;
+                            cc.stop();
+                        }).detach();
+                });
+
+            loop.run();
+        });
+
+    while (!ready.load())
+        std::this_thread::sleep_for(1ms);
+
+    // Retry until the queue is up (PostThreadMessage can briefly fail with
+    // ERROR_INVALID_THREAD_ID before the target thread has a queue).
+    while (!::PostThreadMessageW(loopThreadId.load(), WM_USER, 0, 0))
+        std::this_thread::sleep_for(1ms);
+
+    worker.join();
+
+    EXPECT_TRUE(fired);
+}
 #endif

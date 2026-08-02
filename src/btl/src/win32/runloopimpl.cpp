@@ -65,6 +65,8 @@ namespace
         SourceId addReadable(NativeHandle handle,
                 Callback onReadable) override
         {
+            if (handle.kind() == NativeHandle::Kind::MessageQueue)
+                return addMessage(std::move(onReadable));
             if (handle.kind() == NativeHandle::Kind::Handle)
                 return addHandle(handle, std::move(onReadable));
             return addSocket(handle, std::move(onReadable),
@@ -127,8 +129,18 @@ namespace
                 std::vector<HANDLE> handles;
                 std::vector<SourceId> ids;
                 handles.push_back(wakeup_);
+
+                bool hasMessages = false;
+                SourceId messageId = 0;
                 for (auto& entry : sources_)
                 {
+                    if (entry.second.isMessage)
+                    {
+                        // Waited on via the message queue, not a HANDLE.
+                        hasMessages = true;
+                        messageId = entry.first;
+                        continue;
+                    }
                     if (handles.size() >= MAXIMUM_WAIT_OBJECTS)
                         break; // 64-handle WFMO cap; see the design doc.
                     handles.push_back(entry.second.event);
@@ -136,11 +148,26 @@ namespace
                 }
 
                 DWORD timeout = nextTimeout();
-                DWORD result = WaitForMultipleObjects(
-                        (DWORD)handles.size(), handles.data(), FALSE, timeout);
+                DWORD result;
+                if (hasMessages)
+                    result = MsgWaitForMultipleObjectsEx(
+                            (DWORD)handles.size(), handles.data(), timeout,
+                            QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+                else
+                    result = WaitForMultipleObjects(
+                            (DWORD)handles.size(), handles.data(), FALSE,
+                            timeout);
 
                 if (result == WAIT_TIMEOUT)
                 {
+                    fireExpiredTimers();
+                }
+                else if (hasMessages
+                        && result == WAIT_OBJECT_0 + handles.size())
+                {
+                    // MsgWaitForMultipleObjectsEx reports the message queue as
+                    // the object just past the waited handles.
+                    fireMessage(messageId);
                     fireExpiredTimers();
                 }
                 else if (result >= WAIT_OBJECT_0
@@ -167,6 +194,7 @@ namespace
             SOCKET socket;  // INVALID_SOCKET for a handle source.
             bool ownsEvent; // true: we created the event and must close it.
             Callback callback;
+            bool isMessage = false; // true: the thread message queue, no event.
         };
 
         struct Timer
@@ -198,6 +226,19 @@ namespace
             return id;
         }
 
+        // A message source has no waitable event; run() waits on the thread
+        // message queue via MsgWaitForMultipleObjectsEx and fires this source
+        // when input is available. Its callback drains the queue itself.
+        SourceId addMessage(Callback callback)
+        {
+            SourceId id = nextId_++;
+            Source source{ nullptr, INVALID_SOCKET, false,
+                    std::move(callback) };
+            source.isMessage = true;
+            sources_[id] = std::move(source);
+            return id;
+        }
+
         void fireSocket(SourceId id)
         {
             auto it = sources_.find(id);
@@ -212,6 +253,20 @@ namespace
                 WSAEnumNetworkEvents(
                         it->second.socket, it->second.event, &network);
             }
+
+            // The callback may remove this or other sources, so copy it out.
+            Callback callback = it->second.callback;
+            invoke(callback);
+        }
+
+        // A message source has no event to drain or reset; the callback pulls
+        // messages off the thread queue itself. Level-triggered: anything the
+        // callback leaves behind fires the wait again next pass.
+        void fireMessage(SourceId id)
+        {
+            auto it = sources_.find(id);
+            if (it == sources_.end())
+                return;
 
             // The callback may remove this or other sources, so copy it out.
             Callback callback = it->second.callback;

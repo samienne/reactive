@@ -25,6 +25,7 @@ namespace btl
             Fd,     // POSIX file descriptor: select/poll.
             Socket, // Win32 SOCKET: WSAEventSelect onto an event.
             Handle, // Win32 waitable HANDLE (e.g. an overlapped-I/O event).
+            MessageQueue, // Win32 thread message queue: MsgWaitForMultipleObjects.
         };
 
         NativeHandle() = default;

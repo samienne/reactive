@@ -34,4 +34,15 @@ namespace btl
     {
         return loadNativeHandle<HANDLE>(native);
     }
+
+    /** @brief Wrap the current thread's Win32 message queue as a NativeHandle.
+     * The loop waits on it with MsgWaitForMultipleObjects and fires the source
+     * when input is available; the callback drains the queue itself.
+     */
+    inline NativeHandle fromMessageQueue()
+    {
+        // No real handle: the payload just records the thread whose queue this is.
+        return makeNativeHandle<DWORD>(GetCurrentThreadId(),
+                NativeHandle::Kind::MessageQueue);
+    }
 }
