@@ -33,6 +33,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <iostream>
@@ -75,7 +76,7 @@ public:
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-        auto wake = [this] { aseWindow.requestFrame(); };
+        auto wake = [this] { needsUpdate_ = true; aseWindow.requestFrame(); };
         widgetInstanceSignal_.observe(wake);
         titleSignal_.observe(wake);
 
@@ -394,7 +395,12 @@ public:
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
                 timer_);
 
-        makeTransaction(frame.dt, std::nullopt);
+        // Frames are scheduled to render and advance the render tree; the
+        // signal graph is re-evaluated only when the observe wake flagged an
+        // external change, not on every animation frame.
+        std::optional<bq::signal::signal_time_t> timeToNext;
+        if (needsUpdate_.exchange(false))
+            timeToNext = makeTransaction(frame.dt, std::nullopt);
 
         if (animating_)
         {
@@ -471,6 +477,10 @@ private:
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
+    // Set by the observe wake when an external signal changed; makeTransaction
+    // runs only while it is set, so animation frames re-draw without
+    // re-evaluating the signal graph.
+    std::atomic<bool> needsUpdate_{true};
     bool animating_ = true;
     bool resized_ = true;
     bool closed_ = false;
