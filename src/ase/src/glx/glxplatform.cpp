@@ -346,7 +346,6 @@ void GlxPlatform::run(RenderContext& renderContext,
 {
     DBG("Starting GlxPlatform::run");
 
-    bool const lockStep = true;
     int const targetFps = 60;
     auto const step = std::chrono::microseconds(1000000 / targetFps);
 
@@ -360,23 +359,29 @@ void GlxPlatform::run(RenderContext& renderContext,
 
     btl::RunLoop::Source xSource;
 
-    // Drive frames through the run loop; each frame re-posts the next, a false
-    // callback stops it.
-    std::function<void(btl::RunLoop::Controller&)> tick =
-        [&](btl::RunLoop::Controller& controller)
-    {
-        std::chrono::steady_clock::time_point thisFrame;
-        if (lockStep)
-            thisFrame = nextFrame;
-        else
-            thisFrame = clock.now();
+    // A tick is "scheduled" while one is posted or a paced timer is pending;
+    // this loop-thread-only flag dedupes so ticks never stack.
+    bool tickScheduled = false;
 
+    std::function<void(btl::RunLoop::Controller&)> tick;
+
+    auto scheduleTick = [&](btl::RunLoop::Controller& controller)
+    {
+        if (tickScheduled)
+            return;
+        tickScheduled = true;
+        controller.post(tick);
+    };
+
+    tick = [&](btl::RunLoop::Controller& controller)
+    {
+        tickScheduled = false;
+
+        auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - startTime);
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
-
-        handleEvents();
 
         Frame frame { time, dt };
 
@@ -387,7 +392,7 @@ void GlxPlatform::run(RenderContext& renderContext,
         }
 
         // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-post picks it up.
+        // flight; a fence completion frees a slot and a re-arm picks it up.
         if (*framesInFlight < 2)
         {
             for (auto& weakWindow : d()->windows_)
@@ -414,30 +419,56 @@ void GlxPlatform::run(RenderContext& renderContext,
         while (nextFrame < now)
             nextFrame += step;
 
-        /*
-        auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(now - thisFrame);
-        auto remaining = nextFrame - now;
-        if (remaining.count() > 0)
-        {
-            ZoneScopedN("sleep");
-            std::this_thread::sleep_for(remaining);
-        }
-        */
-
         lastFrame = thisFrame;
 
-        controller.post(tick);
+        // Re-arm only while there is work: a window still wants to draw, or the
+        // GPU is saturated and we must retry when a fence frees a slot. When
+        // neither holds we do not re-post, and the loop blocks on the X source
+        // and posts until requestFrame() wakes it.
+        bool armed = *framesInFlight >= 2;
+        for (auto& weakWindow : d()->windows_)
+        {
+            if (auto window = weakWindow.lock())
+            {
+                if (window->needsRedraw())
+                {
+                    armed = true;
+                    break;
+                }
+            }
+        }
+
+        if (armed && !tickScheduled)
+        {
+            tickScheduled = true;
+            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
+                    nextFrame - clock.now());
+            if (delay.count() < 0)
+                delay = std::chrono::microseconds(0);
+            controller.addTimer(delay, tick).detach();
+        }
     };
 
     runLoop().post([&](btl::RunLoop::Controller& controller)
         {
+            // Wake on X input; the callback drains the connection (firing the
+            // window event handlers) and schedules a tick so frameCallback
+            // (running/sync) runs and any armed window redraws.
             xSource = controller.addReadable(
                     btl::fromFd(ConnectionNumber(d()->dpy_)),
-                    [this](btl::RunLoop::Controller&) { handleEvents(); });
-            controller.post(tick);
+                    [&](btl::RunLoop::Controller& c)
+                    {
+                        handleEvents();
+                        scheduleTick(c);
+                    });
+
+            scheduleTick_ = [&](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+            scheduleTick(controller);
         });
     runLoop().run();
+
+    scheduleTick_ = nullptr;
 
     mainQueue.finish();
 
@@ -446,6 +477,17 @@ void GlxPlatform::run(RenderContext& renderContext,
 
 void GlxPlatform::requestFrame()
 {
+    // May be called off the loop thread (e.g. an async signal completing), so
+    // wake through a thread-safe post; the atomic coalesces a burst into one.
+    if (!wakePosted_.exchange(true))
+    {
+        runLoop().post([this](btl::RunLoop::Controller& controller)
+            {
+                wakePosted_ = false;
+                if (scheduleTick_)
+                    scheduleTick_(controller);
+            });
+    }
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

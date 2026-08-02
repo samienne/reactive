@@ -271,6 +271,10 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     auto runningContext = bq::signal::makeSignalContext(std::move(running));
 
+    // Wake the loop when the run condition changes, so an on-demand platform
+    // re-evaluates it instead of sleeping through the change.
+    runningContext.observe([this] { d()->wakeLoop(); });
+
     // Syncs the live impls to the window collection: mounts an impl for any
     // window not yet mounted, tears down any impl whose window has left. The
     // collection (which close()/removeWindow update directly) is read straight,
