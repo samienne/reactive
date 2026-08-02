@@ -13,6 +13,7 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
 #include <vector>
 
 using namespace bq;
@@ -393,4 +394,193 @@ TEST(SignalContextObserve, firesOnEachChange)
 
     input.handle.set(2);
     EXPECT_EQ(2, count);
+}
+
+// An input reached through two routes registers once (its per-context data is
+// deduped by control id at init), so a set() fires the wakeup once.
+TEST(SignalContextObserve, diamondInputFiresOnce)
+{
+    auto input = makeInput<int>(0);
+    auto c = makeSignalContext(merge(
+                input.signal.map([](int x) { return x; }),
+                input.signal.map([](int x) { return x; })));
+
+    int count = 0;
+    c.observe([&] { ++count; });
+
+    input.handle.set(1);
+    EXPECT_EQ(1, count);
+}
+
+// An unshared collect reached through two routes builds one Control per route,
+// so an emit fires the wakeup once per route. This is allowed: the wakeup may
+// fire more than once, and the frame loop coalesces.
+TEST(SignalContextObserve, diamondCollectFiresPerRoute)
+{
+    auto p = pipe<int>();
+    auto col = collect(std::move(p.stream));
+    auto c = makeSignalContext(merge(
+                col.map([](std::vector<int> const& v) { return v.size(); }),
+                col.map([](std::vector<int> const& v) { return v.size(); })));
+
+    int count = 0;
+    c.observe([&] { ++count; });
+
+    p.handle.push(1);
+    EXPECT_EQ(2, count);
+}
+
+// Sharing collapses the diamond back to one Control, so one emit fires once.
+TEST(SignalContextObserve, diamondCollectSharedFiresOnce)
+{
+    auto p = pipe<int>();
+    auto col = collect(std::move(p.stream)).share();
+    auto c = makeSignalContext(merge(
+                col.map([](std::vector<int> const& v) { return v.size(); }),
+                col.map([](std::vector<int> const& v) { return v.size(); })));
+
+    int count = 0;
+    c.observe([&] { ++count; });
+
+    p.handle.push(1);
+    EXPECT_EQ(1, count);
+}
+
+// Two distinct changes each fire: the wakeup is not coalesced within a cycle.
+TEST(SignalContextObserve, distinctInputsEachFire)
+{
+    auto a = makeInput<int>(0);
+    auto b = makeInput<int>(0);
+    auto c = makeSignalContext(a.signal, b.signal);
+
+    int count = 0;
+    c.observe([&] { ++count; });
+
+    a.handle.set(1);
+    b.handle.set(2);
+    EXPECT_EQ(2, count);
+}
+
+// ---------------------------------------------------------------------------
+// Init/deinit balance under a diamond. The context (and its callback) outlives
+// the graph data: after tearing the data down, a set() that still fired would
+// mean a registration leaked past its per-context data, so count staying at 0
+// proves the unregister was balanced against the register.
+// ---------------------------------------------------------------------------
+
+TEST(ObserveDiamond, inputTeardownRebuild)
+{
+    auto input = makeInput<int>(0);
+
+    DataContext ctx;
+    int count = 0;
+    ctx.observe([&] { ++count; });
+
+    auto sig = merge(input.signal.map([](int x) { return x; }),
+                     input.signal.map([](int x) { return x; }));
+
+    {
+        auto data = initialize(ctx, sig);
+        input.handle.set(1);
+        EXPECT_EQ(1, count); // one registration despite two routes
+    } // data destroyed once -> ContextDataType destroyed once -> unregister once
+
+    count = 0;
+    input.handle.set(2);
+    EXPECT_EQ(0, count); // context still alive; nothing fired -> balanced
+
+    {
+        auto data = initialize(ctx, sig);
+        count = 0;
+        input.handle.set(3);
+        EXPECT_EQ(1, count); // re-init re-registers cleanly
+    }
+}
+
+TEST(ObserveDiamond, collectTeardownRebuild)
+{
+    auto p = pipe<int>();
+
+    DataContext ctx;
+    int count = 0;
+    ctx.observe([&] { ++count; });
+
+    auto col = collect(std::move(p.stream));
+    auto sig = merge(col.map([](std::vector<int> const& v) { return v.size(); }),
+                     col.map([](std::vector<int> const& v) { return v.size(); }));
+
+    {
+        auto data = initialize(ctx, sig);
+        p.handle.push(1);
+        EXPECT_EQ(2, count); // two Controls
+    } // both Controls destroyed -> both fmap subscriptions detach
+
+    count = 0;
+    p.handle.push(2);
+    EXPECT_EQ(0, count); // no dangling subscription fired
+
+    {
+        auto data = initialize(ctx, sig);
+        count = 0;
+        p.handle.push(3);
+        EXPECT_EQ(2, count); // rebuilt cleanly
+    }
+}
+
+// A shared subgraph (not just a leaf) reached twice: the input inside it inits
+// once, and tearing the shared node down releases it once.
+TEST(ObserveDiamond, sharedSubgraphTeardown)
+{
+    auto input = makeInput<int>(0);
+    auto shared = input.signal.map([](int x) { return x * 2; }).share();
+
+    DataContext ctx;
+    int count = 0;
+    ctx.observe([&] { ++count; });
+
+    auto sig = merge(shared.map([](int x) { return x; }),
+                     shared.map([](int x) { return x; }));
+
+    {
+        auto data = initialize(ctx, sig);
+        input.handle.set(1);
+        EXPECT_EQ(1, count); // shared subgraph -> input inits once
+    }
+
+    count = 0;
+    input.handle.set(2);
+    EXPECT_EQ(0, count); // shared node released -> input released -> unregister
+}
+
+// Refcount-driven release: two routes share the input's per-context data.
+// Dropping one route must not unregister while the other still holds it; the
+// last route out unregisters exactly once (no early or double deinit).
+TEST(ObserveDiamond, inputPartialTeardown)
+{
+    auto input = makeInput<int>(0);
+
+    DataContext ctx;
+    int count = 0;
+    ctx.observe([&] { ++count; });
+
+    auto s1 = input.signal.map([](int x) { return x; });
+    auto s2 = input.signal.map([](int x) { return x; });
+
+    auto d1 = initialize(ctx, s1);
+    auto d2 = initialize(ctx, s2);
+    std::optional<decltype(d1)> route1{ std::move(d1) };
+    std::optional<decltype(d2)> route2{ std::move(d2) };
+
+    input.handle.set(1);
+    EXPECT_EQ(1, count); // one registration shared by both routes
+
+    route1.reset(); // one route leaves; the other still holds the data
+    count = 0;
+    input.handle.set(2);
+    EXPECT_EQ(1, count); // still registered -> still fires
+
+    route2.reset(); // last route leaves -> data destroyed -> unregister
+    count = 0;
+    input.handle.set(3);
+    EXPECT_EQ(0, count); // unregistered exactly once
 }

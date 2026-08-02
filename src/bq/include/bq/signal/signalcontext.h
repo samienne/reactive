@@ -72,8 +72,15 @@ namespace bq::signal
         }
 
         /** Arms a wakeup for external changes to any leaf this context reaches.
-         * The callback fires without the graph being evaluated. It stays armed
-         * for the context's lifetime. */
+         *
+         * The callback fires without the graph being evaluated. It is a wakeup,
+         * not a change count: it may be called more than once per update cycle
+         * -- once per external change, and more than once for a single change
+         * that reaches the context through separate routes (an unshared
+         * diamond). So it must be cheap and safe to run repeatedly; the intended
+         * use is to schedule an already-throttled repaint. It stays armed for
+         * the context's lifetime and runs on the thread that made the change, so
+         * it must be safe to call from any thread. */
         void observe(std::function<void()> callback)
         {
             dataContext_.observe(std::move(callback));
