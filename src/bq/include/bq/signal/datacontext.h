@@ -33,7 +33,10 @@ namespace bq::signal
         void fire()
         {
             std::function<void()> callback;
-            { std::lock_guard<std::mutex> lock(mutex_); callback = callback_; }
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                callback = callback_;
+            }
             if (callback)
                 callback();
         }
@@ -147,9 +150,10 @@ namespace bq::signal
             frameData_.clear();
         }
 
-        /** Arms this context's wakeup; the callback fires on the next external
-         * change to any leaf reached by this context. */
-        void observe(std::function<void()> callback)
+        /** Sets this context's wakeup callback, replacing any previous one. It
+         * fires on the next external change to any leaf this context reaches.
+         * There is one callback -- the owning SignalContext's. */
+        void setObserveCallback(std::function<void()> callback)
         {
             observeControl_->arm(std::move(callback));
         }

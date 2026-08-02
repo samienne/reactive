@@ -56,7 +56,7 @@ TEST(Observe, inputFiresOnSet)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, input.signal);
 
@@ -72,7 +72,7 @@ TEST(Observe, firesOnEachSet)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto data = initialize(ctx, input.signal);
 
@@ -91,7 +91,7 @@ TEST(Observe, wakeDoesNotEvaluate)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, input.signal);
 
@@ -112,7 +112,7 @@ TEST(Observe, collectFiresOnEmit)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -130,7 +130,7 @@ TEST(Observe, throughMap)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -147,7 +147,7 @@ TEST(Observe, throughMerge)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto data = initialize(ctx, sig);
 
@@ -171,7 +171,7 @@ TEST(Observe, throughCombine)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto data = initialize(ctx, sig);
 
@@ -191,7 +191,7 @@ TEST(Observe, throughJoin)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -210,7 +210,7 @@ TEST(Observe, throughArrayJoin)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -232,7 +232,7 @@ TEST(Observe, conditionalActiveBranchOnly)
 
     DataContext ctx;
     bool firedTrue = false;
-    ctx.observe([&] { firedTrue = true; });
+    ctx.setObserveCallback([&] { firedTrue = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -241,7 +241,7 @@ TEST(Observe, conditionalActiveBranchOnly)
 
     // The false branch was never initialized, so pushing it wakes nothing.
     bool firedFalse = false;
-    ctx.observe([&] { firedFalse = true; });
+    ctx.setObserveCallback([&] { firedFalse = true; });
     pf.handle.push(2);
     EXPECT_FALSE(firedFalse);
 }
@@ -260,7 +260,7 @@ TEST(Observe, conditionalRewiresOnFlip)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     auto data = initialize(ctx, sig);
 
@@ -290,7 +290,7 @@ TEST(Observe, cleanupOnDataDestruction)
 
     DataContext ctx;
     bool fired = false;
-    ctx.observe([&] { fired = true; });
+    ctx.setObserveCallback([&] { fired = true; });
 
     {
         auto data = initialize(ctx, input.signal);
@@ -308,12 +308,12 @@ TEST(Observe, multipleContextsFire)
 
     DataContext ctx1;
     bool fired1 = false;
-    ctx1.observe([&] { fired1 = true; });
+    ctx1.setObserveCallback([&] { fired1 = true; });
     auto data1 = initialize(ctx1, input.signal);
 
     DataContext ctx2;
     bool fired2 = false;
-    ctx2.observe([&] { fired2 = true; });
+    ctx2.setObserveCallback([&] { fired2 = true; });
     auto data2 = initialize(ctx2, input.signal);
 
     input.handle.set(1);
@@ -474,7 +474,7 @@ TEST(ObserveDiamond, inputTeardownRebuild)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto sig = merge(input.signal.map([](int x) { return x; }),
                      input.signal.map([](int x) { return x; }));
@@ -503,7 +503,7 @@ TEST(ObserveDiamond, collectTeardownRebuild)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto col = collect(std::move(p.stream));
     auto sig = merge(col.map([](std::vector<int> const& v) { return v.size(); }),
@@ -536,7 +536,7 @@ TEST(ObserveDiamond, sharedSubgraphTeardown)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto sig = merge(shared.map([](int x) { return x; }),
                      shared.map([](int x) { return x; }));
@@ -561,7 +561,7 @@ TEST(ObserveDiamond, inputPartialTeardown)
 
     DataContext ctx;
     int count = 0;
-    ctx.observe([&] { ++count; });
+    ctx.setObserveCallback([&] { ++count; });
 
     auto s1 = input.signal.map([](int x) { return x; });
     auto s2 = input.signal.map([](int x) { return x; });

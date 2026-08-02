@@ -83,7 +83,7 @@ namespace bq::signal
          * it must be safe to call from any thread. */
         void observe(std::function<void()> callback)
         {
-            dataContext_.observe(std::move(callback));
+            dataContext_.setObserveCallback(std::move(callback));
         }
 
     private:
