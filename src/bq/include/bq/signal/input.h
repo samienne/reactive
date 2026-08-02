@@ -17,15 +17,6 @@ namespace bq::signal
     template <typename TStorage, typename... Ts>
     class Signal;
 
-    /** A single (input, context) observation. It is owned by the input's
-     * per-context data and held weakly by the shared control, so it lapses
-     * exactly when that data is released -- the context is torn down, or the
-     * input leaves the graph -- and set() drops the lapsed ones. */
-    struct ObserveRegistration
-    {
-        std::weak_ptr<ObserveControl> control;
-    };
-
     template <typename... Ts>
     struct InputControl
     {
@@ -41,7 +32,7 @@ namespace bq::signal
         std::optional<Weak<Ts...>> sig;
         uint64_t valueIndex = 0;
         uint64_t signalIndex = 0;
-        std::vector<std::weak_ptr<ObserveRegistration>> observers;
+        std::vector<std::shared_ptr<ObserveControl>> observers;
     };
 
     template <typename... Ts>
@@ -78,28 +69,17 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<std::shared_ptr<ObserveRegistration>> toFire;
+            std::vector<std::shared_ptr<ObserveControl>> toFire;
             {
                 std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
                 control->valueIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                for (auto it = control->observers.begin();
-                        it != control->observers.end(); )
-                {
-                    if (auto registration = it->lock())
-                    {
-                        toFire.push_back(std::move(registration));
-                        ++it;
-                    }
-                    else
-                        it = control->observers.erase(it);
-                }
+                toFire = control->observers;
             }
 
-            for (auto& registration : toFire)
-                if (auto c = registration->control.lock())
-                    c->fire();
+            for (auto& c : toFire)
+                c->fire();
         }
 
         void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
@@ -108,28 +88,17 @@ namespace bq::signal
             if (!control)
                 return;
 
-            std::vector<std::shared_ptr<ObserveRegistration>> toFire;
+            std::vector<std::shared_ptr<ObserveControl>> toFire;
             {
                 std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
                 control->signalIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                for (auto it = control->observers.begin();
-                        it != control->observers.end(); )
-                {
-                    if (auto registration = it->lock())
-                    {
-                        toFire.push_back(std::move(registration));
-                        ++it;
-                    }
-                    else
-                        it = control->observers.erase(it);
-                }
+                toFire = control->observers;
             }
 
-            for (auto& registration : toFire)
-                if (auto c = registration->control.lock())
-                    c->fire();
+            for (auto& c : toFire)
+                c->fire();
         }
 
     private:
@@ -154,7 +123,19 @@ namespace bq::signal
             uint64_t frameId = 0;
             uint64_t index = 0;
             bool didChange = false;
-            std::shared_ptr<ObserveRegistration> observeRegistration;
+            std::shared_ptr<InputControl<Ts...>> inputControl;
+            std::shared_ptr<ObserveControl> observeControl;
+
+            ~ContextDataType()
+            {
+                if (inputControl)
+                {
+                    std::unique_lock<std::recursive_mutex> lock(inputControl->mutex);
+                    auto& obs = inputControl->observers;
+                    obs.erase(std::remove(obs.begin(), obs.end(), observeControl),
+                            obs.end());
+                }
+            }
         };
 
         struct DataType
@@ -180,10 +161,9 @@ namespace bq::signal
 
                 contextData->index = control_->valueIndex;
 
-                auto registration = std::make_shared<ObserveRegistration>();
-                registration->control = context.observeControl();
-                contextData->observeRegistration = registration;
-                control_->observers.push_back(registration);
+                contextData->inputControl = control_;
+                contextData->observeControl = context.observeControl();
+                control_->observers.push_back(contextData->observeControl);
 
                 if (control_->sig)
                 {

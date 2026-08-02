@@ -27,7 +27,7 @@ namespace bq::stream
             std::mutex mutex;
             std::vector<T> newValues;
             std::vector<T> values;
-            std::weak_ptr<signal::ObserveControl> observe;
+            std::shared_ptr<signal::ObserveControl> observe;
         };
 
         struct DataType
@@ -50,14 +50,14 @@ namespace bq::stream
                 control,
                 stream_.fmap([control](auto value)
                     {
-                        std::weak_ptr<signal::ObserveControl> observe;
+                        std::shared_ptr<signal::ObserveControl> observe;
                         {
                             std::unique_lock<std::mutex> lock(control->mutex);
                             control->newValues.push_back(std::move(value));
                             observe = control->observe;
                         }
-                        if (auto c = observe.lock())
-                            c->fire();
+                        if (observe)
+                            observe->fire();
                         return true;
                     })
             };

@@ -159,7 +159,7 @@ namespace bq::signal
         }
 
         /** The wakeup an external leaf registers itself with at init. */
-        std::weak_ptr<ObserveControl> observeControl() const
+        std::shared_ptr<ObserveControl> observeControl() const
         {
             return observeControl_;
         }
