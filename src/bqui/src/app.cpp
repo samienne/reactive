@@ -3,6 +3,8 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
+#include "bqui/agent/session.h"
+
 #include "debug.h"
 #include "windowdata.h"
 #include "windowimpl.h"
@@ -23,8 +25,7 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/rendercontext.h>
-#include <ase/platform.h>
+#include <ase/dummyplatform.h>
 
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
@@ -37,6 +38,7 @@
 #include <tracy/Tracy.hpp>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <mutex>
@@ -48,9 +50,48 @@
 #include <utility>
 #include <vector>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 namespace bqui
 {
+
+namespace
+{
+    // A truthy env var: set and neither empty nor "0".
+    bool envFlag(char const* name)
+    {
+        char const* value = std::getenv(name);
+        return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
+    }
+
+    bool envEquals(char const* name, char const* expected)
+    {
+        char const* value = std::getenv(name);
+        return value && std::strcmp(value, expected) == 0;
+    }
+
+    // Headless when REACTIVE_HEADLESS is truthy or REACTIVE_PLATFORM=dummy.
+    bool wantsHeadlessEnv()
+    {
+        return envFlag("REACTIVE_HEADLESS")
+            || envEquals("REACTIVE_PLATFORM", "dummy");
+    }
+
+    // Agentic mode when REACTIVE_AGENT is truthy or REACTIVE_MODE=agent.
+    // Orthogonal to the platform choice.
+    bool wantsAgentEnv()
+    {
+        return envFlag("REACTIVE_AGENT")
+            || envEquals("REACTIVE_MODE", "agent");
+    }
+
+    std::string agentEndpointEnv()
+    {
+        char const* value = std::getenv("REACTIVE_AGENT_ENDPOINT");
+        return value ? std::string(value) : std::string();
+    }
+} // anonymous namespace
 
 class BQUI_EXPORT AppDeferred :
     public std::enable_shared_from_this<AppDeferred>
@@ -89,7 +130,73 @@ public:
     ase::Platform* runningPlatform_ = nullptr;
 
     std::vector<btl::shared<WindowImpl>> windowImpls_;
+
+    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    // A programmatic override wins over the env var so tests need no global env.
+    std::optional<ase::Platform> platformOverride_;
+    std::optional<bool> headlessOverride_;
+    std::optional<bool> agentOverride_;
+    std::optional<std::string> agentEndpointOverride_;
 };
+
+namespace
+{
+    class GlueAgentWindow : public agent::AgentWindow
+    {
+    public:
+        explicit GlueAgentWindow(WindowImpl& glue) : glue_(glue) {}
+
+        btl::UniqueId id() const override
+        {
+            return glue_.getId();
+        }
+
+        void injectPointerButton(unsigned int pointerIndex,
+                unsigned int buttonIndex, ase::Vector2f pos,
+                ase::ButtonState state) override
+        {
+            glue_.getWindow().injectPointerButtonEvent(pointerIndex,
+                    buttonIndex, pos, state);
+        }
+
+        void injectPointerMove(unsigned int pointerIndex,
+                ase::Vector2f pos) override
+        {
+            glue_.getWindow().injectPointerMoveEvent(pointerIndex, pos);
+        }
+
+        void injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+                bool state) override
+        {
+            glue_.getWindow().injectHoverEvent(pointerIndex, pos, state);
+        }
+
+        void injectKey(ase::KeyState state, ase::KeyCode code,
+                uint32_t modifiers, std::string text) override
+        {
+            glue_.getWindow().injectKeyEvent(state, code, modifiers,
+                    std::move(text));
+        }
+
+        void injectText(std::string text) override
+        {
+            glue_.getWindow().injectTextEvent(std::move(text));
+        }
+
+        widget::Introspection introspect() const override
+        {
+            return glue_.getResolvedIntrospection();
+        }
+
+        void advance(std::chrono::microseconds dt) override
+        {
+            glue_.stepFrame(dt);
+        }
+
+    private:
+        WindowImpl& glue_;
+    };
+} // anonymous namespace
 
 // Releases the app's impls, whatever ends the run. An impl holds an
 // ase::Window and a framebuffer belonging to the run's render context, so
@@ -209,6 +316,30 @@ App& App::addWindow(Window window, widget::AnyWidget widget)
     return *this;
 }
 
+App& App::platform(ase::Platform platform)
+{
+    d()->platformOverride_ = std::move(platform);
+    return *this;
+}
+
+App& App::headless(bool headless)
+{
+    d()->headlessOverride_ = headless;
+    return *this;
+}
+
+App& App::agentic(bool agentic)
+{
+    d()->agentOverride_ = agentic;
+    return *this;
+}
+
+App& App::agentEndpoint(std::string endpoint)
+{
+    d()->agentEndpointOverride_ = std::move(endpoint);
+    return *this;
+}
+
 void App::removeWindow(btl::UniqueId id)
 {
     d()->removeWindow(id);
@@ -240,7 +371,28 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    ase::Platform platform = ase::makeDefaultPlatform();
+    // Platform: explicit override, else headless env, else the OS default.
+    bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
+
+    ase::Platform platform = d()->platformOverride_
+        ? *d()->platformOverride_
+        : (headless ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
+
+    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    bool agentic = d()->agentOverride_.value_or(wantsAgentEnv());
+
+    // A headless run is bounded and deterministic; REACTIVE_FRAMES caps the
+    // frame budget (the default keeps a headless run from spinning forever).
+    if (headless && !d()->platformOverride_)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+                platform.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+        }
+    }
 
     // Published for the run's duration so add/removeWindow can wake the loop;
     // declared after `platform` so it is nulled under the lock before the
@@ -335,6 +487,58 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     };
 
     sync();
+
+    // Agentic mode replaces the free-running loop with an observe->act->observe
+    // loop the external agent drives over the channel. Platform choice is
+    // orthogonal, though it is normally paired with the headless one. The
+    // session may start with no windows: the agent can open the first one, and
+    // the window set stays live because the agent's own clock drives the same
+    // reconcile (sync) the normal loop uses.
+    if (agentic)
+    {
+        std::string endpoint =
+            d()->agentEndpointOverride_.value_or(agentEndpointEnv());
+
+        if (!endpoint.empty())
+        {
+            // Storage the live-window provider hands the session: rebuilt on
+            // each call, so a returned set is valid only until the next call.
+            std::vector<GlueAgentWindow> adapters;
+
+            agent::AgentApp agentApp;
+
+            // One app frame on the agent's clock: advance the running signal and
+            // sync the impls to the window collection, exactly as the normal
+            // loop below does, so the agent's own opens and closes take effect.
+            agentApp.reconcile = [&](std::chrono::microseconds dt)
+            {
+                bq::signal::FrameInfo frame{ getNextFrameId(), dt };
+                runningContext.update(frame);
+                sync();
+            };
+
+            // Adapters over the app's current windows.
+            agentApp.liveWindows = [&]() -> agent::AgentWindows
+            {
+                adapters.clear();
+                adapters.reserve(d()->windowImpls_.size());
+                for (auto& glue : d()->windowImpls_)
+                    adapters.emplace_back(*glue);
+
+                agent::AgentWindows windows;
+                windows.reserve(adapters.size());
+                for (auto& adapter : adapters)
+                    windows.push_back(adapter);
+
+                return windows;
+            };
+
+            agent::runSession(agentApp, endpoint);
+
+            // ImplScope releases the impls on return, whatever ended the run.
+            return 0;
+        }
+    }
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();

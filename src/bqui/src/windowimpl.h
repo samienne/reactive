@@ -9,6 +9,7 @@
 #include "bqui/hoverevent.h"
 #include "bqui/eventresult.h"
 #include "bqui/widget/instance.h"
+#include "bqui/widget/introspection.h"
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 
@@ -48,7 +49,7 @@ namespace bqui
 
 inline uint64_t getNextFrameId()
 {
-    static uint64_t s_frameId = 0;
+    static std::atomic<uint64_t> s_frameId{ 0 };
     return ++s_frameId;
 }
 
@@ -444,6 +445,32 @@ public:
         return widgetInstance_;
     }
 
+    /** @brief The underlying ase window, so an external driver (the agent) can
+     * inject events through the backend-agnostic seam. */
+    ase::Window& getWindow()
+    {
+        return aseWindow;
+    }
+
+    /** @brief Advance this window by one deterministic frame on demand.
+     *
+     * Used by the agent to step frames synchronously. Forces the update
+     * regardless of the on-demand observe gate, so a stepped frame always
+     * consumes injected events and re-evaluates the signal graph. */
+    void stepFrame(std::chrono::microseconds dt)
+    {
+        agentTime_ += dt;
+        needsUpdate_ = true;
+        onFrame(ase::Frame{ agentTime_, dt });
+    }
+
+    /** @brief A resolved introspection snapshot of the current widget tree, in
+     * window space, for the agent to read after a step. */
+    widget::Introspection getResolvedIntrospection() const
+    {
+        return widget::resolveIntrospection(widgetInstance_.getIntrospection());
+    }
+
 private:
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;
@@ -470,6 +497,9 @@ private:
     std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
+    // Deterministic clock advanced only by stepFrame(), so an agent driving
+    // the window frame-by-frame gets a reproducible time base.
+    std::chrono::microseconds agentTime_ = std::chrono::microseconds(0);
     avg::RenderTree renderTree_;
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
