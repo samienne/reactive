@@ -273,8 +273,8 @@ public:
 
         bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        widgetInstanceSignal_.update(frameInfo);
-        titleSignal_.update(frameInfo);
+        auto updateResult = widgetInstanceSignal_.update(frameInfo);
+        updateResult = updateResult + titleSignal_.update(frameInfo);
 
 
         if (titleSignal_.didChange<0>())
@@ -368,8 +368,6 @@ public:
                 std::chrono::steady_clock::now() - updateStart);
         std::cout << "Update took " << updateElapsed.count() << " us, changed="
             << updateResult.didChange << std::endl;
-
-        return updateResult.nextUpdate;
     }
 
     std::optional<bq::signal::signal_time_t> frame(std::chrono::microseconds dt)
@@ -398,9 +396,8 @@ public:
         // Frames are scheduled to render and advance the render tree; the
         // signal graph is re-evaluated only when the observe wake flagged an
         // external change, not on every animation frame.
-        std::optional<bq::signal::signal_time_t> timeToNext;
         if (needsUpdate_.exchange(false))
-            timeToNext = makeTransaction(frame.dt, std::nullopt);
+            makeTransaction(frame.dt, std::nullopt);
 
         if (animating_)
         {
@@ -421,10 +418,8 @@ public:
 
         ++frames_;
 
-        if (animating_)
-            return std::chrono::microseconds(0);
-
-        return std::nullopt;
+        return animating_ ? std::optional<std::chrono::microseconds>(std::chrono::microseconds(0))
+                          : std::nullopt;
     }
 
     btl::UniqueId getId() const
