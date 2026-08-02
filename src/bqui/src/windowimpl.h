@@ -266,6 +266,8 @@ public:
     {
         ZoneScoped;
 
+        auto updateStart = std::chrono::steady_clock::now();
+
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
         bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
@@ -360,6 +362,13 @@ public:
 
             aseWindow.requestFrame();
         }
+
+        auto updateElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - updateStart);
+        std::cout << "Update took " << updateElapsed.count() << " us, changed="
+            << updateResult.didChange << std::endl;
+
+        return updateResult.nextUpdate;
     }
 
     std::optional<bq::signal::signal_time_t> frame(std::chrono::microseconds dt)
