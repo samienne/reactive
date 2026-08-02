@@ -1,3 +1,7 @@
+// Must precede any header that pulls in windows.h: it brings in winsock2 first,
+// which blocks the older winsock.h that windows.h would otherwise include.
+#include <btl/win32/nativehandle_win32.h>
+
 #include "wglplatform.h"
 
 #include "wglwindow.h"
@@ -298,16 +302,29 @@ void WglPlatform::run(RenderContext& renderContext,
     auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    std::function<void(btl::RunLoop::Controller&)> tick =
-        [&](btl::RunLoop::Controller& controller)
+    // A tick is "scheduled" while one is posted or a paced timer is pending;
+    // this loop-thread-only flag dedupes so ticks never stack.
+    bool tickScheduled = false;
+
+    std::function<void(btl::RunLoop::Controller&)> tick;
+
+    auto scheduleTick = [&](btl::RunLoop::Controller& controller)
     {
+        if (tickScheduled)
+            return;
+        tickScheduled = true;
+        controller.post(tick);
+    };
+
+    tick = [&](btl::RunLoop::Controller& controller)
+    {
+        tickScheduled = false;
+
         auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - startTime);
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
-
-        handleEvents();
 
         Frame frame { time, dt };
 
@@ -318,7 +335,7 @@ void WglPlatform::run(RenderContext& renderContext,
         }
 
         // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-post picks it up.
+        // flight; a fence completion frees a slot and a re-arm picks it up.
         if (*framesInFlight < 2)
         {
             for (auto& weakWindow : windows)
@@ -343,30 +360,60 @@ void WglPlatform::run(RenderContext& renderContext,
         auto now = clock.now();
         nextFrame += std::chrono::microseconds(16667);
         while (nextFrame < now)
-        {
             nextFrame += std::chrono::microseconds(16667);
-        }
-
-        /*
-        auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(now - thisFrame);
-        auto remaining = nextFrame - now;
-        if (remaining.count() > 0)
-        {
-            ZoneScopedN("sleep");
-            timeBeginPeriod(1);
-            std::this_thread::sleep_for(remaining);
-            timeEndPeriod(1);
-        }
-        */
 
         lastFrame = thisFrame;
 
-        controller.post(tick);
+        // Re-arm only while there is work: a window still wants to draw, or the
+        // GPU is saturated and we must retry when a fence frees a slot. When
+        // neither holds we do not re-post, and the loop blocks on the message
+        // source and posts until requestFrame() wakes it.
+        bool armed = *framesInFlight >= 2;
+        for (auto& weakWindow : windows)
+        {
+            if (auto window = weakWindow.second.lock())
+            {
+                if (window->needsRedraw())
+                {
+                    armed = true;
+                    break;
+                }
+            }
+        }
+
+        if (armed && !tickScheduled)
+        {
+            tickScheduled = true;
+            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
+                    nextFrame - clock.now());
+            if (delay.count() < 0)
+                delay = std::chrono::microseconds(0);
+            controller.addTimer(delay, tick).detach();
+        }
     };
 
-    runLoop().post(tick);
+    btl::RunLoop::Source msgSource;
+
+    runLoop().post([&](btl::RunLoop::Controller& controller)
+        {
+            // Wake on Windows input; the callback drains the queue (firing the
+            // window event callbacks) and schedules a tick so frameCallback
+            // (running/sync) runs and any armed window redraws.
+            msgSource = controller.addReadable(btl::fromMessageQueue(),
+                    [&](btl::RunLoop::Controller& c)
+                    {
+                        handleEvents();
+                        scheduleTick(c);
+                    });
+
+            scheduleTick_ = [&](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+            scheduleTick(controller);
+        });
+
     runLoop().run();
+
+    scheduleTick_ = nullptr;
 
     mainQueue.finish();
 
@@ -375,6 +422,17 @@ void WglPlatform::run(RenderContext& renderContext,
 
 void WglPlatform::requestFrame()
 {
+    // May be called off the loop thread (e.g. an async signal completing), so
+    // wake through a thread-safe post; the atomic coalesces a burst into one.
+    if (!wakePosted_.exchange(true))
+    {
+        runLoop().post([this](btl::RunLoop::Controller& controller)
+            {
+                wakePosted_ = false;
+                if (scheduleTick_)
+                    scheduleTick_(controller);
+            });
+    }
 }
 
 } // namespace ase

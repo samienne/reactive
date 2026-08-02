@@ -4,10 +4,15 @@
 
 #include "asevisibility.h"
 
+#include <btl/runloop.h>
+
 #include <windows.h>
 
 #include <GL/gl.h>
 #include <GL/wglext.h>
+
+#include <atomic>
+#include <functional>
 
 namespace ase
 {
@@ -41,6 +46,13 @@ namespace ase
         HGLRC dummyContext_ = nullptr;
         HDC dummyDc_ = nullptr;
         PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB_ = nullptr;
+
+        // Set to true by requestFrame() (possibly off-thread) to coalesce a
+        // burst of wake requests into a single posted task.
+        std::atomic<bool> wakePosted_ = false;
+        // Installed by run() so requestFrame(), which cannot see run()'s local
+        // tick, can schedule one while the loop is active; cleared at run() exit.
+        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
     };
 
 } // namespace ase

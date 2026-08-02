@@ -75,6 +75,10 @@ public:
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
+        auto wake = [this] { aseWindow.requestFrame(); };
+        widgetInstanceSignal_.observe(wake);
+        titleSignal_.observe(wake);
+
         aseWindow.setFrameCallback([this](ase::Frame const& frame) {
                 return onFrame(frame);
                 });

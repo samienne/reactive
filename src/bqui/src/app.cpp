@@ -69,6 +69,10 @@ public:
      */
     void removeWindow(btl::UniqueId id);
 
+    // Wakes the run loop, if one is running, so a pending window change is
+    // reconciled by the next sync().
+    void wakeLoop();
+
     std::vector<Window> getWindows() const
     {
         return *windows_.read();
@@ -78,6 +82,11 @@ public:
 
     std::mutex pendingMutex_;
     std::vector<std::pair<Window, widget::AnyWidget>> pendingMounts_;
+
+    // The platform is a runUntil local; it is published here for the duration
+    // of the run so add/removeWindow can wake the loop. Guarded by
+    // pendingMutex_, and nulled before the platform is destroyed.
+    ase::Platform* runningPlatform_ = nullptr;
 
     std::vector<btl::shared<WindowImpl>> windowImpls_;
 };
@@ -147,6 +156,15 @@ void AppDeferred::removeWindow(btl::UniqueId id)
 
     for (auto const& window : departing)
         window.data()->clearApp();
+
+    wakeLoop();
+}
+
+void AppDeferred::wakeLoop()
+{
+    std::lock_guard<std::mutex> lock(pendingMutex_);
+    if (runningPlatform_)
+        runningPlatform_->requestFrame();
 }
 
 App::App() :
@@ -186,6 +204,8 @@ App& App::addWindow(Window window, widget::AnyWidget widget)
         d()->pendingMounts_.emplace_back(std::move(window), std::move(widget));
     }
 
+    d()->wakeLoop();
+
     return *this;
 }
 
@@ -221,6 +241,24 @@ int App::run()
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
     ase::Platform platform = ase::makeDefaultPlatform();
+
+    // Published for the run's duration so add/removeWindow can wake the loop;
+    // declared after `platform` so it is nulled under the lock before the
+    // platform is destroyed.
+    struct PlatformScope
+    {
+        ~PlatformScope()
+        {
+            std::lock_guard<std::mutex> lock(app.pendingMutex_);
+            app.runningPlatform_ = nullptr;
+        }
+        AppDeferred& app;
+    } platformScope { *d() };
+
+    {
+        std::lock_guard<std::mutex> lock(d()->pendingMutex_);
+        d()->runningPlatform_ = &platform;
+    }
 
     ase::RenderContext context = platform.makeRenderContext();
 
