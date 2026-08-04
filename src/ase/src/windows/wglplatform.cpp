@@ -302,13 +302,11 @@ void WglPlatform::run(RenderContext& renderContext,
     auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    // A tick is "scheduled" while one is posted or a paced timer is pending;
-    // this loop-thread-only flag dedupes so ticks never stack.
     bool tickScheduled = false;
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    auto scheduleTick = [&](btl::RunLoop::Controller& controller)
+    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
@@ -316,7 +314,9 @@ void WglPlatform::run(RenderContext& renderContext,
         controller.post(tick);
     };
 
-    tick = [&](btl::RunLoop::Controller& controller)
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
+            &framesInFlight, &mainQueue, &nextFrame, &tick](
+            btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
@@ -364,10 +364,6 @@ void WglPlatform::run(RenderContext& renderContext,
 
         lastFrame = thisFrame;
 
-        // Re-arm only while there is work: a window still wants to draw, or the
-        // GPU is saturated and we must retry when a fence frees a slot. When
-        // neither holds we do not re-post, and the loop blocks on the message
-        // source and posts until requestFrame() wakes it.
         bool armed = *framesInFlight >= 2;
         for (auto& weakWindow : windows)
         {
@@ -394,19 +390,20 @@ void WglPlatform::run(RenderContext& renderContext,
 
     btl::RunLoop::Source msgSource;
 
-    runLoop().post([&](btl::RunLoop::Controller& controller)
+    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+    runLoop().post([this, &msgSource, &scheduleTick](
+            btl::RunLoop::Controller& controller)
         {
             // Wake on Windows input; the callback drains the queue (firing the
             // window event callbacks) and schedules a tick so frameCallback
             // (running/sync) runs and any armed window redraws.
             msgSource = controller.addReadable(btl::fromMessageQueue(),
-                    [&](btl::RunLoop::Controller& c)
+                    [this, &scheduleTick](btl::RunLoop::Controller& c)
                     {
                         handleEvents();
                         scheduleTick(c);
                     });
-
-            scheduleTick_ = [&](btl::RunLoop::Controller& c) { scheduleTick(c); };
 
             scheduleTick(controller);
         });

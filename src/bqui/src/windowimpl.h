@@ -76,12 +76,17 @@ public:
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-        auto wake = [this] { needsUpdate_ = true; aseWindow.requestFrame(); };
+        auto wake = [this]
+        {
+            needsUpdate_ = true;
+            aseWindow.requestFrame();
+        };
         widgetInstanceSignal_.observe(wake);
         titleSignal_.observe(wake);
 
-        aseWindow.setFrameCallback([this](ase::Frame const& frame) {
-                return onFrame(frame);
+        aseWindow.setFrameCallback([this](ase::Frame const& frame)
+                {
+                    return onFrame(frame);
                 });
 
         aseWindow.setCloseCallback([this]()
@@ -393,9 +398,6 @@ public:
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
                 timer_);
 
-        // Frames are scheduled to render and advance the render tree; the
-        // signal graph is re-evaluated only when the observe wake flagged an
-        // external change, not on every animation frame.
         if (needsUpdate_.exchange(false))
             makeTransaction(frame.dt, std::nullopt);
 

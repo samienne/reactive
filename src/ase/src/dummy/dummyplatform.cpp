@@ -34,13 +34,11 @@ void DummyPlatform::run(RenderContext&,
 {
     Frame frame{};
 
-    // A tick is "scheduled" while one is posted; this loop-thread-only flag
-    // dedupes so ticks never stack.
     bool tickScheduled = false;
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    auto scheduleTick = [&](btl::RunLoop::Controller& controller)
+    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
@@ -52,7 +50,7 @@ void DummyPlatform::run(RenderContext&,
     // render). It does not re-post; the loop blocks until requestFrame() wakes
     // it, so any sources registered on it (a remote socket, a timer) are
     // serviced meanwhile.
-    tick = [&](btl::RunLoop::Controller& controller)
+    tick = [&tickScheduled, &frameCallback, &frame](btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
@@ -63,9 +61,10 @@ void DummyPlatform::run(RenderContext&,
         }
     };
 
-    runLoop().post([&](btl::RunLoop::Controller& controller)
+    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+    runLoop().post([&scheduleTick](btl::RunLoop::Controller& controller)
         {
-            scheduleTick_ = [&](btl::RunLoop::Controller& c) { scheduleTick(c); };
             scheduleTick(controller);
         });
     runLoop().run();

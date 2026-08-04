@@ -359,13 +359,11 @@ void GlxPlatform::run(RenderContext& renderContext,
 
     btl::RunLoop::Source xSource;
 
-    // A tick is "scheduled" while one is posted or a paced timer is pending;
-    // this loop-thread-only flag dedupes so ticks never stack.
     bool tickScheduled = false;
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    auto scheduleTick = [&](btl::RunLoop::Controller& controller)
+    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
@@ -373,7 +371,9 @@ void GlxPlatform::run(RenderContext& renderContext,
         controller.post(tick);
     };
 
-    tick = [&](btl::RunLoop::Controller& controller)
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
+            &framesInFlight, &mainQueue, &nextFrame, &step, &tick](
+            btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
@@ -421,10 +421,6 @@ void GlxPlatform::run(RenderContext& renderContext,
 
         lastFrame = thisFrame;
 
-        // Re-arm only while there is work: a window still wants to draw, or the
-        // GPU is saturated and we must retry when a fence frees a slot. When
-        // neither holds we do not re-post, and the loop blocks on the X source
-        // and posts until requestFrame() wakes it.
         bool armed = *framesInFlight >= 2;
         for (auto& weakWindow : d()->windows_)
         {
@@ -449,20 +445,21 @@ void GlxPlatform::run(RenderContext& renderContext,
         }
     };
 
-    runLoop().post([&](btl::RunLoop::Controller& controller)
+    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+    runLoop().post([this, &xSource, &scheduleTick](
+            btl::RunLoop::Controller& controller)
         {
             // Wake on X input; the callback drains the connection (firing the
             // window event handlers) and schedules a tick so frameCallback
             // (running/sync) runs and any armed window redraws.
             xSource = controller.addReadable(
                     btl::fromFd(ConnectionNumber(d()->dpy_)),
-                    [&](btl::RunLoop::Controller& c)
+                    [this, &scheduleTick](btl::RunLoop::Controller& c)
                     {
                         handleEvents();
                         scheduleTick(c);
                     });
-
-            scheduleTick_ = [&](btl::RunLoop::Controller& c) { scheduleTick(c); };
 
             scheduleTick(controller);
         });
