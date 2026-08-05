@@ -31,8 +31,9 @@ are in the top-level `docs/`.
   submitting fences against a context current on a destroyed DC. Releasing the
   context from the window's destructor would close both, and has to be
   dispatched to the render thread.
-- `src/ase/meson.build` sets `ase_is_headless`, which is how a dependent decides
-  whether a test may open a window (`src/bqui/meson.build` uses it).
+- The headless (dummy) backend is compiled on every platform (`dummysrcs` in
+  `src/ase/meson.build`), so any test or app can select it via
+  `ase::makeDummyPlatform()` without opening an OS window.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

@@ -24,11 +24,6 @@ glsrcs = [
   'src/gl/glrenderqueue.cpp'
   ]
 
-# Whether the backend built here is the headless "dummy" one. A test that
-# drives a real window can only run where it is: the GLX and WGL backends need
-# a display and a GPU context that CI does not have.
-ase_is_headless = false
-
 # The headless (dummy) backend is compiled on every platform so any app can run
 # without an OS window; it has no GL/OS dependencies. makeDefaultPlatform() is
 # defined by the OS backend (wgl/glx), or by dummydefaultplatform.cpp when there
@@ -80,7 +75,6 @@ elif target_machine.system() == 'windows'
     glsrcs
     ]
 else
-  ase_is_headless = true
   system_deps = []
   system_link_args = []
   system_incs = []

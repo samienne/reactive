@@ -111,6 +111,7 @@ libbquidep = declare_dependency(
   )
 
 bquitestsrc = [
+  'test/apptest.cpp',
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
   'test/headlessapptest.cpp',
@@ -124,15 +125,6 @@ bquitestsrc = [
   'test/widgettest.cpp',
   'test/windowtest.cpp',
   ]
-
-# App::run opens real windows, so it can only be exercised where ase builds its
-# headless backend. This gate is the minimal thing needed to run apptest.cpp
-# against ase's dummy backend; the proper headless platform (env-selected and
-# frame-stepped) arrives in a follow-up (PR #96), and this should be revisited
-# to use it once that lands.
-if ase_is_headless
-  bquitestsrc += 'test/apptest.cpp'
-endif
 
 # The agent tests speak framed JSON-RPC and exercise the introspection->json
 # adapter directly, so the test binary sees nlohmann and the library's private
