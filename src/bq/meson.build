@@ -25,6 +25,7 @@ bqtest = executable('bqtest',
   'test/signaltest.cpp',
   'test/signalcontexttest.cpp',
   'test/streamtest.cpp',
+  'test/withprevioustest.cpp',
   dependencies: [libbqdep, gtestdep],
   )
 

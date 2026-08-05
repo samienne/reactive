@@ -342,6 +342,14 @@ namespace bq::signal
                 });
         }
 
+        /** @brief Folds over successive values, threading the accumulator
+         * through @p func each update.
+         *
+         * The accumulator is moved into @p func, so a large movable fold-state
+         * flows through without being copied. Because it is moved, a @p func
+         * that throws mid-update leaves the stored accumulator in a valid but
+         * moved-from state; the previous value is not preserved.
+         */
         template <typename... Us, typename TFunc, typename = std::enable_if_t<
             std::is_convertible_v<
                 ToSignalResultT<std::invoke_result_t<TFunc, Us..., Ts...>>,

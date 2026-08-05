@@ -35,7 +35,7 @@ namespace bq::signal
         using InnerResultType = SignalTypeT<TStorage>;
 
         static FuncReturnType evaluateFunc(TFunc const& func,
-                FuncReturnType const& current,
+                FuncReturnType current,
                 InnerResultType inner)
         {
             return makeSignalResult(std::apply([&](auto&&... ts)
@@ -51,7 +51,7 @@ namespace bq::signal
                     }
                 },
                 std::tuple_cat(
-                    current.getTuple(),
+                    std::move(current).getTuple(),
                     std::move(inner).getTuple()
                 )));
         }
@@ -104,7 +104,7 @@ namespace bq::signal
             {
                 data.innerResult = sig_.evaluate(context, data.innerData);
                 data.currentResult = evaluateFunc(*func_,
-                        data.currentResult, data.innerResult);
+                        std::move(data.currentResult), data.innerResult);
             }
 
             return r;
