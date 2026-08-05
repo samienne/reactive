@@ -474,9 +474,6 @@ private:
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
-    // Set by the observe wake when an external signal changed; makeTransaction
-    // runs only while it is set, so animation frames re-draw without
-    // re-evaluating the signal graph.
     std::atomic<bool> needsUpdate_{true};
     bool animating_ = true;
     bool resized_ = true;
