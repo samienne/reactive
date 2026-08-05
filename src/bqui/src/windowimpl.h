@@ -33,6 +33,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <iostream>
@@ -75,8 +76,17 @@ public:
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
-        aseWindow.setFrameCallback([this](ase::Frame const& frame) {
-                return onFrame(frame);
+        auto wake = [this]
+        {
+            needsUpdate_ = true;
+            aseWindow.requestFrame();
+        };
+        widgetInstanceSignal_.observe(wake);
+        titleSignal_.observe(wake);
+
+        aseWindow.setFrameCallback([this](ase::Frame const& frame)
+                {
+                    return onFrame(frame);
                 });
 
         aseWindow.setCloseCallback([this]()
@@ -262,12 +272,14 @@ public:
     {
         ZoneScoped;
 
+        auto updateStart = std::chrono::steady_clock::now();
+
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(timer_);
 
         bq::signal::FrameInfo frameInfo(getNextFrameId(), dt);
 
-        widgetInstanceSignal_.update(frameInfo);
-        titleSignal_.update(frameInfo);
+        auto updateResult = widgetInstanceSignal_.update(frameInfo);
+        updateResult = updateResult + titleSignal_.update(frameInfo);
 
 
         if (titleSignal_.didChange<0>())
@@ -356,6 +368,11 @@ public:
 
             aseWindow.requestFrame();
         }
+
+        auto updateElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - updateStart);
+        std::cout << "Update took " << updateElapsed.count() << " us, changed="
+            << updateResult.didChange << std::endl;
     }
 
     std::optional<bq::signal::signal_time_t> frame(std::chrono::microseconds dt)
@@ -381,7 +398,8 @@ public:
         auto timer = std::chrono::duration_cast<std::chrono::milliseconds>(
                 timer_);
 
-        makeTransaction(frame.dt, std::nullopt);
+        if (needsUpdate_.exchange(false))
+            makeTransaction(frame.dt, std::nullopt);
 
         if (animating_)
         {
@@ -402,10 +420,8 @@ public:
 
         ++frames_;
 
-        if (animating_)
-            return std::chrono::microseconds(0);
-
-        return std::nullopt;
+        return animating_ ? std::optional<std::chrono::microseconds>(std::chrono::microseconds(0))
+                          : std::nullopt;
     }
 
     btl::UniqueId getId() const
@@ -458,6 +474,7 @@ private:
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;
     std::optional<std::chrono::milliseconds> nextUpdate_;
+    std::atomic<bool> needsUpdate_{true};
     bool animating_ = true;
     bool resized_ = true;
     bool closed_ = false;

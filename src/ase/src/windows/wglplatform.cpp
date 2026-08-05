@@ -1,3 +1,7 @@
+// Must precede any header that pulls in windows.h: it brings in winsock2 first,
+// which blocks the older winsock.h that windows.h would otherwise include.
+#include <btl/win32/nativehandle_win32.h>
+
 #include "wglplatform.h"
 
 #include "wglwindow.h"
@@ -13,6 +17,7 @@
 #include "tracy/Tracy.hpp"
 
 #include <btl/future.h>
+#include <btl/runloop.h>
 
 #include <windows.h>
 
@@ -294,81 +299,137 @@ void WglPlatform::run(RenderContext& renderContext,
     auto lastFrame = startTime;
     auto nextFrame = startTime + std::chrono::microseconds(16667);
 
-    std::queue<btl::future::Future<>> frameFutures;
+    auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    while (true)
+    bool tickScheduled = false;
+
+    std::function<void(btl::RunLoop::Controller&)> tick;
+
+    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
     {
+        if (tickScheduled)
+            return;
+        tickScheduled = true;
+        controller.post(tick);
+    };
+
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
+            &framesInFlight, &mainQueue, &nextFrame, &tick](
+            btl::RunLoop::Controller& controller)
+    {
+        tickScheduled = false;
+
         auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - startTime);
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
 
-        handleEvents();
-
         Frame frame { time, dt };
 
         if (!frameCallback(frame))
-            break;
+        {
+            controller.stop();
+            return;
+        }
 
+        // Skip producing a new frame while the GPU still has earlier ones in
+        // flight; a fence completion frees a slot and a re-arm picks it up.
+        if (*framesInFlight < 2)
+        {
+            for (auto& weakWindow : windows)
+            {
+                if (auto window = weakWindow.second.lock())
+                {
+                    if (window->needsRedraw())
+                        window->frame(frame);
+                }
+            }
+
+            ase::CommandBuffer commandBuffer;
+            ++*framesInFlight;
+            commandBuffer.pushFence([this, framesInFlight]
+                {
+                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
+                        { --*framesInFlight; });
+                });
+            mainQueue.submit(std::move(commandBuffer));
+        }
+
+        auto now = clock.now();
+        nextFrame += std::chrono::microseconds(16667);
+        while (nextFrame < now)
+            nextFrame += std::chrono::microseconds(16667);
+
+        lastFrame = thisFrame;
+
+        bool armed = *framesInFlight >= 2;
         for (auto& weakWindow : windows)
         {
             if (auto window = weakWindow.second.lock())
             {
                 if (window->needsRedraw())
-                    window->frame(frame);
+                {
+                    armed = true;
+                    break;
+                }
             }
         }
 
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
-
-        auto now = clock.now();
-        nextFrame += std::chrono::microseconds(16667);
-        while (nextFrame < now)
+        if (armed && !tickScheduled)
         {
-            nextFrame += std::chrono::microseconds(16667);
+            tickScheduled = true;
+            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
+                    nextFrame - clock.now());
+            if (delay.count() < 0)
+                delay = std::chrono::microseconds(0);
+            controller.addTimer(delay, tick).detach();
         }
+    };
 
-        /*
-        auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(now - thisFrame);
-        auto remaining = nextFrame - now;
-        if (remaining.count() > 0)
+    btl::RunLoop::Source msgSource;
+
+    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+    runLoop().post([this, &msgSource, &scheduleTick](
+            btl::RunLoop::Controller& controller)
         {
-            ZoneScopedN("sleep");
-            timeBeginPeriod(1);
-            std::this_thread::sleep_for(remaining);
-            timeEndPeriod(1);
-        }
-        */
+            // Wake on Windows input; the callback drains the queue (firing the
+            // window event callbacks) and schedules a tick so frameCallback
+            // (running/sync) runs and any armed window redraws.
+            msgSource = controller.addReadable(btl::fromMessageQueue(),
+                    [this, &scheduleTick](btl::RunLoop::Controller& c)
+                    {
+                        handleEvents();
+                        scheduleTick(c);
+                    });
 
-        if (frameFutures.size() > 1)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
+            scheduleTick(controller);
+        });
 
-        lastFrame = thisFrame;
-    }
+    runLoop().run();
 
-    while (!frameFutures.empty())
-    {
-        ZoneScopedN("Wait for frame to finish");
-        ZoneValue(frameFutures.size());
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+    scheduleTick_ = nullptr;
+
+    mainQueue.finish();
 
     DBG("Shutting down WglPlatform...");
 }
 
 void WglPlatform::requestFrame()
 {
+    // May be called off the loop thread (e.g. an async signal completing), so
+    // wake through a thread-safe post; the atomic coalesces a burst into one.
+    if (!wakePosted_.exchange(true))
+    {
+        runLoop().post([this](btl::RunLoop::Controller& controller)
+            {
+                wakePosted_ = false;
+                if (scheduleTick_)
+                    scheduleTick_(controller);
+            });
+    }
 }
 
 } // namespace ase

@@ -4,11 +4,15 @@
 
 #include "asevisibility.h"
 
+#include <btl/runloop.h>
+
 #include <tracy/Tracy.hpp>
 
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
+#include <atomic>
+#include <functional>
 #include <string>
 #include <mutex>
 
@@ -65,6 +69,14 @@ namespace ase
         inline GlxPlatformDeferred* d() { return deferred_; }
         inline GlxPlatformDeferred const* d() const { return deferred_; }
         GlxPlatformDeferred* deferred_;
+
+        // Set to true by requestFrame() (possibly off-thread) to coalesce a
+        // burst of wake requests into a single posted task.
+        std::atomic<bool> wakePosted_ = false;
+
+        // Installed by run() so requestFrame(), which cannot see run()'s local
+        // tick, can schedule one while the loop is active; cleared at run() exit.
+        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
     };
 }
 

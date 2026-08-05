@@ -11,6 +11,9 @@
 
 #include "debug.h"
 
+#include <btl/runloop.h>
+#include <btl/posix/nativehandle_posix.h>
+
 #include <GL/glx.h>
 
 #include <X11/extensions/sync.h>
@@ -343,7 +346,6 @@ void GlxPlatform::run(RenderContext& renderContext,
 {
     DBG("Starting GlxPlatform::run");
 
-    bool const lockStep = true;
     int const targetFps = 60;
     auto const step = std::chrono::microseconds(1000000 / targetFps);
 
@@ -352,82 +354,137 @@ void GlxPlatform::run(RenderContext& renderContext,
     auto lastFrame = startTime;
     auto nextFrame = startTime + step;
 
-    std::queue<btl::future::Future<>> frameFutures;
+    auto framesInFlight = std::make_shared<int>(0);
     auto mainQueue = renderContext.getMainRenderQueue();
 
-    while (true)
-    {
-        std::chrono::steady_clock::time_point thisFrame;
-        if (lockStep)
-            thisFrame = nextFrame;
-        else
-            thisFrame = clock.now();
+    btl::RunLoop::Source xSource;
 
+    bool tickScheduled = false;
+
+    std::function<void(btl::RunLoop::Controller&)> tick;
+
+    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
+    {
+        if (tickScheduled)
+            return;
+        tickScheduled = true;
+        controller.post(tick);
+    };
+
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
+            &framesInFlight, &mainQueue, &nextFrame, &step, &tick](
+            btl::RunLoop::Controller& controller)
+    {
+        tickScheduled = false;
+
+        auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - startTime);
         auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
 
-        handleEvents();
-
         Frame frame { time, dt };
 
         if (!frameCallback(frame))
-            break;
-
-        for (auto& weakWindow : d()->windows_)
         {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                    window->frame(frame);
-            }
+            controller.stop();
+            return;
         }
 
-        ase::CommandBuffer commandBuffer;
-        frameFutures.push(commandBuffer.pushFence());
-        mainQueue.submit(std::move(commandBuffer));
+        // Skip producing a new frame while the GPU still has earlier ones in
+        // flight; a fence completion frees a slot and a re-arm picks it up.
+        if (*framesInFlight < 2)
+        {
+            for (auto& weakWindow : d()->windows_)
+            {
+                if (auto window = weakWindow.lock())
+                {
+                    if (window->needsRedraw())
+                        window->frame(frame);
+                }
+            }
+
+            ase::CommandBuffer commandBuffer;
+            ++*framesInFlight;
+            commandBuffer.pushFence([this, framesInFlight]
+                {
+                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
+                        { --*framesInFlight; });
+                });
+            mainQueue.submit(std::move(commandBuffer));
+        }
 
         auto now = clock.now();
         nextFrame += step;
         while (nextFrame < now)
             nextFrame += step;
 
-        /*
-        auto frameTime = std::chrono::duration_cast<
-            std::chrono::microseconds>(now - thisFrame);
-        auto remaining = nextFrame - now;
-        if (remaining.count() > 0)
-        {
-            ZoneScopedN("sleep");
-            std::this_thread::sleep_for(remaining);
-        }
-        */
-
-        if (frameFutures.size() > 1)
-        {
-            ZoneScopedN("Wait for frame to finish");
-            ZoneValue(frameFutures.size());
-            frameFutures.front().wait();
-            frameFutures.pop();
-        }
-
         lastFrame = thisFrame;
-    }
 
-    while (!frameFutures.empty())
-    {
-        ZoneScopedN("Wait for frame to finish");
-        ZoneValue(frameFutures.size());
-        frameFutures.front().wait();
-        frameFutures.pop();
-    }
+        bool armed = *framesInFlight >= 2;
+        for (auto& weakWindow : d()->windows_)
+        {
+            if (auto window = weakWindow.lock())
+            {
+                if (window->needsRedraw())
+                {
+                    armed = true;
+                    break;
+                }
+            }
+        }
+
+        if (armed && !tickScheduled)
+        {
+            tickScheduled = true;
+            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
+                    nextFrame - clock.now());
+            if (delay.count() < 0)
+                delay = std::chrono::microseconds(0);
+            controller.addTimer(delay, tick).detach();
+        }
+    };
+
+    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
+
+    runLoop().post([this, &xSource, &scheduleTick](
+            btl::RunLoop::Controller& controller)
+        {
+            // Wake on X input; the callback drains the connection (firing the
+            // window event handlers) and schedules a tick so frameCallback
+            // (running/sync) runs and any armed window redraws.
+            xSource = controller.addReadable(
+                    btl::fromFd(ConnectionNumber(d()->dpy_)),
+                    [this, &scheduleTick](btl::RunLoop::Controller& c)
+                    {
+                        handleEvents();
+                        scheduleTick(c);
+                    });
+
+            scheduleTick(controller);
+        });
+    runLoop().run();
+
+    scheduleTick_ = nullptr;
+
+    mainQueue.finish();
 
     DBG("Shutting down GlxPlatform..");
 }
 
 void GlxPlatform::requestFrame()
 {
+    // May be called off the loop thread (e.g. an async signal completing), so
+    // wake through a thread-safe post; the atomic coalesces a burst into one.
+    if (!wakePosted_.exchange(true))
+    {
+        runLoop().post([this](btl::RunLoop::Controller& controller)
+            {
+                wakePosted_ = false;
+                if (scheduleTick_)
+                    scheduleTick_(controller);
+            });
+    }
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
