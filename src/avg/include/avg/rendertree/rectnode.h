@@ -26,6 +26,14 @@ namespace avg
                 Animated<std::optional<Pen>> pen
                 );
 
+        SnapshotNode snapshot(DrawContext const& context,
+                avg::Obb const& parentObb,
+                std::chrono::milliseconds time) const override
+        {
+            return makeLeafSnapshotNode("RectNode", *this, context, parentObb,
+                    time);
+        }
+
         std::shared_ptr<RenderTreeNode> clone() const override
         {
             return std::make_shared<RectNode>(

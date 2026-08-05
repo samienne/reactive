@@ -1,5 +1,6 @@
 #pragma once
 
+#include "rendertree/snapshot.h"
 #include "rendertree/uniqueid.h"
 #include "rendertree/updateresult.h"
 #include "rendertree/rendertreenode.h"
