@@ -55,15 +55,7 @@ namespace bq::signal
                     data.value = std::move(value);
             }
 
-            return { r.nextUpdate, didReallyChange };
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
-        {
-            return sig_.observe(context, data.innerData,
-                    std::forward<TCallback>(callback));
+            return { didReallyChange };
         }
 
     private:

@@ -52,14 +52,6 @@ namespace bq::signal
             return r;
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
-        {
-            return sig_.observe(context, data.innerData,
-                    std::forward<TCallback>(callback));
-        }
-
     private:
         TSignal sig_;
     };

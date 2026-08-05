@@ -6,8 +6,6 @@
 #include "signaltraits.h"
 #include "datacontext.h"
 
-#include <btl/connection.h>
-
 #include <memory>
 
 namespace bq::signal
@@ -34,8 +32,6 @@ namespace bq::signal
                 DataBase const& data) const = 0;
         virtual UpdateResult update(DataContext& context, DataBase& data,
                 FrameInfo const& frame) = 0;
-        virtual btl::connection observe(DataContext& context, DataBase& data,
-                std::function<void()> callback) = 0;
     };
 
     template <typename TStorage, typename... Ts>
@@ -76,12 +72,6 @@ namespace bq::signal
                 FrameInfo const& frame) override
         {
             return sig_.update(context, getStorageData(baseData), frame);
-        }
-
-        btl::connection observe(DataContext& context, BaseDataType& data,
-                std::function<void()> callback) override
-        {
-            return sig_.observe(context, getStorageData(data), std::move(callback));
         }
 
     private:
@@ -130,13 +120,6 @@ namespace bq::signal
                 FrameInfo const& frame)
         {
             return sig_->update(context, *data.data, frame);
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
-        {
-            return sig_->observe(context, *data.data, std::forward<TCallback>(callback));
         }
 
         template <typename... Us, typename = std::enable_if_t<

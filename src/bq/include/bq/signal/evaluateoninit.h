@@ -39,11 +39,6 @@ namespace bq::signal
             return {};
         }
 
-        btl::connection observe(DataContext&, DataType&, std::function<void()>)
-        {
-            return {};
-        }
-
     private:
         TFunc func_;
     };

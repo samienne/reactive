@@ -62,15 +62,8 @@ namespace bq::signal
             data.innerDidChange = r.didChange;
 
             return {
-                r.nextUpdate,
                 didChange
             };
-        }
-
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> callback)
-        {
-            return sig_.observe(context, data.innerData, std::move(callback));
         }
 
     private:

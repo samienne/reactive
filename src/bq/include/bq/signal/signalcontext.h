@@ -71,6 +71,23 @@ namespace bq::signal
             return false;
         }
 
+        /** Arms a wakeup for external changes to any leaf this context reaches.
+         *
+         * The callback fires without the graph being evaluated. It is a wakeup,
+         * not a change count: it may be called more than once per update cycle
+         * -- once per external change, and more than once for a single change
+         * that reaches the context through separate routes (an unshared
+         * diamond). So it must be cheap and safe to run repeatedly; the intended
+         * use is to schedule an already-throttled repaint. The callback must not
+         * retain a strong reference back into this context's signal graph, since
+         * the graph holds the wakeup. It stays armed for the context's lifetime
+         * and runs on the thread that made the change, so it must be safe to call
+         * from any thread. */
+        void observe(std::function<void()> callback)
+        {
+            dataContext_.setObserveCallback(std::move(callback));
+        }
+
     private:
         template <size_t... Is>
         std::tuple<SignalDataTypeT<TSignals>...> initializeData(

@@ -27,8 +27,7 @@ namespace bq::stream
             std::mutex mutex;
             std::vector<T> newValues;
             std::vector<T> values;
-            std::vector<std::pair<uint64_t, std::function<void()>>> callbacks;
-            uint64_t nextId = 1;
+            std::shared_ptr<signal::ObserveControl> observe;
         };
 
         struct DataType
@@ -42,24 +41,23 @@ namespace bq::stream
         {
         }
 
-        DataType initialize(signal::DataContext&, signal::FrameInfo const&) const
+        DataType initialize(signal::DataContext& context,
+                signal::FrameInfo const&) const
         {
             auto control = std::make_shared<Control>();
+            control->observe = context.observeControl();
             return {
                 control,
                 stream_.fmap([control](auto value)
                     {
-                        decltype(control->callbacks) callbacks;
-
+                        std::shared_ptr<signal::ObserveControl> observe;
                         {
-                            std::unique_lock lock(control->mutex);
+                            std::unique_lock<std::mutex> lock(control->mutex);
                             control->newValues.push_back(std::move(value));
-                            std::swap(callbacks, control->callbacks);
+                            observe = control->observe;
                         }
-
-                        for (auto&& cb : callbacks)
-                            std::move(cb.second)();
-
+                        if (observe)
+                            observe->fire();
                         return true;
                     })
             };
@@ -81,34 +79,7 @@ namespace bq::stream
             data.control->values.clear();
             std::swap(data.control->values, data.control->newValues);
 
-            return { {}, !data.control->values.empty() };
-        }
-
-        btl::connection observe(signal::DataContext&, DataType& data,
-                std::function<void()> callback)
-        {
-            std::unique_lock lock(data.control->mutex);
-            auto id = data.control->nextId++;
-
-            data.control->callbacks.emplace_back(id, callback);
-
-            std::weak_ptr<Control> weakControl = data.control;
-
-            return btl::connection::on_disconnect([id, weakControl]()
-                {
-                    if (auto control = weakControl.lock())
-                    {
-                        for (auto i = control->callbacks.begin();
-                                i != control->callbacks.end(); ++i)
-                        {
-                            if (id == i->first)
-                            {
-                                control->callbacks.erase(i);
-                                break;
-                            }
-                        }
-                    }
-                });
+            return { !data.control->values.empty() };
         }
 
     private:

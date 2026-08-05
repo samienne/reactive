@@ -228,13 +228,6 @@ namespace bq::signal
                 return r;
             }
 
-            btl::connection observe(DataContext& context, DataType& data,
-                    std::function<void()> callback)
-            {
-                return sig_.observe(context, data.innerData,
-                        std::move(callback));
-            }
-
         private:
             // Returns whether the membership changed, which is the whole of
             // what an update can change: a value is built once per identity.
@@ -353,11 +346,6 @@ namespace bq::signal
          * neighbours, and it is a property of the node rather than of anything
          * the elements do — nothing here needs the elements to be shared.
          *
-         * observe() connects the elements that are there when it is called and
-         * is **not** rewired by a later membership change: an element that
-         * arrives afterwards is not observed, and one that leaves stays in the
-         * returned connection. Nothing in the toolkit observes a signal today.
-         *
          * @throws std::runtime_error if one identity appears twice, which means
          *         an array was concatenated with itself.
          */
@@ -437,28 +425,7 @@ namespace bq::signal
                             data.datas.at(element.id), frame);
                 }
 
-                // Nothing collected an arrival's own request to be driven
-                // again, so ask for the next frame on its behalf rather than
-                // let a newly built animation sit still.
-                if (!arrived.empty())
-                    r.nextUpdate = min(r.nextUpdate, signal_time_t(0));
-
                 return r;
-            }
-
-            btl::connection observe(DataContext& context, DataType& data,
-                    std::function<void()> callback)
-            {
-                btl::connection c = sig_.observe(context, data.innerData,
-                        callback);
-
-                for (auto& element : data.elements)
-                {
-                    c += element.value.unwrap().observe(context,
-                            data.datas.at(element.id), callback);
-                }
-
-                return c;
             }
 
         private:

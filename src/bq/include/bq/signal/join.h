@@ -125,15 +125,6 @@ namespace bq::signal
             return r;
         }
 
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> callback)
-        {
-            auto c = sig_.observe(context, data.outerData, callback);
-            c += data.innerSignal.observe(context, data.innerData, std::move(callback));
-
-            return c;
-        }
-
     private:
         T sig_;
     };

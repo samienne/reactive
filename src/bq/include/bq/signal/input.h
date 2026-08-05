@@ -4,9 +4,13 @@
 #include "signalresult.h"
 #include "datacontext.h"
 
+#include <algorithm>
 #include <mutex>
 #include <memory>
 #include <cstdint>
+#include <functional>
+#include <utility>
+#include <vector>
 
 namespace bq::signal
 {
@@ -28,6 +32,7 @@ namespace bq::signal
         std::optional<Weak<Ts...>> sig;
         uint64_t valueIndex = 0;
         uint64_t signalIndex = 0;
+        std::vector<std::shared_ptr<ObserveControl>> observers;
     };
 
     template <typename... Ts>
@@ -60,30 +65,40 @@ namespace bq::signal
             >>
         void set(Us&&... us)
         {
-            if (auto control = control_.lock())
+            auto control = control_.lock();
+            if (!control)
+                return;
+
+            std::vector<std::shared_ptr<ObserveControl>> toFire;
             {
-                std::unique_lock lock(control->mutex);
+                std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->value = SignalResult<Ts...>(std::forward<Us>(us)...);
                 control->valueIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
+                toFire = control->observers;
             }
+
+            for (auto& c : toFire)
+                c->fire();
         }
 
         void set(Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> sig)
         {
-            if (auto control = control_.lock())
+            auto control = control_.lock();
+            if (!control)
+                return;
+
+            std::vector<std::shared_ptr<ObserveControl>> toFire;
             {
-                std::unique_lock lock(control->mutex);
+                std::unique_lock<std::recursive_mutex> lock(control->mutex);
                 control->sig = std::move(sig).unwrap();
                 control->signalIndex = std::max(control->valueIndex,
                         control->signalIndex) + 1;
-                /*
-                control->sigData = control->sig->initialize(control->context);
-                control->value = control->sig->evaluate(control->context,
-                        *control->sigData);
-                ++control->index;
-                */
+                toFire = control->observers;
             }
+
+            for (auto& c : toFire)
+                c->fire();
         }
 
     private:
@@ -103,11 +118,22 @@ namespace bq::signal
 
             std::optional<SignalDataTypeT<Weak<Ts...>>> sigData;
             SignalResult<Ts...> value;
-            std::optional<signal_time_t> updateTime;
-            signal_time_t time = signal_time_t(0);
             uint64_t frameId = 0;
             uint64_t index = 0;
             bool didChange = false;
+            std::shared_ptr<InputControl<Ts...>> inputControl;
+            std::shared_ptr<ObserveControl> observeControl;
+
+            ~ContextDataType()
+            {
+                if (inputControl)
+                {
+                    std::unique_lock<std::recursive_mutex> lock(inputControl->mutex);
+                    auto& obs = inputControl->observers;
+                    obs.erase(std::remove(obs.begin(), obs.end(), observeControl),
+                            obs.end());
+                }
+            }
         };
 
         struct DataType
@@ -132,6 +158,10 @@ namespace bq::signal
                         control_->id_, control_->value);
 
                 contextData->index = control_->valueIndex;
+
+                contextData->inputControl = control_;
+                contextData->observeControl = context.observeControl();
+                control_->observers.push_back(contextData->observeControl);
 
                 if (control_->sig)
                 {
@@ -165,19 +195,10 @@ namespace bq::signal
 
             if (!newFrame)
             {
-                if (contextData.updateTime)
-                {
-                    return {
-                        *contextData.updateTime - contextData.time,
-                            contextData.didChange
-                    };
-                }
-
-                return { std::nullopt, contextData.didChange };
+                return { contextData.didChange };
             }
 
             contextData.frameId = frame.getFrameId();
-            contextData.time += frame.getDeltaTime();
 
             bool didChange = false;
             bool const newSignal = contextData.index < control_->signalIndex;
@@ -207,10 +228,6 @@ namespace bq::signal
                 }
 
                 didChange = didChange || r.didChange;
-
-                contextData.updateTime.reset();
-                if (r.nextUpdate)
-                    contextData.updateTime = contextData.time + *r.nextUpdate;
             }
 
             bool const newValue = (contextData.index < control_->valueIndex);
@@ -223,34 +240,7 @@ namespace bq::signal
 
             contextData.didChange = didChange;
 
-            if (contextData.updateTime)
-            {
-                return {
-                    *contextData.updateTime - contextData.time,
-                    didChange
-                };
-            }
-
-            return { std::nullopt, didChange };
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data, TCallback&& callback)
-        {
-            std::unique_lock lock(control_->mutex);
-
-            ContextDataType& contextData = *data.contextData;
-
-            if (control_->sig && contextData.sigData)
-            {
-                return control_->sig->observe(
-                        context,
-                        *contextData.sigData,
-                        std::forward<TCallback>(callback)
-                        );
-            }
-
-            return {};
+            return { didChange };
         }
 
     private:

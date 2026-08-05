@@ -95,21 +95,6 @@ namespace bq::signal
             return r;
         }
 
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> const& callback)
-        {
-            auto c = conditionSignal_.observe(context, data.conditionData,
-                    callback);
-            if (data.condition)
-                c += trueSignal_.unwrap().observe(context, data.signalData,
-                        callback);
-            else
-                c += falseSignal_.unwrap().observe(context, data.signalData,
-                        callback);
-
-            return c;
-        }
-
     private:
         TCondition conditionSignal_;
         AnySignal<Ts...> trueSignal_;

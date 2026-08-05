@@ -8,11 +8,43 @@
 #include <typeindex>
 #include <memory>
 #include <unordered_map>
+#include <functional>
+#include <mutex>
 #include <cassert>
 
 namespace bq::signal
 {
     BQ_EXPORT btl::UniqueId makeUniqueId();
+
+    /** Per-context wakeup for external leaf changes. observe() arms it with a
+     * callback; external leaves (input, collect) fire it when they change,
+     * without evaluating the graph. It stays armed for the context's lifetime;
+     * coalescing of repeated fires is the caller's concern (the frame loop
+     * throttles requestFrame). */
+    class ObserveControl
+    {
+    public:
+        void arm(std::function<void()> callback)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            callback_ = std::move(callback);
+        }
+
+        void fire()
+        {
+            std::function<void()> callback;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                callback = callback_;
+            }
+            if (callback)
+                callback();
+        }
+
+    private:
+        std::mutex mutex_;
+        std::function<void()> callback_;
+    };
 
     class BQ_EXPORT DataContext
     {
@@ -118,11 +150,27 @@ namespace bq::signal
             frameData_.clear();
         }
 
+        /** Sets this context's wakeup callback, replacing any previous one. It
+         * fires on the next external change to any leaf this context reaches.
+         * There is one callback -- the owning SignalContext's. */
+        void setObserveCallback(std::function<void()> callback)
+        {
+            observeControl_->arm(std::move(callback));
+        }
+
+        /** The wakeup an external leaf registers itself with at init. */
+        std::shared_ptr<ObserveControl> observeControl() const
+        {
+            return observeControl_;
+        }
+
     private:
         btl::UniqueId id_;
         std::unordered_map<DataId, std::weak_ptr<Base>> data_;
         std::vector<std::shared_ptr<Base>> frameData_;
         std::vector<std::shared_ptr<Base>> prevFrameData_;
+        std::shared_ptr<ObserveControl> observeControl_ =
+            std::make_shared<ObserveControl>();
     };
 } // namespace bq::signal
 

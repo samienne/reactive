@@ -56,13 +56,6 @@ namespace bq::signal
             return impl_->update(context, data, frame);
         }
 
-        template <typename TCallback>
-        btl::connection observe(DataContext& context, DataType& data,
-                TCallback&& callback)
-        {
-            return impl_->observe(context, data, callback);
-        }
-
         Signal<Weak<Ts...>, std::optional<SignalResult<Ts const&...>>> weak() const
         {
             /*

@@ -47,14 +47,7 @@ namespace bq::signal
 
         UpdateResult update(DataContext&, DataType&, FrameInfo const&)
         {
-            return { std::nullopt, false };
-        }
-
-        template <typename TCallback>
-        btl::connection observe(DataContext&, DataType&, TCallback&&)
-        {
-            // nothing to observe
-            return btl::connection();
+            return { false };
         }
 
     private:

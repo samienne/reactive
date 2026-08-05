@@ -110,12 +110,6 @@ namespace bq::signal
             return r;
         }
 
-        btl::connection observe(DataContext& context, DataType& data,
-                std::function<void()> callback)
-        {
-            return sig_.observe(context, data.innerData, std::move(callback));
-        }
-
     private:
         btl::CopyWrapper<TFunc> func_;
         std::shared_ptr<FuncReturnType> initial_;
