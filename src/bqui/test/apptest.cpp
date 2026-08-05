@@ -4,6 +4,8 @@
 #include <bqui/widget/widget.h>
 #include <bqui/modifier/onclick.h>
 
+#include <ase/dummyplatform.h>
+
 #include <bq/signal/constant.h>
 #include <bq/signal/input.h>
 #include <bq/signal/signalcontext.h>
@@ -120,6 +122,7 @@ TEST(App, addWindowMountsAndOpens)
     Opens opens;
 
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     Window w = makeWindow("only", opens);
     app.addWindow(w, probeWidget(std::make_shared<int>(0)));
@@ -173,6 +176,7 @@ TEST(App, addWindowMountsAndOpens)
 TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
 {
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     std::weak_ptr<int> probe;
 
@@ -250,6 +254,7 @@ TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
 TEST(App, removeDuringRunTearsDownButDataPersists)
 {
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     std::weak_ptr<int> probe;
 
@@ -318,6 +323,7 @@ TEST(App, removeDuringRunTearsDownButDataPersists)
 TEST(App, reAddAfterRemoveRemountsWithFreshWidget)
 {
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     std::weak_ptr<int> first;
     std::weak_ptr<int> second;
@@ -403,6 +409,7 @@ TEST(App, windowsOpenAndCloseImperatively)
     std::vector<std::weak_ptr<int>> probes;
 
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     std::vector<btl::UniqueId> ids;
     auto open = [&](std::string title)
@@ -488,6 +495,7 @@ TEST(App, addedWindowsAllOpenOnce)
 
     {
         App app;
+        app.platform(ase::makeDummyPlatform());
 
         for (auto title : { "a", "b", "c" })
         {
@@ -524,7 +532,7 @@ TEST(App, addedWindowsAllOpenOnce)
 
 TEST(App, runWithNoWindowsReturnsImmediately)
 {
-    EXPECT_EQ(0, App().run());
+    EXPECT_EQ(0, App().platform(ase::makeDummyPlatform()).run());
 }
 
 // run() with no signal runs while a window is open, so closing one of several
@@ -536,6 +544,7 @@ TEST(App, runStopsWhenTheLastWindowCloses)
     std::atomic<bool> laterOpened { false };
 
     App app;
+    app.platform(ase::makeDummyPlatform());
 
     Window first = window(reportOpen("first", firstOpened));
     Window second = window(bq::signal::constant<std::string>("second"));

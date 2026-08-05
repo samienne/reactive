@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <cstdint>
 #include <string>
 #include <functional>
 #include <chrono>
@@ -53,6 +54,27 @@ namespace ase
         virtual void setKeyCallback(std::function<void(KeyEvent const&)> cb) = 0;
         virtual void setHoverCallback(std::function<void(HoverEvent const&)> cb) = 0;
         virtual void setTextCallback(std::function<void(TextEvent const&)> cb) = 0;
+
+        /** @brief Feed a pointer button event to the window's callbacks as if
+         * it came from the platform, for driving the window programmatically. */
+        virtual void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos,
+                ButtonState buttonState) = 0;
+
+        /** @brief Feed a pointer move event to the window's callbacks. */
+        virtual void injectPointerMoveEvent(unsigned int pointerIndex,
+                Vector2f pos) = 0;
+
+        /** @brief Feed a hover enter/leave event to the window's callbacks. */
+        virtual void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state) = 0;
+
+        /** @brief Feed a key event to the window's callbacks. */
+        virtual void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text) = 0;
+
+        /** @brief Feed a text-input event to the window's callbacks. */
+        virtual void injectTextEvent(std::string text) = 0;
     };
 }
 
