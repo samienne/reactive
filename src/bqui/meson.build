@@ -86,6 +86,14 @@ bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
+# arrange is a vendored Cassowary linear-arithmetic constraint solver — UI-
+# agnostic layout math (an "Eigen, not a bq"). Its headers back bqui's own
+# layout .cpp files and never appear in a public bqui header, so like nlohmann
+# it is a dependency of the bqui library only and is deliberately *not* re-
+# exported through libbquidep.
+arrangedep = subproject('arrange',
+    default_options: subproject_warnings).get_variable('arrange_dep').as_system()
+
 # The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
 # Windows; POSIX sockets need no extra link.
 bqui_link_args = []
@@ -97,7 +105,7 @@ libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep + [nlohmanndep],
+  dependencies: bquidep + [nlohmanndep, arrangedep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
   link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
