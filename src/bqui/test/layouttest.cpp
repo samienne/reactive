@@ -9,6 +9,8 @@
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
+#include "widget/constraintbox.h"
+
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
 #include <bqui/simplesizehint.h>
@@ -365,6 +367,192 @@ TEST(Layout, vboxStacksFromTopDown)
     expectGeometry("small", geometries[0], 0.0f, 110.0f, 50.0f, 40.0f);
     expectGeometry("stretchy", geometries[1], 0.0f, 30.0f, 50.0f, 80.0f);
     expectGeometry("rigid", geometries[2], 0.0f, 0.0f, 50.0f, 30.0f);
+}
+
+// A column laid out through the arrange solver rather than the SizeHint
+// arithmetic. Three rigid children whose heights fill the container exactly
+// leave the solve fully determined, so each one lands where the edge-to-edge
+// stack puts it: the first at the top, the last at the origin, every child
+// spanning the container's width. This proves the solver drives real widget
+// geometry end to end (box variables collected from the builders, constraints
+// emitted, one Solver folded over the spec, solved boxes flipped back into the
+// y-up widget tree).
+TEST(Layout, solverVboxStacksChildrenThroughTheSolver)
+{
+    ProbeSet probes;
+
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+
+    std::vector<AnyWidget> children;
+    children.push_back(probes.add(width, SizeHintResult{{ 40.0f, 40.0f, 40.0f }}));
+    children.push_back(probes.add(width, SizeHintResult{{ 30.0f, 30.0f, 30.0f }}));
+    children.push_back(probes.add(width, SizeHintResult{{ 50.0f, 50.0f, 50.0f }}));
+
+    auto geometries = probes.realise(solverVbox(std::move(children)),
+            avg::Vector2f(50.0f, 120.0f));
+
+    ASSERT_EQ(3u, geometries.size());
+
+    // Solver window space stacks 0..40, 40..70, 70..120 from the top; the y-up
+    // flip turns each child's bottom edge into its origin.
+    expectGeometry("first (top)", geometries[0], 0.0f, 80.0f, 50.0f, 40.0f);
+    expectGeometry("middle", geometries[1], 0.0f, 50.0f, 50.0f, 30.0f);
+    expectGeometry("last (origin)", geometries[2], 0.0f, 0.0f, 50.0f, 50.0f);
+}
+
+// The regression case the exact-fill pin got wrong. Three rigid children total
+// 120 in a 150-tall container with no filler among them. The production
+// SizeHint vbox (box<Axis::y>) packs them against the top and leaves the spare
+// 30 as a gap at the bottom; the solver vbox must do the same. A required
+// exact-fill pin would instead stretch the children to fill the container and
+// gravity would then centre each in its stretched slot, spreading them out —
+// the weak fill pin keeps the medium natural sizes winning, so the stack packs
+// at the top exactly as the SizeHint engine does.
+TEST(Layout, solverVboxPacksContentShorterThanContainerAtTheTop)
+{
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+    SizeHintResult const a = {{ 40.0f, 40.0f, 40.0f }};
+    SizeHintResult const b = {{ 30.0f, 30.0f, 30.0f }};
+    SizeHintResult const c = {{ 50.0f, 50.0f, 50.0f }};
+
+    avg::Vector2f const size(50.0f, 150.0f);
+
+    ProbeSet solverProbes;
+    std::vector<AnyWidget> children;
+    children.push_back(solverProbes.add(width, a));
+    children.push_back(solverProbes.add(width, b));
+    children.push_back(solverProbes.add(width, c));
+    auto solved = solverProbes.realise(solverVbox(std::move(children)), size);
+
+    ProbeSet refProbes;
+    Children reference;
+    reference.push_back(refProbes.add(width, a));
+    reference.push_back(refProbes.add(width, b));
+    reference.push_back(refProbes.add(width, c));
+    auto expected = refProbes.realise(box<Axis::y>(std::move(reference)), size);
+
+    ASSERT_EQ(3u, solved.size());
+    ASSERT_EQ(3u, expected.size());
+
+    // The production SizeHint vbox: each rigid child at its natural height,
+    // stacked from the top with the spare 30 left as a gap at the bottom.
+    expectGeometry("ref first (top)", expected[0], 0.0f, 110.0f, 50.0f, 40.0f);
+    expectGeometry("ref middle", expected[1], 0.0f, 80.0f, 50.0f, 30.0f);
+    expectGeometry("ref last", expected[2], 0.0f, 30.0f, 50.0f, 50.0f);
+
+    // The solver vbox matches it edge for edge.
+    expectGeometry("first (top)", solved[0], 0.0f, 110.0f, 50.0f, 40.0f);
+    expectGeometry("middle", solved[1], 0.0f, 80.0f, 50.0f, 30.0f);
+    expectGeometry("last", solved[2], 0.0f, 30.0f, 50.0f, 50.0f);
+}
+
+// Content taller than the container, no filler. The no-overflow cap is
+// required, so the children are squashed to fit. This is the one case where
+// the solver and the production SizeHint vbox part ways, and the test pins the
+// difference rather than hiding it.
+//
+// The SizeHint engine spreads the overflow proportionally across every child's
+// natural-to-minimum band, landing both children at 40 in an 80-tall box. The
+// solver cannot reproduce that: once the required cap binds, the two equal
+// medium natural pins have a flat combined cost across every split of the
+// deficit (their errors sum to a constant), so the objective is degenerate and
+// Cassowary breaks the tie at a vertex — the first child keeps its natural 50
+// and the last child alone absorbs the whole overflow, ending at 30. A
+// proportional squash would need per-child stretch weights the current
+// formulation does not carry; see the report.
+TEST(Layout, solverVboxSquashesOverfullContent)
+{
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+    SizeHintResult const squashable = {{ 20.0f, 50.0f, 50.0f }};
+
+    avg::Vector2f const size(50.0f, 80.0f);
+
+    ProbeSet solverProbes;
+    std::vector<AnyWidget> children;
+    children.push_back(solverProbes.add(width, squashable));
+    children.push_back(solverProbes.add(width, squashable));
+    auto solved = solverProbes.realise(solverVbox(std::move(children)), size);
+
+    ProbeSet refProbes;
+    Children reference;
+    reference.push_back(refProbes.add(width, squashable));
+    reference.push_back(refProbes.add(width, squashable));
+    auto expected = refProbes.realise(box<Axis::y>(std::move(reference)), size);
+
+    ASSERT_EQ(2u, solved.size());
+    ASSERT_EQ(2u, expected.size());
+
+    // Production SizeHint vbox: a proportional squash to 40 each.
+    expectGeometry("ref first", expected[0], 0.0f, 40.0f, 50.0f, 40.0f);
+    expectGeometry("ref second", expected[1], 0.0f, 0.0f, 50.0f, 40.0f);
+
+    // Solver vbox: the first child keeps its natural 50, the last absorbs the
+    // whole overflow to 30. This diverges from the proportional reference above
+    // and is asserted here deliberately.
+    expectGeometry("first", solved[0], 0.0f, 30.0f, 50.0f, 50.0f);
+    expectGeometry("second", solved[1], 0.0f, 0.0f, 50.0f, 30.0f);
+}
+
+// Two fillers with a rigid child above the leftover space. Both fillers are
+// tied to the container's single stretch variable, so the weak fill splits the
+// 100 of leftover space equally: 50 each. This matches the production SizeHint
+// vbox, which hands each filler an equal share of the unclaimed range.
+TEST(Layout, solverVboxSplitsLeftoverBetweenFillers)
+{
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+    SizeHintResult const rigid = {{ 40.0f, 40.0f, 40.0f }};
+
+    avg::Vector2f const size(50.0f, 140.0f);
+
+    ProbeSet solverProbes;
+    std::vector<AnyWidget> children;
+    children.push_back(solverProbes.add(width, rigid));
+    children.push_back(solverProbes.add(width, fillHint));
+    children.push_back(solverProbes.add(width, fillHint));
+    auto solved = solverProbes.realise(solverVbox(std::move(children)), size);
+
+    ProbeSet refProbes;
+    Children reference;
+    reference.push_back(refProbes.add(width, rigid));
+    reference.push_back(refProbes.add(width, fillHint));
+    reference.push_back(refProbes.add(width, fillHint));
+    auto expected = refProbes.realise(box<Axis::y>(std::move(reference)), size);
+
+    ASSERT_EQ(3u, solved.size());
+    ASSERT_EQ(3u, expected.size());
+
+    // Production SizeHint vbox: rigid child keeps its 40 at the top; the two
+    // fillers split the remaining 100 into 50 each.
+    expectGeometry("ref rigid (top)", expected[0], 0.0f, 100.0f, 50.0f, 40.0f);
+    expectGeometry("ref filler one", expected[1], 0.0f, 50.0f, 50.0f, 50.0f);
+    expectGeometry("ref filler two", expected[2], 0.0f, 0.0f, 50.0f, 50.0f);
+
+    // The solver vbox matches it.
+    expectGeometry("rigid (top)", solved[0], 0.0f, 100.0f, 50.0f, 40.0f);
+    expectGeometry("filler one", solved[1], 0.0f, 50.0f, 50.0f, 50.0f);
+    expectGeometry("filler two", solved[2], 0.0f, 0.0f, 50.0f, 50.0f);
+}
+
+// A single filler under the weak fill pin grows at no cost to the medium size
+// pins, so it takes exactly the space the rigid children leave. A 40 rigid
+// child above a filler in a 150-tall box leaves the filler 110.
+TEST(Layout, solverVboxFillsASingleFiller)
+{
+    ProbeSet probes;
+
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+
+    std::vector<AnyWidget> children;
+    children.push_back(probes.add(width, SizeHintResult{{ 40.0f, 40.0f, 40.0f }}));
+    children.push_back(probes.add(width, fillHint));
+
+    auto geometries = probes.realise(solverVbox(std::move(children)),
+            avg::Vector2f(50.0f, 150.0f));
+
+    ASSERT_EQ(2u, geometries.size());
+
+    expectGeometry("rigid (top)", geometries[0], 0.0f, 110.0f, 50.0f, 40.0f);
+    expectGeometry("filler", geometries[1], 0.0f, 0.0f, 50.0f, 110.0f);
 }
 
 TEST(Layout, gravityCentersAChildInsideItsSlot)

@@ -2,6 +2,9 @@
 
 #include "bqui/bquivisibility.h"
 
+#include "bqui/sizehint.h"
+#include "bqui/widget/boxvariables.h"
+
 #include <bq/signal/signal.h>
 
 #include <avg/obb.h>
@@ -17,24 +20,6 @@
 
 namespace bqui::widget
 {
-    /** @brief The four edge variables bounding one widget's box in the shared
-     * constraint system.
-     *
-     * A widget holds its BoxVariables for its whole lifetime, so the arrange
-     * ids stay stable across solves and the solver's incremental diff can match
-     * the widget's constraints from pass to pass.
-     */
-    struct BoxVariables
-    {
-        arrange::Variable left;
-        arrange::Variable top;
-        arrange::Variable right;
-        arrange::Variable bottom;
-
-        BQUI_EXPORT arrange::Expression width() const;
-        BQUI_EXPORT arrange::Expression height() const;
-    };
-
     /** @brief One subtree's contribution to a solve: the constraints to apply
      * and the variables whose solved values must be read back.
      *
@@ -73,17 +58,16 @@ namespace bqui::widget
             BoxVariables const& box,
             float left, float top, float right, float bottom);
 
-    enum class Axis
-    {
-        horizontal,
-        vertical
-    };
-
     /** @brief Stacks @p children edge-to-edge inside @p container along @p axis.
      *
-     * Consecutive children meet, the first and last touch the container's ends,
-     * and the cross axis spans the container. The extent along @p axis is left
-     * to each child's own size contribution.
+     * Consecutive children meet, the first touches the container's leading end,
+     * and the cross axis spans the container. The trailing end is capped at the
+     * container's end (required, so a stack never overflows) and pulled to it
+     * only weakly, so a child free to grow fills the container while firmer
+     * content packs against the leading end and leaves the slack as a gap. The
+     * extent along @p axis is otherwise left to each child's own size
+     * contribution. @p axis is the shared bqui::Axis: Axis::y stacks top to
+     * bottom, Axis::x left to right.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> boxConstraints(
             BoxVariables const& container,
