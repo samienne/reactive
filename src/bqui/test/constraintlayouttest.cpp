@@ -1,5 +1,11 @@
 #include "widget/constraintlayout.h"
 
+#include <bqui/widget/builder.h>
+#include <bqui/widget/widget.h>
+
+#include <bqui/simplesizehint.h>
+#include <bqui/sizehint.h>
+
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
 #include <bq/signal/input.h>
@@ -92,6 +98,34 @@ TEST(constraintLayout, horizontalBoxStacksChildren)
     EXPECT_DOUBLE_EQ(90.0, solution.at(b.right.id()));
     EXPECT_DOUBLE_EQ(0.0, solution.at(a.top.id()));
     EXPECT_DOUBLE_EQ(30.0, solution.at(a.bottom.id()));
+}
+
+// The solver matches a widget's constraints from pass to pass by the arrange
+// ids of its box variables alone, so those ids have to survive the transforms a
+// builder goes through on its way into a container: a size-hint change and the
+// erasure to AnyBuilder. Were either to mint fresh ids, the diff would treat the
+// same widget as a departure and an arrival every frame.
+TEST(constraintLayout, boxVariableIdsSurviveHintChangeAndErasure)
+{
+    auto builder = makeBuilder();
+    BoxVariables const original = builder.getBoxVariables();
+
+    auto rehinted = std::move(builder).setSizeHint(
+            bq::signal::constant(simpleSizeHint(10.0f, 10.0f)));
+    BoxVariables const afterHint = rehinted.getBoxVariables();
+
+    AnyBuilder erased = std::move(rehinted);
+    BoxVariables const afterErasure = erased.getBoxVariables();
+
+    EXPECT_EQ(original.left.id(), afterHint.left.id());
+    EXPECT_EQ(original.top.id(), afterHint.top.id());
+    EXPECT_EQ(original.right.id(), afterHint.right.id());
+    EXPECT_EQ(original.bottom.id(), afterHint.bottom.id());
+
+    EXPECT_EQ(original.left.id(), afterErasure.left.id());
+    EXPECT_EQ(original.top.id(), afterErasure.top.id());
+    EXPECT_EQ(original.right.id(), afterErasure.right.id());
+    EXPECT_EQ(original.bottom.id(), afterErasure.bottom.id());
 }
 
 // A stack overlays its children: each child gets the container's whole box.
