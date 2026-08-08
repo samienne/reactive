@@ -22,8 +22,12 @@ AnyElementModifier setElementId(bq::signal::AnySignal<avg::UniqueId> id)
                     instance.getRenderTree().getRoot()
                     );
 
+            auto introspection = instance.getIntrospection();
+            introspection.id = id;
+
             return std::move(instance)
                 .setRenderTree(avg::RenderTree(std::move(container)))
+                .setIntrospection(std::move(introspection))
                 ;
         },
         std::move(id)
