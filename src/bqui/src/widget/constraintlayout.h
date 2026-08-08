@@ -2,6 +2,8 @@
 
 #include "bqui/bquivisibility.h"
 
+#include "bqui/widget/boxvariables.h"
+
 #include <bq/signal/signal.h>
 
 #include <avg/obb.h>
@@ -17,24 +19,6 @@
 
 namespace bqui::widget
 {
-    /** @brief The four edge variables bounding one widget's box in the shared
-     * constraint system.
-     *
-     * A widget holds its BoxVariables for its whole lifetime, so the arrange
-     * ids stay stable across solves and the solver's incremental diff can match
-     * the widget's constraints from pass to pass.
-     */
-    struct BoxVariables
-    {
-        arrange::Variable left;
-        arrange::Variable top;
-        arrange::Variable right;
-        arrange::Variable bottom;
-
-        BQUI_EXPORT arrange::Expression width() const;
-        BQUI_EXPORT arrange::Expression height() const;
-    };
-
     /** @brief One subtree's contribution to a solve: the constraints to apply
      * and the variables whose solved values must be read back.
      *

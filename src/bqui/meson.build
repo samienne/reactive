@@ -88,10 +88,11 @@ nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
 # arrange is a vendored Cassowary linear-arithmetic constraint solver — UI-
-# agnostic layout math (an "Eigen, not a bq"). Its headers back bqui's own
-# layout .cpp files and never appear in a public bqui header, so like nlohmann
-# it is a dependency of the bqui library only and is deliberately *not* re-
-# exported through libbquidep.
+# agnostic layout math (an "Eigen, not a bq"). Its variables and expressions
+# appear in bqui's public layout interface (a Builder carries the box variables
+# that name it to the solver), so unlike nlohmann it is re-exported through
+# libbquidep and propagates to dependents — the one solver-math dependency
+# permitted in bqui's public surface, alongside avg.
 arrangedep = subproject('arrange',
     default_options: subproject_warnings).get_variable('arrange_dep').as_system()
 
@@ -114,7 +115,7 @@ libbqui = library(
 
 libbquidep = declare_dependency(
   link_with: libbqui,
-  dependencies: bquidep,
+  dependencies: bquidep + [arrangedep],
   link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
