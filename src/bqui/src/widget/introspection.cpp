@@ -23,6 +23,7 @@ bool operator==(Introspection const& lhs, Introspection const& rhs)
             || lhs.capabilities != rhs.capabilities
             || lhs.obb != rhs.obb
             || lhs.data != rhs.data
+            || lhs.id != rhs.id
             || lhs.children.size() != rhs.children.size())
     {
         return false;
@@ -44,6 +45,7 @@ Introspection resolveIntrospection(Introspection const& node,
     result.capabilities = node.capabilities;
     result.obb = parent * node.obb;
     result.data = node.data;
+    result.id = node.id;
 
     result.children.reserve(node.children.size());
     for (auto const& child : node.children)
