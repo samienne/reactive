@@ -38,6 +38,7 @@ libbquisrc = [
   'src/widget/bin.cpp',
   'src/widget/button.cpp',
   'src/widget/box.cpp',
+  'src/widget/constraintlayout.cpp',
   'src/widget/datavalue.cpp',
   'src/widget/hbox.cpp',
   'src/widget/instance.cpp',
@@ -117,6 +118,7 @@ libbquidep = declare_dependency(
 bquitestsrc = [
   'test/apptest.cpp',
   'test/collectiontest.cpp',
+  'test/constraintlayouttest.cpp',
   'test/databindtest.cpp',
   'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
@@ -135,7 +137,7 @@ bquitestsrc = [
 # src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep, arrangedep],
   include_directories: include_directories('src'),
   )
 
