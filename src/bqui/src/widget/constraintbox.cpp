@@ -7,6 +7,7 @@
 #include "bqui/widget/widget.h"
 
 #include "bqui/modifier/addwidgets.h"
+#include "bqui/modifier/handlegravity.h"
 #include "bqui/modifier/setid.h"
 #include "bqui/modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
@@ -26,6 +27,7 @@
 
 #include <arrange/expression.h>
 #include <arrange/strength.h>
+#include <arrange/variable.h>
 
 #include <cstddef>
 #include <utility>
@@ -57,7 +59,8 @@ bq::signal::AnySignal<widget::Instance> buildChild(
 }
 
 LayoutSpec makeVerticalSpec(BoxVariables const& container,
-        avg::Vector2f size, std::vector<BoxVariables> const& boxes,
+        arrange::Variable const& stretch, avg::Vector2f size,
+        std::vector<BoxVariables> const& boxes,
         std::vector<SizeHint> const& hints)
 {
     LayoutSpec spec;
@@ -75,13 +78,36 @@ LayoutSpec makeVerticalSpec(BoxVariables const& container,
     {
         SizeHintResult height = hints[i].getHeightForWidth(size[0]);
         float minHeight = height[0];
-        float preferredHeight = height[1];
+        float naturalHeight = height[1];
+        float maxHeight = height[2];
 
+        arrange::Expression childHeight = boxes[i].height();
+
+        // The band each child is kept inside, firmer than the size it settles
+        // at within the band.
         spec.constraints.push_back(
-                (boxes[i].height() == arrange::Expression(preferredHeight))
+                (childHeight >= arrange::Expression(minHeight))
                 | arrange::Strength::strong());
         spec.constraints.push_back(
-                boxes[i].height() >= arrange::Expression(minHeight));
+                (childHeight <= arrange::Expression(maxHeight))
+                | arrange::Strength::strong());
+
+        if (maxHeight > naturalHeight)
+        {
+            // A filler grows past its natural size, so it takes no natural pin.
+            // Every filler is tied to the container's one stretch variable, so
+            // several of them split the leftover space equally; the container's
+            // fixed extent then drives that variable to absorb the remainder.
+            spec.constraints.push_back(
+                    (childHeight == arrange::Expression(stretch))
+                    | arrange::Strength::medium());
+        }
+        else
+        {
+            spec.constraints.push_back(
+                    (childHeight == arrange::Expression(naturalHeight))
+                    | arrange::Strength::medium());
+        }
     }
 
     for (BoxVariables const& box : boxes)
@@ -122,6 +148,7 @@ std::vector<avg::Obb> toObbs(LayoutSolution const& solution,
 AnyWidget solverVbox(bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
+    arrange::Variable stretch;
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -137,18 +164,18 @@ AnyWidget solverVbox(bq::signal::ArraySignal<widget::AnyBuilder> array)
                 })).share();
 
     auto widget = makeWidgetWithSize(
-            [container](auto size, auto boxes, auto hints, auto array)
+            [container, stretch](auto size, auto boxes, auto hints, auto array)
             {
                 auto sharedSize = std::move(size).share();
 
                 auto spec = merge(sharedSize.clone(), boxes.clone(),
                         std::move(hints))
-                    .map([container](avg::Vector2f size,
+                    .map([container, stretch](avg::Vector2f size,
                                 std::vector<BoxVariables> const& boxes,
                                 std::vector<SizeHint> const& hints)
                         {
-                            return makeVerticalSpec(container, size, boxes,
-                                    hints);
+                            return makeVerticalSpec(container, stretch, size,
+                                    boxes, hints);
                         });
 
                 auto solution = solveLayout(
@@ -185,6 +212,26 @@ AnyWidget solverVbox(bq::signal::ArraySignal<widget::AnyBuilder> array)
 
 } // namespace
 
+AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets)
+{
+    return makeWidget([](BuildParams const& params, auto widgets)
+        {
+            auto builders = widgets.map(
+                    [params](widget::AnyWidget const& widget)
+                    -> widget::AnyBuilder
+                    {
+                        return (widget.clone()
+                                | modifier::handleGravity()
+                                )(params);
+                    });
+
+            return solverVbox(std::move(builders));
+        },
+        provider::provideBuildParams(),
+        std::move(widgets)
+        );
+}
+
 AnyWidget solverVbox(std::vector<AnyWidget> widgets)
 {
     std::vector<bq::signal::ArraySignal<widget::AnyWidget>> children;
@@ -193,22 +240,8 @@ AnyWidget solverVbox(std::vector<AnyWidget> widgets)
     for (auto&& widget : widgets)
         children.push_back(std::move(widget));
 
-    auto array = bq::signal::ArraySignal<widget::AnyWidget>(std::move(children));
-
-    return makeWidget([](BuildParams const& params, auto widgets)
-        {
-            auto builders = widgets.map(
-                    [params](widget::AnyWidget const& widget)
-                    -> widget::AnyBuilder
-                    {
-                        return widget.clone()(params);
-                    });
-
-            return solverVbox(std::move(builders));
-        },
-        provider::provideBuildParams(),
-        std::move(array)
-        );
+    return solverVbox(
+            bq::signal::ArraySignal<widget::AnyWidget>(std::move(children)));
 }
 
 } // namespace bqui::widget

@@ -4,6 +4,8 @@
 
 #include "bqui/bquivisibility.h"
 
+#include <bq/signal/arraysignal.h>
+
 #include <vector>
 
 namespace bqui::widget
@@ -13,14 +15,21 @@ namespace bqui::widget
      * The container and every child carry a set of BoxVariables. The container
      * is anchored to the window-space rectangle it is realised at, the children
      * are stacked edge-to-edge along the vertical axis (boxConstraints()), and
-     * each child's preferred and minimum height enter as a strong equality and
-     * a required lower bound read from its SizeHint. One arrange::Solver folds
-     * over the whole spec (solveLayout()), and each child is placed at its
-     * solved rectangle, flipped from the solver's top-down window space into the
-     * widget tree's y-up coordinates.
+     * each child's height is bounded to its SizeHint's [min, max] band. A child
+     * settles at its natural size unless it is a filler (a larger max than
+     * natural), in which case it shares the container's one stretch variable so
+     * fillers split the leftover space equally. One arrange::Solver folds over
+     * the whole spec (solveLayout()), and each child is placed at its solved
+     * rectangle, flipped from the solver's top-down window space into the widget
+     * tree's y-up coordinates. Every child is put through
+     * modifier::handleGravity() so one that cannot use its whole slot is aligned
+     * within it, exactly as layout() does.
      *
-     * This is the first container wired onto the solver; the fixed-membership
-     * form is enough to prove the integration end to end.
+     * The array form follows a membership that changes; the vector form is the
+     * fixed-list convenience over it.
      */
+    BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
+
+    /** @overload */
     BQUI_EXPORT AnyWidget solverVbox(std::vector<AnyWidget> widgets);
 } // namespace bqui::widget
