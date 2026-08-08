@@ -13,24 +13,11 @@
 
 #include <bq/signal/arraysignal.h>
 
-#include <arrange/solver.h>
-
 namespace bqui::widget
 {
 
 namespace
 {
-
-// Stage-1 link check for the vendored arrange constraint solver: force a real
-// use of the public API so the subproject's headers resolve and its symbols
-// link into libbqui. Remove once genuine layout code consumes arrange.
-[[maybe_unused]] double arrangeLinkCheck()
-{
-    arrange::Solver solver;
-    arrange::Variable x{"x"};
-    solver.addConstraint(arrange::Expression(x) == arrange::Expression(42.0));
-    return solver.valueOf(x);
-}
 
 // Called once per identity, so the id it mints names this child for as long as
 // the child is there. avg::ContainerNode falls back to matching its children by
