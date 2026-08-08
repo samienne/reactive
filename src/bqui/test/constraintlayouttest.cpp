@@ -13,6 +13,7 @@
 
 #include <vector>
 
+using namespace bqui;
 using namespace bqui::widget;
 using namespace bq::signal;
 
@@ -46,7 +47,7 @@ TEST(constraintLayout, verticalBoxStacksChildren)
 
     LayoutSpec spec;
     append(spec.constraints, anchorConstraints(container, 0.f, 0.f, 100.f, 60.f));
-    append(spec.constraints, boxConstraints(container, { a, b }, Axis::vertical));
+    append(spec.constraints, boxConstraints(container, { a, b }, Axis::y));
     spec.constraints.push_back(
             (a.height() == arrange::Expression(20.0)) | arrange::Strength::strong());
 
@@ -77,7 +78,7 @@ TEST(constraintLayout, horizontalBoxStacksChildren)
 
     LayoutSpec spec;
     append(spec.constraints, anchorConstraints(container, 0.f, 0.f, 90.f, 30.f));
-    append(spec.constraints, boxConstraints(container, { a, b }, Axis::horizontal));
+    append(spec.constraints, boxConstraints(container, { a, b }, Axis::x));
     spec.constraints.push_back(
             (a.width() == arrange::Expression(30.0)) | arrange::Strength::strong());
 
@@ -129,7 +130,7 @@ TEST(constraintLayout, requiredMinimumBeatsStrongPreferred)
 
     LayoutSpec spec;
     append(spec.constraints, anchorConstraints(container, 0.f, 0.f, 100.f, 60.f));
-    append(spec.constraints, boxConstraints(container, { a, b }, Axis::vertical));
+    append(spec.constraints, boxConstraints(container, { a, b }, Axis::y));
     spec.constraints.push_back(
             (a.height() == arrange::Expression(20.0)) | arrange::Strength::strong());
     spec.constraints.push_back(a.height() >= arrange::Expression(30.0));
@@ -158,7 +159,7 @@ TEST(constraintLayout, resolvesWhenConstraintsChange)
         append(spec.constraints,
                 anchorConstraints(container, 0.f, 0.f, width, height));
         append(spec.constraints,
-                boxConstraints(container, { a, b }, Axis::vertical));
+                boxConstraints(container, { a, b }, Axis::y));
         spec.constraints.push_back(
                 (a.height() == arrange::Expression(20.0)) | arrange::Strength::strong());
         spec.variables = { a.right, a.bottom, b.top, b.bottom };

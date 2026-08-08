@@ -111,7 +111,7 @@ std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
         bool first = i == 0;
         bool last = i + 1 == children.size();
 
-        if (axis == Axis::vertical)
+        if (axis == Axis::y)
         {
             out.push_back(pin(child.left, container.left));
             out.push_back(pin(child.right, container.right));

@@ -9,6 +9,8 @@
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
+#include "widget/constraintbox.h"
+
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
 #include <bqui/simplesizehint.h>
@@ -365,6 +367,37 @@ TEST(Layout, vboxStacksFromTopDown)
     expectGeometry("small", geometries[0], 0.0f, 110.0f, 50.0f, 40.0f);
     expectGeometry("stretchy", geometries[1], 0.0f, 30.0f, 50.0f, 80.0f);
     expectGeometry("rigid", geometries[2], 0.0f, 0.0f, 50.0f, 30.0f);
+}
+
+// A column laid out through the arrange solver rather than the SizeHint
+// arithmetic. Three rigid children whose heights fill the container exactly
+// leave the solve fully determined, so each one lands where the edge-to-edge
+// stack puts it: the first at the top, the last at the origin, every child
+// spanning the container's width. This proves the solver drives real widget
+// geometry end to end (box variables collected from the builders, constraints
+// emitted, one Solver folded over the spec, solved boxes flipped back into the
+// y-up widget tree).
+TEST(Layout, solverVboxStacksChildrenThroughTheSolver)
+{
+    ProbeSet probes;
+
+    SizeHintResult const width = {{ 50.0f, 50.0f, 50.0f }};
+
+    std::vector<AnyWidget> children;
+    children.push_back(probes.add(width, SizeHintResult{{ 40.0f, 40.0f, 40.0f }}));
+    children.push_back(probes.add(width, SizeHintResult{{ 30.0f, 30.0f, 30.0f }}));
+    children.push_back(probes.add(width, SizeHintResult{{ 50.0f, 50.0f, 50.0f }}));
+
+    auto geometries = probes.realise(solverVbox(std::move(children)),
+            avg::Vector2f(50.0f, 120.0f));
+
+    ASSERT_EQ(3u, geometries.size());
+
+    // Solver window space stacks 0..40, 40..70, 70..120 from the top; the y-up
+    // flip turns each child's bottom edge into its origin.
+    expectGeometry("first (top)", geometries[0], 0.0f, 80.0f, 50.0f, 40.0f);
+    expectGeometry("middle", geometries[1], 0.0f, 50.0f, 50.0f, 30.0f);
+    expectGeometry("last (origin)", geometries[2], 0.0f, 0.0f, 50.0f, 50.0f);
 }
 
 TEST(Layout, gravityCentersAChildInsideItsSlot)

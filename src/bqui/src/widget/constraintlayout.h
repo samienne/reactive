@@ -2,6 +2,7 @@
 
 #include "bqui/bquivisibility.h"
 
+#include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
 
 #include <bq/signal/signal.h>
@@ -57,17 +58,12 @@ namespace bqui::widget
             BoxVariables const& box,
             float left, float top, float right, float bottom);
 
-    enum class Axis
-    {
-        horizontal,
-        vertical
-    };
-
     /** @brief Stacks @p children edge-to-edge inside @p container along @p axis.
      *
      * Consecutive children meet, the first and last touch the container's ends,
      * and the cross axis spans the container. The extent along @p axis is left
-     * to each child's own size contribution.
+     * to each child's own size contribution. @p axis is the shared bqui::Axis:
+     * Axis::y stacks top to bottom, Axis::x left to right.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> boxConstraints(
             BoxVariables const& container,
