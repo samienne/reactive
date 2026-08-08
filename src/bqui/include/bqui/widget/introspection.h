@@ -6,6 +6,7 @@
 
 #include <avg/obb.h>
 #include <avg/transform.h>
+#include <avg/rendertree/uniqueid.h>
 
 #include <memory>
 #include <optional>
@@ -63,6 +64,15 @@ namespace bqui::widget
         avg::Obb obb;
         DataMap data;
         std::vector<IntrospectionChild> children;
+
+        /**
+         * @brief The identity this node shares with its render-tree node.
+         *
+         * Set alongside the render `avg::IdNode` by `setElementId`, so a
+         * consumer can join a node in the introspection tree to the same node
+         * in the render/snapshot tree. Absent when the widget carries no id.
+         */
+        std::optional<avg::UniqueId> id;
     };
 
     /** @brief Wrap a node as a shared immutable child. */
