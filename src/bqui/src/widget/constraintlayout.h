@@ -60,10 +60,14 @@ namespace bqui::widget
 
     /** @brief Stacks @p children edge-to-edge inside @p container along @p axis.
      *
-     * Consecutive children meet, the first and last touch the container's ends,
-     * and the cross axis spans the container. The extent along @p axis is left
-     * to each child's own size contribution. @p axis is the shared bqui::Axis:
-     * Axis::y stacks top to bottom, Axis::x left to right.
+     * Consecutive children meet, the first touches the container's leading end,
+     * and the cross axis spans the container. The trailing end is capped at the
+     * container's end (required, so a stack never overflows) and pulled to it
+     * only weakly, so a child free to grow fills the container while firmer
+     * content packs against the leading end and leaves the slack as a gap. The
+     * extent along @p axis is otherwise left to each child's own size
+     * contribution. @p axis is the shared bqui::Axis: Axis::y stacks top to
+     * bottom, Axis::x left to right.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> boxConstraints(
             BoxVariables const& container,

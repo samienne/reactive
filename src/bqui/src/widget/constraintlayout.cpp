@@ -105,6 +105,22 @@ std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
 {
     std::vector<arrange::Constraint> out;
 
+    // The trailing edge is capped at the container's end (required, so content
+    // can never overflow) and pulled to it only weakly. A child free to grow —
+    // a filler — settles against that weak pull and fills the container, while
+    // content held at a firmer size stays put, leaving the slack as a gap
+    // rather than being stretched to fill it.
+    auto fill = [&out](arrange::Variable const& childEnd,
+            arrange::Variable const& containerEnd)
+    {
+        out.push_back(
+                arrange::Expression(childEnd)
+                <= arrange::Expression(containerEnd));
+        out.push_back(
+                (arrange::Expression(childEnd) == arrange::Expression(containerEnd))
+                | arrange::Strength::weak());
+    };
+
     for (std::size_t i = 0; i < children.size(); ++i)
     {
         BoxVariables const& child = children[i];
@@ -118,7 +134,7 @@ std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
             out.push_back(first ? pin(child.top, container.top)
                                 : pin(child.top, children[i - 1].bottom));
             if (last)
-                out.push_back(pin(child.bottom, container.bottom));
+                fill(child.bottom, container.bottom);
         }
         else
         {
@@ -127,7 +143,7 @@ std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
             out.push_back(first ? pin(child.left, container.left)
                                 : pin(child.left, children[i - 1].right));
             if (last)
-                out.push_back(pin(child.right, container.right));
+                fill(child.right, container.right);
         }
     }
 
