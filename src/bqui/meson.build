@@ -1,5 +1,6 @@
 libbquisrc = [
   'src/remote/introspectionjson.cpp',
+  'src/remote/remoteplatform.cpp',
   'src/remote/session.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
