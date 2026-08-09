@@ -78,11 +78,6 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
-# nlohmann/json owns the remote layer's JSON-RPC envelope and serialisation. It
-# is header-only and confined to the remote layer's own .cpp files (json.hpp is
-# never pulled into a public header), so it is a dependency of the bqui library
-# only — deliberately *not* re-exported through libbquidep, keeping its compile
-# cost from spreading to dependents.
 nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
