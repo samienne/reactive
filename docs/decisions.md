@@ -1,9 +1,37 @@
 # Decisions
 
-*Last verified against `f52d7f2` (2026-07-23), for the window-handle rework.*
+*Last verified against `e21d843` (2026-08-09), for the present-virtual rework.*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## Window `present` is a virtual; `getImpl<Concrete>` never touches a decoratable handle
+
+Presenting a rendered frame is a `WindowImpl` virtual — `Window::present`
+forwards to it and each backend overrides it — not a `getImpl<WglWindow>` /
+`getImpl<GlxWindow>` recovery inside the GL render context. The render queue's
+present callback calls `window.present(d)` and dispatch picks the backend.
+
+**Why:** backend-agnostic dispatch. The GL present path no longer
+`reinterpret_cast`s the window to a concrete type, so a new backend
+(vulkan/metal/wayland) only overrides `present`, and a decorator wrapping
+`Window`/`WindowImpl` can forward it polymorphically — which is what lets bqui
+wrap ase's platform for a remote-driven window without the render path knowing.
+
+**The invariant this protects:** a `Platform` or `Window` handle held by bqui is
+reached only through its virtual interface. `getImpl<Concrete>` is reserved for
+ase-*internal* inner-to-inner recovery — the render pipeline reaching its own
+resources (textures, buffers, framebuffers) whose concrete type it created and
+owns — and must never run on a handle that could be a decorator, or it reads the
+wrong object. `present` was the one render-path violation on the window;
+removing it leaves no `getImpl<Concrete>` on a decoratable handle. (The headless
+`platform.getImpl<DummyPlatform>` in `App` is the remaining case, folded into the
+platform decorator.)
+
+**Backstop:** `Platform::getImpl` and `Window::getImpl` are now debug-checked
+casts — `assert(dynamic_cast<T*>(...))` before the `reinterpret_cast`, compiled
+out where `NDEBUG` is set — so a wrong-concrete cast on a wrapped handle is a
+loud assert in Debug/Sanitize CI rather than silent UB.
 
 ## A `Window` is a handle; its widget is supplied at `addWindow`
 
