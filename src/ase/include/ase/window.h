@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <cassert>
 #include <cstdint>
 #include <optional>
 #include <chrono>
@@ -92,12 +93,14 @@ namespace ase
         template <class T>
         T const& getImpl() const
         {
+            assert(dynamic_cast<T const*>(d()) != nullptr);
             return reinterpret_cast<T const&>(*d());
         }
 
         template <class T>
         T& getImpl()
         {
+            assert(dynamic_cast<T*>(d()) != nullptr);
             return reinterpret_cast<T&>(*d());
         }
 

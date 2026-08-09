@@ -3,6 +3,7 @@
 #include "vector.h"
 #include "asevisibility.h"
 
+#include <cassert>
 #include <chrono>
 #include <memory>
 #include <optional>
@@ -30,12 +31,14 @@ namespace ase
         template <typename T>
         T& getImpl()
         {
+            assert(dynamic_cast<T*>(d()) != nullptr);
             return reinterpret_cast<T&>(*d());
         }
 
         template <typename T>
         T const& getImpl() const
         {
+            assert(dynamic_cast<T const*>(d()) != nullptr);
             return reinterpret_cast<T const&>(*d());
         }
 
