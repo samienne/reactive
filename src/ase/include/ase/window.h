@@ -24,6 +24,7 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+    struct Dispatched;
 
     struct Frame
     {
@@ -55,6 +56,10 @@ namespace ase
         Framebuffer& getDefaultFramebuffer();
 
         void requestFrame();
+
+        /** @brief Present the window's rendered frame, forwarded to the backing
+         * implementation. Called by the render queue on its dispatch thread. */
+        void present(Dispatched dispatched);
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

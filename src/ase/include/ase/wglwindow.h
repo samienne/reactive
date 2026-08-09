@@ -23,8 +23,6 @@ namespace ase
         HWND getHwnd() const;
         HDC getDc() const;
 
-        void present();
-
         std::optional<std::chrono::microseconds> frame(Frame const& frame);
         bool needsRedraw() const;
 
@@ -40,6 +38,8 @@ namespace ase
         Framebuffer& getDefaultFramebuffer() override;
 
         void requestFrame() override;
+
+        void present(Dispatched) override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>)

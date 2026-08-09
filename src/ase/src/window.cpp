@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include "windowimpl.h"
+#include "dispatcher.h"
 
 namespace ase
 {
@@ -74,6 +75,11 @@ Framebuffer& Window::getDefaultFramebuffer()
 void Window::requestFrame()
 {
     d()->requestFrame();
+}
+
+void Window::present(Dispatched dispatched)
+{
+    d()->present(dispatched);
 }
 
 void Window::setFrameCallback(

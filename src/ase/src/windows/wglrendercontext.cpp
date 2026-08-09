@@ -35,29 +35,6 @@ WglDispatchedContext const& WglRenderContext::getWglContext() const
             );
 }
 
-void WglRenderContext::present(Dispatched /*dispatched*/, Window& window)
-{
-    ZoneScoped;
-    WglWindow& wglWindow = window.getImpl<WglWindow>();
-
-    /*if (wglWindow.getDc() != wglGetCurrentDC()
-            || getWglContext().getWglContext() != wglGetCurrentContext())*/
-    {
-        ZoneScopedN("wglMakeCurrent");
-        /*
-        static_cast<WglDispatchedContext&>(
-                getMainGlRenderQueue().getDispatcher()
-                ).makeCurrent(dispatched, wglWindow);
-        */
-    }
-
-    {
-        ZoneScopedN("SwapBuffers");
-        SwapBuffers(wglWindow.getDc());
-        FrameMark;
-    }
-}
-
 } // namespace ase
 
 

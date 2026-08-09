@@ -1,6 +1,7 @@
 #include "dummywindow.h"
 
 #include "dummyframebuffer.h"
+#include "dispatcher.h"
 
 #include <memory>
 
@@ -51,6 +52,10 @@ Framebuffer& DummyWindow::getDefaultFramebuffer()
 void DummyWindow::requestFrame()
 {
     genericWindow_.requestFrame();
+}
+
+void DummyWindow::present(Dispatched)
+{
 }
 
 void DummyWindow::setFrameCallback(

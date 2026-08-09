@@ -22,6 +22,7 @@ namespace ase
 {
     class Framebuffer;
     struct Frame;
+    struct Dispatched;
 
     class ASE_EXPORT WindowImpl
     {
@@ -39,6 +40,10 @@ namespace ase
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
         virtual void requestFrame() = 0;
+
+        /** @brief Present the window's rendered frame (e.g. swap buffers),
+         * invoked on the render queue's dispatch thread. */
+        virtual void present(Dispatched) = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

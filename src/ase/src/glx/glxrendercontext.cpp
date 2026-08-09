@@ -37,12 +37,5 @@ GlxRenderContext::~GlxRenderContext()
     waitBg();
 }
 
-void GlxRenderContext::present(Dispatched d, Window& window)
-{
-    ZoneScopedN("GlxRenderContext::present");
-    GlxWindow& glxWindow = window.getImpl<GlxWindow>();
-    glxWindow.present(d);
-}
-
 } // namespace ase
 

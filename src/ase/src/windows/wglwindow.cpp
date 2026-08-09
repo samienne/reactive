@@ -2,10 +2,13 @@
 
 #include "wglplatform.h"
 #include "wglframebuffer.h"
+#include "dispatcher.h"
 
 #include <windows.h>
 
 #include <utf8/utf8.h>
+
+#include <tracy/Tracy.hpp>
 
 #include <GL/gl.h>
 #include <GL/wglext.h>
@@ -436,8 +439,11 @@ HDC WglWindow::getDc() const
     return hdc_;
 }
 
-void WglWindow::present()
+void WglWindow::present(Dispatched)
 {
+    ZoneScoped;
+    SwapBuffers(hdc_);
+    FrameMark;
 }
 
 void WglWindow::setVisible(bool value)

@@ -79,6 +79,8 @@ namespace ase
 
         void requestFrame() override;
 
+        void present(Dispatched) override;
+
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>)
             override;
@@ -110,9 +112,7 @@ namespace ase
     private:
         void destroy();
 
-        friend class GlxRenderContext;
         void handleEvent(_XEvent const& e);
-        void present(Dispatched);
         Lock lockX() const;
 
         friend class GlxDispatchedContext;

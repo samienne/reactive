@@ -17,6 +17,8 @@
 #include "gldispatchedcontext.h"
 #include "glfunctions.h"
 
+#include "window.h"
+
 #include "commandbuffer.h"
 #include "rendercommand.h"
 #include "vertexshader.h"
@@ -39,9 +41,9 @@ GlRenderContext::GlRenderContext(
         ) :
     platform_(platform),
     mainQueue_(std::make_shared<GlRenderQueue>(std::move(fgContext),
-                [this](Dispatched d, Window& w)
+                [](Dispatched d, Window& w)
                 {
-                    present(d, w);
+                    w.present(d);
                 })),
     transferQueue_(platform.isBackgroundQueueEnabled()
             ? std::make_shared<GlRenderQueue>(std::move(bgContext), [](Dispatched, Window&) {})
