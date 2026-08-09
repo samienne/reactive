@@ -53,23 +53,22 @@ namespace bqui
          */
         App& headless(bool headless);
 
-        /** @brief Force agentic mode on/off, overriding the REACTIVE_AGENT /
-         * REACTIVE_MODE env vars.
+        /** @brief Drive the app from a remote endpoint, overriding
+         * REACTIVE_REMOTE_ENDPOINT so a test need not set a process-global env.
          *
-         * Orthogonal to the platform choice. In agentic mode the app connects
-         * to an endpoint and is driven by an external agent instead of
-         * free-running.
-         */
-        App& agentic(bool agentic);
-
-        /** @brief Set the agent channel endpoint, overriding
-         * REACTIVE_AGENT_ENDPOINT, so a test need not set a process-global env.
+         * A non-empty endpoint puts the app in remote mode: instead of
+         * free-running it connects to the endpoint and is driven frame by frame
+         * by an external client (an agent, an inspection UI) over the JSON-RPC
+         * control channel. An empty endpoint forces remote mode off, ignoring
+         * the environment. Orthogonal to the platform choice, though normally
+         * paired with a headless one.
          *
-         * A fully-local IPC endpoint the external agent listens on and the app
-         * connects to: a named-pipe name (`\\.\pipe\<name>`) on Windows, or a
-         * Unix-domain socket path on POSIX.
+         * The endpoint's shape selects the transport: `tcp://<host>:<port>`,
+         * `<host>:<port>`, or `:<port>` is a TCP connection; anything else is
+         * the platform's local IPC -- a `\\.\pipe\<name>` named pipe on Windows,
+         * or a Unix-domain socket path on POSIX.
          */
-        App& agentEndpoint(std::string endpoint);
+        App& setRemoteEndpoint(std::string endpoint);
 
         /** @brief Closes the app's window with this identity.
          *

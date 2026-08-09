@@ -83,7 +83,7 @@ void DummyPlatform::run(RenderContext&,
     // blocks until requestFrame() wakes it, so any sources registered on it (a
     // remote socket, a timer) are serviced meanwhile. With a budget it pumps
     // deterministically up to maxFrames_ frames, then stops, so a headless
-    // (non-agentic) run terminates without an OS window.
+    // (non-remote) run terminates without an OS window.
     tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
             &framesRun, &scheduleTick](btl::RunLoop::Controller& controller)
     {

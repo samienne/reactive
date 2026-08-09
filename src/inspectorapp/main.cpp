@@ -1,11 +1,11 @@
-// A minimal headless, agentic bqui app for an external inspector-protocol
+// A minimal headless, remote-driven bqui app for an external inspector-protocol
 // client (e.g. a Python bridge) to launch and drive. It builds one window with
 // a labelled button that bumps a counter shown in a label, so a client can
 // `window.introspect` to see the button and counter and `window.inject` a
 // click to watch the counter change.
 //
-// The app launches paused and connects back to the agent endpoint, taken from
-// argv[1] or, failing that, the REACTIVE_AGENT_ENDPOINT environment variable
+// The app launches paused and connects back to the remote endpoint, taken from
+// argv[1] or, failing that, the REACTIVE_REMOTE_ENDPOINT environment variable
 // the app already uses. A TCP endpoint (`tcp://host:port`, `host:port`, or
 // `:port`) makes it reachable from any cross-platform client.
 
@@ -35,17 +35,17 @@ using namespace bqui;
 int main(int argc, char** argv)
 {
     // Endpoint precedence: an explicit argv[1] wins, else the same env var the
-    // app reads for the agent endpoint.
+    // app reads for the remote endpoint.
     std::string endpoint;
     if (argc > 1)
         endpoint = argv[1];
-    else if (char const* env = std::getenv("REACTIVE_AGENT_ENDPOINT"))
+    else if (char const* env = std::getenv("REACTIVE_REMOTE_ENDPOINT"))
         endpoint = env;
 
     if (endpoint.empty())
     {
-        std::cerr << "inspectorapp: no agent endpoint (pass argv[1] or set "
-                     "REACTIVE_AGENT_ENDPOINT); running without a client.\n";
+        std::cerr << "inspectorapp: no remote endpoint (pass argv[1] or set "
+                     "REACTIVE_REMOTE_ENDPOINT); running without a client.\n";
     }
 
     // A counter the button bumps and the label displays. bindToFunction reads
@@ -72,8 +72,7 @@ int main(int argc, char** argv)
 
     return App()
         .platform(ase::makeDummyPlatform())
-        .agentic(true)
-        .agentEndpoint(endpoint)
+        .setRemoteEndpoint(endpoint)
         .addWindow(
                 window(bq::signal::constant<std::string>("Inspector Demo")),
                 std::move(content))

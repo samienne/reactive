@@ -36,7 +36,7 @@ namespace ase
          * Zero (the default) means unbounded: run() is on-demand and blocks
          * between frames, so it never spins. A non-zero budget makes run() pump
          * deterministically up to that many frames then stop, which is how a
-         * headless (non-agentic) app run terminates without an OS window.
+         * headless (non-remote) app run terminates without an OS window.
          */
         void setMaxFrames(uint64_t maxFrames);
 

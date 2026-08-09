@@ -783,8 +783,7 @@ TEST(session, describeListIntrospectDriveARealApp)
     {
         App()
             .platform(ase::makeDummyPlatform())
-            .agentic(true)
-            .agentEndpoint(endpoint)
+            .setRemoteEndpoint(endpoint)
             .addWindow(
                     window(bq::signal::constant<std::string>("Agent")),
                     counterWidget(count.handle, count.signal, state))
@@ -840,8 +839,7 @@ TEST(session, dynamicWindowsOpenAndCloseById)
 
     App app;
     app.platform(ase::makeDummyPlatform())
-        .agentic(true)
-        .agentEndpoint(endpoint);
+        .setRemoteEndpoint(endpoint);
 
     // The child closes itself on a click. Its id is known only once it exists,
     // so the handler reads it through a slot filled after construction.

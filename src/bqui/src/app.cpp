@@ -78,17 +78,9 @@ namespace
             || envEquals("REACTIVE_PLATFORM", "dummy");
     }
 
-    // Agentic mode when REACTIVE_AGENT is truthy or REACTIVE_MODE=agent.
-    // Orthogonal to the platform choice.
-    bool wantsAgentEnv()
+    std::string remoteEndpointEnv()
     {
-        return envFlag("REACTIVE_AGENT")
-            || envEquals("REACTIVE_MODE", "agent");
-    }
-
-    std::string agentEndpointEnv()
-    {
-        char const* value = std::getenv("REACTIVE_AGENT_ENDPOINT");
+        char const* value = std::getenv("REACTIVE_REMOTE_ENDPOINT");
         return value ? std::string(value) : std::string();
     }
 } // anonymous namespace
@@ -131,12 +123,11 @@ public:
 
     std::vector<btl::shared<WindowImpl>> windowImpls_;
 
-    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
+    // Platform (headful/headless) and mode (normal/remote) are orthogonal.
     // A programmatic override wins over the env var so tests need no global env.
     std::optional<ase::Platform> platformOverride_;
     std::optional<bool> headlessOverride_;
-    std::optional<bool> agentOverride_;
-    std::optional<std::string> agentEndpointOverride_;
+    std::optional<std::string> remoteEndpointOverride_;
 };
 
 namespace
@@ -328,15 +319,9 @@ App& App::headless(bool headless)
     return *this;
 }
 
-App& App::agentic(bool agentic)
+App& App::setRemoteEndpoint(std::string endpoint)
 {
-    d()->agentOverride_ = agentic;
-    return *this;
-}
-
-App& App::agentEndpoint(std::string endpoint)
-{
-    d()->agentEndpointOverride_ = std::move(endpoint);
+    d()->remoteEndpointOverride_ = std::move(endpoint);
     return *this;
 }
 
@@ -378,8 +363,11 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         ? *d()->platformOverride_
         : (headless ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
 
-    // Platform (headful/headless) and mode (normal/agentic) are orthogonal.
-    bool agentic = d()->agentOverride_.value_or(wantsAgentEnv());
+    // Platform (headful/headless) and mode (normal/remote) are orthogonal.
+    // A non-empty endpoint (override or REACTIVE_REMOTE_ENDPOINT) selects remote
+    // mode; an empty override forces it off regardless of the environment.
+    std::string remoteEndpoint =
+        d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
 
     // A headless run is bounded and deterministic; REACTIVE_FRAMES caps the
     // frame budget (the default keeps a headless run from spinning forever).
@@ -488,56 +476,50 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     sync();
 
-    // Agentic mode replaces the free-running loop with an observe->act->observe
-    // loop the external agent drives over the channel. Platform choice is
+    // Remote mode replaces the free-running loop with an observe->act->observe
+    // loop the external client drives over the channel. Platform choice is
     // orthogonal, though it is normally paired with the headless one. The
-    // session may start with no windows: the agent can open the first one, and
-    // the window set stays live because the agent's own clock drives the same
+    // session may start with no windows: the client can open the first one, and
+    // the window set stays live because the client's own clock drives the same
     // reconcile (sync) the normal loop uses.
-    if (agentic)
+    if (!remoteEndpoint.empty())
     {
-        std::string endpoint =
-            d()->agentEndpointOverride_.value_or(agentEndpointEnv());
+        // Storage the live-window provider hands the session: rebuilt on each
+        // call, so a returned set is valid only until the next call.
+        std::vector<GlueRemoteWindow> adapters;
 
-        if (!endpoint.empty())
+        remote::RemoteApp remoteApp;
+
+        // One app frame on the client's clock: advance the running signal and
+        // sync the impls to the window collection, exactly as the normal loop
+        // below does, so the client's own opens and closes take effect.
+        remoteApp.reconcile = [&](std::chrono::microseconds dt)
         {
-            // Storage the live-window provider hands the session: rebuilt on
-            // each call, so a returned set is valid only until the next call.
-            std::vector<GlueRemoteWindow> adapters;
+            bq::signal::FrameInfo frame{ getNextFrameId(), dt };
+            runningContext.update(frame);
+            sync();
+        };
 
-            remote::RemoteApp agentApp;
+        // Adapters over the app's current windows.
+        remoteApp.liveWindows = [&]() -> remote::RemoteWindows
+        {
+            adapters.clear();
+            adapters.reserve(d()->windowImpls_.size());
+            for (auto& glue : d()->windowImpls_)
+                adapters.emplace_back(*glue);
 
-            // One app frame on the agent's clock: advance the running signal and
-            // sync the impls to the window collection, exactly as the normal
-            // loop below does, so the agent's own opens and closes take effect.
-            agentApp.reconcile = [&](std::chrono::microseconds dt)
-            {
-                bq::signal::FrameInfo frame{ getNextFrameId(), dt };
-                runningContext.update(frame);
-                sync();
-            };
+            remote::RemoteWindows windows;
+            windows.reserve(adapters.size());
+            for (auto& adapter : adapters)
+                windows.push_back(adapter);
 
-            // Adapters over the app's current windows.
-            agentApp.liveWindows = [&]() -> remote::RemoteWindows
-            {
-                adapters.clear();
-                adapters.reserve(d()->windowImpls_.size());
-                for (auto& glue : d()->windowImpls_)
-                    adapters.emplace_back(*glue);
+            return windows;
+        };
 
-                remote::RemoteWindows windows;
-                windows.reserve(adapters.size());
-                for (auto& adapter : adapters)
-                    windows.push_back(adapter);
+        remote::runSession(remoteApp, remoteEndpoint);
 
-                return windows;
-            };
-
-            remote::runSession(agentApp, endpoint);
-
-            // ImplScope releases the impls on return, whatever ended the run.
-            return 0;
-        }
+        // ImplScope releases the impls on return, whatever ended the run.
+        return 0;
     }
 
     std::chrono::steady_clock clock;
