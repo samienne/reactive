@@ -1,6 +1,7 @@
 #pragma once
 
 #include "windowdata.h"
+#include "remote/remoteplatform.h"
 
 #include "bqui/window.h"
 #include "bqui/buildparams.h"
@@ -254,6 +255,17 @@ public:
                 }
             }
         });
+
+        // Hand a remote-driven window its identity and introspection source; a
+        // no-op on a real backend window, whose handle is not a decorator.
+        if (auto* remoteWindow = dynamic_cast<remote::RemoteWindowImpl*>(
+                    &aseWindow.getImpl<ase::WindowImpl>()))
+        {
+            remoteWindow->bind(getId(), [this]
+                    {
+                        return getResolvedIntrospection();
+                    });
+        }
     }
 
     WindowImpl(WindowImpl const &) = delete;
@@ -445,25 +457,6 @@ public:
         return widgetInstance_;
     }
 
-    /** @brief The underlying ase window, so a remote driver can inject events
-     * through the backend-agnostic seam. */
-    ase::Window& getWindow()
-    {
-        return aseWindow;
-    }
-
-    /** @brief Advance this window by one deterministic frame, driven by a
-     * remote connection.
-     *
-     * Runs one frame of the normal on-demand loop against a private clock, so
-     * a step re-evaluates exactly when a real frame would: after an injected
-     * event has marked the window, or while animating. */
-    void stepFrame(std::chrono::microseconds dt)
-    {
-        remoteTime_ += dt;
-        onFrame(ase::Frame{ remoteTime_, dt });
-    }
-
     /** @brief A resolved introspection snapshot of the current widget tree, in
      * window space, for a remote driver to read after a step. */
     widget::Introspection getResolvedIntrospection() const
@@ -497,9 +490,6 @@ private:
     std::optional<InputArea> currentHoverArea_;
 
     std::chrono::microseconds timer_ = std::chrono::microseconds(0);
-    // Deterministic clock advanced only by stepFrame(), so a remote driver
-    // stepping the window frame-by-frame gets a reproducible time base.
-    std::chrono::microseconds remoteTime_ = std::chrono::microseconds(0);
     avg::RenderTree renderTree_;
     std::optional<avg::AnimationOptions> animationOptions_;
     avg::Drawing drawing_;

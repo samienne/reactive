@@ -3,7 +3,7 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
-#include "bqui/remote/session.h"
+#include "remote/remoteplatform.h"
 
 #include "debug.h"
 #include "windowdata.h"
@@ -129,65 +129,6 @@ public:
     std::optional<bool> headlessOverride_;
     std::optional<std::string> remoteEndpointOverride_;
 };
-
-namespace
-{
-    class GlueRemoteWindow : public remote::RemoteWindow
-    {
-    public:
-        explicit GlueRemoteWindow(WindowImpl& glue) : glue_(glue) {}
-
-        btl::UniqueId id() const override
-        {
-            return glue_.getId();
-        }
-
-        void injectPointerButton(unsigned int pointerIndex,
-                unsigned int buttonIndex, ase::Vector2f pos,
-                ase::ButtonState state) override
-        {
-            glue_.getWindow().injectPointerButtonEvent(pointerIndex,
-                    buttonIndex, pos, state);
-        }
-
-        void injectPointerMove(unsigned int pointerIndex,
-                ase::Vector2f pos) override
-        {
-            glue_.getWindow().injectPointerMoveEvent(pointerIndex, pos);
-        }
-
-        void injectHover(unsigned int pointerIndex, ase::Vector2f pos,
-                bool state) override
-        {
-            glue_.getWindow().injectHoverEvent(pointerIndex, pos, state);
-        }
-
-        void injectKey(ase::KeyState state, ase::KeyCode code,
-                uint32_t modifiers, std::string text) override
-        {
-            glue_.getWindow().injectKeyEvent(state, code, modifiers,
-                    std::move(text));
-        }
-
-        void injectText(std::string text) override
-        {
-            glue_.getWindow().injectTextEvent(std::move(text));
-        }
-
-        widget::Introspection introspect() const override
-        {
-            return glue_.getResolvedIntrospection();
-        }
-
-        void advance(std::chrono::microseconds dt) override
-        {
-            glue_.stepFrame(dt);
-        }
-
-    private:
-        WindowImpl& glue_;
-    };
-} // anonymous namespace
 
 // Releases the app's impls, whatever ends the run. An impl holds an
 // ase::Window and a framebuffer belonging to the run's render context, so
@@ -359,7 +300,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // Platform: explicit override, else headless env, else the OS default.
     bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
 
-    ase::Platform platform = d()->platformOverride_
+    ase::Platform inner = d()->platformOverride_
         ? *d()->platformOverride_
         : (headless ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
 
@@ -371,6 +312,8 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     // A headless run is bounded and deterministic; REACTIVE_FRAMES caps the
     // frame budget (the default keeps a headless run from spinning forever).
+    // Applied to the raw inner platform, before any wrapping, so the checked
+    // getImpl<DummyPlatform> resolves the concrete platform, never a decorator.
     if (headless && !d()->platformOverride_)
     {
         if (char const* frames = std::getenv("REACTIVE_FRAMES"))
@@ -378,9 +321,17 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
             char* end = nullptr;
             unsigned long n = std::strtoul(frames, &end, 10);
             if (end != frames)
-                platform.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+                inner.getImpl<ase::DummyPlatform>().setMaxFrames(n);
         }
     }
+
+    // A remote endpoint wraps the platform in a decorator that drives its
+    // windows over the inspector protocol instead of a native frame loop;
+    // otherwise the app runs the platform's own loop. Either way the app only
+    // picks a platform and runs it — the remote concern lives in the decorator.
+    ase::Platform platform = remoteEndpoint.empty()
+        ? std::move(inner)
+        : remote::makeRemotePlatform(std::move(inner), remoteEndpoint);
 
     // Published for the run's duration so add/removeWindow can wake the loop;
     // declared after `platform` so it is nulled under the lock before the
@@ -475,52 +426,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     };
 
     sync();
-
-    // Remote mode replaces the free-running loop with an observe->act->observe
-    // loop the external client drives over the channel. Platform choice is
-    // orthogonal, though it is normally paired with the headless one. The
-    // session may start with no windows: the client can open the first one, and
-    // the window set stays live because the client's own clock drives the same
-    // reconcile (sync) the normal loop uses.
-    if (!remoteEndpoint.empty())
-    {
-        // Storage the live-window provider hands the session: rebuilt on each
-        // call, so a returned set is valid only until the next call.
-        std::vector<GlueRemoteWindow> adapters;
-
-        remote::RemoteApp remoteApp;
-
-        // One app frame on the client's clock: advance the running signal and
-        // sync the impls to the window collection, exactly as the normal loop
-        // below does, so the client's own opens and closes take effect.
-        remoteApp.reconcile = [&](std::chrono::microseconds dt)
-        {
-            bq::signal::FrameInfo frame{ getNextFrameId(), dt };
-            runningContext.update(frame);
-            sync();
-        };
-
-        // Adapters over the app's current windows.
-        remoteApp.liveWindows = [&]() -> remote::RemoteWindows
-        {
-            adapters.clear();
-            adapters.reserve(d()->windowImpls_.size());
-            for (auto& glue : d()->windowImpls_)
-                adapters.emplace_back(*glue);
-
-            remote::RemoteWindows windows;
-            windows.reserve(adapters.size());
-            for (auto& adapter : adapters)
-                windows.push_back(adapter);
-
-            return windows;
-        };
-
-        remote::runSession(remoteApp, remoteEndpoint);
-
-        // ImplScope releases the impls on return, whatever ended the run.
-        return 0;
-    }
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();

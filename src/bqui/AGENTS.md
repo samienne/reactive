@@ -87,6 +87,16 @@ names a live app, and `removeWindow` clears that reference so a closed window ca
 be opened again. Without that a window could be open in one app and closable only
 from another.
 
+**Remote mode is a platform decorator, not an `App` branch.** With a remote
+endpoint set, `runUntil` wraps the chosen platform in `makeRemotePlatform`
+(`src/remote/remoteplatform.h`) before its single `platform.run` tail; the
+decorator's windows are `RemoteWindowImpl` (an `ase::WindowImpl` that is also a
+`remote::RemoteWindow`), and its `run` drives `runSession` with the app's frame
+callback as the session's per-frame reconcile. `App` itself knows nothing about
+the session — it only picks and runs a platform. The `WindowImpl` self-binds its
+id and introspection into the decorator from its constructor via a `dynamic_cast`
+that no-ops on a real backend window (see `docs/decisions.md`).
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception

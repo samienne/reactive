@@ -5,6 +5,27 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Remote/inspector driving lives in a `RemotePlatform` decorator, not in `App`
+
+`App` is remote-agnostic: it picks a platform, wraps it in `makeRemotePlatform`
+when an endpoint is set, and ends `runUntil` with the one tail every mode shares
+— `platform.run(context, frameCallback)`. A bqui-level `ase::PlatformImpl`
+decorator owns every remote concern. Its windows are `RemoteWindowImpl`, an
+`ase::WindowImpl` that is also a `remote::RemoteWindow`: it forwards the handle
+surface to a real inner window but *captures* the frame callback (the inner
+loop never runs remotely) and lets the session address it by id.
+`RemotePlatformImpl::run` builds the `RemoteApp` — `reconcile` plays the app's
+frame callback on the client's clock, `liveWindows` adapts its window registry —
+and serves `runSession` unchanged.
+
+**Why:** the frame loop is the platform's job, and remote driving is just a
+different loop over the same window seam. Folding it into a platform decorator
+keeps `App` a plain pick-and-run, deletes the second `runUntil` code path, and
+leaves `session.cpp` a pure protocol server with no `App` dependency. The bqui
+`WindowImpl` self-binds its identity and introspection into the decorator with a
+`dynamic_cast` that is a no-op on a real backend window, so `App` never wires the
+two together.
+
 ## Window `present` is a virtual; `getImpl<Concrete>` never touches a decoratable handle
 
 Presenting a rendered frame is a `WindowImpl` virtual — `Window::present`
