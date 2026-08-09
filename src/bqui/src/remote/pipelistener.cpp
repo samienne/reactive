@@ -6,7 +6,7 @@
 #include <string>
 #include <utility>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 namespace
@@ -102,6 +102,6 @@ std::unique_ptr<TransportListener> pipeListen(std::string const& endpoint)
     return std::make_unique<PipeListener>(endpoint);
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

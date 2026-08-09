@@ -9,7 +9,7 @@
 
 #include <unistd.h>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 std::runtime_error lastError(char const* what)
@@ -121,6 +121,6 @@ bool SocketTransport::fillReady(std::string& out)
     }
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

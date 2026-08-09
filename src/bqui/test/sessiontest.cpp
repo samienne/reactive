@@ -1,5 +1,5 @@
-#include <bqui/agent/session.h>
-#include <bqui/agent/transport.h>
+#include <bqui/remote/session.h>
+#include <bqui/remote/transport.h>
 
 #include <bqui/app.h>
 #include <bqui/window.h>
@@ -44,7 +44,7 @@
 
 using namespace bqui;
 using namespace bqui::widget;
-using namespace bqui::agent;
+using namespace bqui::remote;
 
 using nlohmann::json;
 
@@ -170,10 +170,10 @@ namespace
 {
     // A test double recording what the session drives it with. Identity is its
     // id; a name is surfaced only inside introspection (never on the wire).
-    class FakeAgentWindow : public AgentWindow
+    class FakeRemoteWindow : public RemoteWindow
     {
     public:
-        FakeAgentWindow(btl::UniqueId id, std::string name)
+        FakeRemoteWindow(btl::UniqueId id, std::string name)
             : id_(id), name_(std::move(name)) {}
 
         btl::UniqueId id() const override { return id_; }
@@ -212,11 +212,11 @@ namespace
         std::string text_;
     };
 
-    // An AgentApp over a fixed window set: the reconcile is a no-op (the fakes
+    // An RemoteApp over a fixed window set: the reconcile is a no-op (the fakes
     // never open or close), and the live set is always the same fakes.
-    AgentApp staticApp(AgentWindows windows)
+    RemoteApp staticApp(RemoteWindows windows)
     {
-        AgentApp app;
+        RemoteApp app;
         app.reconcile = [](std::chrono::microseconds) {};
         app.liveWindows = [windows] { return windows; };
         return app;
@@ -231,7 +231,7 @@ namespace
         std::thread serverThread;
         int nextId = 1;
 
-        SessionFixture(std::string const& name, AgentWindows windows)
+        SessionFixture(std::string const& name, RemoteWindows windows)
         {
             auto endpoint = uniqueEndpoint(name);
             listener = listen(endpoint);
@@ -280,8 +280,8 @@ TEST(session, windowListReturnsIdsOnly)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
-    FakeAgentWindow b(idB, "w1");
+    FakeRemoteWindow a(idA, "w0");
+    FakeRemoteWindow b(idB, "w1");
     SessionFixture s("list", { a, b });
 
     auto reply = s.call("window.list");
@@ -301,8 +301,8 @@ TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
-    FakeAgentWindow b(idB, "w1");
+    FakeRemoteWindow a(idA, "w0");
+    FakeRemoteWindow b(idB, "w1");
     SessionFixture s("introspect", { a, b });
 
     auto reply = s.call("window.introspect", { { "window", idB.getValue() } });
@@ -317,8 +317,8 @@ TEST(session, injectRoutesByIdThenStepAdvancesAllWindows)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
-    FakeAgentWindow b(idB, "w1");
+    FakeRemoteWindow a(idA, "w0");
+    FakeRemoteWindow b(idB, "w1");
     SessionFixture s("inject", { a, b });
 
     auto injectReply = s.call("window.inject", {
@@ -347,7 +347,7 @@ TEST(session, injectRoutesByIdThenStepAdvancesAllWindows)
 TEST(session, stepCountAdvancesAndFrameIsMonotonic)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("step", { a });
 
     auto first = s.call("app.step", { { "count", 2 }, { "dt_us", 1000 } });
@@ -362,7 +362,7 @@ TEST(session, stepCountAdvancesAndFrameIsMonotonic)
 TEST(session, injectToUnknownWindowIsInvalidParams)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("injectbad", { a });
 
     auto stray = btl::makeUniqueId();
@@ -377,7 +377,7 @@ TEST(session, injectToUnknownWindowIsInvalidParams)
 TEST(session, injectRejectsOutOfRangeIndicesAtomically)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("injectrange", { a });
 
     // A zero button would underflow the seam's button array; reject it and
@@ -415,7 +415,7 @@ TEST(session, injectRejectsOutOfRangeIndicesAtomically)
 TEST(session, injectRejectsBatchAtomicallyBeforeApplying)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("injectatomic", { a });
 
     // First event is valid, second is malformed: the whole batch must reject
@@ -434,7 +434,7 @@ TEST(session, injectRejectsBatchAtomicallyBeforeApplying)
 
 TEST(session, describeReportsTheRegistry)
 {
-    FakeAgentWindow a(btl::makeUniqueId(), "w0");
+    FakeRemoteWindow a(btl::makeUniqueId(), "w0");
     SessionFixture s("describe", { a });
 
     auto reply = s.call("system.describe");
@@ -479,7 +479,7 @@ TEST(session, describeReportsTheRegistry)
 TEST(session, runThenPauseReportsAdvancedFrame)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("runpause", { a });
 
     // Turn on frame notifications so the client can wait for a concrete frame
@@ -508,7 +508,7 @@ TEST(session, runThenPauseReportsAdvancedFrame)
 TEST(session, pausedFrameIsStableWithoutAStep)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("stable", { a });
 
     // Reach a known frame from paused; no notifications, so nothing interleaves.
@@ -536,7 +536,7 @@ TEST(session, pausedFrameIsStableWithoutAStep)
 TEST(session, stepFromPausedAdvancesExactlyAndStaysPaused)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("steppaused", { a });
 
     int firstId = s.nextId++;
@@ -557,7 +557,7 @@ TEST(session, stepFromPausedAdvancesExactlyAndStaysPaused)
 TEST(session, queryWhileRunningIsCoherentAndKeepsRunning)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("querying", { a });
 
     int nId = s.nextId++;
@@ -585,7 +585,7 @@ TEST(session, queryWhileRunningIsCoherentAndKeepsRunning)
 TEST(session, frameNotificationsOffIsSilent)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("silent", { a });
 
     // Default is off: run, then pause, and no frame notification interleaves.
@@ -603,7 +603,7 @@ TEST(session, frameNotificationsOffIsSilent)
 TEST(session, frameNotificationsOnEmitFrames)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("emitting", { a });
 
     int nId = s.nextId++;
@@ -621,7 +621,7 @@ TEST(session, frameNotificationsOnEmitFrames)
 TEST(session, cleanShutdownFromRunningTerminates)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
 
     auto endpoint = uniqueEndpoint("runshutdown");
     auto listener = listen(endpoint);
@@ -664,7 +664,7 @@ TEST(session, cleanShutdownFromRunningTerminates)
 
 TEST(session, unknownMethodIsMethodNotFound)
 {
-    FakeAgentWindow a(btl::makeUniqueId(), "w0");
+    FakeRemoteWindow a(btl::makeUniqueId(), "w0");
     SessionFixture s("unknown", { a });
 
     auto reply = s.call("frobnicate");
@@ -673,7 +673,7 @@ TEST(session, unknownMethodIsMethodNotFound)
 
 TEST(session, malformedJsonIsParseError)
 {
-    FakeAgentWindow a(btl::makeUniqueId(), "w0");
+    FakeRemoteWindow a(btl::makeUniqueId(), "w0");
     SessionFixture s("malformed", { a });
 
     auto reply = s.raw("not json");
@@ -683,7 +683,7 @@ TEST(session, malformedJsonIsParseError)
 
 TEST(session, missingRequiredParamIsInvalidParams)
 {
-    FakeAgentWindow a(btl::makeUniqueId(), "w0");
+    FakeRemoteWindow a(btl::makeUniqueId(), "w0");
     SessionFixture s("missingparam", { a });
 
     // window.introspect requires `window`.
@@ -694,7 +694,7 @@ TEST(session, missingRequiredParamIsInvalidParams)
 TEST(session, notificationGetsNoReply)
 {
     auto idA = btl::makeUniqueId();
-    FakeAgentWindow a(idA, "w0");
+    FakeRemoteWindow a(idA, "w0");
     SessionFixture s("notify", { a });
 
     // A notification (no id) is handled but never answered. If it had drawn a

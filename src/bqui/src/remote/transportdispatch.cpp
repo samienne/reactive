@@ -1,4 +1,4 @@
-#include "bqui/agent/transport.h"
+#include "bqui/remote/transport.h"
 
 #include "tcptransport.h"
 
@@ -11,7 +11,7 @@
 #include <memory>
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 // The endpoint string's shape selects the transport. A `tcp://host:port`,
@@ -43,4 +43,4 @@ std::unique_ptr<TransportListener> listen(std::string const& endpoint)
 #endif
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

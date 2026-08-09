@@ -12,7 +12,7 @@
 #include <cctype>
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 std::runtime_error tcpError(char const* what)
@@ -214,4 +214,4 @@ bool TcpTransport::fillReady(std::string& out)
     }
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

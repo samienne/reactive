@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 Transport::~Transport() = default;
@@ -85,4 +85,4 @@ bool StreamTransport::disconnected() const
     return disconnected_;
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

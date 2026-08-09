@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bqui/agent/transport.h"
+#include "bqui/remote/transport.h"
 
 #include <array>
 #include <cstddef>
@@ -8,7 +8,7 @@
 #include <optional>
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     constexpr size_t kLengthPrefixSize = 4;
 
@@ -57,4 +57,4 @@ namespace bqui::agent
         std::string readyBuffer_;
         bool disconnected_ = false;
     };
-} // namespace bqui::agent
+} // namespace bqui::remote

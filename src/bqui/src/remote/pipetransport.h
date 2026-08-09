@@ -11,7 +11,7 @@
 
 #include <windows.h>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     std::runtime_error lastError(char const* what);
 
@@ -60,6 +60,6 @@ namespace bqui::agent
         char readyChunk_[8192];
         bool readPending_ = false;
     };
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

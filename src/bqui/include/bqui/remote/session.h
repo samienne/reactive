@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bqui/agent/transport.h"
+#include "bqui/remote/transport.h"
 
 #include "bqui/widget/introspection.h"
 
@@ -19,22 +19,22 @@
 #include <string>
 #include <vector>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     /**
-     * @brief One window an agent observes and drives.
+     * @brief One window a remote client observes and drives.
      *
      * The session talks to a window only through this: inject events at
-     * window-space coordinates (the ones an agent reads back from an obb), read
-     * the resolved introspection, and advance the window one frame with an
-     * agent-supplied dt. `App` provides the concrete implementation over its
+     * window-space coordinates (the ones a client reads back from an obb), read
+     * the resolved introspection, and advance the window one frame with a
+     * client-supplied dt. `App` provides the concrete implementation over its
      * windows. Identity is the `id` alone; a title is content, carried inside
      * the introspection, never on the wire as identity.
      */
-    class BQUI_EXPORT AgentWindow
+    class BQUI_EXPORT RemoteWindow
     {
     public:
-        virtual ~AgentWindow();
+        virtual ~RemoteWindow();
 
         /** @brief This window's stable identity, its address on the wire. */
         virtual btl::UniqueId id() const = 0;
@@ -65,26 +65,26 @@ namespace bqui::agent
      * whole `runSession` call, so a reference (never null, never reseated)
      * states the contract more precisely than a pointer would.
      */
-    using AgentWindows = std::vector<std::reference_wrapper<AgentWindow>>;
+    using RemoteWindows = std::vector<std::reference_wrapper<RemoteWindow>>;
 
     /**
      * @brief The live app a session drives, as two hooks into its frame loop.
      *
      * A session owns neither the windows nor the clock; it borrows both from
      * the app through this. The window set is not frozen at the start — it
-     * reconciles as windows open and close during the session, so the agent
+     * reconciles as windows open and close during the session, so the client
      * sees exactly the windows the app currently holds.
      *
-     * `reconcile` runs one fused app frame by the agent-supplied dt (update the
+     * `reconcile` runs one fused app frame by the client-supplied dt (update the
      * window array, then collect the new glue set only if the identities
      * changed). `liveWindows` returns adapters over the app's current windows;
      * each call rebuilds them, so a returned set is valid only until the next
      * call — never hold one across a `reconcile`.
      */
-    struct AgentApp
+    struct RemoteApp
     {
         std::function<void(std::chrono::microseconds dt)> reconcile;
-        std::function<AgentWindows()> liveWindows;
+        std::function<RemoteWindows()> liveWindows;
     };
 
     /**
@@ -101,9 +101,9 @@ namespace bqui::agent
      * `system.describe` for the registry and `docs/design/inspector-protocol.md`
      * for the concurrency model.
      */
-    BQUI_EXPORT void runSession(AgentApp const& app, Transport& transport);
+    BQUI_EXPORT void runSession(RemoteApp const& app, Transport& transport);
 
     /** @brief Connect to `endpoint` and run a session over the live app. */
-    BQUI_EXPORT void runSession(AgentApp const& app,
+    BQUI_EXPORT void runSession(RemoteApp const& app,
             std::string const& endpoint);
-} // namespace bqui::agent
+} // namespace bqui::remote

@@ -7,7 +7,7 @@
 #include <cmath>
 #include <variant>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 namespace
@@ -104,4 +104,4 @@ nlohmann::json toJson(widget::Introspection const& node)
     return result;
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

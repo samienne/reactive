@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 namespace
@@ -109,4 +109,4 @@ std::unique_ptr<TcpListener> tcpListen(TcpAddress const& address)
             ntohs(bound.sin_port));
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

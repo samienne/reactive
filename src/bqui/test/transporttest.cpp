@@ -1,6 +1,6 @@
-#include <bqui/agent/transport.h>
+#include <bqui/remote/transport.h>
 
-#include "agent/tcptransport.h"
+#include "remote/tcptransport.h"
 
 #include <gtest/gtest.h>
 
@@ -18,7 +18,7 @@
 #   include <unistd.h>
 #endif
 
-using namespace bqui::agent;
+using namespace bqui::remote;
 
 namespace
 {

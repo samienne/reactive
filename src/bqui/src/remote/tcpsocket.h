@@ -3,7 +3,7 @@
 // The one place the platform socket API is normalised. Both tcptransport.cpp
 // and tcplistener.cpp include this so the `#ifdef _WIN32` split lives here and
 // nowhere else. Everything defined here is inline (no linkage conflicts across
-// the two translation units) and the header is private to the agent layer.
+// the two translation units) and the header is private to the remote layer.
 
 #ifdef _WIN32
 #   ifndef WIN32_LEAN_AND_MEAN
@@ -20,7 +20,7 @@
 #   include <unistd.h>
 #endif
 
-namespace bqui::agent
+namespace bqui::remote
 {
 #ifdef _WIN32
     using RawSocket = SOCKET;
@@ -61,4 +61,4 @@ namespace bqui::agent
         (void)sock;
 #endif
     }
-} // namespace bqui::agent
+} // namespace bqui::remote

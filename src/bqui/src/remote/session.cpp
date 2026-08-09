@@ -1,5 +1,5 @@
-#include "bqui/agent/session.h"
-#include "bqui/agent/transport.h"
+#include "bqui/remote/session.h"
+#include "bqui/remote/transport.h"
 
 #include "introspectionjson.h"
 
@@ -17,12 +17,12 @@
 #include <utility>
 #include <vector>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 using nlohmann::json;
 
-AgentWindow::~AgentWindow() = default;
+RemoteWindow::~RemoteWindow() = default;
 
 namespace
 {
@@ -93,7 +93,7 @@ bool boolField(json const& obj, char const* key, bool fallback)
 
 // --- Injection: same event shapes as the interim protocol -----------------
 
-void applyInjection(AgentWindow& window, json const& event)
+void applyInjection(RemoteWindow& window, json const& event)
 {
     if (!event.is_object())
         return;
@@ -175,7 +175,7 @@ void validateInjection(json const& event)
 }
 
 // The live window addressed by id, or null if none carries it.
-AgentWindow* findWindow(AgentWindows const& windows, uint64_t id)
+RemoteWindow* findWindow(RemoteWindows const& windows, uint64_t id)
 {
     for (auto& window : windows)
         if (window.get().id().getValue() == id)
@@ -206,7 +206,7 @@ uint64_t requireWindowId(json const& params)
 class Session
 {
 public:
-    explicit Session(AgentApp const& app) : app_(app)
+    explicit Session(RemoteApp const& app) : app_(app)
     {
         buildRegistry();
     }
@@ -561,7 +561,7 @@ private:
         uint64_t id = requireWindowId(params);
 
         auto windows = app_.liveWindows();
-        AgentWindow* window = findWindow(windows, id);
+        RemoteWindow* window = findWindow(windows, id);
         if (!window)
             throw RpcError{ kInvalidParams,
                 "no live window with id " + std::to_string(id) };
@@ -574,7 +574,7 @@ private:
         uint64_t id = requireWindowId(params);
 
         auto windows = app_.liveWindows();
-        AgentWindow* window = findWindow(windows, id);
+        RemoteWindow* window = findWindow(windows, id);
         if (!window)
             throw RpcError{ kInvalidParams,
                 "no live window with id " + std::to_string(id) };
@@ -651,7 +651,7 @@ private:
             [this](json const& p) { return windowInject(p); } });
     }
 
-    AgentApp const& app_;
+    RemoteApp const& app_;
     std::vector<Method> registry_;
     btl::RunLoop* loop_ = nullptr;
     btl::RunLoop::Controller* controller_ = nullptr;
@@ -665,7 +665,7 @@ private:
 
 } // namespace
 
-void runSession(AgentApp const& app, Transport& transport)
+void runSession(RemoteApp const& app, Transport& transport)
 {
 #ifdef SIGPIPE
     // Linux has no per-socket SIGPIPE suppression, so ignore it process-wide;
@@ -675,10 +675,10 @@ void runSession(AgentApp const& app, Transport& transport)
     Session(app).run(transport);
 }
 
-void runSession(AgentApp const& app, std::string const& endpoint)
+void runSession(RemoteApp const& app, std::string const& endpoint)
 {
     auto transport = connect(endpoint);
     runSession(app, *transport);
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote

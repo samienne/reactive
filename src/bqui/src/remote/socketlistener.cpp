@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 namespace
@@ -95,6 +95,6 @@ std::unique_ptr<TransportListener> unixListen(std::string const& endpoint)
     return std::make_unique<SocketListener>(fd, endpoint);
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

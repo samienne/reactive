@@ -7,7 +7,7 @@
 
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
 
 std::runtime_error lastError(char const* what)
@@ -218,6 +218,6 @@ bool PipeTransport::fillReady(std::string& out)
     }
 }
 
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

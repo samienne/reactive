@@ -1,14 +1,14 @@
 libbquisrc = [
-  'src/agent/introspectionjson.cpp',
-  'src/agent/session.cpp',
-  'src/agent/streamtransport.cpp',
-  'src/agent/pipetransport.cpp',
-  'src/agent/pipelistener.cpp',
-  'src/agent/sockettransport.cpp',
-  'src/agent/socketlistener.cpp',
-  'src/agent/tcptransport.cpp',
-  'src/agent/tcplistener.cpp',
-  'src/agent/transportdispatch.cpp',
+  'src/remote/introspectionjson.cpp',
+  'src/remote/session.cpp',
+  'src/remote/streamtransport.cpp',
+  'src/remote/pipetransport.cpp',
+  'src/remote/pipelistener.cpp',
+  'src/remote/sockettransport.cpp',
+  'src/remote/socketlistener.cpp',
+  'src/remote/tcptransport.cpp',
+  'src/remote/tcplistener.cpp',
+  'src/remote/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -78,8 +78,8 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
-# nlohmann/json owns the agent layer's JSON-RPC envelope and serialisation. It
-# is header-only and confined to the agent layer's own .cpp files (json.hpp is
+# nlohmann/json owns the remote layer's JSON-RPC envelope and serialisation. It
+# is header-only and confined to the remote layer's own .cpp files (json.hpp is
 # never pulled into a public header), so it is a dependency of the bqui library
 # only — deliberately *not* re-exported through libbquidep, keeping its compile
 # cost from spreading to dependents.
@@ -126,7 +126,7 @@ bquitestsrc = [
   'test/windowtest.cpp',
   ]
 
-# The agent tests speak framed JSON-RPC and exercise the introspection->json
+# The remote tests speak framed JSON-RPC and exercise the introspection->json
 # adapter directly, so the test binary sees nlohmann and the library's private
 # src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',

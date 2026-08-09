@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     /**
      * @brief A bidirectional, length-prefixed framed message channel.
@@ -76,7 +76,7 @@ namespace bqui::agent
      * @brief Accepts incoming connections on an endpoint (the server role).
      *
      * Production only needs the app to `connect`; a listener is here so a
-     * loopback test (and, conceptually, the agent side) can accept one.
+     * loopback test (and, conceptually, the client side) can accept one.
      */
     class BQUI_EXPORT TransportListener
     {
@@ -101,4 +101,4 @@ namespace bqui::agent
     /** @brief Start listening on an endpoint for a client to `connect`. */
     BQUI_EXPORT std::unique_ptr<TransportListener> listen(
             std::string const& endpoint);
-} // namespace bqui::agent
+} // namespace bqui::remote

@@ -3,7 +3,7 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
-#include "bqui/agent/session.h"
+#include "bqui/remote/session.h"
 
 #include "debug.h"
 #include "windowdata.h"
@@ -141,10 +141,10 @@ public:
 
 namespace
 {
-    class GlueAgentWindow : public agent::AgentWindow
+    class GlueRemoteWindow : public remote::RemoteWindow
     {
     public:
-        explicit GlueAgentWindow(WindowImpl& glue) : glue_(glue) {}
+        explicit GlueRemoteWindow(WindowImpl& glue) : glue_(glue) {}
 
         btl::UniqueId id() const override
         {
@@ -503,9 +503,9 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         {
             // Storage the live-window provider hands the session: rebuilt on
             // each call, so a returned set is valid only until the next call.
-            std::vector<GlueAgentWindow> adapters;
+            std::vector<GlueRemoteWindow> adapters;
 
-            agent::AgentApp agentApp;
+            remote::RemoteApp agentApp;
 
             // One app frame on the agent's clock: advance the running signal and
             // sync the impls to the window collection, exactly as the normal
@@ -518,14 +518,14 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
             };
 
             // Adapters over the app's current windows.
-            agentApp.liveWindows = [&]() -> agent::AgentWindows
+            agentApp.liveWindows = [&]() -> remote::RemoteWindows
             {
                 adapters.clear();
                 adapters.reserve(d()->windowImpls_.size());
                 for (auto& glue : d()->windowImpls_)
                     adapters.emplace_back(*glue);
 
-                agent::AgentWindows windows;
+                remote::RemoteWindows windows;
                 windows.reserve(adapters.size());
                 for (auto& adapter : adapters)
                     windows.push_back(adapter);
@@ -533,7 +533,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                 return windows;
             };
 
-            agent::runSession(agentApp, endpoint);
+            remote::runSession(agentApp, endpoint);
 
             // ImplScope releases the impls on return, whatever ended the run.
             return 0;

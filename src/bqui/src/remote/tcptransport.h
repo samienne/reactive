@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     // A connected socket handle. Held as an intptr so this header pulls in no
     // platform socket headers: it is a SOCKET on Windows and a file descriptor
@@ -88,4 +88,4 @@ namespace bqui::agent
 
     /** @brief Exported so the transport test can read back an ephemeral port. */
     BQUI_EXPORT std::unique_ptr<TcpListener> tcpListen(TcpAddress const& address);
-} // namespace bqui::agent
+} // namespace bqui::remote

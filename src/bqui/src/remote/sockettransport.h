@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-namespace bqui::agent
+namespace bqui::remote
 {
     std::runtime_error lastError(char const* what);
     sockaddr_un makeAddress(std::string const& path);
@@ -38,6 +38,6 @@ namespace bqui::agent
     private:
         int fd_;
     };
-} // namespace bqui::agent
+} // namespace bqui::remote
 
 #endif

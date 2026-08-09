@@ -1,4 +1,4 @@
-#include "agent/introspectionjson.h"
+#include "remote/introspectionjson.h"
 
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
@@ -25,7 +25,7 @@ TEST(introspectionJson, serialisesRoleNameAndCapabilities)
     node.obb = avg::Obb(avg::Vector2f(60.0f, 24.0f),
             avg::translate(70.0f, 12.0f));
 
-    auto j = agent::toJson(node);
+    auto j = remote::toJson(node);
 
     EXPECT_EQ("Button", j.at("role"));
     EXPECT_EQ("saveButton", j.at("name"));
@@ -39,7 +39,7 @@ TEST(introspectionJson, omitsNameWhenUnset)
     Introspection node;
     node.role = "Widget";
 
-    auto j = agent::toJson(node);
+    auto j = remote::toJson(node);
 
     EXPECT_FALSE(j.contains("name"));
     EXPECT_EQ("Widget", j.at("role"));
@@ -53,7 +53,7 @@ TEST(introspectionJson, encodesObbAsCenterSizeAngle)
     node.obb = avg::Obb(avg::Vector2f(40.0f, 20.0f),
             avg::translate(40.0f, 10.0f));
 
-    auto j = agent::toJson(node);
+    auto j = remote::toJson(node);
 
     auto const& obb = j.at("obb");
     EXPECT_DOUBLE_EQ(60.0, obb.at("center").at("x").get<double>());
@@ -81,7 +81,7 @@ TEST(introspectionJson, serialisesNestedDataObjectAndArray)
             DataValue(false)
             });
 
-    auto j = agent::toJson(node);
+    auto j = remote::toJson(node);
     auto const& data = j.at("data");
 
     EXPECT_EQ("hi", data.at("text"));
@@ -108,7 +108,7 @@ TEST(introspectionJson, recursesIntoChildren)
     parent.capabilities = { Capability::Clickable };
     parent.children.push_back(makeIntrospectionChild(std::move(child)));
 
-    auto j = agent::toJson(parent);
+    auto j = remote::toJson(parent);
 
     EXPECT_EQ("CheckBoxLabel", j.at("role"));
     ASSERT_EQ(1u, j.at("children").size());
