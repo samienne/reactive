@@ -790,11 +790,11 @@ TEST(session, describeListIntrospectDriveARealApp)
             .run();
     });
 
-    auto agent = listener->accept();
+    auto client = listener->accept();
     int id = 1;
 
     // system.describe: the registry lists the core methods.
-    auto describe = rpc(*agent, id++, "system.describe");
+    auto describe = rpc(*client, id++, "system.describe");
     bool hasStep = false;
     for (auto const& m : describe.at("result").at("methods"))
         if (m.at("name") == "app.step")
@@ -802,31 +802,31 @@ TEST(session, describeListIntrospectDriveARealApp)
     EXPECT_TRUE(hasStep);
 
     // window.list: exactly one window; capture its id.
-    auto list = rpc(*agent, id++, "window.list");
+    auto list = rpc(*client, id++, "window.list");
     ASSERT_EQ(1u, list.at("result").at("windows").size());
     uint64_t windowId =
         list.at("result").at("windows").at(0).at("id").get<uint64_t>();
 
     // window.introspect: the counter starts at 0.
-    auto intro0 = rpc(*agent, id++, "window.introspect",
+    auto intro0 = rpc(*client, id++, "window.introspect",
             { { "window", windowId } });
     auto count0 = findCount(intro0.at("result").at("introspection"));
     ASSERT_TRUE(count0.has_value());
     EXPECT_EQ(0.0, *count0);
 
     // Act by id: queue a click, step one frame, then observe the bump.
-    rpc(*agent, id++, "window.inject",
+    rpc(*client, id++, "window.inject",
             { { "window", windowId }, { "events", clickEvents(400.0f, 300.0f) } });
-    auto step = rpc(*agent, id++, "app.step", { { "dt_us", 16667 } });
+    auto step = rpc(*client, id++, "app.step", { { "dt_us", 16667 } });
     EXPECT_EQ("paused", step.at("result").at("state"));
 
-    auto intro1 = rpc(*agent, id++, "window.introspect",
+    auto intro1 = rpc(*client, id++, "window.introspect",
             { { "window", windowId } });
     auto count1 = findCount(intro1.at("result").at("introspection"));
     ASSERT_TRUE(count1.has_value());
     EXPECT_EQ(1.0, *count1);
 
-    rpc(*agent, id++, "app.shutdown");
+    rpc(*client, id++, "app.shutdown");
     appThread.join();
 }
 
@@ -879,27 +879,27 @@ TEST(session, dynamicWindowsOpenAndCloseById)
 
     std::thread appThread([&] { app.run(); });
 
-    auto agent = listener->accept();
+    auto client = listener->accept();
     int id = 1;
 
     // Observe: exactly one window, "main".
-    auto list0 = rpc(*agent, id++, "window.list");
+    auto list0 = rpc(*client, id++, "window.list");
     ASSERT_EQ(1u, list0.at("result").at("windows").size());
     uint64_t mainId =
         list0.at("result").at("windows").at(0).at("id").get<uint64_t>();
 
-    auto mainTree = rpc(*agent, id++, "window.introspect",
+    auto mainTree = rpc(*client, id++, "window.introspect",
             { { "window", mainId } });
     EXPECT_TRUE(treeHasName(mainTree.at("result").at("introspection"),
                 "mainRoot"));
 
     // Act: click main's centre, then step. The handler opens the child, and the
     // next list shows both windows.
-    rpc(*agent, id++, "window.inject",
+    rpc(*client, id++, "window.inject",
             { { "window", mainId }, { "events", clickEvents(400.0f, 300.0f) } });
-    rpc(*agent, id++, "app.step", { { "dt_us", 16667 } });
+    rpc(*client, id++, "app.step", { { "dt_us", 16667 } });
 
-    auto list1 = rpc(*agent, id++, "window.list");
+    auto list1 = rpc(*client, id++, "window.list");
     ASSERT_EQ(2u, list1.at("result").at("windows").size());
 
     // Identify the child: the id that is not main's.
@@ -912,23 +912,23 @@ TEST(session, dynamicWindowsOpenAndCloseById)
     }
     ASSERT_NE(0u, childWireId);
 
-    auto childTree = rpc(*agent, id++, "window.introspect",
+    auto childTree = rpc(*client, id++, "window.introspect",
             { { "window", childWireId } });
     EXPECT_TRUE(treeHasName(childTree.at("result").at("introspection"),
                 "childRoot"));
 
     // Act: click the child's centre, then step. Its handler closes it, and the
     // set is back to just "main".
-    rpc(*agent, id++, "window.inject",
+    rpc(*client, id++, "window.inject",
             { { "window", childWireId },
               { "events", clickEvents(400.0f, 300.0f) } });
-    rpc(*agent, id++, "app.step", { { "dt_us", 16667 } });
+    rpc(*client, id++, "app.step", { { "dt_us", 16667 } });
 
-    auto list2 = rpc(*agent, id++, "window.list");
+    auto list2 = rpc(*client, id++, "window.list");
     ASSERT_EQ(1u, list2.at("result").at("windows").size());
     EXPECT_EQ(mainId,
             list2.at("result").at("windows").at(0).at("id").get<uint64_t>());
 
-    rpc(*agent, id++, "app.shutdown");
+    rpc(*client, id++, "app.shutdown");
     appThread.join();
 }

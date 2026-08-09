@@ -58,10 +58,10 @@ namespace bqui
          *
          * A non-empty endpoint puts the app in remote mode: instead of
          * free-running it connects to the endpoint and is driven frame by frame
-         * by an external client (an agent, an inspection UI) over the JSON-RPC
-         * control channel. An empty endpoint forces remote mode off, ignoring
-         * the environment. Orthogonal to the platform choice, though normally
-         * paired with a headless one.
+         * by an external client (an inspection UI, an automation driver) over
+         * the JSON-RPC control channel. An empty endpoint forces remote mode
+         * off, ignoring the environment. Orthogonal to the platform choice,
+         * though normally paired with a headless one.
          *
          * The endpoint's shape selects the transport: `tcp://<host>:<port>`,
          * `<host>:<port>`, or `:<port>` is a TCP connection; anything else is
