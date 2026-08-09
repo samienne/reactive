@@ -108,6 +108,30 @@ jobs:
             set: Release
             tool: ${{ matrix.tool }}
 
+    # Fails the build if any `// REVIEW:` scaffolding survived to a pushed commit.
+    # These comments are review-only by convention (docs/style-guide.md ->
+    # Review-scaffolding comments) and must be swept before merge. Scan tracked
+    # C/C++ sources only, so the docs that DEFINE the marker never self-trip.
+    review-scaffolding:
+        name: "Review-scaffolding check"
+        runs-on: "ubuntu-latest"
+        steps:
+        - uses: actions/checkout@v5
+          with:
+              fetch-depth: 1
+        - name: "No surviving // REVIEW: markers"
+          run: |
+            hits=$(git ls-files -z -- \
+                '*.h' '*.hpp' '*.hh' '*.hxx' \
+                '*.c' '*.cpp' '*.cc' '*.cxx' '*.inl' \
+              | xargs -0 grep -nF -e '// REVIEW:' || true)
+            if [ -n "$hits" ]; then
+              echo "::error::Surviving '// REVIEW:' scaffolding must be swept before merge:"
+              echo "$hits"
+              exit 1
+            fi
+            echo "No surviving '// REVIEW:' markers."
+
     # Aggregating gate: this is the ONLY job to mark as a required status check.
     # It turns green only if every job it needs succeeded, so new matrix legs are
     # covered automatically; adding a brand-new top-level job just means adding it
@@ -115,7 +139,7 @@ jobs:
     ci-success:
         name: ci-success
         if: always()
-        needs: [build-linux, build-macos, build-win]
+        needs: [build-linux, build-macos, build-win, review-scaffolding]
         runs-on: "ubuntu-22.04"
         steps:
         - name: Verify all required jobs succeeded

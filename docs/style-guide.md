@@ -1,6 +1,6 @@
 # Style guide
 
-*Last verified against `8677be3` (2026-07-21).*
+*Last verified against `677f12b` (2026-08-09).*
 
 Prescriptive rules for how code and docs are written here — the rubric a review
 (human or agent) checks a change against. It grows as we settle on how things
@@ -103,6 +103,34 @@ General rules:
   rationale.
 - Prefer a small KB topic file over a long, context-heavy comment. Comments
   *describe*; the knowledge base *explains and remembers*.
+
+### Review-scaffolding comments
+
+Some explanation is aimed at a *reviewer*, not a future reader — a note about the
+development conversation, why this pass changed something, context only someone
+following the PR can hold. The no-self-explanatory-comment rule above already
+bans that from shipping; these give it a sanctioned, temporary home instead so it
+can exist *during* review and be gone *before* merge:
+
+- **`// REVIEW:` is the only sanctioned marker for review-only prose in code.** It
+  is scaffolding addressed to the reviewer and MUST NOT survive to merge.
+  Everything untagged stays under the rules above — comment-light, Doxygen
+  `/** */` for real API docs, no narration.
+- **Narrative, conversational, or historic context goes in the PR description**,
+  never in code: "the journey", why-we-did-it-this-way, and any reference to prior
+  discussion. Code is read without that context and must stand on its own.
+- **Durable rationale is not a `// REVIEW:` tag.** A genuinely non-obvious
+  invariant or a decision a future reader needs belongs in Doxygen on the
+  declaration, or in `decisions.md` — not tagged for deletion.
+
+Before merge, every `// REVIEW:` marker is triaged (folded into the clean-context
+review, not a separate ceremony — see `AGENTS.md` → *Before merging a PR*):
+promote the durable ones to Doxygen or `decisions.md`, delete the rest. **None may
+remain at merge** — CI greps tracked sources for the marker and fails the build if
+any survive.
+
+So when the urge is to explain, prefer `// REVIEW:` (or the PR body) over a
+permanent comment that would violate the no-self-explanatory-comment rule.
 
 ## Commits and PRs
 

@@ -95,6 +95,10 @@ down for trivial or docs-only PRs):
    bugs and logic errors.
 3. **Docs-freshness check** — if the change alters the model, a convention, or a
    recorded decision, update the relevant `docs/` file in the same PR.
+4. **Review-scaffolding sweep** — triage every `// REVIEW:` marker as part of the
+   style pass: promote durable rationale to Doxygen or `docs/decisions.md`, delete
+   the rest. None may remain at merge; CI enforces it. See `docs/style-guide.md`
+   → *Review-scaffolding comments*.
 
 The clean context matters: the author rationalises its own work, so an unbiased
 reviewer with only the diff and the rubric catches drift the author misses.
