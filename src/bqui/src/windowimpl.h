@@ -44,6 +44,8 @@
 #include <string>
 #include <unordered_map>
 #include <cstdint>
+#include <typeindex>
+#include <typeinfo>
 
 namespace bqui
 {
@@ -259,7 +261,8 @@ public:
         // Hand a remote-driven window its identity and introspection source; a
         // no-op on a real backend window, whose handle is not a decorator.
         if (auto* remoteWindow = dynamic_cast<remote::RemoteWindowImpl*>(
-                    &aseWindow.getImpl<ase::WindowImpl>()))
+                    aseWindow.getImplOfType(std::type_index(
+                            typeid(remote::RemoteWindowImpl)))))
         {
             remoteWindow->bind(getId(), [this]
                     {

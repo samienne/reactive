@@ -1,6 +1,5 @@
 #include "remote/remoteplatform.h"
 
-#include <ase/dispatcher.h>
 #include <ase/rendercontext.h>
 #include <ase/window.h>
 
@@ -70,9 +69,12 @@ void RemoteWindowImpl::requestFrame()
     inner_.requestFrame();
 }
 
-void RemoteWindowImpl::present(ase::Dispatched dispatched)
+ase::WindowImpl* RemoteWindowImpl::getImplOfType(std::type_index type)
 {
-    inner_.present(dispatched);
+    if (auto* self = ase::WindowImpl::getImplOfType(type))
+        return self;
+
+    return inner_.getImplOfType(type);
 }
 
 void RemoteWindowImpl::setFrameCallback(

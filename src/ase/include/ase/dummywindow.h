@@ -23,8 +23,6 @@ namespace ase
 
         void requestFrame() override;
 
-        void present(Dispatched) override;
-
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
                     Frame const&)>) override;

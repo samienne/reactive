@@ -66,6 +66,8 @@ namespace ase
 
         bool needsRedraw() const;
 
+        void present(Dispatched);
+
         // From WindowImpl
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -78,8 +80,6 @@ namespace ase
         Framebuffer& getDefaultFramebuffer() override;
 
         void requestFrame() override;
-
-        void present(Dispatched) override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(Frame const&)>)

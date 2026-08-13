@@ -14,8 +14,12 @@ namespace ase
     public:
         WglRenderContext(WglPlatform& platform, HGLRC fgContext,
                 HGLRC bgContext);
+        ~WglRenderContext();
 
         WglDispatchedContext const& getWglContext() const;
+
+        // From GlRenderContext
+        void present(Dispatched d, Window& window) override;
 
     private:
         friend class WglFramebuffer;

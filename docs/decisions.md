@@ -1,6 +1,6 @@
 # Decisions
 
-*Last verified against `e21d843` (2026-08-09), for the present-virtual rework.*
+*Last verified against `bec0231` (2026-08-13), for the present-off-window rework.*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -26,33 +26,43 @@ leaves `session.cpp` a pure protocol server with no `App` dependency. The bqui
 `dynamic_cast` that is a no-op on a real backend window, so `App` never wires the
 two together.
 
-## Window `present` is a virtual; `getImpl<Concrete>` never touches a decoratable handle
+## `present` lives on the GL render context; `Window::getImpl` walks decorators
 
-Presenting a rendered frame is a `WindowImpl` virtual — `Window::present`
-forwards to it and each backend overrides it — not a `getImpl<WglWindow>` /
-`getImpl<GlxWindow>` recovery inside the GL render context. The render queue's
-present callback calls `window.present(d)` and dispatch picks the backend.
+Presenting a rendered frame is a `GlRenderContext` virtual —
+`GlxRenderContext`/`WglRenderContext` override it, reach their own concrete
+window with `window.getImpl<GlxWindow>()` / `getImpl<WglWindow>()`, and call
+that window's backend swap. The render queue's present callback calls the render
+context; `Window` and `WindowImpl` carry no `present` and no `Dispatched`.
 
-**Why:** backend-agnostic dispatch. The GL present path no longer
-`reinterpret_cast`s the window to a concrete type, so a new backend
-(vulkan/metal/wayland) only overrides `present`, and a decorator wrapping
-`Window`/`WindowImpl` can forward it polymorphically — which is what lets bqui
-wrap ase's platform for a remote-driven window without the render path knowing.
+**Why:** `present` is a render-queue concern, not developer-facing window
+surface, and `Dispatched` is a GL/pinned-thread token a future
+Vulkan/thread-pool backend would not have — neither belongs on a public or
+virtual window interface. This reverses the earlier placement, which had made
+`present` a `WindowImpl` virtual (`Window::present(Dispatched)` forwarding to it)
+to keep the GL present path off `getImpl<Concrete>`.
 
-**The invariant this protects:** a `Platform` or `Window` handle held by bqui is
-reached only through its virtual interface. `getImpl<Concrete>` is reserved for
-ase-*internal* inner-to-inner recovery — the render pipeline reaching its own
-resources (textures, buffers, framebuffers) whose concrete type it created and
-owns — and must never run on a handle that could be a decorator, or it reads the
-wrong object. `present` was the one render-path violation on the window;
-removing it leaves no `getImpl<Concrete>` on a decoratable handle. (The headless
-`platform.getImpl<DummyPlatform>` in `App` is the remaining case, folded into the
-platform decorator.)
+**The old "`getImpl<Concrete>` must never run on a decoratable handle" invariant
+is dissolved, not preserved.** `Window::getImpl<T>` is now the single typed
+accessor and is itself decorator-safe: it is built on `WindowImpl::getImplOfType`
+— a virtual, `type_index`-keyed chain-walk primitive that returns the matching
+concrete impl in the decorator chain or null. `RemoteWindowImpl` overrides
+`getImplOfType` to self-match or forward to its inner window, so `getImpl`
+reaches the real backend window through the decorator. A genuine mismatch
+(no impl of that type in the chain) now **throws `std::bad_cast`** instead of the
+old `assert(dynamic_cast<T*>(...))` before a `reinterpret_cast` — a loud failure
+in every build, not just Debug/Sanitize, and never a wrong cast. A caller that
+must tolerate a miss uses the `getImplOfType` primitive directly and null-checks
+(as the bqui window binder does to detect a `RemoteWindowImpl`). `Platform::getImpl`
+is unchanged and keeps its `assert(dynamic_cast<T*>(...))` cast.
 
-**Backstop:** `Platform::getImpl` and `Window::getImpl` are now debug-checked
-casts — `assert(dynamic_cast<T*>(...))` before the `reinterpret_cast`, compiled
-out where `NDEBUG` is set — so a wrong-concrete cast on a wrapped handle is a
-loud assert in Debug/Sanitize CI rather than silent UB.
+**Why `type_index`, not a name/hash key.** The concrete GL window types are
+ase-internal — only ase both requests and defines them, so a match always
+resolves within one binary. `type_index` fails safe across a binary boundary: a
+cross-binary lookup misses, returns null, and surfaces as a thrown `std::bad_cast`
+from `getImpl`, whereas a name-hash key could false-positive and cast to the
+wrong type. The lookup is same-binary by construction; see `reviewing.md`
+("Cross-binary type-identity hazard") for why this is a scoped, intentional
+exception.
 
 ## A `Window` is a handle; its widget is supplied at `addWindow`
 

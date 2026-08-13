@@ -20,6 +20,9 @@ namespace ase
         GlxRenderContext(GlxPlatform& platform);
         ~GlxRenderContext();
 
+        // From GlRenderContext
+        void present(Dispatched d, Window& window) override;
+
     private:
         friend class GlxPlatform;
 

@@ -29,6 +29,8 @@ namespace ase
 
         ~GlRenderContext() override;
 
+        virtual void present(Dispatched dispatched, Window& window) = 0;
+
         GlRenderQueue& getMainGlRenderQueue();
         GlRenderQueue const& getMainGlRenderQueue() const;
 

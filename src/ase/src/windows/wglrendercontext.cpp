@@ -28,11 +28,24 @@ WglRenderContext::WglRenderContext(WglPlatform& platform, HGLRC fgContext,
 {
 }
 
+WglRenderContext::~WglRenderContext()
+{
+    // make sure queues are clear before calling parent destructor
+    wait();
+    waitBg();
+}
+
 WglDispatchedContext const& WglRenderContext::getWglContext() const
 {
     return static_cast<WglDispatchedContext const&>(
             getMainGlRenderQueue().getDispatcher()
             );
+}
+
+void WglRenderContext::present(Dispatched d, Window& window)
+{
+    ZoneScoped;
+    window.getImpl<WglWindow>().present(d);
 }
 
 } // namespace ase

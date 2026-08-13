@@ -17,17 +17,27 @@
 #include <functional>
 #include <chrono>
 #include <optional>
+#include <typeindex>
+#include <typeinfo>
 
 namespace ase
 {
     class Framebuffer;
     struct Frame;
-    struct Dispatched;
 
     class ASE_EXPORT WindowImpl
     {
     public:
         virtual ~WindowImpl() = default;
+
+        /** @brief Reach the impl of a given concrete type through any decorators
+         * wrapping this window, or null if none in the chain has that type. The
+         * null-returning primitive behind the throwing `Window::getImpl`;
+         * same-binary only. */
+        virtual WindowImpl* getImplOfType(std::type_index type)
+        {
+            return std::type_index(typeid(*this)) == type ? this : nullptr;
+        }
 
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;
@@ -40,10 +50,6 @@ namespace ase
         virtual Framebuffer& getDefaultFramebuffer() = 0;
 
         virtual void requestFrame() = 0;
-
-        /** @brief Present the window's rendered frame (e.g. swap buffers),
-         * invoked on the render queue's dispatch thread. */
-        virtual void present(Dispatched) = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

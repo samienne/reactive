@@ -1,7 +1,6 @@
 #include "window.h"
 
 #include "windowimpl.h"
-#include "dispatcher.h"
 
 namespace ase
 {
@@ -77,9 +76,9 @@ void Window::requestFrame()
     d()->requestFrame();
 }
 
-void Window::present(Dispatched dispatched)
+WindowImpl* Window::getImplOfType(std::type_index type)
 {
-    d()->present(dispatched);
+    return d()->getImplOfType(type);
 }
 
 void Window::setFrameCallback(

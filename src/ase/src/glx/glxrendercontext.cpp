@@ -4,6 +4,8 @@
 #include "glxplatform.h"
 #include "glxdispatchedcontext.h"
 
+#include "window.h"
+
 #include <GL/glx.h>
 
 #include <tracy/Tracy.hpp>
@@ -35,6 +37,12 @@ GlxRenderContext::~GlxRenderContext()
     // make sure queues are clear before calling parent destructor
     wait();
     waitBg();
+}
+
+void GlxRenderContext::present(Dispatched d, Window& window)
+{
+    ZoneScopedN("GlxRenderContext::present");
+    window.getImpl<GlxWindow>().present(d);
 }
 
 } // namespace ase

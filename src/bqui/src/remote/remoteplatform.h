@@ -16,13 +16,13 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <typeindex>
 #include <vector>
 
 namespace ase
 {
     class RenderContext;
     struct Frame;
-    struct Dispatched;
 }
 
 namespace bqui::remote
@@ -63,7 +63,7 @@ namespace bqui::remote
         float getScalingFactor() const override;
         ase::Framebuffer& getDefaultFramebuffer() override;
         void requestFrame() override;
-        void present(ase::Dispatched dispatched) override;
+        ase::WindowImpl* getImplOfType(std::type_index type) override;
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
                     ase::Frame const&)> func) override;

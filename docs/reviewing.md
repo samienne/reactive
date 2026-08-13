@@ -1,6 +1,6 @@
 # Reviewing
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `bec0231` (2026-08-13).*
 
 Knowledge for the **clean-context review** step (see `AGENTS.md` → *Before
 merging a PR*). This file holds *how to review* — what to weight, and the
@@ -36,6 +36,20 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
   are touched.
 - Per-library **`readme.md` files carry no "verified against" stamp** on purpose
   — they are concepts/usage, not a contract.
+
+## Cross-binary type-identity hazard
+
+Type identity compared across a binary boundary is a hazard: a key derived from
+a type name or its hash can collide, so a lookup keyed that way can
+false-positive and hand back the wrong concrete type. `ase::WindowImpl`'s
+`getImplOfType` (the chain-walk primitive behind `Window::getImpl`) is a
+**deliberate, scoped exception** — flag a repeat of the hazard, not this. It
+keys on `std::type_index` and is same-binary by construction: the concrete GL
+window types it resolves (`GlxWindow`, `WglWindow`) are ase-internal, so only
+ase both requests and defines them. `type_index` also fails safe if that
+assumption is ever broken — a cross-binary lookup misses and returns null, which
+surfaces as a thrown `std::bad_cast` from `getImpl`, rather than a wrong cast.
+Rationale: `decisions.md` (present on the GL render context).
 
 ## Precision anchors
 
