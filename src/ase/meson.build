@@ -24,10 +24,19 @@ glsrcs = [
   'src/gl/glrenderqueue.cpp'
   ]
 
-# Whether the backend built here is the headless "dummy" one. A test that
-# drives a real window can only run where it is: the GLX and WGL backends need
-# a display and a GPU context that CI does not have.
-ase_is_headless = false
+dummysrcs = [
+  'src/dummy/dummyplatform.cpp',
+  'src/dummy/dummyrendercontext.cpp',
+  'src/dummy/dummywindow.cpp',
+  'src/dummy/dummyframebuffer.cpp',
+  'src/dummy/dummyprogram.cpp',
+  'src/dummy/dummyuniformbuffer.cpp',
+  'src/dummy/dummytexture.cpp',
+  'src/dummy/dummypipeline.cpp',
+  'src/dummy/dummyuniformset.cpp',
+  'src/dummy/dummyrenderbuffer.cpp',
+  'src/dummy/dummyrenderqueue.cpp',
+  ]
 
 if target_machine.system() == 'linux'
   gldep = dependency('gl')
@@ -62,22 +71,11 @@ elif target_machine.system() == 'windows'
     glsrcs
     ]
 else
-  ase_is_headless = true
   system_deps = []
   system_link_args = []
   system_incs = []
   system_src = [
-    'src/dummy/dummyplatform.cpp',
-    'src/dummy/dummyrendercontext.cpp',
-    'src/dummy/dummywindow.cpp',
-    'src/dummy/dummyframebuffer.cpp',
-    'src/dummy/dummyprogram.cpp',
-    'src/dummy/dummyuniformbuffer.cpp',
-    'src/dummy/dummytexture.cpp',
-    'src/dummy/dummypipeline.cpp',
-    'src/dummy/dummyuniformset.cpp',
-    'src/dummy/dummyrenderbuffer.cpp',
-    'src/dummy/dummyrenderqueue.cpp',
+    'src/dummy/dummydefaultplatform.cpp',
     ]
 endif
 
@@ -123,7 +121,7 @@ libasesrc = [
   ]
 
 libase = library('ase',
-  [system_src, libasesrc],
+  [system_src, dummysrcs, libasesrc],
   dependencies: [system_deps, asedep],
   cpp_args: ['-DASE_EXPORT_SYMBOLS'],
   link_args: system_link_args,

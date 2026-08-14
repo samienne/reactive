@@ -94,12 +94,12 @@ bquitestsrc = [
   'test/windowtest.cpp',
   ]
 
-# App::run opens real windows, so it can only be exercised where ase builds its
-# headless backend. This gate is the minimal thing needed to run apptest.cpp
-# against ase's dummy backend; the proper headless platform (env-selected and
-# frame-stepped) arrives in a follow-up (PR #96), and this should be revisited
-# to use it once that lands.
-if ase_is_headless
+# App::run opens real windows, so it can only be exercised where the default
+# platform is the headless dummy (macOS in CI); the GLX and WGL backends need a
+# display and a GPU context CI does not have. The proper headless platform
+# (env-selected and frame-stepped) arrives in a follow-up (PR #96), after which
+# apptest can run everywhere against an explicit dummy platform.
+if target_machine.system() != 'linux' and target_machine.system() != 'windows'
   bquitestsrc += 'test/apptest.cpp'
 endif
 

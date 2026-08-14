@@ -551,6 +551,36 @@ void WglWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
     genericWindow_.setTextCallback(std::move(cb));
 }
 
+void WglWindow::injectPointerButtonEvent(unsigned int pointerIndex,
+        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
+{
+    genericWindow_.injectPointerButtonEvent(pointerIndex, buttonIndex, pos,
+            buttonState);
+}
+
+void WglWindow::injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos)
+{
+    genericWindow_.injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void WglWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+        bool state)
+{
+    genericWindow_.injectHoverEvent(pointerIndex, pos, state);
+}
+
+void WglWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
+        uint32_t modifiers, std::string text)
+{
+    genericWindow_.injectKeyEvent(keyState, keyCode, modifiers,
+            std::move(text));
+}
+
+void WglWindow::injectTextEvent(std::string text)
+{
+    genericWindow_.injectTextEvent(std::move(text));
+}
+
 LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
         LPARAM lParam)
 {
