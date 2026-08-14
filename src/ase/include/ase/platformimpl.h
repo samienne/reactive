@@ -8,6 +8,8 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <typeindex>
+#include <typeinfo>
 
 namespace ase
 {
@@ -19,6 +21,14 @@ namespace ase
     {
     public:
         virtual ~PlatformImpl() = default;
+
+        /** @brief Reach the impl of a given concrete type through any decorators
+         * wrapping this platform, or null if none in the chain has that type,
+         * where `getImpl` would throw. Same-binary only. */
+        virtual PlatformImpl* getImplOfType(std::type_index type)
+        {
+            return std::type_index(typeid(*this)) == type ? this : nullptr;
+        }
 
         virtual Window makeWindow(Vector2i size) = 0;
         virtual void handleEvents() = 0;

@@ -16,6 +16,8 @@
 #include <functional>
 #include <chrono>
 #include <optional>
+#include <typeindex>
+#include <typeinfo>
 
 namespace ase
 {
@@ -26,6 +28,14 @@ namespace ase
     {
     public:
         virtual ~WindowImpl() = default;
+
+        /** @brief Reach the impl of a given concrete type through any decorators
+         * wrapping this window, or null if none in the chain has that type,
+         * where `getImpl` would throw. Same-binary only. */
+        virtual WindowImpl* getImplOfType(std::type_index type)
+        {
+            return std::type_index(typeid(*this)) == type ? this : nullptr;
+        }
 
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;

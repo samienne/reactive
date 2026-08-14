@@ -1,9 +1,34 @@
 # Decisions
 
-*Last verified against `f52d7f2` (2026-07-23), for the window-handle rework.*
+*Last verified against `677f12b` (2026-08-14).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## `getImpl<T>` is a checked accessor over a `getImplOfType` primitive
+
+`Window::getImpl<T>` and `Platform::getImpl<T>` are the single typed accessors
+for reaching a concrete impl. Each calls a virtual `getImplOfType(type_index)` on
+`WindowImpl` / `PlatformImpl` and **throws `std::bad_cast`** when no impl of that
+type is found, replacing the old unchecked `reinterpret_cast`: a loud failure in
+every build, not just Debug, and never a wrong cast. A caller that must tolerate a
+miss calls `getImplOfType` directly and null-checks.
+
+**Why:** this is foundational plumbing for decorators. The default self-match
+body handles a plain backend impl, and a wrapping decorator overrides
+`getImplOfType` to self-match or forward to its inner impl, so `getImpl` reaches
+the real backend through any decorators rather than blindly casting the outermost
+handle. The unchecked cast worked only because every handle was the concrete impl
+it named; the checked accessor removes that latent assumption.
+
+**Why `type_index`, not a name/hash key.** The concrete impl types (`GlxWindow`,
+`WglWindow`) are ase-internal — only ase both requests and defines them, so a
+match always resolves within one binary. `type_index` fails safe across a binary
+boundary: a cross-binary lookup misses, returns null, and surfaces as a thrown
+`std::bad_cast` from `getImpl`, whereas a name-hash key could false-positive and
+cast to the wrong type. The lookup is same-binary by construction; see
+`reviewing.md` ("Cross-binary type-identity hazard") for why this is a scoped,
+intentional exception.
 
 ## A `Window` is a handle; its widget is supplied at `addWindow`
 

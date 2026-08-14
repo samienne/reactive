@@ -1,6 +1,6 @@
 # Reviewing
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `677f12b` (2026-08-14).*
 
 Knowledge for the **clean-context review** step (see `AGENTS.md` → *Before
 merging a PR*). This file holds *how to review* — what to weight, and the
@@ -36,6 +36,16 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
   are touched.
 - Per-library **`readme.md` files carry no "verified against" stamp** on purpose
   — they are concepts/usage, not a contract.
+
+## Cross-binary type-identity hazard
+
+Type identity compared across a binary boundary is a hazard: a key derived from
+a type name or its hash can collide, so a lookup keyed that way can
+false-positive and hand back the wrong concrete type. The `getImplOfType`
+primitives on `ase::WindowImpl` and `ase::PlatformImpl` (behind `Window::getImpl`
+/ `Platform::getImpl`) are a **deliberate, scoped exception** — flag a repeat of
+the hazard, not these. They key on `std::type_index`, are same-binary by
+construction, and fail safe if that ever breaks; see `decisions.md` for why.
 
 ## Precision anchors
 

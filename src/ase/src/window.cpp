@@ -76,6 +76,11 @@ void Window::requestFrame()
     d()->requestFrame();
 }
 
+WindowImpl* Window::getImplOfType(std::type_index type)
+{
+    return d()->getImplOfType(type);
+}
+
 void Window::setFrameCallback(
         std::function<std::optional<std::chrono::microseconds>(Frame const&)> func)
 {

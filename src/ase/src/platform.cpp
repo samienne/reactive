@@ -42,5 +42,10 @@ void Platform::requestFrame()
     d()->requestFrame();
 }
 
+PlatformImpl* Platform::getImplOfType(std::type_index type)
+{
+    return d()->getImplOfType(type);
+}
+
 } // namespace platform
 
