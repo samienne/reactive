@@ -16,7 +16,8 @@ namespace ase
 GlTexture::GlTexture(GlRenderContext& context, Vector2i size, Format format) :
     context_(context),
     size_(size),
-    texture_(format)
+    texture_(0),
+    format_(format)
 {
 }
 
