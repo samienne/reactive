@@ -15,6 +15,8 @@
 #include <shellscalingapi.h>
 #include <winuser.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <memory>
 #include <iostream>
 #include <string>
@@ -436,8 +438,13 @@ HDC WglWindow::getDc() const
     return hdc_;
 }
 
-void WglWindow::present()
+PresentStatus WglWindow::present(Dispatched)
 {
+    ZoneScopedN("SwapBuffers");
+    SwapBuffers(hdc_);
+    FrameMark;
+
+    return PresentStatus::Ok;
 }
 
 void WglWindow::setVisible(bool value)

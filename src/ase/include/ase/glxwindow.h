@@ -66,6 +66,7 @@ namespace ase
         void handleEvents(std::vector<_XEvent> const& events);
 
         bool needsRedraw() const override;
+        PresentStatus present(Dispatched) override;
 
         // From WindowImpl
         void setVisible(bool value) override;
@@ -111,9 +112,7 @@ namespace ase
     private:
         void destroy();
 
-        friend class GlxRenderContext;
         void handleEvent(_XEvent const& e);
-        void present(Dispatched);
         Lock lockX() const;
 
         friend class GlxDispatchedContext;

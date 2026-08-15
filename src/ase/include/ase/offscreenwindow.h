@@ -72,6 +72,9 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
+        /** @brief No-op: an offscreen surface has no drawable to swap. */
+        PresentStatus present(Dispatched) override;
+
     private:
         GenericWindow genericWindow_;
         Texture texture_;

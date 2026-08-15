@@ -144,4 +144,9 @@ std::optional<std::chrono::microseconds> DummyWindow::frame(Frame const& frame)
     return genericWindow_.frame(frame);
 }
 
+PresentStatus DummyWindow::present(Dispatched)
+{
+    return PresentStatus::Ok;
+}
+
 } // namespace ase

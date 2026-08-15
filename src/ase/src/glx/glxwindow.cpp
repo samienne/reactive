@@ -458,7 +458,7 @@ void GlxWindow::handleEvent(_XEvent const& e)
     }
 }
 
-void GlxWindow::present(Dispatched)
+PresentStatus GlxWindow::present(Dispatched)
 {
     ZoneScoped;
 
@@ -475,6 +475,8 @@ void GlxWindow::present(Dispatched)
 
     setSyncCounter(dpy, syncCounter_, counterValue_);
     XSync(dpy, false);
+
+    return PresentStatus::Ok;
 }
 
 GlxWindow::Lock GlxWindow::lockX() const

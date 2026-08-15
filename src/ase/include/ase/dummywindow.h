@@ -56,6 +56,9 @@ namespace ase
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
+        /** @brief No-op: the dummy backend never draws or swaps. */
+        PresentStatus present(Dispatched) override;
+
     private:
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;

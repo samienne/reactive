@@ -76,6 +76,11 @@ void Window::requestFrame()
     d()->requestFrame();
 }
 
+PresentStatus Window::present(Dispatched dispatched)
+{
+    return d()->present(dispatched);
+}
+
 WindowImpl* Window::getImplOfType(std::type_index type)
 {
     return d()->getImplOfType(type);

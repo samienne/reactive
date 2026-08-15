@@ -146,4 +146,9 @@ std::optional<std::chrono::microseconds> OffscreenWindow::frame(
     return genericWindow_.frame(frame);
 }
 
+PresentStatus OffscreenWindow::present(Dispatched)
+{
+    return PresentStatus::Ok;
+}
+
 } // namespace ase

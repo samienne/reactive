@@ -92,6 +92,11 @@ std::optional<std::chrono::microseconds> RemoteWindowImpl::frame(
     return std::nullopt;
 }
 
+ase::PresentStatus RemoteWindowImpl::present(ase::Dispatched dispatched)
+{
+    return inner_.present(dispatched);
+}
+
 void RemoteWindowImpl::setFrameCallback(
         std::function<std::optional<std::chrono::microseconds>(
             ase::Frame const&)> func)

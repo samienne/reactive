@@ -8,6 +8,7 @@
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
 #include "framebuffer.h"
+#include "presentstatus.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -25,6 +26,7 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+    struct Dispatched;
 
     struct Frame
     {
@@ -56,6 +58,11 @@ namespace ase
         Framebuffer& getDefaultFramebuffer();
 
         void requestFrame();
+
+        /** @brief Present this window's finished frame; forwards to the surface
+         * behind any decorators. Called on the render thread once the frame's
+         * draws have been submitted. */
+        PresentStatus present(Dispatched dispatched);
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

@@ -23,11 +23,10 @@ namespace ase
         HWND getHwnd() const;
         HDC getDc() const;
 
-        void present();
-
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
         bool needsRedraw() const override;
+        PresentStatus present(Dispatched) override;
 
         // From WindowImpl
         void setVisible(bool value) override;

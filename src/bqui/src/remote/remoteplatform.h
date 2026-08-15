@@ -69,6 +69,7 @@ namespace bqui::remote
         bool needsRedraw() const override;
         std::optional<std::chrono::microseconds> frame(
                 ase::Frame const& frame) override;
+        ase::PresentStatus present(ase::Dispatched dispatched) override;
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
                     ase::Frame const&)> func) override;

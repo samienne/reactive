@@ -8,6 +8,8 @@
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
 #include "framebuffer.h"
+#include "presentstatus.h"
+#include "dispatcher.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -67,6 +69,11 @@ namespace ase
          * calls this on a window that needsRedraw(). */
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
+
+        /** @brief Present this surface's finished frame. Called on the render
+         * thread once the frame's draws have been submitted; a surface with
+         * nothing to swap (offscreen) returns `Ok`. */
+        virtual PresentStatus present(Dispatched) = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
