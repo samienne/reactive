@@ -52,6 +52,7 @@ libbquisrc = [
   'src/keyboardinput.cpp',
   'src/inputarea.cpp',
   'src/window.cpp',
+  'src/windowimpl.cpp',
   'src/app.cpp',
   'src/connection.cpp',
   'src/annotation.cpp',
