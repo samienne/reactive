@@ -1,4 +1,12 @@
 libbquisrc = [
+  'src/remote/streamtransport.cpp',
+  'src/remote/pipetransport.cpp',
+  'src/remote/pipelistener.cpp',
+  'src/remote/sockettransport.cpp',
+  'src/remote/socketlistener.cpp',
+  'src/remote/tcptransport.cpp',
+  'src/remote/tcplistener.cpp',
+  'src/remote/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
@@ -69,18 +77,30 @@ libbquisrc = [
 
 bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 
+nlohmanndep = dependency('nlohmann_json', include_type: 'system',
+    default_options: subproject_warnings)
+
+# The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
+# Windows; POSIX sockets need no extra link.
+bqui_link_args = []
+if target_machine.system() == 'windows'
+  bqui_link_args += ['ws2_32.lib']
+endif
+
 libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep,
+  dependencies: bquidep + [nlohmanndep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
+  link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
   )
 
 libbquidep = declare_dependency(
   link_with: libbqui,
   dependencies: bquidep,
+  link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
 
@@ -90,6 +110,7 @@ bquitestsrc = [
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
+  'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
   'test/windowtest.cpp',
@@ -104,9 +125,13 @@ if target_machine.system() != 'linux' and target_machine.system() != 'windows'
   bquitestsrc += 'test/apptest.cpp'
 endif
 
+# The remote tests speak framed JSON-RPC over the transport, so the test binary
+# sees nlohmann and the library's private src headers (the transports are private
+# headers, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  include_directories: include_directories('src'),
   )
 
 # App::headless(true) renders offscreen with the real GL backend, which needs a
