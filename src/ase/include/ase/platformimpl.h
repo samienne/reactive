@@ -7,7 +7,6 @@
 
 #include <chrono>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <typeindex>
 #include <typeinfo>
@@ -16,7 +15,6 @@ namespace ase
 {
     class RenderContext;
     class Window;
-    class WindowImpl;
     struct Frame;
 
     class ASE_EXPORT PlatformImpl
@@ -33,14 +31,8 @@ namespace ase
         }
 
         virtual Window makeWindow(Vector2i size) = 0;
-
-        /** @brief Track an externally-made window in the render list, if this
-         * platform keeps one. The default ignores it (a platform whose loop is
-         * not window-driven, like the dummy backend). */
-        virtual void registerRenderWindow(std::weak_ptr<WindowImpl>)
-        {
-        }
-
+        virtual Window makeOffscreenWindow(RenderContext& context,
+                Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
         virtual void run(RenderContext& renderContext,

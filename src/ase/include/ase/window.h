@@ -25,7 +25,6 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
-    class Platform;
 
     struct Frame
     {
@@ -125,9 +124,6 @@ namespace ase
         }
 
     protected:
-        // A platform tracks an externally-made window by a weak handle to this.
-        friend class Platform;
-
         std::shared_ptr<WindowImpl> deferred_;
         inline WindowImpl* d() { return deferred_.get(); }
         inline WindowImpl const* d() const { return deferred_.get(); }

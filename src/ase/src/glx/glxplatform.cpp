@@ -3,6 +3,7 @@
 #include "glxrendercontext.h"
 #include "glxcontext.h"
 #include "glxwindow.h"
+#include "offscreenwindow.h"
 
 #include "commandbuffer.h"
 #include "rendercontext.h"
@@ -301,10 +302,16 @@ Window GlxPlatform::makeWindow(Vector2i size)
     return Window(std::move(window));
 }
 
-void GlxPlatform::registerRenderWindow(std::weak_ptr<WindowImpl> window)
+Window GlxPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
 {
-    auto lock = lockX();
-    d()->renderWindows_.push_back(std::move(window));
+    auto window = std::make_shared<OffscreenWindow>(context, size);
+
+    {
+        auto lock = lockX();
+        d()->renderWindows_.push_back(window);
+    }
+
+    return Window(std::move(window));
 }
 
 void GlxPlatform::handleEvents()

@@ -6,6 +6,7 @@
 
 #include "wglwindow.h"
 #include "wglrendercontext.h"
+#include "offscreenwindow.h"
 
 #include "commandbuffer.h"
 #include "renderqueue.h"
@@ -255,9 +256,11 @@ Window WglPlatform::makeWindow(Vector2i size)
     }
 }
 
-void WglPlatform::registerRenderWindow(std::weak_ptr<WindowImpl> window)
+Window WglPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
 {
-    renderWindows_.push_back(std::move(window));
+    auto window = std::make_shared<OffscreenWindow>(context, size);
+    renderWindows_.push_back(window);
+    return Window(std::move(window));
 }
 
 void WglPlatform::handleEvents()

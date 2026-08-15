@@ -24,13 +24,11 @@ namespace ase
 
         Window makeWindow(Vector2i size);
 
-        /** @brief Track a window this platform did not itself make, so its run
-         * loop draws it alongside the windows it did. For a window built by a
-         * dependent that has the render context an FBO needs — an
-         * `OffscreenWindow` — where `makeWindow` builds windows needing OS
-         * handles the platform owns. Ownership stays with the caller; the
-         * platform holds a weak reference and drops it once the window is gone. */
-        void registerRenderWindow(Window const& window);
+        /** @brief Make a window that renders offscreen with this backend and is
+         * never shown, drawn into an FBO built from `context`. The platform
+         * drives it from its run loop like a normal window; there is no present
+         * and `setVisible` is a no-op. */
+        Window makeOffscreenWindow(RenderContext& context, Vector2i size);
 
         void handleEvents();
         RenderContext makeRenderContext();
