@@ -135,20 +135,5 @@ void DummyPlatform::run(RenderContext&,
     scheduleTick_ = nullptr;
 }
 
-void DummyPlatform::requestFrame()
-{
-    // May be called off the loop thread (e.g. an async signal completing), so
-    // wake through a thread-safe post; the atomic coalesces a burst into one.
-    if (!wakePosted_.exchange(true))
-    {
-        runLoop().post([this](btl::RunLoop::Controller& controller)
-            {
-                wakePosted_ = false;
-                if (scheduleTick_)
-                    scheduleTick_(controller);
-            });
-    }
-}
-
 } // namespace ase
 

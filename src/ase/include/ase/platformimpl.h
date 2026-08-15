@@ -5,6 +5,7 @@
 
 #include <btl/runloop.h>
 
+#include <atomic>
 #include <chrono>
 #include <functional>
 #include <optional>
@@ -15,6 +16,7 @@ namespace ase
 {
     class RenderContext;
     class Window;
+    class Session;
     struct Frame;
 
     class ASE_EXPORT PlatformImpl
@@ -37,7 +39,23 @@ namespace ase
         virtual RenderContext makeRenderContext() = 0;
         virtual void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) = 0;
-        virtual void requestFrame() = 0;
+
+        /** @brief Wake the frame loop so it runs a tick and re-evaluates. Safe to
+         * call off the loop thread; the atomic coalesces a burst of requests into
+         * a single posted task. A decorator that drives frames itself overrides
+         * this. */
+        virtual void requestFrame()
+        {
+            if (!wakePosted_.exchange(true))
+            {
+                loop_.post([this](btl::RunLoop::Controller& controller)
+                    {
+                        wakePosted_ = false;
+                        if (scheduleTick_)
+                            scheduleTick_(controller);
+                    });
+            }
+        }
 
         /** @brief The platform's run loop, for registering sources (sockets,
          * timers) serviced alongside the frame loop.
@@ -49,6 +67,17 @@ namespace ase
 
     protected:
         btl::RunLoop loop_;
+
+        // Set to true by requestFrame() (possibly off-thread) to coalesce a
+        // burst of wake requests into a single posted task.
+        std::atomic<bool> wakePosted_ = false;
+
+        // Installed by the running Session so requestFrame(), which cannot see
+        // the loop-local tick, can schedule one while the loop is active; cleared
+        // when the Session's run() returns.
+        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
+
+        friend class Session;
     };
 }
 

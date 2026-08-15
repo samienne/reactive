@@ -498,21 +498,6 @@ void GlxPlatform::run(RenderContext& renderContext,
     DBG("Shutting down GlxPlatform..");
 }
 
-void GlxPlatform::requestFrame()
-{
-    // May be called off the loop thread (e.g. an async signal completing), so
-    // wake through a thread-safe post; the atomic coalesces a burst into one.
-    if (!wakePosted_.exchange(true))
-    {
-        runLoop().post([this](btl::RunLoop::Controller& controller)
-            {
-                wakePosted_ = false;
-                if (scheduleTick_)
-                    scheduleTick_(controller);
-            });
-    }
-}
-
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
         GLXFBConfig& config, int* contextAttribs)
 {

@@ -432,20 +432,5 @@ void WglPlatform::run(RenderContext& renderContext,
     DBG("Shutting down WglPlatform...");
 }
 
-void WglPlatform::requestFrame()
-{
-    // May be called off the loop thread (e.g. an async signal completing), so
-    // wake through a thread-safe post; the atomic coalesces a burst into one.
-    if (!wakePosted_.exchange(true))
-    {
-        runLoop().post([this](btl::RunLoop::Controller& controller)
-            {
-                wakePosted_ = false;
-                if (scheduleTick_)
-                    scheduleTick_(controller);
-            });
-    }
-}
-
 } // namespace ase
 
