@@ -1,6 +1,6 @@
 # ase — agent notes
 
-*Last verified against `1ef4669` (2026-08-14).*
+*Last verified against `55f2e55` (2026-08-15).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -41,9 +41,10 @@ are in the top-level `docs/`.
   `OffscreenWindow` (backend-agnostic, `src/offscreenwindow.cpp`): the *real*
   backend rendering into an FBO built from a `RenderContext`, shown nowhere.
   This is how the real GLX/WGL backend runs headless, distinct from the no-GL
-  dummy backend. A platform keeps **one render list** of all its windows (real
-  and offscreen) — the `needsRedraw()`/`frame()` surface on `WindowImpl` — which
-  the run loop draws uniformly. **Event routing is separate and backend-specific**
+  dummy backend. The real GLX/WGL backends keep **one render list** of all their
+  windows (real and offscreen) — the `needsRedraw()`/`frame()` surface on
+  `WindowImpl` — which the run loop draws uniformly (the dummy loop is
+  frame-callback driven and keeps none). **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
   alone. `present` for an offscreen window is a no-op via the

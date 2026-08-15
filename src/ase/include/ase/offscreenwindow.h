@@ -16,13 +16,11 @@ namespace ase
 
     /**
      * @brief A window that renders offscreen with the real backend and shows
-     * nothing.
+     * nothing, so a platform can draw a full frame with no visible window.
      *
-     * It backs `getDefaultFramebuffer` with an FBO (a color texture and depth
-     * buffer) built from a `RenderContext` instead of an OS drawable, so a
-     * platform can draw a full frame with no visible window. `setVisible` is a
-     * no-op and there is no present. It is a plain `WindowImpl`, driven by the
-     * platform run loop like any other window once the platform registers it.
+     * `setVisible` is a no-op and there is no present. It is a plain
+     * `WindowImpl`, driven by the platform run loop like any other window once
+     * the platform registers it.
      */
     class ASE_EXPORT OffscreenWindow : public WindowImpl
     {

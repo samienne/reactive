@@ -18,6 +18,7 @@ namespace ase
     {
     public:
         GlRenderbuffer(GlRenderContext& context, Vector2i size, Format format);
+        ~GlRenderbuffer();
 
         GLuint getGlObject() const;
 
@@ -28,7 +29,7 @@ namespace ase
         Vector2i getSize() const override;
 
     private:
-        //GlRenderContext& context_;
+        GlRenderContext& context_;
         Format format_ = FORMAT_UNKNOWN;
         GLuint glObject_ = 0;
         Vector2i size_;

@@ -29,10 +29,7 @@ namespace ase
 
         ~GlRenderContext() override;
 
-        /** @brief Present a finished frame. The base handles a window with no
-         * drawable to swap: an offscreen window is a no-op (the seam a later
-         * readback hooks into). A backend overrides this to swap its own real
-         * windows and falls back here for the rest. */
+        /** @brief Present a finished frame to the window. */
         virtual void present(Dispatched dispatched, Window& window);
 
         GlRenderQueue& getMainGlRenderQueue();

@@ -70,8 +70,8 @@ GlRenderContext::~GlRenderContext()
 
 void GlRenderContext::present(Dispatched, Window& window)
 {
-    // An offscreen window has no drawable to swap; a later readback would hook
-    // in here. Any other window type reaching the base is unrecognised.
+    // An offscreen window has no drawable to swap. Any other window type
+    // reaching the base is unrecognised.
     if (window.getImplOfType<OffscreenWindow>())
         return;
 
