@@ -56,11 +56,15 @@ class WindowImpl
 {
 public:
     WindowImpl(ase::Platform &platform, ase::RenderContext& context,
-            Window window, widget::AnyWidget widget)
+            Window window, widget::AnyWidget widget, bool headless = false)
         : memoryPool_(pmr::new_delete_resource()),
         memoryStatistics_(&memoryPool_),
         memory_(&memoryStatistics_),
-        aseWindow(platform.makeWindow(ase::Vector2i(800, 600))),
+        // A headless run draws to an offscreen window: same real backend, no
+        // OS window shown. The rest of the impl treats it as an ordinary window.
+        aseWindow(headless
+                ? platform.makeOffscreenWindow(context, ase::Vector2i(800, 600))
+                : platform.makeWindow(ase::Vector2i(800, 600))),
         context_(context),
         windowData_(window.data()),
         painter_(memory_, context_),

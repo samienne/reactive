@@ -108,6 +108,15 @@ bquitest =  executable('bquitest',
   dependencies: [gtestdep, libbquidep],
   )
 
+# App::headless(true) renders offscreen with the real GL backend, which needs a
+# GPU the CI runners lack (the same reason apptest is gated above). This target
+# is built everywhere so it keeps compiling, but is deliberately not registered
+# as a test(); run it by hand on a machine with a real GL context.
+executable('bquiheadlesstest',
+  'test/headlessrendertest.cpp',
+  dependencies: [libbquidep],
+  )
+
 test('bqui', bquitest, timeout: 1200,
   args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
   workdir: meson.project_source_root())

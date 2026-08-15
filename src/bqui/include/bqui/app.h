@@ -39,6 +39,15 @@ namespace bqui
          */
         App& addWindow(Window window, widget::AnyWidget widget);
 
+        /** @brief Runs with no visible windows, rendering each window's content
+         * offscreen with the real backend instead of showing it.
+         *
+         * Orthogonal to the platform: the native GPU backend is still used, only
+         * offscreen. Overrides the REACTIVE_HEADLESS environment variable. Set
+         * before run().
+         */
+        App& headless(bool headless);
+
         /** @brief Closes the app's window with this identity.
          *
          * Does nothing if no window in the collection has it. The window's own
