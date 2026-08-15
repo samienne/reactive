@@ -7,6 +7,7 @@
 #include "rendercontext.h"
 #include "window.h"
 #include "platform.h"
+#include "session.h"
 
 namespace ase
 {
@@ -47,92 +48,23 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
     maxFrames_ = maxFrames;
 }
 
-void DummyPlatform::run(RenderContext&,
+void DummyPlatform::run(RenderContext& renderContext,
         std::function<bool(Frame const&)> frameCallback)
 {
-    std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
+    // The dummy backend is a Session with a no-op render path: it registers no
+    // drawable surface, so the shared tick runs its clock, backpressure and
+    // re-arm exactly as a real backend would, only without any drawing (the
+    // dummy render queue completes each frame's fence at once). With no OS event
+    // source to block on, maxFrames self-paces a bounded headless run and maxFps
+    // caps it; both zero leaves the loop on-demand, woken by requestFrame().
+    Session::Config config;
+    config.handleEvents = [this] { handleEvents(); };
+    config.frameStep = std::chrono::microseconds(16667);
+    config.maxFrames = maxFrames_;
+    config.maxFps = maxFps_;
 
-    bool tickScheduled = false;
-
-    // Frames pumped so far this run(); only consulted when maxFrames_ != 0.
-    uint64_t framesRun = 0;
-
-    std::function<void(btl::RunLoop::Controller&)> tick;
-
-    // Uncapped, a due tick is posted straight away and the loop stays purely
-    // on-demand. With a cap, a tick that comes due sooner than the frame
-    // interval is deferred by a one-shot timer for the remainder instead.
-    auto scheduleTick = [this, &tickScheduled, &tick, &clock, &lastFrame](
-            btl::RunLoop::Controller& controller)
-    {
-        if (tickScheduled)
-            return;
-        tickScheduled = true;
-
-        if (maxFps_ == 0)
-        {
-            controller.post(tick);
-            return;
-        }
-
-        auto interval = std::chrono::microseconds(1000000 / maxFps_);
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                clock.now() - lastFrame);
-        if (elapsed >= interval)
-            controller.post(tick);
-        else
-            controller.addTimer(interval - elapsed, tick).detach();
-    };
-
-    // Headless: a tick runs the frame callback with the elapsed time (there is
-    // nothing to render). With no frame budget it does not re-post; the loop
-    // blocks until requestFrame() wakes it, so any sources registered on it (a
-    // remote socket, a timer) are serviced meanwhile. With a budget it pumps
-    // deterministically up to maxFrames_ frames, then stops, so a headless run
-    // terminates without an OS window.
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
-            &framesRun, &scheduleTick](btl::RunLoop::Controller& controller)
-    {
-        tickScheduled = false;
-
-        if (maxFrames_ != 0 && framesRun >= maxFrames_)
-        {
-            controller.stop();
-            return;
-        }
-
-        auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        Frame frame { time, dt };
-        lastFrame = thisFrame;
-
-        if (!frameCallback(frame))
-        {
-            controller.stop();
-            return;
-        }
-
-        ++framesRun;
-
-        if (maxFrames_ != 0)
-            scheduleTick(controller);
-    };
-
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
-
-    runLoop().post([&scheduleTick](btl::RunLoop::Controller& controller)
-        {
-            scheduleTick(controller);
-        });
-    runLoop().run();
-
-    scheduleTick_ = nullptr;
+    Session session(*this, renderContext, renderWindows_, std::move(config));
+    session.run(std::move(frameCallback));
 }
 
 } // namespace ase

@@ -6,13 +6,15 @@
 
 #include <btl/runloop.h>
 
-#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <vector>
 
 namespace ase
 {
     class Platform;
+    class WindowImpl;
 
     class ASE_EXPORT DummyPlatform : public PlatformImpl
     {
@@ -47,6 +49,11 @@ namespace ase
 
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
+
+        // No surface is ever registered here -- the dummy is a Session with a
+        // no-op render path -- but the Session drives its render list by
+        // reference, so it holds an (always empty) one to hand over.
+        std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
     };
 
     /**
