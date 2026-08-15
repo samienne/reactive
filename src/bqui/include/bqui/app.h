@@ -8,11 +8,14 @@
 
 #include <avg/curve/curves.h>
 
+#include <ase/platform.h>
+
 #include <btl/shared.h>
 #include <btl/uniqueid.h>
 #include <btl/visibility.h>
 
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bqui
@@ -44,9 +47,34 @@ namespace bqui
          *
          * Orthogonal to the platform: the native GPU backend is still used, only
          * offscreen. Overrides the REACTIVE_HEADLESS environment variable. Set
-         * before run().
+         * before run(). To drive windows with no GPU at all (the dummy backend,
+         * for agent/CI use) select the dummy platform explicitly via platform()
+         * or REACTIVE_PLATFORM=dummy.
          */
         App& headless(bool headless);
+
+        /** @brief Force a specific ase platform (e.g. the dummy one),
+         * bypassing env selection. Lets a test drive windows with no GPU
+         * without a process-global env var.
+         */
+        App& platform(ase::Platform platform);
+
+        /** @brief Drive the app from a remote endpoint, overriding
+         * REACTIVE_REMOTE_ENDPOINT so a test need not set a process-global env.
+         *
+         * A non-empty endpoint puts the app in remote mode: instead of
+         * free-running it connects to the endpoint and is driven frame by frame
+         * by an external client (an inspection UI, an automation driver) over
+         * the JSON-RPC control channel. An empty endpoint forces remote mode
+         * off, ignoring the environment. Orthogonal to the platform choice,
+         * though normally paired with a headless one.
+         *
+         * The endpoint's shape selects the transport: `tcp://<host>:<port>`,
+         * `<host>:<port>`, or `:<port>` is a TCP connection; anything else is
+         * the platform's local IPC -- a `\\.\pipe\<name>` named pipe on Windows,
+         * or a Unix-domain socket path on POSIX.
+         */
+        App& setRemoteEndpoint(std::string endpoint);
 
         /** @brief Closes the app's window with this identity.
          *

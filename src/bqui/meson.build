@@ -108,11 +108,14 @@ libbquidep = declare_dependency(
   )
 
 bquitestsrc = [
+  'test/apptest.cpp',
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
+  'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/sessiontest.cpp',
   'test/shapetest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
@@ -120,18 +123,13 @@ bquitestsrc = [
   'test/windowtest.cpp',
   ]
 
-# App::run opens real windows, so it can only be exercised where the default
-# platform is the headless dummy (macOS in CI); the GLX and WGL backends need a
-# display and a GPU context CI does not have. The proper headless platform
-# (env-selected and frame-stepped) arrives in a follow-up (PR #96), after which
-# apptest can run everywhere against an explicit dummy platform.
-if target_machine.system() != 'linux' and target_machine.system() != 'windows'
-  bquitestsrc += 'test/apptest.cpp'
-endif
+# apptest now drives App::run against an explicit dummy platform
+# (App::platform(makeDummyPlatform())), so it runs everywhere -- it no longer
+# needs the default platform to be the headless dummy (which was macOS-only).
 
-# The remote tests speak framed JSON-RPC over the transport, so the test binary
-# sees nlohmann and the library's private src headers (the transports are private
-# headers, not part of the public surface).
+# The remote tests speak framed JSON-RPC and exercise the introspection->json
+# adapter directly, so the test binary sees nlohmann and the library's private
+# src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
   dependencies: [gtestdep, libbquidep, nlohmanndep],

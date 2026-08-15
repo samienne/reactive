@@ -6,6 +6,8 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
+#include "remote/remoteplatform.h"
+
 #include "debug.h"
 #include "windowdata.h"
 #include "windowimpl.h"
@@ -26,8 +28,7 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/rendercontext.h>
-#include <ase/platform.h>
+#include <ase/dummyplatform.h>
 
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
@@ -66,10 +67,31 @@ namespace
         return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
     }
 
-    // Headless when REACTIVE_HEADLESS is truthy.
+    bool envEquals(char const* name, char const* expected)
+    {
+        char const* value = std::getenv(name);
+        return value && std::strcmp(value, expected) == 0;
+    }
+
+    // Headless (real backend, rendered offscreen) when REACTIVE_HEADLESS is
+    // truthy. This is orthogonal to the dummy platform: it keeps the native GPU
+    // backend and only renders offscreen.
     bool wantsHeadlessEnv()
     {
         return envFlag("REACTIVE_HEADLESS");
+    }
+
+    // The dummy (no-GPU) platform when REACTIVE_PLATFORM=dummy. Distinct from
+    // headless: the dummy backend needs no GPU at all, for agent/CI use.
+    bool wantsDummyPlatformEnv()
+    {
+        return envEquals("REACTIVE_PLATFORM", "dummy");
+    }
+
+    std::string remoteEndpointEnv()
+    {
+        char const* value = std::getenv("REACTIVE_REMOTE_ENDPOINT");
+        return value ? std::string(value) : std::string();
     }
 } // anonymous namespace
 
@@ -109,11 +131,14 @@ public:
     // pendingMutex_, and nulled before the platform is destroyed.
     ase::Platform* runningPlatform_ = nullptr;
 
-    // Forces headless (no visible windows, offscreen rendering) on or off; unset
-    // defers to the REACTIVE_HEADLESS environment variable.
-    std::optional<bool> headlessOverride_;
-
     std::vector<btl::shared<WindowImpl>> windowImpls_;
+
+    // Platform choice (which backend), headless (real backend offscreen), and
+    // mode (normal/remote) are orthogonal. A programmatic override wins over the
+    // env var so tests need no global env.
+    std::optional<ase::Platform> platformOverride_;
+    std::optional<bool> headlessOverride_;
+    std::optional<std::string> remoteEndpointOverride_;
 };
 
 // Releases the app's impls, whatever ends the run. An impl holds an
@@ -240,6 +265,18 @@ App& App::headless(bool headless)
     return *this;
 }
 
+App& App::platform(ase::Platform platform)
+{
+    d()->platformOverride_ = std::move(platform);
+    return *this;
+}
+
+App& App::setRemoteEndpoint(std::string endpoint)
+{
+    d()->remoteEndpointOverride_ = std::move(endpoint);
+    return *this;
+}
+
 void App::removeWindow(btl::UniqueId id)
 {
     d()->removeWindow(id);
@@ -271,9 +308,47 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
+    // The real-offscreen flag, orthogonal to the backend choice below; passed
+    // to each WindowImpl.
     bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
 
-    ase::Platform platform = ase::makeDefaultPlatform();
+    // The dummy (no-GPU) backend is a separate choice, selected explicitly via
+    // platform() or REACTIVE_PLATFORM=dummy -- for agent/CI use where there is
+    // no GPU at all. Otherwise the OS default backend runs.
+    bool useDummyEnv = !d()->platformOverride_ && wantsDummyPlatformEnv();
+
+    ase::Platform inner = d()->platformOverride_
+        ? *d()->platformOverride_
+        : (useDummyEnv ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
+
+    // Platform/headless and mode (normal/remote) are orthogonal.
+    // A non-empty endpoint (override or REACTIVE_REMOTE_ENDPOINT) selects remote
+    // mode; an empty override forces it off regardless of the environment.
+    std::string remoteEndpoint =
+        d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
+
+    // A dummy run is bounded and deterministic; REACTIVE_FRAMES caps the frame
+    // budget (the default keeps such a run from spinning forever). Applied to
+    // the raw inner platform, before any wrapping, so the checked
+    // getImpl<DummyPlatform> resolves the concrete platform, never a decorator.
+    if (useDummyEnv)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+                inner.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+        }
+    }
+
+    // A remote endpoint wraps the platform in a decorator that drives its
+    // windows over the inspector protocol instead of a native frame loop;
+    // otherwise the app runs the platform's own loop. Either way the app only
+    // picks a platform and runs it -- the remote concern lives in the decorator.
+    ase::Platform platform = remoteEndpoint.empty()
+        ? std::move(inner)
+        : remote::makeRemotePlatform(std::move(inner), remoteEndpoint);
 
     // Published for the run's duration so add/removeWindow can wake the loop;
     // declared after `platform` so it is nulled under the lock before the
@@ -443,4 +518,3 @@ App app()
 }
 
 }
-
