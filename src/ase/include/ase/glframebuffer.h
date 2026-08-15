@@ -3,12 +3,16 @@
 #include "glbaseframebuffer.h"
 
 #include "dispatcher.h"
+#include "texture.h"
+#include "renderbuffer.h"
+#include "vector.h"
 
 #include "asevisibility.h"
 
 #include "systemgl.h"
 
 #include <array>
+#include <optional>
 
 namespace ase
 {
@@ -71,15 +75,9 @@ namespace ase
         GlRenderContext& context_;
         mutable GLuint framebuffer_ = 0;
 
-        struct Attachment
-        {
-            GLenum target = 0;
-            GLuint object = 0;
-        };
-
-        std::array<Attachment, 8> colorAttachments_;
-        GLuint depthAttachment_ = 0;
-        GLuint stencilAttachment_ = 0;
+        std::array<std::optional<Texture>, 8> colorTargets_;
+        std::optional<Renderbuffer> depthTarget_;
+        Vector2i size_ = Vector2i(0, 0);
         bool isDefault_ = false;
         mutable bool dirty_ = true;
     };

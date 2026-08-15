@@ -61,10 +61,11 @@ namespace ase
         GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
-        std::optional<std::chrono::microseconds> frame(Frame const& frame);
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
         void handleEvents(std::vector<_XEvent> const& events);
 
-        bool needsRedraw() const;
+        bool needsRedraw() const override;
 
         // From WindowImpl
         void setVisible(bool value) override;

@@ -23,6 +23,9 @@ GLuint GlRenderbuffer::getGlObject() const
 
 void GlRenderbuffer::makeCurrent(Dispatched&, GlFunctions const& gl)
 {
+    if (glObject_)
+        return;
+
     gl.glGenRenderbuffers(1, &glObject_);
     gl.glBindRenderbuffer(GL_RENDERBUFFER, glObject_);
 

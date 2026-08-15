@@ -115,6 +115,14 @@ namespace ase
          * where `getImpl` would throw. Same-binary only. */
         WindowImpl* getImplOfType(std::type_index type);
 
+        /** @overload Typed form: the impl as `T*`, or null if none in the chain
+         * is a `T`. Same-binary only. */
+        template <class T>
+        T* getImplOfType()
+        {
+            return static_cast<T*>(getImplOfType(std::type_index(typeid(T))));
+        }
+
     protected:
         std::shared_ptr<WindowImpl> deferred_;
         inline WindowImpl* d() { return deferred_.get(); }

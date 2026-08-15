@@ -6,6 +6,7 @@
 
 #include "wglwindow.h"
 #include "wglrendercontext.h"
+#include "offscreenwindow.h"
 
 #include "commandbuffer.h"
 #include "renderqueue.h"
@@ -29,6 +30,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <queue>
+#include <algorithm>
 
 namespace ase
 {
@@ -244,6 +246,7 @@ Window WglPlatform::makeWindow(Vector2i size)
         // next pass of handleEvents(), where insert() would keep it and leave
         // the new window without a receiver for its events.
         windows[wglWindow->getHwnd()] = wglWindow;
+        renderWindows_.push_back(wglWindow);
         return Window(std::move(wglWindow));
     }
     catch(std::exception& e)
@@ -251,6 +254,13 @@ Window WglPlatform::makeWindow(Vector2i size)
         std::cout << "error:" << e.what() << std::endl;
         throw;
     }
+}
+
+Window WglPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
+{
+    auto window = std::make_shared<OffscreenWindow>(context, size);
+    renderWindows_.push_back(window);
+    return Window(std::move(window));
 }
 
 void WglPlatform::handleEvents()
@@ -276,6 +286,11 @@ void WglPlatform::handleEvents()
         else
             ++i;
     }
+
+    renderWindows_.erase(
+            std::remove_if(renderWindows_.begin(), renderWindows_.end(),
+                [](auto& w) { return w.expired(); }),
+            renderWindows_.end());
 }
 
 RenderContext WglPlatform::makeRenderContext()
@@ -338,9 +353,9 @@ void WglPlatform::run(RenderContext& renderContext,
         // flight; a fence completion frees a slot and a re-arm picks it up.
         if (*framesInFlight < 2)
         {
-            for (auto& weakWindow : windows)
+            for (auto& weakWindow : renderWindows_)
             {
-                if (auto window = weakWindow.second.lock())
+                if (auto window = weakWindow.lock())
                 {
                     if (window->needsRedraw())
                         window->frame(frame);
@@ -365,9 +380,9 @@ void WglPlatform::run(RenderContext& renderContext,
         lastFrame = thisFrame;
 
         bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : windows)
+        for (auto& weakWindow : renderWindows_)
         {
-            if (auto window = weakWindow.second.lock())
+            if (auto window = weakWindow.lock())
             {
                 if (window->needsRedraw())
                 {

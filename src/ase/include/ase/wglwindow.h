@@ -25,8 +25,9 @@ namespace ase
 
         void present();
 
-        std::optional<std::chrono::microseconds> frame(Frame const& frame);
-        bool needsRedraw() const;
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
+        bool needsRedraw() const override;
 
         // From WindowImpl
         void setVisible(bool value) override;

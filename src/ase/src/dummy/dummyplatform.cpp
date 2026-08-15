@@ -2,6 +2,7 @@
 
 #include "dummywindow.h"
 #include "dummyrendercontext.h"
+#include "offscreenwindow.h"
 
 #include "rendercontext.h"
 #include "window.h"
@@ -18,6 +19,13 @@ Platform makeDummyPlatform()
 Window DummyPlatform::makeWindow(Vector2i size)
 {
     return Window(std::make_shared<DummyWindow>(size));
+}
+
+Window DummyPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
+{
+    // The dummy loop does not tick windows, so this is not auto-driven; it
+    // exists so the offscreen path is uniform across backends.
+    return Window(std::make_shared<OffscreenWindow>(context, size));
 }
 
 void DummyPlatform::handleEvents()

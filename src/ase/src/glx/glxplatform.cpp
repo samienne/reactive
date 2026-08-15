@@ -3,6 +3,7 @@
 #include "glxrendercontext.h"
 #include "glxcontext.h"
 #include "glxwindow.h"
+#include "offscreenwindow.h"
 
 #include "commandbuffer.h"
 #include "rendercontext.h"
@@ -107,7 +108,10 @@ private:
     size_t configCount_ = 0;
     GLXDrawable dummyBuffer_ = 0;
     std::unordered_set<GLXContext> glxContexts_;
+    // X windows, for routing X events; only real windows are here.
     std::vector<std::weak_ptr<GlxWindow>> windows_;
+    // Every window, real or offscreen; the run loop draws them all from here.
+    std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
@@ -292,6 +296,19 @@ Window GlxPlatform::makeWindow(Vector2i size)
     {
         auto lock = lockX();
         d()->windows_.push_back(window);
+        d()->renderWindows_.push_back(window);
+    }
+
+    return Window(std::move(window));
+}
+
+Window GlxPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
+{
+    auto window = std::make_shared<OffscreenWindow>(context, size);
+
+    {
+        auto lock = lockX();
+        d()->renderWindows_.push_back(window);
     }
 
     return Window(std::move(window));
@@ -330,6 +347,15 @@ void GlxPlatform::handleEvents()
                     d()->windows_.end()
                     );
         }
+
+        d()->renderWindows_.erase(
+                std::remove_if(
+                    d()->renderWindows_.begin(),
+                    d()->renderWindows_.end(),
+                    [](auto& w) { return w.expired(); }
+                    ),
+                d()->renderWindows_.end()
+                );
     }
 
     for (std::shared_ptr<GlxWindow>& window : windows)
@@ -395,7 +421,7 @@ void GlxPlatform::run(RenderContext& renderContext,
         // flight; a fence completion frees a slot and a re-arm picks it up.
         if (*framesInFlight < 2)
         {
-            for (auto& weakWindow : d()->windows_)
+            for (auto& weakWindow : d()->renderWindows_)
             {
                 if (auto window = weakWindow.lock())
                 {
@@ -422,7 +448,7 @@ void GlxPlatform::run(RenderContext& renderContext,
         lastFrame = thisFrame;
 
         bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : d()->windows_)
+        for (auto& weakWindow : d()->renderWindows_)
         {
             if (auto window = weakWindow.lock())
             {

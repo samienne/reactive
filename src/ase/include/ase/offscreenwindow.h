@@ -1,15 +1,33 @@
 #pragma once
 
-#include "framebuffer.h"
 #include "genericwindow.h"
 #include "windowimpl.h"
+#include "framebuffer.h"
+#include "texture.h"
+#include "renderbuffer.h"
+#include "format.h"
+#include "vector.h"
+
+#include "asevisibility.h"
 
 namespace ase
 {
-    class ASE_EXPORT DummyWindow : public WindowImpl
+    class RenderContext;
+
+    /**
+     * @brief A window that renders offscreen with the real backend and shows
+     * nothing.
+     *
+     * It backs `getDefaultFramebuffer` with an FBO (a color texture and depth
+     * buffer) built from a `RenderContext` instead of an OS drawable, so a
+     * platform can draw a full frame with no visible window. `setVisible` is a
+     * no-op and there is no present. It is a plain `WindowImpl`, driven by the
+     * platform run loop like any other window once the platform registers it.
+     */
+    class ASE_EXPORT OffscreenWindow : public WindowImpl
     {
     public:
-        DummyWindow(Vector2i size);
+        OffscreenWindow(RenderContext& context, Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;
@@ -51,14 +69,15 @@ namespace ase
 
         bool needsRedraw() const override;
 
-        /** @brief Drive the stored frame callback for one frame, so the headless
-         * platform can advance this window. */
+        /** @brief Drive the stored frame callback for one frame, so the platform
+         * run loop can advance this window. */
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 
     private:
         GenericWindow genericWindow_;
-        Framebuffer defaultFramebuffer_;
-        bool visible_ = false;
+        Texture texture_;
+        Renderbuffer depthbuffer_;
+        Framebuffer framebuffer_;
     };
 } // namespace ase

@@ -92,6 +92,7 @@ incdir = include_directories(
 
 libasesrc = [
   'src/genericwindow.cpp',
+  'src/offscreenwindow.cpp',
   'src/platform.cpp',
   'src/window.cpp',
   'src/rendercontext.cpp',

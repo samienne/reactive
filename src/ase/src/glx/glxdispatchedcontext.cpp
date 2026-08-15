@@ -116,6 +116,8 @@ namespace
             glXGetProcAddressARB((GLubyte const*)"glDeleteRenderbuffers");
         gl.glBindRenderbuffer = (PFNGLBINDRENDERBUFFERPROC)
             glXGetProcAddressARB((GLubyte const*)"glBindRenderbuffer");
+        gl.glFramebufferRenderbuffer = (PFNGLFRAMEBUFFERRENDERBUFFERPROC)
+            glXGetProcAddressARB((GLubyte const*)"glFramebufferRenderbuffer");
         gl.glFenceSync = (PFNGLFENCESYNCPROC)
             glXGetProcAddressARB((GLubyte const*)"glFenceSync");
         gl.glClientWaitSync = (PFNGLCLIENTWAITSYNCPROC)

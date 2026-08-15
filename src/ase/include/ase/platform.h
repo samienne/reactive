@@ -23,6 +23,13 @@ namespace ase
         virtual ~Platform();
 
         Window makeWindow(Vector2i size);
+
+        /** @brief Make a window that renders offscreen with this backend and is
+         * never shown, drawn into an FBO built from `context`. The platform
+         * drives it from its run loop like a normal window; there is no present
+         * and `setVisible` is a no-op. */
+        Window makeOffscreenWindow(RenderContext& context, Vector2i size);
+
         void handleEvents();
         RenderContext makeRenderContext();
         void run(RenderContext& renderContext,

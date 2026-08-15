@@ -37,6 +37,19 @@ are in the top-level `docs/`.
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
+- **Offscreen ≠ dummy.** `Platform::makeOffscreenWindow` gives an
+  `OffscreenWindow` (backend-agnostic, `src/offscreenwindow.cpp`): the *real*
+  backend rendering into an FBO built from a `RenderContext`, shown nowhere.
+  This is how the real GLX/WGL backend runs headless, distinct from the no-GL
+  dummy backend. A platform keeps **one render list** of all its windows (real
+  and offscreen) — the `needsRedraw()`/`frame()` surface on `WindowImpl` — which
+  the run loop draws uniformly. **Event routing is separate and backend-specific**
+  (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
+  only: a real window is in both, an offscreen window is in the render list
+  alone. `present` for an offscreen window is a no-op via the
+  `GlRenderContext::present` base — the seam a future pixel readback hooks into;
+  a backend's `present` swaps only its own window type and falls back to the
+  base for the rest.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

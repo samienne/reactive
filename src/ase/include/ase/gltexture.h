@@ -31,6 +31,10 @@ namespace ase
                 Format format,
                 Buffer const& buffer);
 
+        /** @brief Give the texture empty storage of its size and format, so it
+         * can back a framebuffer attachment without a data upload. Idempotent. */
+        void allocate(Dispatched, GlFunctions const& gl);
+
         GLuint getGlObject() const;
 
         // From TextureImpl
