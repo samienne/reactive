@@ -118,7 +118,8 @@ libasesrc = [
   'src/keycode.cpp',
   'src/uniformset.cpp',
   'src/renderbuffer.cpp',
-  'src/renderqueue.cpp'
+  'src/renderqueue.cpp',
+  'src/session.cpp'
   ]
 
 libase = library('ase',

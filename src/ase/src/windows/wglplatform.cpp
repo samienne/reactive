@@ -13,6 +13,7 @@
 #include "rendercontext.h"
 #include "window.h"
 #include "platform.h"
+#include "session.h"
 #include "debug.h"
 
 #include "tracy/Tracy.hpp"
@@ -309,125 +310,15 @@ void WglPlatform::run(RenderContext& renderContext,
 {
     DBG("Starting WglPlatform::run");
 
-    std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
-    auto nextFrame = startTime + std::chrono::microseconds(16667);
+    Session::Config config;
+    config.handleEvents = [this] { handleEvents(); };
+    // Wake the loop on the thread message queue; the Session drains it through
+    // handleEvents.
+    config.wakeSource = btl::fromMessageQueue();
+    config.frameStep = std::chrono::microseconds(16667);
 
-    auto framesInFlight = std::make_shared<int>(0);
-    auto mainQueue = renderContext.getMainRenderQueue();
-
-    bool tickScheduled = false;
-
-    std::function<void(btl::RunLoop::Controller&)> tick;
-
-    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
-    {
-        if (tickScheduled)
-            return;
-        tickScheduled = true;
-        controller.post(tick);
-    };
-
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
-            &framesInFlight, &mainQueue, &nextFrame, &tick](
-            btl::RunLoop::Controller& controller)
-    {
-        tickScheduled = false;
-
-        auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        Frame frame { time, dt };
-
-        if (!frameCallback(frame))
-        {
-            controller.stop();
-            return;
-        }
-
-        // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-arm picks it up.
-        if (*framesInFlight < 2)
-        {
-            for (auto& weakWindow : renderWindows_)
-            {
-                if (auto window = weakWindow.lock())
-                {
-                    if (window->needsRedraw())
-                        window->frame(frame);
-                }
-            }
-
-            ase::CommandBuffer commandBuffer;
-            ++*framesInFlight;
-            commandBuffer.pushFence([this, framesInFlight]
-                {
-                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
-                        { --*framesInFlight; });
-                });
-            mainQueue.submit(std::move(commandBuffer));
-        }
-
-        auto now = clock.now();
-        nextFrame += std::chrono::microseconds(16667);
-        while (nextFrame < now)
-            nextFrame += std::chrono::microseconds(16667);
-
-        lastFrame = thisFrame;
-
-        bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : renderWindows_)
-        {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                {
-                    armed = true;
-                    break;
-                }
-            }
-        }
-
-        if (armed && !tickScheduled)
-        {
-            tickScheduled = true;
-            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
-                    nextFrame - clock.now());
-            if (delay.count() < 0)
-                delay = std::chrono::microseconds(0);
-            controller.addTimer(delay, tick).detach();
-        }
-    };
-
-    btl::RunLoop::Source msgSource;
-
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
-
-    runLoop().post([this, &msgSource, &scheduleTick](
-            btl::RunLoop::Controller& controller)
-        {
-            // Wake on Windows input; the callback drains the queue (firing the
-            // window event callbacks) and schedules a tick so frameCallback
-            // (running/sync) runs and any armed window redraws.
-            msgSource = controller.addReadable(btl::fromMessageQueue(),
-                    [this, &scheduleTick](btl::RunLoop::Controller& c)
-                    {
-                        handleEvents();
-                        scheduleTick(c);
-                    });
-
-            scheduleTick(controller);
-        });
-
-    runLoop().run();
-
-    scheduleTick_ = nullptr;
-
-    mainQueue.finish();
+    Session session(*this, renderContext, renderWindows_, std::move(config));
+    session.run(std::move(frameCallback));
 
     DBG("Shutting down WglPlatform...");
 }

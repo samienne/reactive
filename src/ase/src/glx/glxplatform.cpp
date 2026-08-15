@@ -9,6 +9,7 @@
 #include "rendercontext.h"
 #include "renderqueue.h"
 #include "platform.h"
+#include "session.h"
 
 #include "debug.h"
 
@@ -373,127 +374,15 @@ void GlxPlatform::run(RenderContext& renderContext,
     DBG("Starting GlxPlatform::run");
 
     int const targetFps = 60;
-    auto const step = std::chrono::microseconds(1000000 / targetFps);
 
-    std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
-    auto nextFrame = startTime + step;
+    Session::Config config;
+    config.handleEvents = [this] { handleEvents(); };
+    // Wake the loop on X input; the Session drains it through handleEvents.
+    config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
+    config.frameStep = std::chrono::microseconds(1000000 / targetFps);
 
-    auto framesInFlight = std::make_shared<int>(0);
-    auto mainQueue = renderContext.getMainRenderQueue();
-
-    btl::RunLoop::Source xSource;
-
-    bool tickScheduled = false;
-
-    std::function<void(btl::RunLoop::Controller&)> tick;
-
-    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
-    {
-        if (tickScheduled)
-            return;
-        tickScheduled = true;
-        controller.post(tick);
-    };
-
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
-            &framesInFlight, &mainQueue, &nextFrame, &step, &tick](
-            btl::RunLoop::Controller& controller)
-    {
-        tickScheduled = false;
-
-        auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        Frame frame { time, dt };
-
-        if (!frameCallback(frame))
-        {
-            controller.stop();
-            return;
-        }
-
-        // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-arm picks it up.
-        if (*framesInFlight < 2)
-        {
-            for (auto& weakWindow : d()->renderWindows_)
-            {
-                if (auto window = weakWindow.lock())
-                {
-                    if (window->needsRedraw())
-                        window->frame(frame);
-                }
-            }
-
-            ase::CommandBuffer commandBuffer;
-            ++*framesInFlight;
-            commandBuffer.pushFence([this, framesInFlight]
-                {
-                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
-                        { --*framesInFlight; });
-                });
-            mainQueue.submit(std::move(commandBuffer));
-        }
-
-        auto now = clock.now();
-        nextFrame += step;
-        while (nextFrame < now)
-            nextFrame += step;
-
-        lastFrame = thisFrame;
-
-        bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : d()->renderWindows_)
-        {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                {
-                    armed = true;
-                    break;
-                }
-            }
-        }
-
-        if (armed && !tickScheduled)
-        {
-            tickScheduled = true;
-            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
-                    nextFrame - clock.now());
-            if (delay.count() < 0)
-                delay = std::chrono::microseconds(0);
-            controller.addTimer(delay, tick).detach();
-        }
-    };
-
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
-
-    runLoop().post([this, &xSource, &scheduleTick](
-            btl::RunLoop::Controller& controller)
-        {
-            // Wake on X input; the callback drains the connection (firing the
-            // window event handlers) and schedules a tick so frameCallback
-            // (running/sync) runs and any armed window redraws.
-            xSource = controller.addReadable(
-                    btl::fromFd(ConnectionNumber(d()->dpy_)),
-                    [this, &scheduleTick](btl::RunLoop::Controller& c)
-                    {
-                        handleEvents();
-                        scheduleTick(c);
-                    });
-
-            scheduleTick(controller);
-        });
-    runLoop().run();
-
-    scheduleTick_ = nullptr;
-
-    mainQueue.finish();
+    Session session(*this, renderContext, d()->renderWindows_, std::move(config));
+    session.run(std::move(frameCallback));
 
     DBG("Shutting down GlxPlatform..");
 }
