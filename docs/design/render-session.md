@@ -1,9 +1,21 @@
 # Design: the render session, and where `Platform::run` belongs
 
-> **Status: proposal (not built).** The current code is described for context;
-> the session model below is the target, not yet implemented. Current code as of
-> master `dcd9aa5` (2026-08-15). Sits above [`runloop.md`](runloop.md), which
-> designs the loop *mechanism* this note builds on.
+> **Status: partially built (Stage 2 landed on `session-refactor`).** An
+> `ase::Session` now owns the frame-loop body and GLX, WGL and the dummy backend
+> all drive frames through it; the fuller model below (one context per session,
+> `Platform` losing `run`, offscreen collapsing to one surface) is still the
+> target. See [`render-session-plan.md`](render-session-plan.md) for what each
+> stage does. Sits above [`runloop.md`](runloop.md), which designs the loop
+> *mechanism* this note builds on.
+>
+> What landed so far: the Session binds the platform's `RunLoop` + `RenderContext`
+> + its render list and drives frames (clock/cadence, GPU backpressure, on-demand
+> re-arm). It is still **constructed inside `Platform::run`**, which stays as a
+> thin delegator so the remote decorator can override it; the render list still
+> lives on each platform (its `makeWindow` registers into it before the Session
+> exists), driven by reference. The dummy is "a Session with a no-op render path":
+> it registers no surface, and its `maxFps`/`maxFrames` are the Session's headless
+> pacing in place of an OS event source.
 
 ## Purpose
 

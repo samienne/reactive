@@ -88,6 +88,32 @@ present rather than reworking a command.
 
 ## Stage 2 — Introduce `Session`; route all backends through one loop body
 
+> **Landed on `session-refactor`.** `ase::Session` (`src/ase/include/ase/session.h`,
+> `src/ase/src/session.cpp`) owns the tick; GLX, WGL and dummy build a
+> `Session::Config` and hand off to `Session::run`. Notes vs the sketch below:
+> - **Anchors were stale.** The GLX/WGL sources are under `src/ase/src/glx/` and
+>   `src/ase/src/windows/`, not `src/ase/src/gl/`.
+> - **`requestFrame`/`scheduleTick_`/`wakePosted_` were hoisted to `PlatformImpl`**
+>   (they were byte-identical across the three) so the Session installs one
+>   `scheduleTick_`; the remote decorator keeps its own `requestFrame` override.
+> - **The render list stays on each platform**, not moved onto the Session:
+>   `makeWindow` registers into it before the Session exists (and GLX couples that
+>   registration/cleanup to its X lock). The Session drives it by reference.
+>   Completing the move belongs with Stage 4's `session.makeWindow`.
+> - **GLX vs WGL were identical bar the wake source *and* a 1us step** (16666 vs
+>   16667); the step is a `Config` field. The **dummy genuinely diverges** (no
+>   draw/submit, budget self-pump, fps pacing) as anticipated — kept as Session
+>   pacing config, and `DummyRenderQueue::submit` now completes each fence so the
+>   shared backpressure loop resolves without a GPU.
+> - **Invariant 3 (ask the surface for its target)** is met structurally: the
+>   Session holds no framebuffer; each drawn surface acquires its own via
+>   `getDefaultFramebuffer()` inside `frame()`. No dead `acquire()` hook was added
+>   (repo forbids dead code); the draw step is written so one can slot in.
+> - **Verified:** clang-cl build; `meson test` (bq/avg/bqui/btl all green, incl.
+>   apptest/headlessapptest/sessiontest on the real dummy Session tick); real-GL
+>   WGL via `bquiheadlesstest` (offscreen) and `testapp1` (on-screen present).
+>   GLX is compile-dark on Windows — CI's Linux leg covers it.
+
 **Goal:** a `Session` owns the loop body; GLX/WGL/**dummy** all drive through it.
 
 **Decided:** the Session **subsumes the dummy platform** — dummy becomes "a Session
