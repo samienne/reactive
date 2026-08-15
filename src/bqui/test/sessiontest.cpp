@@ -432,6 +432,33 @@ TEST(session, injectRejectsBatchAtomicallyBeforeApplying)
     EXPECT_EQ(0, a.buttonInjects());
 }
 
+TEST(session, injectRejectsUnknownOrMissingKind)
+{
+    auto idA = btl::makeUniqueId();
+    FakeRemoteWindow a(idA, "w0");
+    SessionFixture s("injectkind", { a });
+
+    // A mistyped shape (here the field is 'type', not 'kind', so 'kind' reads
+    // empty) must be a loud error, not a silently dropped no-op.
+    auto mistyped = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "type", "pointerButton" }, { "x", 1 }, { "y", 2 },
+                  { "button", 1 }, { "state", "down" } } }) },
+            });
+    EXPECT_EQ(-32602, mistyped.at("error").at("code").get<int>());
+    EXPECT_EQ(0, a.buttonInjects());
+
+    // An unrecognised kind is rejected the same way.
+    auto unknown = s.call("window.inject", {
+            { "window", idA.getValue() },
+            { "events", json::array({
+                { { "kind", "wiggle" }, { "x", 1 }, { "y", 2 } } }) },
+            });
+    EXPECT_EQ(-32602, unknown.at("error").at("code").get<int>());
+    EXPECT_EQ(0, a.buttonInjects());
+}
+
 TEST(session, describeReportsTheRegistry)
 {
     FakeRemoteWindow a(btl::makeUniqueId(), "w0");

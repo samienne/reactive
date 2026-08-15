@@ -137,13 +137,18 @@ void applyInjection(RemoteWindow& window, json const& event)
 }
 
 /**
- * @brief Reject an injection event whose indices would escape the window seam.
+ * @brief Reject an injection event that is malformed or would escape the seam.
  *
- * The seam indexes fixed 15-slot arrays: a pointer id must be `<= 15` and a
- * button number `1..15` (a `0` button underflows into an out-of-bounds write).
- * Throws @ref RpcError with @ref kInvalidParams naming the offending field on
- * the first violation, so the inject handler can reject a batch before it
- * touches the seam.
+ * A missing or unrecognised `kind` is rejected outright: @ref applyInjection
+ * dispatches on it and would otherwise silently drop the event (an empty reply
+ * that reads as success), so an event whose `kind` names no known shape is a
+ * client mistake worth surfacing, not swallowing.
+ *
+ * The seam then indexes fixed 15-slot arrays: a pointer id must be `<= 15` and
+ * a button number `1..15` (a `0` button underflows into an out-of-bounds
+ * write). Throws @ref RpcError with @ref kInvalidParams naming the offending
+ * field on the first violation, so the inject handler can reject a batch before
+ * it touches the seam.
  */
 void validateInjection(json const& event)
 {
@@ -154,6 +159,12 @@ void validateInjection(json const& event)
 
     bool const isPointer = kind == "pointerButton" || kind == "pointerMove"
         || kind == "hover";
+
+    bool const isKnown = isPointer || kind == "key" || kind == "text";
+    if (!isKnown)
+        throw RpcError{ kInvalidParams,
+            "each inject event needs a known 'kind' (one of pointerButton, "
+            "pointerMove, hover, key, text), got '" + kind + "'" };
 
     if (isPointer)
     {
