@@ -146,6 +146,48 @@ WGL swap relies on the window's DC being current from its draws this frame (an
 out-of-band present for a window that drew nothing must make its DC/context current
 first).
 
+## Forward-compatibility (validated: Vulkan, D3D12, Metal, Android)
+
+The model was checked against the four backends we expect to add. The core holds
+on all of them: one context = one device (`VkDevice` / `ID3D12Device` /
+`MTLDevice`), a window is a swapchain/drawable **created on and bound to** that
+device (not transferable), present is a surface/queue operation and never a
+recorded render command (`vkQueuePresentKHR`, `IDXGISwapChain::Present1`, Metal
+`presentDrawable:`), and the loop is OS-owned or self-driven (iOS `CADisplayLink`,
+Android `Choreographer`). The **Platform-makes-native-window / Session-binds-it**
+split is reinforced by Android, where the `ANativeWindow` outlives the swapchain
+and is reused to build a new one after loss — exactly this seam. So stopping short
+of a `RenderContext::makeWindow` factory is safe: nothing forces window creation
+onto the device; the device-bound object is the swapchain, which lives behind the
+`Surface` (where present already lives).
+
+Two things real backends need that GL hides — both are `Surface`-interface shape,
+neither disturbs the Session/Platform/Context split, and both are no-ops on GL.
+Reserve them now so the GL-only stages don't cast a shape that has to be undone:
+
+- **`present()` returns a status, not `void`.** Every non-GL backend can fail
+  present and *demand swapchain recreation* — `VK_ERROR_OUT_OF_DATE_KHR` /
+  `VK_SUBOPTIMAL_KHR` / `VK_ERROR_SURFACE_LOST_KHR`, `DXGI_ERROR_DEVICE_REMOVED`,
+  Android surface-destroyed, Metal nil-drawable. GL's swap never reports this.
+  Shape `present()` with a status return from the start (GL always returns `Ok`),
+  because retrofitting a `void` return touches every call site. The `Session` owns
+  the **surface-recreation path**, triggered by that status or by a
+  resize/rotation/lifecycle event.
+- **A `Surface::beginFrame()` / `acquire()` hook is coming.** Modern backends are
+  **acquire -> render -> present**: the frame's render target comes *from the
+  surface* per frame (`vkAcquireNextImageKHR`, `GetCurrentBackBufferIndex`,
+  `nextDrawable`) and acquire can fail like present. Write the Session's draw step
+  to **ask the surface for this frame's target** rather than assume a fixed
+  framebuffer, so acquire slots in later. On GL it is a no-op returning the default
+  framebuffer. Keeping acquire on the surface (not the session) is also what keeps
+  per-backend synchronization (semaphores/fences) from leaking into the Session.
+
+Two wording guards: present is "the surface sequences present relative to its own
+submit," not "the session presents strictly after submit" (Metal records present
+into the command buffer before commit); and the Session must tolerate **having no
+valid surface** (mobile backgrounding destroys it) rather than assuming a surface
+is always drawable. None of this is implemented until a non-GL backend lands.
+
 ## Relationship to the current (interim) code
 
 What just landed on master is the interim, on the current GL model: offscreen via
@@ -179,9 +221,11 @@ together avoids reworking #96's loop twice.
 
 ## Still open
 
-- Whether the full surface-of-a-device reshape (`RenderContext::makeWindow`) is
-  worth doing when the first non-GL backend lands, or whether the
-  session-holds-the-binding model is enough even then.
+- Nothing structural. The one prior open question — whether a non-GL backend
+  forces a `RenderContext::makeWindow` reshape — is answered by the
+  forward-compatibility check above: session-holds-the-binding is sufficient, and
+  swapchain create/recreate lives behind the `Surface`. A `RenderContext::makeWindow`
+  would be convenience, not necessity.
 
 ## Non-goals
 
