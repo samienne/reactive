@@ -9,6 +9,7 @@
 #include "bqui/hoverevent.h"
 #include "bqui/eventresult.h"
 #include "bqui/widget/instance.h"
+#include "bqui/widget/introspection.h"
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 
@@ -48,7 +49,7 @@ namespace bqui
 
 inline uint64_t getNextFrameId()
 {
-    static uint64_t s_frameId = 0;
+    static std::atomic<uint64_t> s_frameId{ 0 };
     return ++s_frameId;
 }
 
@@ -80,6 +81,10 @@ public:
     std::string getTitle() const;
 
     widget::Instance const& getWidgetInstance() const;
+
+    /** @brief A resolved introspection snapshot of the current widget tree, in
+     * window space, for a remote driver to read after a step. */
+    widget::Introspection getResolvedIntrospection() const;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

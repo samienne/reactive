@@ -1,5 +1,7 @@
 #include "windowimpl.h"
 
+#include "remote/remoteplatform.h"
+
 namespace bqui
 {
 
@@ -205,6 +207,18 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
             }
         }
     });
+
+    // Hand a remote-driven window its identity and introspection source. On a
+    // real backend window the handle is not a remote decorator, so the walk
+    // finds nothing and this is a no-op.
+    if (auto* remoteWindow =
+            aseWindow.getImplOfType<remote::RemoteWindowImpl>())
+    {
+        remoteWindow->bind(getId(), [this]
+                {
+                    return getResolvedIntrospection();
+                });
+    }
 }
 
 WindowImpl::~WindowImpl()
@@ -393,6 +407,11 @@ std::string WindowImpl::getTitle() const
 widget::Instance const& WindowImpl::getWidgetInstance() const
 {
     return widgetInstance_;
+}
+
+widget::Introspection WindowImpl::getResolvedIntrospection() const
+{
+    return widget::resolveIntrospection(widgetInstance_.getIntrospection());
 }
 
 } // namespace bqui
