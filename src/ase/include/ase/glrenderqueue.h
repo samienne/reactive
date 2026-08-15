@@ -12,9 +12,7 @@ namespace ase
     class GlRenderQueue : public RenderQueueImpl
     {
     public:
-        GlRenderQueue(std::shared_ptr<GlDispatchedContext> context,
-                std::function<void(Dispatched, Window&)> presentCallback
-                );
+        GlRenderQueue(std::shared_ptr<GlDispatchedContext> context);
         ~GlRenderQueue();
 
         void dispatch(std::function<void(GlFunctions const&)> f);
@@ -26,6 +24,7 @@ namespace ase
         void flush() override;
         void finish() override;
         void submit(CommandBuffer&& renderQueue) override;
+        PresentStatus present(Window& window) override;
 
     private:
         std::shared_ptr<GlDispatchedContext> dispatcher_;

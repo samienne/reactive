@@ -166,7 +166,11 @@ void Painter::presentWindow(ase::Window& target)
 {
     ZoneScoped;
 
-    commandBuffer_.pushPresent(target);
+    // Present is a surface operation, not a render command: submit the
+    // accumulated draws first, then enqueue the swap behind them on the same
+    // queue so draws -> present ordering holds.
+    flush();
+    renderContext_.getMainRenderQueue().present(target);
 }
 
 void Painter::flush()

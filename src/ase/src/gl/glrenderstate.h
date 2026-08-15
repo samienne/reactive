@@ -10,7 +10,6 @@
 
 namespace ase
 {
-    class Window;
     class GlRenderContext;
     class CommandBuffer;
     class VertexSpec;
@@ -25,14 +24,12 @@ namespace ase
     class ASE_EXPORT GlRenderState
     {
     public:
-        GlRenderState(GlDispatchedContext& dispatcher,
-                std::function<void(Dispatched, Window&)> presentCallback);
+        GlRenderState(GlDispatchedContext& dispatcher);
         ~GlRenderState();
 
         void submit(CommandBuffer&& commands);
         void clear(Dispatched, GLbitfield mask);
         void setViewport(Dispatched, Vector2i size);
-        void endFrame();
 
     private:
         // These functions need to be called in dispatched context.
@@ -41,10 +38,10 @@ namespace ase
         void dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
                 CommandBuffer&& commands);
         void checkFences(Dispatched, GlFunctions const& gl);
+        void endFrame();
 
     private:
         GlDispatchedContext& dispatcher_;
-        std::function<void(Dispatched, Window&)> presentCallback_;
 
         // Active sync objects
         struct WaitingFence

@@ -102,12 +102,8 @@ namespace
 } // anonymous namespace
 
 
-GlRenderState::GlRenderState(
-        GlDispatchedContext& dispatcher,
-        std::function<void(Dispatched, Window&)> presentCallback
-        ) :
-    dispatcher_(dispatcher),
-    presentCallback_(std::move(presentCallback))
+GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
+    dispatcher_(dispatcher)
 {
     dispatcher_.dispatch([](GlFunctions const& gl)
     {
@@ -278,16 +274,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             clear(d, mask);
 
-            continue;
-        }
-        else if (std::holds_alternative<PresentCommand>(renderCommand))
-        {
-            ZoneScopedN("Present command");
-            presentCallback_(d, const_cast<Window&>(
-                        std::get<PresentCommand>(renderCommand).window)
-                    );
-
-            endFrame();
             continue;
         }
         else if (std::holds_alternative<FenceCommand>(renderCommand))
@@ -533,6 +519,10 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     }
 
     checkFences(d, gl);
+
+    // Reset the per-frame binding cache now that this queue's draws are done;
+    // present is a separate surface operation and no longer carries this.
+    endFrame();
 }
 
 void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)

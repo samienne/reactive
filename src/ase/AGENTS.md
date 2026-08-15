@@ -47,10 +47,15 @@ are in the top-level `docs/`.
   frame-callback driven and keeps none). **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
-  alone. `present` for an offscreen window is a no-op via the
-  `GlRenderContext::present` base — the seam a future pixel readback hooks into;
-  a backend's `present` swaps only its own window type and falls back to the
-  base for the rest.
+  alone. `present` is a **surface operation, not a render command**: a
+  status-returning `WindowImpl::present(Dispatched)` virtual each window type
+  implements (GlxWindow swaps its GLX drawable with the X lock held inside,
+  WglWindow `SwapBuffers`es its `hdc_`, OffscreenWindow is the no-op a future
+  pixel readback hooks into). The caller enqueues it behind the frame's
+  submitted draws through the GL-free `RenderQueue::present(Window&)` seam, which
+  forwards to the queue's own dispatcher — draws and present share one FIFO, so
+  ordering holds. `PresentStatus` is `Ok`-only on GL; it exists so a backend
+  whose present can fail (a lost swapchain) is not a `void`-return retrofit.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

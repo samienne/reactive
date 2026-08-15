@@ -1,6 +1,7 @@
 #pragma once
 
 #include "asevisibility.h"
+#include "presentstatus.h"
 
 #include <memory>
 
@@ -8,6 +9,7 @@ namespace ase
 {
     class CommandBuffer;
     class RenderQueueImpl;
+    class Window;
 
     class ASE_EXPORT RenderQueue
     {
@@ -22,6 +24,11 @@ namespace ase
         void flush();
         void finish();
         void submit(CommandBuffer&& commandBuffer);
+
+        /** @brief Present `window` behind this queue's submitted draws. Returns
+         * a status so a backend whose present can fail is not a `void`-return
+         * retrofit; GL always reports `Ok`. */
+        PresentStatus present(Window& window);
 
         template <class T>
         T& getImpl()

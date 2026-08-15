@@ -44,13 +44,6 @@ void CommandBuffer::pushClear(Framebuffer target,
             });
 }
 
-void CommandBuffer::pushPresent(Window window)
-{
-    commands_.push_back(PresentCommand{
-            std::move(window)
-            });
-}
-
 void CommandBuffer::pushFence(std::function<void()> completeCb)
 {
     pushFence().then(std::move(completeCb)).detach();

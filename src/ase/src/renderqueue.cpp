@@ -29,5 +29,11 @@ void RenderQueue::submit(CommandBuffer&& commandBuffer)
     d()->submit(std::move(commandBuffer));
 }
 
+PresentStatus RenderQueue::present(Window& window)
+{
+    ZoneScoped;
+    return d()->present(window);
+}
+
 } // namespace ase
 

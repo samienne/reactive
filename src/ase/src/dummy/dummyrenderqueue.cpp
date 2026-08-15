@@ -1,5 +1,8 @@
 #include "dummyrenderqueue.h"
 
+#include "window.h"
+#include "dispatcher.h"
+
 namespace ase
 {
 
@@ -17,6 +20,11 @@ void DummyRenderQueue::finish()
 
 void DummyRenderQueue::submit(CommandBuffer&& /*renderQueue*/)
 {
+}
+
+PresentStatus DummyRenderQueue::present(Window& window)
+{
+    return window.present(Dispatched());
 }
 
 } // namespace
