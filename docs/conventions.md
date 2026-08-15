@@ -1,6 +1,6 @@
 # Conventions & gotchas
 
-*Last verified against `8677be3` (2026-07-21).*
+*Last verified against `9d252ef` (2026-08-15).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -30,6 +30,17 @@ intentional: because so much lives in templated headers, a missing dependency
 edge should be a hard `#include` error, not a silent compile against another
 library's internals. When adding a public header, put it under the nested
 `<lib>/` directory.
+
+## Implementations go in a `.cpp`
+
+A class's method bodies belong in a matching `.cpp`, not inline in the header —
+the header carries declarations only. **Templates are the exception**: a class
+or function template is defined inline in the header because its members are
+only compiled when instantiated (see *Templates: latent bugs and smoke tests*).
+The other genuine special cases are a trivial free function or accessor that a
+header must expose to more than one translation unit — kept `inline` in the
+header so both see one definition. Default to moving a body out; reach for
+inline only when one of these applies.
 
 ## Symbol visibility and DLL export
 
