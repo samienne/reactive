@@ -35,25 +35,19 @@ WglDispatchedContext const& WglRenderContext::getWglContext() const
             );
 }
 
-void WglRenderContext::present(Dispatched /*dispatched*/, Window& window)
+void WglRenderContext::present(Dispatched dispatched, Window& window)
 {
     ZoneScoped;
-    WglWindow& wglWindow = window.getImpl<WglWindow>();
-
-    /*if (wglWindow.getDc() != wglGetCurrentDC()
-            || getWglContext().getWglContext() != wglGetCurrentContext())*/
+    WglWindow* wglWindow = window.getImplOfType<WglWindow>();
+    if (!wglWindow)
     {
-        ZoneScopedN("wglMakeCurrent");
-        /*
-        static_cast<WglDispatchedContext&>(
-                getMainGlRenderQueue().getDispatcher()
-                ).makeCurrent(dispatched, wglWindow);
-        */
+        GlRenderContext::present(dispatched, window);
+        return;
     }
 
     {
         ZoneScopedN("SwapBuffers");
-        SwapBuffers(wglWindow.getDc());
+        SwapBuffers(wglWindow->getDc());
         FrameMark;
     }
 }

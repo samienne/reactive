@@ -12,6 +12,7 @@
 
 #include <btl/visibility.h>
 
+#include <cstdint>
 #include <optional>
 #include <chrono>
 #include <string>
@@ -71,6 +72,25 @@ namespace ase
         void setHoverCallback(std::function<void(HoverEvent const&)> cb);
         void setTextCallback(std::function<void(TextEvent const&)> cb);
 
+        /** @brief Drive the window with a pointer button event as if it came
+         * from the platform. Works uniformly across every backend. */
+        void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos, ButtonState buttonState);
+
+        /** @brief Drive the window with a pointer move event. */
+        void injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos);
+
+        /** @brief Drive the window with a hover enter/leave event. */
+        void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state);
+
+        /** @brief Drive the window with a key event. */
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text);
+
+        /** @brief Drive the window with a text-input event. */
+        void injectTextEvent(std::string text);
+
         /** @brief The window's implementation as concrete type `T`, reached
          * through any decorators wrapping it; throws `std::bad_cast` if no impl
          * in the chain has that type. Same-binary only. */
@@ -94,6 +114,14 @@ namespace ase
          * wrapping this window, or null if none in the chain has that type,
          * where `getImpl` would throw. Same-binary only. */
         WindowImpl* getImplOfType(std::type_index type);
+
+        /** @overload Typed form: the impl as `T*`, or null if none in the chain
+         * is a `T`. Same-binary only. */
+        template <class T>
+        T* getImplOfType()
+        {
+            return static_cast<T*>(getImplOfType(std::type_index(typeid(T))));
+        }
 
     protected:
         std::shared_ptr<WindowImpl> deferred_;

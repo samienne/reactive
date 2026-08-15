@@ -29,7 +29,8 @@ namespace ase
 
         ~GlRenderContext() override;
 
-        virtual void present(Dispatched dispatched, Window& window) = 0;
+        /** @brief Present a finished frame to the window. */
+        virtual void present(Dispatched dispatched, Window& window);
 
         GlRenderQueue& getMainGlRenderQueue();
         GlRenderQueue const& getMainGlRenderQueue() const;

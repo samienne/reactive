@@ -1,6 +1,6 @@
 # ase — agent notes
 
-*Last verified against `77e391f` (2026-07-22).*
+*Last verified against `55f2e55` (2026-08-15).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -31,8 +31,26 @@ are in the top-level `docs/`.
   submitting fences against a context current on a destroyed DC. Releasing the
   context from the window's destructor would close both, and has to be
   dispatched to the render thread.
-- `src/ase/meson.build` sets `ase_is_headless`, which is how a dependent decides
-  whether a test may open a window (`src/bqui/meson.build` uses it).
+- The headless (dummy) backend is compiled on every platform (`dummysrcs` in
+  `src/ase/meson.build`), so any test or app can select it via
+  `ase::makeDummyPlatform()` without opening an OS window. `makeDefaultPlatform()`
+  returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
+  a dependent that must avoid opening a real window (e.g. `apptest` in
+  `src/bqui/meson.build`) keys off the target OS.
+- **Offscreen ≠ dummy.** `Platform::makeOffscreenWindow` gives an
+  `OffscreenWindow` (backend-agnostic, `src/offscreenwindow.cpp`): the *real*
+  backend rendering into an FBO built from a `RenderContext`, shown nowhere.
+  This is how the real GLX/WGL backend runs headless, distinct from the no-GL
+  dummy backend. The real GLX/WGL backends keep **one render list** of all their
+  windows (real and offscreen) — the `needsRedraw()`/`frame()` surface on
+  `WindowImpl` — which the run loop draws uniformly (the dummy loop is
+  frame-callback driven and keeps none). **Event routing is separate and backend-specific**
+  (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
+  only: a real window is in both, an offscreen window is in the render list
+  alone. `present` for an offscreen window is a no-op via the
+  `GlRenderContext::present` base — the seam a future pixel readback hooks into;
+  a backend's `present` swaps only its own window type and falls back to the
+  base for the rest.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

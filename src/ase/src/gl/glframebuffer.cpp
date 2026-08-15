@@ -1,6 +1,7 @@
 #include "glframebuffer.h"
 
 #include "gltexture.h"
+#include "glrenderbuffer.h"
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "glfunctions.h"
@@ -21,7 +22,12 @@ GlFramebuffer::GlFramebuffer(GlRenderContext& context) :
 
 GlFramebuffer::GlFramebuffer(GlFramebuffer&& rhs) noexcept :
     context_(rhs.context_),
-    framebuffer_(rhs.framebuffer_)
+    framebuffer_(rhs.framebuffer_),
+    colorTargets_(std::move(rhs.colorTargets_)),
+    depthTarget_(std::move(rhs.depthTarget_)),
+    size_(rhs.size_),
+    isDefault_(rhs.isDefault_),
+    dirty_(rhs.dirty_)
 {
     rhs.framebuffer_ = 0;
 }
@@ -85,41 +91,61 @@ void GlFramebuffer::setColorTarget(Dispatched, GlFunctions const& gl,
 }
 */
 
-void GlFramebuffer::makeCurrent(Dispatched, GlDispatchedContext&,
-        GlRenderState&, GlFunctions const& gl) const
+void GlFramebuffer::makeCurrent(Dispatched d, GlDispatchedContext&,
+        GlRenderState& renderState, GlFunctions const& gl) const
 {
-    gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
-
-    if (!dirty_ || isDefault_)
+    if (isDefault_)
+    {
+        gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
         return;
+    }
 
     if (!framebuffer_)
         gl.glGenFramebuffers(1, &framebuffer_);
 
-    dirty_ = false;
+    gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
 
-    int index = 0;
-    for (Attachment const& attachment : colorAttachments_)
+    if (dirty_)
     {
-        gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
-                attachment.target, attachment.object, 0);
+        dirty_ = false;
 
-        ++index;
+        int index = 0;
+        for (std::optional<Texture> const& target : colorTargets_)
+        {
+            if (target.has_value())
+            {
+                GlTexture& texture = const_cast<GlTexture&>(
+                        target->getImpl<GlTexture>());
+                texture.allocate(d, gl);
+
+                gl.glFramebufferTexture2D(GL_FRAMEBUFFER,
+                        GL_COLOR_ATTACHMENT0 + index, GL_TEXTURE_2D,
+                        texture.getGlObject(), 0);
+            }
+
+            ++index;
+        }
+
+        if (depthTarget_.has_value())
+        {
+            GlRenderbuffer& depth = const_cast<GlRenderbuffer&>(
+                    depthTarget_->getImpl<GlRenderbuffer>());
+            depth.makeCurrent(d, gl);
+
+            gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                    GL_RENDERBUFFER, depth.getGlObject());
+        }
     }
 
-    gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-            GL_TEXTURE_2D, depthAttachment_, 0);
-
-    gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT,
-            GL_TEXTURE_2D, stencilAttachment_, 0);
+    // A window framebuffer sizes the viewport to its drawable; an offscreen one
+    // has no drawable, so it must size the viewport to its target here.
+    renderState.setViewport(d, size_);
 }
 
 void GlFramebuffer::setColorTarget(size_t index, Texture texture)
 {
-    colorAttachments_.at(index) = Attachment{
-        GL_TEXTURE_2D,
-        texture.getImpl<GlTexture>().getGlObject()
-    };
+    size_ = texture.getImpl<GlTexture>().getSize();
+    colorTargets_.at(index) = std::move(texture);
 
     dirty_ = true;
 }
@@ -131,19 +157,23 @@ void GlFramebuffer::setColorTarget(size_t /*index*/, Renderbuffer /*texture*/)
 
 void GlFramebuffer::unsetColorTarget(size_t index)
 {
-    colorAttachments_.at(index) = Attachment{ 0, 0 };
+    colorTargets_.at(index) = std::nullopt;
 
     dirty_ = true;
 }
 
-void GlFramebuffer::setDepthTarget(Renderbuffer /*buffer*/)
+void GlFramebuffer::setDepthTarget(Renderbuffer buffer)
 {
-    assert(false);
+    depthTarget_.emplace(std::move(buffer));
+
+    dirty_ = true;
 }
 
 void GlFramebuffer::unsetDepthTarget()
 {
-    assert(false);
+    depthTarget_.reset();
+
+    dirty_ = true;
 }
 
 void GlFramebuffer::setStencilTarget(Renderbuffer /*buffer*/)

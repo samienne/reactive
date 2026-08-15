@@ -40,8 +40,10 @@ GlxRenderContext::~GlxRenderContext()
 void GlxRenderContext::present(Dispatched d, Window& window)
 {
     ZoneScopedN("GlxRenderContext::present");
-    GlxWindow& glxWindow = window.getImpl<GlxWindow>();
-    glxWindow.present(d);
+    if (auto* glxWindow = window.getImplOfType<GlxWindow>())
+        glxWindow->present(d);
+    else
+        GlRenderContext::present(d, window);
 }
 
 } // namespace ase

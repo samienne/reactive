@@ -2,6 +2,7 @@
 
 #include "dummywindow.h"
 #include "dummyrendercontext.h"
+#include "offscreenwindow.h"
 
 #include "rendercontext.h"
 #include "window.h"
@@ -10,14 +11,21 @@
 namespace ase
 {
 
-Platform makeDefaultPlatform()
+Platform makeDummyPlatform()
 {
     return Platform(std::make_shared<DummyPlatform>());
 }
 
-Window DummyPlatform::makeWindow(Vector2i /*size*/)
+Window DummyPlatform::makeWindow(Vector2i size)
 {
-    return Window(std::make_shared<DummyWindow>());
+    return Window(std::make_shared<DummyWindow>(size));
+}
+
+Window DummyPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
+{
+    // The dummy loop does not tick windows, so this is not auto-driven; it
+    // exists so the offscreen path is uniform across backends.
+    return Window(std::make_shared<OffscreenWindow>(context, size));
 }
 
 void DummyPlatform::handleEvents()
@@ -34,6 +42,11 @@ void DummyPlatform::setMaxFps(unsigned int fps)
     maxFps_ = fps;
 }
 
+void DummyPlatform::setMaxFrames(uint64_t maxFrames)
+{
+    maxFrames_ = maxFrames;
+}
+
 void DummyPlatform::run(RenderContext&,
         std::function<bool(Frame const&)> frameCallback)
 {
@@ -42,6 +55,9 @@ void DummyPlatform::run(RenderContext&,
     auto lastFrame = startTime;
 
     bool tickScheduled = false;
+
+    // Frames pumped so far this run(); only consulted when maxFrames_ != 0.
+    uint64_t framesRun = 0;
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
@@ -71,13 +87,21 @@ void DummyPlatform::run(RenderContext&,
     };
 
     // Headless: a tick runs the frame callback with the elapsed time (there is
-    // nothing to render). It does not re-post; the loop blocks until
-    // requestFrame() wakes it, so any sources registered on it (a remote socket,
-    // a timer) are serviced meanwhile.
-    tick = [&tickScheduled, &clock, &startTime, &lastFrame, &frameCallback](
-            btl::RunLoop::Controller& controller)
+    // nothing to render). With no frame budget it does not re-post; the loop
+    // blocks until requestFrame() wakes it, so any sources registered on it (a
+    // remote socket, a timer) are serviced meanwhile. With a budget it pumps
+    // deterministically up to maxFrames_ frames, then stops, so a headless run
+    // terminates without an OS window.
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
+            &framesRun, &scheduleTick](btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
+
+        if (maxFrames_ != 0 && framesRun >= maxFrames_)
+        {
+            controller.stop();
+            return;
+        }
 
         auto thisFrame = clock.now();
         auto time = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -93,6 +117,11 @@ void DummyPlatform::run(RenderContext&,
             controller.stop();
             return;
         }
+
+        ++framesRun;
+
+        if (maxFrames_ != 0)
+            scheduleTick(controller);
     };
 
     scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };

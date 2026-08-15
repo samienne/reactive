@@ -6,14 +6,28 @@
 namespace ase
 {
 
-GlRenderbuffer::GlRenderbuffer(GlRenderContext& /*context*/, Vector2i size, Format format) :
-    //context_(context),
+GlRenderbuffer::GlRenderbuffer(GlRenderContext& context, Vector2i size, Format format) :
+    context_(context),
     format_(format),
     glObject_(0),
     size_(size)
 {
     assert(format == FORMAT_DEPTH16);
 
+}
+
+GlRenderbuffer::~GlRenderbuffer()
+{
+    if (glObject_)
+    {
+        GLuint object = glObject_;
+        glObject_ = 0;
+
+        context_.dispatchBg([object](GlFunctions const& gl)
+            {
+                gl.glDeleteRenderbuffers(1, &object);
+            });
+    }
 }
 
 GLuint GlRenderbuffer::getGlObject() const
@@ -23,6 +37,9 @@ GLuint GlRenderbuffer::getGlObject() const
 
 void GlRenderbuffer::makeCurrent(Dispatched&, GlFunctions const& gl)
 {
+    if (glObject_)
+        return;
+
     gl.glGenRenderbuffers(1, &glObject_);
     gl.glBindRenderbuffer(GL_RENDERBUFFER, glObject_);
 

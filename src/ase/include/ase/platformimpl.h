@@ -31,6 +31,8 @@ namespace ase
         }
 
         virtual Window makeWindow(Vector2i size) = 0;
+        virtual Window makeOffscreenWindow(RenderContext& context,
+                Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
         virtual void run(RenderContext& renderContext,

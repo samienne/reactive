@@ -21,6 +21,11 @@ Window Platform::makeWindow(Vector2i size)
     return d()->makeWindow(size);
 }
 
+Window Platform::makeOffscreenWindow(RenderContext& context, Vector2i size)
+{
+    return d()->makeOffscreenWindow(context, size);
+}
+
 void Platform::handleEvents()
 {
     d()->handleEvents();

@@ -1,6 +1,6 @@
 # bqui — agent notes
 
-*Last verified against `f52d7f2` (2026-07-23), for the window-handle rework.*
+*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework.*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -66,7 +66,12 @@ any thread; the widget waits there for the run loop.
 id. A `WindowImpl` (which absorbed the old `WindowGlue`) owns everything for one
 window: its `ase::Window`, painter, per-window signal contexts, input state, and
 the **widget** it was mounted with. It holds the window's `WindowData` too, but
-not its identity — the data outlives the impl. Each frame the loop **syncs** the
+not its identity — the data outlives the impl. Under `App::headless` the
+`ase::Window` is an `ase::OffscreenWindow` — the real backend rendering into an
+FBO with nothing shown — but the impl treats it as an ordinary window: same
+`clearWindow`/`paintToWindow`/`presentWindow` path, driven by the same platform
+run loop (present is a no-op for an offscreen window). Each frame the loop
+**syncs** the
 impls to the collection with a plain O(n) set-diff: it reads `getWindows()`,
 drains `pendingMounts_` and mounts a `WindowImpl` for any window in the
 collection that has none, and tears down any impl whose window has left. A window

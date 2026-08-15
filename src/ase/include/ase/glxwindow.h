@@ -61,10 +61,11 @@ namespace ase
         GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
-        std::optional<std::chrono::microseconds> frame(Frame const& frame);
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
         void handleEvents(std::vector<_XEvent> const& events);
 
-        bool needsRedraw() const;
+        bool needsRedraw() const override;
 
         // From WindowImpl
         void setVisible(bool value) override;
@@ -93,6 +94,17 @@ namespace ase
         void setKeyCallback(std::function<void(KeyEvent const&)> cb) override;
         void setHoverCallback(std::function<void(HoverEvent const&)> cb) override;
         void setTextCallback(std::function<void(TextEvent const&)> cb) override;
+
+        void injectPointerButtonEvent(unsigned int pointerIndex,
+                unsigned int buttonIndex, Vector2f pos,
+                ButtonState buttonState) override;
+        void injectPointerMoveEvent(unsigned int pointerIndex,
+                Vector2f pos) override;
+        void injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
+                bool state) override;
+        void injectKeyEvent(KeyState keyState, KeyCode keyCode,
+                uint32_t modifiers, std::string text) override;
+        void injectTextEvent(std::string text) override;
 
         Vector2i getResolution() const;
 

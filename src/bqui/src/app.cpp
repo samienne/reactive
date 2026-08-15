@@ -1,3 +1,6 @@
+// std::getenv is portable and read-only here; silence MSVC's _dupenv_s nudge.
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "bqui/app.h"
 
 #include "bqui/window.h"
@@ -48,9 +51,27 @@
 #include <utility>
 #include <vector>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 namespace bqui
 {
+
+namespace
+{
+    // A truthy env var: set and neither empty nor "0".
+    bool envFlag(char const* name)
+    {
+        char const* value = std::getenv(name);
+        return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
+    }
+
+    // Headless when REACTIVE_HEADLESS is truthy.
+    bool wantsHeadlessEnv()
+    {
+        return envFlag("REACTIVE_HEADLESS");
+    }
+} // anonymous namespace
 
 class BQUI_EXPORT AppDeferred :
     public std::enable_shared_from_this<AppDeferred>
@@ -87,6 +108,10 @@ public:
     // of the run so add/removeWindow can wake the loop. Guarded by
     // pendingMutex_, and nulled before the platform is destroyed.
     ase::Platform* runningPlatform_ = nullptr;
+
+    // Forces headless (no visible windows, offscreen rendering) on or off; unset
+    // defers to the REACTIVE_HEADLESS environment variable.
+    std::optional<bool> headlessOverride_;
 
     std::vector<btl::shared<WindowImpl>> windowImpls_;
 };
@@ -209,6 +234,12 @@ App& App::addWindow(Window window, widget::AnyWidget widget)
     return *this;
 }
 
+App& App::headless(bool headless)
+{
+    d()->headlessOverride_ = headless;
+    return *this;
+}
+
 void App::removeWindow(btl::UniqueId id)
 {
     d()->removeWindow(id);
@@ -240,6 +271,8 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
+    bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
+
     ase::Platform platform = ase::makeDefaultPlatform();
 
     // Published for the run's duration so add/removeWindow can wake the loop;
@@ -320,8 +353,11 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                     });
 
             if (present && !mounted)
+            {
                 next.push_back(std::make_shared<WindowImpl>(platform, context,
-                            std::move(mount.first), std::move(mount.second)));
+                            std::move(mount.first), std::move(mount.second),
+                            headless));
+            }
         }
 
         // A frame that drew a departing window can still be in flight, and it
