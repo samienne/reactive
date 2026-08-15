@@ -37,14 +37,17 @@ are in the top-level `docs/`.
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
-- **Offscreen ≠ dummy.** `Platform::makeOffscreenWindow` gives an
-  `OffscreenWindow` (backend-agnostic, `src/offscreenwindow.cpp`): the *real*
-  backend rendering into an FBO built from a `RenderContext`, shown nowhere.
-  This is how the real GLX/WGL backend runs headless, distinct from the no-GL
-  dummy backend. The real GLX/WGL backends keep **one render list** of all their
-  windows (real and offscreen) — the `needsRedraw()`/`frame()` surface on
-  `WindowImpl` — which the run loop draws uniformly (the dummy loop is
-  frame-callback driven and keeps none). **Event routing is separate and backend-specific**
+- **Offscreen ≠ dummy.** `OffscreenWindow` (backend-agnostic,
+  `src/offscreenwindow.cpp`) is the *real* backend rendering into an FBO built
+  from a `RenderContext`, shown nowhere — how the real GLX/WGL backend runs
+  headless, distinct from the no-GL dummy backend. Its FBO needs the render
+  context, which a dependent (bqui) already holds, so the dependent constructs
+  the window and calls `Platform::registerRenderWindow` to hand the platform a
+  weak reference; `makeWindow`, by contrast, builds the windows that need OS
+  handles the platform owns. Either way the real GLX/WGL backends keep **one
+  render list** of all their windows (real and offscreen) — the
+  `needsRedraw()`/`frame()` surface on `WindowImpl` — which the run loop draws
+  uniformly (the dummy loop is frame-callback driven and keeps none). **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
   alone. `present` for an offscreen window is a no-op via the

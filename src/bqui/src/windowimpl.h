@@ -22,6 +22,7 @@
 #include <avg/rendering.h>
 
 #include <ase/window.h>
+#include <ase/offscreenwindow.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
 #include <ase/keyevent.h>
@@ -61,9 +62,13 @@ public:
         memoryStatistics_(&memoryPool_),
         memory_(&memoryStatistics_),
         // A headless run draws to an offscreen window: same real backend, no
-        // OS window shown. The rest of the impl treats it as an ordinary window.
+        // OS window shown. bqui builds it here because the FBO needs the render
+        // context bqui holds; the rest of the impl treats it as an ordinary
+        // window. A real window comes from the platform, which owns its OS
+        // handles.
         aseWindow(headless
-                ? platform.makeOffscreenWindow(context, ase::Vector2i(800, 600))
+                ? ase::Window(std::make_shared<ase::OffscreenWindow>(
+                        context, ase::Vector2i(800, 600)))
                 : platform.makeWindow(ase::Vector2i(800, 600))),
         context_(context),
         windowData_(window.data()),
@@ -77,6 +82,11 @@ public:
         titleSignal_(windowData_->getTitle()),
         drawing_(memory_)
     {
+        // An offscreen window is made here, not by the platform, so hand it to
+        // the platform to drive from its run loop like any other window.
+        if (headless)
+            platform.registerRenderWindow(aseWindow);
+
         aseWindow.setVisible(true);
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 

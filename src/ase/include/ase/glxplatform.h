@@ -44,8 +44,7 @@ namespace ase
 
         // From Platform
         Window makeWindow(Vector2i size) override;
-        Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) override;
+        void registerRenderWindow(std::weak_ptr<WindowImpl> window) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
         void run(RenderContext& renderContext,
