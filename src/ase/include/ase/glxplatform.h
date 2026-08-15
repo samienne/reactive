@@ -11,7 +11,6 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
-#include <atomic>
 #include <functional>
 #include <string>
 #include <mutex>

@@ -11,7 +11,6 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
-#include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
