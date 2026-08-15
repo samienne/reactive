@@ -1,4 +1,5 @@
 libbquisrc = [
+  'src/remote/introspectionjson.cpp',
   'src/remote/streamtransport.cpp',
   'src/remote/pipetransport.cpp',
   'src/remote/pipelistener.cpp',
@@ -107,6 +108,7 @@ libbquidep = declare_dependency(
 bquitestsrc = [
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
+  'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
