@@ -312,6 +312,15 @@ void RemotePlatformImpl::requestFrame()
     inner_.requestFrame();
 }
 
+RemoteWindows RemotePlatformImpl::liveWindows() const
+{
+    RemoteWindows windows;
+    windows.reserve(registry_.size());
+    for (RemoteWindowImpl* window : registry_)
+        windows.push_back(*window);
+    return windows;
+}
+
 void RemotePlatformImpl::unregisterWindow(RemoteWindowImpl* window)
 {
     registry_.erase(

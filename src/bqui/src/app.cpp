@@ -28,6 +28,7 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
+#include <ase/session.h>
 #include <ase/dummyplatform.h>
 
 #include <btl/future/promise.h>
@@ -452,16 +453,50 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     DBG("Reactive running...");
 
-    platform.run(context, [&](ase::Frame const& aseFrame) -> bool
+    // The per-frame step App drives, whichever driver runs it: advance the
+    // running signal by the frame's dt, reconcile the live windows, and report
+    // whether the app should keep running.
+    auto frameCallback = [&](ase::Frame const& aseFrame) -> bool
+    {
+        bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+
+        runningContext.update(frame);
+
+        sync();
+
+        return runningContext.evaluate<0>().get<0>();
+    };
+
+    if (remoteEndpoint.empty())
+    {
+        // Local backend: App builds the platform's Session and drives it until
+        // the frame callback returns false.
+        auto session = platform.makeSession(context);
+        session.run(frameCallback);
+    }
+    else
+    {
+        // Remote: the client drives frames over the inspector protocol, so App
+        // supplies the two hooks a session borrows -- one fused app frame per
+        // client-supplied dt, and adapters over the live window registry -- and
+        // serves runSession in place of a native loop.
+        auto& remotePlatform = platform.getImpl<remote::RemotePlatformImpl>();
+
+        std::chrono::microseconds appTime{ 0 };
+
+        remote::RemoteApp remoteApp;
+        remoteApp.reconcile = [&](std::chrono::microseconds dt)
         {
-            bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+            appTime += dt;
+            frameCallback(ase::Frame{ appTime, dt });
+        };
+        remoteApp.liveWindows = [&remotePlatform]
+        {
+            return remotePlatform.liveWindows();
+        };
 
-            runningContext.update(frame);
-
-            sync();
-
-            return runningContext.evaluate<0>().get<0>();
-        });
+        remote::runSession(remoteApp, remoteEndpoint);
+    }
 
     DBG("Shutting down...");
 

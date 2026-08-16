@@ -151,6 +151,11 @@ namespace bqui::remote
         ase::Session makeSession(ase::RenderContext& context) override;
         void requestFrame() override;
 
+        /** @brief Adapters over the live window registry, rebuilt on each call;
+         * the window set a remote session drives. A returned set is valid only
+         * until the next call. */
+        RemoteWindows liveWindows() const;
+
         /** @brief Drop a window from the live registry; called by the window's
          * destructor as it unmounts. */
         void unregisterWindow(RemoteWindowImpl* window);
