@@ -1,21 +1,24 @@
 # Design: the render session, and where `Platform::run` belongs
 
-> **Status: partially built (Stage 2 landed on `session-refactor`).** An
-> `ase::Session` now owns the frame-loop body and GLX, WGL and the dummy backend
-> all drive frames through it; the fuller model below (one context per session,
-> `Platform` losing `run`, offscreen collapsing to one surface) is still the
-> target. See [`render-session-plan.md`](render-session-plan.md) for what each
-> stage does. Sits above [`runloop.md`](runloop.md), which designs the loop
+> **Status: partially built (Stages 2-4 landed on `session-refactor`, one piece
+> of Stage 4 deferred).** An `ase::Session` owns the frame-loop body and GLX, WGL
+> and the dummy backend all drive frames through it; `Platform::run` is gone and
+> `App` picks the driver (local `Session` vs remote `runSession`). Offscreen has
+> collapsed to `makeWindow(context, size, headless)`, and `needsRedraw()`/`frame()`
+> are off the public window surface (Session-private virtuals). Still the target:
+> one context per session, and the render list *owned by* the Session. See
+> [`render-session-plan.md`](render-session-plan.md) for what each stage does and
+> what remains. Sits above [`runloop.md`](runloop.md), which designs the loop
 > *mechanism* this note builds on.
 >
 > What landed so far: the Session binds the platform's `RunLoop` + `RenderContext`
 > + its render list and drives frames (clock/cadence, GPU backpressure, on-demand
-> re-arm). It is still **constructed inside `Platform::run`**, which stays as a
-> thin delegator so the remote decorator can override it; the render list still
-> lives on each platform (its `makeWindow` registers into it before the Session
-> exists), driven by reference. The dummy is "a Session with a no-op render path":
-> it registers no surface, and its `maxFps`/`maxFrames` are the Session's headless
-> pacing in place of an OS event source.
+> re-arm). `App` constructs and runs it (App owns the session). The **render list
+> still lives on each platform** (its `makeWindow` registers into it, and GLX
+> couples that to its X lock), driven by reference — moving ownership onto the
+> Session is the deferred piece of Stage 4. The dummy is "a Session with a no-op
+> render path": it registers no surface, and its `maxFps`/`maxFrames` are the
+> Session's headless pacing in place of an OS event source.
 
 ## Purpose
 

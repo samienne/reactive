@@ -173,6 +173,39 @@ live MCP inject/introspect check.
 
 ## Stage 4 — Unify offscreen + shrink the public window interface
 
+> **Partially landed on `session-refactor`.**
+> - **Public window surface shrunk (done).** `needsRedraw()`/`frame()` are off the
+>   public `ase::WindowImpl`/`Window` API: private virtuals reached through
+>   `friend class Session`, with the concrete windows' overrides narrowed to match.
+>   `present()` stays public (Stage 1).
+> - **Offscreen entry point unified (done).** `makeWindow(size)` +
+>   `makeOffscreenWindow(RenderContext&, size)` collapsed to one
+>   `makeWindow(RenderContext& context, Vector2i size, bool headless)` on
+>   `Platform`/`PlatformImpl`, every backend and the remote decorator; `headless`
+>   builds the `OffscreenWindow` over the context's FBO. The context is now passed
+>   for on-screen windows too (an ignored parameter on GL, but the explicit
+>   window-to-context binding the design wants). The entry point stays a
+>   `session.makeWindow` shorthand for later — see deferred.
+> - **Render list onto the Session: DEFERRED.** Moving `renderWindows_` ownership
+>   onto the Session and routing creation through `session.makeWindow` was **not**
+>   landed. Two blockers, both anticipated by the stage's guard:
+>   1. *Remote path.* Creation runs through `bqui::WindowImpl` in **both** local
+>      and remote modes, but remote drives frames via `runSession`, not a `Session`
+>      (`RemotePlatformImpl::makeSession` forwards to the *inner* platform, Stage 3).
+>      A `session.makeWindow` reachable from `App::sync` in remote mode would either
+>      not exist or be bound to the wrong (inner) platform, yielding real windows
+>      instead of `RemoteWindowImpl`s. Keeping it behaviour-identical needs a
+>      remote session-as-factory rework, past a mechanical move.
+>   2. *CI-dark.* The render list is populated **only** by the real GLX/WGL
+>      backends — the dummy registers no drawable surface, so apptest/sessiontest
+>      never exercise it. GLX is compile-dark on Windows and its registration is
+>      coupled to the X lock; the move is verifiable here on WGL only, not GLX,
+>      which invariant 1 warns against for a structural loop change.
+> - **Verified:** clang-cl build; `meson test` (all four suites green, incl.
+>   apptest `AppWindows` + `sessiontest dynamicWindowsOpenAndCloseById`); real-GL
+>   WGL `bquiheadlesstest` (offscreen via `makeWindow(headless=true)`, frames=9
+>   rc=0) and `testapp1` (on-screen real window). GLX is CI-Linux-only.
+
 **Goal:** one window entry point; render-polling off the public window surface.
 
 **Touches:** collapse `makeOffscreenWindow(RenderContext&, size)` into

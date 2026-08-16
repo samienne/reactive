@@ -37,14 +37,17 @@ are in the top-level `docs/`.
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
-- **Offscreen ≠ dummy.** `Platform::makeOffscreenWindow` gives an
-  `OffscreenWindow` (backend-agnostic, `src/offscreenwindow.cpp`): the *real*
-  backend rendering into an FBO built from a `RenderContext`, shown nowhere.
-  This is how the real GLX/WGL backend runs headless, distinct from the no-GL
-  dummy backend. The real GLX/WGL backends keep **one render list** of all their
-  windows (real and offscreen) — the `needsRedraw()`/`frame()` surface on
-  `WindowImpl` — which the run loop draws uniformly (the dummy loop is
-  frame-callback driven and keeps none). **Event routing is separate and backend-specific**
+- **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
+  `headless` gives an `OffscreenWindow` (backend-agnostic,
+  `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
+  the `RenderContext`, shown nowhere. This is how the real GLX/WGL backend runs
+  headless, distinct from the no-GL dummy backend; the one entry point makes an
+  on-screen window when `headless` is false. The real GLX/WGL backends keep **one
+  render list** of all their windows (real and offscreen) — the render-polling
+  surface the `Session` drives, `needsRedraw()`/`frame()`, now **private virtuals
+  on `WindowImpl` reached through `friend class Session`**, not part of the public
+  window API — which the Session draws uniformly (the dummy registers no drawable
+  surface and keeps none). **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
   alone. `present` is a **surface operation, not a render command**: a

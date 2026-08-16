@@ -17,7 +17,7 @@ registry) and serves `runSession`. Either branch drives the same per-frame
 callback.
 
 Remote mode still uses a `RemotePlatform` decorator, but only to **wrap windows**:
-`makeWindow`/`makeOffscreenWindow` return `RemoteWindowImpl` (an `ase::WindowImpl`
+`makeWindow` returns `RemoteWindowImpl` (an `ase::WindowImpl`
 that is also a `remote::RemoteWindow`, which forwards the handle surface —
 including the `getImplOfType` walk — to a real inner window, *captures* the frame
 callback since the inner loop never runs remotely, and is addressed by the
