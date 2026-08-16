@@ -148,6 +148,7 @@ namespace bqui::remote
         ase::RenderContext makeRenderContext() override;
         void run(ase::RenderContext& renderContext,
                 std::function<bool(ase::Frame const&)> frameCallback) override;
+        ase::Session makeSession(ase::RenderContext& context) override;
         void requestFrame() override;
 
         /** @brief Drop a window from the live registry; called by the window's

@@ -40,6 +40,12 @@ namespace ase
         virtual void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) = 0;
 
+        /** @brief Build the Session that drives this backend's frames: its render
+         * list, event pump and wake source bundled with `context`. The caller
+         * owns the returned Session and runs it; a headless backend bounds it by
+         * its frame budget. */
+        virtual Session makeSession(RenderContext& context) = 0;
+
         /** @brief Wake the frame loop so it runs a tick and re-evaluates. Safe to
          * call off the loop thread; the atomic coalesces a burst of requests into
          * a single posted task. A decorator that drives frames itself overrides

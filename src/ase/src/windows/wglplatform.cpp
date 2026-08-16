@@ -323,5 +323,17 @@ void WglPlatform::run(RenderContext& renderContext,
     DBG("Shutting down WglPlatform...");
 }
 
+Session WglPlatform::makeSession(RenderContext& context)
+{
+    Session::Config config;
+    config.handleEvents = [this] { handleEvents(); };
+    // Wake the loop on the thread message queue; the Session drains it through
+    // handleEvents.
+    config.wakeSource = btl::fromMessageQueue();
+    config.frameStep = std::chrono::microseconds(16667);
+
+    return Session(*this, context, renderWindows_, std::move(config));
+}
+
 } // namespace ase
 

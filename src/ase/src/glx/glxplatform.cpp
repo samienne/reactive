@@ -387,6 +387,19 @@ void GlxPlatform::run(RenderContext& renderContext,
     DBG("Shutting down GlxPlatform..");
 }
 
+Session GlxPlatform::makeSession(RenderContext& context)
+{
+    int const targetFps = 60;
+
+    Session::Config config;
+    config.handleEvents = [this] { handleEvents(); };
+    // Wake the loop on X input; the Session drains it through handleEvents.
+    config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
+    config.frameStep = std::chrono::microseconds(1000000 / targetFps);
+
+    return Session(*this, context, d()->renderWindows_, std::move(config));
+}
+
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
         GLXFBConfig& config, int* contextAttribs)
 {

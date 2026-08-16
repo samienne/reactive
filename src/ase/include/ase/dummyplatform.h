@@ -26,6 +26,7 @@ namespace ase
         RenderContext makeRenderContext() override;
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) override;
+        Session makeSession(RenderContext& context) override;
 
         /** @brief Cap the headless frame rate. Zero (the default) leaves the loop
          * uncapped: a tick runs as soon as requestFrame() wakes it. A positive

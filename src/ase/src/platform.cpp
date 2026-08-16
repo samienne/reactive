@@ -3,6 +3,7 @@
 #include "window.h"
 #include "rendercontext.h"
 #include "platformimpl.h"
+#include "session.h"
 
 namespace ase
 {
@@ -40,6 +41,11 @@ void Platform::run(RenderContext& renderContext,
         std::function<bool(Frame const&)> frameCallback)
 {
     d()->run(renderContext, std::move(frameCallback));
+}
+
+Session Platform::makeSession(RenderContext& context)
+{
+    return d()->makeSession(context);
 }
 
 void Platform::requestFrame()

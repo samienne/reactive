@@ -44,6 +44,7 @@ namespace ase
         RenderContext makeRenderContext() override;
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback) override;
+        Session makeSession(RenderContext& context) override;
 
     private:
         HWND dummyWindow_ = nullptr;

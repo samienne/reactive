@@ -14,6 +14,7 @@ namespace ase
     class Window;
     class RenderContext;
     class PlatformImpl;
+    class Session;
     struct Frame;
 
     class ASE_EXPORT Platform
@@ -34,6 +35,11 @@ namespace ase
         RenderContext makeRenderContext();
         void run(RenderContext& renderContext,
                 std::function<bool(Frame const&)> frameCallback);
+
+        /** @brief Build the Session driving this platform's frames, bound to
+         * `context`; reaches through any decorator to the backend that owns a
+         * frame loop. */
+        Session makeSession(RenderContext& context);
         void requestFrame();
 
         /** @brief The platform's implementation as concrete type `T`, reached

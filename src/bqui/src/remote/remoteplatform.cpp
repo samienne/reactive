@@ -1,6 +1,7 @@
 #include "remote/remoteplatform.h"
 
 #include <ase/rendercontext.h>
+#include <ase/session.h>
 #include <ase/window.h>
 
 #include <algorithm>
@@ -295,6 +296,15 @@ void RemotePlatformImpl::run(ase::RenderContext&,
     };
 
     runSession(app, endpoint_);
+}
+
+ase::Session RemotePlatformImpl::makeSession(ase::RenderContext& context)
+{
+    // A decorator forward: the remote path drives frames through runSession, not
+    // a Session, so the App never asks the remote platform for one -- but the
+    // interface still requires it, and forwarding keeps the wrapped backend's
+    // own Session reachable, like every other unspecialised call here.
+    return inner_.makeSession(context);
 }
 
 void RemotePlatformImpl::requestFrame()
