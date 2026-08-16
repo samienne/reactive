@@ -49,12 +49,11 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
 
 Session DummyPlatform::makeSession(RenderContext& context)
 {
-    // The dummy backend is a Session with a no-op render path: it registers no
-    // drawable surface, so the shared tick runs its clock, backpressure and
-    // re-arm exactly as a real backend would, only without any drawing (the
-    // dummy render queue completes each frame's fence at once). With no OS event
-    // source to block on, maxFrames self-paces a bounded headless run and maxFps
-    // caps it; both zero leaves the loop on-demand, woken by requestFrame().
+    // The dummy backend registers no drawable surface (the dummy render queue
+    // completes each frame's fence at once). With no OS event source to block
+    // on, maxFrames and maxFps stand in: maxFrames self-paces a bounded headless
+    // run and maxFps caps it; both zero leaves the loop on-demand, woken by
+    // requestFrame().
     Session::Config config;
     config.handleEvents = [this] { handleEvents(); };
     config.frameStep = std::chrono::microseconds(16667);

@@ -264,10 +264,8 @@ ase::RenderContext RemotePlatformImpl::makeRenderContext()
 
 ase::Session RemotePlatformImpl::makeSession(ase::RenderContext& context)
 {
-    // A decorator forward: the remote path drives frames through runSession, not
-    // a Session, so the App never asks the remote platform for one -- but the
-    // interface still requires it, and forwarding keeps the wrapped backend's
-    // own Session reachable, like every other unspecialised call here.
+    // Unused remotely -- the remote path drives frames through runSession;
+    // forwards so the interface contract holds.
     return inner_.makeSession(context);
 }
 

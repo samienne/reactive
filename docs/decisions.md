@@ -1,6 +1,6 @@
 # Decisions
 
-*Last verified against `agentic-rebuild` (2026-08-15).*
+*Last verified against `ba1da4a` (2026-08-16).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -36,6 +36,16 @@ removing. The bqui `WindowImpl` still self-binds its identity and introspection
 into the decorator by walking the handle for a `RemoteWindowImpl`
 (`getImplOfType`), which finds nothing on a real backend window, so `App` never
 wires the two together.
+
+## `present` returns `PresentStatus`, not `void`
+
+Present is modelled as a surface operation on the render queue, sequenced behind
+the frame's draws, and it returns a `PresentStatus` rather than `void`.
+
+**Why:** a backend whose present can fail (a lost swapchain that must be
+recreated) needs a channel to report it. Giving present a status from the start
+avoids retrofitting one at every call site later. GL cannot fail this way, so it
+always reports `Ok`.
 
 ## `getImpl<T>` is a checked accessor over a `getImplOfType` primitive
 

@@ -520,8 +520,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
     checkFences(d, gl);
 
-    // Reset the per-frame binding cache now that this queue's draws are done;
-    // present is a separate surface operation and no longer carries this.
+    // Reset the per-frame binding cache once this queue's draws are dispatched.
     endFrame();
 }
 

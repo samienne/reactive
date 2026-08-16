@@ -109,10 +109,8 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
             {
                 if (auto window = weakWindow.lock())
                 {
-                    // The surface draws into whatever target it acquires for this
-                    // frame; the Session holds no framebuffer of its own, so a
-                    // later beginFrame()/acquire() hook slots in without
-                    // reshaping this step.
+                    // The surface draws into the target it acquires; the Session
+                    // holds no framebuffer of its own.
                     if (window->needsRedraw())
                         window->frame(frame);
                 }

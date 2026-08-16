@@ -25,9 +25,8 @@ namespace ase
         void finish();
         void submit(CommandBuffer&& commandBuffer);
 
-        /** @brief Present `window` behind this queue's submitted draws. Returns
-         * a status so a backend whose present can fail is not a `void`-return
-         * retrofit; GL always reports `Ok`. */
+        /** @brief Present `window` behind this queue's submitted draws; GL
+         * always reports `Ok`. */
         PresentStatus present(Window& window);
 
         template <class T>

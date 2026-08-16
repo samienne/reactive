@@ -16,7 +16,7 @@ namespace ase
         virtual void submit(CommandBuffer&& renderQueue) = 0;
 
         /** @brief Sequence a present of `window` relative to this queue's
-         * submitted draws. The GL-free seam behind `RenderQueue::present`. */
+         * submitted draws. */
         virtual PresentStatus present(Window& window) = 0;
     };
 } // namespace ase

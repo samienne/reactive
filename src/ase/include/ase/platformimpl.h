@@ -43,9 +43,8 @@ namespace ase
         virtual Session makeSession(RenderContext& context) = 0;
 
         /** @brief Wake the frame loop so it runs a tick and re-evaluates. Safe to
-         * call off the loop thread; the atomic coalesces a burst of requests into
-         * a single posted task. A decorator that drives frames itself overrides
-         * this. */
+         * call off the loop thread. A decorator that drives frames itself
+         * overrides this. */
         virtual void requestFrame()
         {
             if (!wakePosted_.exchange(true))
