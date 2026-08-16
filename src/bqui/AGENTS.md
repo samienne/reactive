@@ -92,16 +92,18 @@ names a live app, and `removeWindow` clears that reference so a closed window ca
 be opened again. Without that a window could be open in one app and closable only
 from another.
 
-**Remote mode is a platform decorator, not an `App` branch.** With a remote
-endpoint set, `runUntil` wraps the chosen platform in `makeRemotePlatform`
-(`src/remote/remoteplatform.h`) before its single `platform.run` tail; the
-decorator's windows are `RemoteWindowImpl` (an `ase::WindowImpl` that is also a
-`remote::RemoteWindow`), and its `run` drives `runSession` with the app's frame
-callback as the session's per-frame reconcile. `App` itself knows nothing about
-the session — it only picks and runs a platform. The `WindowImpl` self-binds its
-id and introspection into the decorator from its constructor by walking the
-handle for a `RemoteWindowImpl` (`getImplOfType`), which finds nothing on a real
-backend window (see `docs/decisions.md`).
+**Remote mode is an `App` branch over a window-wrapping decorator.** With a
+remote endpoint set, `runUntil` wraps the chosen platform in `makeRemotePlatform`
+(`src/remote/remoteplatform.h`) so its windows are `RemoteWindowImpl` (an
+`ase::WindowImpl` that is also a `remote::RemoteWindow`); the decorator only wraps
+windows and forwards — it does not drive frames. `App::runUntil` then branches on
+the endpoint: locally it builds the platform's `Session`
+(`platform.makeSession(context)`) and runs it, remotely it builds a `RemoteApp`
+over the decorator's `liveWindows` and serves `runSession`, with the app's
+per-frame callback as the session's reconcile. The `WindowImpl` self-binds its id
+and introspection into the decorator from its constructor by walking the handle
+for a `RemoteWindowImpl` (`getImplOfType`), which finds nothing on a real backend
+window (see `docs/decisions.md`).
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and

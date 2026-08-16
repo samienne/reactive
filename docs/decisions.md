@@ -5,26 +5,37 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
-## Remote/inspector driving lives in a `RemotePlatform` decorator, not in `App`
+## `App` owns the render session and picks the frame driver
 
-`App` is remote-agnostic: it picks a platform, wraps it in `makeRemotePlatform`
-when an endpoint is set, and ends `runUntil` with the one tail every mode shares
-— `platform.run(context, frameCallback)`. A bqui-level `ase::PlatformImpl`
-decorator owns every remote concern. Its windows are `RemoteWindowImpl`, an
-`ase::WindowImpl` that is also a `remote::RemoteWindow`: it forwards the handle
-surface (including the `getImplOfType` decorator walk) to a real inner window but
-*captures* the frame callback (the inner loop never runs remotely) and lets the
-session address it by id. `RemotePlatformImpl::run` builds the `RemoteApp` —
-`reconcile` plays the app's frame callback on the client's clock, `liveWindows`
-adapts its window registry — and serves `runSession` unchanged.
+`App::runUntil` drives frames itself; there is no `Platform::run` to delegate to.
+It picks a platform, then branches on the remote endpoint. Locally it builds the
+backend's `Session` through `Platform::makeSession(context)` — a factory that
+bundles the platform's render list, event pump and wake source with the context —
+and runs it. Remotely it builds the `RemoteApp` (`reconcile` plays the app's
+frame callback on the client's clock, `liveWindows` adapts the decorator's window
+registry) and serves `runSession`. Either branch drives the same per-frame
+callback.
 
-**Why:** the frame loop is the platform's job, and remote driving is just a
-different loop over the same window seam. Folding it into a platform decorator
-keeps `App` a plain pick-and-run, deletes the second `runUntil` code path, and
-leaves `session.cpp` a pure protocol server with no `App` dependency. The bqui
-`WindowImpl` self-binds its identity and introspection into the decorator by
-walking the handle for a `RemoteWindowImpl` (`getImplOfType`), which finds
-nothing on a real backend window, so `App` never wires the two together.
+Remote mode still uses a `RemotePlatform` decorator, but only to **wrap windows**:
+`makeWindow`/`makeOffscreenWindow` return `RemoteWindowImpl` (an `ase::WindowImpl`
+that is also a `remote::RemoteWindow`, which forwards the handle surface —
+including the `getImplOfType` walk — to a real inner window, *captures* the frame
+callback since the inner loop never runs remotely, and is addressed by the
+session by id), and every other call forwards to the inner platform. The
+decorator no longer drives frames or holds the endpoint; that moved up to `App`,
+which is what decides to wrap the platform in the first place.
+
+**Why:** the target re-layering is "App owns a session" (see
+[`design/render-session.md`](design/render-session.md)). Once the frame loop is a
+`Session` the platform hands over, the driver choice — a local `Session` vs the
+remote `runSession` — belongs next to the endpoint `App` already reads. This
+reverses the earlier interim decision that folded remote driving into the
+decorator to avoid a second `runUntil` path: that decorator kept a `run` override
+which ignored its `RenderContext`, a hack the `Session` split made worth
+removing. The bqui `WindowImpl` still self-binds its identity and introspection
+into the decorator by walking the handle for a `RemoteWindowImpl`
+(`getImplOfType`), which finds nothing on a real backend window, so `App` never
+wires the two together.
 
 ## `getImpl<T>` is a checked accessor over a `getImplOfType` primitive
 
