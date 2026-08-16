@@ -349,7 +349,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // picks a platform and runs it -- the remote concern lives in the decorator.
     ase::Platform platform = remoteEndpoint.empty()
         ? std::move(inner)
-        : remote::makeRemotePlatform(std::move(inner), remoteEndpoint);
+        : remote::makeRemotePlatform(std::move(inner));
 
     // Published for the run's duration so add/removeWindow can wake the loop;
     // declared after `platform` so it is nulled under the lock before the

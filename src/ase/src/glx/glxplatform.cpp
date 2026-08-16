@@ -368,25 +368,6 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-void GlxPlatform::run(RenderContext& renderContext,
-        std::function<bool(Frame const&)> frameCallback)
-{
-    DBG("Starting GlxPlatform::run");
-
-    int const targetFps = 60;
-
-    Session::Config config;
-    config.handleEvents = [this] { handleEvents(); };
-    // Wake the loop on X input; the Session drains it through handleEvents.
-    config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
-    config.frameStep = std::chrono::microseconds(1000000 / targetFps);
-
-    Session session(*this, renderContext, d()->renderWindows_, std::move(config));
-    session.run(std::move(frameCallback));
-
-    DBG("Shutting down GlxPlatform..");
-}
-
 Session GlxPlatform::makeSession(RenderContext& context)
 {
     int const targetFps = 60;

@@ -130,15 +130,15 @@ namespace bqui::remote
      * inspector protocol instead of a native frame loop.
      *
      * Wraps a real platform: `makeWindow` hands back a `RemoteWindowImpl` over an
-     * inner window (and tracks it in a live registry), the other handle calls
-     * forward to the inner platform, and `run` serves a `runSession` whose frames
-     * come from the client rather than a display. The frame callback the app
-     * passes to `run` is the session's per-frame reconcile.
+     * inner window (and tracks it in a live registry), and the other handle calls
+     * forward to the inner platform. Driving frames is not the decorator's job --
+     * `App` builds a `RemoteApp` over `liveWindows` and serves `runSession`; the
+     * decorator only supplies the window adapters the session addresses.
      */
     class RemotePlatformImpl : public ase::PlatformImpl
     {
     public:
-        RemotePlatformImpl(ase::Platform inner, std::string endpoint);
+        explicit RemotePlatformImpl(ase::Platform inner);
 
         ase::PlatformImpl* getImplOfType(std::type_index type) override;
         ase::Window makeWindow(ase::Vector2i size) override;
@@ -146,8 +146,6 @@ namespace bqui::remote
                 ase::Vector2i size) override;
         void handleEvents() override;
         ase::RenderContext makeRenderContext() override;
-        void run(ase::RenderContext& renderContext,
-                std::function<bool(ase::Frame const&)> frameCallback) override;
         ase::Session makeSession(ase::RenderContext& context) override;
         void requestFrame() override;
 
@@ -162,12 +160,10 @@ namespace bqui::remote
 
     private:
         ase::Platform inner_;
-        std::string endpoint_;
         std::vector<RemoteWindowImpl*> registry_;
-        std::chrono::microseconds appTime_ = std::chrono::microseconds(0);
     };
 
-    /** @brief Wrap `inner` so its windows are driven remotely over `endpoint`. */
-    BQUI_EXPORT ase::Platform makeRemotePlatform(ase::Platform inner,
-            std::string endpoint);
+    /** @brief Wrap `inner` so its windows are exposed to a remote session; the
+     * caller (App) owns the endpoint and serves the session. */
+    BQUI_EXPORT ase::Platform makeRemotePlatform(ase::Platform inner);
 } // namespace bqui::remote

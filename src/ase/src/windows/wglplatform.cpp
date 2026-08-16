@@ -305,24 +305,6 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
-void WglPlatform::run(RenderContext& renderContext,
-        std::function<bool(Frame const&)> frameCallback)
-{
-    DBG("Starting WglPlatform::run");
-
-    Session::Config config;
-    config.handleEvents = [this] { handleEvents(); };
-    // Wake the loop on the thread message queue; the Session drains it through
-    // handleEvents.
-    config.wakeSource = btl::fromMessageQueue();
-    config.frameStep = std::chrono::microseconds(16667);
-
-    Session session(*this, renderContext, renderWindows_, std::move(config));
-    session.run(std::move(frameCallback));
-
-    DBG("Shutting down WglPlatform...");
-}
-
 Session WglPlatform::makeSession(RenderContext& context)
 {
     Session::Config config;

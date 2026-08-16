@@ -230,10 +230,8 @@ void RemoteWindowImpl::advance(std::chrono::microseconds dt)
         frameCallback_(ase::Frame{ remoteTime_, dt });
 }
 
-RemotePlatformImpl::RemotePlatformImpl(ase::Platform inner,
-        std::string endpoint) :
-    inner_(std::move(inner)),
-    endpoint_(std::move(endpoint))
+RemotePlatformImpl::RemotePlatformImpl(ase::Platform inner) :
+    inner_(std::move(inner))
 {
 }
 
@@ -272,32 +270,6 @@ ase::RenderContext RemotePlatformImpl::makeRenderContext()
     return inner_.makeRenderContext();
 }
 
-void RemotePlatformImpl::run(ase::RenderContext&,
-        std::function<bool(ase::Frame const&)> frameCallback)
-{
-    RemoteApp app;
-
-    // One app frame on the client's clock: the frame callback the app supplies
-    // is its update-and-sync, so a reconcile is exactly one such frame.
-    app.reconcile = [this, &frameCallback](std::chrono::microseconds dt)
-    {
-        appTime_ += dt;
-        frameCallback(ase::Frame{ appTime_, dt });
-    };
-
-    // Adapters over the live registry, rebuilt on each call.
-    app.liveWindows = [this]() -> RemoteWindows
-    {
-        RemoteWindows windows;
-        windows.reserve(registry_.size());
-        for (RemoteWindowImpl* window : registry_)
-            windows.push_back(*window);
-        return windows;
-    };
-
-    runSession(app, endpoint_);
-}
-
 ase::Session RemotePlatformImpl::makeSession(ase::RenderContext& context)
 {
     // A decorator forward: the remote path drives frames through runSession, not
@@ -328,10 +300,10 @@ void RemotePlatformImpl::unregisterWindow(RemoteWindowImpl* window)
             registry_.end());
 }
 
-ase::Platform makeRemotePlatform(ase::Platform inner, std::string endpoint)
+ase::Platform makeRemotePlatform(ase::Platform inner)
 {
     return ase::Platform(std::make_shared<RemotePlatformImpl>(
-                std::move(inner), std::move(endpoint)));
+                std::move(inner)));
 }
 
 } // namespace bqui::remote

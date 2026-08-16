@@ -17,7 +17,6 @@ namespace ase
     class RenderContext;
     class Window;
     class Session;
-    struct Frame;
 
     class ASE_EXPORT PlatformImpl
     {
@@ -37,8 +36,6 @@ namespace ase
                 Vector2i size) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
-        virtual void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback) = 0;
 
         /** @brief Build the Session that drives this backend's frames: its render
          * list, event pump and wake source bundled with `context`. The caller

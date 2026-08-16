@@ -15,7 +15,6 @@ namespace ase
     class RenderContext;
     class PlatformImpl;
     class Session;
-    struct Frame;
 
     class ASE_EXPORT Platform
     {
@@ -33,8 +32,6 @@ namespace ase
 
         void handleEvents();
         RenderContext makeRenderContext();
-        void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback);
 
         /** @brief Build the Session driving this platform's frames, bound to
          * `context`; reaches through any decorator to the backend that owns a
