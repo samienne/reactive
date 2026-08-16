@@ -22,13 +22,11 @@ namespace ase
         Platform(std::shared_ptr<PlatformImpl> impl);
         virtual ~Platform();
 
-        Window makeWindow(Vector2i size);
-
-        /** @brief Make a window that renders offscreen with this backend and is
-         * never shown, drawn into an FBO built from `context`. The platform
-         * drives it from its run loop like a normal window; there is no present
-         * and `setVisible` is a no-op. */
-        Window makeOffscreenWindow(RenderContext& context, Vector2i size);
+        /** @brief Make a window of this backend bound to `context`. Headless, it
+         * renders offscreen into an FBO built from `context` and is never shown
+         * (no present, `setVisible` is a no-op); otherwise it is the real OS
+         * window. Either is driven from the run loop like any other window. */
+        Window makeWindow(RenderContext& context, Vector2i size, bool headless);
 
         void handleEvents();
         RenderContext makeRenderContext();

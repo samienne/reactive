@@ -290,25 +290,26 @@ inline std::optional<std::chrono::microseconds> minTime(
         return l;
 }
 
-Window GlxPlatform::makeWindow(Vector2i size)
+Window GlxPlatform::makeWindow(RenderContext& context, Vector2i size,
+        bool headless)
 {
+    if (headless)
+    {
+        auto window = std::make_shared<OffscreenWindow>(context, size);
+
+        {
+            auto lock = lockX();
+            d()->renderWindows_.push_back(window);
+        }
+
+        return Window(std::move(window));
+    }
+
     auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());
 
     {
         auto lock = lockX();
         d()->windows_.push_back(window);
-        d()->renderWindows_.push_back(window);
-    }
-
-    return Window(std::move(window));
-}
-
-Window GlxPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    auto window = std::make_shared<OffscreenWindow>(context, size);
-
-    {
-        auto lock = lockX();
         d()->renderWindows_.push_back(window);
     }
 

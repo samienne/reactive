@@ -31,9 +31,8 @@ namespace ase
             return std::type_index(typeid(*this)) == type ? this : nullptr;
         }
 
-        virtual Window makeWindow(Vector2i size) = 0;
-        virtual Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) = 0;
+        virtual Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) = 0;
         virtual void handleEvents() = 0;
         virtual RenderContext makeRenderContext() = 0;
 

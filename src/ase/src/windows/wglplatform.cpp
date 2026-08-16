@@ -237,8 +237,16 @@ std::string WglPlatform::getLastErrorString()
     return msg;
 }
 
-Window WglPlatform::makeWindow(Vector2i size)
+Window WglPlatform::makeWindow(RenderContext& context, Vector2i size,
+        bool headless)
 {
+    if (headless)
+    {
+        auto window = std::make_shared<OffscreenWindow>(context, size);
+        renderWindows_.push_back(window);
+        return Window(std::move(window));
+    }
+
     try
     {
         auto wglWindow = std::make_shared<WglWindow>(*this, size, 1.0f);
@@ -255,13 +263,6 @@ Window WglPlatform::makeWindow(Vector2i size)
         std::cout << "error:" << e.what() << std::endl;
         throw;
     }
-}
-
-Window WglPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    auto window = std::make_shared<OffscreenWindow>(context, size);
-    renderWindows_.push_back(window);
-    return Window(std::move(window));
 }
 
 void WglPlatform::handleEvents()

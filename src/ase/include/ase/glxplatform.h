@@ -42,9 +42,8 @@ namespace ase
         float getScalingFactor() const;
 
         // From Platform
-        Window makeWindow(Vector2i size) override;
-        Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) override;
+        Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
         Session makeSession(RenderContext& context) override;

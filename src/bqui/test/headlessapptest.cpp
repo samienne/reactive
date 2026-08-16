@@ -9,6 +9,7 @@
 
 #include <ase/platform.h>
 #include <ase/dummyplatform.h>
+#include <ase/rendercontext.h>
 #include <ase/window.h>
 #include <ase/pointerbuttonevent.h>
 #include <ase/keyevent.h>
@@ -71,7 +72,8 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     // sight). Exercised on the headless window here; every backend delegates
     // identically.
     auto platform = ase::makeDummyPlatform();
-    auto window = platform.makeWindow(ase::Vector2i(200, 100));
+    auto context = platform.makeRenderContext();
+    auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
 
     std::optional<ase::PointerButtonEvent> gotButton;
     window.setButtonCallback([&](ase::PointerButtonEvent const& e)

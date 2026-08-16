@@ -17,14 +17,9 @@ Platform::~Platform()
 {
 }
 
-Window Platform::makeWindow(Vector2i size)
+Window Platform::makeWindow(RenderContext& context, Vector2i size, bool headless)
 {
-    return d()->makeWindow(size);
-}
-
-Window Platform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    return d()->makeOffscreenWindow(context, size);
+    return d()->makeWindow(context, size, headless);
 }
 
 void Platform::handleEvents()

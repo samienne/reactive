@@ -17,16 +17,15 @@ Platform makeDummyPlatform()
     return Platform(std::make_shared<DummyPlatform>());
 }
 
-Window DummyPlatform::makeWindow(Vector2i size)
+Window DummyPlatform::makeWindow(RenderContext& context, Vector2i size,
+        bool headless)
 {
-    return Window(std::make_shared<DummyWindow>(size));
-}
+    // The dummy loop does not tick windows, so neither kind is auto-driven; the
+    // offscreen branch exists so the headless path is uniform across backends.
+    if (headless)
+        return Window(std::make_shared<OffscreenWindow>(context, size));
 
-Window DummyPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    // The dummy loop does not tick windows, so this is not auto-driven; it
-    // exists so the offscreen path is uniform across backends.
-    return Window(std::make_shared<OffscreenWindow>(context, size));
+    return Window(std::make_shared<DummyWindow>(size));
 }
 
 void DummyPlatform::handleEvents()

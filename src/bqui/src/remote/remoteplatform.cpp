@@ -243,19 +243,11 @@ ase::PlatformImpl* RemotePlatformImpl::getImplOfType(std::type_index type)
     return inner_.getImplOfType(type);
 }
 
-ase::Window RemotePlatformImpl::makeWindow(ase::Vector2i size)
-{
-    auto window = std::make_shared<RemoteWindowImpl>(inner_.makeWindow(size),
-            this);
-    registry_.push_back(window.get());
-    return ase::Window(std::move(window));
-}
-
-ase::Window RemotePlatformImpl::makeOffscreenWindow(
-        ase::RenderContext& context, ase::Vector2i size)
+ase::Window RemotePlatformImpl::makeWindow(ase::RenderContext& context,
+        ase::Vector2i size, bool headless)
 {
     auto window = std::make_shared<RemoteWindowImpl>(
-            inner_.makeOffscreenWindow(context, size), this);
+            inner_.makeWindow(context, size, headless), this);
     registry_.push_back(window.get());
     return ase::Window(std::move(window));
 }

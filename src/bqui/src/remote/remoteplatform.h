@@ -145,9 +145,8 @@ namespace bqui::remote
         explicit RemotePlatformImpl(ase::Platform inner);
 
         ase::PlatformImpl* getImplOfType(std::type_index type) override;
-        ase::Window makeWindow(ase::Vector2i size) override;
-        ase::Window makeOffscreenWindow(ase::RenderContext& context,
-                ase::Vector2i size) override;
+        ase::Window makeWindow(ase::RenderContext& context, ase::Vector2i size,
+                bool headless) override;
         void handleEvents() override;
         ase::RenderContext makeRenderContext() override;
         ase::Session makeSession(ase::RenderContext& context) override;

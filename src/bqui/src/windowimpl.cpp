@@ -12,9 +12,7 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
     memory_(&memoryStatistics_),
     // A headless run draws to an offscreen window: same real backend, no
     // OS window shown. The rest of the impl treats it as an ordinary window.
-    aseWindow(headless
-            ? platform.makeOffscreenWindow(context, ase::Vector2i(800, 600))
-            : platform.makeWindow(ase::Vector2i(800, 600))),
+    aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     context_(context),
     windowData_(window.data()),
     painter_(memory_, context_),
