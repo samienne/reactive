@@ -49,17 +49,17 @@ namespace ase
                 uint32_t modifiers, std::string text) override;
         void injectTextEvent(std::string text) override;
 
-        bool needsRedraw() const override;
-
-        /** @brief Drive the stored frame callback for one frame, so the headless
-         * platform can advance this window. */
-        std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) override;
-
         /** @brief No-op: the dummy backend never draws or swaps. */
         PresentStatus present(Dispatched) override;
 
     private:
+        bool needsRedraw() const override;
+
+        // Drive the stored frame callback for one frame, so the Session can
+        // advance this window.
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
+
         GenericWindow genericWindow_;
         Framebuffer defaultFramebuffer_;
         bool visible_ = false;

@@ -60,16 +60,6 @@ namespace ase
 
         virtual void requestFrame() = 0;
 
-        /** @brief Whether the window wants drawing; the run loop draws it when
-         * it does. Part of the render surface every platform's loop drives,
-         * uniform across real and offscreen windows. */
-        virtual bool needsRedraw() const = 0;
-
-        /** @brief Draw one frame by running the frame callback. The run loop
-         * calls this on a window that needsRedraw(). */
-        virtual std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) = 0;
-
         /** @brief Present this surface's finished frame. Called on the render
          * thread once the frame's draws have been submitted; a surface with
          * nothing to swap (offscreen) returns `Ok`. */
@@ -110,6 +100,18 @@ namespace ase
 
         /** @brief Feed a text-input event to the window's callbacks. */
         virtual void injectTextEvent(std::string text) = 0;
+
+    private:
+        // The render-polling surface the Session drives. Off the public window
+        // interface: only the Session, which owns the render relationship, asks
+        // whether a window wants drawing and draws it. Uniform across real and
+        // offscreen windows.
+        friend class Session;
+
+        virtual bool needsRedraw() const = 0;
+
+        virtual std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) = 0;
     };
 }
 

@@ -66,9 +66,6 @@ namespace bqui::remote
         float getScalingFactor() const override;
         ase::Framebuffer& getDefaultFramebuffer() override;
         void requestFrame() override;
-        bool needsRedraw() const override;
-        std::optional<std::chrono::microseconds> frame(
-                ase::Frame const& frame) override;
         ase::PresentStatus present(ase::Dispatched dispatched) override;
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
@@ -114,6 +111,13 @@ namespace bqui::remote
         void advance(std::chrono::microseconds dt) override;
 
     private:
+        // The render-polling surface the Session would drive; unused remotely
+        // (the session supplies the clock via advance()), so needsRedraw() is
+        // always false and frame() runs the captured callback.
+        bool needsRedraw() const override;
+        std::optional<std::chrono::microseconds> frame(
+                ase::Frame const& frame) override;
+
         ase::Window inner_;
         RemotePlatformImpl* owner_;
         std::function<std::optional<std::chrono::microseconds>(

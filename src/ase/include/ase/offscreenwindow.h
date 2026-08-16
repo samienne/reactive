@@ -65,17 +65,17 @@ namespace ase
                 uint32_t modifiers, std::string text) override;
         void injectTextEvent(std::string text) override;
 
-        bool needsRedraw() const override;
-
-        /** @brief Drive the stored frame callback for one frame, so the platform
-         * run loop can advance this window. */
-        std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) override;
-
         /** @brief No-op: an offscreen surface has no drawable to swap. */
         PresentStatus present(Dispatched) override;
 
     private:
+        bool needsRedraw() const override;
+
+        // Drive the stored frame callback for one frame, so the Session can
+        // advance this window.
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
+
         GenericWindow genericWindow_;
         Texture texture_;
         Renderbuffer depthbuffer_;

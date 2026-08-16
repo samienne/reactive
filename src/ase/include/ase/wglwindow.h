@@ -23,9 +23,6 @@ namespace ase
         HWND getHwnd() const;
         HDC getDc() const;
 
-        std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) override;
-        bool needsRedraw() const override;
         PresentStatus present(Dispatched) override;
 
         // From WindowImpl
@@ -71,6 +68,10 @@ namespace ase
                 LPARAM lParam);
 
     private:
+        bool needsRedraw() const override;
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
+
         void capturePointer();
         void releasePointer();
 

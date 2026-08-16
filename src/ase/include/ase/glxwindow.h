@@ -61,11 +61,8 @@ namespace ase
         GlxWindow& operator=(GlxWindow&&) = delete;
         GlxWindow& operator=(GlxWindow const&) = delete;
 
-        std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) override;
         void handleEvents(std::vector<_XEvent> const& events);
 
-        bool needsRedraw() const override;
         PresentStatus present(Dispatched) override;
 
         // From WindowImpl
@@ -110,6 +107,10 @@ namespace ase
         Vector2i getResolution() const;
 
     private:
+        bool needsRedraw() const override;
+        std::optional<std::chrono::microseconds> frame(
+                Frame const& frame) override;
+
         void destroy();
 
         void handleEvent(_XEvent const& e);
