@@ -41,11 +41,41 @@ namespace btl
         RunLoop();
         ~RunLoop();
 
-        RunLoop(RunLoop&&) noexcept;
-        RunLoop& operator=(RunLoop&&) noexcept;
+        // Non-movable and non-copyable: the process default is a bare pointer to
+        // a RunLoop, and code holds it by reference, so a live loop must keep its
+        // address. Guaranteed copy elision keeps `auto loop = makeDefault();`
+        // working despite this.
+        RunLoop(RunLoop&&) = delete;
+        RunLoop& operator=(RunLoop&&) = delete;
 
         RunLoop(RunLoop const&) = delete;
         RunLoop& operator=(RunLoop const&) = delete;
+
+        /** @brief Tag selecting the default-registering constructor. Use it to
+         * build a default loop in place -- optional::emplace, make_unique --
+         * where makeDefault()'s by-value return will not do because a RunLoop is
+         * non-movable. */
+        struct DefaultTag {};
+
+        /** @brief Construct a loop registered as the process default, so code
+         * that cannot be handed the loop directly (socket IO, for one) can reach
+         * it through getDefault()/tryGetDefault(). Throws std::runtime_error if a
+         * default already exists. The registration is RAII: it is released when
+         * the loop is destroyed, so the default can never dangle. A plain RunLoop
+         * leaves the default untouched. */
+        explicit RunLoop(DefaultTag);
+
+        /** @brief Construct a default-registered loop by value; equivalent to
+         * RunLoop(DefaultTag{}). Guaranteed copy elision keeps this valid despite
+         * RunLoop being non-movable. */
+        static RunLoop makeDefault();
+
+        /** @brief The process default loop; throws std::runtime_error if none is
+         * registered. */
+        static RunLoop& getDefault();
+
+        /** @brief The process default loop, or nullptr if none is registered. */
+        static RunLoop* tryGetDefault() noexcept;
 
         /** @brief Take the thread and dispatch sources until stop(). */
         void run();
@@ -57,6 +87,10 @@ namespace btl
         void stop();
 
     private:
+        // True only for a loop built through makeDefault(): it registers itself
+        // as the process default on construction and clears that registration on
+        // destruction (compare-exchange, so only if it is still the default).
+        bool isDefault_ = false;
         std::shared_ptr<RunLoopImpl> impl_;
     };
 
