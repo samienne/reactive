@@ -52,7 +52,16 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
             {
                 if (window->needsRedraw())
                 {
-                    window->acquire();
+                    // acquire() gates on the window's backpressure and reports
+                    // its surface state. A non-Ok status means no surface to
+                    // render into -- a lost or not-yet-recreated swapchain on a
+                    // backend where that can happen; tolerate it by skipping this
+                    // window's frame rather than drawing into nothing. GL's
+                    // surface is effectively immortal so this never skips today,
+                    // but consuming the status keeps the loop from assuming so.
+                    if (window->acquire() != PresentStatus::Ok)
+                        continue;
+
                     window->frame(frame);
                     window->submitFrameFence();
                 }
