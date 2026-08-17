@@ -102,7 +102,10 @@ namespace ase
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
     private:
-        GlPlatform& platform_;
+        // Upward-strong: a render context co-owns the platform it was made by,
+        // so a window keeping its context alive keeps the platform alive too,
+        // and steady-state teardown falls out of destruction order.
+        std::shared_ptr<GlPlatform> platform_;
         std::shared_ptr<GlRenderQueue> mainQueue_;
         std::shared_ptr<GlRenderQueue >transferQueue_;
         GlObjectManager objectManager_;

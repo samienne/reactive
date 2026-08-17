@@ -10,6 +10,7 @@
 #include "framebuffer.h"
 #include "presentstatus.h"
 #include "dispatcher.h"
+#include "rendercontext.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -152,8 +153,10 @@ namespace ase
         void submitFrameFence();
 
         // The (surface, queue) binding: the context this window renders and
-        // presents through, held for its whole life.
-        RenderContext& context_;
+        // presents through, held for its whole life. Co-owned (a strong handle,
+        // not a bare reference) so the window keeps its context -- and through
+        // it the platform -- alive, and teardown follows destruction order.
+        RenderContext context_;
 
         std::shared_ptr<WindowPresentSync> presentSync_;
     };

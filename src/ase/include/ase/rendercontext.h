@@ -84,6 +84,12 @@ namespace ase
 
         UniformSet makeUniformSet();
 
+        /** @brief A co-owning handle to this context's implementation. A window
+         * stores it to keep its context (and, through it, the platform) alive
+         * for the window's whole life -- the upward-strong ownership chain.
+         * Same-binary only. */
+        std::shared_ptr<RenderContextImpl> getSharedImpl() const;
+
         template <class T>
         T const& getImpl() const
         {

@@ -26,7 +26,7 @@ struct WindowPresentSync
 };
 
 WindowImpl::WindowImpl(RenderContext& context) :
-    context_(context),
+    context_(context.getSharedImpl()),
     presentSync_(std::make_shared<WindowPresentSync>())
 {
 }

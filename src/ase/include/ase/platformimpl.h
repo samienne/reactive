@@ -23,7 +23,8 @@ namespace ase
     class WindowImpl;
     struct Frame;
 
-    class ASE_EXPORT PlatformImpl
+    class ASE_EXPORT PlatformImpl :
+        public std::enable_shared_from_this<PlatformImpl>
     {
     public:
         /** @brief What a backend hands the shared frame loop to drive its frames:

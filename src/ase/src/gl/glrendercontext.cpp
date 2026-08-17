@@ -37,7 +37,7 @@ GlRenderContext::GlRenderContext(
         std::shared_ptr<GlDispatchedContext> fgContext,
         std::shared_ptr<GlDispatchedContext> bgContext
         ) :
-    platform_(platform),
+    platform_(std::static_pointer_cast<GlPlatform>(platform.shared_from_this())),
     mainQueue_(std::make_shared<GlRenderQueue>(std::move(fgContext))),
     transferQueue_(platform.isBackgroundQueueEnabled()
             ? std::make_shared<GlRenderQueue>(std::move(bgContext))
