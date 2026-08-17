@@ -91,7 +91,6 @@ private:
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
-    ase::RenderContext& context_;
 
     std::shared_ptr<WindowData> windowData_;
     avg::Painter painter_;

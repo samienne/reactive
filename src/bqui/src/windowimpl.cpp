@@ -13,9 +13,10 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
     // A headless run draws to an offscreen window: same real backend, no
     // OS window shown. The rest of the impl treats it as an ordinary window.
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
-    context_(context),
     windowData_(window.data()),
-    painter_(memory_, context_),
+    // The ase window stores the context it was created against; the painter and
+    // present both go through that one binding rather than a second ref here.
+    painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
     widgetInstanceSignal_((std::move(widget)
                 | modifier::background())(
