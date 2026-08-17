@@ -37,9 +37,9 @@
 namespace ase
 {
 
-Platform makeDefaultPlatform()
+Platform makeDefaultPlatform(btl::RunLoop& loop)
 {
-    return Platform(std::make_shared<GlxPlatform>());
+    return Platform(std::make_shared<GlxPlatform>(loop));
 }
 
 typedef GLXContext (*glXCreateContextAttribsArbProc)(Display*, GLXFBConfig,
@@ -182,7 +182,8 @@ void GlxPlatformDeferred::printGlInfo()
     DBG("GlxPlatform: Maximum vertex texture units: %1", textureUnits);
 }
 
-GlxPlatform::GlxPlatform() :
+GlxPlatform::GlxPlatform(btl::RunLoop& loop) :
+    GlPlatform(loop),
     deferred_(new GlxPlatformDeferred(*this))
 {
     int numReturned;

@@ -27,7 +27,7 @@ namespace ase
         typedef std::mutex Mutex;
         typedef std::unique_lock<LockableBase(Mutex)> Lock;
 
-        GlxPlatform();
+        explicit GlxPlatform(btl::RunLoop& loop);
         GlxPlatform(GlxPlatform const& other) = delete;
         ~GlxPlatform();
 

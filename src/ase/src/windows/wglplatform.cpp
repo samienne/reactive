@@ -111,7 +111,8 @@ PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB(
 }
 
 
-WglPlatform::WglPlatform()
+WglPlatform::WglPlatform(btl::RunLoop& loop) :
+    GlPlatform(loop)
 {
     try
     {
@@ -161,9 +162,9 @@ WglPlatform::~WglPlatform()
         DestroyWindow(dummyWindow_);
 }
 
-Platform makeDefaultPlatform()
+Platform makeDefaultPlatform(btl::RunLoop& loop)
 {
-    return Platform(std::make_shared<WglPlatform>());
+    return Platform(std::make_shared<WglPlatform>(loop));
 }
 
 bool WglPlatform::isBackgroundQueueEnabled() const

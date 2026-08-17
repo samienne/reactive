@@ -21,6 +21,15 @@ namespace ase
     class ASE_EXPORT PlatformImpl
     {
     public:
+        /** @brief Bind the platform to the run loop it drives frames on. The
+         * loop is created and owned by the caller (App, a test) and injected
+         * here; it must outlive the platform, which holds it only by reference.
+         */
+        explicit PlatformImpl(btl::RunLoop& loop) :
+            loop_(loop)
+        {
+        }
+
         virtual ~PlatformImpl() = default;
 
         /** @brief Reach the impl of a given concrete type through any decorators
@@ -67,7 +76,9 @@ namespace ase
         }
 
     protected:
-        btl::RunLoop loop_;
+        // The injected run loop, owned by the caller and outliving this
+        // platform. Held by reference: the platform no longer owns its loop.
+        btl::RunLoop& loop_;
 
         // Set to true by requestFrame() (possibly off-thread) to coalesce a
         // burst of wake requests into a single posted task.

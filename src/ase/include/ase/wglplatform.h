@@ -22,7 +22,7 @@ namespace ase
     class ASE_EXPORT WglPlatform : public GlPlatform
     {
     public:
-        WglPlatform();
+        explicit WglPlatform(btl::RunLoop& loop);
         virtual ~WglPlatform();
 
         WglPlatform(WglPlatform const&) = delete;

@@ -17,7 +17,7 @@ namespace ase
     class ASE_EXPORT GlPlatform : public PlatformImpl
     {
     public:
-        GlPlatform();
+        explicit GlPlatform(btl::RunLoop& loop);
         virtual ~GlPlatform();
 
         virtual bool isBackgroundQueueEnabled() const;

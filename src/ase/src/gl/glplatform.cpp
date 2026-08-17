@@ -12,7 +12,8 @@
 namespace ase
 {
 
-GlPlatform::GlPlatform()
+GlPlatform::GlPlatform(btl::RunLoop& loop) :
+    PlatformImpl(loop)
 {
     //DBG("GlPlatform size: %1 bytes.", sizeof(GlPlatform));
     //DBG("GlProgram size: %1 bytes.", sizeof(GlProgram));

@@ -32,6 +32,11 @@ RenderContext Platform::makeRenderContext()
     return d()->makeRenderContext();
 }
 
+btl::RunLoop& Platform::runLoop()
+{
+    return d()->runLoop();
+}
+
 Session Platform::makeSession(RenderContext& context)
 {
     return d()->makeSession(context);

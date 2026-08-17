@@ -12,9 +12,14 @@
 namespace ase
 {
 
-Platform makeDummyPlatform()
+Platform makeDummyPlatform(btl::RunLoop& loop)
 {
-    return Platform(std::make_shared<DummyPlatform>());
+    return Platform(std::make_shared<DummyPlatform>(loop));
+}
+
+DummyPlatform::DummyPlatform(btl::RunLoop& loop) :
+    PlatformImpl(loop)
+{
 }
 
 Window DummyPlatform::makeWindow(RenderContext& context, Vector2i size,

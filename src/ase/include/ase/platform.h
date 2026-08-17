@@ -9,6 +9,11 @@
 #include <typeindex>
 #include <typeinfo>
 
+namespace btl
+{
+    class RunLoop;
+}
+
 namespace ase
 {
     class Window;
@@ -30,6 +35,10 @@ namespace ase
 
         void handleEvents();
         RenderContext makeRenderContext();
+
+        /** @brief The run loop this platform was injected with and drives frames
+         * on. */
+        btl::RunLoop& runLoop();
 
         /** @brief Build the Session driving this platform's frames, bound to
          * `context`; reaches through any decorator to the backend that owns a
@@ -76,6 +85,8 @@ namespace ase
         std::shared_ptr<PlatformImpl> deferred_;
     };
 
-    ASE_EXPORT Platform makeDefaultPlatform();
+    /** @brief The OS default backend, bound to `loop`. The loop is created and
+     * owned by the caller and injected here; it must outlive the platform. */
+    ASE_EXPORT Platform makeDefaultPlatform(btl::RunLoop& loop);
 } // ase
 

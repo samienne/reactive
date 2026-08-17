@@ -19,6 +19,8 @@ namespace ase
     class ASE_EXPORT DummyPlatform : public PlatformImpl
     {
     public:
+        explicit DummyPlatform(btl::RunLoop& loop);
+
         Window makeWindow(RenderContext& context, Vector2i size,
                 bool headless) override;
         void handleEvents() override;
@@ -59,9 +61,9 @@ namespace ase
      * build's default backend.
      *
      * `makeDefaultPlatform()` selects the OS backend; this always gives the
-     * dummy one.
+     * dummy one. `loop` is injected and must outlive the returned platform.
      */
-    ASE_EXPORT Platform makeDummyPlatform();
+    ASE_EXPORT Platform makeDummyPlatform(btl::RunLoop& loop);
 
 } // namespace ase
 
