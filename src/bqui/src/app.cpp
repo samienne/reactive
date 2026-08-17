@@ -143,15 +143,23 @@ public:
     std::optional<std::string> remoteEndpointOverride_;
 };
 
-// Releases the app's impls, whatever ends the run. An impl holds an
-// ase::Window and a framebuffer belonging to the run's render context, so
-// leaving one behind would outlive what it is made of.
+// Releases the app's impls, whatever ends the run. Each impl co-owns its ase
+// window -> render context -> platform, so a leftover impl would keep the whole
+// backend -- including the platform's injected run loop, a run-scoped local --
+// alive past this call; clearing the impls here is what tears that chain down,
+// in order, via the strong refs.
 struct ImplScope
 {
     ~ImplScope()
     {
-        // A frame that drew a window can still be in flight, and it holds that
-        // window's framebuffer.
+        // The one teardown step destruction order cannot supply: drain the
+        // render thread before releasing the windows. A window's own present
+        // lambda holds a strong ref to it while a swap is queued, so releasing
+        // the window with that swap still pending would run the window's
+        // destructor -- DestroyWindow, framebuffer release -- on the render
+        // thread instead of this one. finish() runs the queued work first, so
+        // the render thread drops its window refs and this thread does the
+        // destroying.
         queue.finish();
         app.windowImpls_.clear();
     }
@@ -385,9 +393,11 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     auto mainQueue = context.getMainRenderQueue();
 
-    // The impls outlive this call — they are the app's, not the loop's — but
-    // the platform and render context they hold do not, so they must be
-    // released before this returns, however it returns.
+    // The impls are the app's, not the loop's, and each co-owns its context and
+    // platform -- so a leftover impl would keep the platform, and its injected
+    // run loop (a local of this call), alive past the return. ImplScope releases
+    // them however this returns, draining the render thread first (its finish()
+    // is the render-thread-safety step destruction order alone cannot supply).
     ImplScope implScope { *d(), mainQueue };
 
     auto runningContext = bq::signal::makeSignalContext(std::move(running));
@@ -448,9 +458,11 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
             }
         }
 
-        // A frame that drew a departing window can still be in flight, and it
-        // holds that window's framebuffer, so nothing may release an impl until
-        // the queue has caught up.
+        // A departing window's own present lambda can still be queued, holding
+        // the last strong ref to it; releasing the impl now would run the
+        // window's destructor on the render thread. Drain the queue first so
+        // this thread does the destroying (the same reason ImplScope finishes
+        // at teardown).
         if (!departing.empty())
             mainQueue.finish();
 
