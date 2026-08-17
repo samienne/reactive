@@ -7,7 +7,6 @@
 #include "rendercontext.h"
 #include "window.h"
 #include "platform.h"
-#include "session.h"
 
 namespace ase
 {
@@ -52,20 +51,20 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
     maxFrames_ = maxFrames;
 }
 
-Session DummyPlatform::makeSession(RenderContext& /*context*/)
+PlatformImpl::RunConfig DummyPlatform::runConfig()
 {
-    // The dummy backend registers no drawable surface, so its render list is
+    // The dummy backend registers no drawable surface, so its render list stays
     // empty and no window fence is submitted. With no OS event source to block
     // on, maxFrames and maxFps stand in: maxFrames self-paces a bounded headless
     // run and maxFps caps it; both zero leaves the loop on-demand, woken by
     // requestFrame().
-    Session::Config config;
-    config.handleEvents = [this] { handleEvents(); };
+    RunConfig config;
     config.frameStep = std::chrono::microseconds(16667);
     config.maxFrames = maxFrames_;
     config.maxFps = maxFps_;
+    config.renderWindows = &renderWindows_;
 
-    return Session(*this, renderWindows_, std::move(config));
+    return config;
 }
 
 } // namespace ase

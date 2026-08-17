@@ -9,7 +9,6 @@
 #include "rendercontext.h"
 #include "renderqueue.h"
 #include "platform.h"
-#include "session.h"
 
 #include "debug.h"
 
@@ -371,19 +370,19 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-Session GlxPlatform::makeSession(RenderContext& /*context*/)
+PlatformImpl::RunConfig GlxPlatform::runConfig()
 {
     int const targetFps = 60;
 
-    Session::Config config;
-    config.handleEvents = [this] { handleEvents(); };
-    // Wake the loop on X input; the Session drains it through handleEvents.
+    RunConfig config;
+    // Wake the loop on X input; the loop drains it through handleEvents().
     config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
     config.frameStep = std::chrono::microseconds(1000000 / targetFps);
-
-    // Each window carries its own context and backpressure now, so the Session
+    // Each window carries its own context and backpressure now, so the loop
     // drives the render list without a context of its own.
-    return Session(*this, d()->renderWindows_, std::move(config));
+    config.renderWindows = &d()->renderWindows_;
+
+    return config;
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

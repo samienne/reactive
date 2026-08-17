@@ -25,7 +25,6 @@ namespace ase
                 bool headless) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
-        Session makeSession(RenderContext& context) override;
 
         /** @brief Cap the headless frame rate. Zero (the default) leaves the loop
          * uncapped: a tick runs as soon as requestFrame() wakes it. A positive
@@ -42,6 +41,9 @@ namespace ase
          */
         void setMaxFrames(uint64_t maxFrames);
 
+    protected:
+        RunConfig runConfig() override;
+
     private:
         // Frame-rate cap; 0 means uncapped. Read only on the loop thread, so it
         // must be set before run().
@@ -50,9 +52,9 @@ namespace ase
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
 
-        // No surface is ever registered here -- the dummy is a Session with a
-        // no-op render path -- but the Session drives its render list by
-        // reference, so it holds an (always empty) one to hand over.
+        // No surface is ever registered here -- the dummy has a no-op render path
+        // -- but runConfig() hands the loop a render list by pointer, so it holds
+        // an (always empty) one.
         std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
     };
 

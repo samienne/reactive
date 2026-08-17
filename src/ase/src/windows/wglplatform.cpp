@@ -13,7 +13,6 @@
 #include "rendercontext.h"
 #include "window.h"
 #include "platform.h"
-#include "session.h"
 #include "debug.h"
 
 #include "tracy/Tracy.hpp"
@@ -307,18 +306,18 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
-Session WglPlatform::makeSession(RenderContext& /*context*/)
+PlatformImpl::RunConfig WglPlatform::runConfig()
 {
-    Session::Config config;
-    config.handleEvents = [this] { handleEvents(); };
-    // Wake the loop on the thread message queue; the Session drains it through
-    // handleEvents.
+    RunConfig config;
+    // Wake the loop on the thread message queue; the loop drains it through
+    // handleEvents().
     config.wakeSource = btl::fromMessageQueue();
     config.frameStep = std::chrono::microseconds(16667);
-
-    // Each window carries its own context and backpressure now, so the Session
+    // Each window carries its own context and backpressure now, so the loop
     // drives the render list without a context of its own.
-    return Session(*this, renderWindows_, std::move(config));
+    config.renderWindows = &renderWindows_;
+
+    return config;
 }
 
 } // namespace ase

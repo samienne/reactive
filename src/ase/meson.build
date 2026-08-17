@@ -120,7 +120,7 @@ libasesrc = [
   'src/uniformset.cpp',
   'src/renderbuffer.cpp',
   'src/renderqueue.cpp',
-  'src/session.cpp'
+  'src/platformimpl.cpp'
   ]
 
 libase = library('ase',

@@ -125,12 +125,12 @@ namespace ase
         explicit WindowImpl(RenderContext& context);
 
     private:
-        // The render-polling and frame-pacing surface the Session drives. Off
-        // the public window interface: only the Session, which owns the render
-        // relationship, asks whether a window wants drawing, gates it against
-        // the window's own backpressure, draws it, and fences it. Uniform
+        // The render-polling and frame-pacing surface the platform's frame loop
+        // drives. Off the public window interface: only that loop, which owns the
+        // render relationship, asks whether a window wants drawing, gates it
+        // against the window's own backpressure, draws it, and fences it. Uniform
         // across real and offscreen windows.
-        friend class Session;
+        friend class PlatformImpl;
 
         virtual bool needsRedraw() const = 0;
 

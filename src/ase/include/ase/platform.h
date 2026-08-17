@@ -4,6 +4,7 @@
 #include "asevisibility.h"
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <typeindex>
@@ -19,7 +20,36 @@ namespace ase
     class Window;
     class RenderContext;
     class PlatformImpl;
-    class Session;
+    struct Frame;
+
+    /** @brief A RAII handle that suspends the platform's auto-cadence frames for
+     * as long as it is held, and drives frames one at a time in the meantime.
+     *
+     * `Platform::pause()` returns one; while it lives the loop keeps pumping
+     * events and IO but produces no auto frames, and `step(dt)` produces exactly
+     * one. Dropping it resumes the free-running cadence. Move-only: the token's
+     * lifetime is the paused mode, so it cannot be copied. Because `step` lives
+     * only here, a free-running loop cannot be stepped by construction. */
+    class ASE_EXPORT PauseToken
+    {
+    public:
+        PauseToken(PauseToken&& other) noexcept;
+        PauseToken& operator=(PauseToken&& other) noexcept;
+        PauseToken(PauseToken const&) = delete;
+        PauseToken& operator=(PauseToken const&) = delete;
+        ~PauseToken();
+
+        /** @brief Produce exactly one frame -- the same frame-callback and render
+         * path an auto tick takes, on the caller-supplied `dt` -- and report
+         * whether the app wants to keep running. Call from the loop thread. */
+        bool step(std::chrono::microseconds dt);
+
+    private:
+        friend class Platform;
+        explicit PauseToken(std::shared_ptr<PlatformImpl> platform);
+
+        std::shared_ptr<PlatformImpl> platform_;
+    };
 
     class ASE_EXPORT Platform
     {
@@ -40,10 +70,17 @@ namespace ase
          * on. */
         btl::RunLoop& runLoop();
 
-        /** @brief Build the Session driving this platform's frames, bound to
-         * `context`; reaches through any decorator to the backend that owns a
-         * frame loop. */
-        Session makeSession(RenderContext& context);
+        /** @brief Drive frames on the injected run loop until `frameCallback`
+         * returns false. Context-free: each dirty window renders and presents
+         * through the context it carries, so the loop names none of its own. */
+        void run(std::function<bool(Frame const&)> frameCallback);
+
+        /** @brief Suspend the auto-cadence frames and take manual control: the
+         * returned token's `step(dt)` produces frames one at a time until it is
+         * dropped, which resumes the free-running cadence. The loop keeps pumping
+         * events and IO throughout. */
+        PauseToken pause();
+
         void requestFrame();
 
         /** @brief The platform's implementation as concrete type `T`, reached

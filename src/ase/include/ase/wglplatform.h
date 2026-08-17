@@ -41,7 +41,9 @@ namespace ase
                 bool headless) override;
         void handleEvents() override;
         RenderContext makeRenderContext() override;
-        Session makeSession(RenderContext& context) override;
+
+    protected:
+        RunConfig runConfig() override;
 
     private:
         HWND dummyWindow_ = nullptr;
