@@ -1,5 +1,10 @@
 # Execution plan: the render-session refactor
 
+> **SUPERSEDED by [`render-architecture-plan.md`](render-architecture-plan.md).** The
+> Session model this plan built (Stages 1-4, all landed) is being reworked away — windows
+> carry their context and `Session` is dropped. Kept only as the record of what Stages 1-4
+> landed (the "carry-forward" the new plan builds on).
+
 > **Status: active execution spec.** Companion to
 > [`render-session.md`](render-session.md) (the design; that is the source of
 > truth for *why*). This file is the staging *how* — ordered stages, each an
