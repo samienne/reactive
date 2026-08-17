@@ -1,4 +1,4 @@
-#include "bqui/remote/session.h"
+#include "bqui/remote/remotedriver.h"
 #include "bqui/remote/transport.h"
 
 #include "introspectionjson.h"
@@ -205,37 +205,42 @@ uint64_t requireWindowId(json const& params)
     return it->get<uint64_t>();
 }
 
+} // namespace
+
 /**
- * @brief The inspector-protocol server: a method registry driven by a run loop.
+ * @brief The inspector-protocol server behind @ref RemoteDriver.
  *
  * Holds the app seam, the monotonic frame counter, and the run state. Launches
- * paused. run() drives one btl::RunLoop on which the transport is a readable
- * source (commands dispatch as they arrive) and a frame timer advances the app
- * while running. Single-threaded: the loop thread is the only one that touches
- * windows, sends, and the frame counter, so there is no queue or reader thread.
+ * paused. It registers the transport as a readable source on the injected loop
+ * (commands dispatch as they arrive) and, while running, advances the app off a
+ * loop timer. Single-threaded: the loop thread is the only one that touches the
+ * app, sends, and the frame counter, so there is no queue or reader thread. It
+ * does not own the loop; the caller runs it.
  */
-class Session
+class RemoteDriver::Impl
 {
 public:
-    explicit Session(RemoteApp const& app) : app_(app)
+    Impl(btl::RunLoop& loop, Transport& transport, RemoteApp app,
+            std::optional<ase::PauseToken> pauseToken) :
+        loop_(loop),
+        transport_(&transport),
+        app_(std::move(app)),
+        pauseToken_(std::move(pauseToken))
     {
+#ifdef SIGPIPE
+        // Linux has no per-socket SIGPIPE suppression, so ignore it
+        // process-wide; otherwise a client disconnecting mid-write kills the
+        // app.
+        std::signal(SIGPIPE, SIG_IGN);
+#endif
         buildRegistry();
-    }
 
-    void run(Transport& transport)
-    {
-        btl::RunLoop loop;
-        loop_ = &loop;
-        transport_ = &transport;
-        state_ = State::Paused;
-        shuttingDown_ = false;
-        ticking_ = false;
-
-        // Register the transport and prime it on the loop thread. This first
-        // posted task runs before the loop's first wait. Inbound commands arrive
-        // as the transport becomes readable and dispatch here; a peer disconnect
-        // or an app.shutdown ends the loop.
-        loop.post([this](btl::RunLoop::Controller& controller)
+        // Register the transport and prime it on the loop thread. This posted
+        // task runs before the loop's first wait (the caller has not run the
+        // loop yet). Inbound commands arrive as the transport becomes readable
+        // and dispatch here; a peer disconnect or an app.shutdown stops the
+        // loop, so the caller's run() returns.
+        loop_.post([this](btl::RunLoop::Controller& controller)
         {
             ControllerScope scope(controller_, controller);
 
@@ -255,13 +260,8 @@ public:
             }
 
             if (shuttingDown_ || transport_->disconnected())
-                loop_->stop();
+                loop_.stop();
         });
-
-        loop.run();
-
-        loop_ = nullptr;
-        transport_ = nullptr;
     }
 
 private:
@@ -292,7 +292,7 @@ private:
         }
 
         if (shuttingDown_ || transport_->disconnected())
-            loop_->stop();
+            loop_.stop();
     }
 
     // Decode, route, and answer one frame. A notification draws no reply.
@@ -312,7 +312,7 @@ private:
         catch (std::exception const&)
         {
             shuttingDown_ = true;
-            loop_->stop();
+            loop_.stop();
         }
     }
 
@@ -335,7 +335,7 @@ private:
 
         if (shuttingDown_)
         {
-            loop_->stop();
+            loop_.stop();
             return;
         }
 
@@ -343,23 +343,27 @@ private:
             return;
 
         advanceFrame(std::chrono::microseconds(kNominalFrameUs));
+        if (shuttingDown_)
+        {
+            loop_.stop();
+            return;
+        }
+
         if (frameNotifications_)
             sendFrameNotification(std::chrono::microseconds(kNominalFrameUs));
 
         ensureTicking();
     }
 
-    // Advance every live window by dt, then reconcile one fused app frame so any
-    // window opened or closed this frame materialises. Re-fetch the set each
-    // time, since a frame can change it. Bumps the monotonic frame counter.
+    // Advance one fused app frame by dt: the same frame path an auto tick takes
+    // (advance signal time, reconcile the window set, render the live windows).
+    // Bumps the monotonic frame counter, and requests a stop if the app is done.
     void advanceFrame(std::chrono::microseconds dt)
     {
-        auto windows = app_.liveWindows();
-        for (auto& window : windows)
-            window.get().advance(dt);
-
-        app_.reconcile(dt);
+        bool keepRunning = app_.step(dt);
         ++frame_;
+        if (!keepRunning)
+            shuttingDown_ = true;
     }
 
     void sendFrameNotification(std::chrono::microseconds dt)
@@ -533,7 +537,7 @@ private:
                 numberField(params, "dt_us",
                     static_cast<double>(kNominalFrameUs))));
 
-        for (int64_t i = 0; i < count; ++i)
+        for (int64_t i = 0; i < count && !shuttingDown_; ++i)
             advanceFrame(dt);
 
         // A step is an explicit, bounded advance: it always leaves the app
@@ -558,7 +562,7 @@ private:
     {
         // Reconcile (without advancing time) so the set reflects any pending
         // open/close, then enumerate identity only.
-        app_.reconcile(std::chrono::microseconds(0));
+        app_.sync();
 
         json windows = json::array();
         for (auto& window : app_.liveWindows())
@@ -600,7 +604,7 @@ private:
             validateInjection(event);
 
         // Injected onto the window's inject seam now; the next app.step's
-        // advance is what processes them.
+        // frame is what processes them.
         for (auto const& event : *events)
             applyInjection(*window, event);
 
@@ -662,11 +666,17 @@ private:
             [this](json const& p) { return windowInject(p); } });
     }
 
-    RemoteApp const& app_;
-    std::vector<Method> registry_;
-    btl::RunLoop* loop_ = nullptr;
+    // The injected loop, run by the caller (App's Platform::run, or a test); the
+    // driver only registers sources on it and asks it to stop.
+    btl::RunLoop& loop_;
     btl::RunLoop::Controller* controller_ = nullptr;
     Transport* transport_ = nullptr;
+    RemoteApp app_;
+    // Engaged in client-driven mode: holds the platform's auto-cadence suspended
+    // for the driver's life, so the client owns the clock. Disengaged for an
+    // observer that lets the app free-run.
+    std::optional<ase::PauseToken> pauseToken_;
+    std::vector<Method> registry_;
     uint64_t frame_ = 0;
     State state_ = State::Paused;
     bool shuttingDown_ = false;
@@ -674,22 +684,13 @@ private:
     bool ticking_ = false;
 };
 
-} // namespace
-
-void runSession(RemoteApp const& app, Transport& transport)
+RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
+        RemoteApp app, std::optional<ase::PauseToken> pauseToken) :
+    impl_(std::make_unique<Impl>(loop, transport, std::move(app),
+                std::move(pauseToken)))
 {
-#ifdef SIGPIPE
-    // Linux has no per-socket SIGPIPE suppression, so ignore it process-wide;
-    // otherwise a client disconnecting mid-write kills the app.
-    std::signal(SIGPIPE, SIG_IGN);
-#endif
-    Session(app).run(transport);
 }
 
-void runSession(RemoteApp const& app, std::string const& endpoint)
-{
-    auto transport = connect(endpoint);
-    runSession(app, *transport);
-}
+RemoteDriver::~RemoteDriver() = default;
 
 } // namespace bqui::remote
