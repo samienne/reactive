@@ -33,10 +33,17 @@ are in the top-level `docs/`.
   dispatched to the render thread.
 - The headless (dummy) backend is compiled on every platform (`dummysrcs` in
   `src/ase/meson.build`), so any test or app can select it via
-  `ase::makeDummyPlatform()` without opening an OS window. `makeDefaultPlatform()`
+  `ase::makeDummyPlatform(loop)` without opening an OS window. `makeDefaultPlatform(loop)`
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
+- **The platform does not own its run loop.** The `btl::RunLoop` is created by
+  the caller (bqui's `App`, a test) and injected at construction; `PlatformImpl`
+  holds it by reference and `runLoop()` returns it. The loop must outlive the
+  platform, so callers keep it as a named local declared before the platform
+  (`RunLoop` is non-movable, so a plain local is the natural home). `App`
+  registers its as the process default (`RunLoop::makeDefault()`) so socket IO
+  can reach it via `RunLoop::getDefault()`.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
