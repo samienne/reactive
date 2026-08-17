@@ -1,11 +1,10 @@
 # Design: windows carry their context, the loop does not
 
-> **Status: design settled through discussion, not built.** Supersedes the
-> `Session` model in [`render-session.md`](render-session.md) — that note extracted
-> a `Session` binding loop + context + windows; this one records why all three
-> bindings dissolve and what replaces them. Design-only; no implementation implied.
-> Reflects reasoning as of the render-session refactor branch (`session-refactor`,
-> 2026-08).
+> **Status: implemented on `session-refactor` (PR #140).** R1-R5 have all landed
+> and are CI-green (2026-08-17). Supersedes the `Session` model in
+> [`render-session.md`](render-session.md) — that note extracted a `Session`
+> binding loop + context + windows; this one records why all three bindings
+> dissolve and what replaced them. Reflects the branch as built.
 >
 > **Feasibility-checked** against GLX, WGL, Vulkan, D3D12, Metal (macOS + iOS), and
 > Android (Vulkan + GLES): feasible on all eight, with the present contract, the
@@ -208,8 +207,18 @@ structural rather than hand-policed:
 "The platform can't die before its windows" is then automatic: a window keeps its
 context alive, a context keeps the platform alive, so the platform outlives every
 window by construction. App drops glues → windows → (last) context → (last) platform,
-in order, for free. The interim's `ImplScope` / `finish()`-before-teardown /
-`runningPlatform_` dance all dissolve.
+in order, for free. The interim's `ImplScope` / `runningPlatform_` dance dissolves.
+
+**One piece is retained, though: the explicit `finish()` before releasing the
+windows.** This is not lifetime ordering — RAII already gets that right — but a
+*thread-of-destruction* constraint. A window's `present` lambda captures the
+`Window` strongly, so while a swap is still queued the render thread holds the last
+ref; releasing the window then would run its destructor (`DestroyWindow`,
+framebuffer release) on the render thread rather than the app thread. `finish()`
+drains the queued work first, so the render thread drops its refs and the app
+thread does the destroying. RAII dtor-order alone cannot guarantee *which thread*
+runs the dtor, so this drain stays (in `App::run`'s teardown and per-frame when a
+window departs).
 
 **But the device/context is not immortal — the recreation reservations must come back.**
 This is the audit's one genuine over-promise (and a regression this note introduced over
@@ -272,6 +281,12 @@ The driver registers the socket and, in client-driven mode, pauses. `run()`,
 `frameCallback`, window creation, present — identical to local; the only branch is
 "attach the driver or not," a thin composition rather than a reimplemented loop.
 
+**Honesty caveat (as built):** in client-driven mode `step` renders each live glue
+directly (`onFrame`), bypassing the platform's per-window tick and its `acquire()`
+backpressure on a real backend — a single deterministic frame, which matches the
+old model. This is safe because the platform is paused (nothing else is producing
+frames on that surface), so the direct render cannot race the loop.
+
 **`RemoteWindowImpl` dissolves.** Introspection is a capability of the **glue** (it holds
 the window + widget + render tree), so it is available for *any* window — no
 remote-specific window wrapper, a whole layer the interim carried that this model drops.
@@ -301,6 +316,18 @@ pauses the *one* loop and steps it from a socket source, and the genuinely-bqui 
 Feasibility: remote fits the model with no unresolvable issue found; the substantive
 addition over the first sketch is the **two-mode driver** (optional pause token), which
 the context-free-loop + `pause`/`step` design supports for free.
+
+## Known limitations (as built, acceptable)
+
+Latent and documented rather than fixed:
+
+- **Resume after elapsed wall-time gives one large-`dt` frame.** A paused loop that
+  is resumed after real time has passed produces a single frame whose `dt` covers
+  the whole gap. A reset-on-resume (clamp or rebase the clock) is deferred until
+  observer mode actually needs it.
+- **`REACTIVE_FRAMES` is a no-op under a remote driver on the dummy backend.** In
+  client-driven mode the client owns the clock (it drives frames via `step`), so the
+  frame-count env budget does not apply.
 
 ## What this resolves (vs the interim refactor)
 

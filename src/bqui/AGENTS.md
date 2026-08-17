@@ -92,18 +92,19 @@ names a live app, and `removeWindow` clears that reference so a closed window ca
 be opened again. Without that a window could be open in one app and closable only
 from another.
 
-**Remote mode is an `App` branch over a window-wrapping decorator.** With a
-remote endpoint set, `runUntil` wraps the chosen platform in `makeRemotePlatform`
-(`src/remote/remoteplatform.h`) so its windows are `RemoteWindowImpl` (an
-`ase::WindowImpl` that is also a `remote::RemoteWindow`); the decorator only wraps
-windows and forwards — it does not drive frames. `App::runUntil` then branches on
-the endpoint: locally it drives the platform's own context-free frame loop
-(`platform.run(frameCallback)`), remotely it builds a `RemoteApp`
-over the decorator's `liveWindows` and serves `runSession`, with the app's
-per-frame callback as the session's reconcile. The `WindowImpl` self-binds its id
-and introspection into the decorator from its constructor by walking the handle
-for a `RemoteWindowImpl` (`getImplOfType`), which finds nothing on a real backend
-window (see `docs/decisions.md`).
+**Remote mode is an `App` branch that attaches a driver — no decorator, no window
+wrapper.** With a remote endpoint set, `runUntil` builds a `remote::RemoteApp`
+(the universal frame primitives: `step`, `sync`, `liveWindows` over
+`windowImpls_`) and attaches a `remote::RemoteDriver`
+(`include/bqui/remote/remotedriver.h`) over the platform's `pause()`/`step()`
+*before* `platform.run(frameCallback)`. The driver connects the client socket,
+registers it on the platform's run loop, and — in client-driven mode — holds a
+`pause()` token so the client owns the clock. The frame path is otherwise
+identical to local; the only branch is whether the driver is attached. The window
+glue (`WindowImpl`) itself implements `remote::RemoteWindow`, so introspection and
+event injection are a capability of the glue — available for any window — and the
+driver addresses each glue by its `UniqueId`. The transport and JSON-RPC protocol
+are reused unchanged (see `docs/decisions.md`).
 
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and

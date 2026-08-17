@@ -1,6 +1,6 @@
 # Decisions
 
-*Last verified against `ba1da4a` (2026-08-16).*
+*Last verified against `7429b35` (2026-08-17).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -18,33 +18,30 @@ the window, the loop, and the windows all unbound from it, nothing was left to
 bind). Manual driving is a `Platform::pause()` RAII token whose `step(dt)`
 produces one frame off the same callback path.
 
-`App::runUntil` still branches on the remote endpoint. Locally it calls
-`platform.run(frameCallback)`. Remotely it builds the `RemoteApp` (`reconcile`
-plays the app's frame callback on the client's clock, `liveWindows` adapts the
-decorator's window registry) and serves `runSession`. Both branches drive the
-same per-frame callback. (Folding remote onto the same `pause`/`step` primitive,
-and dropping the decorator, is the next step.)
+`App` attaches the driver. Locally it just calls `platform.run(frameCallback)`.
+With a remote endpoint configured it also attaches a bqui `remote::RemoteDriver`
+over the platform's `pause()`/`step()` *before* `run()`: the driver connects the
+client socket, registers it on the platform's run loop, and — in client-driven
+mode — holds a `pause()` token so the client owns the clock. Either way the same
+per-frame callback drives every frame; the only branch is whether the driver is
+attached.
 
-Remote mode still uses a `RemotePlatform` decorator, but only to **wrap windows**:
-`makeWindow` returns `RemoteWindowImpl` (an `ase::WindowImpl`
-that is also a `remote::RemoteWindow`, which forwards the handle surface —
-including the `getImplOfType` walk — to a real inner window, *captures* the frame
-callback since the inner loop never runs remotely, and is addressed by the
-session by id), and every other call forwards to the inner platform. The
-decorator no longer drives frames or holds the endpoint; that moved up to `App`,
-which is what decides to wrap the platform in the first place.
+Remote adds no ase platform decorator and no window wrapper. The bqui window glue
+(`WindowImpl`) implements `remote::RemoteWindow` directly, so introspection and
+event injection are a capability of the glue — available for any window — and the
+driver addresses each glue by its `UniqueId`. `RemoteDriver` maps each protocol
+message to a universal primitive (`advance(dt)` -> `token.step(dt)`, `inject` ->
+the window's inject, `introspect` -> the glue's resolved tree), reusing the
+transport and JSON-RPC protocol unchanged.
 
-**Why:** the target re-layering is "App owns a session" (see
-[`design/render-session.md`](design/render-session.md)). Once the frame loop is a
-`Session` the platform hands over, the driver choice — a local `Session` vs the
-remote `runSession` — belongs next to the endpoint `App` already reads. This
-reverses the earlier interim decision that folded remote driving into the
-decorator to avoid a second `runUntil` path: that decorator kept a `run` override
-which ignored its `RenderContext`, a hack the `Session` split made worth
-removing. The bqui `WindowImpl` still self-binds its identity and introspection
-into the decorator by walking the handle for a `RemoteWindowImpl`
-(`getImplOfType`), which finds nothing on a real backend window, so `App` never
-wires the two together.
+**Why:** once the frame loop is context-free and driven by one `frameCallback`,
+nothing context-specific is left for a `Session` to bind, and nothing
+remote-specific is left for a platform decorator to do. Remote becomes a thin
+driver that pauses the *one* loop and steps it from a socket source, instead of a
+parallel `runSession` loop over a wrapped platform. Folding remote onto the same
+`pause`/`step` primitive that every test and the dummy backend already use is what
+keeps the frame path identical local and remote — no `RemoteWindowImpl`, no
+decorator, no second driving path.
 
 ## `present` returns `PresentStatus`, not `void`
 

@@ -71,8 +71,8 @@ namespace ase
     private:
         bool needsRedraw() const override;
 
-        // Drive the stored frame callback for one frame, so the Session can
-        // advance this window.
+        // Drive the stored frame callback for one frame, so the platform's
+        // frame loop can advance this window.
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 

@@ -11,10 +11,7 @@ namespace ase
     class ASE_EXPORT DummyRenderContext : public RenderContextImpl
     {
     public:
-        /** @brief Bind the context to the platform that made it, co-owning it so
-         * the window -> context -> platform chain stays upward-strong on every
-         * backend (the dummy has no GPU teardown, but the ownership is uniform).
-         */
+        /** @brief Bind the context to the platform that made it, co-owning it. */
         explicit DummyRenderContext(std::shared_ptr<PlatformImpl> platform);
 
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;

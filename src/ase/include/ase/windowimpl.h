@@ -27,7 +27,6 @@
 namespace ase
 {
     class Framebuffer;
-    class RenderContext;
     class RenderQueue;
     struct Frame;
 

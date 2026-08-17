@@ -29,7 +29,12 @@ namespace ase
      * events and IO but produces no auto frames, and `step(dt)` produces exactly
      * one. Dropping it resumes the free-running cadence. Move-only: the token's
      * lifetime is the paused mode, so it cannot be copied. Because `step` lives
-     * only here, a free-running loop cannot be stepped by construction. */
+     * only here, a free-running loop cannot be stepped by construction.
+     *
+     * Loop-thread-only: `Platform::pause()`, `step(dt)`, resuming (this token's
+     * destruction), and this token's own destruction all mutate or read the
+     * platform's unsynchronized pause state, so they must be called from the
+     * loop thread. Safe because the loop is single-threaded. */
     class ASE_EXPORT PauseToken
     {
     public:
@@ -78,7 +83,9 @@ namespace ase
         /** @brief Suspend the auto-cadence frames and take manual control: the
          * returned token's `step(dt)` produces frames one at a time until it is
          * dropped, which resumes the free-running cadence. The loop keeps pumping
-         * events and IO throughout. */
+         * events and IO throughout. Loop-thread-only, like the returned token's
+         * `step` and destruction: they touch the unsynchronized pause state and
+         * are safe only because the loop is single-threaded. */
         PauseToken pause();
 
         void requestFrame();

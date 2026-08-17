@@ -1,5 +1,10 @@
 # Execution plan: rework #140 to the render architecture
 
+> **LANDED.** R1-R5 are all implemented and CI-green on `session-refactor` (#140,
+> 2026-08-17). Kept as the record of the staging that got there; the design in
+> [`render-architecture.md`](render-architecture.md) is the source of truth for the
+> built model.
+
 > **Status: active execution spec.** Companion to
 > [`render-architecture.md`](render-architecture.md) (the design; source of truth for
 > *why*). This is the staging *how* for reworking the `session-refactor` branch (#140)
