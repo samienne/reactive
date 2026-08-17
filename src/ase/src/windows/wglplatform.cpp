@@ -250,7 +250,7 @@ Window WglPlatform::makeWindow(RenderContext& context, Vector2i size,
 
     try
     {
-        auto wglWindow = std::make_shared<WglWindow>(*this, size, 1.0f);
+        auto wglWindow = std::make_shared<WglWindow>(*this, context, size, 1.0f);
         // Assign rather than insert: Windows reuses an HWND once its window is
         // gone, and an expired entry under that handle lingers here until the
         // next pass of handleEvents(), where insert() would keep it and leave

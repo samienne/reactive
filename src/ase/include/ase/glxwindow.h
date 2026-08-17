@@ -53,7 +53,8 @@ namespace ase
         typedef std::mutex Mutex;
         typedef std::unique_lock<LockableBase(Mutex)> Lock;
 
-        GlxWindow(GlxPlatform& platform, Vector2i const& size, float scalingFactor);
+        GlxWindow(GlxPlatform& platform, RenderContext& context,
+                Vector2i const& size, float scalingFactor);
         GlxWindow(GlxWindow&&) = delete;
         GlxWindow(GlxWindow const&) = delete;
         ~GlxWindow();

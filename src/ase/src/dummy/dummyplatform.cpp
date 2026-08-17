@@ -30,7 +30,7 @@ Window DummyPlatform::makeWindow(RenderContext& context, Vector2i size,
     if (headless)
         return Window(std::make_shared<OffscreenWindow>(context, size));
 
-    return Window(std::make_shared<DummyWindow>(size));
+    return Window(std::make_shared<DummyWindow>(context, size));
 }
 
 void DummyPlatform::handleEvents()

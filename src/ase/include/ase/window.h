@@ -26,6 +26,8 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+    class RenderContext;
+    class RenderQueue;
     struct Dispatched;
 
     struct Frame
@@ -57,7 +59,19 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        /** @brief The render context this window was created against and both
+         * renders and presents through. */
+        RenderContext& getRenderContext();
+
+        /** @brief This window's main render queue -- the FIFO its draws and
+         * present share. */
+        RenderQueue getMainRenderQueue();
+
         void requestFrame();
+
+        /** @brief Sequence this window's present behind its own submitted draws,
+         * on its own queue. Enqueues the swap; GL always reports `Ok`. */
+        PresentStatus present();
 
         /** @brief Present this window's finished frame; forwards to the surface
          * behind any decorators. Called on the render thread once the frame's

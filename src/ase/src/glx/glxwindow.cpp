@@ -62,8 +62,9 @@ namespace
     }
 }
 
-GlxWindow::GlxWindow(GlxPlatform& platform, Vector2i const& size,
-        float scalingFactor) :
+GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
+        Vector2i const& size, float scalingFactor) :
+    WindowImpl(context),
     platform_(platform),
     genericWindow_(size, scalingFactor),
     defaultFramebuffer_(std::make_shared<GlxFramebuffer>(*this))

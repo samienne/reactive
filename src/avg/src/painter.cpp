@@ -166,10 +166,10 @@ void Painter::presentWindow(ase::Window& target)
 {
     ZoneScoped;
 
-    // Submit the accumulated draws first, then enqueue the swap behind them on
-    // the same queue so draws -> present ordering holds.
+    // Submit the accumulated draws first, then let the window enqueue its own
+    // swap behind them on its own queue so draws -> present ordering holds.
     flush();
-    renderContext_.getMainRenderQueue().present(target);
+    target.present();
 }
 
 void Painter::flush()

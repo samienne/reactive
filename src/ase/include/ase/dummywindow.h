@@ -6,10 +6,12 @@
 
 namespace ase
 {
+    class RenderContext;
+
     class ASE_EXPORT DummyWindow : public WindowImpl
     {
     public:
-        DummyWindow(Vector2i size);
+        DummyWindow(RenderContext& context, Vector2i size);
 
         void setVisible(bool value) override;
         bool isVisible() const override;

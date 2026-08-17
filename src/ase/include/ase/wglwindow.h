@@ -9,11 +9,13 @@
 namespace ase
 {
     class WglPlatform;
+    class RenderContext;
 
     class ASE_EXPORT WglWindow : public WindowImpl
     {
     public:
-        WglWindow(WglPlatform& platform, Vector2i size, float scalingFactor);
+        WglWindow(WglPlatform& platform, RenderContext& context, Vector2i size,
+                float scalingFactor);
 
         WglWindow(WglWindow const&) = delete;
         WglWindow& operator=(WglWindow const&) = delete;

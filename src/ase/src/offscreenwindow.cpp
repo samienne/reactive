@@ -6,6 +6,7 @@ namespace ase
 {
 
 OffscreenWindow::OffscreenWindow(RenderContext& context, Vector2i size) :
+    WindowImpl(context),
     genericWindow_(size, 1.0f),
     texture_(context.makeTexture(size, FORMAT_SRGBA)),
     depthbuffer_(context.makeRenderbuffer(size, FORMAT_DEPTH16)),

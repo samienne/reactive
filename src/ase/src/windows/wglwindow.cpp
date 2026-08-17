@@ -369,8 +369,9 @@ namespace
     }
 } // anonymous namespace
 
-WglWindow::WglWindow(WglPlatform& platform, Vector2i size,
-        float scalingFactor) :
+WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
+        Vector2i size, float scalingFactor) :
+    WindowImpl(context),
     platform_(platform),
     genericWindow_(size, scalingFactor),
     defaultFramebuffer_(std::make_shared<WglFramebuffer>(*this))

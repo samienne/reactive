@@ -13,6 +13,9 @@ namespace bqui::remote
 
 RemoteWindowImpl::RemoteWindowImpl(ase::Window inner,
         RemotePlatformImpl* owner) :
+    // The decorator renders and presents through the inner window's context, so
+    // the base binds to the same (surface, queue) the real window carries.
+    ase::WindowImpl(inner.getRenderContext()),
     inner_(std::move(inner)),
     owner_(owner)
 {

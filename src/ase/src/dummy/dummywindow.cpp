@@ -7,7 +7,8 @@
 namespace ase
 {
 
-DummyWindow::DummyWindow(Vector2i size) :
+DummyWindow::DummyWindow(RenderContext& context, Vector2i size) :
+    WindowImpl(context),
     genericWindow_(size, 1.0f),
     defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
 {

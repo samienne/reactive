@@ -306,7 +306,8 @@ Window GlxPlatform::makeWindow(RenderContext& context, Vector2i size,
         return Window(std::move(window));
     }
 
-    auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());
+    auto window = std::make_shared<GlxWindow>(*this, context, size,
+            getScalingFactor());
 
     {
         auto lock = lockX();
