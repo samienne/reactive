@@ -52,10 +52,10 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
     maxFrames_ = maxFrames;
 }
 
-Session DummyPlatform::makeSession(RenderContext& context)
+Session DummyPlatform::makeSession(RenderContext& /*context*/)
 {
-    // The dummy backend registers no drawable surface (the dummy render queue
-    // completes each frame's fence at once). With no OS event source to block
+    // The dummy backend registers no drawable surface, so its render list is
+    // empty and no window fence is submitted. With no OS event source to block
     // on, maxFrames and maxFps stand in: maxFrames self-paces a bounded headless
     // run and maxFps caps it; both zero leaves the loop on-demand, woken by
     // requestFrame().
@@ -65,7 +65,7 @@ Session DummyPlatform::makeSession(RenderContext& context)
     config.maxFrames = maxFrames_;
     config.maxFps = maxFps_;
 
-    return Session(*this, context, renderWindows_, std::move(config));
+    return Session(*this, renderWindows_, std::move(config));
 }
 
 } // namespace ase

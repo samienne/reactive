@@ -1,9 +1,6 @@
 #include "session.h"
 
 #include "platformimpl.h"
-#include "rendercontext.h"
-#include "renderqueue.h"
-#include "commandbuffer.h"
 #include "windowimpl.h"
 #include "window.h"
 
@@ -12,11 +9,10 @@
 namespace ase
 {
 
-Session::Session(PlatformImpl& platform, RenderContext& context,
+Session::Session(PlatformImpl& platform,
         std::vector<std::weak_ptr<WindowImpl>>& renderWindows,
         Config config) :
     platform_(platform),
-    context_(context),
     renderWindows_(renderWindows),
     config_(std::move(config))
 {
@@ -33,11 +29,7 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
     auto lastFrame = startTime;
     auto nextFrame = startTime + step;
 
-    auto framesInFlight = std::make_shared<int>(0);
-    auto mainQueue = context_.getMainRenderQueue();
-
     btl::RunLoop& loop = platform_.runLoop();
-    PlatformImpl* const platform = &platform_;
 
     // Frames pumped so far this run(); only consulted with a frame budget.
     std::uint64_t framesRun = 0;
@@ -71,10 +63,9 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
             controller.addTimer(interval - elapsed, tick).detach();
     };
 
-    tick = [this, platform, &tickScheduled, &clock, &startTime, &lastFrame,
-            &frameCallback, framesInFlight, &mainQueue, &nextFrame, step,
-            &framesRun, maxFrames, &scheduleTick, &tick](
-            btl::RunLoop::Controller& controller)
+    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame,
+            &frameCallback, &nextFrame, step, &framesRun, maxFrames,
+            &scheduleTick, &tick](btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
@@ -99,32 +90,24 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
             return;
         }
 
-        // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-arm picks it up. With
-        // no drawable surfaces (headless) the loop still runs -- it just submits
-        // an empty buffer whose fence keeps the backpressure accounting honest.
-        if (*framesInFlight < 2)
+        // Per dirty window: gate on the window's own backpressure (acquire
+        // blocks while too many of its frames are in flight), render and present
+        // it into the target it acquires, then fence it on its own queue.
+        // Backpressure is a per-window property, so there is no shared
+        // frames-in-flight count here and the Session submits no fence itself.
+        // With no drawable surfaces (headless dummy) renderWindows_ is empty and
+        // the loop advances purely on the frame callback and the self-pump.
+        for (auto& weakWindow : renderWindows_)
         {
-            for (auto& weakWindow : renderWindows_)
+            if (auto window = weakWindow.lock())
             {
-                if (auto window = weakWindow.lock())
+                if (window->needsRedraw())
                 {
-                    // The surface draws into the target it acquires; the Session
-                    // holds no framebuffer of its own.
-                    if (window->needsRedraw())
-                        window->frame(frame);
+                    window->acquire();
+                    window->frame(frame);
+                    window->submitFrameFence();
                 }
             }
-
-            ase::CommandBuffer commandBuffer;
-            ++*framesInFlight;
-            commandBuffer.pushFence([platform, framesInFlight]
-                {
-                    platform->runLoop().post(
-                        [framesInFlight](btl::RunLoop::Controller&)
-                        { --*framesInFlight; });
-                });
-            mainQueue.submit(std::move(commandBuffer));
         }
 
         auto now = clock.now();
@@ -143,7 +126,10 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
             return;
         }
 
-        bool armed = *framesInFlight >= 2;
+        // On-demand re-arm: a window that still wants drawing keeps the loop
+        // ticking; acquire() upstream, not a re-arm here, is what paces a window
+        // whose frames are backed up on the GPU.
+        bool armed = false;
         for (auto& weakWindow : renderWindows_)
         {
             if (auto window = weakWindow.lock())
@@ -198,7 +184,9 @@ void Session::run(std::function<bool(Frame const&)> frameCallback)
 
     platform_.scheduleTick_ = nullptr;
 
-    mainQueue.finish();
+    // No queue.finish() here: each window owns its queue and its in-flight
+    // fences now, and the caller (App) drains them in teardown before releasing
+    // the windows. The Session holds no context to finish.
 }
 
 } // namespace ase

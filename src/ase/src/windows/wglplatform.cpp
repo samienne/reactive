@@ -307,7 +307,7 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
-Session WglPlatform::makeSession(RenderContext& context)
+Session WglPlatform::makeSession(RenderContext& /*context*/)
 {
     Session::Config config;
     config.handleEvents = [this] { handleEvents(); };
@@ -316,7 +316,9 @@ Session WglPlatform::makeSession(RenderContext& context)
     config.wakeSource = btl::fromMessageQueue();
     config.frameStep = std::chrono::microseconds(16667);
 
-    return Session(*this, context, renderWindows_, std::move(config));
+    // Each window carries its own context and backpressure now, so the Session
+    // drives the render list without a context of its own.
+    return Session(*this, renderWindows_, std::move(config));
 }
 
 } // namespace ase

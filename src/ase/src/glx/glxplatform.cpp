@@ -371,7 +371,7 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-Session GlxPlatform::makeSession(RenderContext& context)
+Session GlxPlatform::makeSession(RenderContext& /*context*/)
 {
     int const targetFps = 60;
 
@@ -381,7 +381,9 @@ Session GlxPlatform::makeSession(RenderContext& context)
     config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
     config.frameStep = std::chrono::microseconds(1000000 / targetFps);
 
-    return Session(*this, context, d()->renderWindows_, std::move(config));
+    // Each window carries its own context and backpressure now, so the Session
+    // drives the render list without a context of its own.
+    return Session(*this, d()->renderWindows_, std::move(config));
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

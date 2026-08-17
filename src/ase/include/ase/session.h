@@ -14,15 +14,16 @@
 namespace ase
 {
     class PlatformImpl;
-    class RenderContext;
     class WindowImpl;
     struct Frame;
 
     /** @brief Owns the frame-loop body every backend drives frames through: the
-     * render list, the frame clock and cadence, GPU backpressure, and the
-     * on-demand re-arm. A platform supplies only what differs between backends --
-     * its event pump and the handle the loop wakes on -- so GLX, WGL and the
-     * headless dummy all run this one shared tick.
+     * render list, the frame clock and cadence, and the on-demand re-arm. GPU
+     * backpressure and present now live on each window (acquire/present on its
+     * own queue), so the Session holds no context and no fence of its own. A
+     * platform supplies only what differs between backends -- its event pump and
+     * the handle the loop wakes on -- so GLX, WGL and the headless dummy all run
+     * this one shared tick.
      */
     class ASE_EXPORT Session
     {
@@ -48,7 +49,7 @@ namespace ase
             unsigned int maxFps = 0;
         };
 
-        Session(PlatformImpl& platform, RenderContext& context,
+        Session(PlatformImpl& platform,
                 std::vector<std::weak_ptr<WindowImpl>>& renderWindows,
                 Config config);
 
@@ -61,7 +62,6 @@ namespace ase
 
     private:
         PlatformImpl& platform_;
-        RenderContext& context_;
         std::vector<std::weak_ptr<WindowImpl>>& renderWindows_;
         Config config_;
     };
