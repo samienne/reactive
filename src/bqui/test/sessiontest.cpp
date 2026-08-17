@@ -23,6 +23,7 @@
 #include <avg/color.h>
 
 #include <btl/uniqueid.h>
+#include <btl/runloop.h>
 
 #include <nlohmann/json.hpp>
 
@@ -806,10 +807,14 @@ TEST(session, describeListIntrospectDriveARealApp)
     auto count = bq::signal::makeInput(0);
     auto state = std::make_shared<int>(0);
 
+    // The loop the override platform is injected with; it must outlive the app
+    // running on appThread, so it lives here in the test scope.
+    btl::RunLoop loop;
+
     std::thread appThread([&]
     {
         App()
-            .platform(ase::makeDummyPlatform())
+            .platform(ase::makeDummyPlatform(loop))
             .setRemoteEndpoint(endpoint)
             .addWindow(
                     window(bq::signal::constant<std::string>("Agent")),
@@ -864,8 +869,12 @@ TEST(session, dynamicWindowsOpenAndCloseById)
     auto endpoint = uniqueEndpoint("agentdynamic");
     auto listener = listen(endpoint);
 
+    // The loop the override platform is injected with; it must outlive the app
+    // running on appThread, so it lives here in the test scope, before `app`.
+    btl::RunLoop loop;
+
     App app;
-    app.platform(ase::makeDummyPlatform())
+    app.platform(ase::makeDummyPlatform(loop))
         .setRemoteEndpoint(endpoint);
 
     // The child closes itself on a click. Its id is known only once it exists,

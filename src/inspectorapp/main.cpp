@@ -26,6 +26,8 @@
 #include <ase/platform.h>
 #include <ase/dummyplatform.h>
 
+#include <btl/runloop.h>
+
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -70,8 +72,12 @@ int main(int argc, char** argv)
         })
         | modifier::focusGroup();
 
+    // The loop the platform is injected with; a named local so it outlives the
+    // App (and its platform) built and run below.
+    btl::RunLoop loop;
+
     return App()
-        .platform(ase::makeDummyPlatform())
+        .platform(ase::makeDummyPlatform(loop))
         .setRemoteEndpoint(endpoint)
         .addWindow(
                 window(bq::signal::constant<std::string>("Inspector Demo")),

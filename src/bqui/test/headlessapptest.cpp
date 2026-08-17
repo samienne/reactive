@@ -14,6 +14,8 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/keyevent.h>
 
+#include <btl/runloop.h>
+
 #include <gtest/gtest.h>
 
 using namespace bqui;
@@ -22,9 +24,11 @@ using namespace bqui::widget;
 namespace
 {
     // A headless platform capped to a few frames, so a run is bounded and fast.
-    ase::Platform makeBoundedHeadless(uint64_t frames)
+    // The loop is injected by the caller: it must outlive the returned platform,
+    // so it cannot be a local here.
+    ase::Platform makeBoundedHeadless(btl::RunLoop& loop, uint64_t frames)
     {
-        auto platform = ase::makeDummyPlatform();
+        auto platform = ase::makeDummyPlatform(loop);
         platform.getImpl<ase::DummyPlatform>().setMaxFrames(frames);
         return platform;
     }
@@ -36,8 +40,10 @@ TEST(headlessApp, runsAndExitsWithNoWindow)
     // number of frames, and return cleanly without ever opening an OS window.
     auto widget = label("Headless");
 
+    btl::RunLoop loop;
+
     int result = App()
-        .platform(makeBoundedHeadless(5))
+        .platform(makeBoundedHeadless(loop, 5))
         .addWindow(
                 window(bq::signal::constant<std::string>("Test")),
                 std::move(widget))
@@ -71,7 +77,8 @@ TEST(headlessApp, injectsEventsThroughTheAbstractWindow)
     // callbacks — the uniform, backend-agnostic seam (no GenericWindow in
     // sight). Exercised on the headless window here; every backend delegates
     // identically.
-    auto platform = ase::makeDummyPlatform();
+    btl::RunLoop loop;
+    auto platform = ase::makeDummyPlatform(loop);
     auto context = platform.makeRenderContext();
     auto window = platform.makeWindow(context, ase::Vector2i(200, 100), false);
 
@@ -104,8 +111,10 @@ TEST(headlessApp, secondAppRunsInTheSameProcess)
     // can build and run in the same process without hitting an emptied widget.
     for (int i = 0; i < 2; ++i)
     {
+        btl::RunLoop loop;
+
         int result = App()
-            .platform(makeBoundedHeadless(3))
+            .platform(makeBoundedHeadless(loop, 3))
             .addWindow(
                     window(bq::signal::constant<std::string>("Test")),
                     label("Rerun"))

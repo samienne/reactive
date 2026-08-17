@@ -31,6 +31,7 @@
 #include <ase/session.h>
 #include <ase/dummyplatform.h>
 
+#include <btl/runloop.h>
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
 #include <btl/future/futurecontrol.h>
@@ -318,9 +319,23 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     // no GPU at all. Otherwise the OS default backend runs.
     bool useDummyEnv = !d()->platformOverride_ && wantsDummyPlatformEnv();
 
-    ase::Platform inner = d()->platformOverride_
-        ? *d()->platformOverride_
-        : (useDummyEnv ? ase::makeDummyPlatform() : ase::makeDefaultPlatform());
+    // The run loop the platform drives frames on. App creates it as the process
+    // default (so RunLoop::getDefault() can reach it for IO) only when it builds
+    // the platform itself; a caller-supplied platform already carries its own
+    // injected loop, so App must not register a second default. A RunLoop is
+    // non-movable, so it lives in this optional, declared before `platform` and
+    // outliving it.
+    std::optional<btl::RunLoop> ownedLoop;
+
+    ase::Platform inner = [&]() -> ase::Platform
+    {
+        if (d()->platformOverride_)
+            return *d()->platformOverride_;
+
+        ownedLoop.emplace(btl::RunLoop::DefaultTag{});
+        return useDummyEnv ? ase::makeDummyPlatform(*ownedLoop)
+                           : ase::makeDefaultPlatform(*ownedLoop);
+    }();
 
     // Platform/headless and mode (normal/remote) are orthogonal.
     // A non-empty endpoint (override or REACTIVE_REMOTE_ENDPOINT) selects remote

@@ -231,6 +231,9 @@ void RemoteWindowImpl::advance(std::chrono::microseconds dt)
 }
 
 RemotePlatformImpl::RemotePlatformImpl(ase::Platform inner) :
+    // Share the wrapped platform's injected loop (read before the move): the
+    // decorator owns no loop of its own.
+    ase::PlatformImpl(inner.runLoop()),
     inner_(std::move(inner))
 {
 }
