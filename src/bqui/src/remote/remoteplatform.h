@@ -149,7 +149,6 @@ namespace bqui::remote
                 bool headless) override;
         void handleEvents() override;
         ase::RenderContext makeRenderContext() override;
-        ase::Session makeSession(ase::RenderContext& context) override;
         void requestFrame() override;
 
         /** @brief Adapters over the live window registry, rebuilt on each call;

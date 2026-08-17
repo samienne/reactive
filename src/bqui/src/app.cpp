@@ -28,7 +28,6 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/session.h>
 #include <ase/dummyplatform.h>
 
 #include <btl/runloop.h>
@@ -484,10 +483,10 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     if (remoteEndpoint.empty())
     {
-        // Local backend: App builds the platform's Session and drives it until
-        // the frame callback returns false.
-        auto session = platform.makeSession(context);
-        session.run(frameCallback);
+        // Local backend: the platform drives its own context-free frame loop
+        // until the frame callback returns false. App made the context and its
+        // windows carry it; the loop names none of its own.
+        platform.run(frameCallback);
     }
     else
     {

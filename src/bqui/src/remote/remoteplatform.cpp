@@ -1,7 +1,6 @@
 #include "remote/remoteplatform.h"
 
 #include <ase/rendercontext.h>
-#include <ase/session.h>
 #include <ase/window.h>
 
 #include <algorithm>
@@ -266,13 +265,6 @@ void RemotePlatformImpl::handleEvents()
 ase::RenderContext RemotePlatformImpl::makeRenderContext()
 {
     return inner_.makeRenderContext();
-}
-
-ase::Session RemotePlatformImpl::makeSession(ase::RenderContext& context)
-{
-    // Unused remotely -- the remote path drives frames through runSession;
-    // forwards so the interface contract holds.
-    return inner_.makeSession(context);
 }
 
 void RemotePlatformImpl::requestFrame()
