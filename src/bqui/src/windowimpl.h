@@ -13,6 +13,8 @@
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 
+#include "bqui/remote/remotedriver.h"
+
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
@@ -53,7 +55,11 @@ inline uint64_t getNextFrameId()
     return ++s_frameId;
 }
 
-class WindowImpl
+// The window glue: it bridges an ase window to the widget / render-tree /
+// painter, and doubles as the remote seam a driver reads and injects into --
+// introspection is a capability of the glue, so no remote-specific window
+// wrapper is needed.
+class WindowImpl : public remote::RemoteWindow
 {
 public:
     WindowImpl(ase::Platform &platform, ase::RenderContext& context,
@@ -62,7 +68,7 @@ public:
     WindowImpl(WindowImpl const &) = delete;
     WindowImpl &operator=(WindowImpl const &) = delete;
 
-    virtual ~WindowImpl();
+    ~WindowImpl() override;
 
     void makeTransaction(
             std::chrono::microseconds dt,
@@ -85,6 +91,22 @@ public:
     /** @brief A resolved introspection snapshot of the current widget tree, in
      * window space, for a remote driver to read after a step. */
     widget::Introspection getResolvedIntrospection() const;
+
+    // remote::RemoteWindow -- the seam a remote driver addresses by id. Inject
+    // forwards to the ase window's inject; introspect reads this glue's resolved
+    // widget tree.
+    btl::UniqueId id() const override;
+    void injectPointerButton(unsigned int pointerIndex,
+            unsigned int buttonIndex, ase::Vector2f pos,
+            ase::ButtonState state) override;
+    void injectPointerMove(unsigned int pointerIndex,
+            ase::Vector2f pos) override;
+    void injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+            bool state) override;
+    void injectKey(ase::KeyState state, ase::KeyCode code,
+            uint32_t modifiers, std::string text) override;
+    void injectText(std::string text) override;
+    widget::Introspection introspect() const override;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

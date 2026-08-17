@@ -1,7 +1,5 @@
 #include "windowimpl.h"
 
-#include "remote/remoteplatform.h"
-
 namespace bqui
 {
 
@@ -207,17 +205,6 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
         }
     });
 
-    // Hand a remote-driven window its identity and introspection source. On a
-    // real backend window the handle is not a remote decorator, so the walk
-    // finds nothing and this is a no-op.
-    if (auto* remoteWindow =
-            aseWindow.getImplOfType<remote::RemoteWindowImpl>())
-    {
-        remoteWindow->bind(getId(), [this]
-                {
-                    return getResolvedIntrospection();
-                });
-    }
 }
 
 WindowImpl::~WindowImpl()
@@ -411,6 +398,44 @@ widget::Instance const& WindowImpl::getWidgetInstance() const
 widget::Introspection WindowImpl::getResolvedIntrospection() const
 {
     return widget::resolveIntrospection(widgetInstance_.getIntrospection());
+}
+
+btl::UniqueId WindowImpl::id() const
+{
+    return getId();
+}
+
+void WindowImpl::injectPointerButton(unsigned int pointerIndex,
+        unsigned int buttonIndex, ase::Vector2f pos, ase::ButtonState state)
+{
+    aseWindow.injectPointerButtonEvent(pointerIndex, buttonIndex, pos, state);
+}
+
+void WindowImpl::injectPointerMove(unsigned int pointerIndex, ase::Vector2f pos)
+{
+    aseWindow.injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void WindowImpl::injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+        bool state)
+{
+    aseWindow.injectHoverEvent(pointerIndex, pos, state);
+}
+
+void WindowImpl::injectKey(ase::KeyState state, ase::KeyCode code,
+        uint32_t modifiers, std::string text)
+{
+    aseWindow.injectKeyEvent(state, code, modifiers, std::move(text));
+}
+
+void WindowImpl::injectText(std::string text)
+{
+    aseWindow.injectTextEvent(std::move(text));
+}
+
+widget::Introspection WindowImpl::introspect() const
+{
+    return getResolvedIntrospection();
 }
 
 } // namespace bqui
