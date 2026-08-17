@@ -6,7 +6,8 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
-#include "remote/remoteplatform.h"
+#include "bqui/remote/remotedriver.h"
+#include "bqui/remote/transport.h"
 
 #include "debug.h"
 #include "windowdata.h"
@@ -357,13 +358,10 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         }
     }
 
-    // A remote endpoint wraps the platform in a decorator that drives its
-    // windows over the inspector protocol instead of a native frame loop;
-    // otherwise the app runs the platform's own loop. Either way the app only
-    // picks a platform and runs it -- the remote concern lives in the decorator.
-    ase::Platform platform = remoteEndpoint.empty()
-        ? std::move(inner)
-        : remote::makeRemotePlatform(std::move(inner));
+    // The platform is the same whether local or remote: remote is a thin bqui
+    // driver over the one frame loop, not a platform decorator, so the app just
+    // picks a platform and runs it either way.
+    ase::Platform platform = std::move(inner);
 
     // Published for the run's duration so add/removeWindow can wake the loop;
     // declared after `platform` so it is nulled under the lock before the
@@ -481,36 +479,69 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return runningContext.evaluate<0>().get<0>();
     };
 
-    if (remoteEndpoint.empty())
+    // One deterministic app frame by dt: the same running-signal/reconcile path
+    // an auto tick takes, plus rendering each live window so its widget tree
+    // reflects any injected input. The dummy tick draws nothing, so the glues
+    // are driven here rather than through the platform's (empty) render list;
+    // the platform is paused while a client-driven driver is attached, so this
+    // is the only thing producing frames and never doubles the render.
+    std::chrono::microseconds appTime{ 0 };
+    auto stepAppFrame = [&](std::chrono::microseconds dt) -> bool
     {
-        // Local backend: the platform drives its own context-free frame loop
-        // until the frame callback returns false. App made the context and its
-        // windows carry it; the loop names none of its own.
-        platform.run(frameCallback);
-    }
-    else
-    {
-        // Remote: the client drives frames over the inspector protocol, so App
-        // supplies the two hooks a session borrows -- one fused app frame per
-        // client-supplied dt, and adapters over the live window registry -- and
-        // serves runSession in place of a native loop.
-        auto& remotePlatform = platform.getImpl<remote::RemotePlatformImpl>();
+        appTime += dt;
+        ase::Frame aseFrame{ appTime, dt };
 
-        std::chrono::microseconds appTime{ 0 };
+        bool keepRunning = frameCallback(aseFrame);
+
+        for (auto& impl : d()->windowImpls_)
+            impl->onFrame(aseFrame);
+
+        return keepRunning;
+    };
+
+    // Kept alive across run(): the driver borrows the transport by reference and
+    // holds the platform paused, so both must outlive platform.run(). Declared
+    // after `platform` (and destroyed before it) so the driver's pause token,
+    // which strong-refs the platform, is released first; the driver is destroyed
+    // before the transport it references.
+    std::unique_ptr<remote::Transport> transport;
+    std::optional<remote::RemoteDriver> driver;
+
+    // A configured endpoint attaches a client-driven remote driver before the
+    // one shared frame loop starts: the app connects out to the endpoint, the
+    // driver registers the socket on the platform's loop and pauses the
+    // auto-cadence so the client owns the clock. The frame path below is
+    // identical to local -- the only branch is whether the driver is attached.
+    if (!remoteEndpoint.empty())
+    {
+        transport = remote::connect(remoteEndpoint);
 
         remote::RemoteApp remoteApp;
-        remoteApp.reconcile = [&](std::chrono::microseconds dt)
+        remoteApp.step = stepAppFrame;
+        remoteApp.sync = [&] { sync(); };
+        remoteApp.liveWindows = [this]() -> remote::RemoteWindows
         {
-            appTime += dt;
-            frameCallback(ase::Frame{ appTime, dt });
-        };
-        remoteApp.liveWindows = [&remotePlatform]
-        {
-            return remotePlatform.liveWindows();
+            remote::RemoteWindows windows;
+            windows.reserve(d()->windowImpls_.size());
+            for (auto& impl : d()->windowImpls_)
+                windows.push_back(*impl);
+            return windows;
         };
 
-        remote::runSession(remoteApp, remoteEndpoint);
+        driver.emplace(platform.runLoop(), *transport, std::move(remoteApp),
+                platform.pause());
     }
+
+    // The one frame path, local or remote: the platform drives its context-free
+    // loop until the frame callback returns false (or, remotely, the client ends
+    // the session and the driver stops the loop). App made the context and its
+    // windows carry it; the loop names none of its own.
+    platform.run(frameCallback);
+
+    // Release the driver (and its pause token) before the platform teardown
+    // below reads the window impls.
+    driver.reset();
+    transport.reset();
 
     DBG("Shutting down...");
 
