@@ -5,16 +5,25 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
-## `App` owns the render session and picks the frame driver
+## The platform owns a context-free frame loop; `App` picks the driver
 
-`App::runUntil` drives frames itself; there is no `Platform::run` to delegate to.
-It picks a platform, then branches on the remote endpoint. Locally it builds the
-backend's `Session` through `Platform::makeSession(context)` — a factory that
-bundles the platform's render list, event pump and wake source with the context —
-and runs it. Remotely it builds the `RemoteApp` (`reconcile` plays the app's
-frame callback on the client's clock, `liveWindows` adapts the decorator's window
-registry) and serves `runSession`. Either branch drives the same per-frame
-callback.
+`Platform::run(frameCallback)` drives frames on the injected loop, and `App`
+delegates to it. The loop is **context-free**: per dirty window it renders and
+presents through the context the window carries (`acquire` backpressure + fence
+on the window's own queue), so `run` names no `RenderContext`. A backend supplies
+only what differs — render list, wake source, cadence, and the dummy's self-pump
+budget — through a protected `runConfig()` override; the shared loop body is one
+`PlatformImpl::run`. There is no `Session` (it was dropped: with the context on
+the window, the loop, and the windows all unbound from it, nothing was left to
+bind). Manual driving is a `Platform::pause()` RAII token whose `step(dt)`
+produces one frame off the same callback path.
+
+`App::runUntil` still branches on the remote endpoint. Locally it calls
+`platform.run(frameCallback)`. Remotely it builds the `RemoteApp` (`reconcile`
+plays the app's frame callback on the client's clock, `liveWindows` adapts the
+decorator's window registry) and serves `runSession`. Both branches drive the
+same per-frame callback. (Folding remote onto the same `pause`/`step` primitive,
+and dropping the decorator, is the next step.)
 
 Remote mode still uses a `RemotePlatform` decorator, but only to **wrap windows**:
 `makeWindow` returns `RemoteWindowImpl` (an `ase::WindowImpl`

@@ -97,8 +97,8 @@ remote endpoint set, `runUntil` wraps the chosen platform in `makeRemotePlatform
 (`src/remote/remoteplatform.h`) so its windows are `RemoteWindowImpl` (an
 `ase::WindowImpl` that is also a `remote::RemoteWindow`); the decorator only wraps
 windows and forwards — it does not drive frames. `App::runUntil` then branches on
-the endpoint: locally it builds the platform's `Session`
-(`platform.makeSession(context)`) and runs it, remotely it builds a `RemoteApp`
+the endpoint: locally it drives the platform's own context-free frame loop
+(`platform.run(frameCallback)`), remotely it builds a `RemoteApp`
 over the decorator's `liveWindows` and serves `runSession`, with the app's
 per-frame callback as the session's reconcile. The `WindowImpl` self-binds its id
 and introspection into the decorator from its constructor by walking the handle
