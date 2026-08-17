@@ -1,4 +1,4 @@
-#include <bqui/remote/session.h>
+#include <bqui/remote/remotedriver.h>
 #include <bqui/remote/transport.h>
 
 #include <bqui/app.h>
@@ -169,8 +169,9 @@ namespace
 
 namespace
 {
-    // A test double recording what the session drives it with. Identity is its
+    // A test double recording what the driver injects into it. Identity is its
     // id; a name is surfaced only inside introspection (never on the wire).
+    // Frame advancing is app-level now, so there is no per-window advance here.
     class FakeRemoteWindow : public RemoteWindow
     {
     public:
@@ -195,42 +196,30 @@ namespace
             return node;
         }
 
-        void advance(std::chrono::microseconds dt) override
-        {
-            ++advances_;
-            totalDt_ += dt;
-        }
-
         int buttonInjects() const { return buttonInjects_; }
-        int advances() const { return advances_; }
 
     private:
         btl::UniqueId id_;
         std::string name_;
         int buttonInjects_ = 0;
-        int advances_ = 0;
-        std::chrono::microseconds totalDt_{0};
         std::string text_;
     };
 
-    // An RemoteApp over a fixed window set: the reconcile is a no-op (the fakes
-    // never open or close), and the live set is always the same fakes.
-    RemoteApp staticApp(RemoteWindows windows)
-    {
-        RemoteApp app;
-        app.reconcile = [](std::chrono::microseconds) {};
-        app.liveWindows = [windows] { return windows; };
-        return app;
-    }
-
-    // Run a session over `fakes` on a background thread against a loopback
-    // endpoint, exposing the connected client side as a JSON-RPC channel.
+    // Serve the driver over `fakes` on a background thread against a loopback
+    // endpoint, exposing the connected client side as a JSON-RPC channel. The
+    // driver runs on a plain loop with no pause token (there is no real platform
+    // to pause): its own run/pause/step flow control drives the fake app frame.
     struct SessionFixture
     {
         std::unique_ptr<TransportListener> listener;
         std::unique_ptr<Transport> client;
         std::thread serverThread;
         int nextId = 1;
+
+        // Frames the driver drove through the seam. It tracks the driver's own
+        // frame counter (both bump together), so it is the observable proof a
+        // step or a free-running tick happened.
+        std::atomic<int> steps{ 0 };
 
         SessionFixture(std::string const& name, RemoteWindows windows)
         {
@@ -240,7 +229,22 @@ namespace
             serverThread = std::thread([this, windows]
                 {
                     auto server = listener->accept();
-                    runSession(staticApp(windows), *server);
+
+                    btl::RunLoop loop;
+
+                    RemoteApp app;
+                    app.step = [this](std::chrono::microseconds)
+                    {
+                        ++steps;
+                        return true;
+                    };
+                    app.sync = [] {};
+                    app.liveWindows = [windows] { return windows; };
+
+                    RemoteDriver driver(loop, *server, std::move(app),
+                            std::nullopt);
+
+                    loop.run();
                 });
 
             client = connect(endpoint);
@@ -270,7 +274,7 @@ namespace
 
         ~SessionFixture()
         {
-            // Dropping the channel (no shutdown) must end runSession.
+            // Dropping the channel (no shutdown) must stop the driver's loop.
             client.reset();
             serverThread.join();
         }
@@ -294,8 +298,8 @@ TEST(session, windowListReturnsIdsOnly)
     // Identity is id alone: no title on the wire.
     EXPECT_FALSE(windows.at(0).contains("title"));
 
-    EXPECT_EQ(0, a.advances());
-    EXPECT_EQ(0, b.advances());
+    // A pure query advances no frame.
+    EXPECT_EQ(0, s.steps.load());
 }
 
 TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
@@ -314,7 +318,7 @@ TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
     EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
 }
 
-TEST(session, injectRoutesByIdThenStepAdvancesAllWindows)
+TEST(session, injectRoutesByIdThenStepAdvancesTheApp)
 {
     auto idA = btl::makeUniqueId();
     auto idB = btl::makeUniqueId();
@@ -330,19 +334,17 @@ TEST(session, injectRoutesByIdThenStepAdvancesAllWindows)
             });
     EXPECT_TRUE(injectReply.at("result").is_object());
 
-    // The inject routed to b only; neither window has advanced yet.
+    // The inject routed to b only; no frame has advanced yet.
     EXPECT_EQ(0, a.buttonInjects());
     EXPECT_EQ(1, b.buttonInjects());
-    EXPECT_EQ(0, a.advances());
-    EXPECT_EQ(0, b.advances());
+    EXPECT_EQ(0, s.steps.load());
 
     auto stepReply = s.call("app.step", { { "dt_us", 16667 } });
     EXPECT_EQ("paused", stepReply.at("result").at("state"));
     EXPECT_EQ(1u, stepReply.at("result").at("frame").get<uint64_t>());
 
-    // The step advanced every live window once.
-    EXPECT_EQ(1, a.advances());
-    EXPECT_EQ(1, b.advances());
+    // The step advanced exactly one app frame.
+    EXPECT_EQ(1, s.steps.load());
 }
 
 TEST(session, stepCountAdvancesAndFrameIsMonotonic)
@@ -353,11 +355,10 @@ TEST(session, stepCountAdvancesAndFrameIsMonotonic)
 
     auto first = s.call("app.step", { { "count", 2 }, { "dt_us", 1000 } });
     EXPECT_EQ(2u, first.at("result").at("frame").get<uint64_t>());
-    EXPECT_EQ(2, a.advances());
 
     auto second = s.call("app.step");
     EXPECT_EQ(3u, second.at("result").at("frame").get<uint64_t>());
-    EXPECT_EQ(3, a.advances());
+    EXPECT_EQ(3, s.steps.load());
 }
 
 TEST(session, injectToUnknownWindowIsInvalidParams)
@@ -530,7 +531,7 @@ TEST(session, runThenPauseReportsAdvancedFrame)
     auto pauseReply = awaitResponse(*s.client, pauseId);
     EXPECT_EQ("paused", pauseReply.at("result").at("state"));
     EXPECT_GE(pauseReply.at("result").at("frame").get<uint64_t>(), 1u);
-    EXPECT_GE(a.advances(), 1);
+    EXPECT_GE(s.steps.load(), 1);
 }
 
 TEST(session, pausedFrameIsStableWithoutAStep)
@@ -545,7 +546,6 @@ TEST(session, pausedFrameIsStableWithoutAStep)
     uint64_t frame =
         awaitResponse(*s.client, stepId).at("result").at("frame").get<uint64_t>();
     EXPECT_EQ(3u, frame);
-    EXPECT_EQ(3, a.advances());
 
     // A pause (a query at a frame boundary) shows the same frame — paused holds.
     int pauseId = s.nextId++;
@@ -558,7 +558,7 @@ TEST(session, pausedFrameIsStableWithoutAStep)
     int listId = s.nextId++;
     sendRequest(*s.client, listId, "window.list");
     awaitResponse(*s.client, listId);
-    EXPECT_EQ(3, a.advances());
+    EXPECT_EQ(3, s.steps.load());
 }
 
 TEST(session, stepFromPausedAdvancesExactlyAndStaysPaused)
@@ -572,14 +572,13 @@ TEST(session, stepFromPausedAdvancesExactlyAndStaysPaused)
     auto first = awaitResponse(*s.client, firstId);
     EXPECT_EQ("paused", first.at("result").at("state"));
     EXPECT_EQ(4u, first.at("result").at("frame").get<uint64_t>());
-    EXPECT_EQ(4, a.advances());
 
     // Still paused: a following default step continues from 4, one at a time.
     int secondId = s.nextId++;
     sendRequest(*s.client, secondId, "app.step");
     auto second = awaitResponse(*s.client, secondId);
     EXPECT_EQ(5u, second.at("result").at("frame").get<uint64_t>());
-    EXPECT_EQ(5, a.advances());
+    EXPECT_EQ(5, s.steps.load());
 }
 
 TEST(session, queryWhileRunningIsCoherentAndKeepsRunning)
@@ -658,7 +657,17 @@ TEST(session, cleanShutdownFromRunningTerminates)
     std::thread server([&]
         {
             auto conn = listener->accept();
-            runSession(staticApp({ a }), *conn);
+
+            btl::RunLoop loop;
+
+            RemoteApp app;
+            app.step = [](std::chrono::microseconds) { return true; };
+            app.sync = [] {};
+            app.liveWindows = [&] { return RemoteWindows{ a }; };
+
+            RemoteDriver driver(loop, *conn, std::move(app), std::nullopt);
+
+            loop.run();
             returned.store(true);
         });
 
@@ -669,8 +678,8 @@ TEST(session, cleanShutdownFromRunningTerminates)
     EXPECT_EQ("running",
             awaitResponse(*client, id++).at("result").at("state"));
 
-    // Shutdown while the reader is blocked in receive(): the app thread must
-    // wake it (close the transport) and join it, then return from runSession.
+    // Shutdown while the app free-runs: the driver stops the loop, so the
+    // server thread's run() returns.
     sendRequest(*client, id, "app.shutdown");
     EXPECT_TRUE(awaitResponse(*client, id++).at("result").is_object());
 
@@ -733,8 +742,8 @@ TEST(session, notificationGetsNoReply)
     EXPECT_EQ(s.nextId - 1, reply.at("id").get<int>());
     EXPECT_TRUE(reply.contains("result"));
 
-    // The notification did run: the fake advanced once.
-    EXPECT_EQ(1, a.advances());
+    // The notification did run: one app frame advanced.
+    EXPECT_EQ(1, s.steps.load());
 }
 
 // --- Real-App integration: describe / list / introspect -------------------
