@@ -4,8 +4,6 @@
 
 namespace ase
 {
-    class GlDispatchedContext;
-
     class DummyRenderQueue : public RenderQueueImpl
     {
     public:

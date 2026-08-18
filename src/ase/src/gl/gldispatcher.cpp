@@ -1,4 +1,4 @@
-#include "dispatcher.h"
+#include "gldispatcher.h"
 
 #include "debug.h"
 
@@ -116,4 +116,3 @@ void Dispatcher::runThread()
 }
 
 } //namespace ase
-

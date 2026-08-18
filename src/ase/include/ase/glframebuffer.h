@@ -2,7 +2,7 @@
 
 #include "glbaseframebuffer.h"
 
-#include "dispatcher.h"
+#include "gldispatcher.h"
 #include "texture.h"
 #include "renderbuffer.h"
 #include "vector.h"

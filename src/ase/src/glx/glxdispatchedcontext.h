@@ -4,7 +4,7 @@
 
 #include "gldispatchedcontext.h"
 
-#include "dispatcher.h"
+#include "gldispatcher.h"
 
 namespace ase
 {

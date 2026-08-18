@@ -1,7 +1,5 @@
 #pragma once
 
-#include "presentstatus.h"
-
 namespace ase
 {
     class CommandBuffer;

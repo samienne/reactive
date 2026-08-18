@@ -1,7 +1,7 @@
 #include "glplatform.h"
 
 #include <ase/pipelineimpl.h>
-#include <ase/dispatcher.h>
+#include <ase/gldispatcher.h>
 
 #include <btl/visibility.h>
 

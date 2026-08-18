@@ -1,7 +1,6 @@
 #pragma once
 
 #include "asevisibility.h"
-#include "presentstatus.h"
 
 #include <memory>
 

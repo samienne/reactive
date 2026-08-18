@@ -7,7 +7,7 @@
 
 #include "renderbuffer.h"
 #include "texture.h"
-#include "dispatcher.h"
+#include "gldispatcher.h"
 
 #include <iostream>
 
