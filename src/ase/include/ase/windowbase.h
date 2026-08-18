@@ -25,24 +25,16 @@ namespace ase
     struct WindowPresentSync;
 
     /**
-     * @brief The shared base every backend window derives from: it holds the
+     * @brief The shared base every backend window derives from. It provides the
      * render-context binding, the per-window present backpressure, and the
-     * `GenericWindow` all backends forward their callbacks and event injection
-     * to. `WindowImpl` stays a pure interface; this is where the common
-     * implementation lives.
+     * `GenericWindow` that backends forward their callbacks and event injection
+     * to; a backend implements only its surface-specific behaviour.
      */
     class ASE_EXPORT WindowBase : public WindowImpl
     {
     public:
-        /** @brief The render context this window was created against and both
-         * renders and presents through. Bound at creation and non-transferable:
-         * the window carries its own (surface, queue) binding. */
-        RenderContext& getRenderContext();
-
-        /** @brief This window's main render queue -- the one FIFO its draws,
-         * its present, and its backpressure fence all share, so their ordering
-         * holds. */
-        RenderQueue getMainRenderQueue();
+        RenderContext& getRenderContext() override;
+        RenderQueue getMainRenderQueue() override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

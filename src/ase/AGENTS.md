@@ -1,6 +1,6 @@
 # ase — agent notes
 
-*Last verified against `render-seam-cleanup` (2026-08-18).*
+*Last verified against `6b21821` (2026-08-18).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -71,8 +71,10 @@ are in the top-level `docs/`.
   differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
   `needsRedraw`/`frame`). The `WindowBase` ctor takes `(context, size,
   scalingFactor)` so it can build `genericWindow_`. The platform render lists are
-  `weak_ptr<WindowBase>` since the loop hooks live there; `Window::getRenderContext`
-  reaches them by downcasting its `WindowImpl` to `WindowBase`.
+  `weak_ptr<WindowBase>` since the loop hooks live there. The render-binding
+  accessors `getRenderContext`/`getMainRenderQueue` stay pure virtuals on
+  `WindowImpl` (implemented by `WindowBase`), so `Window` reaches them without a
+  downcast.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from

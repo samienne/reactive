@@ -24,6 +24,8 @@
 
 namespace ase
 {
+    class RenderContext;
+    class RenderQueue;
     struct Frame;
 
     class ASE_EXPORT WindowImpl : public std::enable_shared_from_this<WindowImpl>
@@ -46,6 +48,16 @@ namespace ase
         {
             return static_cast<T*>(getImplOfType(std::type_index(typeid(T))));
         }
+
+        /** @brief The render context this window was created against and both
+         * renders and presents through. Bound at creation and non-transferable:
+         * the window carries its own (surface, queue) binding. */
+        virtual RenderContext& getRenderContext() = 0;
+
+        /** @brief This window's main render queue -- the one FIFO its draws,
+         * its present, and its backpressure fence all share, so their ordering
+         * holds. */
+        virtual RenderQueue getMainRenderQueue() = 0;
 
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;
