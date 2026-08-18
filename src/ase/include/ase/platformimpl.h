@@ -20,7 +20,7 @@ namespace ase
 {
     class RenderContext;
     class Window;
-    class WindowImpl;
+    class WindowBase;
     struct Frame;
 
     class ASE_EXPORT PlatformImpl :
@@ -50,7 +50,7 @@ namespace ase
             /** The windows the loop renders each dirty tick, or null for a
              * backend with no drawable surfaces (the dummy). Owned by the
              * backend; it must outlive the run. */
-            std::vector<std::weak_ptr<WindowImpl>>* renderWindows = nullptr;
+            std::vector<std::weak_ptr<WindowBase>>* renderWindows = nullptr;
         };
 
         /** @brief Bind the platform to the run loop it drives frames on. The

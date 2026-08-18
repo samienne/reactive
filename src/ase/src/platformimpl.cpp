@@ -1,6 +1,6 @@
 #include "platformimpl.h"
 
-#include "windowimpl.h"
+#include "windowbase.h"
 #include "window.h"
 
 #include <btl/runloop.h>

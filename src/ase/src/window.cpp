@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include "windowimpl.h"
+#include "windowbase.h"
 #include "renderqueue.h"
 
 namespace ase
@@ -74,12 +75,14 @@ Framebuffer& Window::getDefaultFramebuffer()
 
 RenderContext& Window::getRenderContext()
 {
-    return d()->getRenderContext();
+    // The render binding lives on WindowBase, which every backend window this
+    // wraps derives from; WindowImpl itself is a pure interface.
+    return static_cast<WindowBase*>(d())->getRenderContext();
 }
 
 RenderQueue Window::getMainRenderQueue()
 {
-    return d()->getMainRenderQueue();
+    return static_cast<WindowBase*>(d())->getMainRenderQueue();
 }
 
 void Window::requestFrame()

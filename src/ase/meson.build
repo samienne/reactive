@@ -95,7 +95,7 @@ libasesrc = [
   'src/offscreenwindow.cpp',
   'src/platform.cpp',
   'src/window.cpp',
-  'src/windowimpl.cpp',
+  'src/windowbase.cpp',
   'src/rendercontext.cpp',
   'src/renderable.cpp',
   'src/vertexspec.cpp',

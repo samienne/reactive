@@ -373,9 +373,8 @@ namespace
 
 WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
         Vector2i size, float scalingFactor) :
-    WindowImpl(context),
+    WindowBase(context, size, scalingFactor),
     platform_(platform),
-    genericWindow_(size, scalingFactor),
     defaultFramebuffer_(std::make_shared<WglFramebuffer>(*this))
 {
     HINSTANCE hInst = GetModuleHandle(NULL);
@@ -489,16 +488,6 @@ std::string const& WglWindow::getTitle() const
     return title_;
 }
 
-Vector2i WglWindow::getSize() const
-{
-    return genericWindow_.getSize();
-}
-
-float WglWindow::getScalingFactor() const
-{
-    return genericWindow_.getScalingFactor();
-}
-
 Framebuffer& WglWindow::getDefaultFramebuffer()
 {
     return defaultFramebuffer_;
@@ -518,86 +507,6 @@ std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
 bool WglWindow::needsRedraw() const
 {
     return genericWindow_.needsRedraw();
-}
-
-void WglWindow::setFrameCallback(
-        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
-        callback)
-{
-    genericWindow_.setFrameCallback(std::move(callback));
-}
-
-void WglWindow::setCloseCallback(std::function<void()> func)
-{
-    genericWindow_.setCloseCallback(std::move(func));
-}
-
-void WglWindow::setResizeCallback(std::function<void()> func)
-{
-    genericWindow_.setResizeCallback(std::move(func));
-}
-
-void WglWindow::setButtonCallback(
-        std::function<void(PointerButtonEvent const& e)> cb)
-{
-    genericWindow_.setButtonCallback(std::move(cb));
-}
-
-void WglWindow::setPointerCallback(
-        std::function<void(PointerMoveEvent const&)> cb)
-{
-    genericWindow_.setPointerCallback(std::move(cb));
-}
-
-void WglWindow::setDragCallback(
-        std::function<void(PointerDragEvent const&)> cb)
-{
-    genericWindow_.setDragCallback(std::move(cb));
-}
-
-void WglWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
-{
-    genericWindow_.setKeyCallback(std::move(cb));
-}
-
-void WglWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
-{
-    genericWindow_.setHoverCallback(std::move(cb));
-}
-
-void WglWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
-{
-    genericWindow_.setTextCallback(std::move(cb));
-}
-
-void WglWindow::injectPointerButtonEvent(unsigned int pointerIndex,
-        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
-{
-    genericWindow_.injectPointerButtonEvent(pointerIndex, buttonIndex, pos,
-            buttonState);
-}
-
-void WglWindow::injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos)
-{
-    genericWindow_.injectPointerMoveEvent(pointerIndex, pos);
-}
-
-void WglWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
-        bool state)
-{
-    genericWindow_.injectHoverEvent(pointerIndex, pos, state);
-}
-
-void WglWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
-        uint32_t modifiers, std::string text)
-{
-    genericWindow_.injectKeyEvent(keyState, keyCode, modifiers,
-            std::move(text));
-}
-
-void WglWindow::injectTextEvent(std::string text)
-{
-    genericWindow_.injectTextEvent(std::move(text));
 }
 
 LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,

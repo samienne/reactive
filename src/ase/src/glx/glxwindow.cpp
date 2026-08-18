@@ -66,9 +66,8 @@ namespace
 
 GlxWindow::GlxWindow(GlxPlatform& platform, RenderContext& context,
         Vector2i const& size, float scalingFactor) :
-    WindowImpl(context),
+    WindowBase(context, size, scalingFactor),
     platform_(platform),
-    genericWindow_(size, scalingFactor),
     defaultFramebuffer_(std::make_shared<GlxFramebuffer>(*this))
 {
     unsigned int width = static_cast<unsigned int>((float)size[0] * scalingFactor);
@@ -217,86 +216,6 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
 bool GlxWindow::needsRedraw() const
 {
     return genericWindow_.needsRedraw();
-}
-
-void GlxWindow::setFrameCallback(
-        std::function<std::optional<std::chrono::microseconds>(Frame const&)>
-        callback)
-{
-    genericWindow_.setFrameCallback(std::move(callback));
-}
-
-void GlxWindow::setCloseCallback(std::function<void()> func)
-{
-    genericWindow_.setCloseCallback(std::move(func));
-}
-
-void GlxWindow::setResizeCallback(std::function<void()> func)
-{
-    genericWindow_.setResizeCallback(std::move(func));
-}
-
-void GlxWindow::setButtonCallback(
-        std::function<void(PointerButtonEvent const& e)> cb)
-{
-    genericWindow_.setButtonCallback(std::move(cb));
-}
-
-void GlxWindow::setPointerCallback(
-        std::function<void(PointerMoveEvent const&)> cb)
-{
-    genericWindow_.setPointerCallback(std::move(cb));
-}
-
-void GlxWindow::setDragCallback(
-        std::function<void(PointerDragEvent const&)> cb)
-{
-    genericWindow_.setDragCallback(std::move(cb));
-}
-
-void GlxWindow::setKeyCallback(std::function<void(KeyEvent const&)> cb)
-{
-    genericWindow_.setKeyCallback(std::move(cb));
-}
-
-void GlxWindow::setHoverCallback(std::function<void(HoverEvent const&)> cb)
-{
-    genericWindow_.setHoverCallback(std::move(cb));
-}
-
-void GlxWindow::setTextCallback(std::function<void(TextEvent const&)> cb)
-{
-    genericWindow_.setTextCallback(std::move(cb));
-}
-
-void GlxWindow::injectPointerButtonEvent(unsigned int pointerIndex,
-        unsigned int buttonIndex, Vector2f pos, ButtonState buttonState)
-{
-    genericWindow_.injectPointerButtonEvent(pointerIndex, buttonIndex, pos,
-            buttonState);
-}
-
-void GlxWindow::injectPointerMoveEvent(unsigned int pointerIndex, Vector2f pos)
-{
-    genericWindow_.injectPointerMoveEvent(pointerIndex, pos);
-}
-
-void GlxWindow::injectHoverEvent(unsigned int pointerIndex, Vector2f pos,
-        bool state)
-{
-    genericWindow_.injectHoverEvent(pointerIndex, pos, state);
-}
-
-void GlxWindow::injectKeyEvent(KeyState keyState, KeyCode keyCode,
-        uint32_t modifiers, std::string text)
-{
-    genericWindow_.injectKeyEvent(keyState, keyCode, modifiers,
-            std::move(text));
-}
-
-void GlxWindow::injectTextEvent(std::string text)
-{
-    genericWindow_.injectTextEvent(std::move(text));
 }
 
 void GlxWindow::handleEvent(_XEvent const& e)
@@ -538,16 +457,6 @@ void GlxWindow::setTitle(std::string&& title)
 std::string const& GlxWindow::getTitle() const
 {
     return genericWindow_.getTitle();
-}
-
-Vector2i GlxWindow::getSize() const
-{
-    return genericWindow_.getSize();
-}
-
-float GlxWindow::getScalingFactor() const
-{
-    return genericWindow_.getScalingFactor();
 }
 
 Framebuffer& GlxWindow::getDefaultFramebuffer()

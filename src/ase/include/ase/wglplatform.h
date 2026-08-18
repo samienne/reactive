@@ -17,7 +17,7 @@
 
 namespace ase
 {
-    class WindowImpl;
+    class WindowBase;
 
     class ASE_EXPORT WglPlatform : public GlPlatform
     {
@@ -54,7 +54,7 @@ namespace ase
         // Every window this platform makes, real or offscreen; the run loop
         // draws them all from here. Real windows are also in the HWND map (used
         // for message routing), which an offscreen window has no place in.
-        std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
+        std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 
 } // namespace ase

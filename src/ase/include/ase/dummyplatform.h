@@ -14,7 +14,7 @@
 namespace ase
 {
     class Platform;
-    class WindowImpl;
+    class WindowBase;
 
     class ASE_EXPORT DummyPlatform : public PlatformImpl
     {
@@ -55,7 +55,7 @@ namespace ase
         // No surface is ever registered here -- the dummy has a no-op render path
         // -- but runConfig() hands the loop a render list by pointer, so it holds
         // an (always empty) one.
-        std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
+        std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 
     /**

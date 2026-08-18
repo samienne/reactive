@@ -1,6 +1,6 @@
 # ase — agent notes
 
-*Last verified against `55f2e55` (2026-08-15).*
+*Last verified against `render-seam-cleanup` (2026-08-18).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -57,6 +57,22 @@ are in the top-level `docs/`.
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
   pumping), and dropping the token resumes the cadence. `step` lives only on the
   token, so a free-running loop cannot be stepped by construction.
+- **`WindowImpl` is a pure interface; `WindowBase` holds the shared guts.**
+  `WindowImpl` (`include/ase/windowimpl.h`) is only the public window virtuals plus
+  the `getImplOfType` type-erasure plumbing. Every backend window instead derives
+  from `WindowBase` (`include/ase/windowbase.h`, `src/windowbase.cpp`), which owns
+  the co-owned `RenderContext`, the per-window present backpressure
+  (`acquire`/`submitFrameFence` + the `WindowPresentSync` fence bookkeeping), the
+  loop-contract private virtuals (`needsRedraw`/`frame`, with `friend class
+  PlatformImpl`), and the `GenericWindow genericWindow_` (protected, so backends
+  reach it during OS-event translation). The callback setters and event injectors
+  that just forward to `genericWindow_` — plus `getSize`/`getScalingFactor` — are
+  concrete forwarders on `WindowBase`; a backend overrides only what genuinely
+  differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
+  `needsRedraw`/`frame`). The `WindowBase` ctor takes `(context, size,
+  scalingFactor)` so it can build `genericWindow_`. The platform render lists are
+  `weak_ptr<WindowBase>` since the loop hooks live there; `Window::getRenderContext`
+  reaches them by downcasting its `WindowImpl` to `WindowBase`.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
@@ -65,7 +81,7 @@ are in the top-level `docs/`.
   on-screen window when `headless` is false. The real GLX/WGL backends keep **one
   render list** of all their windows (real and offscreen) — the render-polling
   surface the platform's frame loop drives, `needsRedraw()`/`frame()`, now
-  **private virtuals on `WindowImpl` reached through `friend class PlatformImpl`**,
+  **private virtuals on `WindowBase` reached through `friend class PlatformImpl`**,
   not part of the public window API — which the loop draws uniformly (the dummy
   registers no drawable
   surface and keeps none). **Event routing is separate and backend-specific**

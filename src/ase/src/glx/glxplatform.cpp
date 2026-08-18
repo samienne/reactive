@@ -111,7 +111,7 @@ private:
     // X windows, for routing X events; only real windows are here.
     std::vector<std::weak_ptr<GlxWindow>> windows_;
     // Every window, real or offscreen; the run loop draws them all from here.
-    std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
+    std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
