@@ -2,8 +2,6 @@
 
 #include "commandbuffer.h"
 #include "rendercommand.h"
-#include "window.h"
-#include "dispatcher.h"
 
 #include <variant>
 
@@ -32,11 +30,6 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
         if (std::holds_alternative<FenceCommand>(command))
             std::get<FenceCommand>(command).promise.set();
     }
-}
-
-PresentStatus DummyRenderQueue::present(Window& window)
-{
-    return window.present(Dispatched());
 }
 
 } // namespace

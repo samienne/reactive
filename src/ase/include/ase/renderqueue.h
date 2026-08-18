@@ -9,7 +9,6 @@ namespace ase
 {
     class CommandBuffer;
     class RenderQueueImpl;
-    class Window;
 
     class ASE_EXPORT RenderQueue
     {
@@ -24,10 +23,6 @@ namespace ase
         void flush();
         void finish();
         void submit(CommandBuffer&& commandBuffer);
-
-        /** @brief Present `window` behind this queue's submitted draws; GL
-         * always reports `Ok`. */
-        PresentStatus present(Window& window);
 
         template <class T>
         T& getImpl()

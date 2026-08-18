@@ -147,7 +147,7 @@ std::optional<std::chrono::microseconds> OffscreenWindow::frame(
     return genericWindow_.frame(frame);
 }
 
-PresentStatus OffscreenWindow::present(Dispatched)
+PresentStatus OffscreenWindow::present()
 {
     return PresentStatus::Ok;
 }

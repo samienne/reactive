@@ -9,7 +9,6 @@
 #include "asevisibility.h"
 #include "framebuffer.h"
 #include "presentstatus.h"
-#include "dispatcher.h"
 #include "rendercontext.h"
 #include "vector.h"
 
@@ -34,7 +33,7 @@ namespace ase
     // windowimpl.cpp so the mutex/condition_variable stay out of the header.
     struct WindowPresentSync;
 
-    class ASE_EXPORT WindowImpl
+    class ASE_EXPORT WindowImpl : public std::enable_shared_from_this<WindowImpl>
     {
     public:
         virtual ~WindowImpl() = default;
@@ -77,10 +76,11 @@ namespace ase
 
         virtual void requestFrame() = 0;
 
-        /** @brief Present this surface's finished frame. Called on the render
-         * thread once the frame's draws have been submitted; a surface with
-         * nothing to swap (offscreen) returns `Ok`. */
-        virtual PresentStatus present(Dispatched) = 0;
+        /** @brief Present this surface's finished frame, sequencing the swap
+         * behind this window's own submitted draws on its own queue. Returns
+         * immediately without blocking; a surface with nothing to swap
+         * (offscreen) returns `Ok`. */
+        virtual PresentStatus present() = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(

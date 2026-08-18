@@ -2,6 +2,8 @@
 
 #include "glxwindow.h"
 
+#include "glrenderqueue.h"
+#include "renderqueue.h"
 #include "debug.h"
 
 #include <tracy/Tracy.hpp>
@@ -459,23 +461,28 @@ void GlxWindow::handleEvent(_XEvent const& e)
     }
 }
 
-PresentStatus GlxWindow::present(Dispatched)
+PresentStatus GlxWindow::present()
 {
-    ZoneScoped;
+    // Sequence the swap behind this window's own submitted draws on its own
+    // queue: enqueue it on the same GL dispatcher the draws went through, so it
+    // runs FIFO after them on the render thread. The keep-alive holds the window
+    // until the swap runs, since present() returns before the dispatched task.
+    auto keepAlive = shared_from_this();
+    getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+        [this, keepAlive](GlFunctions const&)
+        {
+            ZoneScoped;
 
-    ++frames_;
-    auto lock = platform_.lockX();
-    auto dpy = platform_.getDisplay();
+            ++frames_;
+            auto lock = platform_.lockX();
+            auto dpy = platform_.getDisplay();
 
-    platform_.swapGlxBuffers(lock, glxWin_);
-    FrameMark;
+            platform_.swapGlxBuffers(lock, glxWin_);
+            FrameMark;
 
-    /*GLenum err = glGetError();
-    if (err != GL_NO_ERROR)
-        DBG("glError: %1", glErrorToString(err));*/
-
-    setSyncCounter(dpy, syncCounter_, counterValue_);
-    XSync(dpy, false);
+            setSyncCounter(dpy, syncCounter_, counterValue_);
+            XSync(dpy, false);
+        });
 
     return PresentStatus::Ok;
 }

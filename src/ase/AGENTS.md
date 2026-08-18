@@ -71,15 +71,21 @@ are in the top-level `docs/`.
   surface and keeps none). **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
-  alone. `present` is a **surface operation, not a render command**: a
-  status-returning `WindowImpl::present(Dispatched)` virtual each window type
-  implements (GlxWindow swaps its GLX drawable with the X lock held inside,
-  WglWindow `SwapBuffers`es its `hdc_`, OffscreenWindow is the no-op a future
-  pixel readback hooks into). The caller enqueues it behind the frame's
-  submitted draws through the GL-free `RenderQueue::present(Window&)` seam, which
-  forwards to the queue's own dispatcher — draws and present share one FIFO, so
-  ordering holds. `PresentStatus` is `Ok`-only on GL; it exists so a backend
-  whose present can fail (a lost swapchain) is not a `void`-return retrofit.
+  alone. `present` is a **surface operation, not a render command**: the
+  backend-agnostic, status-returning `WindowImpl::present()` virtual each window
+  type implements. A GL window sequences its own swap by enqueuing it on the
+  same GL dispatcher its draws went through (reached via its own
+  `getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(...)`), so the swap
+  runs FIFO after the submitted draws on the render thread; `present()` returns
+  immediately without blocking. The swap body — the only place the GL-only
+  `Dispatched` tag legitimately appears — is what GlxWindow (swaps its GLX
+  drawable with the X lock held inside) and WglWindow (`SwapBuffers`es its
+  `hdc_`) run there; OffscreenWindow and DummyWindow are the no-op a future
+  pixel readback hooks into and name no GL types. Because the dispatched swap
+  runs after `present()` returns, the GL windows capture a `shared_from_this()`
+  keep-alive into the task so the window outlives it. `PresentStatus` is
+  `Ok`-only on GL; it exists so a backend whose present can fail (a lost
+  swapchain) is not a `void`-return retrofit.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root

@@ -52,7 +52,7 @@ namespace ase
         void injectTextEvent(std::string text) override;
 
         /** @brief No-op: the dummy backend never draws or swaps. */
-        PresentStatus present(Dispatched) override;
+        PresentStatus present() override;
 
     private:
         bool needsRedraw() const override;

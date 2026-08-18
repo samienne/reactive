@@ -24,7 +24,6 @@ namespace ase
         void flush() override;
         void finish() override;
         void submit(CommandBuffer&& renderQueue) override;
-        PresentStatus present(Window& window) override;
 
     private:
         std::shared_ptr<GlDispatchedContext> dispatcher_;

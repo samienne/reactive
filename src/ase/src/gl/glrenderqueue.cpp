@@ -2,7 +2,6 @@
 
 #include "commandbuffer.h"
 #include "gldispatchedcontext.h"
-#include "window.h"
 
 #include <tracy/Tracy.hpp>
 
@@ -55,19 +54,6 @@ void GlRenderQueue::submit(CommandBuffer&& renderQueue)
     if (renderQueue.size() > 10)
         std::cout << "submit queue commands: " << renderQueue.size() << std::endl;
     renderState_.submit(std::move(renderQueue));
-}
-
-PresentStatus GlRenderQueue::present(Window& window)
-{
-    // Enqueue the swap behind this queue's submitted draws; FIFO on the single
-    // dispatcher keeps draws -> present -> fence ordering. The window is copied
-    // so its surface outlives the deferred dispatch.
-    dispatcher_->dispatch([window](GlFunctions const&) mutable
-    {
-        window.present(Dispatched());
-    });
-
-    return PresentStatus::Ok;
 }
 
 } // namespace ase

@@ -66,7 +66,7 @@ namespace ase
         void injectTextEvent(std::string text) override;
 
         /** @brief No-op: an offscreen surface has no drawable to swap. */
-        PresentStatus present(Dispatched) override;
+        PresentStatus present() override;
 
     private:
         bool needsRedraw() const override;

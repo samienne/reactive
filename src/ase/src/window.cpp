@@ -89,16 +89,7 @@ void Window::requestFrame()
 
 PresentStatus Window::present()
 {
-    // The window reaches its own queue and sequences the swap behind its draws;
-    // the queue forwards to this window's present(Dispatched) on the render
-    // thread. The window handle is passed so its surface outlives the deferred
-    // swap.
-    return d()->getMainRenderQueue().present(*this);
-}
-
-PresentStatus Window::present(Dispatched dispatched)
-{
-    return d()->present(dispatched);
+    return d()->present();
 }
 
 WindowImpl* Window::getImplOfType(std::type_index type)

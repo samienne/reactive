@@ -2,6 +2,8 @@
 
 #include "wglplatform.h"
 #include "wglframebuffer.h"
+#include "glrenderqueue.h"
+#include "renderqueue.h"
 
 #include <windows.h>
 
@@ -439,11 +441,20 @@ HDC WglWindow::getDc() const
     return hdc_;
 }
 
-PresentStatus WglWindow::present(Dispatched)
+PresentStatus WglWindow::present()
 {
-    ZoneScopedN("SwapBuffers");
-    SwapBuffers(hdc_);
-    FrameMark;
+    // Sequence the swap behind this window's own submitted draws on its own
+    // queue: enqueue it on the same GL dispatcher the draws went through, so it
+    // runs FIFO after them on the render thread. The keep-alive holds the window
+    // until the swap runs, since present() returns before the dispatched task.
+    auto keepAlive = shared_from_this();
+    getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+        [this, keepAlive](GlFunctions const&)
+        {
+            ZoneScopedN("SwapBuffers");
+            SwapBuffers(hdc_);
+            FrameMark;
+        });
 
     return PresentStatus::Ok;
 }

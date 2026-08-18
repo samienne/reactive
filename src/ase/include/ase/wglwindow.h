@@ -25,7 +25,7 @@ namespace ase
         HWND getHwnd() const;
         HDC getDc() const;
 
-        PresentStatus present(Dispatched) override;
+        PresentStatus present() override;
 
         // From WindowImpl
         void setVisible(bool value) override;

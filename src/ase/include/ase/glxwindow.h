@@ -45,7 +45,6 @@ namespace ase
     class GlxWindowDeferred;
     class RenderContext;
     class Framebuffer;
-    struct Dispatched;
 
     class ASE_EXPORT GlxWindow : public WindowImpl
     {
@@ -64,7 +63,7 @@ namespace ase
 
         void handleEvents(std::vector<_XEvent> const& events);
 
-        PresentStatus present(Dispatched) override;
+        PresentStatus present() override;
 
         // From WindowImpl
         void setVisible(bool value) override;

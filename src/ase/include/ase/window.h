@@ -28,7 +28,6 @@ namespace ase
     class WindowImpl;
     class RenderContext;
     class RenderQueue;
-    struct Dispatched;
 
     struct Frame
     {
@@ -72,11 +71,6 @@ namespace ase
         /** @brief Sequence this window's present behind its own submitted draws,
          * on its own queue. Enqueues the swap; GL always reports `Ok`. */
         PresentStatus present();
-
-        /** @brief Present this window's finished frame; forwards to the surface
-         * behind any decorators. Called on the render thread once the frame's
-         * draws have been submitted. */
-        PresentStatus present(Dispatched dispatched);
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
