@@ -228,7 +228,7 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
-    ZoneScoped;
+    ZoneScopedN("renderCommands");
 
     if (vertexArrayObject_ == 0)
     {

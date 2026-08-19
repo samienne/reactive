@@ -390,7 +390,7 @@ PresentStatus GlxWindow::present()
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [this, keepAlive](GlFunctions const&)
         {
-            ZoneScoped;
+            ZoneScopedN("SwapBuffers");
 
             ++frames_;
             auto lock = platform_.lockX();

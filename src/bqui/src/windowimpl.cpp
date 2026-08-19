@@ -1,5 +1,7 @@
 #include "windowimpl.h"
 
+#include <tracy/Tracy.hpp>
+
 namespace bqui
 {
 
@@ -335,7 +337,7 @@ std::optional<bq::signal::signal_time_t> WindowImpl::frame(
 std::optional<std::chrono::microseconds> WindowImpl::onFrame(
         ase::Frame const& frame)
 {
-    ZoneScoped;
+    ZoneScopedN("onFrame");
 
     timer_ = frame.time;
 

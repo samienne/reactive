@@ -4,6 +4,8 @@
 #include "renderqueue.h"
 #include "commandbuffer.h"
 
+#include <tracy/Tracy.hpp>
+
 #include <condition_variable>
 #include <mutex>
 
@@ -40,6 +42,8 @@ RenderContext& WindowBase::getRenderContext()
 
 PresentStatus WindowBase::acquire()
 {
+    ZoneScopedN("acquire");
+
     auto sync = presentSync_;
 
     std::unique_lock<std::mutex> lock(sync->mutex);
@@ -50,6 +54,8 @@ PresentStatus WindowBase::acquire()
 
 void WindowBase::submitFrameFence()
 {
+    ZoneScopedN("submitFrameFence");
+
     auto sync = presentSync_;
 
     {
