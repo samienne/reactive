@@ -54,11 +54,6 @@ namespace ase
          * the window carries its own (surface, queue) binding. */
         virtual RenderContext& getRenderContext() = 0;
 
-        /** @brief This window's main render queue -- the one FIFO its draws,
-         * its present, and its backpressure fence all share, so their ordering
-         * holds. */
-        virtual RenderQueue getMainRenderQueue() = 0;
-
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;
 

@@ -1,7 +1,7 @@
 #include "glvertexbuffer.h"
 
 #include "buffer.h"
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 #include "debug.h"
 

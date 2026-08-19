@@ -68,7 +68,6 @@ namespace ase
          * window. Either is driven from the run loop like any other window. */
         Window makeWindow(RenderContext& context, Vector2i size, bool headless);
 
-        void handleEvents();
         RenderContext makeRenderContext();
 
         /** @brief The run loop this platform was injected with and drives frames

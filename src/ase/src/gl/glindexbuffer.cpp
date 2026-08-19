@@ -1,6 +1,6 @@
 #include "glindexbuffer.h"
 
-#include "gldispatcher.h"
+#include "dispatcher.h"
 #include "buffer.h"
 
 #include <cstdint>

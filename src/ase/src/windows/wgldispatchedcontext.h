@@ -3,7 +3,7 @@
 
 #include "gldispatchedcontext.h"
 
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 #include "asevisibility.h"
 

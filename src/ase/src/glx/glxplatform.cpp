@@ -370,7 +370,7 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-PlatformImpl::RunConfig GlxPlatform::runConfig()
+PlatformBase::RunConfig GlxPlatform::runConfig()
 {
     int const targetFps = 60;
 

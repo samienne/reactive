@@ -19,7 +19,6 @@ glsrcs = [
   'src/gl/globjectmanager.cpp',
   'src/gl/glrenderstate.cpp',
   'src/gl/gldispatchedcontext.cpp',
-  'src/gl/gldispatcher.cpp',
   'src/gl/gluniformset.cpp',
   'src/gl/glrenderbuffer.cpp',
   'src/gl/glrenderqueue.cpp'
@@ -104,6 +103,7 @@ libasesrc = [
   'src/vertexbuffer.cpp',
   'src/indexbuffer.cpp',
   'src/mesh.cpp',
+  'src/dispatcher.cpp',
   'src/uniformbuffer.cpp',
   'src/fragmentshader.cpp',
   'src/vertexshader.cpp',
@@ -120,7 +120,7 @@ libasesrc = [
   'src/uniformset.cpp',
   'src/renderbuffer.cpp',
   'src/renderqueue.cpp',
-  'src/platformimpl.cpp'
+  'src/platformbase.cpp'
   ]
 
 libase = library('ase',

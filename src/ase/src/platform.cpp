@@ -59,11 +59,6 @@ Window Platform::makeWindow(RenderContext& context, Vector2i size, bool headless
     return d()->makeWindow(context, size, headless);
 }
 
-void Platform::handleEvents()
-{
-    d()->handleEvents();
-}
-
 RenderContext Platform::makeRenderContext()
 {
     return d()->makeRenderContext();

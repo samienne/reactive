@@ -1,6 +1,6 @@
 #pragma once
 
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 #include "asevisibility.h"
 

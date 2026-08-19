@@ -1,7 +1,7 @@
 #pragma once
 
 #include "glfunctions.h"
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 namespace ase
 {

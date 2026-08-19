@@ -1,4 +1,4 @@
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 #include "debug.h"
 

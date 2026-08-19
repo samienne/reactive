@@ -44,10 +44,10 @@ namespace ase
         // From Platform
         Window makeWindow(RenderContext& context, Vector2i size,
                 bool headless) override;
-        void handleEvents() override;
         RenderContext makeRenderContext() override;
 
     protected:
+        void handleEvents() override;
         RunConfig runConfig() override;
         btl::NativeHandle wakeSource() override;
         std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;

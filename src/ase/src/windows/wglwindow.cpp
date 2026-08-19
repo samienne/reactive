@@ -5,6 +5,8 @@
 #include "glrenderqueue.h"
 #include "renderqueue.h"
 
+// windows.h must precede the GL headers below: <GL/gl.h> and <GL/wglext.h>
+// rely on WINGDIAPI/APIENTRY from windows.h.
 #include <windows.h>
 
 #include <utf8/utf8.h>
@@ -447,7 +449,7 @@ PresentStatus WglWindow::present()
     // runs FIFO after them on the render thread. The keep-alive holds the window
     // until the swap runs, since present() returns before the dispatched task.
     auto keepAlive = shared_from_this();
-    getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+    getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [this, keepAlive](GlFunctions const&)
         {
             ZoneScopedN("SwapBuffers");

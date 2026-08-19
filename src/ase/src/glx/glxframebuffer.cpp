@@ -7,7 +7,7 @@
 
 #include "renderbuffer.h"
 #include "texture.h"
-#include "gldispatcher.h"
+#include "dispatcher.h"
 
 namespace ase
 {

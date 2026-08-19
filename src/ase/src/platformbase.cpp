@@ -1,4 +1,4 @@
-#include "platformimpl.h"
+#include "platformbase.h"
 
 #include "windowbase.h"
 #include "window.h"
@@ -10,7 +10,12 @@
 namespace ase
 {
 
-void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
+PlatformBase::PlatformBase(btl::RunLoop& loop) :
+    loop_(loop)
+{
+}
+
+void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 {
     RunConfig config = runConfig();
 
@@ -231,12 +236,12 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
     // the windows. The loop holds no context to finish.
 }
 
-void PlatformImpl::pauseFrames()
+void PlatformBase::pauseFrames()
 {
     ++pauseCount_;
 }
 
-void PlatformImpl::resumeFrames()
+void PlatformBase::resumeFrames()
 {
     if (pauseCount_ > 0)
         --pauseCount_;
@@ -247,9 +252,37 @@ void PlatformImpl::resumeFrames()
         requestFrame();
 }
 
-bool PlatformImpl::stepFrame(std::chrono::microseconds dt)
+bool PlatformBase::stepFrame(std::chrono::microseconds dt)
 {
     return stepFrame_ ? stepFrame_(dt) : false;
+}
+
+void PlatformBase::requestFrame()
+{
+    if (!wakePosted_.exchange(true))
+    {
+        loop_.post([this](btl::RunLoop::Controller& controller)
+            {
+                wakePosted_ = false;
+                if (scheduleTick_)
+                    scheduleTick_(controller);
+            });
+    }
+}
+
+btl::RunLoop& PlatformBase::runLoop()
+{
+    return loop_;
+}
+
+PlatformBase::RunConfig PlatformBase::runConfig()
+{
+    return RunConfig{};
+}
+
+btl::NativeHandle PlatformBase::wakeSource()
+{
+    return {};
 }
 
 } // namespace ase

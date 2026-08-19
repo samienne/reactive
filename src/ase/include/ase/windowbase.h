@@ -34,7 +34,6 @@ namespace ase
     {
     public:
         RenderContext& getRenderContext() override;
-        RenderQueue getMainRenderQueue() override;
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
@@ -82,7 +81,7 @@ namespace ase
         // render relationship, asks whether a window wants drawing, gates it
         // against the window's own backpressure, draws it, and fences it. Uniform
         // across real and offscreen windows.
-        friend class PlatformImpl;
+        friend class PlatformBase;
 
         virtual bool needsRedraw() const = 0;
 

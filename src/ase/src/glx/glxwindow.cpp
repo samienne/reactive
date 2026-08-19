@@ -387,7 +387,7 @@ PresentStatus GlxWindow::present()
     // runs FIFO after them on the render thread. The keep-alive holds the window
     // until the swap runs, since present() returns before the dispatched task.
     auto keepAlive = shared_from_this();
-    getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
+    getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [this, keepAlive](GlFunctions const&)
         {
             ZoneScoped;

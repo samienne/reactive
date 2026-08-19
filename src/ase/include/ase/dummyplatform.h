@@ -1,6 +1,6 @@
 #pragma once
 
-#include "platformimpl.h"
+#include "platformbase.h"
 
 #include "asevisibility.h"
 
@@ -16,14 +16,13 @@ namespace ase
     class Platform;
     class WindowBase;
 
-    class ASE_EXPORT DummyPlatform : public PlatformImpl
+    class ASE_EXPORT DummyPlatform : public PlatformBase
     {
     public:
         explicit DummyPlatform(btl::RunLoop& loop);
 
         Window makeWindow(RenderContext& context, Vector2i size,
                 bool headless) override;
-        void handleEvents() override;
         RenderContext makeRenderContext() override;
 
         /** @brief Cap the headless frame rate. Zero (the default) leaves the loop
@@ -42,6 +41,7 @@ namespace ase
         void setMaxFrames(uint64_t maxFrames);
 
     protected:
+        void handleEvents() override;
         RunConfig runConfig() override;
         std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
@@ -53,10 +53,6 @@ namespace ase
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
 
-        // The live window list the loop renders, handed to it by reference from
-        // getRenderWindows(). The dummy has a no-op render path, so drawing these
-        // produces nothing, but registering them lets the one loop drive each
-        // window's frame() the same as the real backends.
         std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 

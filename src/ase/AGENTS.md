@@ -38,19 +38,19 @@ are in the top-level `docs/`.
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
 - **The platform does not own its run loop.** The `btl::RunLoop` is created by
-  the caller (bqui's `App`, a test) and injected at construction; `PlatformImpl`
+  the caller (bqui's `App`, a test) and injected at construction; `PlatformBase`
   holds it by reference and `runLoop()` returns it. The loop must outlive the
   platform, so callers keep it as a named local declared before the platform
   (`RunLoop` is non-movable, so a plain local is the natural home). `App`
   registers its as the process default (`RunLoop::makeDefault()`) so socket IO
   can reach it via `RunLoop::getDefault()`.
 - **The frame loop is context-free and lives on the platform.** `Platform::run`
-  (`PlatformImpl::run`, one shared body in `src/platformimpl.cpp`) drives frames
+  (`PlatformBase::run`, one shared body in `src/platformbase.cpp`) drives frames
   on the injected loop: per dirty window it gates on that window's own `acquire`
   backpressure, renders and presents through the context the window carries, and
   fences on the window's own queue — so `run` names no `RenderContext` of its own.
   A backend supplies only what differs through protected virtuals: the static
-  cadence via `runConfig()` (`PlatformImpl::RunConfig`: `frameStep` and the
+  cadence via `runConfig()` (`PlatformBase::RunConfig`: `frameStep` and the
   dummy's `maxFrames`/`maxFps` self-pump budget), the OS `wakeSource()` (read
   once at loop start), and the live `getRenderWindows()` list (re-read every tick,
   since windows open and close during a run); there is no `Session`. Manual
@@ -59,6 +59,17 @@ are in the top-level `docs/`.
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
   pumping), and dropping the token resumes the cadence. `step` lives only on the
   token, so a free-running loop cannot be stepped by construction.
+- **`PlatformImpl` is a pure interface; `PlatformBase` holds the shared guts.**
+  Mirroring the `WindowImpl`/`WindowBase` split below: `PlatformImpl`
+  (`include/ase/platformimpl.h`) is only the public platform virtuals the
+  `Platform` handle and its `PauseToken` call (`makeWindow`, `makeRenderContext`,
+  `run`, `pauseFrames`/`resumeFrames`/`stepFrame`, `requestFrame`, `runLoop`) plus
+  the `getImplOfType` type-erasure plumbing. Every backend derives instead from
+  `PlatformBase` (`include/ase/platformbase.h`, `src/platformbase.cpp`), which
+  owns the injected `loop_`, the shared frame-loop body, the pause/step state, and
+  the loop-contract *protected* virtuals a backend fills in (`handleEvents`,
+  `runConfig`, `wakeSource`, `getRenderWindows`) — none of which are on the public
+  interface. `RunConfig` moved here too (`PlatformBase::RunConfig`).
 - **`WindowImpl` is a pure interface; `WindowBase` holds the shared guts.**
   `WindowImpl` (`include/ase/windowimpl.h`) is only the public window virtuals plus
   the `getImplOfType` type-erasure plumbing. Every backend window instead derives
@@ -66,17 +77,18 @@ are in the top-level `docs/`.
   the co-owned `RenderContext`, the per-window present backpressure
   (`acquire`/`submitFrameFence` + the `WindowPresentSync` fence bookkeeping), the
   loop-contract private virtuals (`needsRedraw`/`frame`, with `friend class
-  PlatformImpl`), and the `GenericWindow genericWindow_` (protected, so backends
+  PlatformBase`), and the `GenericWindow genericWindow_` (protected, so backends
   reach it during OS-event translation). The callback setters and event injectors
   that just forward to `genericWindow_` — plus `getSize`/`getScalingFactor` — are
   concrete forwarders on `WindowBase`; a backend overrides only what genuinely
   differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
   `needsRedraw`/`frame`). The `WindowBase` ctor takes `(context, size,
   scalingFactor)` so it can build `genericWindow_`. The platform render lists are
-  `weak_ptr<WindowBase>` since the loop hooks live there. The render-binding
-  accessors `getRenderContext`/`getMainRenderQueue` stay pure virtuals on
-  `WindowImpl` (implemented by `WindowBase`), so `Window` reaches them without a
-  downcast.
+  `weak_ptr<WindowBase>` since the loop hooks live there. `getRenderContext` is
+  a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`
+  reaches the render context without a downcast; the window's main render queue
+  is just `getRenderContext().getMainRenderQueue()`, so `Window::getMainRenderQueue`
+  is a convenience computed on that and stays off the impl interface.
 - **Offscreen ≠ dummy.** `Platform::makeWindow(context, size, headless)` with
   `headless` gives an `OffscreenWindow` (backend-agnostic,
   `src/offscreenwindow.cpp`): the *real* backend rendering into an FBO built from
@@ -85,7 +97,7 @@ are in the top-level `docs/`.
   on-screen window when `headless` is false. The real GLX/WGL backends keep **one
   render list** of all their windows (real and offscreen) — the render-polling
   surface the platform's frame loop drives, `needsRedraw()`/`frame()`, now
-  **private virtuals on `WindowBase` reached through `friend class PlatformImpl`**,
+  **private virtuals on `WindowBase` reached through `friend class PlatformBase`**,
   not part of the public window API — which the loop draws uniformly. The **dummy
   backend registers its windows on the same render list** and is driven by the one
   loop like the real backends; its `frame()` runs (evaluating the signal graph and
@@ -97,7 +109,7 @@ are in the top-level `docs/`.
   backend-agnostic, status-returning `WindowImpl::present()` virtual each window
   type implements. A GL window sequences its own swap by enqueuing it on the
   same GL dispatcher its draws went through (reached via its own
-  `getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(...)`), so the swap
+  `getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(...)`), so the swap
   runs FIFO after the submitted draws on the render thread; `present()` returns
   immediately without blocking. The swap body — the only place the GL-only
   `Dispatched` tag legitimately appears — is what GlxWindow (swaps its GLX

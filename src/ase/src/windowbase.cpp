@@ -38,11 +38,6 @@ RenderContext& WindowBase::getRenderContext()
     return context_;
 }
 
-RenderQueue WindowBase::getMainRenderQueue()
-{
-    return context_.getMainRenderQueue();
-}
-
 PresentStatus WindowBase::acquire()
 {
     auto sync = presentSync_;
@@ -74,7 +69,7 @@ void WindowBase::submitFrameFence()
             sync->slotFreed.notify_all();
         });
 
-    getMainRenderQueue().submit(std::move(commandBuffer));
+    context_.getMainRenderQueue().submit(std::move(commandBuffer));
 }
 
 Vector2i WindowBase::getSize() const

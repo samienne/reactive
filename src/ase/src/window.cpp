@@ -1,6 +1,7 @@
 #include "window.h"
 
 #include "windowimpl.h"
+#include "rendercontext.h"
 #include "renderqueue.h"
 
 namespace ase
@@ -79,7 +80,7 @@ RenderContext& Window::getRenderContext()
 
 RenderQueue Window::getMainRenderQueue()
 {
-    return d()->getMainRenderQueue();
+    return d()->getRenderContext().getMainRenderQueue();
 }
 
 void Window::requestFrame()
