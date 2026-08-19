@@ -281,11 +281,14 @@ The driver registers the socket and, in client-driven mode, pauses. `run()`,
 `frameCallback`, window creation, present — identical to local; the only branch is
 "attach the driver or not," a thin composition rather than a reimplemented loop.
 
-**Honesty caveat (as built):** in client-driven mode `step` renders each live glue
-directly (`onFrame`), bypassing the platform's per-window tick and its `acquire()`
-backpressure on a real backend — a single deterministic frame, which matches the
-old model. This is safe because the platform is paused (nothing else is producing
-frames on that surface), so the direct render cannot race the loop.
+**One frame path (as built):** in client-driven mode the driver steps the paused
+platform's own loop through the pause token (`PauseToken::step(dt)` →
+`frameCallback` + `renderDirtyWindows`), the same per-window tick and `acquire()`
+backpressure a real auto frame takes — there is no bqui-side glue render loop. The
+dummy backend registers its windows on that render list like the real backends, so
+the loop drives their `frame()` too; only the dummy's draw and present are no-ops.
+This is safe because the platform is paused (nothing else is producing frames on
+that surface), so the stepped frame cannot race the auto cadence.
 
 **`RemoteWindowImpl` dissolves.** Introspection is a capability of the **glue** (it holds
 the window + widget + render tree), so it is available for *any* window — no

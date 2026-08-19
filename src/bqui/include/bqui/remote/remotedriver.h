@@ -79,11 +79,13 @@ namespace bqui::remote
      * reconciles as windows open and close during the session, so the client
      * sees exactly the windows the app currently holds.
      *
-     * `step` produces one deterministic app frame by the client-supplied dt (the
-     * same frame path an auto tick takes: advance signal time, reconcile the
-     * window set, render the live windows) and reports whether the app wants to
-     * keep running. `sync` reconciles the window set *without* advancing a frame,
-     * so a query lands on the app's current windows. `liveWindows` returns the
+     * `step` is the driver's fallback frame primitive for the token-less case:
+     * it produces one deterministic app frame by the client-supplied dt (advance
+     * signal time, reconcile the window set, render the live windows) and reports
+     * whether the app wants to keep running. When the driver holds a pause token
+     * it steps the platform's one loop directly instead (see `RemoteDriver`), so
+     * `step` need not be set. `sync` reconciles the window set *without*
+     * advancing a frame, so a query lands on the app's current windows. `liveWindows` returns the
      * per-window seams over the app's current windows; each call rebuilds them,
      * so a returned set is valid only until the next call -- never hold one
      * across a `step` or `sync`.

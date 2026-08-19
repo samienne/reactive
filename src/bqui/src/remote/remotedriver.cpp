@@ -357,10 +357,14 @@ private:
 
     // Advance one fused app frame by dt: the same frame path an auto tick takes
     // (advance signal time, reconcile the window set, render the live windows).
-    // Bumps the monotonic frame counter, and requests a stop if the app is done.
+    // With a pause token engaged the driver steps the platform's one loop
+    // directly (PauseToken::step -> renderDirtyWindows), the single frame path
+    // for every backend; the app_.step fallback covers the token-less
+    // fake-window unit fixtures. Bumps the monotonic frame counter, and requests
+    // a stop if the app is done.
     void advanceFrame(std::chrono::microseconds dt)
     {
-        bool keepRunning = app_.step(dt);
+        bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
         ++frame_;
         if (!keepRunning)
             shuttingDown_ = true;

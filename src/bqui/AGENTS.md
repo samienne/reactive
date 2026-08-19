@@ -94,12 +94,15 @@ from another.
 
 **Remote mode is an `App` branch that attaches a driver — no decorator, no window
 wrapper.** With a remote endpoint set, `runUntil` builds a `remote::RemoteApp`
-(the universal frame primitives: `step`, `sync`, `liveWindows` over
-`windowImpls_`) and attaches a `remote::RemoteDriver`
-(`include/bqui/remote/remotedriver.h`) over the platform's `pause()`/`step()`
-*before* `platform.run(frameCallback)`. The driver connects the client socket,
-registers it on the platform's run loop, and — in client-driven mode — holds a
-`pause()` token so the client owns the clock. The frame path is otherwise
+(`sync` and `liveWindows` over `windowImpls_`) and attaches a
+`remote::RemoteDriver` (`include/bqui/remote/remotedriver.h`) over the platform's
+`pause()`/`step()` *before* `platform.run(frameCallback)`. The driver connects the
+client socket, registers it on the platform's run loop, and — in client-driven
+mode — holds a `pause()` token so the client owns the clock and each `advance`
+steps the platform's one loop directly through that token
+(`PauseToken::step` → `frameCallback` + `renderDirtyWindows`) — the single frame
+path for every backend, dummy included, so App no longer sets `RemoteApp::step`
+(it stays the token-less fake-window fallback). The frame path is otherwise
 identical to local; the only branch is whether the driver is attached. The window
 glue (`WindowImpl`) itself implements `remote::RemoteWindow`, so introspection and
 event injection are a capability of the glue — available for any window — and the

@@ -491,26 +491,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return runningContext.evaluate<0>().get<0>();
     };
 
-    // One deterministic app frame by dt: the same running-signal/reconcile path
-    // an auto tick takes, plus rendering each live window so its widget tree
-    // reflects any injected input. The dummy tick draws nothing, so the glues
-    // are driven here rather than through the platform's (empty) render list;
-    // the platform is paused while a client-driven driver is attached, so this
-    // is the only thing producing frames and never doubles the render.
-    std::chrono::microseconds appTime{ 0 };
-    auto stepAppFrame = [&](std::chrono::microseconds dt) -> bool
-    {
-        appTime += dt;
-        ase::Frame aseFrame{ appTime, dt };
-
-        bool keepRunning = frameCallback(aseFrame);
-
-        for (auto& impl : d()->windowImpls_)
-            impl->onFrame(aseFrame);
-
-        return keepRunning;
-    };
-
     // Kept alive across run(): the driver borrows the transport by reference and
     // holds the platform paused, so both must outlive platform.run(). Declared
     // after `platform` (and destroyed before it) so the driver's pause token,
@@ -529,7 +509,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         transport = remote::connect(remoteEndpoint);
 
         remote::RemoteApp remoteApp;
-        remoteApp.step = stepAppFrame;
         remoteApp.sync = [&] { sync(); };
         remoteApp.liveWindows = [this]() -> remote::RemoteWindows
         {
