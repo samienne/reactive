@@ -25,10 +25,11 @@ namespace ase
     struct WindowPresentSync;
 
     /**
-     * @brief The shared base every backend window derives from. It provides the
-     * render-context binding, the per-window present backpressure, and the
-     * `GenericWindow` that backends forward their callbacks and event injection
-     * to; a backend implements only its surface-specific behaviour.
+     * @brief The shared base every backend window derives from.
+     *
+     * Provides the render-context binding, the per-window present backpressure,
+     * and the `GenericWindow` backends forward their callbacks and event
+     * injection to; a backend implements only its surface-specific behaviour.
      */
     class ASE_EXPORT WindowBase : public WindowImpl
     {
@@ -66,9 +67,11 @@ namespace ase
 
     protected:
         /** @brief Bind the window to the render context it renders and presents
-         * through, and size its `GenericWindow`; every backend window passes the
-         * context it was made against together with its initial size and scaling
-         * factor. */
+         * through, and size its `GenericWindow`.
+         *
+         * Every backend window passes the context it was made against together
+         * with its initial size and scaling factor.
+         */
         WindowBase(RenderContext& context, Vector2i size, float scalingFactor);
 
         // The event/callback state every backend shares; backends mutate it
@@ -91,15 +94,20 @@ namespace ase
         // Backpressure lives on the window: gate frame production against this
         // window's own in-flight count on its own queue.
 
-        /** @brief Block until this window has a spare in-flight slot, so no more
-         * than a fixed number of its frames are queued on the GPU at once. GL
-         * always reports `Ok`; the status is the seam a backend whose acquire
-         * can fail (a lost swapchain) reports through. */
+        /** @brief Block until this window has a spare in-flight slot.
+         *
+         * Bounds how many of its frames are queued on the GPU at once. GL always
+         * reports `Ok`; the status reports a backend whose acquire can fail,
+         * such as a lost swapchain.
+         */
         PresentStatus acquire();
 
         /** @brief Take an in-flight slot and submit this frame's fence on the
-         * window's own queue behind its draws; the fence completion frees the
-         * slot. Keeps the queue's draws -> present -> fence order. */
+         * window's own queue behind its draws.
+         *
+         * The fence completion frees the slot, preserving the queue's
+         * draws -> present -> fence order.
+         */
         void submitFrameFence();
 
         // The (surface, queue) binding: the context this window renders and

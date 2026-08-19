@@ -85,7 +85,9 @@ namespace ase
         UniformSet makeUniformSet();
 
         /** @brief A co-owning handle to this context's implementation.
-         * Same-binary only. */
+         *
+         * Same-binary only.
+         */
         std::shared_ptr<RenderContextImpl> getSharedImpl() const;
 
         template <class T>

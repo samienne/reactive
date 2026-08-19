@@ -18,20 +18,21 @@ namespace ase
     struct Frame;
 
     /**
-     * @brief The shared base every backend platform derives from. It owns the
-     * single frame-loop implementation -- `run()`, the pause/step control, and
-     * `requestFrame()` over the injected run loop -- and leaves each backend only
-     * its per-tick hooks: event draining, cadence config, wake source, and the
-     * live render-window list.
+     * @brief The shared base every backend platform derives from.
+     *
+     * Owns the single frame-loop implementation -- `run()`, the pause/step
+     * control, and `requestFrame()` over the injected run loop -- and leaves
+     * each backend only its per-tick hooks: event draining, cadence config,
+     * wake source, and the live render-window list.
      */
     class ASE_EXPORT PlatformBase : public PlatformImpl
     {
     public:
         /** @brief The static cadence the shared frame loop targets, plus the
-         * headless self-pump parameters. Just the scalars that differ between
-         * GLX, WGL and the dummy; the backend-owned resources (wake source and
-         * render list) are separate virtual accessors, and the loop body itself
-         * is the same for all three. */
+         * headless self-pump parameters.
+         *
+         * Just the scalars that differ between GLX, WGL and the dummy backends.
+         */
         struct RunConfig
         {
             /** The interval the frame cadence targets. */
@@ -53,30 +54,43 @@ namespace ase
         btl::RunLoop& runLoop() override;
 
     protected:
-        /** @brief Bind the platform to the run loop it drives frames on. The
-         * loop is created and owned by the caller (App, a test) and injected
-         * here; it must outlive the platform, which holds it only by reference.
+        /** @brief Bind the platform to the run loop it drives frames on.
+         *
+         * The loop is owned by the caller (App, a test) and must outlive the
+         * platform, which holds it only by reference.
          */
         explicit PlatformBase(btl::RunLoop& loop);
 
         /** @brief Drain the backend's OS event source, firing the window
-         * handlers. Called by the loop when its `wakeSource()` signals input; a
-         * headless backend with no OS source leaves this a no-op. */
+         * handlers.
+         *
+         * Called by the loop when its `wakeSource()` signals input; a headless
+         * backend with no OS source leaves this a no-op.
+         */
         virtual void handleEvents() = 0;
 
         /** @brief The static cadence and headless self-pump parameters the
-         * shared `run` loop uses. The default is an on-demand loop; each backend
-         * overrides what it needs. */
+         * shared `run` loop uses.
+         *
+         * The default is an on-demand loop; each backend overrides what it
+         * needs.
+         */
         virtual RunConfig runConfig();
 
         /** @brief The OS handle the loop waits on for input, drained via
-         * `handleEvents()`. Invalid by default -- a headless backend with no OS
-         * event source. Called once, at loop start. */
+         * `handleEvents()`.
+         *
+         * Invalid by default -- a headless backend with no OS event source.
+         * Called once, at loop start.
+         */
         virtual btl::NativeHandle wakeSource();
 
         /** @brief The backend's live list of windows the loop renders each dirty
-         * tick. The loop re-reads it every tick because windows open and close
-         * during a run, so it is never snapshotted. */
+         * tick.
+         *
+         * Re-read every tick and never snapshotted, since windows open and close
+         * during a run.
+         */
         virtual std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() = 0;
 
         // The injected run loop, owned by the caller and outliving this

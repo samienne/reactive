@@ -25,9 +25,11 @@ namespace ase
                 bool headless) override;
         RenderContext makeRenderContext() override;
 
-        /** @brief Cap the headless frame rate. Zero (the default) leaves the loop
-         * uncapped: a tick runs as soon as requestFrame() wakes it. A positive
-         * value paces ticks to at most fps frames per second. Set before run().
+        /** @brief Cap the headless frame rate.
+         *
+         * Zero (the default) leaves the loop uncapped: a tick runs as soon as
+         * requestFrame() wakes it. A positive value paces ticks to at most `fps`
+         * frames per second. Set before run().
          */
         void setMaxFps(unsigned int fps);
 

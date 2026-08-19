@@ -30,12 +30,10 @@ namespace bqui::remote
      *
      * The driver talks to a window only through this: inject events at
      * window-space coordinates (the ones a client reads back from an obb) and
-     * read the resolved introspection. `App`'s window glue implements it
-     * directly -- introspection is a capability of the glue, so no
-     * remote-specific window wrapper is needed. Identity is the `id` alone; a
-     * title is content, carried inside the introspection, never on the wire as
-     * identity. Advancing a frame is app-level (see @ref RemoteApp), so it is not
-     * on this per-window seam.
+     * read the resolved introspection. Identity is the `id` alone; a title is
+     * content, carried inside the introspection, never on the wire as identity.
+     * Advancing a frame is app-level (see @ref RemoteApp), so it is not on this
+     * per-window seam.
      */
     class BQUI_EXPORT RemoteWindow
     {
@@ -64,10 +62,9 @@ namespace bqui::remote
      * @brief The windows a driver reads and injects into, as non-owning
      * references.
      *
-     * The driver borrows the windows for the duration of the call; it never owns
-     * them. The caller owns the glues and keeps them alive across the whole
-     * session, so a reference (never null, never reseated) states the contract
-     * more precisely than a pointer would.
+     * The driver borrows the windows for the duration of the call and never
+     * owns them. The caller owns the glues and keeps them alive across the
+     * whole session.
      */
     using RemoteWindows = std::vector<std::reference_wrapper<RemoteWindow>>;
 
@@ -80,15 +77,14 @@ namespace bqui::remote
      * sees exactly the windows the app currently holds.
      *
      * `step` is the driver's fallback frame primitive for the token-less case:
-     * it produces one deterministic app frame by the client-supplied dt (advance
-     * signal time, reconcile the window set, render the live windows) and reports
-     * whether the app wants to keep running. When the driver holds a pause token
-     * it steps the platform's one loop directly instead (see `RemoteDriver`), so
-     * `step` need not be set. `sync` reconciles the window set *without*
-     * advancing a frame, so a query lands on the app's current windows. `liveWindows` returns the
-     * per-window seams over the app's current windows; each call rebuilds them,
-     * so a returned set is valid only until the next call -- never hold one
-     * across a `step` or `sync`.
+     * it produces one deterministic app frame by the client-supplied dt and
+     * reports whether the app wants to keep running. When the driver holds a
+     * pause token it steps the platform's loop directly instead (see
+     * `RemoteDriver`), so `step` need not be set. `sync` reconciles the window
+     * set *without* advancing a frame, so a query lands on the app's current
+     * windows. `liveWindows` returns the per-window seams over the app's current
+     * windows; each call rebuilds them, so a returned set is valid only until
+     * the next call -- never hold one across a `step` or `sync`.
      */
     struct RemoteApp
     {
@@ -105,8 +101,7 @@ namespace bqui::remote
      * the app already drives frames on, it registers `transport` as a readable
      * source on that loop and dispatches inbound commands as they arrive. It does
      * not run the loop; the caller's `Platform::run` (or a test) does, so the
-     * socket source and the frame tick share one thread and serialize with no
-     * cross-thread coordination.
+     * socket source and the frame tick share one thread.
      *
      * Two modes, one transport and protocol; the only difference is whether the
      * driver holds a `pauseToken`:

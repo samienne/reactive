@@ -34,8 +34,10 @@ namespace ase
         virtual ~WindowImpl() = default;
 
         /** @brief Reach the impl of a given concrete type through any decorators
-         * wrapping this window, or null if none in the chain has that type,
-         * where `getImpl` would throw. Same-binary only. */
+         * wrapping this window, or null if none in the chain has that type.
+         *
+         * The non-throwing counterpart to `getImpl`. Same-binary only.
+         */
         virtual WindowImpl* getImplOfType(std::type_index type)
         {
             return std::type_index(typeid(*this)) == type ? this : nullptr;
@@ -50,8 +52,11 @@ namespace ase
         }
 
         /** @brief The render context this window was created against and both
-         * renders and presents through. Bound at creation and non-transferable:
-         * the window carries its own (surface, queue) binding. */
+         * renders and presents through.
+         *
+         * Bound at creation and non-transferable: the window carries its own
+         * (surface, queue) binding.
+         */
         virtual RenderContext& getRenderContext() = 0;
 
         virtual void setVisible(bool value) = 0;
@@ -66,10 +71,11 @@ namespace ase
 
         virtual void requestFrame() = 0;
 
-        /** @brief Present this surface's finished frame, sequencing the swap
-         * behind this window's own submitted draws on its own queue. Returns
-         * immediately without blocking; a surface with nothing to swap
-         * (offscreen) returns `Ok`. */
+        /** @brief Present this surface's finished frame.
+         *
+         * Returns immediately; a surface with nothing to swap (offscreen)
+         * returns `Ok`.
+         */
         virtual PresentStatus present() = 0;
 
         virtual void setFrameCallback(

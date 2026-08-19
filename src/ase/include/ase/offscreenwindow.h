@@ -14,12 +14,12 @@ namespace ase
     class RenderContext;
 
     /**
-     * @brief A window that renders offscreen with the real backend and shows
-     * nothing, so a platform can draw a full frame with no visible window.
+     * @brief A window that renders offscreen and shows nothing.
      *
-     * `setVisible` is a no-op and there is no present. It is a plain
-     * `WindowBase`, driven by the platform run loop like any other window once
-     * the platform registers it.
+     * Renders a full frame with the real backend but is never shown, so a
+     * platform can draw with no visible window. `setVisible` is a no-op and
+     * there is no present; otherwise it is a plain `WindowBase`, driven by the
+     * platform run loop like any other window once the platform registers it.
      */
     class ASE_EXPORT OffscreenWindow : public WindowBase
     {
