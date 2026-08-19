@@ -225,13 +225,6 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     }
 }
 
-void GlRenderState::endFrame()
-{
-    boundUniformSet_ = nullptr;
-    boundVbo_ = 0;
-    boundIbo_ = 0;
-}
-
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
@@ -325,6 +318,11 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 glUniformBuffer
                     .setData(d, gl, uploadCommand.data, uploadCommand.usage)
                     ;
+
+                // The upload rebinds the generic uniform buffer target and can
+                // outlive the deleted buffer's indexed bindings, so drop the
+                // uniform-set cache; the next draw re-asserts its ranges.
+                boundUniformSet_ = nullptr;
             }
 
             continue;
@@ -519,9 +517,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
     }
 
     checkFences(d, gl);
-
-    // Reset the per-frame binding cache once this queue's draws are dispatched.
-    endFrame();
 }
 
 void GlRenderState::checkFences(Dispatched d, GlFunctions const& gl)

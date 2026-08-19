@@ -38,7 +38,6 @@ namespace ase
         void dispatchedRenderQueue(Dispatched, GlFunctions const& gl,
                 CommandBuffer&& commands);
         void checkFences(Dispatched, GlFunctions const& gl);
-        void endFrame();
 
     private:
         GlDispatchedContext& dispatcher_;
