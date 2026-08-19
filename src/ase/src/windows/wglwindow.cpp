@@ -444,10 +444,6 @@ HDC WglWindow::getDc() const
 
 PresentStatus WglWindow::present()
 {
-    // Sequence the swap behind this window's own submitted draws on its own
-    // queue: enqueue it on the same GL dispatcher the draws went through, so it
-    // runs FIFO after them on the render thread. The keep-alive holds the window
-    // until the swap runs, since present() returns before the dispatched task.
     auto keepAlive = shared_from_this();
     getRenderContext().getMainRenderQueue().getImpl<GlRenderQueue>().dispatch(
         [this, keepAlive](GlFunctions const&)

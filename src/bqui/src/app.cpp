@@ -62,7 +62,6 @@ namespace bqui
 
 namespace
 {
-    // A truthy env var: set and neither empty nor "0".
     bool envFlag(char const* name)
     {
         char const* value = std::getenv(name);
@@ -75,16 +74,11 @@ namespace
         return value && std::strcmp(value, expected) == 0;
     }
 
-    // Headless (real backend, rendered offscreen) when REACTIVE_HEADLESS is
-    // truthy. This is orthogonal to the dummy platform: it keeps the native GPU
-    // backend and only renders offscreen.
     bool wantsHeadlessEnv()
     {
         return envFlag("REACTIVE_HEADLESS");
     }
 
-    // The dummy (no-GPU) platform when REACTIVE_PLATFORM=dummy. Distinct from
-    // headless: the dummy backend needs no GPU at all, for agent/CI use.
     bool wantsDummyPlatformEnv()
     {
         return envEquals("REACTIVE_PLATFORM", "dummy");
@@ -108,14 +102,12 @@ public:
 
     /** @brief Removes the window with this id from the collection.
      *
-     * Thread-safe, and a no-op if no window here has the id. The window's impl
-     * is torn down by the run loop's next sync, not here, because an OS window
-     * is released on the app thread.
+     * Thread-safe, a no-op if the id is absent. The impl is torn down by the run
+     * loop's next sync, not here, because an OS window is released on the app
+     * thread.
      */
     void removeWindow(btl::UniqueId id);
 
-    // Wakes the run loop, if one is running, so a pending window change is
-    // reconciled by the next sync().
     void wakeLoop();
 
     std::vector<Window> getWindows() const
@@ -128,16 +120,12 @@ public:
     std::mutex pendingMutex_;
     std::vector<std::pair<Window, widget::AnyWidget>> pendingMounts_;
 
-    // The platform is a runUntil local; it is published here for the duration
-    // of the run so add/removeWindow can wake the loop. Guarded by
-    // pendingMutex_, and nulled before the platform is destroyed.
+    // A runUntil local, guarded by pendingMutex_ and nulled before the platform
+    // is destroyed.
     ase::Platform* runningPlatform_ = nullptr;
 
     std::vector<btl::shared<WindowImpl>> windowImpls_;
 
-    // Platform choice (which backend), headless (real backend offscreen), and
-    // mode (normal/remote) are orthogonal. A programmatic override wins over the
-    // env var so tests need no global env.
     std::optional<ase::Platform> platformOverride_;
     std::optional<bool> headlessOverride_;
     std::optional<std::string> remoteEndpointOverride_;
@@ -145,21 +133,14 @@ public:
 
 // Releases the app's impls, whatever ends the run. Each impl co-owns its ase
 // window -> render context -> platform, so a leftover impl would keep the whole
-// backend -- including the platform's injected run loop, a run-scoped local --
-// alive past this call; clearing the impls here is what tears that chain down,
-// in order, via the strong refs.
+// backend alive past this call.
 struct ImplScope
 {
     ~ImplScope()
     {
-        // The one teardown step destruction order cannot supply: drain the
-        // render thread before releasing the windows. A window's own present
-        // lambda holds a strong ref to it while a swap is queued, so releasing
-        // the window with that swap still pending would run the window's
-        // destructor -- DestroyWindow, framebuffer release -- on the render
-        // thread instead of this one. finish() runs the queued work first, so
-        // the render thread drops its window refs and this thread does the
-        // destroying.
+        // finish() before clear(): a window's queued present lambda holds the
+        // last strong ref to it, so releasing the window with a swap still
+        // pending would run its destructor on the render thread, not this one.
         queue.finish();
         app.windowImpls_.clear();
     }
@@ -318,21 +299,10 @@ int App::run()
 
 int App::runUntil(bq::signal::AnySignal<bool> running)
 {
-    // The real-offscreen flag, orthogonal to the backend choice below; passed
-    // to each WindowImpl.
     bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
 
-    // The dummy (no-GPU) backend is a separate choice, selected explicitly via
-    // platform() or REACTIVE_PLATFORM=dummy -- for agent/CI use where there is
-    // no GPU at all. Otherwise the OS default backend runs.
     bool useDummyEnv = !d()->platformOverride_ && wantsDummyPlatformEnv();
 
-    // The run loop the platform drives frames on. App creates it as the process
-    // default (so RunLoop::getDefault() can reach it for IO) only when it builds
-    // the platform itself; a caller-supplied platform already carries its own
-    // injected loop, so App must not register a second default. A RunLoop is
-    // non-movable, so it lives in this optional, declared before `platform` and
-    // outliving it.
     std::optional<btl::RunLoop> ownedLoop;
 
     ase::Platform inner = [&]() -> ase::Platform
@@ -345,16 +315,9 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                            : ase::makeDefaultPlatform(*ownedLoop);
     }();
 
-    // Platform/headless and mode (normal/remote) are orthogonal.
-    // A non-empty endpoint (override or REACTIVE_REMOTE_ENDPOINT) selects remote
-    // mode; an empty override forces it off regardless of the environment.
     std::string remoteEndpoint =
         d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
 
-    // A dummy run is bounded and deterministic; REACTIVE_FRAMES caps the frame
-    // budget (the default keeps such a run from spinning forever). Applied to
-    // the raw inner platform, before any wrapping, so the checked
-    // getImpl<DummyPlatform> resolves the concrete platform, never a decorator.
     if (useDummyEnv)
     {
         if (char const* frames = std::getenv("REACTIVE_FRAMES"))
@@ -366,14 +329,10 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         }
     }
 
-    // The platform is the same whether local or remote: remote is a thin bqui
-    // driver over the one frame loop, not a platform decorator, so the app just
-    // picks a platform and runs it either way.
     ase::Platform platform = std::move(inner);
 
-    // Published for the run's duration so add/removeWindow can wake the loop;
-    // declared after `platform` so it is nulled under the lock before the
-    // platform is destroyed.
+    // Declared after `platform` so runningPlatform_ is nulled under the lock
+    // before the platform is destroyed.
     struct PlatformScope
     {
         ~PlatformScope()
@@ -393,24 +352,12 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     auto mainQueue = context.getMainRenderQueue();
 
-    // The impls are the app's, not the loop's, and each co-owns its context and
-    // platform -- so a leftover impl would keep the platform, and its injected
-    // run loop (a local of this call), alive past the return. ImplScope releases
-    // them however this returns, draining the render thread first (its finish()
-    // is the render-thread-safety step destruction order alone cannot supply).
     ImplScope implScope { *d(), mainQueue };
 
     auto runningContext = bq::signal::makeSignalContext(std::move(running));
 
-    // Wake the loop when the run condition changes, so an on-demand platform
-    // re-evaluates it instead of sleeping through the change.
     runningContext.observe([this] { d()->wakeLoop(); });
 
-    // Syncs the live impls to the window collection: mounts an impl for any
-    // window not yet mounted, tears down any impl whose window has left. The
-    // collection (which close()/removeWindow update directly) is read straight,
-    // once per frame, and the widgets to mount are drained from the pending
-    // queue addWindow fills.
     auto sync = [&]()
     {
         std::vector<Window> windows = d()->getWindows();
@@ -458,11 +405,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
             }
         }
 
-        // A departing window's own present lambda can still be queued, holding
-        // the last strong ref to it; releasing the impl now would run the
-        // window's destructor on the render thread. Drain the queue first so
-        // this thread does the destroying (the same reason ImplScope finishes
-        // at teardown).
         if (!departing.empty())
             mainQueue.finish();
 
@@ -477,9 +419,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     DBG("Reactive running...");
 
-    // The per-frame step App drives, whichever driver runs it: advance the
-    // running signal by the frame's dt, reconcile the live windows, and report
-    // whether the app should keep running.
     auto frameCallback = [&](ase::Frame const& aseFrame) -> bool
     {
         bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
@@ -491,19 +430,9 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return runningContext.evaluate<0>().get<0>();
     };
 
-    // Kept alive across run(): the driver borrows the transport by reference and
-    // holds the platform paused, so both must outlive platform.run(). Declared
-    // after `platform` (and destroyed before it) so the driver's pause token,
-    // which strong-refs the platform, is released first; the driver is destroyed
-    // before the transport it references.
     std::unique_ptr<remote::Transport> transport;
     std::optional<remote::RemoteDriver> driver;
 
-    // A configured endpoint attaches a client-driven remote driver before the
-    // one shared frame loop starts: the app connects out to the endpoint, the
-    // driver registers the socket on the platform's loop and pauses the
-    // auto-cadence so the client owns the clock. The frame path below is
-    // identical to local -- the only branch is whether the driver is attached.
     if (!remoteEndpoint.empty())
     {
         transport = remote::connect(remoteEndpoint);
@@ -523,14 +452,8 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                 platform.pause());
     }
 
-    // The one frame path, local or remote: the platform drives its context-free
-    // loop until the frame callback returns false (or, remotely, the client ends
-    // the session and the driver stops the loop). App made the context and its
-    // windows carry it; the loop names none of its own.
     platform.run(frameCallback);
 
-    // Release the driver (and its pause token) before the platform teardown
-    // below reads the window impls.
     driver.reset();
     transport.reset();
 

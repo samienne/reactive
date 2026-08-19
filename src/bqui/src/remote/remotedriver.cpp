@@ -37,8 +37,7 @@ constexpr int kInternalError = -32603;
 // One nominal frame at ~60 Hz — the default step when a client gives no dt.
 constexpr int64_t kNominalFrameUs = 16667;
 
-// A handler failure carrying a JSON-RPC error code. The dispatcher turns it
-// into the message's error response (or drops it, for a notification).
+// A handler failure carrying a JSON-RPC error code.
 struct RpcError
 {
     int code;
@@ -46,8 +45,6 @@ struct RpcError
     json data = nullptr;
 };
 
-// A method parameter's contract, surfaced verbatim by system.describe so an
-// external tool can generate its toolset from the registry alone.
 struct ParamSpec
 {
     char const* name;
@@ -55,8 +52,6 @@ struct ParamSpec
     bool required;
 };
 
-// A registry entry: identity, its one-line doc, its parameter schema, and the
-// handler the dispatcher routes to. The registry is the single source of truth.
 struct Method
 {
     std::string name;
@@ -136,19 +131,12 @@ void applyInjection(RemoteWindow& window, json const& event)
     }
 }
 
-/**
- * @brief Reject an injection event that is malformed or would escape the seam.
+/** @brief Reject an injection event that is malformed or would escape the seam.
  *
- * A missing or unrecognised `kind` is rejected outright: @ref applyInjection
- * dispatches on it and would otherwise silently drop the event (an empty reply
- * that reads as success), so an event whose `kind` names no known shape is a
- * client mistake worth surfacing, not swallowing.
- *
- * The seam then indexes fixed 15-slot arrays: a pointer id must be `<= 15` and
- * a button number `1..15` (a `0` button underflows into an out-of-bounds
- * write). Throws @ref RpcError with @ref kInvalidParams naming the offending
- * field on the first violation, so the inject handler can reject a batch before
- * it touches the seam.
+ * An unknown `kind` would be silently dropped by applyInjection, so reject it.
+ * The seam indexes fixed 15-slot arrays: pointer id must be `<= 15` and button
+ * `1..15` (a `0` button underflows into an out-of-bounds write). Throws RpcError
+ * naming the first offending field.
  */
 void validateInjection(json const& event)
 {
@@ -185,7 +173,6 @@ void validateInjection(json const& event)
     }
 }
 
-// The live window addressed by id, or null if none carries it.
 RemoteWindow* findWindow(RemoteWindows const& windows, uint64_t id)
 {
     for (auto& window : windows)
@@ -207,15 +194,12 @@ uint64_t requireWindowId(json const& params)
 
 } // namespace
 
-/**
- * @brief The inspector-protocol server behind @ref RemoteDriver.
+/** @brief The inspector-protocol server behind RemoteDriver.
  *
- * Holds the app seam, the monotonic frame counter, and the run state. Launches
- * paused. It registers the transport as a readable source on the injected loop
- * (commands dispatch as they arrive) and, while running, advances the app off a
- * loop timer. Single-threaded: the loop thread is the only one that touches the
- * app, sends, and the frame counter, so there is no queue or reader thread. It
- * does not own the loop; the caller runs it.
+ * Launches paused. Registers the transport as a readable source on the injected
+ * loop and, while running, advances the app off a loop timer. Single-threaded:
+ * only the loop thread touches the app, so there is no queue or reader thread.
+ * It does not own the loop; the caller runs it.
  */
 class RemoteDriver::Impl
 {
@@ -235,11 +219,6 @@ public:
 #endif
         buildRegistry();
 
-        // Register the transport and prime it on the loop thread. This posted
-        // task runs before the loop's first wait (the caller has not run the
-        // loop yet). Inbound commands arrive as the transport becomes readable
-        // and dispatch here; a peer disconnect or an app.shutdown stops the
-        // loop, so the caller's run() returns.
         loop_.post([this](btl::RunLoop::Controller& controller)
         {
             ControllerScope scope(controller_, controller);
@@ -248,10 +227,9 @@ public:
                     [this](btl::RunLoop::Controller& c) { onReadable(c); })
                 .detach();
 
-            // A completion-based backend (the Win32 named pipe) only signals its
-            // readable event once an overlapped read is pending, so this first
-            // receiveReady() kicks that read off (a no-op for readiness-based
-            // sockets); dispatch anything already buffered too.
+            // A completion-based backend (Win32 named pipe) only signals
+            // readable once an overlapped read is pending, so this first
+            // receiveReady() kicks that read off (a no-op for socket backends).
             for (auto& frame : transport_->receiveReady())
             {
                 dispatch(frame);
@@ -267,8 +245,7 @@ public:
 private:
     enum class State { Paused, Running };
 
-    // The loop-thread Controller, valid only during a callback. A callback sets
-    // it through ControllerScope; ensureTicking() reads it to arm the timer.
+    // The loop-thread Controller, valid only during a callback.
     struct ControllerScope
     {
         btl::RunLoop::Controller*& slot;
@@ -278,8 +255,6 @@ private:
         ~ControllerScope() { slot = prev; }
     };
 
-    // Dispatch every frame the transport has ready, then stop the loop if the
-    // peer is gone or a shutdown was requested.
     void onReadable(btl::RunLoop::Controller& controller)
     {
         ControllerScope scope(controller_, controller);
@@ -295,7 +270,6 @@ private:
             loop_.stop();
     }
 
-    // Decode, route, and answer one frame. A notification draws no reply.
     void dispatch(std::string const& frame)
     {
         if (auto reply = handleFrame(frame))
@@ -316,8 +290,6 @@ private:
         }
     }
 
-    // While running, advance one frame per tick off a timer. Pausing stops the
-    // chain, so the loop then sleeps on the transport until the next command.
     void ensureTicking()
     {
         if (ticking_ || shuttingDown_ || state_ != State::Running)
@@ -355,13 +327,6 @@ private:
         ensureTicking();
     }
 
-    // Advance one fused app frame by dt: the same frame path an auto tick takes
-    // (advance signal time, reconcile the window set, render the live windows).
-    // With a pause token engaged the driver steps the platform's one loop
-    // directly (PauseToken::step -> renderDirtyWindows), the single frame path
-    // for every backend; the app_.step fallback covers the token-less
-    // fake-window unit fixtures. Bumps the monotonic frame counter, and requests
-    // a stop if the app is done.
     void advanceFrame(std::chrono::microseconds dt)
     {
         bool keepRunning = pauseToken_ ? pauseToken_->step(dt) : app_.step(dt);
@@ -392,8 +357,6 @@ private:
         return nullptr;
     }
 
-    // Decode one frame, route it, and produce its reply — or nullopt when the
-    // message is a notification (no `id`) and so draws no response.
     std::optional<std::string> handleFrame(std::string const& frame)
     {
         json request = json::parse(frame, nullptr, /*allow_exceptions=*/false);
@@ -411,8 +374,8 @@ private:
             return errorFrame(id, kInvalidRequest,
                     "Invalid request: 'method' must be a string");
 
-        // A well-formed request without an `id` is a notification: handled,
-        // never answered — not even on error.
+        // A request without an `id` is a notification: never answered, even on
+        // error.
         bool notification = !request.contains("id");
 
         std::string method = methodIt->get<std::string>();
@@ -544,8 +507,7 @@ private:
         for (int64_t i = 0; i < count && !shuttingDown_; ++i)
             advanceFrame(dt);
 
-        // A step is an explicit, bounded advance: it always leaves the app
-        // paused, whichever state it was called from.
+        // A step always leaves the app paused, whichever state it started from.
         state_ = State::Paused;
         return { { "state", "paused" }, { "frame", frame_ } };
     }
@@ -564,8 +526,6 @@ private:
 
     json windowList(json const&)
     {
-        // Reconcile (without advancing time) so the set reflects any pending
-        // open/close, then enumerate identity only.
         app_.sync();
 
         json windows = json::array();
@@ -602,13 +562,11 @@ private:
         if (events == params.end() || !events->is_array())
             throw RpcError{ kInvalidParams, "'events' must be an array" };
 
-        // Validate the whole batch before touching the seam so a malformed
-        // event rejects atomically — none of the batch is applied.
+        // Validate the whole batch first so a malformed event rejects
+        // atomically -- none of the batch is applied.
         for (auto const& event : *events)
             validateInjection(event);
 
-        // Injected onto the window's inject seam now; the next app.step's
-        // frame is what processes them.
         for (auto const& event : *events)
             applyInjection(*window, event);
 
@@ -670,15 +628,10 @@ private:
             [this](json const& p) { return windowInject(p); } });
     }
 
-    // The injected loop, run by the caller (App's Platform::run, or a test); the
-    // driver only registers sources on it and asks it to stop.
     btl::RunLoop& loop_;
     btl::RunLoop::Controller* controller_ = nullptr;
     Transport* transport_ = nullptr;
     RemoteApp app_;
-    // Engaged in client-driven mode: holds the platform's auto-cadence suspended
-    // for the driver's life, so the client owns the clock. Disengaged for an
-    // observer that lets the app free-run.
     std::optional<ase::PauseToken> pauseToken_;
     std::vector<Method> registry_;
     uint64_t frame_ = 0;

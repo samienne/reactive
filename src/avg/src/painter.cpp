@@ -166,8 +166,6 @@ void Painter::presentWindow(ase::Window& target)
 {
     ZoneScoped;
 
-    // Submit the accumulated draws first, then let the window enqueue its own
-    // swap behind them on its own queue so draws -> present ordering holds.
     flush();
     target.present();
 }
@@ -180,8 +178,6 @@ void Painter::flush()
     {
         renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));
         commandBuffer_ = ase::CommandBuffer();
-
-        //renderContext_.flush();
     }
 }
 

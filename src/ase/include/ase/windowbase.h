@@ -20,8 +20,6 @@ namespace ase
     class RenderQueue;
     struct Frame;
 
-    // The per-window in-flight bookkeeping backing acquire(); defined in
-    // windowbase.cpp so the mutex/condition_variable stay out of the header.
     struct WindowPresentSync;
 
     /**
@@ -74,25 +72,15 @@ namespace ase
          */
         WindowBase(RenderContext& context, Vector2i size, float scalingFactor);
 
-        // The event/callback state every backend shares; backends mutate it
-        // during OS-event translation, so it is reachable to derived classes.
         GenericWindow genericWindow_;
 
     private:
-        // The render-polling and frame-pacing surface the platform's frame loop
-        // drives. Off the public window interface: only that loop, which owns the
-        // render relationship, asks whether a window wants drawing, gates it
-        // against the window's own backpressure, draws it, and fences it. Uniform
-        // across real and offscreen windows.
         friend class PlatformBase;
 
         virtual bool needsRedraw() const = 0;
 
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
-
-        // Backpressure lives on the window: gate frame production against this
-        // window's own in-flight count on its own queue.
 
         /** @brief Block until this window has a spare in-flight slot.
          *
@@ -110,10 +98,6 @@ namespace ase
          */
         void submitFrameFence();
 
-        // The (surface, queue) binding: the context this window renders and
-        // presents through, held for its whole life. Co-owned (a strong handle,
-        // not a bare reference) so the window keeps its context -- and through
-        // it the platform -- alive, and teardown follows destruction order.
         RenderContext context_;
 
         std::shared_ptr<WindowPresentSync> presentSync_;

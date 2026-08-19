@@ -36,8 +36,6 @@ using namespace bqui;
 
 int main(int argc, char** argv)
 {
-    // Endpoint precedence: an explicit argv[1] wins, else the same env var the
-    // app reads for the remote endpoint.
     std::string endpoint;
     if (argc > 1)
         endpoint = argv[1];
@@ -50,8 +48,6 @@ int main(int argc, char** argv)
                      "REACTIVE_REMOTE_ENDPOINT); running without a client.\n";
     }
 
-    // A counter the button bumps and the label displays. bindToFunction reads
-    // the current value at click time, so no separate mirror of the state.
     auto counter = bq::signal::makeInput(0);
 
     auto counterLabel = widget::label(counter.signal.map(
@@ -72,8 +68,6 @@ int main(int argc, char** argv)
         })
         | modifier::focusGroup();
 
-    // The loop the platform is injected with; a named local so it outlives the
-    // App (and its platform) built and run below.
     btl::RunLoop loop;
 
     return App()

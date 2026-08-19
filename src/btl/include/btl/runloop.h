@@ -14,22 +14,16 @@ namespace btl
     using SourceId = std::uint64_t;
     using TimerId = std::uint64_t;
 
-    /** @brief A single-threaded reactor: a loop over readable/writable/timer
-     * sources plus cross-thread posted tasks.
+    /** @brief A single-threaded reactor over readable/writable/timer sources
+     * and cross-thread posted tasks.
      *
-     * Register the sources you need through a Controller, then call run() to hand
-     * it the thread. The loop dispatches each source's callback as it fires and
-     * returns when stop() is called. It knows nothing about graphics, windows, or
-     * vsync - those are sources a higher layer registers.
+     * Register sources through a Controller, then call run() to hand it the
+     * thread; run() returns when stop() is called. Only post() and stop() are
+     * safe off the loop thread -- the rest lives on Controller.
      *
-     * Only post() and stop() are safe to call from another thread. The rest of
-     * the interface lives on Controller, which the loop hands to every callback,
-     * so it is reachable only on the loop thread.
-     *
-     * Contract:
-     *  - Readiness is level-triggered: a readable/writable callback fires while
-     *    the handle stays ready, so drain it (or drop the source) each call.
-     *  - Destroy a RunLoop on its loop thread, or after run() has returned.
+     * Readiness is level-triggered: a readable/writable callback fires while the
+     * handle stays ready, so drain it each call. Destroy a RunLoop on its loop
+     * thread, or after run() has returned.
      */
     class RunLoop
     {
@@ -41,33 +35,32 @@ namespace btl
         RunLoop();
         ~RunLoop();
 
-        // Non-movable and non-copyable: the process default is a bare pointer to
-        // a RunLoop, and code holds it by reference, so a live loop must keep its
-        // address. Guaranteed copy elision keeps `auto loop = makeDefault();`
-        // working despite this.
         RunLoop(RunLoop&&) = delete;
         RunLoop& operator=(RunLoop&&) = delete;
 
         RunLoop(RunLoop const&) = delete;
         RunLoop& operator=(RunLoop const&) = delete;
 
-        /** @brief Tag selecting the default-registering constructor. Use it to
-         * build a default loop in place -- optional::emplace, make_unique --
-         * where makeDefault()'s by-value return will not do because a RunLoop is
-         * non-movable. */
+        /** @brief Tag selecting the default-registering constructor.
+         *
+         * For building a default loop in place (optional::emplace, make_unique),
+         * where makeDefault()'s by-value return will not do -- RunLoop is
+         * non-movable.
+         */
         struct DefaultTag {};
 
-        /** @brief Construct a loop registered as the process default, so code
-         * that cannot be handed the loop directly (socket IO, for one) can reach
-         * it through getDefault()/tryGetDefault(). Throws std::runtime_error if a
-         * default already exists. The registration is RAII: it is released when
-         * the loop is destroyed, so the default can never dangle. A plain RunLoop
-         * leaves the default untouched. */
+        /** @brief Construct a loop registered as the process default.
+         *
+         * Lets code that cannot be handed the loop directly reach it through
+         * getDefault()/tryGetDefault(). Throws std::runtime_error if a default
+         * already exists; the registration is released on destruction.
+         */
         explicit RunLoop(DefaultTag);
 
-        /** @brief Construct a default-registered loop by value; equivalent to
-         * RunLoop(DefaultTag{}). Guaranteed copy elision keeps this valid despite
-         * RunLoop being non-movable. */
+        /** @brief Construct a default-registered loop by value.
+         *
+         * Equivalent to RunLoop(DefaultTag{}).
+         */
         static RunLoop makeDefault();
 
         /** @brief The process default loop; throws std::runtime_error if none is
@@ -87,15 +80,14 @@ namespace btl
         void stop();
 
     private:
-        // True only for a loop built through makeDefault(): it registers itself
-        // as the process default on construction and clears that registration on
-        // destruction (compare-exchange, so only if it is still the default).
         bool isDefault_ = false;
         std::shared_ptr<RunLoopImpl> impl_;
     };
 
-    /** @brief The loop-thread interface, handed to every callback for the length
-     * of that call. Register, remove, post, and stop through it; do not store it.
+    /** @brief The loop-thread interface handed to every callback.
+     *
+     * Register, remove, post, and stop through it; valid only for the length of
+     * the callback, so do not store it.
      */
     class RunLoop::Controller
     {
@@ -133,7 +125,8 @@ namespace btl
         RunLoopImpl* impl_;
     };
 
-    /** @brief Owns a readable/writable registration and removes it when dropped.
+    /** @brief Owns a readable/writable registration, removing it when dropped.
+     *
      * Call detach() to keep the source registered past the handle's life.
      */
     class RunLoop::Source
@@ -169,8 +162,9 @@ namespace btl
         SourceId id_ = 0;
     };
 
-    /** @brief Owns a timer registration and cancels it when dropped. Call
-     * detach() to let a one-shot timer fire without holding the handle.
+    /** @brief Owns a timer registration, cancelling it when dropped.
+     *
+     * Call detach() to let a one-shot timer fire without holding the handle.
      */
     class RunLoop::Timer
     {

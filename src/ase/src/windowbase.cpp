@@ -19,11 +19,7 @@ struct WindowPresentSync
     std::mutex mutex;
     std::condition_variable slotFreed;
 
-    // Frames whose draws are submitted but whose fence has not yet completed.
     int inFlight = 0;
-
-    // How many of this window's frames may be in flight at once. Two keeps the
-    // GPU fed (one presenting while the next builds) without unbounded latency.
     int budget = 2;
 };
 
@@ -63,10 +59,6 @@ void WindowBase::submitFrameFence()
         ++sync->inFlight;
     }
 
-    // The fence completion runs on the queue's render thread (or inline where
-    // the backend has no GPU), decrements off the loop thread, and wakes an
-    // acquire() waiting for a slot. Capturing the shared state, not the window,
-    // keeps it safe if the window is torn down with a fence still pending.
     CommandBuffer commandBuffer;
     commandBuffer.pushFence([sync]
         {

@@ -93,25 +93,19 @@ namespace ase
          */
         virtual std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() = 0;
 
-        // The injected run loop, owned by the caller and outliving this
-        // platform. Held by reference: the platform no longer owns its loop.
         btl::RunLoop& loop_;
 
-        // Set to true by requestFrame() (possibly off-thread) to coalesce a
-        // burst of wake requests into a single posted task.
+        // Set (possibly off-thread) by requestFrame() to coalesce a burst of
+        // wake requests into a single posted task.
         std::atomic<bool> wakePosted_ = false;
 
-        // Installed by a running run() so requestFrame(), which cannot see the
-        // loop-local tick, can schedule one while the loop is active; cleared
-        // when run() returns.
+        // Installed while run() is active, cleared when it returns, so
+        // requestFrame() and a pause token can reach the loop-local tick.
         std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
-
-        // Installed by a running run() so a pause token can produce one frame via
-        // stepFrame(); cleared when run() returns.
         std::function<bool(std::chrono::microseconds)> stepFrame_;
 
-        // Depth of outstanding pause tokens. Non-zero suspends auto-cadence frame
-        // production; the loop keeps pumping events regardless.
+        // Depth of outstanding pause tokens; non-zero suspends auto-cadence
+        // frames.
         int pauseCount_ = 0;
     };
 }

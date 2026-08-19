@@ -10,12 +10,8 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
     : memoryPool_(pmr::new_delete_resource()),
     memoryStatistics_(&memoryPool_),
     memory_(&memoryStatistics_),
-    // A headless run draws to an offscreen window: same real backend, no
-    // OS window shown. The rest of the impl treats it as an ordinary window.
     aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
-    // The ase window stores the context it was created against; the painter and
-    // present both go through that one binding rather than a second ref here.
     painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
     widgetInstanceSignal_((std::move(widget)
@@ -51,8 +47,7 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
 
         closed_ = true;
 
-        // Removing the window is what closes it, and the callbacks run
-        // first so that one of them still sees the window open.
+        // Invoke callbacks before close() so they still see the window open.
         windowData_->invokeOnClose();
         windowData_->close();
     });
@@ -242,7 +237,6 @@ void WindowImpl::makeTransaction(
 
         widgetInstance_ = widgetInstanceSignal_.evaluate<0>().get<0>();
 
-        // If there's an area with the same id -> update
         auto areas = widgetInstance_.getInputAreas();
         for (auto&& area : areas_)
         {

@@ -55,10 +55,8 @@ inline uint64_t getNextFrameId()
     return ++s_frameId;
 }
 
-// The window glue: it bridges an ase window to the widget / render-tree /
-// painter, and doubles as the remote seam a driver reads and injects into --
-// introspection is a capability of the glue, so no remote-specific window
-// wrapper is needed.
+// Bridges an ase window to the widget / render-tree / painter, and is the
+// remote seam a driver reads and injects into.
 class WindowImpl : public remote::RemoteWindow
 {
 public:
@@ -92,9 +90,6 @@ public:
      * window space, for a remote driver to read after a step. */
     widget::Introspection getResolvedIntrospection() const;
 
-    // remote::RemoteWindow -- the seam a remote driver addresses by id. Inject
-    // forwards to the ase window's inject; introspect reads this glue's resolved
-    // widget tree.
     btl::UniqueId id() const override;
     void injectPointerButton(unsigned int pointerIndex,
             unsigned int buttonIndex, ase::Vector2f pos,
@@ -122,7 +117,6 @@ private:
         widgetInstanceSignal_;
     widget::Instance widgetInstance_;
     bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
-    //RenderCache cache_;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;

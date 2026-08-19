@@ -10,10 +10,6 @@ namespace btl
 {
     namespace
     {
-        // The process default loop, or nullptr when none is registered. A bare
-        // pointer, not an owner: a default loop registers itself here in its
-        // constructor and deregisters in its destructor, so the pointer is valid
-        // exactly while that loop lives.
         std::atomic<RunLoop*> g_defaultRunLoop{ nullptr };
     } // namespace
 
@@ -27,16 +23,16 @@ namespace btl
     {
         RunLoop* expected = nullptr;
         if (!g_defaultRunLoop.compare_exchange_strong(expected, this))
+        {
             throw std::runtime_error(
                     "btl::RunLoop: a default run loop already exists");
+        }
 
         isDefault_ = true;
     }
 
     RunLoop::~RunLoop()
     {
-        // Clear the default registration, but only if it still points at us --
-        // another loop must never have its registration cleared here.
         if (isDefault_)
         {
             RunLoop* expected = this;
@@ -56,8 +52,10 @@ namespace btl
     {
         RunLoop* loop = g_defaultRunLoop.load();
         if (!loop)
+        {
             throw std::runtime_error(
                     "btl::RunLoop: no default run loop registered");
+        }
 
         return *loop;
     }
