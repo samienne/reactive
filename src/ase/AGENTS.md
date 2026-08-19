@@ -49,9 +49,11 @@ are in the top-level `docs/`.
   on the injected loop: per dirty window it gates on that window's own `acquire`
   backpressure, renders and presents through the context the window carries, and
   fences on the window's own queue — so `run` names no `RenderContext` of its own.
-  A backend supplies only what differs through the protected `runConfig()`
-  override (`PlatformImpl::RunConfig`: wake source, cadence, render list, and the
-  dummy's `maxFrames`/`maxFps` self-pump budget); there is no `Session`. Manual
+  A backend supplies only what differs through protected virtuals: the static
+  cadence via `runConfig()` (`PlatformImpl::RunConfig`: `frameStep` and the
+  dummy's `maxFrames`/`maxFps` self-pump budget), the OS `wakeSource()` (read
+  once at loop start), and the live `getRenderWindows()` list (re-read every tick,
+  since windows open and close during a run); there is no `Session`. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
   produces one frame off the same callback/render path an auto tick takes;
   "paused" suspends auto-cadence frame *production*, not the loop (events/IO keep
@@ -84,9 +86,11 @@ are in the top-level `docs/`.
   render list** of all their windows (real and offscreen) — the render-polling
   surface the platform's frame loop drives, `needsRedraw()`/`frame()`, now
   **private virtuals on `WindowBase` reached through `friend class PlatformImpl`**,
-  not part of the public window API — which the loop draws uniformly (the dummy
-  registers no drawable
-  surface and keeps none). **Event routing is separate and backend-specific**
+  not part of the public window API — which the loop draws uniformly. The **dummy
+  backend registers its windows on the same render list** and is driven by the one
+  loop like the real backends; its `frame()` runs (evaluating the signal graph and
+  building the render tree), only the draw and present are no-ops on the dummy
+  queue. **Event routing is separate and backend-specific**
   (WGL's HWND→window map for `wndProc`, GLX's X windows) and holds real windows
   only: a real window is in both, an offscreen window is in the render list
   alone. `present` is a **surface operation, not a render command**: the

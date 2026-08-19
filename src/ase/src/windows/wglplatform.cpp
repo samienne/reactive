@@ -306,18 +306,18 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
-PlatformImpl::RunConfig WglPlatform::runConfig()
+btl::NativeHandle WglPlatform::wakeSource()
 {
-    RunConfig config;
     // Wake the loop on the thread message queue; the loop drains it through
     // handleEvents().
-    config.wakeSource = btl::fromMessageQueue();
-    config.frameStep = std::chrono::microseconds(16667);
+    return btl::fromMessageQueue();
+}
+
+std::vector<std::weak_ptr<WindowBase>>& WglPlatform::getRenderWindows()
+{
     // Each window carries its own context and backpressure now, so the loop
     // drives the render list without a context of its own.
-    config.renderWindows = &renderWindows_;
-
-    return config;
+    return renderWindows_;
 }
 
 } // namespace ase

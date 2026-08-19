@@ -27,16 +27,13 @@ namespace ase
         public std::enable_shared_from_this<PlatformImpl>
     {
     public:
-        /** @brief What a backend hands the shared frame loop to drive its frames:
-         * its render list, its wake source, the cadence it targets, and (headless)
-         * its self-pump budget. Everything that differs between GLX, WGL and the
-         * dummy; the loop body itself is the same for all three. */
+        /** @brief The static cadence the shared frame loop targets, plus the
+         * headless self-pump parameters. Just the scalars that differ between
+         * GLX, WGL and the dummy; the backend-owned resources (wake source and
+         * render list) are separate virtual accessors, and the loop body itself
+         * is the same for all three. */
         struct RunConfig
         {
-            /** The handle the loop blocks on for input; left invalid (the
-             * default) by a headless backend with no OS event source. */
-            btl::NativeHandle wakeSource;
-
             /** The interval the frame cadence targets. */
             std::chrono::microseconds frameStep = std::chrono::microseconds(16667);
 
@@ -46,11 +43,6 @@ namespace ase
 
             /** A non-zero cap paces the headless self-pump; zero is uncapped. */
             unsigned int maxFps = 0;
-
-            /** The windows the loop renders each dirty tick, or null for a
-             * backend with no drawable surfaces (the dummy). Owned by the
-             * backend; it must outlive the run. */
-            std::vector<std::weak_ptr<WindowBase>>* renderWindows = nullptr;
         };
 
         /** @brief Bind the platform to the run loop it drives frames on. The
@@ -126,14 +118,26 @@ namespace ase
         }
 
     protected:
-        /** @brief The backend-specific driving parameters the shared `run` loop
-         * uses (render list, wake source, cadence, headless budget). The default
-         * is an on-demand loop with no windows and no wake source; each backend
+        /** @brief The static cadence and headless self-pump parameters the
+         * shared `run` loop uses. The default is an on-demand loop; each backend
          * overrides what it needs. */
         virtual RunConfig runConfig()
         {
             return RunConfig{};
         }
+
+        /** @brief The OS handle the loop waits on for input, drained via
+         * `handleEvents()`. Invalid by default -- a headless backend with no OS
+         * event source. Called once, at loop start. */
+        virtual btl::NativeHandle wakeSource()
+        {
+            return {};
+        }
+
+        /** @brief The backend's live list of windows the loop renders each dirty
+         * tick. The loop re-reads it every tick because windows open and close
+         * during a run, so it is never snapshotted. */
+        virtual std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() = 0;
 
         // The injected run loop, owned by the caller and outliving this
         // platform. Held by reference: the platform no longer owns its loop.

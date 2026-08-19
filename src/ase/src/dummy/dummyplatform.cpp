@@ -24,12 +24,21 @@ DummyPlatform::DummyPlatform(btl::RunLoop& loop) :
 Window DummyPlatform::makeWindow(RenderContext& context, Vector2i size,
         bool headless)
 {
-    // The dummy loop does not tick windows, so neither kind is auto-driven; the
-    // offscreen branch exists so the headless path is uniform across backends.
+    // Register both kinds on the render list so the one platform loop drives
+    // their frame() the same way the real backends do; there is no lock (the
+    // dummy runs single-threaded on the loop thread) and no event-routing list
+    // (the dummy has no OS windows to route events to). The draws themselves are
+    // no-ops on the dummy queue.
     if (headless)
-        return Window(std::make_shared<OffscreenWindow>(context, size));
+    {
+        auto window = std::make_shared<OffscreenWindow>(context, size);
+        renderWindows_.push_back(window);
+        return Window(std::move(window));
+    }
 
-    return Window(std::make_shared<DummyWindow>(context, size));
+    auto window = std::make_shared<DummyWindow>(context, size);
+    renderWindows_.push_back(window);
+    return Window(std::move(window));
 }
 
 void DummyPlatform::handleEvents()
@@ -54,18 +63,20 @@ void DummyPlatform::setMaxFrames(uint64_t maxFrames)
 
 PlatformImpl::RunConfig DummyPlatform::runConfig()
 {
-    // The dummy backend registers no drawable surface, so its render list stays
-    // empty and no window fence is submitted. With no OS event source to block
-    // on, maxFrames and maxFps stand in: maxFrames self-paces a bounded headless
-    // run and maxFps caps it; both zero leaves the loop on-demand, woken by
-    // requestFrame().
+    // The dummy backend has no OS event source to block on, so maxFrames and
+    // maxFps stand in: maxFrames self-paces a bounded headless run and maxFps
+    // caps it; both zero leaves the loop on-demand, woken by requestFrame().
     RunConfig config;
     config.frameStep = std::chrono::microseconds(16667);
     config.maxFrames = maxFrames_;
     config.maxFps = maxFps_;
-    config.renderWindows = &renderWindows_;
 
     return config;
+}
+
+std::vector<std::weak_ptr<WindowBase>>& DummyPlatform::getRenderWindows()
+{
+    return renderWindows_;
 }
 
 } // namespace ase

@@ -17,7 +17,6 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
     auto const step = config.frameStep;
     auto const maxFrames = config.maxFrames;
     auto const maxFps = config.maxFps;
-    auto* const renderWindows = config.renderWindows;
 
     std::chrono::steady_clock clock;
     auto startTime = clock.now();
@@ -39,14 +38,15 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
     // while too many of its frames are in flight), render and present it into the
     // target it acquires, then fence it on its own queue. Backpressure is a
     // per-window property, so there is no shared frames-in-flight count and the
-    // loop submits no fence itself. With no drawable surfaces (headless dummy)
-    // renderWindows is null and this draws nothing.
-    auto renderDirtyWindows = [renderWindows](Frame const& frame)
+    // loop submits no fence itself. The render list is re-fetched each call
+    // because windows open and close during a run. The headless dummy registers
+    // its windows here too, so this drives their frame(); only the draw and
+    // present are no-ops on the dummy queue.
+    auto renderDirtyWindows = [this](Frame const& frame)
     {
-        if (!renderWindows)
-            return;
+        auto& renderWindows = getRenderWindows();
 
-        for (auto& weakWindow : *renderWindows)
+        for (auto& weakWindow : renderWindows)
         {
             if (auto window = weakWindow.lock())
             {
@@ -70,12 +70,12 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     // Whether any window still wants drawing -- the on-demand re-arm condition.
-    auto anyWindowNeedsRedraw = [renderWindows]() -> bool
+    // Re-fetches the render list each call for the same reason as above.
+    auto anyWindowNeedsRedraw = [this]() -> bool
     {
-        if (!renderWindows)
-            return false;
+        auto& renderWindows = getRenderWindows();
 
-        for (auto& weakWindow : *renderWindows)
+        for (auto& weakWindow : renderWindows)
         {
             if (auto window = weakWindow.lock())
             {
@@ -198,18 +198,19 @@ void PlatformImpl::run(std::function<bool(Frame const&)> frameCallback)
         return keepRunning;
     };
 
-    btl::RunLoop::Source wakeSource;
+    btl::RunLoop::Source wakeSourceRegistration;
 
-    loop_.post([this, &config, &wakeSource, &scheduleTick](
+    loop_.post([this, &wakeSourceRegistration, &scheduleTick](
             btl::RunLoop::Controller& controller)
         {
             // Wake on platform input; the callback drains events (firing the
             // window handlers) and schedules a tick so the frame callback runs
             // and any armed window redraws. A headless backend has no such
             // source and advances purely on requestFrame()/self-pump.
-            if (config.wakeSource.valid())
+            btl::NativeHandle handle = wakeSource();
+            if (handle.valid())
             {
-                wakeSource = controller.addReadable(config.wakeSource,
+                wakeSourceRegistration = controller.addReadable(handle,
                         [this, &scheduleTick](btl::RunLoop::Controller& c)
                         {
                             handleEvents();

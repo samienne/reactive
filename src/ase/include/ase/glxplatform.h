@@ -49,6 +49,8 @@ namespace ase
 
     protected:
         RunConfig runConfig() override;
+        btl::NativeHandle wakeSource() override;
+        std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
         friend class GlxRenderContext;

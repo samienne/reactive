@@ -43,6 +43,7 @@ namespace ase
 
     protected:
         RunConfig runConfig() override;
+        std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
         // Frame-rate cap; 0 means uncapped. Read only on the loop thread, so it
@@ -52,9 +53,10 @@ namespace ase
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
 
-        // No surface is ever registered here -- the dummy has a no-op render path
-        // -- but runConfig() hands the loop a render list by pointer, so it holds
-        // an (always empty) one.
+        // The live window list the loop renders, handed to it by reference from
+        // getRenderWindows(). The dummy has a no-op render path, so drawing these
+        // produces nothing, but registering them lets the one loop drive each
+        // window's frame() the same as the real backends.
         std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 

@@ -375,14 +375,22 @@ PlatformImpl::RunConfig GlxPlatform::runConfig()
     int const targetFps = 60;
 
     RunConfig config;
-    // Wake the loop on X input; the loop drains it through handleEvents().
-    config.wakeSource = btl::fromFd(ConnectionNumber(d()->dpy_));
     config.frameStep = std::chrono::microseconds(1000000 / targetFps);
-    // Each window carries its own context and backpressure now, so the loop
-    // drives the render list without a context of its own.
-    config.renderWindows = &d()->renderWindows_;
 
     return config;
+}
+
+btl::NativeHandle GlxPlatform::wakeSource()
+{
+    // Wake the loop on X input; the loop drains it through handleEvents().
+    return btl::fromFd(ConnectionNumber(d()->dpy_));
+}
+
+std::vector<std::weak_ptr<WindowBase>>& GlxPlatform::getRenderWindows()
+{
+    // Each window carries its own context and backpressure now, so the loop
+    // drives the render list without a context of its own.
+    return d()->renderWindows_;
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,
