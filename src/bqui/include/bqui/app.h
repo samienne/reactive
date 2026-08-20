@@ -60,6 +60,23 @@ namespace bqui
          */
         App& platform(ase::Platform platform);
 
+        /** @brief Drive the app from a remote endpoint, overriding
+         * REACTIVE_REMOTE_ENDPOINT so a test need not set a process-global env.
+         *
+         * A non-empty endpoint puts the app in remote mode: instead of
+         * free-running it connects to the endpoint and is driven frame by frame
+         * by an external client (an inspection UI, an automation driver) over
+         * the JSON-RPC control channel. An empty endpoint forces remote mode
+         * off, ignoring the environment. Orthogonal to the platform choice,
+         * though normally paired with a headless one.
+         *
+         * The endpoint's shape selects the transport: `tcp://<host>:<port>`,
+         * `<host>:<port>`, or `:<port>` is a TCP connection; anything else is
+         * the platform's local IPC -- a `\\.\pipe\<name>` named pipe on Windows,
+         * or a Unix-domain socket path on POSIX.
+         */
+        App& setRemoteEndpoint(std::string endpoint);
+
         /** @brief Closes the app's window with this identity.
          *
          * Does nothing if no window in the collection has it. The window's own

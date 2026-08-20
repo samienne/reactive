@@ -239,6 +239,85 @@ GL hides all of this because its context is effectively permanent for the window
 the model must not bake that assumption in. Upward-strong-refs stay — they just order
 destruction, they don't promise immortality.
 
+## Remote
+
+Remote is **not** a branch in the frame path and **not** a special ase platform. It is
+a thin bqui driver over the universal primitives — `pause`/`step`, the default loop,
+`window.inject`, and glue introspection — so the frame path is identical to local.
+Three layers, all in bqui:
+
+- **Transport** — the client socket + framing (already built in the inspector work),
+  registered as a source on the default loop
+  (`RunLoop::getDefault().addReadable(sock, onMessage)`). The app connects out to the
+  configured endpoint. This is the default-loop-for-IO case realized.
+- **Protocol** — the JSON-RPC dispatch: `advance` / `introspect` / `renderTree` /
+  `inject` / `describe`.
+- **Driver** — the glue to ase: optionally hold a `pause()` token, and map each protocol
+  message to a universal primitive.
+
+Message → primitive:
+- `advance(dt)` → `token.step(dt)` — one client-clocked frame, the *same* `frameCallback`
+  path as an auto tick.
+- `inject(windowId, event)` → `window.inject(event)` — the ase window's inject, feeding
+  the normal widget event path; the effect appears on the next frame.
+- `introspect` / `renderTree(windowId)` → read the **glue's** widget/render-tree snapshot
+  and reply.
+
+**Two modes, same transport and protocol — the only difference is whether the driver
+holds a pause token:**
+- **Client-driven (deterministic, headless):** the driver pauses; `advance(dt)` steps,
+  the client owns the clock. Deterministic (inject → step → observe). For automated
+  testing and headless inspection.
+- **Observer / live-attach:** no token; the app free-runs on its own cadence and the
+  client `introspect`s/`inject`s *between* auto frames. Live but not deterministic (an
+  inject lands whenever the next auto frame renders). For attaching to a running app —
+  the earlier inspector could only do the first.
+
+**App wiring:** if a remote endpoint is configured, App attaches a `RemoteDriver` (given
+the loop, the platform, and its glue registry) *before* `platform.run(frameCallback)`.
+The driver registers the socket and, in client-driven mode, pauses. `run()`,
+`frameCallback`, window creation, present — identical to local; the only branch is
+"attach the driver or not," a thin composition rather than a reimplemented loop.
+
+**One frame path (as built):** in client-driven mode the driver steps the paused
+platform's own loop through the pause token (`PauseToken::step(dt)` →
+`frameCallback` + `renderDirtyWindows`), the same per-window tick and `acquire()`
+backpressure a real auto frame takes — there is no bqui-side glue render loop. The
+dummy backend registers its windows on that render list like the real backends, so
+the loop drives their `frame()` too; only the dummy's draw and present are no-ops.
+This is safe because the platform is paused (nothing else is producing frames on
+that surface), so the stepped frame cannot race the auto cadence.
+
+**`RemoteWindowImpl` dissolves.** Introspection is a capability of the **glue** (it holds
+the window + widget + render tree), so it is available for *any* window — no
+remote-specific window wrapper, a whole layer the interim carried that this model drops.
+
+**Threading:** the socket source and the frame tick both run on the loop thread, so
+`advance`/`introspect`/`inject`/`step` serialize with frames — no cross-thread
+coordination (unlike the interim's `runSession`). Introspection reads CPU-side
+app/render-tree state the loop thread owns; the async graphics threadpool only holds
+already-built command buffers, so there is no race.
+
+**Why this is lighter than the interim:** the interim forks `App::runUntil` into building
+a `RemoteApp` + a parallel `runSession` loop. Here there is no parallel loop — remote
+pauses the *one* loop and steps it from a socket source, and the genuinely-bqui parts
+(transport, protocol) are reused unchanged.
+
+**Open details (to pin at implementation; none blocking):**
+- `step(dt)` must surface the keep-running result so the driver can stop the loop when
+  the app wants to exit.
+- Initial `App::sync` (window mount) runs at `run()` start regardless of pause, so an
+  `introspect` before the first `step` sees mounted windows.
+- Disconnect lifecycle: drop the token (resume/observe) or stop the loop (exit) — an
+  inspector likely ends the session.
+- Pixel readback (vs logical trees) is deferred — it is offscreen-`present`-as-readback,
+  a future add, not a gap in this model.
+- One client is the assumed boundary (two `step`ing clients would be two clocks).
+
+Feasibility: remote fits the model with no unresolvable issue found; the substantive
+addition over the first sketch is the **two-mode driver** (optional pause token), which
+the context-free-loop + `pause`/`step` design supports for free.
+
 ## Known limitations (as built, acceptable)
 
 Latent and documented rather than fixed:

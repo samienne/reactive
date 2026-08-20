@@ -6,6 +6,9 @@
 #include "bqui/window.h"
 #include "bqui/modifier/background.h"
 
+#include "bqui/remote/remotedriver.h"
+#include "bqui/remote/transport.h"
+
 #include "debug.h"
 #include "windowdata.h"
 #include "windowbridge.h"
@@ -80,6 +83,12 @@ namespace
     {
         return envEquals("REACTIVE_PLATFORM", "dummy");
     }
+
+    std::string remoteEndpointEnv()
+    {
+        char const* value = std::getenv("REACTIVE_REMOTE_ENDPOINT");
+        return value ? std::string(value) : std::string();
+    }
 } // anonymous namespace
 
 class BQUI_EXPORT AppDeferred :
@@ -117,6 +126,7 @@ public:
 
     std::optional<ase::Platform> platformOverride_;
     std::optional<bool> headlessOverride_;
+    std::optional<std::string> remoteEndpointOverride_;
 };
 
 // Releases the app's impls, whatever ends the run. Each impl co-owns its ase
@@ -250,6 +260,12 @@ App& App::platform(ase::Platform platform)
     return *this;
 }
 
+App& App::setRemoteEndpoint(std::string endpoint)
+{
+    d()->remoteEndpointOverride_ = std::move(endpoint);
+    return *this;
+}
+
 void App::removeWindow(btl::UniqueId id)
 {
     d()->removeWindow(id);
@@ -296,6 +312,9 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return useDummyEnv ? ase::makeDummyPlatform(*ownedLoop)
                            : ase::makeDefaultPlatform(*ownedLoop);
     }();
+
+    std::string remoteEndpoint =
+        d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
 
     if (useDummyEnv)
     {
@@ -409,7 +428,32 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         return runningContext.evaluate<0>().get<0>();
     };
 
+    std::unique_ptr<remote::Transport> transport;
+    std::optional<remote::RemoteDriver> driver;
+
+    if (!remoteEndpoint.empty())
+    {
+        transport = remote::connect(remoteEndpoint);
+
+        remote::RemoteApp remoteApp;
+        remoteApp.sync = [&] { sync(); };
+        remoteApp.liveWindows = [this]() -> remote::RemoteWindows
+        {
+            remote::RemoteWindows windows;
+            windows.reserve(d()->windowBridges_.size());
+            for (auto& impl : d()->windowBridges_)
+                windows.push_back(*impl);
+            return windows;
+        };
+
+        driver.emplace(platform.runLoop(), *transport, std::move(remoteApp),
+                platform.pause());
+    }
+
     platform.run(frameCallback);
+
+    driver.reset();
+    transport.reset();
 
     DBG("Shutting down...");
 
