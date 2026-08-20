@@ -8,11 +8,14 @@
 
 #include <avg/curve/curves.h>
 
+#include <ase/platform.h>
+
 #include <btl/shared.h>
 #include <btl/uniqueid.h>
 #include <btl/visibility.h>
 
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace bqui
@@ -44,9 +47,18 @@ namespace bqui
          *
          * Orthogonal to the platform: the native GPU backend is still used, only
          * offscreen. Overrides the REACTIVE_HEADLESS environment variable. Set
-         * before run().
+         * before run(). To drive windows with no GPU at all -- e.g. where no GPU
+         * is available, or to compile and run tests on otherwise-unsupported
+         * platforms -- select the dummy platform explicitly via platform() or
+         * REACTIVE_PLATFORM=dummy.
          */
         App& headless(bool headless);
+
+        /** @brief Force a specific ase platform (e.g. the dummy one),
+         * bypassing env selection. Lets a test drive windows with no GPU
+         * without a process-global env var.
+         */
+        App& platform(ase::Platform platform);
 
         /** @brief Closes the app's window with this identity.
          *

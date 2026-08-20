@@ -1,7 +1,7 @@
 #pragma once
 
 #include "rendercontext.h"
-#include "platformimpl.h"
+#include "platformbase.h"
 
 #include "asevisibility.h"
 
@@ -14,10 +14,10 @@ namespace ase
     /**
      * @brief Abstract base class for all OpenGl platforms
      */
-    class ASE_EXPORT GlPlatform : public PlatformImpl
+    class ASE_EXPORT GlPlatform : public PlatformBase
     {
     public:
-        GlPlatform();
+        explicit GlPlatform(btl::RunLoop& loop);
         virtual ~GlPlatform();
 
         virtual bool isBackgroundQueueEnabled() const;

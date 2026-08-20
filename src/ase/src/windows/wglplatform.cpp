@@ -110,7 +110,8 @@ PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB(
 }
 
 
-WglPlatform::WglPlatform()
+WglPlatform::WglPlatform(btl::RunLoop& loop) :
+    GlPlatform(loop)
 {
     try
     {
@@ -160,9 +161,9 @@ WglPlatform::~WglPlatform()
         DestroyWindow(dummyWindow_);
 }
 
-Platform makeDefaultPlatform()
+Platform makeDefaultPlatform(btl::RunLoop& loop)
 {
-    return Platform(std::make_shared<WglPlatform>());
+    return Platform(std::make_shared<WglPlatform>(loop));
 }
 
 bool WglPlatform::isBackgroundQueueEnabled() const
@@ -236,11 +237,19 @@ std::string WglPlatform::getLastErrorString()
     return msg;
 }
 
-Window WglPlatform::makeWindow(Vector2i size)
+Window WglPlatform::makeWindow(RenderContext& context, Vector2i size,
+        bool headless)
 {
+    if (headless)
+    {
+        auto window = std::make_shared<OffscreenWindow>(context, size);
+        renderWindows_.push_back(window);
+        return Window(std::move(window));
+    }
+
     try
     {
-        auto wglWindow = std::make_shared<WglWindow>(*this, size, 1.0f);
+        auto wglWindow = std::make_shared<WglWindow>(*this, context, size, 1.0f);
         // Assign rather than insert: Windows reuses an HWND once its window is
         // gone, and an expired entry under that handle lingers here until the
         // next pass of handleEvents(), where insert() would keep it and leave
@@ -254,13 +263,6 @@ Window WglPlatform::makeWindow(Vector2i size)
         std::cout << "error:" << e.what() << std::endl;
         throw;
     }
-}
-
-Window WglPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    auto window = std::make_shared<OffscreenWindow>(context, size);
-    renderWindows_.push_back(window);
-    return Window(std::move(window));
 }
 
 void WglPlatform::handleEvents()
@@ -304,147 +306,18 @@ RenderContext WglPlatform::makeRenderContext()
                 fgContext, bgContext));
 }
 
-void WglPlatform::run(RenderContext& renderContext,
-        std::function<bool(Frame const&)> frameCallback)
+btl::NativeHandle WglPlatform::wakeSource()
 {
-    DBG("Starting WglPlatform::run");
-
-    std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
-    auto nextFrame = startTime + std::chrono::microseconds(16667);
-
-    auto framesInFlight = std::make_shared<int>(0);
-    auto mainQueue = renderContext.getMainRenderQueue();
-
-    bool tickScheduled = false;
-
-    std::function<void(btl::RunLoop::Controller&)> tick;
-
-    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
-    {
-        if (tickScheduled)
-            return;
-        tickScheduled = true;
-        controller.post(tick);
-    };
-
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
-            &framesInFlight, &mainQueue, &nextFrame, &tick](
-            btl::RunLoop::Controller& controller)
-    {
-        tickScheduled = false;
-
-        auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        Frame frame { time, dt };
-
-        if (!frameCallback(frame))
-        {
-            controller.stop();
-            return;
-        }
-
-        // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-arm picks it up.
-        if (*framesInFlight < 2)
-        {
-            for (auto& weakWindow : renderWindows_)
-            {
-                if (auto window = weakWindow.lock())
-                {
-                    if (window->needsRedraw())
-                        window->frame(frame);
-                }
-            }
-
-            ase::CommandBuffer commandBuffer;
-            ++*framesInFlight;
-            commandBuffer.pushFence([this, framesInFlight]
-                {
-                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
-                        { --*framesInFlight; });
-                });
-            mainQueue.submit(std::move(commandBuffer));
-        }
-
-        auto now = clock.now();
-        nextFrame += std::chrono::microseconds(16667);
-        while (nextFrame < now)
-            nextFrame += std::chrono::microseconds(16667);
-
-        lastFrame = thisFrame;
-
-        bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : renderWindows_)
-        {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                {
-                    armed = true;
-                    break;
-                }
-            }
-        }
-
-        if (armed && !tickScheduled)
-        {
-            tickScheduled = true;
-            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
-                    nextFrame - clock.now());
-            if (delay.count() < 0)
-                delay = std::chrono::microseconds(0);
-            controller.addTimer(delay, tick).detach();
-        }
-    };
-
-    btl::RunLoop::Source msgSource;
-
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
-
-    runLoop().post([this, &msgSource, &scheduleTick](
-            btl::RunLoop::Controller& controller)
-        {
-            // Wake on Windows input; the callback drains the queue (firing the
-            // window event callbacks) and schedules a tick so frameCallback
-            // (running/sync) runs and any armed window redraws.
-            msgSource = controller.addReadable(btl::fromMessageQueue(),
-                    [this, &scheduleTick](btl::RunLoop::Controller& c)
-                    {
-                        handleEvents();
-                        scheduleTick(c);
-                    });
-
-            scheduleTick(controller);
-        });
-
-    runLoop().run();
-
-    scheduleTick_ = nullptr;
-
-    mainQueue.finish();
-
-    DBG("Shutting down WglPlatform...");
+    // Wake the loop on the thread message queue; the loop drains it through
+    // handleEvents().
+    return btl::fromMessageQueue();
 }
 
-void WglPlatform::requestFrame()
+std::vector<std::weak_ptr<WindowBase>>& WglPlatform::getRenderWindows()
 {
-    // May be called off the loop thread (e.g. an async signal completing), so
-    // wake through a thread-safe post; the atomic coalesces a burst into one.
-    if (!wakePosted_.exchange(true))
-    {
-        runLoop().post([this](btl::RunLoop::Controller& controller)
-            {
-                wakePosted_ = false;
-                if (scheduleTick_)
-                    scheduleTick_(controller);
-            });
-    }
+    // Each window carries its own context and backpressure now, so the loop
+    // drives the render list without a context of its own.
+    return renderWindows_;
 }
 
 } // namespace ase

@@ -62,8 +62,8 @@ enqueues the `(window, widget)` pair on `pendingMounts_`, a mutex-guarded queue,
 because an OS window must be built on the app thread. So `addWindow` is safe from
 any thread; the widget waits there for the run loop.
 
-`App::run` keeps a live `WindowImpl` per window, `windowImpls_`, keyed by window
-id. A `WindowImpl` (which absorbed the old `WindowGlue`) owns everything for one
+`App::run` keeps a live `WindowBridge` per window, `windowImpls_`, keyed by window
+id. A `WindowBridge` (which absorbed the old `WindowGlue`) owns everything for one
 window: its `ase::Window`, painter, per-window signal contexts, input state, and
 the **widget** it was mounted with. It holds the window's `WindowData` too, but
 not its identity — the data outlives the impl. Under `App::headless` the
@@ -73,7 +73,7 @@ FBO with nothing shown — but the impl treats it as an ordinary window: same
 run loop (present is a no-op for an offscreen window). Each frame the loop
 **syncs** the
 impls to the collection with a plain O(n) set-diff: it reads `getWindows()`,
-drains `pendingMounts_` and mounts a `WindowImpl` for any window in the
+drains `pendingMounts_` and mounts a `WindowBridge` for any window in the
 collection that has none, and tears down any impl whose window has left. A window
 that survives an edit keeps the impl it already had — it is never rebuilt. A
 pending widget whose window has since left (or is already mounted) is dropped; a
@@ -129,7 +129,7 @@ tidiness:
   reference, so the sync calls `mainQueue.finish()` before it destroys a
   departed impl.
 
-Removal itself never evaluates a signal. `WindowImpl`'s close callback invokes
+Removal itself never evaluates a signal. `WindowBridge`'s close callback invokes
 the window's own callbacks and then removes it, and a removal writes the
 `SharedVector`, whose publication only sets an input. `Window::close()` (a widget
 button, say) writes the same `SharedVector` and no more; the callbacks are the

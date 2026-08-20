@@ -11,7 +11,6 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 
-#include <atomic>
 #include <functional>
 #include <string>
 #include <mutex>
@@ -28,7 +27,7 @@ namespace ase
         typedef std::mutex Mutex;
         typedef std::unique_lock<LockableBase(Mutex)> Lock;
 
-        GlxPlatform();
+        explicit GlxPlatform(btl::RunLoop& loop);
         GlxPlatform(GlxPlatform const& other) = delete;
         ~GlxPlatform();
 
@@ -43,14 +42,15 @@ namespace ase
         float getScalingFactor() const;
 
         // From Platform
-        Window makeWindow(Vector2i size) override;
-        Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) override;
-        void handleEvents() override;
+        Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) override;
         RenderContext makeRenderContext() override;
-        void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback) override;
-        void requestFrame() override;
+
+    protected:
+        void handleEvents() override;
+        RunConfig runConfig() override;
+        btl::NativeHandle wakeSource() override;
+        std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
         friend class GlxRenderContext;
@@ -71,14 +71,6 @@ namespace ase
         inline GlxPlatformDeferred* d() { return deferred_; }
         inline GlxPlatformDeferred const* d() const { return deferred_; }
         GlxPlatformDeferred* deferred_;
-
-        // Set to true by requestFrame() (possibly off-thread) to coalesce a
-        // burst of wake requests into a single posted task.
-        std::atomic<bool> wakePosted_ = false;
-
-        // Installed by run() so requestFrame(), which cannot see run()'s local
-        // tick, can schedule one while the loop is active; cleared at run() exit.
-        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
     };
 }
 

@@ -21,11 +21,6 @@ namespace ase
         bool stencil = true;
     };
 
-    struct PresentCommand
-    {
-        Window window;
-    };
-
     struct FenceCommand
     {
         btl::future::Promise<> promise;
@@ -49,7 +44,6 @@ namespace ase
     using RenderCommand = std::variant<
         DrawCommand,
         ClearCommand,
-        PresentCommand,
         FenceCommand,
         BufferUploadCommand,
         TextureUploadCommand

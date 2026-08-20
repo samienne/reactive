@@ -1807,13 +1807,12 @@ unnoticed. The GLX backend has always destroyed its window.
 
 ### `App::run` can only be tested where the backend is headless
 
-`App::run` opens windows, so on the GLX and WGL backends a test of it needs a
-display and a GPU context that a CI runner does not have.
-`src/bqui/test/apptest.cpp` is therefore compiled only where `ase` builds its
-headless backend, which `ase_is_headless` in `src/ase/meson.build` reports.
-Anything else that wants end-to-end coverage of the app loop inherits the
-constraint, and the way out is to inject the platform into `App` rather than to
-weaken the test — nothing has needed that yet.
+`App::run` opens windows, so on the GLX and WGL backends a real-window test of
+it needs a display and a GPU context that a CI runner does not have. The way out
+is to inject the platform into `App`: `src/bqui/test/apptest.cpp` calls
+`App().platform(ase::makeDummyPlatform())`, so it drives the headless backend and
+compiles and runs on every platform. Anything else that wants end-to-end coverage
+of the app loop does the same rather than weakening the test.
 
 ### Tests the departed-key invariant requires
 

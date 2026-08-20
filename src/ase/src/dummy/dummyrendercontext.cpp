@@ -21,6 +21,11 @@
 namespace ase
 {
 
+DummyRenderContext::DummyRenderContext(std::shared_ptr<PlatformImpl> platform) :
+    platform_(std::move(platform))
+{
+}
+
 std::shared_ptr<RenderQueueImpl> DummyRenderContext::getMainRenderQueue()
 {
     return std::make_shared<DummyRenderQueue>();

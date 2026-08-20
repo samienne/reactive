@@ -52,7 +52,7 @@ libbquisrc = [
   'src/keyboardinput.cpp',
   'src/inputarea.cpp',
   'src/window.cpp',
-  'src/windowimpl.cpp',
+  'src/windowbridge.cpp',
   'src/app.cpp',
   'src/connection.cpp',
   'src/annotation.cpp',
@@ -85,8 +85,10 @@ libbquidep = declare_dependency(
   )
 
 bquitestsrc = [
+  'test/apptest.cpp',
   'test/collectiontest.cpp',
   'test/databindtest.cpp',
+  'test/headlessapptest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/shapetest.cpp',
@@ -95,18 +97,14 @@ bquitestsrc = [
   'test/windowtest.cpp',
   ]
 
-# App::run opens real windows, so it can only be exercised where the default
-# platform is the headless dummy (macOS in CI); the GLX and WGL backends need a
-# display and a GPU context CI does not have. The proper headless platform
-# (env-selected and frame-stepped) arrives in a follow-up (PR #96), after which
-# apptest can run everywhere against an explicit dummy platform.
-if target_machine.system() != 'linux' and target_machine.system() != 'windows'
-  bquitestsrc += 'test/apptest.cpp'
-endif
+# apptest now drives App::run against an explicit dummy platform
+# (App::platform(makeDummyPlatform())), so it runs everywhere -- it no longer
+# needs the default platform to be the headless dummy (which was macOS-only).
 
 bquitest =  executable('bquitest',
   bquitestsrc,
   dependencies: [gtestdep, libbquidep],
+  include_directories: include_directories('src'),
   )
 
 # App::headless(true) renders offscreen with the real GL backend, which needs a

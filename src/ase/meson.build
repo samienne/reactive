@@ -95,6 +95,7 @@ libasesrc = [
   'src/offscreenwindow.cpp',
   'src/platform.cpp',
   'src/window.cpp',
+  'src/windowbase.cpp',
   'src/rendercontext.cpp',
   'src/renderable.cpp',
   'src/vertexspec.cpp',
@@ -118,7 +119,8 @@ libasesrc = [
   'src/keycode.cpp',
   'src/uniformset.cpp',
   'src/renderbuffer.cpp',
-  'src/renderqueue.cpp'
+  'src/renderqueue.cpp',
+  'src/platformbase.cpp'
   ]
 
 libase = library('ase',

@@ -4,10 +4,16 @@
 #include "asevisibility.h"
 
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <typeindex>
 #include <typeinfo>
+
+namespace btl
+{
+    class RunLoop;
+}
 
 namespace ase
 {
@@ -16,29 +22,79 @@ namespace ase
     class PlatformImpl;
     struct Frame;
 
+    /** @brief A RAII handle that suspends the platform's auto-cadence frames for
+     * as long as it is held, and drives frames one at a time in the meantime.
+     *
+     * `Platform::pause()` returns one; while it lives the loop keeps pumping
+     * events and IO but produces no auto frames, and `step(dt)` produces exactly
+     * one. Dropping it resumes the free-running cadence. Move-only: the token's
+     * lifetime is the paused mode, so it cannot be copied.
+     *
+     * Loop-thread-only: `Platform::pause()`, `step(dt)`, and this token's
+     * destruction must all be called from the loop thread. */
+    class ASE_EXPORT PauseToken
+    {
+    public:
+        PauseToken(PauseToken&& other) noexcept;
+        PauseToken& operator=(PauseToken&& other) noexcept;
+        PauseToken(PauseToken const&) = delete;
+        PauseToken& operator=(PauseToken const&) = delete;
+        ~PauseToken();
+
+        /** @brief Produce exactly one frame on the caller-supplied `dt`.
+         *
+         * Reports whether the app wants to keep running. Call from the loop
+         * thread.
+         */
+        bool step(std::chrono::microseconds dt);
+
+    private:
+        friend class Platform;
+        explicit PauseToken(std::shared_ptr<PlatformImpl> platform);
+
+        std::shared_ptr<PlatformImpl> platform_;
+    };
+
     class ASE_EXPORT Platform
     {
     public:
         Platform(std::shared_ptr<PlatformImpl> impl);
         virtual ~Platform();
 
-        Window makeWindow(Vector2i size);
+        /** @brief Make a window of this backend bound to `context`.
+         *
+         * Headless, it renders offscreen and is never shown (no present,
+         * `setVisible` is a no-op); otherwise it is the real OS window. Either
+         * is driven from the run loop like any other window.
+         */
+        Window makeWindow(RenderContext& context, Vector2i size, bool headless);
 
-        /** @brief Make a window that renders offscreen with this backend and is
-         * never shown, drawn into an FBO built from `context`. The platform
-         * drives it from its run loop like a normal window; there is no present
-         * and `setVisible` is a no-op. */
-        Window makeOffscreenWindow(RenderContext& context, Vector2i size);
-
-        void handleEvents();
         RenderContext makeRenderContext();
-        void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback);
+
+        /** @brief The run loop this platform was injected with and drives frames
+         * on. */
+        btl::RunLoop& runLoop();
+
+        /** @brief Drive frames on the injected run loop until `frameCallback`
+         * returns false. */
+        void run(std::function<bool(Frame const&)> frameCallback);
+
+        /** @brief Suspend the auto-cadence frames and take manual control.
+         *
+         * The returned token's `step(dt)` produces frames one at a time until it
+         * is dropped, which resumes the free-running cadence. The loop keeps
+         * pumping events and IO throughout. Loop-thread-only, like the returned
+         * token's `step` and destruction.
+         */
+        PauseToken pause();
+
         void requestFrame();
 
-        /** @brief The platform's implementation as concrete type `T`, reached
-         * through any decorators wrapping it; throws `std::bad_cast` if no impl
-         * in the chain has that type. Same-binary only. */
+        /** @brief The platform's implementation as concrete type `T`.
+         *
+         * Reached through any decorators wrapping it; throws `std::bad_cast` if
+         * no impl in the chain has that type. Same-binary only.
+         */
         template <typename T>
         T& getImpl()
         {
@@ -56,8 +112,10 @@ namespace ase
         }
 
         /** @brief Reach the impl of a given concrete type through any decorators
-         * wrapping this platform, or null if none in the chain has that type,
-         * where `getImpl` would throw. Same-binary only. */
+         * wrapping this platform, or null if none in the chain has that type.
+         *
+         * The non-throwing counterpart to `getImpl`. Same-binary only.
+         */
         PlatformImpl* getImplOfType(std::type_index type);
 
     private:
@@ -75,6 +133,10 @@ namespace ase
         std::shared_ptr<PlatformImpl> deferred_;
     };
 
-    ASE_EXPORT Platform makeDefaultPlatform();
+    /** @brief The OS default backend, bound to `loop`.
+     *
+     * The loop is owned by the caller and must outlive the platform.
+     */
+    ASE_EXPORT Platform makeDefaultPlatform(btl::RunLoop& loop);
 } // ase
 

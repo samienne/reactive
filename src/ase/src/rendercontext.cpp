@@ -33,6 +33,11 @@ RenderQueue RenderContext::getMainRenderQueue()
     return RenderQueue(d()->getMainRenderQueue());
 }
 
+std::shared_ptr<RenderContextImpl> RenderContext::getSharedImpl() const
+{
+    return deferred_;
+}
+
 RenderQueue RenderContext::getTransferQueue()
 {
     return RenderQueue(d()->getTransferQueue());

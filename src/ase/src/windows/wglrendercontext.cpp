@@ -35,23 +35,6 @@ WglDispatchedContext const& WglRenderContext::getWglContext() const
             );
 }
 
-void WglRenderContext::present(Dispatched dispatched, Window& window)
-{
-    ZoneScoped;
-    WglWindow* wglWindow = window.getImplOfType<WglWindow>();
-    if (!wglWindow)
-    {
-        GlRenderContext::present(dispatched, window);
-        return;
-    }
-
-    {
-        ZoneScopedN("SwapBuffers");
-        SwapBuffers(wglWindow->getDc());
-        FrameMark;
-    }
-}
-
 } // namespace ase
 
 

@@ -4,6 +4,10 @@
 #include <bqui/widget/widget.h>
 #include <bqui/modifier/onclick.h>
 
+#include <ase/dummyplatform.h>
+
+#include <btl/runloop.h>
+
 #include <bq/signal/constant.h>
 #include <bq/signal/input.h>
 #include <bq/signal/signalcontext.h>
@@ -29,7 +33,7 @@ using namespace bqui;
 // window collection.
 //
 // The app's window collection is imperative: addWindow/removeWindow/close reach
-// it directly, and the run loop mounts one WindowImpl per window to it each
+// it directly, and the run loop mounts one WindowBridge per window to it each
 // frame. Two things are observable from outside without any App-level hook:
 //
 //   - A window's title is read once when its impl mounts, when the impl builds
@@ -119,7 +123,10 @@ TEST(App, addWindowMountsAndOpens)
 {
     Opens opens;
 
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     Window w = makeWindow("only", opens);
     app.addWindow(w, probeWidget(std::make_shared<int>(0)));
@@ -172,7 +179,10 @@ TEST(App, addWindowMountsAndOpens)
 // impl alive and the probe would never expire.
 TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
 {
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     std::weak_ptr<int> probe;
 
@@ -249,7 +259,10 @@ TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
 // reads its props.
 TEST(App, removeDuringRunTearsDownButDataPersists)
 {
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     std::weak_ptr<int> probe;
 
@@ -317,7 +330,10 @@ TEST(App, removeDuringRunTearsDownButDataPersists)
 // widget; the old widget is torn down and the new one is what the window runs.
 TEST(App, reAddAfterRemoveRemountsWithFreshWidget)
 {
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     std::weak_ptr<int> first;
     std::weak_ptr<int> second;
@@ -402,7 +418,10 @@ TEST(App, windowsOpenAndCloseImperatively)
     Opens opens;
     std::vector<std::weak_ptr<int>> probes;
 
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     std::vector<btl::UniqueId> ids;
     auto open = [&](std::string title)
@@ -487,7 +506,10 @@ TEST(App, addedWindowsAllOpenOnce)
     int frames = 0;
 
     {
+        btl::RunLoop loop;
+
         App app;
+        app.platform(ase::makeDummyPlatform(loop));
 
         for (auto title : { "a", "b", "c" })
         {
@@ -524,7 +546,9 @@ TEST(App, addedWindowsAllOpenOnce)
 
 TEST(App, runWithNoWindowsReturnsImmediately)
 {
-    EXPECT_EQ(0, App().run());
+    btl::RunLoop loop;
+
+    EXPECT_EQ(0, App().platform(ase::makeDummyPlatform(loop)).run());
 }
 
 // run() with no signal runs while a window is open, so closing one of several
@@ -535,7 +559,10 @@ TEST(App, runStopsWhenTheLastWindowCloses)
     std::atomic<bool> firstOpened { false };
     std::atomic<bool> laterOpened { false };
 
+    btl::RunLoop loop;
+
     App app;
+    app.platform(ase::makeDummyPlatform(loop));
 
     Window first = window(reportOpen("first", firstOpened));
     Window second = window(bq::signal::constant<std::string>("second"));

@@ -2,11 +2,18 @@
 
 #include "rendercontextimpl.h"
 
+#include <memory>
+
 namespace ase
 {
+    class PlatformImpl;
+
     class ASE_EXPORT DummyRenderContext : public RenderContextImpl
     {
     public:
+        /** @brief Bind the context to the platform that made it, co-owning it. */
+        explicit DummyRenderContext(std::shared_ptr<PlatformImpl> platform);
+
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
 
@@ -46,6 +53,11 @@ namespace ase
                 BlendMode dstFactor) override;
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
+
+    private:
+        // Upward-strong ref to the platform this context was made by; keeps the
+        // platform alive for as long as any window holds this context.
+        std::shared_ptr<PlatformImpl> platform_;
     };
 } // namespace ase
 

@@ -8,6 +8,7 @@
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
 #include "framebuffer.h"
+#include "presentstatus.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -25,6 +26,8 @@ namespace ase
 {
     class Framebuffer;
     class WindowImpl;
+    class RenderContext;
+    class RenderQueue;
 
     struct Frame
     {
@@ -55,7 +58,21 @@ namespace ase
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 
+        /** @brief The render context this window was created against and both
+         * renders and presents through. */
+        RenderContext& getRenderContext();
+
+        /** @brief This window's main render queue -- the FIFO its draws and
+         * present share. */
+        RenderQueue getMainRenderQueue();
+
         void requestFrame();
+
+        /** @brief Present this window's finished frame.
+         *
+         * Returns immediately; GL always reports `Ok`.
+         */
+        PresentStatus present();
 
         void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
@@ -73,7 +90,10 @@ namespace ase
         void setTextCallback(std::function<void(TextEvent const&)> cb);
 
         /** @brief Drive the window with a pointer button event as if it came
-         * from the platform. Works uniformly across every backend. */
+         * from the platform.
+         *
+         * Works uniformly across every backend.
+         */
         void injectPointerButtonEvent(unsigned int pointerIndex,
                 unsigned int buttonIndex, Vector2f pos, ButtonState buttonState);
 
@@ -91,9 +111,11 @@ namespace ase
         /** @brief Drive the window with a text-input event. */
         void injectTextEvent(std::string text);
 
-        /** @brief The window's implementation as concrete type `T`, reached
-         * through any decorators wrapping it; throws `std::bad_cast` if no impl
-         * in the chain has that type. Same-binary only. */
+        /** @brief The window's implementation as concrete type `T`.
+         *
+         * Reached through any decorators wrapping it; throws `std::bad_cast` if
+         * no impl in the chain has that type. Same-binary only.
+         */
         template <class T>
         T const& getImpl() const
         {
@@ -111,8 +133,10 @@ namespace ase
         }
 
         /** @brief Reach the impl of a given concrete type through any decorators
-         * wrapping this window, or null if none in the chain has that type,
-         * where `getImpl` would throw. Same-binary only. */
+         * wrapping this window, or null if none in the chain has that type.
+         *
+         * The non-throwing counterpart to `getImpl`. Same-binary only.
+         */
         WindowImpl* getImplOfType(std::type_index type);
 
         /** @overload Typed form: the impl as `T*`, or null if none in the chain

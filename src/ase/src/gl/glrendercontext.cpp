@@ -1,7 +1,5 @@
 #include "glrendercontext.h"
 
-#include "offscreenwindow.h"
-#include "window.h"
 #include "glplatform.h"
 #include "glprogram.h"
 #include "glfragmentshader.h"
@@ -39,14 +37,10 @@ GlRenderContext::GlRenderContext(
         std::shared_ptr<GlDispatchedContext> fgContext,
         std::shared_ptr<GlDispatchedContext> bgContext
         ) :
-    platform_(platform),
-    mainQueue_(std::make_shared<GlRenderQueue>(std::move(fgContext),
-                [this](Dispatched d, Window& w)
-                {
-                    present(d, w);
-                })),
+    platform_(std::static_pointer_cast<GlPlatform>(platform.shared_from_this())),
+    mainQueue_(std::make_shared<GlRenderQueue>(std::move(fgContext))),
     transferQueue_(platform.isBackgroundQueueEnabled()
-            ? std::make_shared<GlRenderQueue>(std::move(bgContext), [](Dispatched, Window&) {})
+            ? std::make_shared<GlRenderQueue>(std::move(bgContext))
             : mainQueue_),
     objectManager_(*this),
     defaultFramebuffer_(*this, nullptr),
@@ -66,16 +60,6 @@ GlRenderContext::~GlRenderContext()
 {
     mainQueue_->flush();
     transferQueue_->flush();
-}
-
-void GlRenderContext::present(Dispatched, Window& window)
-{
-    // An offscreen window has no drawable to swap. Any other window type
-    // reaching the base is unrecognised.
-    if (window.getImplOfType<OffscreenWindow>())
-        return;
-
-    assert(false);
 }
 
 GlRenderQueue& GlRenderContext::getMainGlRenderQueue()

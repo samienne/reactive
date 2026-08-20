@@ -166,7 +166,8 @@ void Painter::presentWindow(ase::Window& target)
 {
     ZoneScoped;
 
-    commandBuffer_.pushPresent(target);
+    flush();
+    target.present();
 }
 
 void Painter::flush()
@@ -177,8 +178,6 @@ void Painter::flush()
     {
         renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));
         commandBuffer_ = ase::CommandBuffer();
-
-        //renderContext_.flush();
     }
 }
 
