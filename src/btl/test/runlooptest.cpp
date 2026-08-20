@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -79,6 +80,54 @@ namespace
         return { fds[0], fds[1] };
 #endif
     }
+}
+
+TEST(RunLoop, noDefaultBeforeOneIsRegistered)
+{
+    // A plain RunLoop must not touch the global, so with none made default there
+    // is no default: tryGetDefault() is null and getDefault() throws.
+    btl::RunLoop plain;
+    (void)plain;
+
+    EXPECT_EQ(nullptr, btl::RunLoop::tryGetDefault());
+    EXPECT_THROW(btl::RunLoop::getDefault(), std::runtime_error);
+}
+
+TEST(RunLoop, makeDefaultRegistersAndClearsOnScopeExit)
+{
+    ASSERT_EQ(nullptr, btl::RunLoop::tryGetDefault());
+
+    {
+        auto loop = btl::RunLoop::makeDefault();
+        EXPECT_EQ(&loop, btl::RunLoop::tryGetDefault());
+        EXPECT_EQ(&loop, &btl::RunLoop::getDefault());
+    }
+
+    // RAII: the registration is released when the loop goes out of scope.
+    EXPECT_EQ(nullptr, btl::RunLoop::tryGetDefault());
+}
+
+TEST(RunLoop, secondMakeDefaultThrowsWhileFirstLives)
+{
+    auto loop = btl::RunLoop::makeDefault();
+
+    // A default already exists, so a second makeDefault() fails loudly...
+    EXPECT_THROW(btl::RunLoop::makeDefault(), std::runtime_error);
+
+    // ...and the throw left the original default in place.
+    EXPECT_EQ(&loop, btl::RunLoop::tryGetDefault());
+}
+
+TEST(RunLoop, defaultCanBeRemadeAfterTheFirstIsGone)
+{
+    {
+        auto first = btl::RunLoop::makeDefault();
+        EXPECT_EQ(&first, btl::RunLoop::tryGetDefault());
+    }
+
+    // The first cleared itself, so a fresh default registers without throwing.
+    auto second = btl::RunLoop::makeDefault();
+    EXPECT_EQ(&second, btl::RunLoop::tryGetDefault());
 }
 
 TEST(RunLoop, timerFiresThenStops)
