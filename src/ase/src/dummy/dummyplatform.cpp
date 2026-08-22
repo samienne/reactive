@@ -43,7 +43,7 @@ void DummyPlatform::handleEvents()
 RenderContext DummyPlatform::makeRenderContext()
 {
     return RenderContext(std::make_shared<DummyRenderContext>(
-                shared_from_this()));
+                shared_from_this(), runConfig().frameStep));
 }
 
 void DummyPlatform::setMaxFps(unsigned int fps)

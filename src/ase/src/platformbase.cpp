@@ -24,9 +24,10 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     auto const maxFps = config.maxFps;
 
     std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
-    auto nextFrame = startTime + step;
+    auto lastFrame = clock.now();
+
+    std::chrono::microseconds accumulator{ 0 };
+    std::chrono::microseconds frameTime{ 0 };
 
     std::chrono::microseconds steppedTime{ 0 };
     std::uint64_t framesRun = 0;
@@ -57,9 +58,9 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             controller.addTimer(interval - elapsed, tick).detach();
     };
 
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame,
-            &frameCallback, &nextFrame, step, &framesRun, maxFrames,
-            &scheduleTick, &tick](
+    tick = [this, &tickScheduled, &clock, &lastFrame,
+            &frameCallback, &accumulator, &frameTime, step, &framesRun,
+            maxFrames, &scheduleTick, &tick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
@@ -74,12 +75,18 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         }
 
         auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
+        auto realElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
+        lastFrame = thisFrame;
 
-        Frame frame { time, dt };
+        accumulator += realElapsed;
+        auto steps = accumulator / step;
+        auto n = steps < 1 ? decltype(steps){ 1 } : steps;
+        auto dt = n * step;
+        accumulator -= steps * step;  // carry sub-step remainder, not n*step
+        frameTime += dt;
+
+        Frame frame { frameTime, dt };
 
         if (!frameCallback(frame))
         {
@@ -89,12 +96,6 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         renderDirtyWindows(frame);
 
-        auto now = clock.now();
-        nextFrame += step;
-        while (nextFrame < now)
-            nextFrame += step;
-
-        lastFrame = thisFrame;
         ++framesRun;
 
         if (maxFrames != 0)
@@ -103,15 +104,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             return;
         }
 
-        if (anyWindowNeedsRedraw() && !tickScheduled)
-        {
-            tickScheduled = true;
-            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
-                    nextFrame - clock.now());
-            if (delay.count() < 0)
-                delay = std::chrono::microseconds(0);
-            controller.addTimer(delay, tick).detach();
-        }
+        if (anyWindowNeedsRedraw())
+            scheduleTick(controller);
     };
 
     scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c)

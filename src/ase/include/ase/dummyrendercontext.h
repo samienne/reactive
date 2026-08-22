@@ -2,6 +2,7 @@
 
 #include "rendercontextimpl.h"
 
+#include <chrono>
 #include <memory>
 
 namespace ase
@@ -11,8 +12,13 @@ namespace ase
     class ASE_EXPORT DummyRenderContext : public RenderContextImpl
     {
     public:
-        /** @brief Bind the context to the platform that made it, co-owning it. */
-        explicit DummyRenderContext(std::shared_ptr<PlatformImpl> platform);
+        /** @brief Bind the context to the platform that made it, co-owning it.
+         *
+         * `frameInterval` is the artificial per-frame delay applied to the main
+         * queue's fences to emulate GPU pacing; zero completes them inline.
+         */
+        DummyRenderContext(std::shared_ptr<PlatformImpl> platform,
+                std::chrono::microseconds frameInterval);
 
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
@@ -58,6 +64,10 @@ namespace ase
         // Upward-strong ref to the platform this context was made by; keeps the
         // platform alive for as long as any window holds this context.
         std::shared_ptr<PlatformImpl> platform_;
+
+        // One persistent main queue, so its backpressure completer thread is
+        // shared across every window frame rather than recreated per submit.
+        std::shared_ptr<RenderQueueImpl> mainQueue_;
     };
 } // namespace ase
 
