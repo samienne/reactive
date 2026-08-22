@@ -97,10 +97,6 @@ bquitestsrc = [
   'test/windowtest.cpp',
   ]
 
-# apptest now drives App::run against an explicit dummy platform
-# (App::platform(makeDummyPlatform())), so it runs everywhere -- it no longer
-# needs the default platform to be the headless dummy (which was macOS-only).
-
 bquitest =  executable('bquitest',
   bquitestsrc,
   dependencies: [gtestdep, libbquidep],

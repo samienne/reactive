@@ -62,7 +62,7 @@ enqueues the `(window, widget)` pair on `pendingMounts_`, a mutex-guarded queue,
 because an OS window must be built on the app thread. So `addWindow` is safe from
 any thread; the widget waits there for the run loop.
 
-`App::run` keeps a live `WindowBridge` per window, `windowImpls_`, keyed by window
+`App::run` keeps a live `WindowBridge` per window, `windowBridges_`, keyed by window
 id. A `WindowBridge` (which absorbed the old `WindowGlue`) owns everything for one
 window: its `ase::Window`, painter, per-window signal contexts, input state, and
 the **widget** it was mounted with. It holds the window's `WindowData` too, but
@@ -77,7 +77,7 @@ drains `pendingMounts_` and mounts a `WindowBridge` for any window in the
 collection that has none, and tears down any impl whose window has left. A window
 that survives an edit keeps the impl it already had — it is never rebuilt. A
 pending widget whose window has since left (or is already mounted) is dropped; a
-re-add re-supplies one. `AnimationGuard` walks `windowImpls_`. The no-signal
+re-add re-supplies one. `AnimationGuard` walks `windowBridges_`. The no-signal
 `run()` overload derives its `running` signal from `getWindowsSignal` and stops
 when the collection is empty.
 
@@ -142,7 +142,7 @@ this path: the collection can change and a surviving impl keeps driving what it
 already holds.
 
 The teardown ordering is the one subtlety worth stating: the sync builds the new
-complete impl set, swaps it into `windowImpls_`, and *then* destroys the departed
+complete impl set, swaps it into `windowBridges_`, and *then* destroys the departed
 impls, because destroying a window runs event handlers that reach back into the
 live set, which must be the new one by then.
 

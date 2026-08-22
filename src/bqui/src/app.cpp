@@ -113,7 +113,7 @@ public:
 
     ase::Platform* runningPlatform_ = nullptr;
 
-    std::vector<btl::shared<WindowBridge>> windowImpls_;
+    std::vector<btl::shared<WindowBridge>> windowBridges_;
 
     std::optional<ase::Platform> platformOverride_;
     std::optional<bool> headlessOverride_;
@@ -130,7 +130,7 @@ struct ImplScope
         // last strong ref to it, so releasing the window with a swap still
         // pending would run its destructor on the render thread, not this one.
         queue.finish();
-        app.windowImpls_.clear();
+        app.windowBridges_.clear();
     }
 
     AppDeferred& app;
@@ -346,7 +346,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
         std::vector<btl::shared<WindowBridge>> departing;
 
-        for (auto& impl : d()->windowImpls_)
+        for (auto& impl : d()->windowBridges_)
         {
             bool present = std::any_of(windows.begin(), windows.end(),
                     [&](Window const& w) { return w.getId() == impl->getId(); });
@@ -387,7 +387,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
         if (!departing.empty())
             mainQueue.finish();
 
-        d()->windowImpls_.swap(next);
+        d()->windowBridges_.swap(next);
         departing.clear();
     };
 
@@ -416,7 +416,7 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& impl : d()->windowImpls_)
+    for (auto const& impl : d()->windowBridges_)
     {
         DBG("Window \"%1\" had FPS of %2.", impl->getTitle(),
                 (double)impl->getFrames() / time.count());
@@ -435,7 +435,7 @@ AnimationGuard::AnimationGuard(AppDeferred& app,
     app_(&app),
     options_(options)
 {
-    for (auto& impl : app_->windowImpls_)
+    for (auto& impl : app_->windowBridges_)
     {
         impl->makeTransaction(
                 std::chrono::milliseconds(0),
@@ -449,7 +449,7 @@ AnimationGuard::~AnimationGuard()
     if (!app_)
         return;
 
-    for (auto& impl : app_->windowImpls_)
+    for (auto& impl : app_->windowBridges_)
     {
         impl->makeTransaction(
                 std::chrono::milliseconds(0),
