@@ -102,12 +102,8 @@ namespace
 } // anonymous namespace
 
 
-GlRenderState::GlRenderState(
-        GlDispatchedContext& dispatcher,
-        std::function<void(Dispatched, Window&)> presentCallback
-        ) :
-    dispatcher_(dispatcher),
-    presentCallback_(std::move(presentCallback))
+GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
+    dispatcher_(dispatcher)
 {
     dispatcher_.dispatch([](GlFunctions const& gl)
     {
@@ -229,17 +225,10 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     }
 }
 
-void GlRenderState::endFrame()
-{
-    boundUniformSet_ = nullptr;
-    boundVbo_ = 0;
-    boundIbo_ = 0;
-}
-
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
-    ZoneScoped;
+    ZoneScopedN("renderCommands");
 
     if (vertexArrayObject_ == 0)
     {
@@ -278,16 +267,6 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             clear(d, mask);
 
-            continue;
-        }
-        else if (std::holds_alternative<PresentCommand>(renderCommand))
-        {
-            ZoneScopedN("Present command");
-            presentCallback_(d, const_cast<Window&>(
-                        std::get<PresentCommand>(renderCommand).window)
-                    );
-
-            endFrame();
             continue;
         }
         else if (std::holds_alternative<FenceCommand>(renderCommand))
@@ -339,6 +318,11 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 glUniformBuffer
                     .setData(d, gl, uploadCommand.data, uploadCommand.usage)
                     ;
+
+                // The upload rebinds the generic uniform buffer target and can
+                // outlive the deleted buffer's indexed bindings, so drop the
+                // uniform-set cache; the next draw re-asserts its ranges.
+                boundUniformSet_ = nullptr;
             }
 
             continue;

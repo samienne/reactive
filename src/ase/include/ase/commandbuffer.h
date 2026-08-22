@@ -35,8 +35,6 @@ namespace ase
                 bool stencil = false
                 );
 
-        void pushPresent(Window window);
-
         void pushFence(std::function<void()> completeCb);
         btl::future::Future<> pushFence();
 

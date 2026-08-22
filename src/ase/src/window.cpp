@@ -1,6 +1,8 @@
 #include "window.h"
 
 #include "windowimpl.h"
+#include "rendercontext.h"
+#include "renderqueue.h"
 
 namespace ase
 {
@@ -71,9 +73,24 @@ Framebuffer& Window::getDefaultFramebuffer()
     return d()->getDefaultFramebuffer();
 }
 
+RenderContext& Window::getRenderContext()
+{
+    return d()->getRenderContext();
+}
+
+RenderQueue Window::getMainRenderQueue()
+{
+    return d()->getRenderContext().getMainRenderQueue();
+}
+
 void Window::requestFrame()
 {
     d()->requestFrame();
+}
+
+PresentStatus Window::present()
+{
+    return d()->present();
 }
 
 WindowImpl* Window::getImplOfType(std::type_index type)

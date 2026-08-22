@@ -1,9 +1,57 @@
 # Decisions
 
-*Last verified against `677f12b` (2026-08-14).*
+*Last verified against `7429b35` (2026-08-17).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## The platform owns a context-free frame loop; `App` picks the driver
+
+`Platform::run(frameCallback)` drives frames on the injected loop, and `App`
+delegates to it. The loop is **context-free**: per dirty window it renders and
+presents through the context the window carries (`acquire` backpressure + fence
+on the window's own queue), so `run` names no `RenderContext`. A backend supplies
+only what differs — render list, wake source, cadence, and the dummy's self-pump
+budget — through a protected `runConfig()` override; the shared loop body is one
+`PlatformImpl::run`. There is no `Session` (it was dropped: with the context on
+the window, the loop, and the windows all unbound from it, nothing was left to
+bind). Manual driving is a `Platform::pause()` RAII token whose `step(dt)`
+produces one frame off the same callback path.
+
+`App` attaches the driver. Locally it just calls `platform.run(frameCallback)`.
+With a remote endpoint configured it also attaches a bqui `remote::RemoteDriver`
+over the platform's `pause()`/`step()` *before* `run()`: the driver connects the
+client socket, registers it on the platform's run loop, and — in client-driven
+mode — holds a `pause()` token so the client owns the clock. Either way the same
+per-frame callback drives every frame; the only branch is whether the driver is
+attached.
+
+Remote adds no ase platform decorator and no window wrapper. The bqui window glue
+(`WindowImpl`) implements `remote::RemoteWindow` directly, so introspection and
+event injection are a capability of the glue — available for any window — and the
+driver addresses each glue by its `UniqueId`. `RemoteDriver` maps each protocol
+message to a universal primitive (`advance(dt)` -> `token.step(dt)`, `inject` ->
+the window's inject, `introspect` -> the glue's resolved tree), reusing the
+transport and JSON-RPC protocol unchanged.
+
+**Why:** once the frame loop is context-free and driven by one `frameCallback`,
+nothing context-specific is left for a `Session` to bind, and nothing
+remote-specific is left for a platform decorator to do. Remote becomes a thin
+driver that pauses the *one* loop and steps it from a socket source, instead of a
+parallel `runSession` loop over a wrapped platform. Folding remote onto the same
+`pause`/`step` primitive that every test and the dummy backend already use is what
+keeps the frame path identical local and remote — no `RemoteWindowImpl`, no
+decorator, no second driving path.
+
+## `present` returns `PresentStatus`, not `void`
+
+Present is modelled as a surface operation on the render queue, sequenced behind
+the frame's draws, and it returns a `PresentStatus` rather than `void`.
+
+**Why:** a backend whose present can fail (a lost swapchain that must be
+recreated) needs a channel to report it. Giving present a status from the start
+avoids retrofitting one at every call site later. GL cannot fail this way, so it
+always reports `Ok`.
 
 ## `getImpl<T>` is a checked accessor over a `getImplOfType` primitive
 

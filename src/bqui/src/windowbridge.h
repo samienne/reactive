@@ -9,6 +9,7 @@
 #include "bqui/hoverevent.h"
 #include "bqui/eventresult.h"
 #include "bqui/widget/instance.h"
+#include "bqui/widget/introspection.h"
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 
@@ -48,20 +49,20 @@ namespace bqui
 
 inline uint64_t getNextFrameId()
 {
-    static uint64_t s_frameId = 0;
+    static std::atomic<uint64_t> s_frameId{ 0 };
     return ++s_frameId;
 }
 
-class WindowImpl
+class WindowBridge
 {
 public:
-    WindowImpl(ase::Platform &platform, ase::RenderContext& context,
+    WindowBridge(ase::Platform &platform, ase::RenderContext& context,
             Window window, widget::AnyWidget widget, bool headless = false);
 
-    WindowImpl(WindowImpl const &) = delete;
-    WindowImpl &operator=(WindowImpl const &) = delete;
+    WindowBridge(WindowBridge const &) = delete;
+    WindowBridge &operator=(WindowBridge const &) = delete;
 
-    virtual ~WindowImpl();
+    ~WindowBridge();
 
     void makeTransaction(
             std::chrono::microseconds dt,
@@ -86,7 +87,6 @@ private:
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
     ase::Window aseWindow;
-    ase::RenderContext& context_;
 
     std::shared_ptr<WindowData> windowData_;
     avg::Painter painter_;
@@ -96,7 +96,6 @@ private:
         widgetInstanceSignal_;
     widget::Instance widgetInstance_;
     bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
-    //RenderCache cache_;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,
         std::function<void(ase::KeyEvent const&)>> keys_;

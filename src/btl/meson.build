@@ -14,13 +14,14 @@ libbtl = static_library('btl',
   btl_srcs,
   include_directories: include_directories('include', 'src'),
   cpp_args: btl_args,
+  dependencies: [tracydep],
   pic: true,
   )
 
 libbtldep = declare_dependency(
         link_with: libbtl,
         include_directories: include_directories('include'),
-        dependencies: [],
+        dependencies: [tracydep],
         compile_args: btl_args,
         )
 

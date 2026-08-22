@@ -8,10 +8,9 @@
 namespace ase
 {
 
-GlRenderQueue::GlRenderQueue(std::shared_ptr<GlDispatchedContext> dispatcher,
-        std::function<void(Dispatched, Window&)> presentCallback) :
+GlRenderQueue::GlRenderQueue(std::shared_ptr<GlDispatchedContext> dispatcher) :
     dispatcher_(std::move(dispatcher)),
-    renderState_(*dispatcher_, presentCallback)
+    renderState_(*dispatcher_)
 {
 }
 

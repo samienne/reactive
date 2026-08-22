@@ -9,10 +9,12 @@
 ## Purpose
 
 One reactor that services window frames, sockets, timers, and file work from a
-single loop. Today `bqui`'s `App::runUntil` has an `if (agentic)` branch that
-runs a wholly separate `runSession` loop (its own reader thread plus a command
-queue), so an app is *either* a normal windowed app *or* an agent-driven headless
-one, never both. The run loop unifies those into one loop with pluggable sources.
+single loop. Today `bqui`'s `App::runUntil` ends every mode with the one shared
+tail — `platform.run(context, frameCallback)` — and a remote endpoint just picks
+a *platform decorator* (`RemotePlatformImpl`) whose own `run()` serves the
+session, still on its own reader thread plus a command queue. So an app is
+*either* a normal windowed app *or* a remote-driven headless one, never both. The
+run loop unifies those into one loop with pluggable sources.
 
 Three payoffs:
 

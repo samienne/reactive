@@ -15,7 +15,7 @@ namespace bqui
     class WindowData;
     class App;
     class AppDeferred;
-    class WindowImpl;
+    class WindowBridge;
 
     /** @brief A window in the application.
      *
@@ -59,7 +59,7 @@ namespace bqui
     private:
         friend class App;
         friend class AppDeferred;
-        friend class WindowImpl;
+        friend class WindowBridge;
 
         std::shared_ptr<WindowData> const& data() const
         {

@@ -1,21 +1,18 @@
-#include "windowimpl.h"
+#include "windowbridge.h"
+
+#include <tracy/Tracy.hpp>
 
 namespace bqui
 {
 
-WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
+WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
     : memoryPool_(pmr::new_delete_resource()),
     memoryStatistics_(&memoryPool_),
     memory_(&memoryStatistics_),
-    // A headless run draws to an offscreen window: same real backend, no
-    // OS window shown. The rest of the impl treats it as an ordinary window.
-    aseWindow(headless
-            ? platform.makeOffscreenWindow(context, ase::Vector2i(800, 600))
-            : platform.makeWindow(ase::Vector2i(800, 600))),
-    context_(context),
+    aseWindow(platform.makeWindow(context, ase::Vector2i(800, 600), headless)),
     windowData_(window.data()),
-    painter_(memory_, context_),
+    painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
     widgetInstanceSignal_((std::move(widget)
                 | modifier::background())(
@@ -50,8 +47,7 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
 
         closed_ = true;
 
-        // Removing the window is what closes it, and the callbacks run
-        // first so that one of them still sees the window open.
+        // Invoke callbacks before close() so they still see the window open.
         windowData_->invokeOnClose();
         windowData_->close();
     });
@@ -205,16 +201,17 @@ WindowImpl::WindowImpl(ase::Platform &platform, ase::RenderContext& context,
             }
         }
     });
+
 }
 
-WindowImpl::~WindowImpl()
+WindowBridge::~WindowBridge()
 {
     std::cout << "Maximum concurrent allocations: "
         << memoryStatistics_.maximum_concurrent_bytes_allocated()
         << std::endl;
 }
 
-void WindowImpl::makeTransaction(
+void WindowBridge::makeTransaction(
         std::chrono::microseconds dt,
         std::optional<avg::AnimationOptions> const& animationOptions
         )
@@ -240,7 +237,6 @@ void WindowImpl::makeTransaction(
 
         widgetInstance_ = widgetInstanceSignal_.evaluate<0>().get<0>();
 
-        // If there's an area with the same id -> update
         auto areas = widgetInstance_.getInputAreas();
         for (auto&& area : areas_)
         {
@@ -324,7 +320,7 @@ void WindowImpl::makeTransaction(
         << updateResult.didChange << std::endl;
 }
 
-std::optional<bq::signal::signal_time_t> WindowImpl::frame(
+std::optional<bq::signal::signal_time_t> WindowBridge::frame(
         std::chrono::microseconds dt)
 {
     ZoneScoped;
@@ -332,10 +328,10 @@ std::optional<bq::signal::signal_time_t> WindowImpl::frame(
     return onFrame( { timer_, dt });
 }
 
-std::optional<std::chrono::microseconds> WindowImpl::onFrame(
+std::optional<std::chrono::microseconds> WindowBridge::onFrame(
         ase::Frame const& frame)
 {
-    ZoneScoped;
+    ZoneScopedN("onFrame");
 
     timer_ = frame.time;
 
@@ -375,22 +371,22 @@ std::optional<std::chrono::microseconds> WindowImpl::onFrame(
                       : std::nullopt;
 }
 
-btl::UniqueId WindowImpl::getId() const
+btl::UniqueId WindowBridge::getId() const
 {
     return windowData_->getId();
 }
 
-uint64_t WindowImpl::getFrames() const
+uint64_t WindowBridge::getFrames() const
 {
     return frames_;
 }
 
-std::string WindowImpl::getTitle() const
+std::string WindowBridge::getTitle() const
 {
     return titleSignal_.evaluate<0>().get<0>();
 }
 
-widget::Instance const& WindowImpl::getWidgetInstance() const
+widget::Instance const& WindowBridge::getWidgetInstance() const
 {
     return widgetInstance_;
 }

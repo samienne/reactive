@@ -8,6 +8,7 @@
 #include "pointerbuttonevent.h"
 #include "asevisibility.h"
 #include "framebuffer.h"
+#include "presentstatus.h"
 #include "vector.h"
 
 #include <btl/visibility.h>
@@ -16,23 +17,27 @@
 #include <string>
 #include <functional>
 #include <chrono>
+#include <memory>
 #include <optional>
 #include <typeindex>
 #include <typeinfo>
 
 namespace ase
 {
-    class Framebuffer;
+    class RenderContext;
+    class RenderQueue;
     struct Frame;
 
-    class ASE_EXPORT WindowImpl
+    class ASE_EXPORT WindowImpl : public std::enable_shared_from_this<WindowImpl>
     {
     public:
         virtual ~WindowImpl() = default;
 
         /** @brief Reach the impl of a given concrete type through any decorators
-         * wrapping this window, or null if none in the chain has that type,
-         * where `getImpl` would throw. Same-binary only. */
+         * wrapping this window, or null if none in the chain has that type.
+         *
+         * The non-throwing counterpart to `getImpl`. Same-binary only.
+         */
         virtual WindowImpl* getImplOfType(std::type_index type)
         {
             return std::type_index(typeid(*this)) == type ? this : nullptr;
@@ -46,6 +51,14 @@ namespace ase
             return static_cast<T*>(getImplOfType(std::type_index(typeid(T))));
         }
 
+        /** @brief The render context this window was created against and both
+         * renders and presents through.
+         *
+         * Bound at creation and non-transferable: the window carries its own
+         * (surface, queue) binding.
+         */
+        virtual RenderContext& getRenderContext() = 0;
+
         virtual void setVisible(bool value) = 0;
         virtual bool isVisible() const = 0;
 
@@ -58,15 +71,12 @@ namespace ase
 
         virtual void requestFrame() = 0;
 
-        /** @brief Whether the window wants drawing; the run loop draws it when
-         * it does. Part of the render surface every platform's loop drives,
-         * uniform across real and offscreen windows. */
-        virtual bool needsRedraw() const = 0;
-
-        /** @brief Draw one frame by running the frame callback. The run loop
-         * calls this on a window that needsRedraw(). */
-        virtual std::optional<std::chrono::microseconds> frame(
-                Frame const& frame) = 0;
+        /** @brief Present this surface's finished frame.
+         *
+         * Returns immediately; a surface with nothing to swap (offscreen)
+         * returns `Ok`.
+         */
+        virtual PresentStatus present() = 0;
 
         virtual void setFrameCallback(
                 std::function<std::optional<std::chrono::microseconds>(
@@ -105,4 +115,3 @@ namespace ase
         virtual void injectTextEvent(std::string text) = 0;
     };
 }
-

@@ -11,19 +11,18 @@
 #include <GL/gl.h>
 #include <GL/wglext.h>
 
-#include <atomic>
 #include <functional>
 #include <memory>
 #include <vector>
 
 namespace ase
 {
-    class WindowImpl;
+    class WindowBase;
 
     class ASE_EXPORT WglPlatform : public GlPlatform
     {
     public:
-        WglPlatform();
+        explicit WglPlatform(btl::RunLoop& loop);
         virtual ~WglPlatform();
 
         WglPlatform(WglPlatform const&) = delete;
@@ -38,14 +37,14 @@ namespace ase
         static std::string getLastErrorString();
 
         // From PlatformImpl
-        Window makeWindow(Vector2i size) override;
-        Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) override;
-        void handleEvents() override;
+        Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) override;
         RenderContext makeRenderContext() override;
-        void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback) override;
-        void requestFrame() override;
+
+    protected:
+        void handleEvents() override;
+        btl::NativeHandle wakeSource() override;
+        std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
         HWND dummyWindow_ = nullptr;
@@ -53,18 +52,10 @@ namespace ase
         HDC dummyDc_ = nullptr;
         PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB_ = nullptr;
 
-        // Set to true by requestFrame() (possibly off-thread) to coalesce a
-        // burst of wake requests into a single posted task.
-        std::atomic<bool> wakePosted_ = false;
-
-        // Installed by run() so requestFrame(), which cannot see run()'s local
-        // tick, can schedule one while the loop is active; cleared at run() exit.
-        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
-
         // Every window this platform makes, real or offscreen; the run loop
         // draws them all from here. Real windows are also in the HWND map (used
         // for message routing), which an offscreen window has no place in.
-        std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
+        std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 
 } // namespace ase

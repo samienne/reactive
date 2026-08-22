@@ -8,7 +8,7 @@
 
 #include "debug.h"
 #include "windowdata.h"
-#include "windowimpl.h"
+#include "windowbridge.h"
 
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
@@ -26,9 +26,9 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/rendercontext.h>
 #include <ase/platform.h>
-#include <ase/rendercontext.h>
-#include <ase/platform.h>
+#include <ase/dummyplatform.h>
 
+#include <btl/runloop.h>
 #include <btl/future/promise.h>
 #include <btl/future/future.h>
 #include <btl/future/futurecontrol.h>
@@ -59,17 +59,26 @@ namespace bqui
 
 namespace
 {
-    // A truthy env var: set and neither empty nor "0".
     bool envFlag(char const* name)
     {
         char const* value = std::getenv(name);
         return value && value[0] != '\0' && std::strcmp(value, "0") != 0;
     }
 
-    // Headless when REACTIVE_HEADLESS is truthy.
+    bool envEquals(char const* name, char const* expected)
+    {
+        char const* value = std::getenv(name);
+        return value && std::strcmp(value, expected) == 0;
+    }
+
     bool wantsHeadlessEnv()
     {
         return envFlag("REACTIVE_HEADLESS");
+    }
+
+    bool wantsDummyPlatformEnv()
+    {
+        return envEquals("REACTIVE_PLATFORM", "dummy");
     }
 } // anonymous namespace
 
@@ -84,14 +93,12 @@ public:
 
     /** @brief Removes the window with this id from the collection.
      *
-     * Thread-safe, and a no-op if no window here has the id. The window's impl
-     * is torn down by the run loop's next sync, not here, because an OS window
-     * is released on the app thread.
+     * Thread-safe, a no-op if the id is absent. The impl is torn down by the run
+     * loop's next sync, not here, because an OS window is released on the app
+     * thread.
      */
     void removeWindow(btl::UniqueId id);
 
-    // Wakes the run loop, if one is running, so a pending window change is
-    // reconciled by the next sync().
     void wakeLoop();
 
     std::vector<Window> getWindows() const
@@ -104,29 +111,26 @@ public:
     std::mutex pendingMutex_;
     std::vector<std::pair<Window, widget::AnyWidget>> pendingMounts_;
 
-    // The platform is a runUntil local; it is published here for the duration
-    // of the run so add/removeWindow can wake the loop. Guarded by
-    // pendingMutex_, and nulled before the platform is destroyed.
     ase::Platform* runningPlatform_ = nullptr;
 
-    // Forces headless (no visible windows, offscreen rendering) on or off; unset
-    // defers to the REACTIVE_HEADLESS environment variable.
-    std::optional<bool> headlessOverride_;
+    std::vector<btl::shared<WindowBridge>> windowBridges_;
 
-    std::vector<btl::shared<WindowImpl>> windowImpls_;
+    std::optional<ase::Platform> platformOverride_;
+    std::optional<bool> headlessOverride_;
 };
 
-// Releases the app's impls, whatever ends the run. An impl holds an
-// ase::Window and a framebuffer belonging to the run's render context, so
-// leaving one behind would outlive what it is made of.
+// Releases the app's impls, whatever ends the run. Each impl co-owns its ase
+// window -> render context -> platform, so a leftover impl would keep the whole
+// backend alive past this call.
 struct ImplScope
 {
     ~ImplScope()
     {
-        // A frame that drew a window can still be in flight, and it holds that
-        // window's framebuffer.
+        // finish() before clear(): a window's queued present lambda holds the
+        // last strong ref to it, so releasing the window with a swap still
+        // pending would run its destructor on the render thread, not this one.
         queue.finish();
-        app.windowImpls_.clear();
+        app.windowBridges_.clear();
     }
 
     AppDeferred& app;
@@ -240,6 +244,12 @@ App& App::headless(bool headless)
     return *this;
 }
 
+App& App::platform(ase::Platform platform)
+{
+    d()->platformOverride_ = std::move(platform);
+    return *this;
+}
+
 void App::removeWindow(btl::UniqueId id)
 {
     d()->removeWindow(id);
@@ -273,11 +283,35 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 {
     bool headless = d()->headlessOverride_.value_or(wantsHeadlessEnv());
 
-    ase::Platform platform = ase::makeDefaultPlatform();
+    bool useDummyEnv = !d()->platformOverride_ && wantsDummyPlatformEnv();
 
-    // Published for the run's duration so add/removeWindow can wake the loop;
-    // declared after `platform` so it is nulled under the lock before the
-    // platform is destroyed.
+    std::optional<btl::RunLoop> ownedLoop;
+
+    ase::Platform inner = [&]() -> ase::Platform
+    {
+        if (d()->platformOverride_)
+            return *d()->platformOverride_;
+
+        ownedLoop.emplace(btl::RunLoop::DefaultTag{});
+        return useDummyEnv ? ase::makeDummyPlatform(*ownedLoop)
+                           : ase::makeDefaultPlatform(*ownedLoop);
+    }();
+
+    if (useDummyEnv)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+                inner.getImpl<ase::DummyPlatform>().setMaxFrames(n);
+        }
+    }
+
+    ase::Platform platform = std::move(inner);
+
+    // Declared after `platform` so runningPlatform_ is nulled under the lock
+    // before the platform is destroyed.
     struct PlatformScope
     {
         ~PlatformScope()
@@ -297,32 +331,22 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     auto mainQueue = context.getMainRenderQueue();
 
-    // The impls outlive this call — they are the app's, not the loop's — but
-    // the platform and render context they hold do not, so they must be
-    // released before this returns, however it returns.
     ImplScope implScope { *d(), mainQueue };
 
     auto runningContext = bq::signal::makeSignalContext(std::move(running));
 
-    // Wake the loop when the run condition changes, so an on-demand platform
-    // re-evaluates it instead of sleeping through the change.
     runningContext.observe([this] { d()->wakeLoop(); });
 
-    // Syncs the live impls to the window collection: mounts an impl for any
-    // window not yet mounted, tears down any impl whose window has left. The
-    // collection (which close()/removeWindow update directly) is read straight,
-    // once per frame, and the widgets to mount are drained from the pending
-    // queue addWindow fills.
     auto sync = [&]()
     {
         std::vector<Window> windows = d()->getWindows();
 
-        std::vector<btl::shared<WindowImpl>> next;
+        std::vector<btl::shared<WindowBridge>> next;
         next.reserve(windows.size());
 
-        std::vector<btl::shared<WindowImpl>> departing;
+        std::vector<btl::shared<WindowBridge>> departing;
 
-        for (auto& impl : d()->windowImpls_)
+        for (auto& impl : d()->windowBridges_)
         {
             bool present = std::any_of(windows.begin(), windows.end(),
                     [&](Window const& w) { return w.getId() == impl->getId(); });
@@ -347,26 +371,23 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                     [&](Window const& w) { return w.getId() == id; });
 
             bool mounted = std::any_of(next.begin(), next.end(),
-                    [&](btl::shared<WindowImpl> const& impl)
+                    [&](btl::shared<WindowBridge> const& impl)
                     {
                         return impl->getId() == id;
                     });
 
             if (present && !mounted)
             {
-                next.push_back(std::make_shared<WindowImpl>(platform, context,
+                next.push_back(std::make_shared<WindowBridge>(platform, context,
                             std::move(mount.first), std::move(mount.second),
                             headless));
             }
         }
 
-        // A frame that drew a departing window can still be in flight, and it
-        // holds that window's framebuffer, so nothing may release an impl until
-        // the queue has caught up.
         if (!departing.empty())
             mainQueue.finish();
 
-        d()->windowImpls_.swap(next);
+        d()->windowBridges_.swap(next);
         departing.clear();
     };
 
@@ -377,23 +398,25 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
     DBG("Reactive running...");
 
-    platform.run(context, [&](ase::Frame const& aseFrame) -> bool
-        {
-            bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
+    auto frameCallback = [&](ase::Frame const& aseFrame) -> bool
+    {
+        bq::signal::FrameInfo frame{ getNextFrameId(), aseFrame.dt };
 
-            runningContext.update(frame);
+        runningContext.update(frame);
 
-            sync();
+        sync();
 
-            return runningContext.evaluate<0>().get<0>();
-        });
+        return runningContext.evaluate<0>().get<0>();
+    };
+
+    platform.run(frameCallback);
 
     DBG("Shutting down...");
 
     auto endTime = clock.now();
     std::chrono::duration<double> time = endTime - startTime;
 
-    for (auto const& impl : d()->windowImpls_)
+    for (auto const& impl : d()->windowBridges_)
     {
         DBG("Window \"%1\" had FPS of %2.", impl->getTitle(),
                 (double)impl->getFrames() / time.count());
@@ -412,7 +435,7 @@ AnimationGuard::AnimationGuard(AppDeferred& app,
     app_(&app),
     options_(options)
 {
-    for (auto& impl : app_->windowImpls_)
+    for (auto& impl : app_->windowBridges_)
     {
         impl->makeTransaction(
                 std::chrono::milliseconds(0),
@@ -426,7 +449,7 @@ AnimationGuard::~AnimationGuard()
     if (!app_)
         return;
 
-    for (auto& impl : app_->windowImpls_)
+    for (auto& impl : app_->windowBridges_)
     {
         impl->makeTransaction(
                 std::chrono::milliseconds(0),
@@ -443,4 +466,3 @@ App app()
 }
 
 }
-

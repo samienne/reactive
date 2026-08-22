@@ -1,34 +1,35 @@
 #pragma once
 
-#include "platformimpl.h"
+#include "platformbase.h"
 
 #include "asevisibility.h"
 
 #include <btl/runloop.h>
 
-#include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <vector>
 
 namespace ase
 {
     class Platform;
+    class WindowBase;
 
-    class ASE_EXPORT DummyPlatform : public PlatformImpl
+    class ASE_EXPORT DummyPlatform : public PlatformBase
     {
     public:
-        Window makeWindow(Vector2i size) override;
-        Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) override;
-        void handleEvents() override;
-        RenderContext makeRenderContext() override;
-        void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback) override;
-        void requestFrame() override;
+        explicit DummyPlatform(btl::RunLoop& loop);
 
-        /** @brief Cap the headless frame rate. Zero (the default) leaves the loop
-         * uncapped: a tick runs as soon as requestFrame() wakes it. A positive
-         * value paces ticks to at most fps frames per second. Set before run().
+        Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) override;
+        RenderContext makeRenderContext() override;
+
+        /** @brief Cap the headless frame rate.
+         *
+         * Zero (the default) leaves the loop uncapped: a tick runs as soon as
+         * requestFrame() wakes it. A positive value paces ticks to at most `fps`
+         * frames per second. Set before run().
          */
         void setMaxFps(unsigned int fps);
 
@@ -41,21 +42,20 @@ namespace ase
          */
         void setMaxFrames(uint64_t maxFrames);
 
+    protected:
+        void handleEvents() override;
+        RunConfig runConfig() override;
+        std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
+
     private:
-        // Set to true by requestFrame() (possibly off-thread) to coalesce a
-        // burst of wake requests into a single posted task.
-        std::atomic<bool> wakePosted_ = false;
-
-        // Installed by run() so requestFrame(), which cannot see run()'s local
-        // tick, can schedule one while the loop is active; cleared at run() exit.
-        std::function<void(btl::RunLoop::Controller&)> scheduleTick_;
-
         // Frame-rate cap; 0 means uncapped. Read only on the loop thread, so it
         // must be set before run().
         unsigned int maxFps_ = 0;
 
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
+
+        std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 
     /**
@@ -63,9 +63,9 @@ namespace ase
      * build's default backend.
      *
      * `makeDefaultPlatform()` selects the OS backend; this always gives the
-     * dummy one.
+     * dummy one. `loop` is injected and must outlive the returned platform.
      */
-    ASE_EXPORT Platform makeDummyPlatform();
+    ASE_EXPORT Platform makeDummyPlatform(btl::RunLoop& loop);
 
 } // namespace ase
 

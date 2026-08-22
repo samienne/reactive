@@ -36,9 +36,9 @@
 namespace ase
 {
 
-Platform makeDefaultPlatform()
+Platform makeDefaultPlatform(btl::RunLoop& loop)
 {
-    return Platform(std::make_shared<GlxPlatform>());
+    return Platform(std::make_shared<GlxPlatform>(loop));
 }
 
 typedef GLXContext (*glXCreateContextAttribsArbProc)(Display*, GLXFBConfig,
@@ -111,7 +111,7 @@ private:
     // X windows, for routing X events; only real windows are here.
     std::vector<std::weak_ptr<GlxWindow>> windows_;
     // Every window, real or offscreen; the run loop draws them all from here.
-    std::vector<std::weak_ptr<WindowImpl>> renderWindows_;
+    std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     bool gl3Enabled_ = true;
     bool gl4Enabled_ = false;
     bool xsync_ = false;
@@ -181,7 +181,8 @@ void GlxPlatformDeferred::printGlInfo()
     DBG("GlxPlatform: Maximum vertex texture units: %1", textureUnits);
 }
 
-GlxPlatform::GlxPlatform() :
+GlxPlatform::GlxPlatform(btl::RunLoop& loop) :
+    GlPlatform(loop),
     deferred_(new GlxPlatformDeferred(*this))
 {
     int numReturned;
@@ -289,25 +290,27 @@ inline std::optional<std::chrono::microseconds> minTime(
         return l;
 }
 
-Window GlxPlatform::makeWindow(Vector2i size)
+Window GlxPlatform::makeWindow(RenderContext& context, Vector2i size,
+        bool headless)
 {
-    auto window = std::make_shared<GlxWindow>(*this, size, getScalingFactor());
+    if (headless)
+    {
+        auto window = std::make_shared<OffscreenWindow>(context, size);
+
+        {
+            auto lock = lockX();
+            d()->renderWindows_.push_back(window);
+        }
+
+        return Window(std::move(window));
+    }
+
+    auto window = std::make_shared<GlxWindow>(*this, context, size,
+            getScalingFactor());
 
     {
         auto lock = lockX();
         d()->windows_.push_back(window);
-        d()->renderWindows_.push_back(window);
-    }
-
-    return Window(std::move(window));
-}
-
-Window GlxPlatform::makeOffscreenWindow(RenderContext& context, Vector2i size)
-{
-    auto window = std::make_shared<OffscreenWindow>(context, size);
-
-    {
-        auto lock = lockX();
         d()->renderWindows_.push_back(window);
     }
 
@@ -367,150 +370,27 @@ RenderContext GlxPlatform::makeRenderContext()
     return RenderContext(std::make_shared<GlxRenderContext>(*this));
 }
 
-void GlxPlatform::run(RenderContext& renderContext,
-        std::function<bool(Frame const&)> frameCallback)
+PlatformBase::RunConfig GlxPlatform::runConfig()
 {
-    DBG("Starting GlxPlatform::run");
-
     int const targetFps = 60;
-    auto const step = std::chrono::microseconds(1000000 / targetFps);
 
-    std::chrono::steady_clock clock;
-    auto startTime = clock.now();
-    auto lastFrame = startTime;
-    auto nextFrame = startTime + step;
+    RunConfig config;
+    config.frameStep = std::chrono::microseconds(1000000 / targetFps);
 
-    auto framesInFlight = std::make_shared<int>(0);
-    auto mainQueue = renderContext.getMainRenderQueue();
-
-    btl::RunLoop::Source xSource;
-
-    bool tickScheduled = false;
-
-    std::function<void(btl::RunLoop::Controller&)> tick;
-
-    auto scheduleTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
-    {
-        if (tickScheduled)
-            return;
-        tickScheduled = true;
-        controller.post(tick);
-    };
-
-    tick = [this, &tickScheduled, &clock, &startTime, &lastFrame, &frameCallback,
-            &framesInFlight, &mainQueue, &nextFrame, &step, &tick](
-            btl::RunLoop::Controller& controller)
-    {
-        tickScheduled = false;
-
-        auto thisFrame = clock.now();
-        auto time = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - startTime);
-        auto dt = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-
-        Frame frame { time, dt };
-
-        if (!frameCallback(frame))
-        {
-            controller.stop();
-            return;
-        }
-
-        // Skip producing a new frame while the GPU still has earlier ones in
-        // flight; a fence completion frees a slot and a re-arm picks it up.
-        if (*framesInFlight < 2)
-        {
-            for (auto& weakWindow : d()->renderWindows_)
-            {
-                if (auto window = weakWindow.lock())
-                {
-                    if (window->needsRedraw())
-                        window->frame(frame);
-                }
-            }
-
-            ase::CommandBuffer commandBuffer;
-            ++*framesInFlight;
-            commandBuffer.pushFence([this, framesInFlight]
-                {
-                    runLoop().post([framesInFlight](btl::RunLoop::Controller&)
-                        { --*framesInFlight; });
-                });
-            mainQueue.submit(std::move(commandBuffer));
-        }
-
-        auto now = clock.now();
-        nextFrame += step;
-        while (nextFrame < now)
-            nextFrame += step;
-
-        lastFrame = thisFrame;
-
-        bool armed = *framesInFlight >= 2;
-        for (auto& weakWindow : d()->renderWindows_)
-        {
-            if (auto window = weakWindow.lock())
-            {
-                if (window->needsRedraw())
-                {
-                    armed = true;
-                    break;
-                }
-            }
-        }
-
-        if (armed && !tickScheduled)
-        {
-            tickScheduled = true;
-            auto delay = std::chrono::duration_cast<std::chrono::microseconds>(
-                    nextFrame - clock.now());
-            if (delay.count() < 0)
-                delay = std::chrono::microseconds(0);
-            controller.addTimer(delay, tick).detach();
-        }
-    };
-
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c) { scheduleTick(c); };
-
-    runLoop().post([this, &xSource, &scheduleTick](
-            btl::RunLoop::Controller& controller)
-        {
-            // Wake on X input; the callback drains the connection (firing the
-            // window event handlers) and schedules a tick so frameCallback
-            // (running/sync) runs and any armed window redraws.
-            xSource = controller.addReadable(
-                    btl::fromFd(ConnectionNumber(d()->dpy_)),
-                    [this, &scheduleTick](btl::RunLoop::Controller& c)
-                    {
-                        handleEvents();
-                        scheduleTick(c);
-                    });
-
-            scheduleTick(controller);
-        });
-    runLoop().run();
-
-    scheduleTick_ = nullptr;
-
-    mainQueue.finish();
-
-    DBG("Shutting down GlxPlatform..");
+    return config;
 }
 
-void GlxPlatform::requestFrame()
+btl::NativeHandle GlxPlatform::wakeSource()
 {
-    // May be called off the loop thread (e.g. an async signal completing), so
-    // wake through a thread-safe post; the atomic coalesces a burst into one.
-    if (!wakePosted_.exchange(true))
-    {
-        runLoop().post([this](btl::RunLoop::Controller& controller)
-            {
-                wakePosted_ = false;
-                if (scheduleTick_)
-                    scheduleTick_(controller);
-            });
-    }
+    // Wake the loop on X input; the loop drains it through handleEvents().
+    return btl::fromFd(ConnectionNumber(d()->dpy_));
+}
+
+std::vector<std::weak_ptr<WindowBase>>& GlxPlatform::getRenderWindows()
+{
+    // Each window carries its own context and backpressure now, so the loop
+    // drives the render list without a context of its own.
+    return d()->renderWindows_;
 }
 
 GLXContext createNewGlContext(Display* display, GLXContext sharedContext,

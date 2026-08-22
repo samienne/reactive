@@ -29,9 +29,6 @@ namespace ase
 
         ~GlRenderContext() override;
 
-        /** @brief Present a finished frame to the window. */
-        virtual void present(Dispatched dispatched, Window& window);
-
         GlRenderQueue& getMainGlRenderQueue();
         GlRenderQueue const& getMainGlRenderQueue() const;
 
@@ -105,7 +102,7 @@ namespace ase
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
 
     private:
-        GlPlatform& platform_;
+        std::shared_ptr<GlPlatform> platform_;
         std::shared_ptr<GlRenderQueue> mainQueue_;
         std::shared_ptr<GlRenderQueue >transferQueue_;
         GlObjectManager objectManager_;

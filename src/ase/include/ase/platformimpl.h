@@ -3,13 +3,16 @@
 #include "vector.h"
 #include "asevisibility.h"
 
-#include <btl/runloop.h>
-
 #include <chrono>
 #include <functional>
-#include <optional>
+#include <memory>
 #include <typeindex>
 #include <typeinfo>
+
+namespace btl
+{
+    class RunLoop;
+}
 
 namespace ase
 {
@@ -17,38 +20,76 @@ namespace ase
     class Window;
     struct Frame;
 
-    class ASE_EXPORT PlatformImpl
+    /** @brief The platform's pure interface.
+     *
+     * The operations the `Platform` handle and its `PauseToken` call, plus the
+     * `getImplOfType` type-erasure plumbing. The shared frame-loop
+     * implementation lives one level down on `PlatformBase`, which every
+     * concrete backend derives from.
+     */
+    class ASE_EXPORT PlatformImpl :
+        public std::enable_shared_from_this<PlatformImpl>
     {
     public:
         virtual ~PlatformImpl() = default;
 
         /** @brief Reach the impl of a given concrete type through any decorators
-         * wrapping this platform, or null if none in the chain has that type,
-         * where `getImpl` would throw. Same-binary only. */
+         * wrapping this platform, or null if none in the chain has that type.
+         *
+         * The non-throwing counterpart to `getImpl`. Same-binary only.
+         */
         virtual PlatformImpl* getImplOfType(std::type_index type)
         {
             return std::type_index(typeid(*this)) == type ? this : nullptr;
         }
 
-        virtual Window makeWindow(Vector2i size) = 0;
-        virtual Window makeOffscreenWindow(RenderContext& context,
-                Vector2i size) = 0;
-        virtual void handleEvents() = 0;
+        /** @overload Typed form: the impl as `T*`, or null if none in the chain
+         * is a `T`. Same-binary only. */
+        template <class T>
+        T* getImplOfType()
+        {
+            return static_cast<T*>(getImplOfType(std::type_index(typeid(T))));
+        }
+
+        virtual Window makeWindow(RenderContext& context, Vector2i size,
+                bool headless) = 0;
         virtual RenderContext makeRenderContext() = 0;
-        virtual void run(RenderContext& renderContext,
-                std::function<bool(Frame const&)> frameCallback) = 0;
+
+        /** @brief Drive frames on the injected run loop until the app quits.
+         *
+         * Runs until the frame callback returns false (or, headless, the frame
+         * budget is spent).
+         */
+        virtual void run(std::function<bool(Frame const&)> frameCallback) = 0;
+
+        /** @brief Suspend auto-cadence frame production while keeping the loop
+         * pumping events and IO.
+         *
+         * Balanced by `resumeFrames`; the pause token owns that pairing.
+         */
+        virtual void pauseFrames() = 0;
+
+        /** @brief End one `pauseFrames`; when the last is undone, wake the loop so
+         * the cadence resumes. */
+        virtual void resumeFrames() = 0;
+
+        /** @brief Produce exactly one frame on demand, on a caller-supplied `dt`.
+         *
+         * Reports whether the app wants to keep running. A no-op returning false
+         * when no run is active. Called on the loop thread.
+         */
+        virtual bool stepFrame(std::chrono::microseconds dt) = 0;
+
+        /** @brief Wake the frame loop so it runs a tick and re-evaluates.
+         *
+         * Safe to call off the loop thread. A decorator that drives frames
+         * itself overrides this.
+         */
         virtual void requestFrame() = 0;
 
         /** @brief The platform's run loop, for registering sources (sockets,
          * timers) serviced alongside the frame loop.
          */
-        btl::RunLoop& runLoop()
-        {
-            return loop_;
-        }
-
-    protected:
-        btl::RunLoop loop_;
+        virtual btl::RunLoop& runLoop() = 0;
     };
 }
-
