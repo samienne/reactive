@@ -2,23 +2,68 @@
 
 #include "runloopimpl.h"
 
+#include <atomic>
+#include <stdexcept>
 #include <utility>
 
 namespace btl
 {
+    namespace
+    {
+        std::atomic<RunLoop*> g_defaultRunLoop{ nullptr };
+    } // namespace
+
     RunLoop::RunLoop() :
         impl_(makePlatformSpecificRunLoopImpl())
     {
     }
 
+    RunLoop::RunLoop(DefaultTag) :
+        RunLoop()
+    {
+        RunLoop* expected = nullptr;
+        if (!g_defaultRunLoop.compare_exchange_strong(expected, this))
+        {
+            throw std::runtime_error(
+                    "btl::RunLoop: a default run loop already exists");
+        }
+
+        isDefault_ = true;
+    }
+
     RunLoop::~RunLoop()
     {
+        if (isDefault_)
+        {
+            RunLoop* expected = this;
+            g_defaultRunLoop.compare_exchange_strong(expected, nullptr);
+        }
+
         if (impl_)
             impl_->stop();
     }
 
-    RunLoop::RunLoop(RunLoop&&) noexcept = default;
-    RunLoop& RunLoop::operator=(RunLoop&&) noexcept = default;
+    RunLoop RunLoop::makeDefault()
+    {
+        return RunLoop(DefaultTag{});
+    }
+
+    RunLoop& RunLoop::getDefault()
+    {
+        RunLoop* loop = g_defaultRunLoop.load();
+        if (!loop)
+        {
+            throw std::runtime_error(
+                    "btl::RunLoop: no default run loop registered");
+        }
+
+        return *loop;
+    }
+
+    RunLoop* RunLoop::tryGetDefault() noexcept
+    {
+        return g_defaultRunLoop.load();
+    }
 
     void RunLoop::run()
     {
