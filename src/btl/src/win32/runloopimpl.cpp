@@ -13,6 +13,8 @@
 #include <winsock2.h>
 #include <windows.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -149,14 +151,17 @@ namespace
 
                 DWORD timeout = nextTimeout();
                 DWORD result;
-                if (hasMessages)
-                    result = MsgWaitForMultipleObjectsEx(
-                            (DWORD)handles.size(), handles.data(), timeout,
-                            QS_ALLINPUT, MWMO_INPUTAVAILABLE);
-                else
-                    result = WaitForMultipleObjects(
-                            (DWORD)handles.size(), handles.data(), FALSE,
-                            timeout);
+                {
+                    ZoneScopedN("RunLoop wait");
+                    if (hasMessages)
+                        result = MsgWaitForMultipleObjectsEx(
+                                (DWORD)handles.size(), handles.data(), timeout,
+                                QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+                    else
+                        result = WaitForMultipleObjects(
+                                (DWORD)handles.size(), handles.data(), FALSE,
+                                timeout);
+                }
 
                 if (result == WAIT_TIMEOUT)
                 {
@@ -275,6 +280,7 @@ namespace
 
         void drainPosts()
         {
+            ZoneScopedN("RunLoop drainPosts");
             std::vector<Callback> tasks;
             {
                 std::lock_guard<std::mutex> lock(mutex_);

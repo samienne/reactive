@@ -5,6 +5,8 @@
 
 #include <btl/runloop.h>
 
+#include <tracy/Tracy.hpp>
+
 #include <chrono>
 
 namespace ase
@@ -74,6 +76,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
             return;
         }
 
+        ZoneScopedN("frameTick");
+
         auto thisFrame = clock.now();
         auto realElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 thisFrame - lastFrame);
@@ -88,7 +92,13 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         Frame frame { frameTime, dt };
 
-        if (!frameCallback(frame))
+        bool keepRunning;
+        {
+            ZoneScopedN("frameCallback");
+            keepRunning = frameCallback(frame);
+        }
+
+        if (!keepRunning)
         {
             controller.stop();
             return;
@@ -153,6 +163,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
 void PlatformBase::renderDirtyWindows(Frame const& frame)
 {
+    ZoneScopedN("renderDirtyWindows");
+
     auto& renderWindows = getRenderWindows();
 
     for (auto& weakWindow : renderWindows)
