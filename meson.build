@@ -27,8 +27,11 @@ mapboxdep = mapbox.get_variable('mapbox_dep').as_system()
 gtest = subproject('gtest', default_options: subproject_warnings)
 gtestdep = gtest.get_variable('gtest_main_dep').as_system()
 
+# only_localhost keeps Tracy's data socket and discovery broadcast on loopback,
+# so profiling never trips the OS firewall prompt and works unattended; a local
+# profiler still connects.
 tracydep = dependency('tracy', include_type: 'system',
-    default_options: subproject_warnings)
+    default_options: subproject_warnings + ['only_localhost=true'])
 
 subdir('src')
 
