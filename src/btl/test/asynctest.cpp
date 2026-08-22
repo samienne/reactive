@@ -409,11 +409,14 @@ TEST(async, perf)
 
 TEST(async, delayed)
 {
+    // Capture start before scheduling: delayed() computes its deadline as
+    // steady_clock::now() + delay internally, so a start taken afterwards would
+    // undercount by the scheduling setup time and dip below the bound under
+    // slow (sanitized) runtimes.
+    auto start = std::chrono::steady_clock::now();
     auto f = btl::delayed(std::chrono::milliseconds(200), btl::always(1));
 
-    auto start = std::chrono::steady_clock::now();
     EXPECT_TRUE(std::move(f).get());
-
 
     auto delay = std::chrono::duration_cast<std::chrono::duration<float>>(
             std::chrono::steady_clock::now() - start);
