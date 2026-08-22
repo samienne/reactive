@@ -60,7 +60,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     tick = [this, &tickScheduled, &clock, &lastFrame,
             &frameCallback, &accumulator, &frameTime, step, &framesRun,
-            maxFrames, &scheduleTick, &tick](
+            maxFrames, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;

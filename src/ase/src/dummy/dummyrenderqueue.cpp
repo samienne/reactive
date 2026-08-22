@@ -101,10 +101,15 @@ void DummyRenderQueue::completerLoop()
                 [](PendingFence const& a, PendingFence const& b)
                 { return a.targetTime < b.targetTime; });
 
-        if (std::chrono::steady_clock::now() < earliest->targetTime)
+        // Copy the deadline out: wait_until releases the lock, and a concurrent
+        // submit() can then realloc pending_, dangling both the iterator and any
+        // reference into its storage.
+        auto targetTime = earliest->targetTime;
+
+        if (std::chrono::steady_clock::now() < targetTime)
         {
             // Wake early if newer/nearer work arrives or on shutdown.
-            condition_.wait_until(lock, earliest->targetTime);
+            condition_.wait_until(lock, targetTime);
             continue;
         }
 
