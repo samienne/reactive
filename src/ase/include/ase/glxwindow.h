@@ -77,7 +77,6 @@ namespace ase
         Vector2i getResolution() const;
 
     private:
-        bool needsRedraw() const override;
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 

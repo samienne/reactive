@@ -43,11 +43,6 @@ void DummyWindow::requestFrame()
     genericWindow_.requestFrame();
 }
 
-bool DummyWindow::needsRedraw() const
-{
-    return genericWindow_.needsRedraw();
-}
-
 std::optional<std::chrono::microseconds> DummyWindow::frame(Frame const& frame)
 {
     return genericWindow_.frame(frame);

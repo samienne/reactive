@@ -52,10 +52,10 @@ are in the top-level `docs/`.
   through the context the window carries, and fences on the window's own queue —
   so `run` names no `RenderContext` of its own.
   A backend supplies only what differs through protected virtuals: the static
-  cadence via `runConfig()` (`PlatformBase::RunConfig`: `frameStep`, the dummy's
-  `maxFrames` self-pump budget, and `maxFps` — a wall-clock cap set through
-  `PlatformBase::setMaxFps` that headless backends use to pace a loop with no
-  vsync; the dummy queue itself completes fences inline), the OS `wakeSource()` (read
+  cadence via `runConfig()` (`PlatformBase::RunConfig`: `frameStep` and the
+  dummy's `maxFrames` self-pump budget; the frame *rate* is per-window — the loop
+  schedules to the earliest of the windows' `nextFrameTime`, not a platform cap —
+  and the dummy queue completes fences inline), the OS `wakeSource()` (read
   once at loop start), and the live `getRenderWindows()` list (re-read every tick,
   since windows open and close during a run); there is no `Session`. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`
@@ -80,14 +80,15 @@ are in the top-level `docs/`.
   from `WindowBase` (`include/ase/windowbase.h`, `src/windowbase.cpp`), which owns
   the co-owned `RenderContext`, the per-window present backpressure (the
   non-blocking `canAcquire`/`submitFrameFence` + the `WindowPresentSync` fence
-  bookkeeping), the
-  loop-contract private virtuals (`needsRedraw`/`frame`, with `friend class
-  PlatformBase`), and the `GenericWindow genericWindow_` (protected, so backends
+  bookkeeping), the loop-contract members (the `frame` private virtual and the
+  concrete `nextFrameTime`, both reached through `friend class PlatformBase`), and
+  the `GenericWindow genericWindow_` (protected, so backends
   reach it during OS-event translation). The callback setters and event injectors
   that just forward to `genericWindow_` — plus `getSize`/`getScalingFactor` — are
   concrete forwarders on `WindowBase`; a backend overrides only what genuinely
   differs (`present`, framebuffer, visibility, scaling-aware title/requestFrame,
-  `needsRedraw`/`frame`). The `WindowBase` ctor takes `(context, size,
+  `frame`). `nextFrameTime` reads `genericWindow_` on `WindowBase` itself, so
+  backends do not reimplement it. The `WindowBase` ctor takes `(context, size,
   scalingFactor)` so it can build `genericWindow_`. The platform render lists are
   `weak_ptr<WindowBase>` since the loop hooks live there. `getRenderContext` is
   a pure virtual on `WindowImpl` (implemented by `WindowBase`), so `Window`
@@ -101,9 +102,10 @@ are in the top-level `docs/`.
   headless, distinct from the no-GL dummy backend; the one entry point makes an
   on-screen window when `headless` is false. The real GLX/WGL backends keep **one
   render list** of all their windows (real and offscreen) — the render-polling
-  surface the platform's frame loop drives, `needsRedraw()`/`frame()`, now
-  **private virtuals on `WindowBase` reached through `friend class PlatformBase`**,
-  not part of the public window API — which the loop draws uniformly. The **dummy
+  surface the platform's frame loop drives (`nextFrameTime()` for when a window is
+  due, and the `frame()` private virtual), reached through `friend class
+  PlatformBase` and not part of the public window API — which the loop draws
+  uniformly. The **dummy
   backend registers its windows on the same render list** and is driven by the one
   loop like the real backends; its `frame()` runs (evaluating the signal graph and
   building the render tree), only the draw and present are no-ops on the dummy

@@ -56,7 +56,6 @@ PlatformBase::RunConfig DummyPlatform::runConfig()
     RunConfig config;
     config.frameStep = std::chrono::microseconds(16667);
     config.maxFrames = maxFrames_;
-    config.maxFps = maxFps_;
 
     return config;
 }

@@ -44,11 +44,6 @@ void OffscreenWindow::requestFrame()
     genericWindow_.requestFrame();
 }
 
-bool OffscreenWindow::needsRedraw() const
-{
-    return genericWindow_.needsRedraw();
-}
-
 std::optional<std::chrono::microseconds> OffscreenWindow::frame(
         Frame const& frame)
 {

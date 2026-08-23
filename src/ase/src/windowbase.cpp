@@ -34,6 +34,12 @@ RenderContext& WindowBase::getRenderContext()
     return context_;
 }
 
+std::optional<std::chrono::steady_clock::time_point>
+WindowBase::nextFrameTime() const
+{
+    return genericWindow_.nextFrameTime();
+}
+
 bool WindowBase::canAcquire() const
 {
     auto sync = presentSync_;

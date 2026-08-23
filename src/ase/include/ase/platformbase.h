@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace ase
@@ -41,10 +42,6 @@ namespace ase
             /** A non-zero budget bounds the run and makes it self-pump to that
              * many frames (headless); zero leaves the loop on-demand. */
             std::uint64_t maxFrames = 0;
-
-            /** A non-zero cap paces the loop with the run loop's wall-clock
-             * timer; zero is uncapped. */
-            unsigned int maxFps = 0;
         };
 
         void run(std::function<bool(Frame const&)> frameCallback) override;
@@ -53,13 +50,6 @@ namespace ase
         bool stepFrame(std::chrono::microseconds dt) override;
         void requestFrame() override;
         btl::RunLoop& runLoop() override;
-
-        /** @brief Cap the loop to a wall-clock frame rate.
-         *
-         * The default (0) is uncapped; a positive `fps` paces the loop to that
-         * cadence. Set before run().
-         */
-        void setMaxFps(unsigned int fps);
 
     protected:
         /** @brief Bind the platform to the run loop it drives frames on.
@@ -116,15 +106,12 @@ namespace ase
         // frames.
         int pauseCount_ = 0;
 
-        // Wall-clock frame-rate cap fed into runConfig(); 0 means uncapped.
-        // Read only on the loop thread, so it must be set before run().
-        unsigned int maxFps_ = 0;
-
     private:
         void renderDirtyWindows(Frame const& frame);
 
-        // Any window that is dirty and has a free in-flight slot.
-        bool anyReadyToRender();
+        // The earliest time a renderable window wants its next frame, or
+        // nullopt if none does; the loop schedules its next tick to this.
+        std::optional<std::chrono::steady_clock::time_point> earliestFrameTime();
 
         // Any window whose in-flight budget is full.
         bool anyWindowSaturated();

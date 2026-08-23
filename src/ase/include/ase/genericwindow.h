@@ -34,7 +34,9 @@ namespace ase
         void notifyClose();
         void resize(Vector2i size);
 
-        bool needsRedraw() const;
+        /** @brief When this window next wants to render, or nullopt if
+         * quiesced. The frame callback's returned delay sets it. */
+        std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
         void requestFrame();
 
         void setFrameCallback(
@@ -85,7 +87,10 @@ namespace ase
         float scalingFactor_;
 
         std::optional<Vector2f> pointerPos_;
-        bool needsRedraw_ = true;
+        // A new window wants its first frame immediately. Parenthesised to dodge
+        // the Windows min() macro.
+        std::optional<std::chrono::steady_clock::time_point> nextFrame_ =
+            (std::chrono::steady_clock::time_point::min)();
         bool hover_ = false;
 
         std::array<bool, 15> buttonPressedState_ = { {

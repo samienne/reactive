@@ -77,7 +77,10 @@ namespace ase
     private:
         friend class PlatformBase;
 
-        virtual bool needsRedraw() const = 0;
+        // When this window next wants to render, or nullopt if quiesced. The
+        // loop schedules its cadence from these across all windows; sourced from
+        // the GenericWindow, so it needs no per-backend override.
+        std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
 
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
