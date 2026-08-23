@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace ase
@@ -41,9 +42,6 @@ namespace ase
             /** A non-zero budget bounds the run and makes it self-pump to that
              * many frames (headless); zero leaves the loop on-demand. */
             std::uint64_t maxFrames = 0;
-
-            /** A non-zero cap paces the headless self-pump; zero is uncapped. */
-            unsigned int maxFps = 0;
         };
 
         void run(std::function<bool(Frame const&)> frameCallback) override;
@@ -110,6 +108,12 @@ namespace ase
 
     private:
         void renderDirtyWindows(Frame const& frame);
-        bool anyWindowNeedsRedraw();
+
+        // The earliest frame time a renderable window wants its next frame at,
+        // or nullopt if none does; the loop schedules its next tick to this.
+        std::optional<std::chrono::microseconds> earliestFrameTime();
+
+        // Any window whose in-flight budget is full.
+        bool anyWindowSaturated();
     };
 }

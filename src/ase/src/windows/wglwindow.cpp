@@ -450,7 +450,6 @@ PresentStatus WglWindow::present()
         {
             ZoneScopedN("SwapBuffers");
             SwapBuffers(hdc_);
-            FrameMark;
         });
 
     return PresentStatus::Ok;
@@ -500,11 +499,6 @@ void WglWindow::requestFrame()
 std::optional<std::chrono::microseconds> WglWindow::frame(Frame const& frame)
 {
     return genericWindow_.frame(frame);
-}
-
-bool WglWindow::needsRedraw() const
-{
-    return genericWindow_.needsRedraw();
 }
 
 LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,

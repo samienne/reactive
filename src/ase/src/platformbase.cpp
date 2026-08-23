@@ -23,7 +23,6 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     auto const step = config.frameStep;
     auto const maxFrames = config.maxFrames;
-    auto const maxFps = config.maxFps;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
@@ -38,29 +37,44 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     std::function<void(btl::RunLoop::Controller&)> tick;
 
-    auto scheduleTick = [&tickScheduled, &tick, &clock, &lastFrame, maxFps](
-            btl::RunLoop::Controller& controller)
+    // Run a tick as soon as possible. The app wants to re-evaluate now -- at
+    // startup, on a content change, an event, or a window close -- independent
+    // of any window's render cadence, so this is what drives the loop to a stop
+    // when there is nothing (or nothing left) to draw.
+    auto wakeTick = [&tickScheduled, &tick](btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
         tickScheduled = true;
-
-        if (maxFps == 0)
-        {
-            controller.post(tick);
-            return;
-        }
-
-        auto interval = std::chrono::microseconds(1000000 / maxFps);
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                clock.now() - lastFrame);
-        if (elapsed >= interval)
-            controller.post(tick);
-        else
-            controller.addTimer(interval - elapsed, tick).detach();
+        controller.post(tick);
     };
 
-    tick = [this, &tickScheduled, &clock, &lastFrame,
+    auto scheduleTick = [this, &tickScheduled, &tick, &frameTime](
+            btl::RunLoop::Controller& controller)
+    {
+        if (tickScheduled)
+            return;
+
+        // Wake when the earliest window that can render is next due, in the
+        // loop's quantized frame time. A saturated or quiesced window schedules
+        // nothing -- its fence-wake or a requestFrame() brings it back.
+        auto earliest = earliestFrameTime();
+        if (!earliest)
+            return;
+
+        tickScheduled = true;
+
+        if (*earliest <= frameTime)
+        {
+            controller.post(tick);
+        }
+        else
+        {
+            controller.addTimer(*earliest - frameTime, tick).detach();
+        }
+    };
+
+    tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
             &frameCallback, &accumulator, &frameTime, step, &framesRun,
             maxFrames, &scheduleTick](
             btl::RunLoop::Controller& controller)
@@ -110,17 +124,23 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         if (maxFrames != 0)
         {
-            scheduleTick(controller);
+            // Headless self-pump: pump toward the budget as fast as the GPU
+            // allows, ignoring per-window cadence; a saturated queue waits for a
+            // fence to free a slot and wake the loop.
+            if (!anyWindowSaturated())
+                wakeTick(controller);
             return;
         }
 
-        if (anyWindowNeedsRedraw())
-            scheduleTick(controller);
+        // Interactive: reschedule to the earliest window's next-frame time; a
+        // saturated window instead resumes on its fence-wake, so the loop is
+        // never blocked or spun on backpressure.
+        scheduleTick(controller);
     };
 
-    scheduleTick_ = [&scheduleTick](btl::RunLoop::Controller& c)
+    scheduleTick_ = [&wakeTick](btl::RunLoop::Controller& c)
         {
-            scheduleTick(c);
+            wakeTick(c);
         };
 
     stepFrame_ = [this, &steppedTime, &frameCallback](
@@ -138,21 +158,21 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     btl::RunLoop::Source wakeSourceRegistration;
 
-    loop_.post([this, &wakeSourceRegistration, &scheduleTick](
+    loop_.post([this, &wakeSourceRegistration, &wakeTick](
             btl::RunLoop::Controller& controller)
         {
             btl::NativeHandle handle = wakeSource();
             if (handle.valid())
             {
                 wakeSourceRegistration = controller.addReadable(handle,
-                        [this, &scheduleTick](btl::RunLoop::Controller& c)
+                        [this, &wakeTick](btl::RunLoop::Controller& c)
                         {
                             handleEvents();
-                            scheduleTick(c);
+                            wakeTick(c);
                         });
             }
 
-            scheduleTick(controller);
+            wakeTick(controller);
         });
 
     loop_.run();
@@ -171,19 +191,47 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
     {
         if (auto window = weakWindow.lock())
         {
-            if (window->needsRedraw())
+            // Render a window that is due and has a free in-flight slot; a
+            // saturated one is skipped without blocking, and its fence wakes the
+            // loop through requestFrame() to retry it.
+            auto due = window->nextFrameTime();
+            if (due && *due <= frame.time && window->canAcquire())
             {
-                if (window->acquire() != PresentStatus::Ok)
-                    continue;
-
                 window->frame(frame);
-                window->submitFrameFence();
+                window->submitFrameFence([this] { requestFrame(); });
             }
         }
     }
+
+    FrameMark;
 }
 
-bool PlatformBase::anyWindowNeedsRedraw()
+std::optional<std::chrono::microseconds>
+PlatformBase::earliestFrameTime()
+{
+    std::optional<std::chrono::microseconds> earliest;
+
+    for (auto& weakWindow : getRenderWindows())
+    {
+        if (auto window = weakWindow.lock())
+        {
+            // Only a window that can render now sets the cadence; a saturated
+            // one waits for its fence, not a timer.
+            if (window->canAcquire())
+            {
+                auto due = window->nextFrameTime();
+                if (due && (!earliest || *due < *earliest))
+                {
+                    earliest = due;
+                }
+            }
+        }
+    }
+
+    return earliest;
+}
+
+bool PlatformBase::anyWindowSaturated()
 {
     auto& renderWindows = getRenderWindows();
 
@@ -191,7 +239,7 @@ bool PlatformBase::anyWindowNeedsRedraw()
     {
         if (auto window = weakWindow.lock())
         {
-            if (window->needsRedraw())
+            if (!window->canAcquire())
                 return true;
         }
     }

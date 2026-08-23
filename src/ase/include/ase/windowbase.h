@@ -77,26 +77,30 @@ namespace ase
     private:
         friend class PlatformBase;
 
-        virtual bool needsRedraw() const = 0;
+        // The frame time this window next wants to render at, or nullopt if
+        // quiesced. The loop schedules its cadence from these across all windows.
+        std::optional<std::chrono::microseconds> nextFrameTime() const;
 
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
 
-        /** @brief Block until this window has a spare in-flight slot.
+        /** @brief Whether this window has a spare in-flight slot, without
+         * blocking.
          *
-         * Bounds how many of its frames are queued on the GPU at once. GL always
-         * reports `Ok`; the status reports a backend whose acquire can fail,
-         * such as a lost swapchain.
+         * Bounds how many of its frames are queued on the GPU at once; false
+         * when the budget is full.
          */
-        PresentStatus acquire();
+        bool canAcquire() const;
 
         /** @brief Take an in-flight slot and submit this frame's fence on the
          * window's own queue behind its draws.
          *
          * The fence completion frees the slot, preserving the queue's
-         * draws -> present -> fence order.
+         * draws -> present -> fence order, and runs `onSlotFreed`. There is no
+         * guarantee which thread that runs on -- it varies by backend -- so
+         * `onSlotFreed` must be safe to call from any thread.
          */
-        void submitFrameFence();
+        void submitFrameFence(std::function<void()> onSlotFreed);
 
         RenderContext context_;
 

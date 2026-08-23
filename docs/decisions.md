@@ -5,6 +5,44 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
+
+`acquire()` blocked the run-loop thread on a condition variable until a window
+had a free in-flight slot, stalling the whole loop — input draining, inspector
+RPC, every other window — through one window's GPU wait. It is now
+`canAcquire()`, a non-blocking check: the loop renders a window only when it has
+a free slot, skips it otherwise, and the fence that frees the slot wakes the loop
+through the existing `requestFrame()` to retry it.
+
+**Why:** the loop is a reactor; blocking it defeats that. A headful window still
+paces to vsync, but as readiness-plus-wake rather than a blocking wait, so the
+loop stays live for other windows and I/O. It matches the design's own "a tick
+never blocks" intent, and is the shape a future readback/double-buffer path wants
+(`acquire` waiting on the consumer's fence).
+
+## Frame cadence is per-window, not a platform property
+
+The frame *rate* is a property of each window. A window's frame callback returns
+when it next wants to render (an `optional<microseconds>` delay, or nullopt to
+quiesce); `GenericWindow` turns that into a `nextFrameTime`, and the loop
+schedules its next tick to the earliest `nextFrameTime` across the windows that
+can render. There is no platform-wide `maxFps`; the platform *derives* its cadence
+from the windows.
+
+**Why:** different windows want different rates (30 vs 60), and an adaptive window
+varies its own by content — both fall out of a per-window next-frame request, and
+a single platform cap cannot express them. The mechanism was already half-built:
+`frame()` returned that delay end-to-end and the loop discarded it, collapsing it
+to a bool. Headless has no vsync, so a headless window paces itself the same way;
+the dummy render queue completes fences inline and adds no pacing of its own (an
+earlier background fence-completer that faked vsync was removed, taking its
+`wait_until` hazard with it). Fences are left to signal only *real* completion —
+headful vsync today, a pixel-readback / double-buffer swap later. A
+`dispatch()`-a-task-to-the-render-thread method on the render queue was considered
+for an offscreen pacer and rejected as GL-specific — it assumes a thread a
+command-buffer backend need not have. (The bqui side that returns a real interval
+instead of "0 while animating" is a follow-up.)
+
 ## The platform owns a context-free frame loop; `App` picks the driver
 
 `Platform::run(frameCallback)` drives frames on the injected loop, and `App`

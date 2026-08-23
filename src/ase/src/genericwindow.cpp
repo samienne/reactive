@@ -74,14 +74,15 @@ void GenericWindow::resize(Vector2i size)
         resizeCallback_();
 }
 
-bool GenericWindow::needsRedraw() const
+std::optional<std::chrono::microseconds>
+GenericWindow::nextFrameTime() const
 {
-    return needsRedraw_;
+    return nextFrame_;
 }
 
 void GenericWindow::requestFrame()
 {
-    needsRedraw_ = true;
+    nextFrame_ = (std::chrono::microseconds::min)();
 }
 
 void GenericWindow::setFrameCallback(
@@ -96,8 +97,10 @@ std::optional<std::chrono::microseconds> GenericWindow::frame(
 {
     if (frameCallback_)
     {
-        auto t = frameCallback_(frame);
-        needsRedraw_ = t != std::nullopt;
+        auto delay = frameCallback_(frame);
+        nextFrame_ = delay
+            ? std::make_optional(frame.time + *delay)
+            : std::nullopt;
     }
 
     return std::nullopt;

@@ -25,14 +25,6 @@ namespace ase
                 bool headless) override;
         RenderContext makeRenderContext() override;
 
-        /** @brief Cap the headless frame rate.
-         *
-         * Zero (the default) leaves the loop uncapped: a tick runs as soon as
-         * requestFrame() wakes it. A positive value paces ticks to at most `fps`
-         * frames per second. Set before run().
-         */
-        void setMaxFps(unsigned int fps);
-
         /**
          * @brief Cap the number of frames run() will pump.
          *
@@ -48,10 +40,6 @@ namespace ase
         std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
-        // Frame-rate cap; 0 means uncapped. Read only on the loop thread, so it
-        // must be set before run().
-        unsigned int maxFps_ = 0;
-
         // Frame budget for run(); zero means unbounded (on-demand).
         uint64_t maxFrames_ = 0;
 

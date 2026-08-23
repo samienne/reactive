@@ -213,11 +213,6 @@ void GlxWindow::handleEvents(std::vector<XEvent> const& events)
         handleEvent(e);
 }
 
-bool GlxWindow::needsRedraw() const
-{
-    return genericWindow_.needsRedraw();
-}
-
 void GlxWindow::handleEvent(_XEvent const& e)
 {
     // Skip events that are not for us.
@@ -393,7 +388,6 @@ PresentStatus GlxWindow::present()
             auto dpy = platform_.getDisplay();
 
             platform_.swapGlxBuffers(lock, glxWin_);
-            FrameMark;
 
             setSyncCounter(dpy, syncCounter_, counterValue_);
             XSync(dpy, false);

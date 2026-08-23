@@ -2,58 +2,62 @@
   "name": "reactive",
   "projects": {
     "reactive": {
-      "meson": {
-        "configurations": {
-          "Debug": {
-            "variant": "Debug",
-            "options": {
-              "wrap_mode": "forcefallback"
-            }
-          },
-          "Sanitize": {
-            "variant": "RelWithDebInfo",
-            "options": {
-              "wrap_mode": "forcefallback",
-              "b_lundef": "false",
-              "b_sanitize": "address,undefined"
-            }
-          },
-          "Release": {
-            "variant": "Release",
-            "options": {
-              "wrap_mode": "forcefallback"
-            }
-          },
-          "Tracy": {
-            "variant": "Release",
-            "options": {
-              "wrap_mode": "forcefallback",
-              "tracy_enable": "true"
-            }
-          }
-        }
-      },
       "launch": {
         "app": {
           "working_dir": ".",
           "target": "testapp1"
+        },
+        "headlesstest": {
+          "working_dir": ".",
+          "target": "bquiheadlesstest"
+        }
+      },
+      "meson": {
+        "configurations": {
+          "Release": {
+            "options": {
+              "wrap_mode": "forcefallback"
+            },
+            "variant": "Release"
+          },
+          "Sanitize": {
+            "options": {
+              "wrap_mode": "forcefallback",
+              "b_lundef": "false",
+              "b_sanitize": "address,undefined"
+            },
+            "variant": "RelWithDebInfo"
+          },
+          "Tracy": {
+            "options": {
+              "wrap_mode": "forcefallback",
+              "tracy_enable": "true"
+            },
+            "variant": "Release"
+          },
+          "Debug": {
+            "options": {
+              "wrap_mode": "forcefallback"
+            },
+            "variant": "Debug"
+          }
         }
       },
       "path": "."
     }
   },
   "configuration_sets": {
-    "Sanitize": {
-      "reactive": "Sanitize"
-    },
-    "Debug": {
-      "reactive": "Debug"
-    },
     "Release": {
       "reactive": "Release"
     },
+    "Sanitize": {
+      "reactive": "Sanitize"
+    },
     "Tracy": {
       "reactive": "Tracy"
+    },
+    "Debug": {
+      "reactive": "Debug"
     }
   }
 }

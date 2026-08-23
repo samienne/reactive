@@ -41,7 +41,6 @@ namespace ase
                 LPARAM lParam);
 
     private:
-        bool needsRedraw() const override;
         std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) override;
 

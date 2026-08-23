@@ -6,7 +6,6 @@
 
 #include <tracy/Tracy.hpp>
 
-#include <condition_variable>
 #include <mutex>
 
 namespace ase
@@ -17,7 +16,6 @@ namespace ase
 struct WindowPresentSync
 {
     std::mutex mutex;
-    std::condition_variable slotFreed;
 
     int inFlight = 0;
     int budget = 2;
@@ -36,19 +34,21 @@ RenderContext& WindowBase::getRenderContext()
     return context_;
 }
 
-PresentStatus WindowBase::acquire()
+std::optional<std::chrono::microseconds>
+WindowBase::nextFrameTime() const
 {
-    ZoneScopedN("acquire");
-
-    auto sync = presentSync_;
-
-    std::unique_lock<std::mutex> lock(sync->mutex);
-    sync->slotFreed.wait(lock, [&sync] { return sync->inFlight < sync->budget; });
-
-    return PresentStatus::Ok;
+    return genericWindow_.nextFrameTime();
 }
 
-void WindowBase::submitFrameFence()
+bool WindowBase::canAcquire() const
+{
+    auto sync = presentSync_;
+
+    std::lock_guard<std::mutex> lock(sync->mutex);
+    return sync->inFlight < sync->budget;
+}
+
+void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
 {
     ZoneScopedN("submitFrameFence");
 
@@ -60,11 +60,17 @@ void WindowBase::submitFrameFence()
     }
 
     CommandBuffer commandBuffer;
-    commandBuffer.pushFence([sync]
+    commandBuffer.pushFence([sync, onSlotFreed = std::move(onSlotFreed)]
         {
-            std::lock_guard<std::mutex> lock(sync->mutex);
-            --sync->inFlight;
-            sync->slotFreed.notify_all();
+            {
+                std::lock_guard<std::mutex> lock(sync->mutex);
+                --sync->inFlight;
+            }
+
+            // The fence may complete on any thread -- it varies by backend --
+            // so this wake must be thread-safe; requestFrame() is.
+            if (onSlotFreed)
+                onSlotFreed();
         });
 
     context_.getMainRenderQueue().submit(std::move(commandBuffer));

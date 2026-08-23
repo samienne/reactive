@@ -43,12 +43,7 @@ void DummyPlatform::handleEvents()
 RenderContext DummyPlatform::makeRenderContext()
 {
     return RenderContext(std::make_shared<DummyRenderContext>(
-                shared_from_this(), runConfig().frameStep));
-}
-
-void DummyPlatform::setMaxFps(unsigned int fps)
-{
-    maxFps_ = fps;
+                shared_from_this()));
 }
 
 void DummyPlatform::setMaxFrames(uint64_t maxFrames)
@@ -61,7 +56,6 @@ PlatformBase::RunConfig DummyPlatform::runConfig()
     RunConfig config;
     config.frameStep = std::chrono::microseconds(16667);
     config.maxFrames = maxFrames_;
-    config.maxFps = maxFps_;
 
     return config;
 }
