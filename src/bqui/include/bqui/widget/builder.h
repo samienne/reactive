@@ -7,6 +7,8 @@
 #include "bqui/buildparams.h"
 #include "bqui/simplesizehint.h"
 #include "bqui/sizehint.h"
+#include "bqui/widget/boxvariables.h"
+#include "bqui/widget/guide.h"
 
 #include <bq/signal/signal.h>
 
@@ -84,12 +86,15 @@ namespace bqui::widget
         template <typename TSignalSizeHint>
         auto setSizeHint(TSignalSizeHint sizeHint) &&
         {
-            return makeBuilder(
+            auto builder = makeBuilder(
                     std::move(*func_),
                     std::move(sizeHint),
                     std::move(buildParams_),
                     std::move(gravity_)
                     );
+            builder.setBoxVariables(box_);
+            builder.setGuideAlignments(guideAlignments_);
+            return builder;
         }
 
         SizeHintType getSizeHint() const
@@ -97,9 +102,47 @@ namespace bqui::widget
             return sizeHint_->clone();
         }
 
+        /** @brief The four edge variables that name this widget's box to the
+         * constraint solver. Stable for the builder's lifetime and preserved
+         * across a copy, a size-hint change and type erasure. */
+        BoxVariables const& getBoxVariables() const
+        {
+            return box_;
+        }
+
+        /** @brief Adopts @p box as this widget's solver box, so a transformed
+         * builder keeps the identity of the one it came from. */
+        void setBoxVariables(BoxVariables box)
+        {
+            box_ = std::move(box);
+        }
+
+        /** @brief The guide alignments this widget requests, for its container
+         * to resolve against a shared line. Preserved across a copy, a
+         * size-hint change and type erasure, exactly as the box variables are. */
+        std::vector<GuideAlignment> const& getGuideAlignments() const
+        {
+            return guideAlignments_;
+        }
+
+        /** @brief Replaces this widget's guide alignments wholesale, used to
+         * carry them across a rebuild that mints a fresh builder. */
+        void setGuideAlignments(std::vector<GuideAlignment> alignments)
+        {
+            guideAlignments_ = std::move(alignments);
+        }
+
+        /** @brief Records one more guide alignment on a copy of this builder. */
+        auto addGuideAlignment(GuideAlignment alignment)
+        {
+            auto copy = clone();
+            copy.guideAlignments_.push_back(std::move(alignment));
+            return copy;
+        }
+
         auto setBuildParams(BuildParams params) &&
         {
-            return makeBuilder([params=std::move(buildParams_),
+            auto builder = makeBuilder([params=std::move(buildParams_),
                     func=std::move(func_)](BuildParams oldParams, auto size)
                 {
                     return (*func)(params, std::move(size)).setParams(oldParams);
@@ -108,6 +151,9 @@ namespace bqui::widget
                 std::move(params),
                 std::move(gravity_)
                 );
+            builder.setBoxVariables(box_);
+            builder.setGuideAlignments(guideAlignments_);
+            return builder;
         }
 
         BuildParams const& getBuildParams() const
@@ -134,12 +180,15 @@ namespace bqui::widget
 
         operator BuilderBase() &&
         {
-            return BuilderBase(
+            BuilderBase base(
                     std::move(*func_),
                     std::move(*sizeHint_),
                     std::move(buildParams_),
                     std::move(gravity_)
                     );
+            base.setBoxVariables(box_);
+            base.setGuideAlignments(guideAlignments_);
+            return base;
         }
 
     protected:
@@ -148,6 +197,8 @@ namespace bqui::widget
         BuildParams buildParams_;
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
+        BoxVariables box_;
+        std::vector<GuideAlignment> guideAlignments_;
     };
 
     struct AnyBuilder : Builder<std::function<widget::AnyElement(

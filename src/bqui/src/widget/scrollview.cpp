@@ -36,8 +36,8 @@ AnyWidget scrollView(AnyWidget widget)
 
         auto contentSize = builder.getSizeHint().map([](auto hint)
                 {
-                    float w = hint.getWidth()[1];
-                    float h = hint.getHeightForWidth(w)[1];
+                    float w = hint.getWidth().extent.natural;
+                    float h = hint.getHeightForWidth(w).extent.natural;
 
                     return avg::Vector2f(w, h);
                 }).share();
@@ -77,8 +77,8 @@ AnyWidget scrollView(AnyWidget widget)
 
         auto view = bin(std::move(contentWidget), contentSize)
             | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                {{100, 400, 10000}},
-                {{100, 800, 10000}}
+                Band{100, 400, 10000, 1},
+                Band{100, 800, 10000, 1}
                 )))
             | modifier::trackSize(viewSize.handle)
             | modifier::onPointerDown(merge(x.signal, y.signal).bindToFunction(

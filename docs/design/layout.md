@@ -1,0 +1,199 @@
+# Layout model (design proposal)
+
+Status: design, not yet implemented. Target model for the cassowary layout
+work; supersedes the "one-window global solve vs local" framing. Dated
+2026-08-12. This is a forward plan, not a description of the stable model, so it
+carries no "verified against" stamp yet.
+
+## Core principle
+
+Constraints are **add-only**. A user only ever *adds* constraints; nothing
+loosens or overrides. A child owns its own minimums. This is what dissolves the
+override / priority-assignment / constraint-removal problems: there is no
+authority contest, so there is nothing to rank or remove.
+
+Loosening is logically impossible while a constraint is present (a weaker
+competing bound never defeats a tighter one), so it is simply not offered.
+
+## Sizing vocabulary
+
+No `set*` names (they imply replacement, which no longer exists). Every modifier
+is additive and tightens the band.
+
+- Per axis: `widthAtLeast/atMost/exactly`, `heightAtLeast/atMost/exactly`.
+- Both axes: `sizeAtLeast`, `sizeAtMost`, `exactSize`.
+- Soft: `preferWidth`/`preferHeight` (the natural target), `growWeight` (filler
+  weight; two grow=1 children split leftover equally, grow=2 gets double).
+- Alignment: `alignLeading/Trailing/Center/Baseline`, `guide(g)`.
+
+Composition is monotonic and order-independent: `widthAtLeast(100)` then
+`widthAtLeast(150)` -> 150, either order.
+
+## Forcing something smaller than it needs is a strategy, not an override
+
+- Default is **overflow**, not clip: the child keeps its size and draws past the
+  container. Visible-when-misplaced beats invisibly-clipped, and clip is costly.
+- `clip()` / `scroll()` add a render node (not a constraint), opt-in.
+- `scaleToFit()` is a transform.
+- Content degradation (truncate/wrap) = the child offering a smaller min about
+  itself. Still add-only, still the child's authority.
+
+Overflow default is the *same edit* as removing the forced squeeze: drop the
+required containment cap on a container's trailing edge.
+
+## Strengths = firmness / degradation only, never authority
+
+No override => strengths never encode "who outranks whom". They only rank soft
+preferences for graceful degradation:
+
+`required` > `strong` (size bounds) > `medium` (guides) > `weak` (gravity,
+natural).
+
+An unsatisfiable *required* conflict (e.g. `widthAtLeast(100)` and
+`widthAtMost(50)`) is the signal that a strategy is needed - surface it or apply
+a default (clip), never silently squeeze or throw into the void. Default to soft
+where a value is a preference so pressure degrades instead of failing.
+
+## Positioning: gravity and guides are constraints
+
+Placement is in the solve, not a post-pass (retires `handleGravity`):
+
+- Gravity = a **weak** positioning constraint (center: midpoints equal; leading:
+  edges equal). Constrains position, not size; only bites in surplus / decides
+  which way overflow spills.
+- Guides = **stronger** positioning constraints that beat default gravity by
+  strength (add-only: the stronger soft preference wins, no loosening).
+
+So the solver uses placement as a degree of freedom to satisfy guides, falling
+back to gravity where a guide does not reach.
+
+## Determinacy invariant: no free variables
+
+A pure constraint system is underdetermined without defaults. Every box edge
+must be reached by at least one weak constraint, or its value is undefined.
+
+- Every widget contributes a weak `natural`-size preference.
+- A container backstops any child with no intrinsic size (fill or zero) and pins
+  position (tiling + weak gravity).
+- **Container contract: leave no child under-constrained.**
+
+## Two passes
+
+- **Band up** - closed-form aggregation (`accumulateSizeHints`), a pure query,
+  no solver. Main axis = sum, cross = max; anchors split the band at the
+  baseline and max each half.
+- **Place down** - the solve, per firewall region. Constraints are regenerated
+  each frame from the bands, never edited. "Override" = remap the *reported band*
+  upstream of conversion; the constraints are never the target.
+
+## SizeHint shape
+
+Per axis: `AxisHint { Band extent; Anchors anchors; }`.
+
+- `Band { float min, natural, max, grow; }` (add `shrink` later if compression
+  needs a second weight). Replaces the current `array<float,3>`.
+- `Anchors { optional<float> firstBaseline, lastBaseline; }` - sparse; a metric
+  (offset), a function of the main-axis size, never of cross-axis allocation.
+- Also carries exposed guides: `{ guideId -> pre-construction constraint }`.
+
+## Guides
+
+`XGuide` / `YGuide` - **distinct concrete value types** (not a template alias),
+each wrapping a private `avg::UniqueId`. Copyable and `==`-comparable, no id
+getter (opaque token; layout internals reach the id via friend/internal access).
+Axis lives in the type (compile-time axis safety: an `XGuide` positions on X, a
+`YGuide` on Y). Minted when the user defines the widgets, so identity is stable
+and shareable exactly like widget/input identity; maps to a per-solve
+`arrange::Variable` internally.
+
+`XGuide` = a guide at an X position (constrains horizontal placement); `YGuide`
+= a guide at a Y position (constrains vertical placement). (Note: this is the
+axis of the *position*, not a line orientation - avoids the "vertical line vs
+vertical axis" ambiguity.)
+
+## Firewall
+
+`LayoutFirewall` = the reusable solve boundary. The root is one (fed the window
+size, empty resolved-guide map). Introduce **sparingly** - root always,
+`makeWidgetWithSize` near leaves, deliberate scopes (scroll view, reusable
+component). Within a firewall, constraints and guides span freely across
+container levels.
+
+Interface (same at every level, so nesting composes with no special case):
+
+- **Down (build):** `{ size: Vector2f, resolvedGuides: Map<UniqueId,float>,
+  params: BuildParams }`.
+- **Up (pre-construction):** `SizeHint` (band + anchors + exposed guides).
+
+Resolution:
+
+- Flows down and accumulates: each firewall passes inward `received guides + its
+  own newly-resolved guides`, so a guide resolved at any ancestor is a constant
+  at any depth (a root guide threads all the way down).
+- Exposure chains up: a guide defined deep but referenced shallower is re-exposed
+  in each firewall's SizeHint on the way up.
+- Gated by **pre-construction expressibility**: the SizeHint can only express
+  guide constraints in pre-construction terms, so any guide it exposes is
+  outer-resolvable by construction, and any guide depending on inner content
+  cannot be exposed and is therefore necessarily an inner-only free variable.
+  No cross-firewall cycle is expressible.
+- A guide used only inside a firewall is a free variable the inner solve owns
+  (outer-free, inner-determined). Resolved guides are matched by `UniqueId` at
+  the builder->Element step.
+
+Implementation status (M6): the down-channel and root-as-firewall are in. The
+existing `makeWidgetWithSize` primitive *is* the firewall - no distinct
+`LayoutFirewall` type was added; it is formalised by the `ResolvedGuides`
+BuildParams entry (`src/bqui/include/bqui/widget/resolvedguides.h`, a
+`map<UniqueId,float>`) that every firewall reads, and by `rootFirewallParams()`
+seeding the window mount with an empty map. A firewall's solve pins any guide
+present in the inherited map to that constant (`guideConstraints` consults the
+map and pins strong; it also returns its per-guide line variables so a solve can
+read a locally resolved line back out). The map threads to descendants through
+ordinary BuildParams inheritance, so a guide an ancestor resolves reaches an
+inner firewall across the boundary as a constant (proven end to end by
+`Layout.resolvedGuideCrossesFirewallBoundary` and, at the solve layer, by
+`guideLayout.resolvedGuideValueCrossesBetweenFirewallSolves`). Because a nested
+firewall solves in its own local space, a crossing value only lands on the same
+window-space line where the boundary offset is zero on the guide's axis.
+
+Deferred: automatically folding a container's *own* solved guide lines into the
+map it hands descendants (the read-back primitive exists, but re-injecting a
+solve result into an already-built child firewall's params needs builder-param
+plumbing the current pipeline does not offer). The whole up-exposure channel
+(exposing a deep-defined guide through each firewall's SizeHint) is also not
+started. Both are safe to leave: the pass-through down-channel already carries
+every pre-construction-expressible guide, which is the gating rule.
+
+## What Cassowary is for
+
+The general engine where distribution / guides / alignment couple. Closed-form
+stays the fast path for plain boxes (and is mandatory for the band-up pass, which
+is a pure query with no solver in scope).
+
+## Relationship to current code (Stage-4b) and milestones
+
+Current (in this worktree): `src/bqui/src/widget/constraintbox.cpp` +
+`constraintlayout.cpp` + `include/bqui/widget/box.h` (`accumulateSizeHints`) +
+`include/bqui/sizehint.h`. Bands are `array<float,3>` read as {min, natural,
+max}; fillers are equal-split (`childExtent == stretch`); `boxConstraints` caps
+the trailing edge required (forces squeeze); gravity is a `handleGravity`
+post-pass.
+
+Suggested milestones (each verifiable on its own):
+
+1. **Overflow default** - drop the required trailing cap in `boxConstraints`,
+   keep the weak fill pull. Over-full boxes overflow; fillers still fill.
+2. **Add-only vocabulary** - `widthAtLeast/atMost/exactly` (+ height, + size*
+   both-axis, + `preferWidth/Height`) as additive modifiers over the size hint.
+3. **Band struct** - `array<float,3>` -> `Band{min,natural,max,grow}`; weighted
+   fillers (`childExtent == natural + grow*stretch`).
+4. **Anchors** - `AxisHint`/`Anchors`, baseline metric on text, split-and-max in
+   `accumulateSizeHints`, baseline constraints in the box solve.
+5. **Positioning as constraints** - gravity + `XGuide`/`YGuide` guides in the
+   solve; retire `handleGravity`.
+6. **LayoutFirewall** - the boundary primitive, root-as-firewall, multi-level
+   guide resolution. Landed: `makeWidgetWithSize` formalised as the firewall, the
+   `ResolvedGuides` down-channel, root-as-firewall, and cross-firewall constant
+   pinning. Deferred: auto-export of a container's own solved lines and the
+   up-exposure channel (see the Firewall section's implementation status).
