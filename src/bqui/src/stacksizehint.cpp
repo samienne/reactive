@@ -3,7 +3,7 @@
 namespace bqui
 {
 
-SizeHintResult StackSizeHint::getWidth() const
+AxisHint StackSizeHint::getWidth() const
 {
     auto hints = btl::fmap(hints_, [](auto const& hint)
         {
@@ -13,7 +13,7 @@ SizeHintResult StackSizeHint::getWidth() const
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::getHeightForWidth(float width) const
+AxisHint StackSizeHint::getHeightForWidth(float width) const
 {
     auto hints = btl::fmap(hints_, [width](auto const& hint)
         {
@@ -23,7 +23,7 @@ SizeHintResult StackSizeHint::getHeightForWidth(float width) const
     return getLargestHint(hints);
 }
 
-SizeHintResult StackSizeHint::getWidthForHeight(float height) const
+AxisHint StackSizeHint::getWidthForHeight(float height) const
 {
     auto hints = btl::fmap(hints_, [height](auto const& hint)
         {

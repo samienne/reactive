@@ -10,6 +10,7 @@ libbquisrc = [
   'src/remote/tcplistener.cpp',
   'src/remote/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
+  'src/modifier/alignguide.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
   'src/modifier/drawkeyboardinputs.cpp',
@@ -32,19 +33,20 @@ libbquisrc = [
   'src/modifier/setsize.cpp',
   'src/modifier/setsizehint.cpp',
   'src/modifier/setwidgetintrospection.cpp',
+  'src/modifier/sizevocabulary.cpp',
   'src/modifier/trackfocus.cpp',
   'src/modifier/transform.cpp',
 
   'src/widget/bin.cpp',
   'src/widget/button.cpp',
   'src/widget/box.cpp',
+  'src/widget/constraintbox.cpp',
   'src/widget/constraintlayout.cpp',
   'src/widget/datavalue.cpp',
   'src/widget/hbox.cpp',
   'src/widget/instance.cpp',
   'src/widget/introspection.cpp',
   'src/widget/label.cpp',
-  'src/widget/layout.cpp',
   'src/widget/scrollbar.cpp',
   'src/widget/scrollview.cpp',
   'src/widget/stack.cpp',
@@ -84,10 +86,11 @@ nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
 # arrange is a vendored Cassowary linear-arithmetic constraint solver — UI-
-# agnostic layout math (an "Eigen, not a bq"). Its headers back bqui's own
-# layout .cpp files and never appear in a public bqui header, so like nlohmann
-# it is a dependency of the bqui library only and is deliberately *not* re-
-# exported through libbquidep.
+# agnostic layout math (an "Eigen, not a bq"). Its variables and expressions
+# appear in bqui's public layout interface (a Builder carries the box variables
+# that name it to the solver), so unlike nlohmann it is re-exported through
+# libbquidep and propagates to dependents — the one solver-math dependency
+# permitted in bqui's public surface, alongside avg.
 arrangedep = subproject('arrange',
     default_options: subproject_warnings).get_variable('arrange_dep').as_system()
 
@@ -110,7 +113,7 @@ libbqui = library(
 
 libbquidep = declare_dependency(
   link_with: libbqui,
-  dependencies: bquidep,
+  dependencies: bquidep + [arrangedep],
   link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
@@ -120,12 +123,14 @@ bquitestsrc = [
   'test/collectiontest.cpp',
   'test/constraintlayouttest.cpp',
   'test/databindtest.cpp',
+  'test/guidelayouttest.cpp',
   'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/sizevocabularytest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',

@@ -143,8 +143,8 @@ namespace
     template <bool IsHorizontal>
     auto getScrollBarSizeHint()
     {
-        std::array<float, 3> main{{50, 100, 10000}};
-        std::array<float, 3> aux{{25, 25, 25}};
+        Band main{50, 100, 10000, 1};
+        Band aux{25, 25, 25};
 
         if (IsHorizontal)
             return bq::signal::constant(simpleSizeHint(main, aux));

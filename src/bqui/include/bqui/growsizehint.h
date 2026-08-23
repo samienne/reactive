@@ -4,34 +4,43 @@
 
 namespace bqui
 {
-    inline SizeHintResult growSizeHintResult(SizeHintResult const& result,
-            float amount)
+    inline AxisHint growAxisHint(AxisHint const& hint, float amount)
     {
-        return SizeHintResult{
-            {
-                result[0] + amount * 2.0f,
-                result[1] + amount * 2.0f,
-                result[2] + amount * 2.0f
-            }
+        // Growing pushes the leading edge out by amount, so any anchor measured
+        // from that edge moves with it.
+        Anchors anchors = hint.anchors;
+        if (anchors.firstBaseline)
+            anchors.firstBaseline = *anchors.firstBaseline + amount;
+        if (anchors.lastBaseline)
+            anchors.lastBaseline = *anchors.lastBaseline + amount;
+
+        return AxisHint{
+            Band{
+                hint.extent.min + amount * 2.0f,
+                hint.extent.natural + amount * 2.0f,
+                hint.extent.max + amount * 2.0f,
+                hint.extent.grow
+            },
+            anchors
         };
     }
 
     template <typename THint>
     struct GrowSizeHint
     {
-        SizeHintResult getWidth() const
+        AxisHint getWidth() const
         {
-            return growSizeHintResult(hint.getWidth(), amount);
+            return growAxisHint(hint.getWidth(), amount);
         }
 
-        SizeHintResult getHeightForWidth(float width) const
+        AxisHint getHeightForWidth(float width) const
         {
-            return growSizeHintResult(hint.getHeightForWidth(width), amount);
+            return growAxisHint(hint.getHeightForWidth(width), amount);
         }
 
-        SizeHintResult getWidthForHeight(float height) const
+        AxisHint getWidthForHeight(float height) const
         {
-            return growSizeHintResult(hint.getWidthForHeight(height), amount);
+            return growAxisHint(hint.getWidthForHeight(height), amount);
         }
 
         std::decay_t<THint> hint;

@@ -9,6 +9,7 @@
 
 #include "bqui/provider/providetheme.h"
 
+#include "bqui/mapsizehint.h"
 #include "bqui/simplesizehint.h"
 #include "bqui/theme.h"
 
@@ -51,7 +52,25 @@ SizeHint makeLabelSizeHint(std::string const& text, Theme const& theme)
     auto extents = theme.getFont().getTextExtents(
             utf8::asUtf8(text), theme.getTextHeight());
 
-    return simpleSizeHint(extents.size[0], extents.size[1]);
+    // The glyph box's top sits bearing.y above the baseline, so the baseline is
+    // that far below the box's top edge: the label's first baseline as a metric.
+    float firstBaseline = extents.bearing[1];
+
+    return mapSizeHint(
+            simpleSizeHint(extents.size[0], extents.size[1]),
+            [](AxisHint hint)
+            {
+                return hint;
+            },
+            [firstBaseline](AxisHint hint, float)
+            {
+                hint.anchors.firstBaseline = firstBaseline;
+                return hint;
+            },
+            [](AxisHint hint, float)
+            {
+                return hint;
+            });
 }
 
 auto makeLabel(bq::signal::AnySignal<Theme> theme,
