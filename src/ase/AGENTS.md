@@ -46,9 +46,11 @@ are in the top-level `docs/`.
   can reach it via `RunLoop::getDefault()`.
 - **The frame loop is context-free and lives on the platform.** `Platform::run`
   (`PlatformBase::run`, one shared body in `src/platformbase.cpp`) drives frames
-  on the injected loop: per dirty window it gates on that window's own `acquire`
-  backpressure, renders and presents through the context the window carries, and
-  fences on the window's own queue — so `run` names no `RenderContext` of its own.
+  on the injected loop: per dirty window it gates — without blocking — on that
+  window's own `canAcquire` backpressure, skipping a saturated window (which a
+  freed slot later wakes back through `requestFrame`), renders and presents
+  through the context the window carries, and fences on the window's own queue —
+  so `run` names no `RenderContext` of its own.
   A backend supplies only what differs through protected virtuals: the static
   cadence via `runConfig()` (`PlatformBase::RunConfig`: `frameStep`, the dummy's
   `maxFrames` self-pump budget, and `maxFps` — a wall-clock cap set through
@@ -76,8 +78,9 @@ are in the top-level `docs/`.
   `WindowImpl` (`include/ase/windowimpl.h`) is only the public window virtuals plus
   the `getImplOfType` type-erasure plumbing. Every backend window instead derives
   from `WindowBase` (`include/ase/windowbase.h`, `src/windowbase.cpp`), which owns
-  the co-owned `RenderContext`, the per-window present backpressure
-  (`acquire`/`submitFrameFence` + the `WindowPresentSync` fence bookkeeping), the
+  the co-owned `RenderContext`, the per-window present backpressure (the
+  non-blocking `canAcquire`/`submitFrameFence` + the `WindowPresentSync` fence
+  bookkeeping), the
   loop-contract private virtuals (`needsRedraw`/`frame`, with `friend class
   PlatformBase`), and the `GenericWindow genericWindow_` (protected, so backends
   reach it during OS-event translation). The callback setters and event injectors

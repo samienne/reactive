@@ -61,9 +61,8 @@ void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
                 --sync->inFlight;
             }
 
-            // Wakes the loop to retry a window it skipped while saturated. Runs
-            // off the loop thread on a GL backend, so it goes through the
-            // thread-safe requestFrame() wake.
+            // Runs off the loop thread on a GL backend, so the wake must be
+            // thread-safe (it goes through requestFrame()).
             if (onSlotFreed)
                 onSlotFreed();
         });

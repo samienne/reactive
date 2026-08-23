@@ -43,9 +43,7 @@ namespace ase
             std::uint64_t maxFrames = 0;
 
             /** A non-zero cap paces the loop with the run loop's wall-clock
-             * timer; zero is uncapped. Headful windows leave it zero and let
-             * vsync govern; headless backends, which have no vsync to pace
-             * against, set it to run at a cadence. */
+             * timer; zero is uncapped. */
             unsigned int maxFps = 0;
         };
 
@@ -58,10 +56,8 @@ namespace ase
 
         /** @brief Cap the loop to a wall-clock frame rate.
          *
-         * The default (0) is uncapped: headful windows leave it there and let
-         * vsync and backpressure govern. A headless backend, whose fences carry
-         * no vsync, sets a positive `fps` to pace the loop to that cadence. Set
-         * before run().
+         * The default (0) is uncapped; a positive `fps` paces the loop to that
+         * cadence. Set before run().
          */
         void setMaxFps(unsigned int fps);
 
@@ -127,12 +123,10 @@ namespace ase
     private:
         void renderDirtyWindows(Frame const& frame);
 
-        // A window that is dirty and has a free in-flight slot -- can render
-        // this tick without blocking.
+        // Any window that is dirty and has a free in-flight slot.
         bool anyReadyToRender();
 
-        // A window whose in-flight budget is full -- the loop must wait for a
-        // fence to free a slot rather than pump another frame.
+        // Any window whose in-flight budget is full.
         bool anyWindowSaturated();
     };
 }

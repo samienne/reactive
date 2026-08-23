@@ -5,6 +5,21 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
+
+`acquire()` blocked the run-loop thread on a condition variable until a window
+had a free in-flight slot, stalling the whole loop — input draining, inspector
+RPC, every other window — through one window's GPU wait. It is now
+`canAcquire()`, a non-blocking check: the loop renders a window only when it has
+a free slot, skips it otherwise, and the fence that frees the slot wakes the loop
+through the existing `requestFrame()` to retry it.
+
+**Why:** the loop is a reactor; blocking it defeats that. A headful window still
+paces to vsync, but as readiness-plus-wake rather than a blocking wait, so the
+loop stays live for other windows and I/O. It matches the design's own "a tick
+never blocks" intent, and is the shape a future readback/double-buffer path wants
+(`acquire` waiting on the consumer's fence).
+
 ## Headless frame pacing is the loop's `maxFps` timer, not fake fence backpressure
 
 A headless backend has no vsync, so nothing naturally paces its loop. Rather than

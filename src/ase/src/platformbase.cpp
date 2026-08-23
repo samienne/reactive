@@ -177,8 +177,8 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
     {
         if (auto window = weakWindow.lock())
         {
-            // Skip a saturated window without blocking the loop; freeing a slot
-            // wakes the loop through requestFrame() to retry it.
+            // Skip a saturated window rather than block; the slot's fence wakes
+            // the loop through requestFrame() to retry it.
             if (window->needsRedraw() && window->canAcquire())
             {
                 window->frame(frame);

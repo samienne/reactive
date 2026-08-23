@@ -85,9 +85,8 @@ namespace ase
         /** @brief Whether this window has a spare in-flight slot, without
          * blocking.
          *
-         * Bounds how many of its frames are queued on the GPU at once. False
-         * when the budget is full; the loop then skips the window and a freed
-         * slot wakes it back.
+         * Bounds how many of its frames are queued on the GPU at once; false
+         * when the budget is full.
          */
         bool canAcquire() const;
 
@@ -95,8 +94,8 @@ namespace ase
          * window's own queue behind its draws.
          *
          * The fence completion frees the slot, preserving the queue's
-         * draws -> present -> fence order, and runs `onSlotFreed` (off the loop
-         * thread on a GL backend) so the loop can retry a skipped window.
+         * draws -> present -> fence order, and runs `onSlotFreed` -- off the
+         * loop thread on a GL backend.
          */
         void submitFrameFence(std::function<void()> onSlotFreed);
 
