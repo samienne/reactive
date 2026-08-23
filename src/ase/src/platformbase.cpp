@@ -203,6 +203,10 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
             }
         }
     }
+
+    // One Tracy frame per loop tick, uniform across backends. The GL windows'
+    // swap runs later on the render thread and no longer marks frames itself.
+    FrameMark;
 }
 
 std::optional<std::chrono::steady_clock::time_point>

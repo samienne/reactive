@@ -388,7 +388,6 @@ PresentStatus GlxWindow::present()
             auto dpy = platform_.getDisplay();
 
             platform_.swapGlxBuffers(lock, glxWin_);
-            FrameMark;
 
             setSyncCounter(dpy, syncCounter_, counterValue_);
             XSync(dpy, false);

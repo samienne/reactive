@@ -450,7 +450,6 @@ PresentStatus WglWindow::present()
         {
             ZoneScopedN("SwapBuffers");
             SwapBuffers(hdc_);
-            FrameMark;
         });
 
     return PresentStatus::Ok;
