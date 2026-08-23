@@ -109,9 +109,9 @@ namespace ase
     private:
         void renderDirtyWindows(Frame const& frame);
 
-        // The earliest time a renderable window wants its next frame, or
-        // nullopt if none does; the loop schedules its next tick to this.
-        std::optional<std::chrono::steady_clock::time_point> earliestFrameTime();
+        // The earliest frame time a renderable window wants its next frame at,
+        // or nullopt if none does; the loop schedules its next tick to this.
+        std::optional<std::chrono::microseconds> earliestFrameTime();
 
         // Any window whose in-flight budget is full.
         bool anyWindowSaturated();

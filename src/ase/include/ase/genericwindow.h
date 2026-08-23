@@ -34,9 +34,9 @@ namespace ase
         void notifyClose();
         void resize(Vector2i size);
 
-        /** @brief When this window next wants to render, or nullopt if
-         * quiesced. */
-        std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
+        /** @brief The frame time this window next wants to render at, or nullopt
+         * if quiesced. */
+        std::optional<std::chrono::microseconds> nextFrameTime() const;
         void requestFrame();
 
         void setFrameCallback(
@@ -89,8 +89,8 @@ namespace ase
         std::optional<Vector2f> pointerPos_;
         // A new window wants its first frame immediately. Parenthesised to dodge
         // the Windows min() macro.
-        std::optional<std::chrono::steady_clock::time_point> nextFrame_ =
-            (std::chrono::steady_clock::time_point::min)();
+        std::optional<std::chrono::microseconds> nextFrame_ =
+            (std::chrono::microseconds::min)();
         bool hover_ = false;
 
         std::array<bool, 15> buttonPressedState_ = { {

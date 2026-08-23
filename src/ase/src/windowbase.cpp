@@ -34,7 +34,7 @@ RenderContext& WindowBase::getRenderContext()
     return context_;
 }
 
-std::optional<std::chrono::steady_clock::time_point>
+std::optional<std::chrono::microseconds>
 WindowBase::nextFrameTime() const
 {
     return genericWindow_.nextFrameTime();
@@ -67,8 +67,8 @@ void WindowBase::submitFrameFence(std::function<void()> onSlotFreed)
                 --sync->inFlight;
             }
 
-            // Runs off the loop thread on a GL backend, so the wake must be
-            // thread-safe (it goes through requestFrame()).
+            // The fence may complete on any thread -- it varies by backend --
+            // so this wake must be thread-safe; requestFrame() is.
             if (onSlotFreed)
                 onSlotFreed();
         });

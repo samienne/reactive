@@ -49,29 +49,29 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         controller.post(tick);
     };
 
-    auto scheduleTick = [this, &tickScheduled, &tick, &clock](
+    auto scheduleTick = [this, &tickScheduled, &tick, &frameTime](
             btl::RunLoop::Controller& controller)
     {
         if (tickScheduled)
             return;
 
-        // Wake when the earliest window that can render is next due. A
-        // saturated or quiesced window schedules nothing -- its fence-wake or a
-        // requestFrame() brings it back.
+        // Wake when the earliest window that can render is next due, in the
+        // loop's quantized frame time. A saturated or quiesced window schedules
+        // nothing -- its fence-wake or a requestFrame() brings it back.
         auto earliest = earliestFrameTime();
         if (!earliest)
             return;
 
         tickScheduled = true;
 
-        auto now = clock.now();
-        if (*earliest <= now)
+        if (*earliest <= frameTime)
+        {
             controller.post(tick);
+        }
         else
-            controller.addTimer(
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                        *earliest - now),
-                    tick).detach();
+        {
+            controller.addTimer(*earliest - frameTime, tick).detach();
+        }
     };
 
     tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
@@ -185,7 +185,6 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
 {
     ZoneScopedN("renderDirtyWindows");
 
-    auto now = std::chrono::steady_clock::now();
     auto& renderWindows = getRenderWindows();
 
     for (auto& weakWindow : renderWindows)
@@ -196,7 +195,7 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
             // saturated one is skipped without blocking, and its fence wakes the
             // loop through requestFrame() to retry it.
             auto due = window->nextFrameTime();
-            if (due && *due <= now && window->canAcquire())
+            if (due && *due <= frame.time && window->canAcquire())
             {
                 window->frame(frame);
                 window->submitFrameFence([this] { requestFrame(); });
@@ -204,15 +203,13 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
         }
     }
 
-    // One Tracy frame per loop tick, uniform across backends. The GL windows'
-    // swap runs later on the render thread and no longer marks frames itself.
     FrameMark;
 }
 
-std::optional<std::chrono::steady_clock::time_point>
+std::optional<std::chrono::microseconds>
 PlatformBase::earliestFrameTime()
 {
-    std::optional<std::chrono::steady_clock::time_point> earliest;
+    std::optional<std::chrono::microseconds> earliest;
 
     for (auto& weakWindow : getRenderWindows())
     {
@@ -221,9 +218,13 @@ PlatformBase::earliestFrameTime()
             // Only a window that can render now sets the cadence; a saturated
             // one waits for its fence, not a timer.
             if (window->canAcquire())
-                if (auto due = window->nextFrameTime())
-                    if (!earliest || *due < *earliest)
-                        earliest = due;
+            {
+                auto due = window->nextFrameTime();
+                if (due && (!earliest || *due < *earliest))
+                {
+                    earliest = due;
+                }
+            }
         }
     }
 

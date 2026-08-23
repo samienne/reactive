@@ -77,9 +77,9 @@ namespace ase
     private:
         friend class PlatformBase;
 
-        // When this window next wants to render, or nullopt if quiesced. The
-        // loop schedules its cadence from these across all windows.
-        std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
+        // The frame time this window next wants to render at, or nullopt if
+        // quiesced. The loop schedules its cadence from these across all windows.
+        std::optional<std::chrono::microseconds> nextFrameTime() const;
 
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
@@ -96,8 +96,9 @@ namespace ase
          * window's own queue behind its draws.
          *
          * The fence completion frees the slot, preserving the queue's
-         * draws -> present -> fence order, and runs `onSlotFreed` -- off the
-         * loop thread on a GL backend.
+         * draws -> present -> fence order, and runs `onSlotFreed`. There is no
+         * guarantee which thread that runs on -- it varies by backend -- so
+         * `onSlotFreed` must be safe to call from any thread.
          */
         void submitFrameFence(std::function<void()> onSlotFreed);
 
