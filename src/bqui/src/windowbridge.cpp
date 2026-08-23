@@ -391,4 +391,47 @@ widget::Instance const& WindowBridge::getWidgetInstance() const
     return widgetInstance_;
 }
 
+widget::Introspection WindowBridge::getResolvedIntrospection() const
+{
+    return widget::resolveIntrospection(widgetInstance_.getIntrospection());
+}
+
+btl::UniqueId WindowBridge::id() const
+{
+    return getId();
+}
+
+void WindowBridge::injectPointerButton(unsigned int pointerIndex,
+        unsigned int buttonIndex, ase::Vector2f pos, ase::ButtonState state)
+{
+    aseWindow.injectPointerButtonEvent(pointerIndex, buttonIndex, pos, state);
+}
+
+void WindowBridge::injectPointerMove(unsigned int pointerIndex, ase::Vector2f pos)
+{
+    aseWindow.injectPointerMoveEvent(pointerIndex, pos);
+}
+
+void WindowBridge::injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+        bool state)
+{
+    aseWindow.injectHoverEvent(pointerIndex, pos, state);
+}
+
+void WindowBridge::injectKey(ase::KeyState state, ase::KeyCode code,
+        uint32_t modifiers, std::string text)
+{
+    aseWindow.injectKeyEvent(state, code, modifiers, std::move(text));
+}
+
+void WindowBridge::injectText(std::string text)
+{
+    aseWindow.injectTextEvent(std::move(text));
+}
+
+widget::Introspection WindowBridge::introspect() const
+{
+    return getResolvedIntrospection();
+}
+
 } // namespace bqui

@@ -13,6 +13,8 @@
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 
+#include "bqui/remote/remotedriver.h"
+
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
@@ -53,7 +55,7 @@ inline uint64_t getNextFrameId()
     return ++s_frameId;
 }
 
-class WindowBridge
+class WindowBridge : public remote::RemoteWindow
 {
 public:
     WindowBridge(ase::Platform &platform, ase::RenderContext& context,
@@ -62,7 +64,7 @@ public:
     WindowBridge(WindowBridge const &) = delete;
     WindowBridge &operator=(WindowBridge const &) = delete;
 
-    ~WindowBridge();
+    ~WindowBridge() override;
 
     void makeTransaction(
             std::chrono::microseconds dt,
@@ -81,6 +83,23 @@ public:
     std::string getTitle() const;
 
     widget::Instance const& getWidgetInstance() const;
+
+    /** @brief A resolved introspection snapshot of the current widget tree, in
+     * window space, for a remote driver to read after a step. */
+    widget::Introspection getResolvedIntrospection() const;
+
+    btl::UniqueId id() const override;
+    void injectPointerButton(unsigned int pointerIndex,
+            unsigned int buttonIndex, ase::Vector2f pos,
+            ase::ButtonState state) override;
+    void injectPointerMove(unsigned int pointerIndex,
+            ase::Vector2f pos) override;
+    void injectHover(unsigned int pointerIndex, ase::Vector2f pos,
+            bool state) override;
+    void injectKey(ase::KeyState state, ase::KeyCode code,
+            uint32_t modifiers, std::string text) override;
+    void injectText(std::string text) override;
+    widget::Introspection introspect() const override;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

@@ -92,6 +92,23 @@ names a live app, and `removeWindow` clears that reference so a closed window ca
 be opened again. Without that a window could be open in one app and closable only
 from another.
 
+**Remote mode is an `App` branch that attaches a driver — no decorator, no window
+wrapper.** With a remote endpoint set, `runUntil` builds a `remote::RemoteApp`
+(`sync` and `liveWindows` over `windowBridges_`) and attaches a
+`remote::RemoteDriver` (`include/bqui/remote/remotedriver.h`) over the platform's
+`pause()`/`step()` *before* `platform.run(frameCallback)`. The driver connects the
+client socket, registers it on the platform's run loop, and — in client-driven
+mode — holds a `pause()` token so the client owns the clock and each `advance`
+steps the platform's one loop directly through that token
+(`PauseToken::step` → `frameCallback` + `renderDirtyWindows`) — the single frame
+path for every backend, dummy included, so App no longer sets `RemoteApp::step`
+(it stays the token-less fake-window fallback). The frame path is otherwise
+identical to local; the only branch is whether the driver is attached. The window
+glue (`WindowBridge`) itself implements `remote::RemoteWindow`, so introspection and
+event injection are a capability of the glue — available for any window — and the
+driver addresses each glue by its `UniqueId`. The transport and JSON-RPC protocol
+are reused unchanged (see `docs/decisions.md`).
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
