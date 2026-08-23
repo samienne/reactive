@@ -4,13 +4,25 @@
 
 #include <bq/signal/signal.h>
 
-#include <any>
-#include <typeindex>
+#include <memory>
 #include <optional>
+#include <string>
+#include <typeinfo>
 #include <unordered_map>
 
 namespace bqui
 {
+    /** @brief A type-keyed bag of inherited build-time parameters.
+     *
+     * Entries are keyed on the tag type's mangled name rather than
+     * `typeid(Tag)` directly: a type's `type_info` is emitted per binary under
+     * hidden symbol visibility and can compare unequal across a shared-library
+     * boundary (observed on macOS), which would make a parameter set in one
+     * binary invisible to a reader in another. The mangled name is identical
+     * across binaries, and the stored value is recovered by a trusted
+     * `static_pointer_cast` keyed on that name, so no cross-binary RTTI identity
+     * is relied on in either the lookup or the cast.
+     */
     class BQUI_EXPORT BuildParams
     {
     public:
@@ -24,11 +36,12 @@ namespace bqui
         template <typename Tag>
         std::optional<bq::signal::AnySignal<typename Tag::type>> get() const
         {
-            auto r = params_.find(typeid(Tag));
+            auto r = params_.find(key<Tag>());
             if (r == params_.end())
                 return std::nullopt;
 
-            return std::any_cast<bq::signal::AnySignal<typename Tag::type>>(r->second);
+            return *std::static_pointer_cast<
+                bq::signal::AnySignal<typename Tag::type>>(r->second);
         }
 
         template <typename Tag>
@@ -45,8 +58,11 @@ namespace bqui
         void set(bq::signal::Signal<T, typename Tag::type> value)
         {
             params_.insert_or_assign(
-                    typeid(Tag),
-                    bq::signal::AnySignal<typename Tag::type>(std::move(value))
+                    key<Tag>(),
+                    std::static_pointer_cast<void>(
+                        std::make_shared<
+                            bq::signal::AnySignal<typename Tag::type>>(
+                                std::move(value)))
                     );
         }
 
@@ -62,7 +78,12 @@ namespace bqui
         }
 
     private:
-        std::unordered_map<std::type_index, std::any> params_;
+        template <typename Tag>
+        static std::string key()
+        {
+            return typeid(Tag).name();
+        }
+
+        std::unordered_map<std::string, std::shared_ptr<void>> params_;
     };
 }
-

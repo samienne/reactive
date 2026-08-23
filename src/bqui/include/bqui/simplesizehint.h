@@ -9,14 +9,14 @@ namespace bqui
     class BQUI_EXPORT SimpleSizeHint
     {
     public:
-        SimpleSizeHint(SizeHintResult x, SizeHintResult y);
-        SizeHintResult getWidth() const;
-        SizeHintResult getHeightForWidth(float) const;
-        SizeHintResult getWidthForHeight(float) const;
+        SimpleSizeHint(Band x, Band y);
+        AxisHint getWidth() const;
+        AxisHint getHeightForWidth(float) const;
+        AxisHint getWidthForHeight(float) const;
 
     private:
-        SizeHintResult const horizontal_;
-        SizeHintResult const vertical_;
+        Band const horizontal_;
+        Band const vertical_;
     };
 
     /**
@@ -25,17 +25,16 @@ namespace bqui
      * This is the simplest way to create a size hint. The returned sizes
      * are determined by the given parameters.
      *
-     * @param x The hints on the X-axis.
-     * @param y The hints on the Y-axis.
-     * @return SizeHint that will return the x and y hints.
+     * @param x The width band.
+     * @param y The height band.
+     * @return SizeHint that will return the x and y bands.
      */
-    BQUI_EXPORT SimpleSizeHint simpleSizeHint(SizeHintResult x, SizeHintResult y);
+    BQUI_EXPORT SimpleSizeHint simpleSizeHint(Band x, Band y);
 
     /**
-     * @brief Equivalent of simpleSizeHint({{x, x, x}}, {{y, y, y}}).
+     * @brief Equivalent of simpleSizeHint(Band{x, x, x}, Band{y, y, y}).
      */
     BQUI_EXPORT SimpleSizeHint simpleSizeHint(float width, float height);
 
     BQUI_EXPORT SimpleSizeHint defaultSizeHint();
 }
-

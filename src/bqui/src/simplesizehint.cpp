@@ -5,44 +5,43 @@ namespace bqui
 
 static_assert(IsSizeHint<SimpleSizeHint>::value, "");
 
-SimpleSizeHint::SimpleSizeHint(SizeHintResult x, SizeHintResult y) :
+SimpleSizeHint::SimpleSizeHint(Band x, Band y) :
     horizontal_(x),
     vertical_(y)
     {
     }
 
-SizeHintResult SimpleSizeHint::getWidth() const
+AxisHint SimpleSizeHint::getWidth() const
 {
-    return horizontal_;
+    return AxisHint{ horizontal_, Anchors{} };
 }
 
-SizeHintResult SimpleSizeHint::getHeightForWidth(float) const
+AxisHint SimpleSizeHint::getHeightForWidth(float) const
 {
-    return vertical_;
+    return AxisHint{ vertical_, Anchors{} };
 }
 
-SizeHintResult SimpleSizeHint::getWidthForHeight(float) const
+AxisHint SimpleSizeHint::getWidthForHeight(float) const
 {
-    return horizontal_;
+    return AxisHint{ horizontal_, Anchors{} };
 }
 
-SimpleSizeHint simpleSizeHint(SizeHintResult x, SizeHintResult y)
+SimpleSizeHint simpleSizeHint(Band x, Band y)
 {
-    return SimpleSizeHint{std::move(x), std::move(y)};
+    return SimpleSizeHint{ x, y };
 }
 
 SimpleSizeHint simpleSizeHint(float x, float y)
 {
-    return simpleSizeHint({{x, x, x}}, {{y, y, y}});
+    return simpleSizeHint(Band{ x, x, x }, Band{ y, y, y });
 }
 
 SimpleSizeHint defaultSizeHint()
 {
     return simpleSizeHint(
-            { 10.0f, 10000.f, 10000.0f},
-            { 10.0f, 10000.f, 10000.0f}
+            Band{ 10.0f, 10000.0f, 10000.0f },
+            Band{ 10.0f, 10000.0f, 10000.0f }
             );
 }
 
 } // namespace bqui
-

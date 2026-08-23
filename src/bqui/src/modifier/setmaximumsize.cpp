@@ -8,31 +8,34 @@ namespace bqui::modifier
 {
 
 namespace {
-    SizeHintResult setMaximumSizeHintResult(SizeHintResult result, float maximum)
+    Band setMaximumBand(Band band, float maximum)
     {
-            float min = result[0];
-            float max = std::max(min, maximum);
-            float fill = std::max(max, result[2]);
+        float min = band.min;
+        float natural = std::max(min, maximum);
+        float max = std::max(natural, band.max);
 
-        return { min, max, fill };
+        return Band{ min, natural, max, band.grow };
+    }
+
+    AxisHint setMaximumAxis(AxisHint hint, float maximum)
+    {
+        return AxisHint{ setMaximumBand(hint.extent, maximum), hint.anchors };
     }
 
     auto setMaximumSizeImpl2(SizeHint sizeHint, avg::Vector2f maximumSize)
     {
         return mapSizeHint(std::move(sizeHint),
-                [maximumSize](SizeHintResult result) -> SizeHintResult
+                [maximumSize](AxisHint hint) -> AxisHint
                 {
-                    return setMaximumSizeHintResult(result, maximumSize.x());
+                    return setMaximumAxis(hint, maximumSize.x());
                 },
-                [maximumSize](SizeHintResult result, float)
-                    -> SizeHintResult
+                [maximumSize](AxisHint hint, float) -> AxisHint
                 {
-                    return setMaximumSizeHintResult(result, maximumSize.y());
+                    return setMaximumAxis(hint, maximumSize.y());
                 },
-                [maximumSize](SizeHintResult result, float)
-                    -> SizeHintResult
+                [maximumSize](AxisHint hint, float) -> AxisHint
                 {
-                    return setMaximumSizeHintResult(result, maximumSize.x());
+                    return setMaximumAxis(hint, maximumSize.x());
                 }
                 );
     }
@@ -46,27 +49,17 @@ namespace {
     auto setMaximumWidthImpl(SizeHint sizeHint, float maximumWidth)
     {
         return mapSizeHint(std::move(sizeHint),
-                [maximumWidth](SizeHintResult result) -> SizeHintResult
+                [maximumWidth](AxisHint hint) -> AxisHint
                 {
-                    float min = result[0];
-                    float max = std::max(maximumWidth, min);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMaximumAxis(hint, maximumWidth);
                 },
-                [](SizeHintResult result, float)
-                    -> SizeHintResult
+                [](AxisHint hint, float) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 },
-                [maximumWidth](SizeHintResult result, float)
-                    -> SizeHintResult
+                [maximumWidth](AxisHint hint, float) -> AxisHint
                 {
-                    float min = result[0];
-                    float max = std::max(maximumWidth, min);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMaximumAxis(hint, maximumWidth);
                 }
                 );
     }
@@ -74,23 +67,17 @@ namespace {
     auto setMaximumHeightImpl(SizeHint sizeHint, float maximumHeight)
     {
         return mapSizeHint(std::move(sizeHint),
-                [](SizeHintResult result) -> SizeHintResult
+                [](AxisHint hint) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 },
-                [maximumHeight](SizeHintResult result, float)
-                    -> SizeHintResult
+                [maximumHeight](AxisHint hint, float) -> AxisHint
                 {
-                    float min = result[0];
-                    float max = std::max(maximumHeight, min);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMaximumAxis(hint, maximumHeight);
                 },
-                [](SizeHintResult result, float)
-                    -> SizeHintResult
+                [](AxisHint hint, float) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 }
                 );
     }
