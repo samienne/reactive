@@ -82,21 +82,23 @@ namespace ase
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
 
-        /** @brief Block until this window has a spare in-flight slot.
+        /** @brief Whether this window has a spare in-flight slot, without
+         * blocking.
          *
-         * Bounds how many of its frames are queued on the GPU at once. GL always
-         * reports `Ok`; the status reports a backend whose acquire can fail,
-         * such as a lost swapchain.
+         * Bounds how many of its frames are queued on the GPU at once. False
+         * when the budget is full; the loop then skips the window and a freed
+         * slot wakes it back.
          */
-        PresentStatus acquire();
+        bool canAcquire() const;
 
         /** @brief Take an in-flight slot and submit this frame's fence on the
          * window's own queue behind its draws.
          *
          * The fence completion frees the slot, preserving the queue's
-         * draws -> present -> fence order.
+         * draws -> present -> fence order, and runs `onSlotFreed` (off the loop
+         * thread on a GL backend) so the loop can retry a skipped window.
          */
-        void submitFrameFence();
+        void submitFrameFence(std::function<void()> onSlotFreed);
 
         RenderContext context_;
 

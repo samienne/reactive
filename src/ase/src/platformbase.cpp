@@ -110,11 +110,17 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         if (maxFrames != 0)
         {
-            scheduleTick(controller);
+            // Headless self-pump: keep pumping toward the budget, but not past
+            // a saturated GPU queue -- a freed slot wakes the loop to continue.
+            if (!anyWindowSaturated())
+                scheduleTick(controller);
             return;
         }
 
-        if (anyWindowNeedsRedraw())
+        // Reschedule while a window can make progress now; a window that is
+        // dirty but saturated waits for its fence to free a slot and wake the
+        // loop, so the loop is never blocked or spun on backpressure.
+        if (anyReadyToRender())
             scheduleTick(controller);
     };
 
@@ -171,19 +177,18 @@ void PlatformBase::renderDirtyWindows(Frame const& frame)
     {
         if (auto window = weakWindow.lock())
         {
-            if (window->needsRedraw())
+            // Skip a saturated window without blocking the loop; freeing a slot
+            // wakes the loop through requestFrame() to retry it.
+            if (window->needsRedraw() && window->canAcquire())
             {
-                if (window->acquire() != PresentStatus::Ok)
-                    continue;
-
                 window->frame(frame);
-                window->submitFrameFence();
+                window->submitFrameFence([this] { requestFrame(); });
             }
         }
     }
 }
 
-bool PlatformBase::anyWindowNeedsRedraw()
+bool PlatformBase::anyReadyToRender()
 {
     auto& renderWindows = getRenderWindows();
 
@@ -191,7 +196,23 @@ bool PlatformBase::anyWindowNeedsRedraw()
     {
         if (auto window = weakWindow.lock())
         {
-            if (window->needsRedraw())
+            if (window->needsRedraw() && window->canAcquire())
+                return true;
+        }
+    }
+
+    return false;
+}
+
+bool PlatformBase::anyWindowSaturated()
+{
+    auto& renderWindows = getRenderWindows();
+
+    for (auto& weakWindow : renderWindows)
+    {
+        if (auto window = weakWindow.lock())
+        {
+            if (!window->canAcquire())
                 return true;
         }
     }

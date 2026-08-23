@@ -126,6 +126,13 @@ namespace ase
 
     private:
         void renderDirtyWindows(Frame const& frame);
-        bool anyWindowNeedsRedraw();
+
+        // A window that is dirty and has a free in-flight slot -- can render
+        // this tick without blocking.
+        bool anyReadyToRender();
+
+        // A window whose in-flight budget is full -- the loop must wait for a
+        // fence to free a slot rather than pump another frame.
+        bool anyWindowSaturated();
     };
 }
