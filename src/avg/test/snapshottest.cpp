@@ -281,9 +281,6 @@ TEST(Snapshot, reportsASubtreeOnItsWayOut)
     ASSERT_EQ(1u, idNode.children.size());
     EXPECT_EQ("TransitionNode", idNode.children[0].type);
     EXPECT_TRUE(idNode.children[0].leaving);
-
-    EXPECT_NE(std::string::npos,
-            avg::toJson(snapshot).find("\"leaving\":true"));
 }
 
 TEST(Snapshot, textClippedAwayIsNotReported)
@@ -317,30 +314,12 @@ TEST(Snapshot, textClippedAwayIsNotReported)
     EXPECT_EQ("shown", snapshot.root->children[1].children[0].text[0].text);
 }
 
-TEST(Snapshot, jsonWritesBoxesResolvedRatherThanAuthored)
-{
-    auto container = std::make_shared<avg::ContainerNode>(
-            avg::Obb(avg::Vector2f(100.0f, 50.0f)));
-
-    auto json = avg::toJson(snapshotOf(
-                avg::RenderTree(std::move(container)),
-                avg::Obb(avg::Vector2f(300.0f, 50.0f), avg::scale(2.0f))
-                ));
-
-    // The authored size is 100x50 under a scale of two.
-    EXPECT_NE(std::string::npos,
-            json.find("\"size\":{\"w\":200,\"h\":100}"));
-    EXPECT_NE(std::string::npos,
-            json.find("\"center\":{\"x\":100,\"y\":50}"));
-}
-
 TEST(Snapshot, anEmptyTreeHasNoRoot)
 {
     auto snapshot = snapshotOf(avg::RenderTree(),
             avg::Obb(avg::Vector2f(300.0f, 50.0f)));
 
     EXPECT_FALSE(snapshot.root.has_value());
-    EXPECT_NE(std::string::npos, avg::toJson(snapshot).find("\"root\":null"));
 }
 
 TEST(Snapshot, nullSubtreesAreDescribedWithoutChildren)
@@ -395,13 +374,12 @@ TEST(Snapshot, leavesTheTreeUnchanged)
 
     auto before = shapeBounds(tree.draw(context, viewport, zero).first);
 
-    auto first = avg::toJson(tree.snapshot(context, viewport, zero));
-    auto second = avg::toJson(tree.snapshot(context, viewport, zero));
+    tree.snapshot(context, viewport, zero);
+    tree.snapshot(context, viewport, zero);
 
     auto after = shapeBounds(tree.draw(context, viewport, zero).first);
 
     EXPECT_EQ(root, tree.getRoot().get());
-    EXPECT_EQ(first, second);
 
     ASSERT_EQ(before.size(), after.size());
     for (size_t i = 0; i < before.size(); ++i)
@@ -411,33 +389,4 @@ TEST(Snapshot, leavesTheTreeUnchanged)
         EXPECT_FLOAT_EQ(before[i].getWidth(), after[i].getWidth());
         EXPECT_FLOAT_EQ(before[i].getHeight(), after[i].getHeight());
     }
-}
-
-TEST(Snapshot, jsonCarriesTheSchemaVersionAndEscapesText)
-{
-    auto container = std::make_shared<avg::ContainerNode>(
-            avg::Obb(avg::Vector2f(300.0f, 50.0f)));
-
-    auto id = avg::UniqueId();
-
-    container->addChild(std::make_shared<avg::IdNode>(
-                id,
-                placed(0.0f, 0.0f, 100.0f, 50.0f),
-                text(placed(0.0f, 0.0f, 100.0f, 50.0f), "a\"b\\d\nc\x01")
-                ));
-
-    auto json = avg::toJson(snapshotOf(
-                avg::RenderTree(std::move(container)),
-                avg::Obb(avg::Vector2f(300.0f, 50.0f))
-                ));
-
-    EXPECT_NE(std::string::npos, json.find("\"version\":1"));
-    EXPECT_NE(std::string::npos, json.find("\"type\":\"ContainerNode\""));
-    EXPECT_NE(std::string::npos,
-            json.find("\"id\":" + std::to_string(id.getValue())));
-    EXPECT_NE(std::string::npos,
-            json.find("\"text\":\"a\\\"b\\\\d\\nc\\u0001\""));
-    EXPECT_NE(std::string::npos, json.find("\"angle\":0"));
-    EXPECT_EQ(std::string::npos, json.find("nan"));
-    EXPECT_EQ(std::string::npos, json.find("inf"));
 }

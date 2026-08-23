@@ -60,12 +60,11 @@ virtual, so adding a node kind means adding that override.
 - **Nulls are expected.** An empty tree yields no root, and a node whose child
   is null yields no child; the walker never assumes a well-formed tree.
 
-`toJson` writes schema version 1: an envelope of `version`, `time`, `obb` and
-`root`, and per node `type`, `obb` (`center`/`size`/`angle`), `text` and
-`children`, plus `id` when the node has one and `leaving` when the subtree is
-on its way out. Text is passed through as the UTF-8 bytes the `TextEntry`
-carries. The schema is a contract — extend it additively and bump
-`Snapshot::version` when an existing field changes meaning.
+A `Snapshot` is pure data — node kinds, ids, resolved boxes and the text the
+leaves draw. `avg` deliberately does not serialise it: JSON is a `bqui` concern
+(it owns the `nlohmann` dependency and the remote wire format), so the schema
+lives in `bqui`'s remote layer, not here. Keep `Snapshot` free of any
+serialisation coupling.
 
 ## Animation
 

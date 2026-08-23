@@ -57,11 +57,6 @@ namespace avg
      */
     struct Snapshot
     {
-        /**
-         * @brief The version of the JSON schema avg::toJson writes.
-         */
-        static constexpr int version = 1;
-
         std::chrono::milliseconds time{ 0 };
 
         /**
@@ -104,14 +99,4 @@ namespace avg
      * entirely outside @p clip.
      */
     AVG_EXPORT void clipSnapshotText(SnapshotNode& node, Obb const& clip);
-
-    /**
-     * @brief Serialises @p snapshot as a JSON document of schema version
-     * Snapshot::version.
-     *
-     * A box is written resolved, so its size is the extent it covers rather
-     * than the size it was authored with. Non-finite numbers are written as
-     * zero.
-     */
-    AVG_EXPORT std::string toJson(Snapshot const& snapshot);
 } // namespace avg
