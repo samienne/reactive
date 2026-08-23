@@ -3,6 +3,8 @@
 
 #include "introspectionjson.h"
 
+#include <avg/rendertree/snapshot.h>
+
 #include <btl/runloop.h>
 
 #include <nlohmann/json.hpp>
@@ -548,6 +550,19 @@ private:
         return { { "introspection", toJson(window->introspect()) } };
     }
 
+    json windowRenderTree(json const& params)
+    {
+        uint64_t id = requireWindowId(params);
+
+        auto windows = app_.liveWindows();
+        RemoteWindow* window = findWindow(windows, id);
+        if (!window)
+            throw RpcError{ kInvalidParams,
+                "no live window with id " + std::to_string(id) };
+
+        return { { "renderTree", toJson(window->snapshot()) } };
+    }
+
     json windowInject(json const& params)
     {
         uint64_t id = requireWindowId(params);
@@ -618,6 +633,11 @@ private:
             "The window's resolved widget (introspection) tree.",
             { { "window", "number", true } },
             [this](json const& p) { return windowIntrospect(p); } });
+
+        registry_.push_back({ "window.renderTree",
+            "The window's render-tree snapshot.",
+            { { "window", "number", true } },
+            [this](json const& p) { return windowRenderTree(p); } });
 
         registry_.push_back({ "window.inject",
             "Queue input events onto a window for the next step.",

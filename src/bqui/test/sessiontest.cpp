@@ -196,6 +196,18 @@ namespace
             return node;
         }
 
+        avg::Snapshot snapshot() const override
+        {
+            avg::Snapshot snap;
+            snap.obb = avg::Obb(ase::Vector2f(800.0f, 600.0f));
+            avg::SnapshotNode root;
+            root.type = "Fake";
+            root.obb = snap.obb;
+            root.text.push_back({ name_, snap.obb });
+            snap.root = std::move(root);
+            return snap;
+        }
+
         int buttonInjects() const { return buttonInjects_; }
 
     private:
@@ -315,6 +327,26 @@ TEST(session, introspectResolvesByIdAndErrorsOnUnknown)
 
     auto stray = btl::makeUniqueId();
     auto err = s.call("window.introspect", { { "window", stray.getValue() } });
+    EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
+}
+
+TEST(session, renderTreeResolvesByIdAndEmbedsTheSnapshot)
+{
+    auto idA = btl::makeUniqueId();
+    auto idB = btl::makeUniqueId();
+    FakeRemoteWindow a(idA, "w0");
+    FakeRemoteWindow b(idB, "w1");
+    SessionFixture s("renderTree", { a, b });
+
+    auto reply = s.call("window.renderTree", { { "window", idB.getValue() } });
+    // Embedded as a value, never a quoted string.
+    auto const& tree = reply.at("result").at("renderTree");
+    ASSERT_TRUE(tree.is_object());
+    EXPECT_EQ("Fake", tree.at("root").at("type"));
+    EXPECT_EQ("w1", tree.at("root").at("text").at(0).at("text"));
+
+    auto stray = btl::makeUniqueId();
+    auto err = s.call("window.renderTree", { { "window", stray.getValue() } });
     EXPECT_EQ(-32602, err.at("error").at("code").get<int>());
 }
 
@@ -493,8 +525,7 @@ TEST(session, describeReportsTheRegistry)
     EXPECT_TRUE(has("window.list"));
     EXPECT_TRUE(has("window.introspect"));
     EXPECT_TRUE(has("window.inject"));
-    // renderTree lands one layer up (avg snapshot); it is not in this build.
-    EXPECT_FALSE(has("window.renderTree"));
+    EXPECT_TRUE(has("window.renderTree"));
 
     // The parameter schema is first-class: window.introspect requires `window`.
     ASSERT_TRUE(introspectParams.is_array());
@@ -866,6 +897,18 @@ TEST(session, describeListIntrospectDriveARealApp)
     auto count1 = findCount(intro1.at("result").at("introspection"));
     ASSERT_TRUE(count1.has_value());
     EXPECT_EQ(1.0, *count1);
+
+    // window.renderTree: the drawn frame as an avg snapshot, embedded as a
+    // value (never a quoted string) with a resolved root in window space.
+    auto tree = rpc(*client, id++, "window.renderTree",
+            { { "window", windowId } });
+    auto const& snap = tree.at("result").at("renderTree");
+    ASSERT_TRUE(snap.is_object());
+    // The render-tree schema version, owned by bqui's remote serialiser.
+    EXPECT_EQ(1, snap.at("version").get<int>());
+    EXPECT_FALSE(snap.at("root").is_null());
+    EXPECT_GT(snap.at("obb").at("size").at("w").get<double>(), 0.0);
+    EXPECT_GT(snap.at("obb").at("size").at("h").get<double>(), 0.0);
 
     rpc(*client, id++, "app.shutdown");
     appThread.join();

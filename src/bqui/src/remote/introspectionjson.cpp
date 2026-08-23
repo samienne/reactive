@@ -2,9 +2,12 @@
 
 #include "bqui/widget/datavalue.h"
 
+#include <avg/rendertree/snapshot.h>
+
 #include <nlohmann/json.hpp>
 
 #include <cmath>
+#include <utility>
 #include <variant>
 
 namespace bqui::remote
@@ -100,6 +103,82 @@ nlohmann::json toJson(widget::Introspection const& node)
     for (auto const& child : node.children)
         children.push_back(toJson(*child));
     result["children"] = std::move(children);
+
+    return result;
+}
+
+namespace
+{
+
+// The schema version of the render-tree JSON. Bump it when an existing field
+// changes meaning; extend the schema additively otherwise.
+constexpr int kRenderTreeSchemaVersion = 1;
+
+// A snapshot node's box keeps its scale in the transform rather than in the
+// stored size, so the resolved extent is the authored size times that scale.
+nlohmann::json snapshotObbToJson(avg::Obb const& obb)
+{
+    auto center = obb.getCenter();
+    auto scale = obb.getTransform().getScale();
+    auto size = obb.getSize();
+
+    return {
+        { "center", {
+            { "x", finiteOrZero(center[0]) },
+            { "y", finiteOrZero(center[1]) },
+        } },
+        { "size", {
+            { "w", finiteOrZero(size[0] * scale) },
+            { "h", finiteOrZero(size[1] * scale) },
+        } },
+        { "angle", finiteOrZero(obb.getTransform().getRotation()) },
+    };
+}
+
+nlohmann::json toJson(avg::SnapshotNode const& node)
+{
+    nlohmann::json result = nlohmann::json::object();
+
+    result["type"] = node.type;
+
+    if (node.id)
+        result["id"] = node.id->getValue();
+
+    result["obb"] = snapshotObbToJson(node.obb);
+
+    if (node.leaving)
+        result["leaving"] = true;
+
+    auto text = nlohmann::json::array();
+    for (auto const& entry : node.text)
+        text.push_back({
+            { "text", entry.text },
+            { "obb", snapshotObbToJson(entry.obb) },
+        });
+    result["text"] = std::move(text);
+
+    auto children = nlohmann::json::array();
+    for (auto const& child : node.children)
+        children.push_back(toJson(child));
+    result["children"] = std::move(children);
+
+    return result;
+}
+
+} // namespace
+
+nlohmann::json toJson(avg::Snapshot const& snapshot)
+{
+    nlohmann::json result = nlohmann::json::object();
+
+    result["version"] = kRenderTreeSchemaVersion;
+    result["time"] = snapshot.time.count();
+    result["obb"] = snapshotObbToJson(snapshot.obb);
+
+    if (snapshot.root)
+        result["root"] = toJson(*snapshot.root);
+    else
+        result["root"] = nullptr;
 
     return result;
 }

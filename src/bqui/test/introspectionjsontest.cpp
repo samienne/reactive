@@ -3,6 +3,7 @@
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
 
+#include <avg/rendertree/snapshot.h>
 #include <avg/obb.h>
 #include <avg/transform.h>
 #include <avg/vector.h>
@@ -10,6 +11,12 @@
 #include <nlohmann/json.hpp>
 
 #include <gtest/gtest.h>
+
+#include <chrono>
+#include <cstdint>
+#include <limits>
+#include <string>
+#include <utility>
 
 using namespace bqui;
 using namespace bqui::widget;
@@ -116,4 +123,128 @@ TEST(introspectionJson, recursesIntoChildren)
     auto const& childJson = j.at("children").at(0);
     EXPECT_EQ("Label", childJson.at("role"));
     EXPECT_EQ("Accept", childJson.at("data").at("text"));
+}
+
+TEST(snapshotJson, envelopeCarriesVersionTimeAndObb)
+{
+    avg::Snapshot snapshot;
+    snapshot.time = std::chrono::milliseconds(42);
+    snapshot.obb = avg::Obb(avg::Vector2f(40.0f, 20.0f),
+            avg::translate(40.0f, 10.0f));
+
+    auto j = remote::toJson(snapshot);
+
+    EXPECT_EQ(1, j.at("version").get<int>());
+    EXPECT_EQ(42, j.at("time").get<int64_t>());
+
+    auto const& obb = j.at("obb");
+    EXPECT_DOUBLE_EQ(60.0, obb.at("center").at("x").get<double>());
+    EXPECT_DOUBLE_EQ(20.0, obb.at("center").at("y").get<double>());
+    EXPECT_DOUBLE_EQ(0.0, obb.at("angle").get<double>());
+
+    EXPECT_TRUE(j.at("root").is_null());
+}
+
+TEST(snapshotJson, nodeCarriesTypeIdObbTextAndChildren)
+{
+    auto id = avg::UniqueId();
+
+    avg::SnapshotNode child;
+    child.type = "RectNode";
+    child.obb = avg::Obb(avg::Vector2f(10.0f, 10.0f));
+
+    avg::SnapshotNode root;
+    root.type = "IdNode";
+    root.id = id;
+    root.obb = avg::Obb(avg::Vector2f(100.0f, 50.0f));
+    root.text.push_back(avg::SnapshotText{ "Ok",
+            avg::Obb(avg::Vector2f(20.0f, 10.0f)) });
+    root.children.push_back(child);
+
+    avg::Snapshot snapshot;
+    snapshot.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    snapshot.root = std::move(root);
+
+    auto j = remote::toJson(snapshot);
+    auto const& r = j.at("root");
+
+    EXPECT_EQ("IdNode", r.at("type"));
+    EXPECT_EQ(id.getValue(), r.at("id").get<uint64_t>());
+
+    ASSERT_EQ(1u, r.at("text").size());
+    EXPECT_EQ("Ok", r.at("text").at(0).at("text"));
+    EXPECT_TRUE(r.at("text").at(0).contains("obb"));
+
+    ASSERT_EQ(1u, r.at("children").size());
+    auto const& childJson = r.at("children").at(0);
+    EXPECT_EQ("RectNode", childJson.at("type"));
+    // A node without an id omits the field rather than emitting null.
+    EXPECT_FALSE(childJson.contains("id"));
+}
+
+TEST(snapshotJson, leavingIsWrittenOnlyWhenTrue)
+{
+    avg::SnapshotNode node;
+    node.type = "TransitionNode";
+    node.obb = avg::Obb(avg::Vector2f(100.0f, 50.0f));
+    node.leaving = true;
+
+    avg::Snapshot leaving;
+    leaving.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    leaving.root = node;
+
+    auto jLeaving = remote::toJson(leaving);
+    EXPECT_TRUE(jLeaving.at("root").at("leaving").get<bool>());
+
+    node.leaving = false;
+    avg::Snapshot staying;
+    staying.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    staying.root = node;
+
+    auto jStaying = remote::toJson(staying);
+    EXPECT_FALSE(jStaying.at("root").contains("leaving"));
+}
+
+TEST(snapshotJson, writesBoxesResolvedRatherThanAuthored)
+{
+    avg::SnapshotNode root;
+    root.type = "ContainerNode";
+    // The authored size is 100x50 under a scale of two.
+    root.obb = avg::Obb(avg::Vector2f(100.0f, 50.0f), avg::scale(2.0f));
+
+    avg::Snapshot snapshot;
+    snapshot.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    snapshot.root = std::move(root);
+
+    auto j = remote::toJson(snapshot);
+    auto const& size = j.at("root").at("obb").at("size");
+
+    EXPECT_DOUBLE_EQ(200.0, size.at("w").get<double>());
+    EXPECT_DOUBLE_EQ(100.0, size.at("h").get<double>());
+}
+
+TEST(snapshotJson, preservesTextAndFoldsNonFiniteToZero)
+{
+    avg::SnapshotNode root;
+    root.type = "ContainerNode";
+    // A non-finite dimension has no JSON literal; it must fold to zero.
+    root.obb = avg::Obb(avg::Vector2f(
+                std::numeric_limits<float>::quiet_NaN(), 50.0f));
+    root.text.push_back(avg::SnapshotText{ "a\"b\\d\nc\x01",
+            avg::Obb(avg::Vector2f(10.0f, 10.0f)) });
+
+    avg::Snapshot snapshot;
+    snapshot.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    snapshot.root = std::move(root);
+
+    auto j = remote::toJson(snapshot);
+
+    EXPECT_EQ(std::string("a\"b\\d\nc\x01"),
+            j.at("root").at("text").at(0).at("text").get<std::string>());
+    EXPECT_DOUBLE_EQ(0.0,
+            j.at("root").at("obb").at("size").at("w").get<double>());
+
+    auto dump = j.dump();
+    EXPECT_EQ(std::string::npos, dump.find("nan"));
+    EXPECT_EQ(std::string::npos, dump.find("inf"));
 }
