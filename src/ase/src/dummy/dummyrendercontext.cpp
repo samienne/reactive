@@ -21,10 +21,9 @@
 namespace ase
 {
 
-DummyRenderContext::DummyRenderContext(std::shared_ptr<PlatformImpl> platform,
-        std::chrono::microseconds frameInterval) :
+DummyRenderContext::DummyRenderContext(std::shared_ptr<PlatformImpl> platform) :
     platform_(std::move(platform)),
-    mainQueue_(std::make_shared<DummyRenderQueue>(frameInterval))
+    mainQueue_(std::make_shared<DummyRenderQueue>())
 {
 }
 

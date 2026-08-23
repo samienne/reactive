@@ -236,9 +236,16 @@ btl::RunLoop& PlatformBase::runLoop()
     return loop_;
 }
 
+void PlatformBase::setMaxFps(unsigned int fps)
+{
+    maxFps_ = fps;
+}
+
 PlatformBase::RunConfig PlatformBase::runConfig()
 {
-    return RunConfig{};
+    RunConfig config;
+    config.maxFps = maxFps_;
+    return config;
 }
 
 btl::NativeHandle PlatformBase::wakeSource()

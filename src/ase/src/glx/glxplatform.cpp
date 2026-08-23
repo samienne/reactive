@@ -376,6 +376,7 @@ PlatformBase::RunConfig GlxPlatform::runConfig()
 
     RunConfig config;
     config.frameStep = std::chrono::microseconds(1000000 / targetFps);
+    config.maxFps = maxFps_;
 
     return config;
 }

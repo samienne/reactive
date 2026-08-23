@@ -5,6 +5,24 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Headless frame pacing is the loop's `maxFps` timer, not fake fence backpressure
+
+A headless backend has no vsync, so nothing naturally paces its loop. Rather than
+fake one per backend — the dummy queue once deferred each frame's fence on a
+background completer thread to mimic vsync backpressure — pacing is the run loop's
+own `maxFps` timer, set through `PlatformBase::setMaxFps`. The dummy queue
+completes fences inline again; a headless loop free-runs by default and takes a
+cadence only when `maxFps` is set.
+
+**Why:** throttling and backpressure are orthogonal. Throttling is a wall-clock
+cap and belongs in one backend-agnostic place — the loop — where it also fits a
+future backend (e.g. Vulkan) with no dedicated render thread to pace on. Fences
+should signal only *real* completion: headful vsync today, and a pixel-readback or
+double-buffer swap later, where `acquire()` waits on the consumer's fence so
+backpressure falls out for free. A `dispatch()`-a-task-to-the-render-thread method
+on the render queue was considered for the offscreen pacer and rejected as
+GL-specific — it assumes a thread a command-buffer backend need not have.
+
 ## The platform owns a context-free frame loop; `App` picks the driver
 
 `Platform::run(frameCallback)` drives frames on the injected loop, and `App`

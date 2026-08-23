@@ -42,7 +42,10 @@ namespace ase
              * many frames (headless); zero leaves the loop on-demand. */
             std::uint64_t maxFrames = 0;
 
-            /** A non-zero cap paces the headless self-pump; zero is uncapped. */
+            /** A non-zero cap paces the loop with the run loop's wall-clock
+             * timer; zero is uncapped. Headful windows leave it zero and let
+             * vsync govern; headless backends, which have no vsync to pace
+             * against, set it to run at a cadence. */
             unsigned int maxFps = 0;
         };
 
@@ -52,6 +55,15 @@ namespace ase
         bool stepFrame(std::chrono::microseconds dt) override;
         void requestFrame() override;
         btl::RunLoop& runLoop() override;
+
+        /** @brief Cap the loop to a wall-clock frame rate.
+         *
+         * The default (0) is uncapped: headful windows leave it there and let
+         * vsync and backpressure govern. A headless backend, whose fences carry
+         * no vsync, sets a positive `fps` to pace the loop to that cadence. Set
+         * before run().
+         */
+        void setMaxFps(unsigned int fps);
 
     protected:
         /** @brief Bind the platform to the run loop it drives frames on.
@@ -107,6 +119,10 @@ namespace ase
         // Depth of outstanding pause tokens; non-zero suspends auto-cadence
         // frames.
         int pauseCount_ = 0;
+
+        // Wall-clock frame-rate cap fed into runConfig(); 0 means uncapped.
+        // Read only on the loop thread, so it must be set before run().
+        unsigned int maxFps_ = 0;
 
     private:
         void renderDirtyWindows(Frame const& frame);
