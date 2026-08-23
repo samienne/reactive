@@ -78,8 +78,7 @@ namespace ase
         friend class PlatformBase;
 
         // When this window next wants to render, or nullopt if quiesced. The
-        // loop schedules its cadence from these across all windows; sourced from
-        // the GenericWindow, so it needs no per-backend override.
+        // loop schedules its cadence from these across all windows.
         std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
 
         virtual std::optional<std::chrono::microseconds> frame(

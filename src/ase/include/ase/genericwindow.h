@@ -35,7 +35,7 @@ namespace ase
         void resize(Vector2i size);
 
         /** @brief When this window next wants to render, or nullopt if
-         * quiesced. The frame callback's returned delay sets it. */
+         * quiesced. */
         std::optional<std::chrono::steady_clock::time_point> nextFrameTime() const;
         void requestFrame();
 
