@@ -83,8 +83,7 @@ namespace avg
     /**
      * @brief Describes a leaf @p node along with the text it draws.
      *
-     * Costs a full draw pass, since a leaf's text exists only inside its draw
-     * function.
+     * Costs a full draw pass.
      */
     AVG_EXPORT SnapshotNode makeLeafSnapshotNode(
             std::string type,

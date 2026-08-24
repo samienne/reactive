@@ -42,12 +42,8 @@ namespace avg
         /**
          * @brief Describes what the tree draws into @p obb at @p time.
          *
-         * A snapshot is a function of an immutable tree and a timestamp
-         * alone, and visits the subtree draw() visits for the same arguments,
-         * so holding a RenderTree holds a whole frame and a snapshot of it
-         * cannot be torn. It may be taken from a thread other than the one
-         * that renders, provided @p drawContext carries memory no other
-         * thread is using.
+         * May be taken from a thread other than the one that renders, provided
+         * @p drawContext carries memory no other thread is using.
          */
         Snapshot snapshot(DrawContext const& drawContext,
                 avg::Obb const& obb,

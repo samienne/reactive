@@ -175,19 +175,23 @@ shorter run loop whose glue lifecycle reads straight down the page. `ArraySignal
 and `forEach` stay in `bq` — the layout engine is their real consumer; `App`
 simply was not one.
 
-## A render tree snapshot is hand-written JSON, in avg
+## A render tree snapshot is pure data in avg; JSON lives in bqui
 
-`avg::RenderTree::snapshot` builds a plain struct tree, and `avg::toJson`
-serialises it with a small writer in `avg` itself. No JSON library is vendored,
-and the writer is not shared with `bqui`.
+`avg::RenderTree::snapshot` builds a plain struct tree (`avg::Snapshot`), and
+that is all `avg` does with it — it carries no serialisation. Turning a snapshot
+into a JSON document is `bqui`'s job: its remote layer already owns the
+`nlohmann_json` dependency and encodes the snapshot there
+(`bqui/src/remote/introspectionjson.cpp`), beside the introspection it serves
+over the same protocol.
 
-**Why:** the payload is one document of known shape — objects, arrays, strings,
-numbers — so a parser-grade dependency buys nothing and costs a subproject on
-every configure. The snapshot is a wire format, so it carries an explicit
-schema version; the struct tree stays separate from its encoding, which is what
-lets a second encoding be added without touching the walk. Sharing a writer
-with `bqui` would invert the dependency order (`avg` is beneath it), so
-duplicating the escaping rules is the cheaper of the two.
+**Why:** `avg` is beneath `bqui` in the dependency order, and a JSON encoding is
+a wire concern of the remote protocol, not of the graphics core. Keeping the
+struct tree free of any encoding lets the serialisation — and its schema
+version — sit with the protocol that defines it, and spares `avg` a JSON
+dependency entirely. The alternative considered was a small hand-written writer
+in `avg` itself, so no library need be vendored; it was rejected because it
+duplicated the escaping and number rules `bqui` already gets right through
+`nlohmann`, and split snapshot serialisation across two libraries.
 
 ## `App::run()` with no arguments stops at zero windows, not at the first close
 
