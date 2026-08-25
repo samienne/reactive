@@ -68,9 +68,8 @@ namespace bqui::widget
         /**
          * @brief The identity this node shares with its render-tree node.
          *
-         * Set alongside the render `avg::IdNode` by `setElementId`, so a
-         * consumer can join a node in the introspection tree to the same node
-         * in the render/snapshot tree. Absent when the widget carries no id.
+         * A consumer can join this node to the same node in the render/snapshot
+         * tree by this id. Absent when the widget carries no id.
          */
         std::optional<avg::UniqueId> id;
     };
