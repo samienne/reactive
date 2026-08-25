@@ -13,7 +13,8 @@
 
 namespace bqui::widget
 {
-    /** @brief How a row aligns its children across its cross (vertical) axis.
+    /**
+     * @brief How a row aligns its children across its cross (vertical) axis.
      *
      * @c fill is the default: each child spans the row's height and settles
      * under its own gravity. @c baseline instead keeps each child at its
@@ -26,7 +27,8 @@ namespace bqui::widget
         baseline
     };
 
-    /** @brief Lays a column of children out through the arrange solver.
+    /**
+     * @brief Lays a column of children out through the arrange solver.
      *
      * The container and every child carry a set of BoxVariables. The container
      * is anchored to the window-space rectangle it is realised at, the children
@@ -47,10 +49,13 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
-    /** @overload */
+    /**
+     * @overload
+     */
     BQUI_EXPORT AnyWidget solverVbox(std::vector<AnyWidget> widgets);
 
-    /** @brief Lays a row of children out through the arrange solver.
+    /**
+     * @brief Lays a row of children out through the arrange solver.
      *
      * The horizontal counterpart of solverVbox(): the same spec and the same
      * solve, with the children stacked edge-to-edge along the horizontal axis
@@ -59,10 +64,13 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget solverHbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
-    /** @overload */
+    /**
+     * @overload
+     */
     BQUI_EXPORT AnyWidget solverHbox(std::vector<AnyWidget> widgets);
 
-    /** @brief Lays a row out through the arrange solver, its children aligned on
+    /**
+     * @brief Lays a row out through the arrange solver, its children aligned on
      * a shared baseline.
      *
      * Like solverHbox() along the main axis, but across the cross axis each
@@ -74,10 +82,13 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget baselineHbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
-    /** @overload */
+    /**
+     * @overload
+     */
     BQUI_EXPORT AnyWidget baselineHbox(std::vector<AnyWidget> widgets);
 
-    /** @brief Overlays children through the arrange solver.
+    /**
+     * @brief Overlays children through the arrange solver.
      *
      * Every child is placed within the container's whole box by placeInSlot()
      * on both axes, so a child that cannot use the whole box settles at its
@@ -87,10 +98,13 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets);
 
-    /** @overload */
+    /**
+     * @overload
+     */
     BQUI_EXPORT AnyWidget solverStack(std::vector<AnyWidget> widgets);
 
-    /** @brief Lays a uniform grid out through the arrange solver.
+    /**
+     * @brief Lays a uniform grid out through the arrange solver.
      *
      * The container is split into @p columns equal-width columns and @p rows
      * equal-height rows (gridLines()); each child is placed within the box of
@@ -102,7 +116,8 @@ namespace bqui::widget
             std::vector<GridCell> cells, unsigned int columns,
             unsigned int rows);
 
-    /** @brief Diagnostic: the number of entries provideParam<ResolvedGuides>()
+    /**
+     * @brief Diagnostic: the number of entries provideParam<ResolvedGuides>()
      * reads from @p params when it is instantiated inside the bqui library.
      *
      * A container reads the inherited resolved-guide map with

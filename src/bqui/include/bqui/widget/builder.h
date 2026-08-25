@@ -102,37 +102,47 @@ namespace bqui::widget
             return sizeHint_->clone();
         }
 
-        /** @brief The four edge variables that name this widget's box to the
+        /**
+         * @brief The four edge variables that name this widget's box to the
          * constraint solver. Stable for the builder's lifetime and preserved
-         * across a copy, a size-hint change and type erasure. */
+         * across a copy, a size-hint change and type erasure.
+         */
         BoxVariables const& getBoxVariables() const
         {
             return box_;
         }
 
-        /** @brief Adopts @p box as this widget's solver box, so a transformed
-         * builder keeps the identity of the one it came from. */
+        /**
+         * @brief Adopts @p box as this widget's solver box, so a transformed
+         * builder keeps the identity of the one it came from.
+         */
         void setBoxVariables(BoxVariables box)
         {
             box_ = std::move(box);
         }
 
-        /** @brief The guide alignments this widget requests, for its container
+        /**
+         * @brief The guide alignments this widget requests, for its container
          * to resolve against a shared line. Preserved across a copy, a
-         * size-hint change and type erasure, exactly as the box variables are. */
+         * size-hint change and type erasure, exactly as the box variables are.
+         */
         std::vector<GuideAlignment> const& getGuideAlignments() const
         {
             return guideAlignments_;
         }
 
-        /** @brief Replaces this widget's guide alignments wholesale, used to
-         * carry them across a rebuild that mints a fresh builder. */
+        /**
+         * @brief Replaces this widget's guide alignments wholesale, used to
+         * carry them across a rebuild that mints a fresh builder.
+         */
         void setGuideAlignments(std::vector<GuideAlignment> alignments)
         {
             guideAlignments_ = std::move(alignments);
         }
 
-        /** @brief Records one more guide alignment on a copy of this builder. */
+        /**
+         * @brief Records one more guide alignment on a copy of this builder.
+         */
         auto addGuideAlignment(GuideAlignment alignment)
         {
             auto copy = clone();
