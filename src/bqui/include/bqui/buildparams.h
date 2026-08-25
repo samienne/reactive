@@ -12,7 +12,8 @@
 
 namespace bqui
 {
-    /** @brief A type-keyed bag of inherited build-time parameters.
+    /**
+     * @brief A type-keyed bag of inherited build-time parameters.
      *
      * Entries are keyed on the tag type's mangled name rather than
      * `typeid(Tag)` directly: a type's `type_info` is emitted per binary under

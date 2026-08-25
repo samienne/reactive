@@ -7,7 +7,8 @@
 
 namespace bqui::widget
 {
-    /** @brief The four edge variables bounding one widget's box in the shared
+    /**
+     * @brief The four edge variables bounding one widget's box in the shared
      * constraint system.
      *
      * A widget holds its BoxVariables for its whole lifetime, so the arrange

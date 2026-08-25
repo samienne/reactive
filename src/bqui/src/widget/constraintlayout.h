@@ -23,7 +23,8 @@
 
 namespace bqui::widget
 {
-    /** @brief One subtree's contribution to a solve: the constraints to apply
+    /**
+     * @brief One subtree's contribution to a solve: the constraints to apply
      * and the variables whose solved values must be read back.
      *
      * The solver exposes no variable iteration, so the variables to read travel
@@ -68,7 +69,8 @@ namespace bqui::widget
             BoxVariables const& box,
             float left, float top, float right, float bottom);
 
-    /** @brief Tiles @p children edge-to-edge inside @p container along @p axis.
+    /**
+     * @brief Tiles @p children edge-to-edge inside @p container along @p axis.
      *
      * Consecutive children meet, the first touches the container's leading end,
      * and the trailing end is pulled to the container's end only weakly, so a
@@ -87,7 +89,8 @@ namespace bqui::widget
             BoxVariables const& container,
             std::vector<BoxVariables> const& children, Axis axis);
 
-    /** @brief Sizes and positions one content edge-pair within a slot edge-pair
+    /**
+     * @brief Sizes and positions one content edge-pair within a slot edge-pair
      * on a single axis, reproducing gravity placement inside the solve.
      *
      * The content fills the slot — a weak pull equalising the two extents — but
@@ -110,7 +113,8 @@ namespace bqui::widget
             arrange::Variable const& slotTrail,
             float gravity, float maxExtent);
 
-    /** @brief Lines each child edge named by a guide alignment up on a shared
+    /**
+     * @brief Lines each child edge named by a guide alignment up on a shared
      * per-guide line, pinning any guide an ancestor firewall already resolved.
      *
      * @p alignments is parallel to @p children: entry @e i lists the guides the
@@ -136,14 +140,18 @@ namespace bqui::widget
             std::vector<std::vector<GuideAlignment>> const& alignments,
             ResolvedGuideMap const& resolved);
 
-    /** @brief guideConstraints() with no inherited resolutions, returning just
-     * the constraints. The single-firewall form. */
+    /**
+     * @brief guideConstraints() with no inherited resolutions, returning just
+     * the constraints. The single-firewall form.
+     */
     BQUI_EXPORT std::vector<arrange::Constraint> guideConstraints(
             std::vector<BoxVariables> const& children,
             std::vector<std::vector<GuideAlignment>> const& alignments);
 
-    /** @brief One cell of a uniform grid: its lower-left corner (@p x, @p y) in
-     * grid coordinates and its span (@p w columns by @p h rows). */
+    /**
+     * @brief One cell of a uniform grid: its lower-left corner (@p x, @p y) in
+     * grid coordinates and its span (@p w columns by @p h rows).
+     */
     struct GridCell
     {
         unsigned int x;
@@ -152,7 +160,8 @@ namespace bqui::widget
         unsigned int h;
     };
 
-    /** @brief The lines of a uniform grid, one variable per grid line on each
+    /**
+     * @brief The lines of a uniform grid, one variable per grid line on each
      * axis.
      *
      * @c xs holds the @e columns + 1 vertical lines left to right; @c ys the
@@ -167,7 +176,8 @@ namespace bqui::widget
         std::vector<arrange::Variable> ys;
     };
 
-    /** @brief Divides @p container into @p columns equal-width columns and
+    /**
+     * @brief Divides @p container into @p columns equal-width columns and
      * @p rows equal-height rows, appending the line constraints to @p out and
      * returning the lines.
      *

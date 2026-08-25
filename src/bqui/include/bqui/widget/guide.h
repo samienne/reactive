@@ -10,7 +10,8 @@ namespace bqui::widget
 {
     struct GuideAccess;
 
-    /** @brief A shared vertical guide line the user aligns widgets to on the X
+    /**
+     * @brief A shared vertical guide line the user aligns widgets to on the X
      * axis.
      *
      * An XGuide is an opaque token minted when the widgets are defined, so its
@@ -46,7 +47,8 @@ namespace bqui::widget
         avg::UniqueId id_;
     };
 
-    /** @brief A shared horizontal guide line the user aligns widgets to on the Y
+    /**
+     * @brief A shared horizontal guide line the user aligns widgets to on the Y
      * axis.
      *
      * The Y counterpart of XGuide: align widgets' top, bottom or
@@ -78,8 +80,10 @@ namespace bqui::widget
         avg::UniqueId id_;
     };
 
-    /** @brief Which edge of a widget's box a guide alignment pins to the guide
-     * line. */
+    /**
+     * @brief Which edge of a widget's box a guide alignment pins to the guide
+     * line.
+     */
     enum class GuideEdge
     {
         left,
@@ -90,7 +94,8 @@ namespace bqui::widget
         centerY
     };
 
-    /** @brief One widget's request to line one of its edges up on a guide.
+    /**
+     * @brief One widget's request to line one of its edges up on a guide.
      *
      * A widget exposes its alignments for its container to read, parallel to its
      * box variables. @c guide is the guide's stable identity (an XGuide's or a

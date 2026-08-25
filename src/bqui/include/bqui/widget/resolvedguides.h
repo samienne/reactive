@@ -14,7 +14,8 @@
 
 namespace bqui::widget
 {
-    /** @brief A firewall's inherited guide resolutions: each resolved guide's
+    /**
+     * @brief A firewall's inherited guide resolutions: each resolved guide's
      * solved position keyed by the guide's stable identity.
      *
      * std::map orders by avg::UniqueId, which the guide token already compares,
@@ -23,7 +24,8 @@ namespace bqui::widget
      */
     using ResolvedGuideMap = std::map<avg::UniqueId, float>;
 
-    /** @brief The down-channel entry a layout firewall reads to learn which
+    /**
+     * @brief The down-channel entry a layout firewall reads to learn which
      * guides an ancestor has already resolved.
      *
      * This is the constant half of the firewall interface: a guide present in
@@ -47,7 +49,8 @@ namespace bqui::widget
         }
     };
 
-    /** @brief The BuildParams a root layout firewall starts from: an empty
+    /**
+     * @brief The BuildParams a root layout firewall starts from: an empty
      * resolved-guide map.
      *
      * The root is a LayoutFirewall like any other, distinguished only by being
