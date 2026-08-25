@@ -59,8 +59,10 @@ namespace bqui::remote
         /** @brief The current resolved (window-space) introspection. */
         virtual widget::Introspection introspect() const = 0;
 
-        /** @brief The render-tree snapshot of the current frame, in the same
-         * window-space box the window presents. */
+        /**
+         * @brief The render-tree snapshot of the current frame, in the same
+         * window-space box the window presents.
+         */
         virtual avg::Snapshot snapshot() const = 0;
     };
 
