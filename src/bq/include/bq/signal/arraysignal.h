@@ -129,7 +129,8 @@ namespace bq::signal
             std::is_convertible_v<U, T>
             && !IsArraySignal<std::decay_t<U>>::value;
 
-        /** @brief Whether forEach() accepts this key function.
+        /**
+         * @brief Whether forEach() accepts this key function.
          *
          * Constrained at the call so that a callable of the wrong shape is
          * reported where it was written rather than as a failure deep inside
@@ -141,17 +142,23 @@ namespace bq::signal
         constexpr bool isForEachKeyFunc =
             std::is_invocable_v<TKeyFunc const&, T const&>;
 
-        /** @brief Whether `TDelegate` is forEach()'s keyed delegate form. */
+        /**
+         * @brief Whether `TDelegate` is forEach()'s keyed delegate form.
+         */
         template <typename TDelegate, typename TKey, typename T>
         constexpr bool isKeyedForEachDelegate =
             std::is_invocable_v<TDelegate const&, TKey, AnySignal<T>>;
 
-        /** @brief Whether `TDelegate` is forEach()'s plain delegate form. */
+        /**
+         * @brief Whether `TDelegate` is forEach()'s plain delegate form.
+         */
         template <typename TDelegate, typename T>
         constexpr bool isPlainForEachDelegate =
             std::is_invocable_v<TDelegate const&, AnySignal<T>>;
 
-        /** @brief Invokes a forEach() delegate in whichever form it takes. */
+        /**
+         * @brief Invokes a forEach() delegate in whichever form it takes.
+         */
         template <typename TDelegate, typename TKey, typename T>
         auto invokeForEachDelegate(TDelegate const& delegate, TKey key,
                 AnySignal<T> value)
@@ -162,7 +169,8 @@ namespace bq::signal
                 return delegate(std::move(value));
         }
 
-        /** @brief What a forEach() delegate builds, in whichever form it
+        /**
+         * @brief What a forEach() delegate builds, in whichever form it
          * takes.
          *
          * Only well formed for a delegate that is one of the two, which is
