@@ -125,7 +125,9 @@ AnyWidget drawProbe(bq::signal::AnySignal<size_t> index)
         ;
 }
 
-/** @overload */
+/**
+ * @overload
+ */
 AnyWidget drawProbe(size_t index)
 {
     return drawProbe(bq::signal::constant(index));
