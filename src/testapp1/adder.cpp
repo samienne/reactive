@@ -73,7 +73,9 @@ namespace
 
     using Items = std::vector<std::pair<size_t, std::string>>;
 
-    /** @brief The collection's current contents, as a signal. */
+    /**
+     * @brief The collection's current contents, as a signal.
+     */
     bq::signal::AnySignal<Items> collectionItems(
             Collection<std::string>& collection)
     {

@@ -8,7 +8,8 @@
 
 namespace bqui::widget
 {
-    /** @brief Places its children in a column, top to bottom.
+    /**
+     * @brief Places its children in a column, top to bottom.
      *
      * A braced list of widgets is a fixed column; an array built by forEach()
      * is one whose membership changes, and neither is a special case of the

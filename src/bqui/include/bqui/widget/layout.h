@@ -34,7 +34,8 @@ namespace bqui::widget
             std::is_copy_constructible<T>
         > {};
 
-    /** @brief Places a list of children, whose membership may change.
+    /**
+     * @brief Places a list of children, whose membership may change.
      *
      * Children enter as an array. Every child is built once per identity, and
      * an insertion or a removal leaves its siblings — and whatever they have
@@ -48,7 +49,9 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
             ObbMap obbMap, bq::signal::ArraySignal<AnyWidget> widgets);
 
-    /** @overload */
+    /**
+     * @overload
+     */
     BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
             ObbMap obbMap, std::vector<AnyWidget> widgets);
 }
