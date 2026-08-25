@@ -17,7 +17,8 @@
 
 namespace bqui::widget
 {
-    /** @brief The four edge variables bounding one widget's box in the shared
+    /**
+     * @brief The four edge variables bounding one widget's box in the shared
      * constraint system.
      *
      * A widget holds its BoxVariables for its whole lifetime, so the arrange
@@ -35,7 +36,8 @@ namespace bqui::widget
         BQUI_EXPORT arrange::Expression height() const;
     };
 
-    /** @brief One subtree's contribution to a solve: the constraints to apply
+    /**
+     * @brief One subtree's contribution to a solve: the constraints to apply
      * and the variables whose solved values must be read back.
      *
      * The solver exposes no variable iteration, so the variables to read travel
@@ -47,11 +49,14 @@ namespace bqui::widget
         std::vector<arrange::Variable> variables;
     };
 
-    /** @brief A solved layout: each read-back variable's value keyed by its
-     * arrange id. */
+    /**
+     * @brief A solved layout: each read-back variable's value keyed by its
+     * arrange id.
+     */
     using LayoutSolution = std::unordered_map<arrange::Id, double>;
 
-    /** @brief Threads one arrange::Solver through the signal graph as a fold,
+    /**
+     * @brief Threads one arrange::Solver through the signal graph as a fold,
      * re-solving whenever @p spec changes, and yields the solved values.
      *
      * The solver is fold state — moved from update to update, never copied — and
@@ -63,12 +68,16 @@ namespace bqui::widget
     BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> solveLayout(
             bq::signal::AnySignal<LayoutSpec> spec);
 
-    /** @brief Reads a box's solved rectangle out of a solution as an avg::Obb.
-     * Variables absent from the solution read as zero. */
+    /**
+     * @brief Reads a box's solved rectangle out of a solution as an avg::Obb.
+     * Variables absent from the solution read as zero.
+     */
     BQUI_EXPORT avg::Obb readObb(LayoutSolution const& solution,
             BoxVariables const& box);
 
-    /** @brief Pins a box to a fixed window-space rectangle (required). */
+    /**
+     * @brief Pins a box to a fixed window-space rectangle (required).
+     */
     BQUI_EXPORT std::vector<arrange::Constraint> anchorConstraints(
             BoxVariables const& box,
             float left, float top, float right, float bottom);
@@ -79,7 +88,8 @@ namespace bqui::widget
         vertical
     };
 
-    /** @brief Stacks @p children edge-to-edge inside @p container along @p axis.
+    /**
+     * @brief Stacks @p children edge-to-edge inside @p container along @p axis.
      *
      * Consecutive children meet, the first and last touch the container's ends,
      * and the cross axis spans the container. The extent along @p axis is left
@@ -89,8 +99,10 @@ namespace bqui::widget
             BoxVariables const& container,
             std::vector<BoxVariables> const& children, Axis axis);
 
-    /** @brief Overlays every child on @p container, giving each the container's
-     * box. */
+    /**
+     * @brief Overlays every child on @p container, giving each the container's
+     * box.
+     */
     BQUI_EXPORT std::vector<arrange::Constraint> stackConstraints(
             BoxVariables const& container,
             std::vector<BoxVariables> const& children);
