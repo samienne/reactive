@@ -175,6 +175,24 @@ shorter run loop whose glue lifecycle reads straight down the page. `ArraySignal
 and `forEach` stay in `bq` — the layout engine is their real consumer; `App`
 simply was not one.
 
+## A render tree snapshot is pure data in avg; JSON lives in bqui
+
+`avg::RenderTree::snapshot` builds a plain struct tree (`avg::Snapshot`), and
+that is all `avg` does with it — it carries no serialisation. Turning a snapshot
+into a JSON document is `bqui`'s job: its remote layer already owns the
+`nlohmann_json` dependency and encodes the snapshot there
+(`bqui/src/remote/introspectionjson.cpp`), beside the introspection it serves
+over the same protocol.
+
+**Why:** `avg` is beneath `bqui` in the dependency order, and a JSON encoding is
+a wire concern of the remote protocol, not of the graphics core. Keeping the
+struct tree free of any encoding lets the serialisation — and its schema
+version — sit with the protocol that defines it, and spares `avg` a JSON
+dependency entirely. The alternative considered was a small hand-written writer
+in `avg` itself, so no library need be vendored; it was rejected because it
+duplicated the escaping and number rules `bqui` already gets right through
+`nlohmann`, and split snapshot serialisation across two libraries.
+
 ## `App::run()` with no arguments stops at zero windows, not at the first close
 
 `run()` used to stop when *any* window closed; it now runs while a window

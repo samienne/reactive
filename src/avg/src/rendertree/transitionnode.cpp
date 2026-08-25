@@ -173,6 +173,22 @@ std::pair<Drawing, bool> TransitionNode::draw(DrawContext const& context,
             );
 }
 
+SnapshotNode TransitionNode::snapshot(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time
+        ) const
+{
+    auto result = makeSnapshotNode("TransitionNode", *this, parentObb, time);
+
+    result.leaving = !isActive_;
+
+    if (activeNode_)
+        result.children.push_back(activeNode_->snapshot(context, result.obb,
+                    time));
+
+    return result;
+}
+
 std::type_index TransitionNode::getType() const
 {
     return typeid(TransitionNode);

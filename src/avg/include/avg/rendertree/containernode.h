@@ -58,6 +58,10 @@ namespace avg
                 avg::Obb const& parentObb,
                 std::chrono::milliseconds time) const override;
 
+        SnapshotNode snapshot(DrawContext const& context,
+                avg::Obb const& parentObb,
+                std::chrono::milliseconds time) const override;
+
         std::type_index getType() const override;
         std::shared_ptr<RenderTreeNode> clone() const override;
 

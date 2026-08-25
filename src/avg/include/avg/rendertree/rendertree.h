@@ -1,5 +1,7 @@
 #pragma once
 
+#include "snapshot.h"
+
 #include "avg/animated.h"
 #include "avg/drawing.h"
 #include "avg/transform.h"
@@ -34,6 +36,16 @@ namespace avg
                 ) &&;
 
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
+                avg::Obb const& obb,
+                std::chrono::milliseconds time) const;
+
+        /**
+         * @brief Describes what the tree draws into @p obb at @p time.
+         *
+         * May be taken from a thread other than the one that renders, provided
+         * @p drawContext carries memory no other thread is using.
+         */
+        Snapshot snapshot(DrawContext const& drawContext,
                 avg::Obb const& obb,
                 std::chrono::milliseconds time) const;
 

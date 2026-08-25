@@ -169,6 +169,20 @@ std::pair<Drawing, bool> IdNode::draw(DrawContext const& context,
     };
 }
 
+SnapshotNode IdNode::snapshot(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time
+        ) const
+{
+    auto result = makeSnapshotNode("IdNode", *this, parentObb, time);
+
+    if (childNode_)
+        result.children.push_back(childNode_->snapshot(context, result.obb,
+                    time));
+
+    return result;
+}
+
 std::type_index IdNode::getType() const
 {
     return typeid(IdNode);

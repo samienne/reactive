@@ -34,6 +34,14 @@ bounding boxes. Producing a frame splices a new tree against the old one (so
 changes can animate), and drawing it is a pure function of a timestamp. This is
 what lets rendering and state-updates run independently.
 
+A tree can also describe itself rather than draw itself. A **snapshot** is a
+machine-readable account of one tree at one instant — the node kinds, the
+identities they carry, their boxes resolved into the space the snapshot was
+taken in, and the text the leaves draw. It is a plain data structure; turning it
+into a JSON document for a reader outside the process is `bqui`'s job, not
+`avg`'s. It is taken from the same immutable tree a frame is drawn from, so it
+can never describe a half-updated screen.
+
 ## Layout
 
 - `path.h`, `pathbuilder.h`, `shape.h` — geometry.

@@ -242,6 +242,26 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
             );
 }
 
+SnapshotNode ContainerNode::snapshot(DrawContext const& context,
+        avg::Obb const& parentObb,
+        std::chrono::milliseconds time) const
+{
+    auto result = makeSnapshotNode("ContainerNode", *this, parentObb, time);
+
+    for (auto const& child : children_)
+    {
+        if (!child.node)
+            continue;
+
+        auto childSnapshot = child.node->snapshot(context, result.obb, time);
+        childSnapshot.leaving = childSnapshot.leaving || !child.active;
+
+        result.children.push_back(std::move(childSnapshot));
+    }
+
+    return result;
+}
+
 std::type_index ContainerNode::getType() const
 {
     return typeid(ContainerNode);
