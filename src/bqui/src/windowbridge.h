@@ -100,6 +100,7 @@ public:
             uint32_t modifiers, std::string text) override;
     void injectText(std::string text) override;
     widget::Introspection introspect() const override;
+    avg::Snapshot snapshot() const override;
 
 private:
     pmr::unsynchronized_pool_resource memoryPool_;

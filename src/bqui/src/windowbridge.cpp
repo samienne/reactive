@@ -434,4 +434,14 @@ widget::Introspection WindowBridge::introspect() const
     return getResolvedIntrospection();
 }
 
+avg::Snapshot WindowBridge::snapshot() const
+{
+    // Matches onFrame's draw obb and time so a remote reader observes exactly
+    // what the window presents.
+    return renderTree_.snapshot(
+            avg::DrawContext(pmr::new_delete_resource()),
+            avg::Obb(aseWindow.getSize().cast<float>()),
+            std::chrono::duration_cast<std::chrono::milliseconds>(timer_));
+}
+
 } // namespace bqui
