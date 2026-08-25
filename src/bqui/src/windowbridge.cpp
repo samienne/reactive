@@ -437,8 +437,7 @@ widget::Introspection WindowBridge::introspect() const
 avg::Snapshot WindowBridge::snapshot() const
 {
     // Matches onFrame's draw obb and time so a remote reader observes exactly
-    // what the window presents. Its own memory context, so no rendering back
-    // end is required.
+    // what the window presents.
     return renderTree_.snapshot(
             avg::DrawContext(pmr::new_delete_resource()),
             avg::Obb(aseWindow.getSize().cast<float>()),

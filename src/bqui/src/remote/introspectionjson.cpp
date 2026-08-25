@@ -16,8 +16,8 @@ namespace bqui::remote
 namespace
 {
 
-// A non-finite double has no JSON literal; keep the output valid by folding it
-// to 0 rather than emitting a document nlohmann would refuse to serialise.
+// A non-finite double has no JSON literal; fold it to 0 to keep the output
+// valid, rather than the null nlohmann emits for it by default.
 double finiteOrZero(double value)
 {
     return std::isfinite(value) ? value : 0.0;

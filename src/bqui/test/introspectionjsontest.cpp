@@ -211,16 +211,28 @@ TEST(snapshotJson, writesBoxesResolvedRatherThanAuthored)
     root.type = "ContainerNode";
     // The authored size is 100x50 under a scale of two.
     root.obb = avg::Obb(avg::Vector2f(100.0f, 50.0f), avg::scale(2.0f));
+    // A text run authored 20x10 under a scale of three.
+    root.text.push_back(avg::SnapshotText{ "T",
+            avg::Obb(avg::Vector2f(20.0f, 10.0f), avg::scale(3.0f)) });
 
     avg::Snapshot snapshot;
-    snapshot.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f));
+    // The envelope itself is authored 300x50 under a scale of two.
+    snapshot.obb = avg::Obb(avg::Vector2f(300.0f, 50.0f), avg::scale(2.0f));
     snapshot.root = std::move(root);
 
     auto j = remote::toJson(snapshot);
-    auto const& size = j.at("root").at("obb").at("size");
 
-    EXPECT_DOUBLE_EQ(200.0, size.at("w").get<double>());
-    EXPECT_DOUBLE_EQ(100.0, size.at("h").get<double>());
+    auto const& nodeSize = j.at("root").at("obb").at("size");
+    EXPECT_DOUBLE_EQ(200.0, nodeSize.at("w").get<double>());
+    EXPECT_DOUBLE_EQ(100.0, nodeSize.at("h").get<double>());
+
+    auto const& textSize = j.at("root").at("text").at(0).at("obb").at("size");
+    EXPECT_DOUBLE_EQ(60.0, textSize.at("w").get<double>());
+    EXPECT_DOUBLE_EQ(30.0, textSize.at("h").get<double>());
+
+    auto const& envelopeSize = j.at("obb").at("size");
+    EXPECT_DOUBLE_EQ(600.0, envelopeSize.at("w").get<double>());
+    EXPECT_DOUBLE_EQ(100.0, envelopeSize.at("h").get<double>());
 }
 
 TEST(snapshotJson, preservesTextAndFoldsNonFiniteToZero)
