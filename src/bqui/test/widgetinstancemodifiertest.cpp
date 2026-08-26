@@ -5,10 +5,17 @@
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/elementmodifier.h>
+#include <bqui/modifier/setid.h>
+#include <bqui/modifier/transform.h>
 
 #include <bqui/provider/provideparam.h>
 
+#include <bqui/widget/instance.h>
 #include <bqui/widget/widget.h>
+
+#include <avg/obb.h>
+#include <avg/rendertree.h>
+#include <avg/transform.h>
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -236,4 +243,40 @@ TEST(Widget, elementModifierParams)
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);
     EXPECT_EQ("default value", tag3);
+}
+
+TEST(Widget, setIdOnAWidgetThatDrawsNothing)
+{
+    // A layout names every child so that the render tree can pair children up
+    // across an update, and plenty of children (a filler, a spacer, an empty
+    // widget) draw nothing at all. An avg::IdNode has to have a child to
+    // draw, so naming an empty render tree has to leave it empty rather than
+    // wrap the nothing that is there.
+    auto element = (makeWidget() | setId(signal::constant(avg::UniqueId())))
+        (BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+
+    auto context = signal::makeSignalContext(std::move(element).getInstance());
+
+    EXPECT_FALSE(context.evaluate<0>().get<0>().getRenderTree().getRoot());
+}
+
+TEST(Widget, setIdDoesNotMoveWhatItNames)
+{
+    // An avg::IdNode sits between its parent and the node it wraps, and its
+    // own obb is applied on the way down. The node it wraps already carries
+    // wherever the instance was placed, so the IdNode has to contribute no
+    // transform of its own; otherwise the placement lands twice and the child
+    // is drawn at double the offset it was laid out at.
+    auto element = (makeWidget()
+            | frame()
+            | modifier::transform(signal::constant(avg::translate(10.0f, 20.0f)))
+            | setId(signal::constant(avg::UniqueId()))
+            )(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+
+    auto context = signal::makeSignalContext(std::move(element).getInstance());
+
+    auto root = context.evaluate<0>().get<0>().getRenderTree().getRoot();
+
+    ASSERT_TRUE(root);
+    EXPECT_EQ(avg::Transform(), root->getFinalObb().getTransform());
 }
