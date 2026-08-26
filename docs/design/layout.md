@@ -1,9 +1,15 @@
 # Layout model (design proposal)
 
-Status: design, not yet implemented. Target model for the cassowary layout
-work; supersedes the "one-window global solve vs local" framing. Dated
-2026-08-12. This is a forward plan, not a description of the stable model, so it
-carries no "verified against" stamp yet.
+Status: the add-only **model** below is implemented in #131 (add-only
+vocabulary, `Band`/`AxisHint`, `XGuide`/`YGuide` guides, the `ResolvedGuides`
+firewall down-channel). What is **not** yet as designed is the **solve
+granularity**: the shipped wiring makes every container its own firewall+solve
+(fine-grained), whereas this model wants firewalls introduced *sparingly*, with
+one solve spanning a whole region so constraints and guides couple across
+container levels. The rework to that region-solve is the plan in the
+[Rework](#rework-region-solve-2026-08-26) section at the end of this file; the
+model above is the target and stands. Dated 2026-08-12 (model), 2026-08-26
+(rework). No "verified against" stamp yet.
 
 ## Core principle
 
@@ -197,3 +203,108 @@ Suggested milestones (each verifiable on its own):
    `ResolvedGuides` down-channel, root-as-firewall, and cross-firewall constant
    pinning. Deferred: auto-export of a container's own solved lines and the
    up-exposure channel (see the Firewall section's implementation status).
+
+## Rework: region-solve (2026-08-26)
+
+The shipped wiring made every container its own `makeWidgetWithSize` firewall
+with its own solve; nesting is decoupled (band-up aggregation, guide-down
+constants). That fine-grained approach was exploratory. This rework replaces the
+**wiring** with one solve per firewall **region**, so containers within a region
+emit constraints into a shared tableau and constraints/guides couple across
+container levels - the model above, realised. Firewalls become **sparse** (root,
+`makeWidgetWithSize`/size-dependent construction, scroll views, deliberate
+scopes), not per-container.
+
+**Keep** (do not rewrite): the #130 core (`arrange`, `BoxVariables`,
+`LayoutSpec`/`LayoutSolution`, `solveLayout`, `readObb`, the constraint
+generators) and #131's model layer (`sizevocabulary`, `Band`/`AxisHint`,
+`XGuide`/`YGuide`). They already emit *relations*; they just target a shared
+solve now. **Rewrite**: `solverLayout` (the per-container firewall+solve) and the
+`ResolvedGuides` down-channel (subsumed within a region; it survives only for
+crossing a firewall boundary).
+
+### Architecture
+
+- **Region owner:** a `layoutRoot` at each firewall boundary (the window root is
+  one) owns the single `withPrevious` solve fold for its region.
+- **Up-channel (build):** `Builder::getSizeHint()` becomes `getConstraints() ->
+  AnySignal<LayoutSpec>`. Leaves emit band constraints on their own box;
+  containers emit parent<->child *relations* + fold children's contributions up;
+  a firewall boundary emits only a **band** and stops (interior opaque).
+- **Down-channel (placement):** the region's one `LayoutSolution` rides down via
+  a `BuildParams` tag (`LayoutSolutionTag`); each widget `readObb`s its own box.
+  The build-order forward reference (solution consumed during build, produced by
+  it) is broken with `makeInput` + a deferred `handle.set(solution)` - the trick
+  the window already uses for its size (`input.h`).
+- **Coordinate space:** solve in region-absolute space; convert to
+  parent-relative at placement (container does it, like `toObbs`).
+- **Firewall boundary (`makeWidgetWithSize`):** reports an honest min/ideal/max
+  **band** up, receives an assigned size, runs its own interior region solve.
+  Cross-region opacity is structural - a per-region id registry; a ref to an id
+  not in the region is a build error (fail loud).
+
+### The solve is change-gated, not per-frame
+
+The solve is a `withPrevious` fold in the signal graph, so it re-runs only when
+the constraints signal actually emits. `.check()` the constraints signal (so an
+identical spec does not re-fire) and the on-demand frame model does the rest: the
+solve fires on constraint *changes*, never per frame. So a full `reset()`+solve
+per change is acceptable, and **incremental `setConstraints` is a later
+optimisation** (for a large, partially-changing constraint set), not a
+prerequisite. The `.check()` on the constraints is the actual gate and must be
+kept. (If incremental is added later, mind `arrange`'s id-only diff: a constraint
+that keeps its id but changes coefficients is silently dropped, so a changed
+constraint must re-mint under a new id.)
+
+### Staged migration (each independently green; reversible until B)
+
+- **Stage A - plumbing, no-op (flagged).** Stand up the region owner +
+  `LayoutSolutionTag` down-channel + `getConstraints` up-channel, but containers
+  still emit their *current* fragments - now anchored into one shared region
+  solve instead of per-container solves. Keep the old per-container path behind a
+  flag as an **oracle**. Success = identical geometry through the new substrate.
+- **Stage B - the core switch (irreversible).** Containers emit *relations only*;
+  leaves emit their bands; delete the per-container `makeWidgetWithSize`+solve and
+  the SizeHint *aggregation* (SizeHint survives only as the firewall-boundary
+  band). Cross-container-level constraints/guides within a region now work.
+- **Stage C - honest, sparse firewalls.** `makeWidgetWithSize` becomes the real
+  firewall (band up / size down / interior solve), used sparingly; cross-region
+  opacity enforced via the per-region id registry.
+- **Stage D - the payoff.** The guide **up-exposure** channel (deep-defined guide
+  exposed shallower, solved on the outer firewall) + the cross-container reference
+  API (`layoutRef()`/`alignLeft(name)`/`matchWidth`/`baseline`, thin over the
+  shared tableau, default *strong* so a conflict yields rather than freezes) +
+  text reflow (two-phase, in-fold via `suggestValue`).
+
+### Cross-cutting
+
+- **Region-wide infeasibility:** one bad constraint now freezes the *whole
+  region* (vs a per-container solve catching its own). Mitigate: catch-and-hold at
+  the region root (degrade to stale geometry, never collapsed), `setConstraints`
+  rollback-on-throw, non-required author strengths by default.
+- **Reorder fragility:** the "unbounded objective on pure reorder" behaviour -
+  harden `arrange`'s reorder path; the reset()+full-solve oracle catches
+  regressions.
+- **Determinacy invariant** stays: every edge reached by at least one weak
+  constraint; a container backstops any sizeless child.
+
+### Verification
+
+Leverage the headless/remote system throughout: drive `inspectorapp` (or a
+solver-driven demo) over the inspector protocol and compare `window.renderTree`
+geometry from the old per-container path against the new region-solve path (they
+must match in Stage A), and assert cross-container guide/alignment behaviour in
+later stages the same way. This is the fast introspection loop the model was
+meant to be built against.
+
+### First step (Stage A)
+
+1. Add `LayoutSolutionTag` (a `BuildParams` entry) + a `layoutRoot` owning the
+   region `withPrevious` fold, mounted at the window and seeded like
+   `rootFirewallParams()`.
+2. Route existing container specs into that one anchored region solve, behind a
+   `regionSolve` flag; keep the per-container path as the oracle. Ensure the
+   constraints signal is `.check()`ed.
+3. Verify: `layouttest`/`guidelayouttest` reproduce identical geometry through
+   the region solve; add a deep-nesting scale case; confirm the same geometry
+   over `window.renderTree` via the remote.
