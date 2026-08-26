@@ -8,6 +8,7 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 #include <bqui/modifier/setsize.h>
+#include <bqui/modifier/setid.h>
 #include <bqui/modifier/onclick.h>
 
 #include <bqui/shape/shape.h>
@@ -16,6 +17,7 @@
 
 #include <avg/color.h>
 #include <avg/transform.h>
+#include <avg/rendertree.h>
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -288,6 +290,35 @@ TEST(introspection, resolveComposesDeepNestingAbsolutely)
     auto center = cur->obb.getCenter();
     EXPECT_FLOAT_EQ(expected, center[0]);
     EXPECT_FLOAT_EQ(expected, center[1]);
+}
+
+TEST(introspection, elementIdJoinsRenderAndIntrospection)
+{
+    // setElementId must stamp the same avg::UniqueId onto both sinks: the
+    // render IdNode and the introspection node. That shared value is the join
+    // key an out-of-process client uses to correlate the two trees.
+    avg::UniqueId const id;
+
+    auto element = (filledRect() | setId(bq::signal::constant(id)))
+        (BuildParams{})(bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
+
+    auto introspection =
+        bq::signal::makeSignalContext(element.getIntrospection())
+            .evaluate<0>().get<0>();
+
+    auto renderTree =
+        bq::signal::makeSignalContext(element.getRenderTree())
+            .evaluate<0>().get<0>();
+
+    auto const& root = renderTree.getRoot();
+    ASSERT_NE(nullptr, root);
+    ASSERT_TRUE(root->getId().has_value());
+    ASSERT_TRUE(introspection.id.has_value());
+
+    // Both sinks carry the exact id, so the two trees join on it.
+    EXPECT_EQ(id, *root->getId());
+    EXPECT_EQ(id, *introspection.id);
+    EXPECT_EQ(*root->getId(), *introspection.id);
 }
 
 TEST(introspection, resolveEqualsEagerComposition)
