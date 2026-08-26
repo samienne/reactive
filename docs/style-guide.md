@@ -1,6 +1,6 @@
 # Style guide
 
-*Last verified against `8677be3` (2026-07-21).*
+*Last verified against `b0860fa` (2026-08-25).*
 
 Prescriptive rules for how code and docs are written here — the rubric a review
 (human or agent) checks a change against. It grows as we settle on how things
@@ -66,6 +66,18 @@ General rules:
 
 - **API reference is Doxygen in the public headers.** Never transcribe
   signatures into Markdown.
+- **Doxygen block layout is fixed.** Open with `/**` alone on its own line, put
+  every content line under an aligned ` * `, and close with `*/` alone on its
+  own line — even for a one-line brief:
+
+  ```cpp
+  /**
+   * @brief Short summary.
+   */
+  ```
+
+  Never carry content on the opening line (`/** @brief ...`) or close inline
+  (`... */`); the brief starts on the line after `/**`.
 - **Doxygen documents usage, not design.** A header's docs say what a type or
   function is *for* and how to call it — the interface contract a caller needs.
   They do not explain how it is implemented or why it was designed that way; a

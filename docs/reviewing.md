@@ -24,6 +24,11 @@ and `conventions.md`, which a reviewer also reads. Keep this curated, not a log.
 - **Weight comment/Doxygen narration of mechanism or design rationale heavily
   — flag it** (see `style-guide.md` → Comments and the Doxygen bullet under
   Documentation). `[should-fix]`.
+- **Doxygen block layout** — the opening `/**` and the closing `*/` must each
+  sit alone on their own line, with content under aligned ` * ` lines (see
+  `style-guide.md` → the Doxygen block-layout bullet). Flag `/** @brief ...`
+  openers and inline `... */` closers; applies even to one-line briefs. Purely
+  mechanical, so cite the exact line. `[should-fix]`.
 
 ## Known false-positives — do not flag
 
