@@ -129,18 +129,58 @@ namespace bq::signal
             std::is_convertible_v<U, T>
             && !IsArraySignal<std::decay_t<U>>::value;
 
-        /** @brief Whether forEach() accepts this key function and delegate.
+        /**
+         * @brief Whether forEach() accepts this key function.
          *
          * Constrained at the call so that a callable of the wrong shape is
          * reported where it was written rather than as a failure deep inside
-         * the node. Only invocability can be constrained, not the results:
-         * those are what the key and the built value are deduced *from*, so
-         * there is nothing to give is_invocable_r to compare against.
+         * the node. Only invocability can be constrained, not the result: that
+         * is what the key is deduced *from*, so there is nothing to give
+         * is_invocable_r to compare against.
          */
-        template <typename TKeyFunc, typename TDelegate, typename T>
-        constexpr bool isForEachCallable =
-            std::is_invocable_v<TKeyFunc const&, T const&>
-            && std::is_invocable_v<TDelegate const&, AnySignal<T>>;
+        template <typename TKeyFunc, typename T>
+        constexpr bool isForEachKeyFunc =
+            std::is_invocable_v<TKeyFunc const&, T const&>;
+
+        /**
+         * @brief Whether `TDelegate` is forEach()'s keyed delegate form.
+         */
+        template <typename TDelegate, typename TKey, typename T>
+        constexpr bool isKeyedForEachDelegate =
+            std::is_invocable_v<TDelegate const&, TKey, AnySignal<T>>;
+
+        /**
+         * @brief Whether `TDelegate` is forEach()'s plain delegate form.
+         */
+        template <typename TDelegate, typename T>
+        constexpr bool isPlainForEachDelegate =
+            std::is_invocable_v<TDelegate const&, AnySignal<T>>;
+
+        /**
+         * @brief Invokes a forEach() delegate in whichever form it takes.
+         */
+        template <typename TDelegate, typename TKey, typename T>
+        auto invokeForEachDelegate(TDelegate const& delegate, TKey key,
+                AnySignal<T> value)
+        {
+            if constexpr (isKeyedForEachDelegate<TDelegate, TKey, T>)
+                return delegate(std::move(key), std::move(value));
+            else
+                return delegate(std::move(value));
+        }
+
+        /**
+         * @brief What a forEach() delegate builds, in whichever form it
+         * takes.
+         *
+         * Only well formed for a delegate that is one of the two, which is
+         * what forEach() checks before naming it.
+         */
+        template <typename TDelegate, typename TKey, typename T>
+        using ForEachResult = std::decay_t<decltype(invokeForEachDelegate(
+                    std::declval<TDelegate const&>(),
+                    std::declval<TKey>(),
+                    std::declval<AnySignal<T>>()))>;
 
         /** @brief Whether scatter() accepts this delegate. */
         template <typename TFunc, typename T, typename W>
@@ -665,6 +705,16 @@ namespace bq::signal
      * already holds — so nothing the delegate built is destroyed by a value
      * change. That is what preserves the state of what was built.
      *
+     * The delegate takes either form:
+     *
+     * @code
+     * (AnySignal<T>) -> U
+     * (TKey, AnySignal<T>) -> U
+     * @endcode
+     *
+     * The key comes first, and by value rather than as a signal. A delegate
+     * that accepts both forms — a generic lambda does — is given the key.
+     *
      * Eviction is strict. When a key leaves, its identity is dropped and what
      * the delegate built for it is destroyed in that same update; a key that
      * leaves and returns is a new item, exactly as a changed key is. The
@@ -687,7 +737,7 @@ namespace bq::signal
      */
     template <typename TStorage, typename T, typename TKeyFunc,
              typename TDelegate, typename = std::enable_if_t<
-                 detail::isForEachCallable<TKeyFunc, TDelegate, T>
+                 detail::isForEachKeyFunc<TKeyFunc, T>
                  >>
     auto forEach(Signal<TStorage, std::vector<T>> source, TKeyFunc keyFn,
             TDelegate delegate)
@@ -695,30 +745,42 @@ namespace bq::signal
         using Key = std::decay_t<std::invoke_result_t<
             TKeyFunc const&, T const&>>;
 
-        using U = std::decay_t<std::invoke_result_t<
-            TDelegate const&, AnySignal<T>>>;
+        constexpr bool isDelegate =
+            detail::isKeyedForEachDelegate<TDelegate, Key, T>
+            || detail::isPlainForEachDelegate<TDelegate, T>;
 
-        auto shared = AnySignal<std::vector<T>>(source.share());
-        auto keyed = detail::shareKeyed(shared, keyFn);
+        static_assert(isDelegate, "forEach's delegate must be const callable "
+                "as (TKey, AnySignal<T>) or as (AnySignal<T>)");
 
-        auto build = [keyed, delegate=std::move(delegate)](Key const& key,
-                T const&)
-            {
-                return delegate(AnySignal<T>(detail::requirePresent(
-                                detail::pick(keyed, key),
-                                "an element of forEach")));
-            };
+        // Guarded so a non-delegate stops at the assert, not a page of
+        // node-internal errors.
+        if constexpr (isDelegate)
+        {
+            using U = detail::ForEachResult<TDelegate, Key, T>;
 
-        return ArraySignal<U>::fromElements(detail::makeArrayOnce(
-                    std::move(shared),
-                    std::move(keyFn),
-                    std::move(build)));
+            auto shared = AnySignal<std::vector<T>>(source.share());
+            auto keyed = detail::shareKeyed(shared, keyFn);
+
+            auto build = [keyed, delegate=std::move(delegate)](Key const& key,
+                    T const&)
+                {
+                    return detail::invokeForEachDelegate(delegate, key,
+                            AnySignal<T>(detail::requirePresent(
+                                    detail::pick(keyed, key),
+                                    "an element of forEach")));
+                };
+
+            return ArraySignal<U>::fromElements(detail::makeArrayOnce(
+                        std::move(shared),
+                        std::move(keyFn),
+                        std::move(build)));
+        }
     }
 
     /** @overload */
     template <typename T, typename TKeyFunc, typename TDelegate,
              typename = std::enable_if_t<
-                 detail::isForEachCallable<TKeyFunc, TDelegate, T>
+                 detail::isForEachKeyFunc<TKeyFunc, T>
                  >>
     auto forEach(std::vector<T> source, TKeyFunc keyFn, TDelegate delegate)
     {
