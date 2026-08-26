@@ -81,6 +81,7 @@ class AppConnection:
         self._proc = None
         self._server = None
         self._connected: asyncio.Future | None = None
+        self._closing = False
 
     async def start(self) -> None:
         self._connected = asyncio.get_event_loop().create_future()
@@ -120,7 +121,10 @@ class AppConnection:
                 payload = await self._reader.readexactly(length)
                 self._on_message(json.loads(payload.decode("utf-8")))
         except (asyncio.IncompleteReadError, ConnectionError):
-            log("app disconnected")
+            # A read failure during our own teardown is the app exiting on
+            # request, not a fault; only an unexpected drop is worth logging.
+            if not self._closing:
+                log("app disconnected")
             for fut in self._pending.values():
                 if not fut.done():
                     fut.set_exception(ConnectionError("app disconnected"))
@@ -155,6 +159,7 @@ class AppConnection:
         return resp.get("result")
 
     async def close(self) -> None:
+        self._closing = True
         try:
             if self._writer:
                 await self.request("app.shutdown")
