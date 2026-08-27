@@ -133,6 +133,25 @@ std::vector<arrange::Constraint> anchorConstraints(BoxVariables const& box,
     };
 }
 
+arrange::Strength weakestStrength()
+{
+    // One weak lane holds gravity and natural at weight 1; the default rides the
+    // same lane a thousand times lighter, so any of them dominates it and it
+    // never ties one to be averaged, yet it is heavy enough to pin an otherwise
+    // free axis to a definite value.
+    return arrange::Strength::weak(0.001);
+}
+
+arrange::Constraint weakWidthDefault(BoxVariables const& box)
+{
+    return (box.width() == arrange::Expression(100.0)) | weakestStrength();
+}
+
+arrange::Constraint weakHeightDefault(BoxVariables const& box)
+{
+    return (box.height() == arrange::Expression(100.0)) | weakestStrength();
+}
+
 std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
         std::vector<BoxVariables> const& children, Axis axis)
 {
