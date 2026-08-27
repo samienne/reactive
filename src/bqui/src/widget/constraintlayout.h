@@ -43,6 +43,28 @@ namespace bqui::widget
     using LayoutSolution = std::unordered_map<arrange::Id, double>;
 
     /**
+     * @brief The down-channel entry a widget in a firewall region reads to learn
+     * the region's solved geometry.
+     *
+     * A region owner runs one solve spanning every container in the region and
+     * provides the shared solution here, so each participating box reads its own
+     * obb out of the one solution (readObb) instead of running a per-container
+     * solve. This is the region counterpart of ResolvedGuides: the guide map
+     * carries resolved positions down, this carries the whole solved tableau
+     * down. The default is empty, which is what a box outside any region reads
+     * and reads back as a zero obb.
+     */
+    struct LayoutSolutionTag
+    {
+        using type = LayoutSolution;
+
+        static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
+        {
+            return bq::signal::constant(LayoutSolution());
+        }
+    };
+
+    /**
      * @brief Threads one arrange::Solver through the signal graph as a fold,
      * re-solving whenever @p spec changes, and yields the solved values.
      *
@@ -54,6 +76,23 @@ namespace bqui::widget
      */
     BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> solveLayout(
             bq::signal::AnySignal<LayoutSpec> spec);
+
+    /**
+     * @brief The single solve owning a firewall region: concatenates the
+     * region's collected per-container spec fragments into one tableau and
+     * solves them together, yielding the shared solution every participating box
+     * reads its obb from.
+     *
+     * Where solveLayout() folds one container's spec, this is the region owner:
+     * it gathers the fragments a nested set of containers contribute — each
+     * container's own constraints, anchored into the one shared coordinate space
+     * rather than a per-container local one — and runs a single solve across the
+     * whole region, so constraints couple across container levels. The fragment
+     * list is the up-channel a region collects; the returned solution is the
+     * down-channel it provides through LayoutSolutionTag.
+     */
+    BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> layoutRegion(
+            bq::signal::AnySignal<std::vector<LayoutSpec>> fragments);
 
     /**
      * @brief Reads a box's solved rectangle out of a solution as an avg::Obb.

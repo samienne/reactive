@@ -90,6 +90,26 @@ bq::signal::AnySignal<LayoutSolution> solveLayout(
         .share();
 }
 
+bq::signal::AnySignal<LayoutSolution> layoutRegion(
+        bq::signal::AnySignal<std::vector<LayoutSpec>> fragments)
+{
+    auto spec = std::move(fragments).map(
+            [](std::vector<LayoutSpec> const& parts)
+            {
+                LayoutSpec merged;
+                for (auto const& part : parts)
+                {
+                    merged.constraints.insert(merged.constraints.end(),
+                            part.constraints.begin(), part.constraints.end());
+                    merged.variables.insert(merged.variables.end(),
+                            part.variables.begin(), part.variables.end());
+                }
+                return merged;
+            });
+
+    return solveLayout(bq::signal::AnySignal<LayoutSpec>(std::move(spec)));
+}
+
 avg::Obb readObb(LayoutSolution const& solution, BoxVariables const& box)
 {
     float left = valueOf(solution, box.left);
