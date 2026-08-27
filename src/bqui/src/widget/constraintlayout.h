@@ -16,7 +16,10 @@
 #include <arrange/constraint.h>
 #include <arrange/expression.h>
 #include <arrange/id.h>
+#include <arrange/strength.h>
 #include <arrange/variable.h>
+
+#include <btl/function.h>
 
 #include <cstddef>
 #include <map>
@@ -115,6 +118,76 @@ namespace bqui::widget
     };
 
     /**
+     * @brief Whether the region a container builds into is a pure-solver context:
+     * its members emit band-free constraints plus the universal weak defaults
+     * rather than reading a SizeHint band.
+     *
+     * The default is false, so a region is the banded one unless a pure-solver
+     * root seeds this true; the flag rides down alongside the region collector so
+     * a container joining the region picks the matching fragment shape.
+     */
+    struct PureSolverTag
+    {
+        using type = bool;
+
+        static bq::signal::AnySignal<bool> getDefaultValue()
+        {
+            return bq::signal::constant(false);
+        }
+    };
+
+    /**
+     * @brief A box's stable solver identity and the per-axis constraints it
+     * contributes to its context's one solve.
+     *
+     * The inverse of a SizeHint: a SizeHint is a size value aggregated up the
+     * tree, this is a stable identity (the box's edge variables) plus a stream of
+     * constraints fed down into a shared solve. The identity is a plain value and
+     * only the constraints are signals, so a constraint change re-solves without
+     * re-minting the box and the solver's id-keyed diff stays stable.
+     *
+     * The horizontal and vertical constraints are kept apart so the two axes can
+     * become two disjoint solves: pass 1 resolves the x-edges, pass 2 the y-edges
+     * given the resolved width. This E0 form runs one combined solve, so the
+     * width handed to getVerticalConstraints() is ignored, but the signature
+     * carries it so the y-constraints can later depend on the solved width.
+     */
+    class BoxDescriptor
+    {
+    public:
+        using Constraints = bq::signal::AnySignal<std::vector<arrange::Constraint>>;
+
+        BoxDescriptor(BoxVariables box, Constraints horizontal,
+                btl::Function<Constraints(bq::signal::AnySignal<float>)> vertical) :
+            box_(std::move(box)),
+            horizontal_(std::move(horizontal)),
+            vertical_(std::move(vertical))
+        {
+        }
+
+        BoxVariables const& box() const
+        {
+            return box_;
+        }
+
+        Constraints getHorizontalConstraints() const
+        {
+            return horizontal_;
+        }
+
+        Constraints getVerticalConstraints(
+                bq::signal::AnySignal<float> width) const
+        {
+            return vertical_(std::move(width));
+        }
+
+    private:
+        BoxVariables box_;
+        Constraints horizontal_;
+        btl::Function<Constraints(bq::signal::AnySignal<float>)> vertical_;
+    };
+
+    /**
      * @brief Threads one arrange::Solver through the signal graph as a fold,
      * re-solving whenever @p spec changes, and yields the solved values.
      *
@@ -177,6 +250,31 @@ namespace bqui::widget
     BQUI_EXPORT std::vector<arrange::Constraint> boxConstraints(
             BoxVariables const& container,
             std::vector<BoxVariables> const& children, Axis axis);
+
+    /**
+     * @brief The strictly-weakest strength tier, below gravity and natural size,
+     * that the universal per-axis defaults sit at.
+     *
+     * Any real constraint dominates it, so a default only decides an axis nothing
+     * else pinned. It is a distinct, far smaller weight than any other pull so it
+     * never ties one and averages.
+     */
+    BQUI_EXPORT arrange::Strength weakestStrength();
+
+    /**
+     * @brief The universal weak per-axis default @c width==100 on @p box.
+     *
+     * Add-only: minted with the box and never removed, so an x-axis nothing else
+     * constrains still resolves to a definite width rather than leaving a free
+     * degree of freedom the solve is ill-posed on.
+     */
+    BQUI_EXPORT arrange::Constraint weakWidthDefault(BoxVariables const& box);
+
+    /**
+     * @brief The universal weak per-axis default @c height==100 on @p box, the
+     * vertical counterpart of weakWidthDefault().
+     */
+    BQUI_EXPORT arrange::Constraint weakHeightDefault(BoxVariables const& box);
 
     /**
      * @brief Sizes and positions one content edge-pair within a slot edge-pair

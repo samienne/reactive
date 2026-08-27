@@ -62,6 +62,19 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget regionRoot(AnyWidget content);
 
+    /**
+     * @brief regionRoot() for a pure-solver context: the containers inside emit
+     * band-free constraints plus the universal weak defaults into one shared
+     * solve, ignoring their SizeHint bands.
+     *
+     * Seeds PureSolverTag alongside the region channels, so a hbox or vbox that
+     * joins the region contributes a pure fragment (adjacent-edge relations plus
+     * a weak width==100 / height==100 default for every box) rather than a banded
+     * one. A container that finds no region around it runs the shipped
+     * per-container banded path unchanged, so this is a strict opt-in.
+     */
+    BQUI_EXPORT AnyWidget pureSolverRoot(AnyWidget content);
+
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
     /**
