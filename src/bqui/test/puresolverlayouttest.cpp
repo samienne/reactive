@@ -4,7 +4,6 @@
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/setsizehint.h>
-#include <bqui/modifier/sizevocabulary.h>
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/hbox.h>
@@ -365,10 +364,10 @@ TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
     btl::UniqueId const idC = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> items;
-    items.push_back(probe(idA, fixed40, fixed40) | modifier::widthExactly(80.0f));
-    items.push_back(probe(idB, fixed40, fixed40) | modifier::widthExactly(80.0f));
+    items.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    items.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
     items.push_back(probe(idSpacer, fixed40, fixed40) | modifier::fillWidth());
-    items.push_back(probe(idC, fixed40, fixed40) | modifier::widthExactly(80.0f));
+    items.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(80.0f));
 
     Instance instance = realiseConverged(
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(items)))),
@@ -391,7 +390,7 @@ TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
 }
 
 // A form row written in the developer surface: a fixed-width label followed by a
-// field that fills the remaining width. The label's widthExactly (strong) holds at
+// field that fills the remaining width. The label's fixedWidth (strong) holds at
 // 120; the field's fillWidth absorbs the rest, so in a 400-wide row the field is
 // 280 wide and starts where the label ends.
 TEST(PureSolverLayout, formRowFixedLabelAndFillingField)
@@ -402,7 +401,7 @@ TEST(PureSolverLayout, formRowFixedLabelAndFillingField)
     btl::UniqueId const idField = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::widthExactly(120.0f));
+    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::fixedWidth(120.0f));
     row.push_back(probe(idField, fixed40, fixed40) | modifier::fillWidth());
 
     Instance instance = realiseConverged(
@@ -421,8 +420,8 @@ TEST(PureSolverLayout, formRowFixedLabelAndFillingField)
 
 // The strong exact size and the required bounds reach the right axis: a single
 // leaf pins its height to 150 (strong, beating the weak 100 default) and caps
-// its width at 60 (required, holding the default 100 width down). heightExactly
-// feeds the vertical solve, widthAtMost the horizontal one.
+// its width at 60 (required, holding the default 100 width down). fixedHeight
+// feeds the vertical solve, maxWidth the horizontal one.
 TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 {
     avg::Vector2f const window(200.0f, 300.0f);
@@ -431,8 +430,8 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 
     std::vector<ArraySignal<AnyWidget>> children;
     children.push_back(probe(id, fixed40, fixed40)
-            | modifier::heightExactly(150.0f)
-            | modifier::widthAtMost(60.0f));
+            | modifier::fixedHeight(150.0f)
+            | modifier::maxWidth(60.0f));
 
     Instance instance = realiseConverged(
             pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
