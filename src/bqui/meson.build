@@ -13,6 +13,8 @@ libbquisrc = [
   'src/modifier/alignguide.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
+  'src/modifier/constraintsize.cpp',
+  'src/modifier/pureconstraint.cpp',
   'src/modifier/drawkeyboardinputs.cpp',
   'src/modifier/focusgroup.cpp',
   'src/modifier/focuson.cpp',

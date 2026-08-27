@@ -1,12 +1,22 @@
 #include "bqui/modifier/sizevocabulary.h"
 
+#include "pureconstraint.h"
+
 #include "bqui/modifier/mapsizehint.h"
 
 #include "bqui/mapsizehint.h"
 
+#include "bqui/widget/boxvariables.h"
+
 #include <bq/signal/constant.h>
+#include <bq/signal/signal.h>
+
+#include <arrange/constraint.h>
+#include <arrange/expression.h>
+#include <arrange/strength.h>
 
 #include <algorithm>
+#include <vector>
 
 namespace bqui::modifier
 {
@@ -187,11 +197,100 @@ namespace
                 },
                 std::move(weight));
     }
+
+    // The same {min, natural, max} band words, cast as the pure-solver
+    // constraint each names on the strength hierarchy a pure region solves on:
+    // an exact size is a strong equality (above the weak 100 default, below a
+    // required bound), an at-least or at-most a required inequality. A pure
+    // region reads these; the banded path ignores them and reads the band the
+    // sibling mapSizeHint modifier wrote. Together under one modifier the same
+    // vocabulary drives either context.
+
+    std::vector<arrange::Constraint> exactlyConstraint(arrange::Expression extent,
+            float value)
+    {
+        return {
+            (std::move(extent) == arrange::Expression(static_cast<double>(value)))
+            | arrange::Strength::strong()
+        };
+    }
+
+    std::vector<arrange::Constraint> atLeastConstraint(arrange::Expression extent,
+            float value)
+    {
+        return {
+            std::move(extent) >= arrange::Expression(static_cast<double>(value))
+        };
+    }
+
+    std::vector<arrange::Constraint> atMostConstraint(arrange::Expression extent,
+            float value)
+    {
+        return {
+            std::move(extent) <= arrange::Expression(static_cast<double>(value))
+        };
+    }
+
+    // A pure-solver leaf constraint on one axis, built from the box's own extent
+    // on that axis and one of the band-word constraint shapes above.
+    template <typename TConstraint>
+    AnyWidgetModifier pureWidth(bq::signal::AnySignal<float> value,
+            TConstraint constraint)
+    {
+        return detail::pureConstraintModifier(detail::PureAxis::horizontal,
+                std::move(value),
+                [constraint](widget::BoxVariables const& box, float v)
+                {
+                    return constraint(box.width(), v);
+                });
+    }
+
+    template <typename TConstraint>
+    AnyWidgetModifier pureHeight(bq::signal::AnySignal<float> value,
+            TConstraint constraint)
+    {
+        return detail::pureConstraintModifier(detail::PureAxis::vertical,
+                std::move(value),
+                [constraint](widget::BoxVariables const& box, float v)
+                {
+                    return constraint(box.height(), v);
+                });
+    }
+
+    // A band modifier and the pure-solver constraint that names the same intent,
+    // under one modifier: the band drives the shipped per-container path, the
+    // constraint drives a pure region, and each context ignores the other's half.
+    AnyWidgetModifier bandAndPure(AnyWidgetModifier band, AnyWidgetModifier pure)
+    {
+        return detail::composeModifiers(std::move(band), std::move(pure));
+    }
+
+    // The both-axes counterpart: the already-built band modifier joined with a
+    // pure-solver constraint of shape @p constraint on each axis, split off @p
+    // size's two components.
+    template <typename TConstraint>
+    AnyWidgetModifier sizeAndPure(AnyWidgetModifier band,
+            bq::signal::AnySignal<avg::Vector2f> size, TConstraint constraint)
+    {
+        auto shared = std::move(size).share();
+        auto width = shared.clone().map(
+                [](avg::Vector2f s) { return s.x(); });
+        auto height = shared.clone().map(
+                [](avg::Vector2f s) { return s.y(); });
+
+        return bandAndPure(
+                bandAndPure(std::move(band),
+                    pureWidth(std::move(width), constraint)),
+                pureHeight(std::move(height), constraint));
+    }
 } // anonymous namespace
 
 AnyWidgetModifier widthAtLeast(bq::signal::AnySignal<float> width)
 {
-    return widthModifier(std::move(width), bandAtLeast);
+    auto shared = std::move(width).share();
+    return bandAndPure(
+            widthModifier(shared.clone(), bandAtLeast),
+            pureWidth(shared.clone(), atLeastConstraint));
 }
 
 AnyWidgetModifier widthAtLeast(float width)
@@ -201,7 +300,10 @@ AnyWidgetModifier widthAtLeast(float width)
 
 AnyWidgetModifier widthAtMost(bq::signal::AnySignal<float> width)
 {
-    return widthModifier(std::move(width), bandAtMost);
+    auto shared = std::move(width).share();
+    return bandAndPure(
+            widthModifier(shared.clone(), bandAtMost),
+            pureWidth(shared.clone(), atMostConstraint));
 }
 
 AnyWidgetModifier widthAtMost(float width)
@@ -211,7 +313,10 @@ AnyWidgetModifier widthAtMost(float width)
 
 AnyWidgetModifier widthExactly(bq::signal::AnySignal<float> width)
 {
-    return widthModifier(std::move(width), bandExactly);
+    auto shared = std::move(width).share();
+    return bandAndPure(
+            widthModifier(shared.clone(), bandExactly),
+            pureWidth(shared.clone(), exactlyConstraint));
 }
 
 AnyWidgetModifier widthExactly(float width)
@@ -221,7 +326,10 @@ AnyWidgetModifier widthExactly(float width)
 
 AnyWidgetModifier heightAtLeast(bq::signal::AnySignal<float> height)
 {
-    return heightModifier(std::move(height), bandAtLeast);
+    auto shared = std::move(height).share();
+    return bandAndPure(
+            heightModifier(shared.clone(), bandAtLeast),
+            pureHeight(shared.clone(), atLeastConstraint));
 }
 
 AnyWidgetModifier heightAtLeast(float height)
@@ -231,7 +339,10 @@ AnyWidgetModifier heightAtLeast(float height)
 
 AnyWidgetModifier heightAtMost(bq::signal::AnySignal<float> height)
 {
-    return heightModifier(std::move(height), bandAtMost);
+    auto shared = std::move(height).share();
+    return bandAndPure(
+            heightModifier(shared.clone(), bandAtMost),
+            pureHeight(shared.clone(), atMostConstraint));
 }
 
 AnyWidgetModifier heightAtMost(float height)
@@ -241,7 +352,10 @@ AnyWidgetModifier heightAtMost(float height)
 
 AnyWidgetModifier heightExactly(bq::signal::AnySignal<float> height)
 {
-    return heightModifier(std::move(height), bandExactly);
+    auto shared = std::move(height).share();
+    return bandAndPure(
+            heightModifier(shared.clone(), bandExactly),
+            pureHeight(shared.clone(), exactlyConstraint));
 }
 
 AnyWidgetModifier heightExactly(float height)
@@ -251,7 +365,9 @@ AnyWidgetModifier heightExactly(float height)
 
 AnyWidgetModifier sizeAtLeast(bq::signal::AnySignal<avg::Vector2f> size)
 {
-    return sizeModifier(std::move(size), bandAtLeast);
+    auto shared = std::move(size).share();
+    return sizeAndPure(sizeModifier(shared.clone(), bandAtLeast),
+            shared.clone(), atLeastConstraint);
 }
 
 AnyWidgetModifier sizeAtLeast(avg::Vector2f size)
@@ -261,7 +377,9 @@ AnyWidgetModifier sizeAtLeast(avg::Vector2f size)
 
 AnyWidgetModifier sizeAtMost(bq::signal::AnySignal<avg::Vector2f> size)
 {
-    return sizeModifier(std::move(size), bandAtMost);
+    auto shared = std::move(size).share();
+    return sizeAndPure(sizeModifier(shared.clone(), bandAtMost),
+            shared.clone(), atMostConstraint);
 }
 
 AnyWidgetModifier sizeAtMost(avg::Vector2f size)
@@ -271,7 +389,9 @@ AnyWidgetModifier sizeAtMost(avg::Vector2f size)
 
 AnyWidgetModifier exactSize(bq::signal::AnySignal<avg::Vector2f> size)
 {
-    return sizeModifier(std::move(size), bandExactly);
+    auto shared = std::move(size).share();
+    return sizeAndPure(sizeModifier(shared.clone(), bandExactly),
+            shared.clone(), exactlyConstraint);
 }
 
 AnyWidgetModifier exactSize(avg::Vector2f size)

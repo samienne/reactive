@@ -1,10 +1,13 @@
 #include "widget/constraintbox.h"
 #include "widget/constraintlayout.h"
 
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/setsizehint.h>
+#include <bqui/modifier/sizevocabulary.h>
 #include <bqui/modifier/widgetmodifier.h>
 
+#include <bqui/widget/hbox.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
@@ -344,4 +347,100 @@ TEST(PureSolverLayout, verticalPassSeesPass1ResolvedWidth)
     EXPECT_FLOAT_EQ(90.0f, pObb.getSize()[1]);
     EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[0]);
     EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[1]);
+}
+
+// A toolbar written in the developer surface: a horizontal row of three
+// fixed-width buttons and a flexible spacer between them, each leaf pushing its
+// own size constraint into the enclosing pure region's solve. The three exact
+// widths (strong) beat the weak 100 default and hold; the spacer (fillWidth,
+// above the default but below the container's own weak fill) absorbs the
+// remaining width. In a 400-wide row: 80 + 80 + 160 + 80.
+TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idSpacer = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> items;
+    items.push_back(probe(idA, fixed40, fixed40) | modifier::widthExactly(80.0f));
+    items.push_back(probe(idB, fixed40, fixed40) | modifier::widthExactly(80.0f));
+    items.push_back(probe(idSpacer, fixed40, fixed40) | modifier::fillWidth());
+    items.push_back(probe(idC, fixed40, fixed40) | modifier::widthExactly(80.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(items)))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+    Geometry spacer = readProbe(instance, idSpacer);
+    Geometry c = readProbe(instance, idC);
+
+    EXPECT_FLOAT_EQ(80.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, spacer.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, c.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.position[0]);
+    EXPECT_FLOAT_EQ(160.0f, spacer.position[0]);
+    EXPECT_FLOAT_EQ(320.0f, c.position[0]);
+}
+
+// A form row written in the developer surface: a fixed-width label followed by a
+// field that fills the remaining width. The label's widthExactly (strong) holds at
+// 120; the field's fillWidth absorbs the rest, so in a 400-wide row the field is
+// 280 wide and starts where the label ends.
+TEST(PureSolverLayout, formRowFixedLabelAndFillingField)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idLabel = btl::makeUniqueId();
+    btl::UniqueId const idField = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::widthExactly(120.0f));
+    row.push_back(probe(idField, fixed40, fixed40) | modifier::fillWidth());
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry label = readProbe(instance, idLabel);
+    Geometry field = readProbe(instance, idField);
+
+    EXPECT_FLOAT_EQ(120.0f, label.size[0]);
+    EXPECT_FLOAT_EQ(280.0f, field.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, label.position[0]);
+    EXPECT_FLOAT_EQ(120.0f, field.position[0]);
+}
+
+// The strong exact size and the required bounds reach the right axis: a single
+// leaf pins its height to 150 (strong, beating the weak 100 default) and caps
+// its width at 60 (required, holding the default 100 width down). heightExactly
+// feeds the vertical solve, widthAtMost the horizontal one.
+TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed40, fixed40)
+            | modifier::heightExactly(150.0f)
+            | modifier::widthAtMost(60.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(60.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, g.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[0]);
 }
