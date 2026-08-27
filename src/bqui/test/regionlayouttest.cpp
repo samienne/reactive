@@ -1,3 +1,4 @@
+#include "widget/constraintbox.h"
 #include "widget/constraintlayout.h"
 
 #include <bqui/modifier/instancemodifier.h>
@@ -15,6 +16,7 @@
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
+#include <bq/signal/frameinfo.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
@@ -30,6 +32,7 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstring>
 #include <vector>
 
@@ -85,6 +88,28 @@ Instance realise(AnyWidget widget, avg::Vector2f size)
 
     auto context = makeSignalContext(std::move(instanceSignal));
     return context.evaluate<0>().get<0>();
+}
+
+// A region owner's solve settles a pass behind the build (its fragments reach
+// the collector as a change-driven signal), so a few update passes are driven
+// before the geometry is read. A per-container tree is stable from the first
+// evaluation and rereads identically, so the same helper serves both.
+Instance realiseConverged(AnyWidget widget, avg::Vector2f size)
+{
+    auto instanceSignal = std::move(widget)(BuildParams())(constant(size))
+        .getInstance();
+
+    auto context = makeSignalContext(std::move(instanceSignal));
+    Instance instance = context.evaluate<0>().get<0>();
+
+    for (uint64_t frame = 1; frame <= 5; ++frame)
+    {
+        context.update(bq::signal::FrameInfo(frame,
+                    std::chrono::microseconds(0)));
+        instance = context.evaluate<0>().get<0>();
+    }
+
+    return instance;
 }
 
 // The Axis::y, cross-fill fragment a plain column contributes, replicating the
@@ -174,6 +199,17 @@ void expectSame(std::string const& label, Geometry const& region,
         << "region solve diverged from the per-container oracle at the bit level";
 }
 
+void expectSameGeometry(std::string const& label, Geometry const& a,
+        Geometry const& b)
+{
+    SCOPED_TRACE(label);
+
+    EXPECT_FLOAT_EQ(b.position[0], a.position[0]);
+    EXPECT_FLOAT_EQ(b.position[1], a.position[1]);
+    EXPECT_FLOAT_EQ(b.size[0], a.size[0]);
+    EXPECT_FLOAT_EQ(b.size[1], a.size[1]);
+}
+
 Band const fixed100 = { 100.0f, 100.0f, 100.0f };
 Band const fixed60 = { 60.0f, 60.0f, 60.0f };
 Band const fixed40 = { 40.0f, 40.0f, 40.0f };
@@ -252,6 +288,55 @@ TEST(RegionLayout, oneSolveSpansNestedColumnsAndMatchesPerContainer)
     expectSame("leaf A", regionA, oracleA);
     expectSame("leaf C (nested)", regionC, oracleC);
     expectSame("leaf D (nested)", regionD, oracleD);
+}
+
+// The live widget path: a real nested vbox built behind regionRoot (regionSolve
+// ON) places every leaf exactly where the shipped per-container path (OFF)
+// places it. The outer vbox and the vbox nested inside it emit their fragments
+// into one region solve, and the resulting instance geometry matches the oracle
+// read from the same tree with no region around it.
+TEST(RegionLayout, liveVboxRegionMatchesPerContainerOracle)
+{
+    avg::Vector2f const window(100.0f, 200.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+    btl::UniqueId const idD = btl::makeUniqueId();
+
+    auto makeTree = [&]() -> AnyWidget
+    {
+        std::vector<ArraySignal<AnyWidget>> inner;
+        inner.push_back(probe(idC, fixed100, fixed60));
+        inner.push_back(probe(idD, fixed100, fixed40));
+
+        std::vector<ArraySignal<AnyWidget>> outer;
+        outer.push_back(probe(idA, fixed100, fixed100));
+        outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
+
+        return vbox(ArraySignal<AnyWidget>(std::move(outer)));
+    };
+
+    Instance off = realiseConverged(makeTree(), window);
+    Geometry offA = readProbe(off, idA);
+    Geometry offC = readProbe(off, idC);
+    Geometry offD = readProbe(off, idD);
+
+    Instance on = realiseConverged(regionRoot(makeTree()), window);
+    Geometry onA = readProbe(on, idA);
+    Geometry onC = readProbe(on, idC);
+    Geometry onD = readProbe(on, idD);
+
+    expectSameGeometry("leaf A", onA, offA);
+    expectSameGeometry("leaf C (nested)", onC, offC);
+    expectSameGeometry("leaf D (nested)", onD, offD);
+
+    // The absolute geometry both paths agree on, so a bug that moved both in
+    // lockstep still fails.
+    EXPECT_FLOAT_EQ(100.0f, onA.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, onC.position[1]);
+    EXPECT_FLOAT_EQ(60.0f, onC.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, onD.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, onD.size[1]);
 }
 
 // The down-channel a region owner provides: a LayoutSolution set on the build

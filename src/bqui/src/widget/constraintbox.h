@@ -47,6 +47,21 @@ namespace bqui::widget
      * The array form follows a membership that changes; the vector form is the
      * fixed-list convenience over it.
      */
+    /**
+     * @brief Wraps a subtree in one firewall region: the containers inside emit
+     * their constraints into a single shared solve instead of each folding its
+     * own.
+     *
+     * The wrapper owns the region's makeInput/solve cycle. It seeds the
+     * down-channel (LayoutSolutionTag) and the up-channel (RegionCollectorTag)
+     * its participating containers read, folds the fragments they contribute into
+     * one solveLayout (layoutRegion), and ties the result back to the solution
+     * every box reads its geometry from. A container that finds no region around
+     * it runs the per-container path unchanged, so this is the opt-in and the old
+     * path stays the default.
+     */
+    BQUI_EXPORT AnyWidget regionRoot(AnyWidget content);
+
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
     /**

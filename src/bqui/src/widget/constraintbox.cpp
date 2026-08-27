@@ -8,10 +8,12 @@
 #include "bqui/widget/widget.h"
 
 #include "bqui/modifier/addwidgets.h"
+#include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/setid.h"
 #include "bqui/modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 #include "bqui/modifier/transform.h"
+#include "bqui/modifier/widgetmodifier.h"
 
 #include "bqui/provider/providebuildparams.h"
 #include "bqui/provider/provideparam.h"
@@ -21,7 +23,10 @@
 #include "bqui/stacksizehint.h"
 
 #include <bq/signal/arraysignal.h>
+#include <bq/signal/combine.h>
 #include <bq/signal/constant.h>
+#include <bq/signal/input.h>
+#include <bq/signal/sharedvector.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
@@ -159,13 +164,14 @@ LayoutSpec makeBoxSpec(Axis axis, BoxVariables const& container,
         std::vector<std::vector<GuideAlignment>> const& alignments,
         std::vector<avg::Vector2f> const& gravities,
         ResolvedGuideMap const& resolved,
-        CrossAlign crossAlign)
+        CrossAlign crossAlign, bool anchor = true)
 {
     LayoutSpec spec;
 
     bool baseline = axis == Axis::x && crossAlign == CrossAlign::baseline;
 
-    append(spec, anchorConstraints(container, 0.0f, 0.0f, size[0], size[1]));
+    if (anchor)
+        append(spec, anchorConstraints(container, 0.0f, 0.0f, size[0], size[1]));
     append(spec, boxConstraints(container, boxes, axis));
     guideConstraints(spec.constraints, boxes, alignments, resolved);
 
@@ -380,6 +386,71 @@ std::vector<avg::Obb> toObbs(LayoutSolution const& solution,
     return obbs;
 }
 
+// The region counterpart of toObbs(): the whole region solves in one absolute
+// top-down space, so a child's box is read out of the shared solution and
+// expressed relative to this container's own solved box before the y flip. For
+// the region's outermost container the box sits at the origin and this reduces
+// to toObbs(); for a nested one it subtracts the container's own offset so the
+// child lands parent-relative and the enclosing transforms compose as usual.
+std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
+        std::vector<BoxVariables> const& boxes, BoxVariables const& container)
+{
+    avg::Obb containerObb = readObb(solution, container);
+    avg::Vector2f containerTopLeft =
+        containerObb.getTransform().getTranslation();
+    float containerHeight = containerObb.getSize()[1];
+
+    std::vector<avg::Obb> obbs;
+    obbs.reserve(boxes.size());
+
+    for (BoxVariables const& box : boxes)
+    {
+        avg::Obb solved = readObb(solution, box);
+        avg::Vector2f childSize = solved.getSize();
+        avg::Vector2f topLeft = solved.getTransform().getTranslation()
+            - containerTopLeft;
+        float bottomEdge = topLeft[1] + childSize[1];
+
+        obbs.push_back(avg::Transform().translate(
+                    avg::Vector2f(topLeft[0], containerHeight - bottomEdge))
+                * avg::Obb(childSize));
+    }
+
+    return obbs;
+}
+
+// The context a region owner threads to every participating container: the
+// shared fragment collector to append to, the one region solution to read
+// geometry from, and whether this container is the region's outermost and so
+// anchors the coordinate origin.
+struct RegionContext
+{
+    bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>> collector;
+    bq::signal::AnySignal<LayoutSolution> solution;
+    bool anchor;
+};
+
+// Reads the region collector out of the build params, present only inside a
+// region. The entry is a constant the region owner seeded, so evaluating it in
+// its own context is safe (a constant does not diverge between contexts).
+std::optional<bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>>>
+    regionCollector(BuildParams const& params)
+{
+    auto entry = params.get<RegionCollectorTag>();
+    if (!entry)
+        return std::nullopt;
+
+    auto context = bq::signal::makeSignalContext(std::move(*entry));
+    return context.evaluate<0>().get<0>();
+}
+
+bool regionAnchor(BuildParams const& params)
+{
+    auto context = bq::signal::makeSignalContext(
+            params.valueOrDefault<RegionAnchorTag>());
+    return context.evaluate<0>().get<0>();
+}
+
 // The plumbing every solver-laid-out container shares: collect the builders'
 // box variables and size hints, fold one Solver over the spec makeSpec builds
 // each frame, place each child at its solved rectangle, and report the
@@ -475,6 +546,104 @@ AnyWidget solverLayout(MakeSpec makeSpec, SizeHintMap sizeHintMap,
         ;
 }
 
+// The region counterpart of solverLayout(): rather than folding a solve of its
+// own, the container emits its spec fragment into the shared region collector
+// and reads its children's geometry back out of the one region solution. Its box
+// is unified with the box its parent tiles (setBoxVariables), so the outer's
+// placement of this container and this container's placement of its own children
+// meet on the one box in the shared tableau.
+template <typename MakeSpec>
+AnyWidget solverLayoutRegion(MakeSpec makeSpec, SizeHintMap sizeHintMap,
+        BoxVariables container, RegionContext region,
+        bq::signal::ArraySignal<widget::AnyBuilder> array)
+{
+    auto boxes = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return bq::signal::AnySignal<BoxVariables>(
+                            bq::signal::constant(builder.getBoxVariables()));
+                })).share();
+
+    auto hints = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return builder.getSizeHint();
+                })).share();
+
+    auto alignments = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return bq::signal::AnySignal<std::vector<GuideAlignment>>(
+                            bq::signal::constant(builder.getGuideAlignments()));
+                })).share();
+
+    auto gravities = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return builder.getGravity();
+                })).share();
+
+    auto widget = makeWidgetWithSize(
+            [makeSpec, container, region](auto size, auto resolvedGuides,
+                auto boxes, auto hints, auto alignments, auto gravities,
+                auto array)
+            {
+                auto spec = merge(std::move(size), boxes.clone(),
+                        std::move(hints), std::move(alignments),
+                        std::move(gravities), std::move(resolvedGuides))
+                    .map([makeSpec](avg::Vector2f size,
+                                std::vector<BoxVariables> const& boxes,
+                                std::vector<SizeHint> const& hints,
+                                std::vector<std::vector<GuideAlignment>> const&
+                                    alignments,
+                                std::vector<avg::Vector2f> const& gravities,
+                                ResolvedGuideMap const& resolved)
+                        {
+                            return makeSpec(size, boxes, hints, alignments,
+                                    gravities, resolved);
+                        });
+
+                {
+                    auto collector = region.collector;
+                    auto write = collector.write();
+                    write->push_back(
+                            bq::signal::AnySignal<LayoutSpec>(std::move(spec)));
+                }
+
+                auto obbs = merge(region.solution, std::move(boxes))
+                    .map([container](LayoutSolution const& solution,
+                                std::vector<BoxVariables> const& boxes)
+                        {
+                            return regionToObbs(solution, boxes, container);
+                        });
+
+                auto instances = bq::signal::join(bq::signal::scatter(
+                            std::move(array), std::move(obbs), &buildChild));
+
+                return widget::makeWidget()
+                    | modifier::addWidgets(std::move(instances))
+                    | modifier::setRole("Layout")
+                    ;
+            },
+            provider::provideParam<ResolvedGuides>(),
+            boxes,
+            hints,
+            alignments,
+            gravities,
+            std::move(array)
+            );
+
+    return std::move(widget)
+        | modifier::setSizeHint(hints.map(std::move(sizeHintMap)))
+        | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                [container](widget::AnyBuilder builder)
+                {
+                    builder.setBoxVariables(container);
+                    return builder;
+                }))
+        ;
+}
+
 // Builds each incoming widget once and hands the resulting builders to build.
 // The one place a container turns widgets into the builders its solve reads box
 // variables, hints and gravity from. Each container places its children within
@@ -483,19 +652,48 @@ AnyWidget solverLayout(MakeSpec makeSpec, SizeHintMap sizeHintMap,
 AnyWidget containerLayout(
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>)>
             build,
+        btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>,
+            RegionContext)> buildRegion,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
-    return makeWidget([build = std::move(build)](BuildParams const& params,
+    return makeWidget([build = std::move(build),
+                buildRegion = std::move(buildRegion)](BuildParams const& params,
                 auto widgets)
         {
+            auto collector = regionCollector(params);
+
+            if (!collector)
+            {
+                auto builders = widgets.map(
+                        [params](widget::AnyWidget const& widget)
+                        -> widget::AnyBuilder
+                        {
+                            return widget.clone()(params);
+                        });
+
+                return build(std::move(builders));
+            }
+
+            RegionContext region{
+                std::move(*collector),
+                params.valueOrDefault<LayoutSolutionTag>(),
+                regionAnchor(params)
+            };
+
+            // A descendant is placed by this container's tiling, not by anchoring
+            // a second origin, so the anchor duty is spent here and switched off
+            // below.
+            BuildParams childParams = params;
+            childParams.set<RegionAnchorTag>(bq::signal::constant(false));
+
             auto builders = widgets.map(
-                    [params](widget::AnyWidget const& widget)
+                    [childParams](widget::AnyWidget const& widget)
                     -> widget::AnyBuilder
                     {
-                        return widget.clone()(params);
+                        return widget.clone()(childParams);
                     });
 
-            return build(std::move(builders));
+            return buildRegion(std::move(builders), std::move(region));
         },
         provider::provideBuildParams(),
         std::move(widgets)
@@ -539,6 +737,45 @@ AnyWidget solverBoxBuilders(Axis axis, CrossAlign align,
 
     return solverLayout(std::move(makeSpec), std::move(sizeHintMap),
             std::move(array));
+}
+
+AnyWidget solverBoxBuildersRegion(Axis axis, CrossAlign align,
+        RegionContext region, bq::signal::ArraySignal<widget::AnyBuilder> array)
+{
+    BoxVariables container;
+    arrange::Variable stretch;
+    bool anchor = region.anchor;
+
+    auto makeSpec = [axis, align, container, stretch, anchor](avg::Vector2f size,
+            std::vector<BoxVariables> const& boxes,
+            std::vector<SizeHint> const& hints,
+            std::vector<std::vector<GuideAlignment>> const& alignments,
+            std::vector<avg::Vector2f> const& gravities,
+            ResolvedGuideMap const& resolved)
+    {
+        LayoutSpec spec = makeBoxSpec(axis, container, stretch, size, boxes,
+                hints, alignments, gravities, resolved, align, anchor);
+
+        // The container reads its own box out of the region solution to place
+        // its children relative to it, so those edges travel with the fragment
+        // too. A per-container solve never needs this: it flips within its
+        // assigned size and its box is read back by its parent instead.
+        spec.variables.push_back(container.left);
+        spec.variables.push_back(container.top);
+        spec.variables.push_back(container.right);
+        spec.variables.push_back(container.bottom);
+
+        return spec;
+    };
+
+    SizeHintMap sizeHintMap = (axis == Axis::x && align == CrossAlign::baseline)
+        ? SizeHintMap(accumulateBaselineRowHints)
+        : (axis == Axis::y
+            ? SizeHintMap(accumulateSizeHints<Axis::y>)
+            : SizeHintMap(accumulateSizeHints<Axis::x>));
+
+    return solverLayoutRegion(std::move(makeSpec), std::move(sizeHintMap),
+            container, std::move(region), std::move(array));
 }
 
 AnyWidget solverStackBuilders(bq::signal::ArraySignal<widget::AnyBuilder> array)
@@ -599,6 +836,12 @@ AnyWidget solverBox(Axis axis, CrossAlign align,
             {
                 return solverBoxBuilders(axis, align, std::move(builders));
             },
+            [axis, align](bq::signal::ArraySignal<widget::AnyBuilder> builders,
+                RegionContext region)
+            {
+                return solverBoxBuildersRegion(axis, align, std::move(region),
+                        std::move(builders));
+            },
             std::move(widgets));
 }
 
@@ -655,6 +898,11 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
             {
                 return solverStackBuilders(std::move(builders));
             },
+            [](bq::signal::ArraySignal<widget::AnyBuilder> builders,
+                RegionContext)
+            {
+                return solverStackBuilders(std::move(builders));
+            },
             std::move(widgets));
 }
 
@@ -666,14 +914,69 @@ AnyWidget solverStack(std::vector<AnyWidget> widgets)
 AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
         std::vector<GridCell> cells, unsigned int columns, unsigned int rows)
 {
+    auto build = [cells, columns, rows](
+            bq::signal::ArraySignal<widget::AnyBuilder> builders)
+    {
+        return solverGridBuilders(cells, columns, rows, std::move(builders));
+    };
+
     return containerLayout(
-            [cells = std::move(cells), columns, rows](
-                    bq::signal::ArraySignal<widget::AnyBuilder> builders)
+            build,
+            [build](bq::signal::ArraySignal<widget::AnyBuilder> builders,
+                RegionContext)
             {
-                return solverGridBuilders(cells, columns, rows,
-                        std::move(builders));
+                return build(std::move(builders));
             },
             toArray(std::move(widgets)));
+}
+
+AnyWidget regionRoot(AnyWidget content)
+{
+    return makeWidgetWithSize(
+            [content](auto size, BuildParams const& params)
+            {
+                // The solution is consumed while the region builds but produced
+                // by the build; the input holds the value the tee below ties to
+                // the solve, breaking the build-order cycle.
+                auto input = bq::signal::makeInput(LayoutSolution());
+
+                bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>>
+                    collector;
+
+                BuildParams childParams = params;
+                childParams.set<LayoutSolutionTag>(input.signal);
+                childParams.set<RegionCollectorTag>(
+                        bq::signal::constant(collector));
+                childParams.set<RegionAnchorTag>(bq::signal::constant(true));
+
+                auto childInstance = content.clone()(childParams)(std::move(size))
+                    .getInstance();
+
+                auto fragments = collector.signal().map(
+                        [](std::vector<bq::signal::AnySignal<LayoutSpec>> const&
+                            parts)
+                        {
+                            return bq::signal::combine(parts);
+                        }).join();
+
+                auto solution = layoutRegion(
+                        bq::signal::AnySignal<std::vector<LayoutSpec>>(
+                            std::move(fragments)));
+
+                auto driver = solution.tee(input.handle);
+
+                auto instance = merge(std::move(childInstance),
+                        std::move(driver))
+                    .map([](widget::Instance instance, LayoutSolution const&)
+                        {
+                            return instance;
+                        });
+
+                return widget::makeWidget()
+                    | modifier::addWidget(std::move(instance));
+            },
+            provider::provideBuildParams()
+            );
 }
 
 } // namespace bqui::widget
