@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -73,15 +74,20 @@ namespace bqui::widget
      * The presence of this entry is what marks a subtree as inside a region: a
      * container that finds it appends its own fragment and reads its geometry
      * from the shared LayoutSolutionTag rather than running its own solve. The
-     * region owner (regionRoot) holds the other copy of the same SharedVector and
-     * folds its contents into the one region solve. Fragments are appended as the
-     * subtree builds, so the collection is exported as a signal that settles a
-     * pass behind the build, like any change-driven input.
+     * region owner (regionRoot) holds the sole owning reference to the collector
+     * and folds its contents into the one region solve; this down-channel carries
+     * only a non-owning handle. That is deliberate: the collector owns the
+     * fragment signals, and a fragment reaches this params entry through the
+     * child builders it is built from, so an owning handle here would close a
+     * retain cycle collector -> fragment -> builder -> params -> collector. The
+     * weak handle breaks it, exactly as the solution down-channel's own back
+     * reference is weak. Fragments are appended as the subtree builds, so the
+     * collection settles a pass behind the build, like any change-driven input.
      */
     struct RegionCollectorTag
     {
-        using type = bq::signal::SharedVector<
-            bq::signal::AnySignal<LayoutSpec>>;
+        using type = std::weak_ptr<bq::signal::SharedVector<
+            bq::signal::AnySignal<LayoutSpec>>>;
 
         static bq::signal::AnySignal<type> getDefaultValue()
         {
