@@ -31,6 +31,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cmath>
 #include <vector>
 
 using namespace bqui;
@@ -102,6 +103,62 @@ Instance realiseConverged(AnyWidget widget, avg::Vector2f size)
 
 Band const fixed100 = { 100.0f, 100.0f, 100.0f };
 Band const fixed40 = { 40.0f, 40.0f, 40.0f };
+
+// A synthetic pure-solver leaf whose height is a step function of its resolved
+// width -- 30px for every 50px width band -- emitted as a required
+// height == f(width) constraint. The step is genuinely non-linear: only the
+// staged pipeline, where pass 2 sees pass 1's resolved width as a concrete
+// value, can express it; a single linear x+y solve cannot compute ceil(). The
+// horizontal accessor pins the leaf's width, so the value driving f in pass 2 is
+// known, but f reads it back off the pass-1 solution rather than the literal.
+BoxDescriptor stepHeightLeaf(BoxVariables box, float width)
+{
+    auto horizontal = constant(std::vector<arrange::Constraint>{
+            arrange::Expression(box.left) == arrange::Expression(0.0),
+            arrange::Expression(box.right)
+                == arrange::Expression(static_cast<double>(width))
+            });
+
+    return BoxDescriptor(box, BoxDescriptor::Constraints(std::move(horizontal)),
+            [box](AnySignal<float> width)
+            {
+                return BoxDescriptor::Constraints(std::move(width).map(
+                        [box](float w) -> std::vector<arrange::Constraint>
+                        {
+                            float height = 30.0f * std::ceil(w / 50.0f);
+                            return {
+                                arrange::Expression(box.top)
+                                    == arrange::Expression(0.0),
+                                arrange::Expression(box.bottom)
+                                    == arrange::Expression(box.top)
+                                        + arrange::Expression(
+                                                static_cast<double>(height))
+                            };
+                        }));
+            });
+}
+
+// Concatenates a fixed set of per-box constraint vectors into one fragment
+// solved on its own axis, reading the named variables back.
+LayoutSpec makeFragment(std::vector<arrange::Constraint> const& a,
+        std::vector<arrange::Constraint> const& b,
+        std::vector<arrange::Variable> variables)
+{
+    LayoutSpec spec;
+    spec.constraints = a;
+    spec.constraints.insert(spec.constraints.end(), b.begin(), b.end());
+    spec.variables = std::move(variables);
+    return spec;
+}
+
+AnySignal<std::vector<LayoutSpec>> oneFragment(AnySignal<LayoutSpec> spec)
+{
+    return AnySignal<std::vector<LayoutSpec>>(std::move(spec).map(
+                [](LayoutSpec const& spec)
+                {
+                    return std::vector<LayoutSpec>{ spec };
+                }));
+}
 
 } // namespace
 
@@ -222,4 +279,69 @@ TEST(PureSolverLayout, matchesBandedWhereLayoutIsBandFree)
     // bottom leaf the lower half.
     EXPECT_FLOAT_EQ(100.0f, onTop.position[1]);
     EXPECT_FLOAT_EQ(0.0f, onBottom.position[1]);
+}
+
+// The two-phase solve stages pass 2 on pass 1's resolved width. Two synthetic
+// leaves whose height is a non-linear step function of their resolved width lay
+// out through the split pipeline: pass 1 resolves the x-edges (the widths), each
+// width is projected as a signal into the leaf's getVerticalConstraints(), and
+// pass 2 solves the y-edges with height == f(width). The two (width, height)
+// pairs the step produces are not colinear through the origin, so no single
+// linear relation a combined x+y solve could hold reproduces both -- the height
+// can only come from pass 2 reading pass 1's concrete width.
+TEST(PureSolverLayout, verticalPassSeesPass1ResolvedWidth)
+{
+    BoxVariables p;
+    BoxVariables q;
+
+    BoxDescriptor dp = stepHeightLeaf(p, 120.0f);
+    BoxDescriptor dq = stepHeightLeaf(q, 60.0f);
+
+    // Pass 1: solve the x-edges alone.
+    auto horizontalSpec = merge(dp.getHorizontalConstraints(),
+            dq.getHorizontalConstraints())
+        .map([p, q](std::vector<arrange::Constraint> const& cp,
+                    std::vector<arrange::Constraint> const& cq)
+            {
+                return makeFragment(cp, cq, { p.left, p.right, q.left, q.right });
+            });
+
+    auto horizontalSolution =
+        layoutRegion(oneFragment(AnySignal<LayoutSpec>(std::move(horizontalSpec))))
+        .share();
+
+    // Project each leaf's pass-1 resolved width (right - left) as a signal.
+    auto widthP = horizontalSolution.clone().map(
+            [p](LayoutSolution const& s) { return readObb(s, p).getSize()[0]; });
+    auto widthQ = horizontalSolution.clone().map(
+            [q](LayoutSolution const& s) { return readObb(s, q).getSize()[0]; });
+
+    // Pass 2: stage each leaf's vertical constraints on its resolved width and
+    // solve the y-edges alone.
+    auto verticalSpec = merge(dp.getVerticalConstraints(std::move(widthP)),
+            dq.getVerticalConstraints(std::move(widthQ)))
+        .map([p, q](std::vector<arrange::Constraint> const& cp,
+                    std::vector<arrange::Constraint> const& cq)
+            {
+                return makeFragment(cp, cq, { p.top, p.bottom, q.top, q.bottom });
+            });
+
+    auto verticalSolution =
+        layoutRegion(oneFragment(AnySignal<LayoutSpec>(std::move(verticalSpec))));
+
+    auto solutionSignal = combineSolutions(horizontalSolution.clone(),
+            std::move(verticalSolution));
+
+    auto context = makeSignalContext(std::move(solutionSignal));
+    LayoutSolution solution = context.evaluate<0>().get<0>();
+
+    avg::Obb pObb = readObb(solution, p);
+    avg::Obb qObb = readObb(solution, q);
+
+    // 120 -> 30*ceil(120/50) = 30*3 = 90 (ratio 0.75);
+    // 60  -> 30*ceil(60/50)  = 30*2 = 60 (ratio 1.0).
+    EXPECT_FLOAT_EQ(120.0f, pObb.getSize()[0]);
+    EXPECT_FLOAT_EQ(90.0f, pObb.getSize()[1]);
+    EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[0]);
+    EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[1]);
 }
