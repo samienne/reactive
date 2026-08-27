@@ -40,6 +40,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -419,21 +420,27 @@ std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
     return obbs;
 }
 
-// The context a region owner threads to every participating container: the
-// shared fragment collector to append to, the one region solution to read
-// geometry from, and whether this container is the region's outermost and so
-// anchors the coordinate origin.
+// The context a region owner threads to every participating container: a
+// non-owning handle to the shared fragment collector to append to, the one
+// region solution to read geometry from, and whether this container is the
+// region's outermost and so anchors the coordinate origin. The collector handle
+// is weak so a container node holding it does not own the collector, which owns
+// the fragments the container builds — see RegionCollectorTag.
 struct RegionContext
 {
-    bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>> collector;
+    std::weak_ptr<bq::signal::SharedVector<
+        bq::signal::AnySignal<LayoutSpec>>> collector;
     bq::signal::AnySignal<LayoutSolution> solution;
     bool anchor;
 };
 
-// Reads the region collector out of the build params, present only inside a
-// region. The entry is a constant the region owner seeded, so evaluating it in
-// its own context is safe (a constant does not diverge between contexts).
-std::optional<bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>>>
+// Reads the region collector handle out of the build params, present only
+// inside a region. The entry is a constant the region owner seeded, so
+// evaluating it in its own context is safe (a constant does not diverge between
+// contexts). The handle is weak; the owning reference stays with the region
+// owner.
+std::optional<std::weak_ptr<bq::signal::SharedVector<
+    bq::signal::AnySignal<LayoutSpec>>>>
     regionCollector(BuildParams const& params)
 {
     auto entry = params.get<RegionCollectorTag>();
@@ -623,9 +630,9 @@ AnyWidget solverLayoutRegion(MakeSpec makeSpec, SizeHintMap sizeHintMap,
                                     gravities, resolved);
                         });
 
+                if (auto collector = region.collector.lock())
                 {
-                    auto collector = region.collector;
-                    auto write = collector.write();
+                    auto write = collector->write();
                     write->push_back(
                             bq::signal::AnySignal<LayoutSpec>(std::move(spec)));
                 }
@@ -960,19 +967,25 @@ AnyWidget regionRoot(AnyWidget content)
                 // the solve, breaking the build-order cycle.
                 auto input = bq::signal::makeInput(LayoutSolution());
 
-                bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>>
-                    collector;
+                // The collector owns the fragment signals, which reach back to
+                // the down-channel through the child builders they are built
+                // from, so its owning reference must live off that path. It is
+                // held here (and pinned on the region's top node below); only a
+                // weak handle goes down the tree.
+                auto collector = std::make_shared<bq::signal::SharedVector<
+                    bq::signal::AnySignal<LayoutSpec>>>();
 
                 BuildParams childParams = params;
                 childParams.set<LayoutSolutionTag>(input.signal);
-                childParams.set<RegionCollectorTag>(
-                        bq::signal::constant(collector));
+                childParams.set<RegionCollectorTag>(bq::signal::constant(
+                            std::weak_ptr<bq::signal::SharedVector<
+                                bq::signal::AnySignal<LayoutSpec>>>(collector)));
                 childParams.set<RegionAnchorTag>(bq::signal::constant(true));
 
                 auto childInstance = content.clone()(childParams)(std::move(size))
                     .getInstance();
 
-                auto fragments = collector.signal().map(
+                auto fragments = collector->signal().map(
                         [](std::vector<bq::signal::AnySignal<LayoutSpec>> const&
                             parts)
                         {
@@ -985,9 +998,13 @@ AnyWidget regionRoot(AnyWidget content)
 
                 auto driver = solution.tee(input.handle);
 
+                // The map both keeps the driven solution live and pins the sole
+                // owning reference to the collector, off the fragment-reachable
+                // graph, so the weak down-channel handle cannot form a cycle.
                 auto instance = merge(std::move(childInstance),
                         std::move(driver))
-                    .map([](widget::Instance instance, LayoutSolution const&)
+                    .map([collector](widget::Instance instance,
+                                LayoutSolution const&)
                         {
                             return instance;
                         });
