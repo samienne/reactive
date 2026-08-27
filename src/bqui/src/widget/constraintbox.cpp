@@ -584,11 +584,31 @@ AnyWidget solverLayoutRegion(MakeSpec makeSpec, SizeHintMap sizeHintMap,
                 })).share();
 
     auto widget = makeWidgetWithSize(
-            [makeSpec, container, region](auto size, auto resolvedGuides,
-                auto boxes, auto hints, auto alignments, auto gravities,
-                auto array)
+            [makeSpec, container, region, sizeHintMap](auto size,
+                auto resolvedGuides, auto boxes, auto hints, auto alignments,
+                auto gravities, auto array)
             {
-                auto spec = merge(std::move(size), boxes.clone(),
+                // The fragment must not depend on the region solution: the input
+                // that delivers the solution down would otherwise own, through
+                // the tee, the graph that produces it — a lifetime cycle that
+                // leaks the whole build. A nested container's assigned size is
+                // its solved size (from the solution); its reported natural size
+                // stands in instead, which the shipped size-independent bands
+                // make exact. The outermost container's assigned size is the
+                // region's own size, not a solved one, so it is used directly.
+                bq::signal::AnySignal<avg::Vector2f> fragmentSize = region.anchor
+                    ? bq::signal::AnySignal<avg::Vector2f>(std::move(size))
+                    : bq::signal::AnySignal<avg::Vector2f>(hints.clone().map(
+                            [sizeHintMap](std::vector<SizeHint> const& hints)
+                            {
+                                SizeHint hint = sizeHintMap(hints);
+                                float width = hint.getWidth().extent.natural;
+                                float height = hint.getHeightForWidth(width)
+                                    .extent.natural;
+                                return avg::Vector2f(width, height);
+                            }));
+
+                auto spec = merge(std::move(fragmentSize), boxes.clone(),
                         std::move(hints), std::move(alignments),
                         std::move(gravities), std::move(resolvedGuides))
                     .map([makeSpec](avg::Vector2f size,
