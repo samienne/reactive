@@ -71,6 +71,30 @@ namespace bqui::widget
     };
 
     /**
+     * @brief The down-channel carrying a pure-solver region's pass-1 (x-only)
+     * solution, the horizontal geometry a box projects its resolved width from
+     * to stage its vertical constraints on.
+     *
+     * The two-phase pure solve resolves the x-edges first; this delivers that
+     * x-solution down so a container can read its own resolved width
+     * (right - left) out of it and feed it into getVerticalConstraints() before
+     * the y-edges are solved. It is disjoint from LayoutSolutionTag, which
+     * carries the combined solution a box reads its final obb from: the width is
+     * projected from the x-only pass so the vertical fragments never depend on
+     * the combined solution they help produce. Empty outside a pure region,
+     * which reads back a zero width.
+     */
+    struct LayoutWidthSolutionTag
+    {
+        using type = LayoutSolution;
+
+        static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
+        {
+            return bq::signal::constant(LayoutSolution());
+        }
+    };
+
+    /**
      * @brief The up-channel a region owner threads down for its participating
      * containers to append their per-container spec fragments to.
      *
@@ -88,6 +112,30 @@ namespace bqui::widget
      * collection settles a pass behind the build, like any change-driven input.
      */
     struct RegionCollectorTag
+    {
+        using type = std::weak_ptr<bq::signal::SharedVector<
+            bq::signal::AnySignal<LayoutSpec>>>;
+
+        static bq::signal::AnySignal<type> getDefaultValue()
+        {
+            return bq::signal::constant(type());
+        }
+    };
+
+    /**
+     * @brief A pure-solver region's second collector: the vertical (y-only) spec
+     * fragments, gathered apart from the horizontal ones RegionCollectorTag
+     * gathers so the two axes solve as two disjoint passes.
+     *
+     * A pure region owner threads this alongside RegionCollectorTag; a container
+     * appends its x-only fragment to that one and its y-only fragment here. The
+     * y fragment is staged on the container's resolved width (from
+     * LayoutWidthSolutionTag), so it settles a pass behind the x-solve. Like the
+     * horizontal collector this is a non-owning weak handle, the owning
+     * reference staying with the region owner off the fragment-reachable path to
+     * break the retain cycle. Empty outside a pure region.
+     */
+    struct RegionVerticalCollectorTag
     {
         using type = std::weak_ptr<bq::signal::SharedVector<
             bq::signal::AnySignal<LayoutSpec>>>;
@@ -146,11 +194,12 @@ namespace bqui::widget
      * only the constraints are signals, so a constraint change re-solves without
      * re-minting the box and the solver's id-keyed diff stays stable.
      *
-     * The horizontal and vertical constraints are kept apart so the two axes can
-     * become two disjoint solves: pass 1 resolves the x-edges, pass 2 the y-edges
-     * given the resolved width. This E0 form runs one combined solve, so the
-     * width handed to getVerticalConstraints() is ignored, but the signature
-     * carries it so the y-constraints can later depend on the solved width.
+     * The horizontal and vertical constraints are kept apart so the two axes
+     * solve as two disjoint passes: pass 1 resolves the x-edges, pass 2 the
+     * y-edges given the resolved width. The width handed to
+     * getVerticalConstraints() is the box's own resolved width (right - left)
+     * projected from pass 1, so a y-constraint may depend on the solved width
+     * (height as a function of width) without a combined x+y solve.
      */
     class BoxDescriptor
     {
@@ -216,6 +265,19 @@ namespace bqui::widget
      */
     BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> layoutRegion(
             bq::signal::AnySignal<std::vector<LayoutSpec>> fragments);
+
+    /**
+     * @brief Unions a pure-solver region's two per-axis solutions into the one
+     * solution a box reads its obb from.
+     *
+     * Pass 1 solves the x-edges and pass 2 the y-edges over disjoint variable
+     * sets, so their id-keyed value maps never collide; this merges them into
+     * the combined tableau readObb() reads left/right from the x-pass and
+     * top/bottom from the y-pass out of.
+     */
+    BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> combineSolutions(
+            bq::signal::AnySignal<LayoutSolution> horizontal,
+            bq::signal::AnySignal<LayoutSolution> vertical);
 
     /**
      * @brief Reads a box's solved rectangle out of a solution as an avg::Obb.

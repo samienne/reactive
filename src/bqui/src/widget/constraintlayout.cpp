@@ -8,6 +8,9 @@
 #include <arrange/solver.h>
 #include <arrange/strength.h>
 
+#include <bq/signal/merge.h>
+#include <bq/signal/signal.h>
+
 #include <map>
 #include <utility>
 
@@ -108,6 +111,19 @@ bq::signal::AnySignal<LayoutSolution> layoutRegion(
             });
 
     return solveLayout(bq::signal::AnySignal<LayoutSpec>(std::move(spec)));
+}
+
+bq::signal::AnySignal<LayoutSolution> combineSolutions(
+        bq::signal::AnySignal<LayoutSolution> horizontal,
+        bq::signal::AnySignal<LayoutSolution> vertical)
+{
+    return merge(std::move(horizontal), std::move(vertical)).map(
+            [](LayoutSolution const& horizontal, LayoutSolution const& vertical)
+            {
+                LayoutSolution merged = horizontal;
+                merged.insert(vertical.begin(), vertical.end());
+                return merged;
+            });
 }
 
 avg::Obb readObb(LayoutSolution const& solution, BoxVariables const& box)
