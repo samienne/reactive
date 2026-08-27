@@ -7,6 +7,8 @@
 #include "bqui/widget/guide.h"
 #include "bqui/widget/resolvedguides.h"
 
+#include <bq/signal/constant.h>
+#include <bq/signal/sharedvector.h>
 #include <bq/signal/signal.h>
 
 #include <avg/obb.h>
@@ -61,6 +63,48 @@ namespace bqui::widget
         static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
         {
             return bq::signal::constant(LayoutSolution());
+        }
+    };
+
+    /**
+     * @brief The up-channel a region owner threads down for its participating
+     * containers to append their per-container spec fragments to.
+     *
+     * The presence of this entry is what marks a subtree as inside a region: a
+     * container that finds it appends its own fragment and reads its geometry
+     * from the shared LayoutSolutionTag rather than running its own solve. The
+     * region owner (regionRoot) holds the other copy of the same SharedVector and
+     * folds its contents into the one region solve. Fragments are appended as the
+     * subtree builds, so the collection is exported as a signal that settles a
+     * pass behind the build, like any change-driven input.
+     */
+    struct RegionCollectorTag
+    {
+        using type = bq::signal::SharedVector<
+            bq::signal::AnySignal<LayoutSpec>>;
+
+        static bq::signal::AnySignal<type> getDefaultValue()
+        {
+            return bq::signal::constant(type());
+        }
+    };
+
+    /**
+     * @brief Whether the container reading it is the outermost in its region and
+     * so must anchor the region's coordinate origin.
+     *
+     * The region owner seeds this true; the outermost participating container
+     * anchors its box to its assigned rectangle and seeds this false for its
+     * descendants, which are placed by their parents' tiling and must not anchor
+     * a second origin into the shared tableau.
+     */
+    struct RegionAnchorTag
+    {
+        using type = bool;
+
+        static bq::signal::AnySignal<bool> getDefaultValue()
+        {
+            return bq::signal::constant(true);
         }
     };
 
