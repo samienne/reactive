@@ -128,6 +128,7 @@ bquitestsrc = [
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/regionlayouttest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
   'test/sizevocabularytest.cpp',
