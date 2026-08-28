@@ -80,7 +80,7 @@ namespace bqui::shape
                             {
                                 return std::make_optional(std::move(p));
                             }))
-                | modifier::defaultSize()
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 
@@ -101,7 +101,7 @@ namespace bqui::shape
                             }),
                         bq::signal::constant(std::optional<avg::Pen>())
                         )
-                | modifier::defaultSize()
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 
@@ -147,7 +147,7 @@ namespace bqui::shape
                         std::move(func_),
                         bq::signal::fromOptional(std::move(brush)),
                         bq::signal::fromOptional(std::move(pen)))
-                | modifier::defaultSize()
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 

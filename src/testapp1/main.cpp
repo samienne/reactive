@@ -335,16 +335,15 @@ int main()
             barButton("Help"),
         }),
 
-        // Form row: a label and a text field, both at content size; the trailing
-        // filler takes the slack. (A field that grows to fill the row itself
-        // would need a flex the pure path does not yet expose for an arbitrary
-        // widget -- only filler() is flexible.)
+        // Form row: a content-sized label and a text field that fills the rest of
+        // the row -- fill() makes the field flexible like a filler while keeping
+        // its content as a flex-basis.
         widget::hbox({
             widget::label("Name:") | modifier::margin(6.0f),
             widget::AnyWidget(widget::textEdit(formState.handle,
                         formState.signal.cast<widget::TextEditState>()))
-                | modifier::margin(6.0f),
-            widget::filler(),
+                | modifier::margin(6.0f)
+                | modifier::fill(),
         }),
 
         // Content row: a label, three fixed-size colored swatches, and a filler.
