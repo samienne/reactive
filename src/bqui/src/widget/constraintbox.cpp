@@ -446,9 +446,11 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
             out.push_back(arrange::Expression(lead)
                     == arrange::Expression(containerLead));
 
-            // The cross-fill: above the weak default, below a strong fixed size
-            // or a required bound, so a nested container stretches to its
-            // parent's cross extent while an explicit size still wins.
+            // The cross-fill: above the bare weak default, below the content
+            // natural, a fixed size and a required bound. So a child with no size
+            // of its own on this axis -- a flex-suppressed container -- stretches
+            // to its parent's cross extent, while a content-sized or explicitly
+            // sized child keeps its own extent and sits at the leading edge.
             out.push_back((arrange::Expression(trail)
                         == arrange::Expression(containerTrail))
                     | arrange::Strength::weak(1.0));

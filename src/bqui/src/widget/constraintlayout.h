@@ -376,6 +376,21 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Strength weakestStrength();
 
     /**
+     * @brief The strength a content leaf holds its natural (content-measured)
+     * size at: the heaviest pull in the weak lane, yet a whole lane below
+     * medium/strong/required.
+     *
+     * A leaf bridges its SizeHint's natural into the pure band at this strength.
+     * It outranks every other weak-lane pull — the bare fallback default, the gap
+     * drive and the cross-fill — so a leaf settles at its measured size on both
+     * axes rather than a flat default or a stretched fill. Stretching is opt-in:
+     * a filler (which drops the natural), a fixed size, a bound, or a guide all
+     * replace or outrank it. This carries the "filler is the flex" model —
+     * content by default, fill by opt-in — into the strength ladder.
+     */
+    BQUI_EXPORT arrange::Strength contentStrength();
+
+    /**
      * @brief The weak per-axis default @c width==100 on @p box.
      *
      * A leaf contributes this on each axis it does not otherwise size

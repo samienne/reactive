@@ -84,15 +84,16 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier maxSize(avg::Vector2f size);
 
     /**
-     * @brief Give this widget the weak natural size a pure-solver leaf carries:
-     * @c width==100 and @c height==100, each at the weakest tier.
+     * @brief Give this widget the natural size a pure-solver leaf carries: its
+     * own SizeHint's natural width and height, at a content strength.
      *
      * A pure-solver container states only the structure of its layout and no
-     * longer sizes its children, so a leaf contributes its own default size on
-     * each axis. Any firmer constraint -- a fixed size, a bound, a container's
-     * tiling of a filler -- overrides it; it only decides an axis nothing else
-     * pinned, keeping the solve well-posed. A no-op outside a pure-solver
-     * region.
+     * longer sizes its children, so a leaf contributes its own content size on
+     * each axis, bridged from the SizeHint the widget already measures. The
+     * content strength sits above the bare fallback but below the cross-fill and
+     * any explicit size word, so a fixed size, a bound, a filler, or a
+     * container's cross-fill all override it. A no-op outside a pure-solver
+     * region, where the SizeHint drives sizing directly.
      *
      * The shipped content leaves (label, text edit, filled/stroked shapes) apply
      * this themselves, so an ordinary layout needs no call. It cannot be baked

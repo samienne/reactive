@@ -54,6 +54,20 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
 
     /**
+     * @brief A widget modifier that, inside a pure-solver region, seeds the
+     * natural band on both axes from the builder's own SizeHint — the content
+     * measurement — at contentStrength().
+     *
+     * The bridge that makes a pure leaf size to its content rather than a flat
+     * default: the width natural is the SizeHint's natural width and the height
+     * natural its natural height (width-independent for now — no height-for-width
+     * staging). Being a natural write, a later fixed size, bound or filler on the
+     * same axis overrides it by named replacement. A no-op outside a pure-solver
+     * region, where the SizeHint band drives sizing directly.
+     */
+    AnyWidgetModifier pureContentDefaultModifier();
+
+    /**
      * @brief Applies @p first then @p second as one widget modifier, so a shared
      * band modifier and a pure-solver constraint modifier travel together under
      * one name.
