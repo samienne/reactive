@@ -2,6 +2,7 @@
 
 #include "constraintlayout.h"
 
+#include "bqui/widget/puresolver.h"
 #include "bqui/widget/widget.h"
 
 #include "bqui/bquivisibility.h"
@@ -61,23 +62,6 @@ namespace bqui::widget
      * path stays the default.
      */
     BQUI_EXPORT AnyWidget regionRoot(AnyWidget content);
-
-    /**
-     * @brief regionRoot() for a pure-solver context: the containers inside emit
-     * band-free constraints plus the universal weak defaults into one shared
-     * solve, ignoring their SizeHint bands.
-     *
-     * Seeds PureSolverTag alongside the region channels, so a hbox or vbox that
-     * joins the region contributes a pure fragment rather than a banded one. The
-     * container states only structure -- children tiled edge to edge with the
-     * trailing slack on a signed gap variable, and a leading-edge pin plus weak
-     * default on the cross axis -- while each leaf owns its own weak width==100 /
-     * height==100 default (modifier::defaultSize()) and each filler() couples to
-     * the container's shared flex variable. A container that finds no region
-     * around it runs the shipped per-container banded path unchanged, so this is
-     * a strict opt-in.
-     */
-    BQUI_EXPORT AnyWidget pureSolverRoot(AnyWidget content);
 
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
