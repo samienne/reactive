@@ -33,12 +33,8 @@ namespace bqui::widget
     /**
      * @brief A subtree's pure-solver constraints, accumulated onto its builder
      * and composed up through its containers, kept apart per axis so the two
-     * disjoint solves each read only their own.
-     *
-     * The inverse of a SizeHint: a SizeHint aggregates a size value up the tree,
-     * this accumulates a stream of constraints a firewall reads off the top
-     * builder and solves in one pass, without building any element. Empty
-     * (absent) outside a pure-solver region.
+     * disjoint solves each read only their own. Absent outside a pure-solver
+     * region.
      */
     struct PureLayout
     {

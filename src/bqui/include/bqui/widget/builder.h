@@ -171,9 +171,9 @@ namespace bqui::widget
 
         /**
          * @brief This widget's accumulated pure-solver constraints, composed up
-         * from its children, read by a firewall before any element is built.
-         * Absent outside a pure-solver region. Preserved across a copy, a
-         * size-hint change and type erasure, exactly as the box variables are.
+         * from its children. Absent outside a pure-solver region. Preserved
+         * across a copy, a size-hint change and type erasure, exactly as the box
+         * variables are.
          */
         std::optional<PureLayout> const& getPureLayout() const
         {
@@ -181,9 +181,8 @@ namespace bqui::widget
         }
 
         /**
-         * @brief Sets this widget's composed pure-solver constraints, used both
-         * to accumulate a size modifier's fragment and to carry the composed set
-         * across a rebuild that mints a fresh builder.
+         * @brief Replaces this widget's composed pure-solver constraints, used to
+         * carry them across a rebuild that mints a fresh builder.
          */
         void setPureLayout(std::optional<PureLayout> pureLayout)
         {

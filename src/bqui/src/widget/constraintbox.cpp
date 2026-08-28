@@ -96,8 +96,8 @@ bq::signal::AnySignal<widget::Instance> buildChildInRegion(
 
 // A widget whose build receives the region solution alongside its assigned size,
 // the vehicle a pure-solver container uses to place its children from the one
-// solved tableau. The inner group @p f builds needs no size of its own, so it is
-// handed the assigned size only to satisfy the build interface.
+// solved tableau. The group f builds needs no size of its own, so the assigned
+// size is handed on only to satisfy the build interface.
 template <typename F>
 AnyWidget makeSolutionWidget(F f)
 {
@@ -1068,17 +1068,9 @@ AnyWidget solverBoxBuildersRegion(Axis axis, CrossAlign align,
             container, std::move(region), std::move(array));
 }
 
-// The pure-solver counterpart of solverBoxBuildersRegion(): rather than emitting
-// its band-free fragment into a shared collector while it builds, the container
-// composes its fragment -- adjacent-edge relations, the cross-fill, and the weak
-// defaults -- together with its children's own composed fragments onto its
-// builder (addPureConstraint / setPureLayout), the constraint set a firewall
-// reads off the builder and solves before any element is built. Its build then
-// places its children out of the region solution handed to it as a build
-// argument (makeSolutionWidget), passing that same solution on so a nested
-// container places its own children. The two axes stay apart for the region's
-// two disjoint solves. Its box is unified with the box its parent tiles
-// (setBoxVariables).
+// The pure-solver counterpart of solverBoxBuildersRegion(): composes this
+// container's fragment with its children's onto its builder for the region to
+// solve, then places its children from the solution handed to its build.
 AnyWidget solverBoxBuildersRegionPure(Axis axis,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
@@ -1483,14 +1475,11 @@ AnyWidget regionRootImpl(AnyWidget content)
             );
 }
 
-// The pure-solver region owner. Because the constraints now ride the builders
-// (composed up, solution-independent), the solve is a plain forward step: turn
-// the content into a builder without building any element, read the domain's
-// composed constraints off it, anchor its outermost box to the window, and run
-// the two disjoint per-axis solves once. The combined solution is then handed
-// straight into the build as an argument, so the element is placed against a
-// real solution on the very first evaluate -- no makeInput seed, no tee, no
-// settling pass. The two solves stay disjoint (x, then y) as before.
+// The pure-solver region owner. Turns the content into a builder without
+// building any element, reads the domain's composed constraints off it, anchors
+// its outermost box to the window, and runs the two disjoint per-axis solves.
+// The combined solution is handed into the build as an argument, so the element
+// is placed against a real solution on the first evaluate.
 AnyWidget pureRegionRootImpl(AnyWidget content)
 {
     return makeWidgetWithSize(
