@@ -93,6 +93,34 @@ AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount)
             });
 }
 
+AnyWidgetModifier pureContentDefaultModifier()
+{
+    return pureBuilderModifier(
+            [](widget::AnyBuilder& builder)
+            {
+                auto hint = builder.getSizeHint().share();
+
+                auto width = hint.clone().map([](SizeHint const& h)
+                {
+                    return h.getWidth().extent.natural;
+                });
+
+                // Width-independent for now: the natural height is read at the
+                // natural width, not staged on a resolved width (wrapping text is
+                // a later increment).
+                auto height = hint.map([](SizeHint const& h)
+                {
+                    float width = h.getWidth().extent.natural;
+                    return h.getHeightForWidth(width).extent.natural;
+                });
+
+                widget::setPureNatural(builder, Axis::x, std::move(width),
+                        widget::contentStrength());
+                widget::setPureNatural(builder, Axis::y, std::move(height),
+                        widget::contentStrength());
+            });
+}
+
 AnyWidgetModifier composeModifiers(AnyWidgetModifier first,
         AnyWidgetModifier second)
 {

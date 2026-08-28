@@ -69,10 +69,9 @@ AnyWidget withArea(AnyWidget widget, btl::UniqueId id)
                     }, constant(id)));
 }
 
-// A leaf that carries the weak 100 default a pure-solver leaf owns and tags its
-// instance for read-back. The pure-solver path ignores the size hint entirely,
-// so a probe's band is set deliberately away from the weak 100 default to prove
-// the band is never read.
+// A content leaf: its SizeHint band is bridged into the pure natural by
+// defaultSize(), so a probe sizes to its SizeHint's natural on each axis unless
+// an explicit size word overrides it. Tagged for geometry read-back.
 AnyWidget probe(btl::UniqueId id, Band width, Band height)
 {
     return withArea(makeWidget()
@@ -250,12 +249,13 @@ TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
 }
 
-// A real nested vbox behind pureSolverRoot lays out with pure constraints plus
-// the weak defaults and no band read: every leaf, whatever its SizeHint band,
-// comes out 100x100, stacked edge to edge. The outer column holds a leaf and the
-// inner column; the inner holds two leaves. The window is sized so the three
-// 100-tall leaves stack exactly, top to bottom: A, then C, then D.
-TEST(PureSolverLayout, nestedColumnsLayOutByDefaultsIgnoringBands)
+// A real nested vbox behind pureSolverRoot lays its content leaves out at their
+// SizeHint natural: every leaf carries a 40x40 band and comes out 40x40, stacked
+// edge to edge. The outer column holds a leaf and the inner column; the inner
+// holds two leaves. Nothing forces the leaves wider, so they size to content on
+// both axes (a leaf fills only when a container has slack to give -- here it
+// does not), and stack from the top with the leftover as a trailing gap.
+TEST(PureSolverLayout, nestedColumnsSizeToContent)
 {
     avg::Vector2f const window(100.0f, 300.0f);
 
@@ -263,7 +263,6 @@ TEST(PureSolverLayout, nestedColumnsLayOutByDefaultsIgnoringBands)
     btl::UniqueId const idC = btl::makeUniqueId();
     btl::UniqueId const idD = btl::makeUniqueId();
 
-    // The probes carry a 40x40 band the pure path must ignore.
     std::vector<ArraySignal<AnyWidget>> inner;
     inner.push_back(probe(idC, fixed40, fixed40));
     inner.push_back(probe(idD, fixed40, fixed40));
@@ -280,18 +279,19 @@ TEST(PureSolverLayout, nestedColumnsLayOutByDefaultsIgnoringBands)
     Geometry c = readProbe(instance, idC);
     Geometry d = readProbe(instance, idD);
 
-    // Every leaf defaults to 100x100 despite its 40x40 band.
+    // Every leaf sizes to its 40x40 content band, left-aligned in the column.
     for (Geometry const& g : { a, c, d })
     {
-        EXPECT_FLOAT_EQ(100.0f, g.size[0]);
-        EXPECT_FLOAT_EQ(100.0f, g.size[1]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
         EXPECT_FLOAT_EQ(0.0f, g.position[0]);
     }
 
-    // Stacked top to bottom in window y-up space: A on top, then C, then D.
-    EXPECT_FLOAT_EQ(200.0f, a.position[1]);
-    EXPECT_FLOAT_EQ(100.0f, c.position[1]);
-    EXPECT_FLOAT_EQ(0.0f, d.position[1]);
+    // Stacked from the top of the 300-tall window (y-up): A at 260..300, then C
+    // at 220..260, then D at 180..220, the remaining 180 an unfilled gap below.
+    EXPECT_FLOAT_EQ(260.0f, a.position[1]);
+    EXPECT_FLOAT_EQ(220.0f, c.position[1]);
+    EXPECT_FLOAT_EQ(180.0f, d.position[1]);
 }
 
 // Where a band-free column should match the banded one, it does. Two leaves
@@ -495,8 +495,8 @@ TEST(PureSolverLayout, twoFillersSplitSlackEvenly)
 }
 
 // No implicit fill: with no filler present the last child is not stretched. Two
-// fixed 80s and a plain leaf in a 400-wide row leave the plain leaf at its weak
-// 100 default and open a trailing gap: 80 + 80 + 100 (140 of slack unfilled).
+// fixed 80s and a plain content leaf in a 400-wide row leave the plain leaf at
+// its 40 content width and open a trailing gap: 80 + 80 + 40 (200 unfilled).
 TEST(PureSolverLayout, plainLastChildIsNotStretched)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -516,7 +516,7 @@ TEST(PureSolverLayout, plainLastChildIsNotStretched)
 
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idA).size[0]);
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idB).size[0]);
-    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idPlain).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idPlain).size[0]);
 }
 
 // A capped filler hands its surplus to the others. Three fillers share the
@@ -570,9 +570,9 @@ TEST(PureSolverLayout, fixedChildrenOverflowRatherThanSqueeze)
 }
 
 // The strong exact size and the required bounds reach the right axis: a single
-// leaf pins its height to 150 (strong, beating the weak 100 default) and caps
-// its width at 60 (required, holding the default 100 width down). fixedHeight
-// feeds the vertical solve, maxWidth the horizontal one.
+// leaf pins its height to 150 (strong, beating its content height) and caps its
+// width at 60 (required, holding its 100 content width down). fixedHeight feeds
+// the vertical solve, maxWidth the horizontal one.
 TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 {
     avg::Vector2f const window(200.0f, 300.0f);
@@ -580,7 +580,7 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
     btl::UniqueId const id = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> children;
-    children.push_back(probe(id, fixed40, fixed40)
+    children.push_back(probe(id, fixed100, fixed100)
             | modifier::fixedHeight(150.0f)
             | modifier::maxWidth(60.0f));
 
@@ -595,9 +595,12 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
     EXPECT_FLOAT_EQ(0.0f, g.position[0]);
 }
 
-// A shipped content leaf carries its own weak 100 default with no defaultSize()
-// at the call site: a plain label() beside a filler settles at 100 and the
-// filler takes the rest, so baking the default into the leaf factories works.
+// A shipped content leaf sizes to its own content with no defaultSize() at the
+// call site: a plain label() beside a filler settles at its measured content
+// width and the filler takes the rest of the row, so the SizeHint bridge reaches
+// the shipped leaf factories. The exact width is font-dependent, so this asserts
+// the invariant -- the label is content-sized (positive, well under the full
+// row) and the filler absorbs the remainder -- not a pixel count.
 TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -613,12 +616,19 @@ TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
             window);
 
-    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idLabel).size[0]);
-    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idFiller).size[0]);
+    Geometry labelG = readProbe(instance, idLabel);
+    Geometry fillerG = readProbe(instance, idFiller);
+
+    EXPECT_GT(labelG.size[0], 0.0f);
+    EXPECT_LT(labelG.size[0], 400.0f);
+    EXPECT_GT(fillerG.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(400.0f, labelG.size[0] + fillerG.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, labelG.position[0]);
+    EXPECT_FLOAT_EQ(labelG.size[0], fillerG.position[0]);
 }
 
-// maxWidth alone caps the weak 100 default: a required upper bound below the
-// default holds the width down to 60.
+// maxWidth alone caps the content width: a required upper bound below the leaf's
+// 100 content width holds it down to 60.
 TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -626,7 +636,7 @@ TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
     btl::UniqueId const id = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(probe(id, fixed40, fixed40) | modifier::maxWidth(60.0f));
+    row.push_back(probe(id, fixed100, fixed100) | modifier::maxWidth(60.0f));
 
     Instance instance = realiseConverged(
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
@@ -729,14 +739,14 @@ TEST(PureSolverLayout, nestedDemoCorrectOnSingleEvaluate)
     EXPECT_FLOAT_EQ(120.0f, c.size[0]);
     EXPECT_FLOAT_EQ(280.0f, fill2.size[0]);
 
-    // Each row is a determinate 100 tall and they stack: row1 on top (y=100 in
-    // the y-up window), row2 below (y=0).
-    EXPECT_FLOAT_EQ(100.0f, a.size[1]);
-    EXPECT_FLOAT_EQ(100.0f, c.size[1]);
+    // Each row is a determinate 40 tall (its content-sized items) and they stack
+    // from the top: row1 at 160..200 in the y-up window, row2 at 120..160.
+    EXPECT_FLOAT_EQ(40.0f, a.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, c.size[1]);
     EXPECT_GT(fill1.size[1], 0.0f);
     EXPECT_GT(fill2.size[1], 0.0f);
-    EXPECT_FLOAT_EQ(100.0f, a.position[1]);
-    EXPECT_FLOAT_EQ(0.0f, c.position[1]);
+    EXPECT_FLOAT_EQ(160.0f, a.position[1]);
+    EXPECT_FLOAT_EQ(120.0f, c.position[1]);
 }
 
 // The load-bearing invariant: exactly one band on the current outermost box, and
@@ -889,4 +899,66 @@ TEST(PureSolverLayout, overflowVersusFlexResponse)
         EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idA).size[0]);
         EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idB).size[0]);
     }
+}
+
+// A content leaf sizes to its SizeHint natural, not a flat default. A probe whose
+// natural is a distinct 137x24 comes out exactly 137x24 -- not the old flat 100,
+// not the 40 the other probes carry -- proving the SizeHint's natural now drives
+// the pure band on both axes.
+TEST(PureSolverLayout, leafSizesToContent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, content137, content24));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(137.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, g.size[1]);
+}
+
+// Content leaves take their content widths and a filler absorbs the rest. Two
+// probes of distinct content widths (137 and 63) and a filler in a 400-wide row:
+// the probes settle at 137 and 63, and the filler takes the remaining 200.
+TEST(PureSolverLayout, contentLeavesShareRowWithFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idWide, content137, content24));
+    row.push_back(probe(idNarrow, content63, content24));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(137.0f, narrow.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.position[0]);
 }

@@ -394,6 +394,18 @@ arrange::Strength weakestStrength()
     return arrange::Strength::weak(0.001);
 }
 
+arrange::Strength contentStrength()
+{
+    // The heaviest pull in the weak lane, above the fallback default (0.001),
+    // the gap drive (0.0008) and the weak(1.0) cross-fill, but still weak — a
+    // whole lane below medium/strong/required. So a content leaf settles at its
+    // measured size on both axes by default, and stretching is opt-in: only a
+    // filler (which drops the natural), a fixed size, a bound or a guide takes it
+    // off content. This is the "filler is the flex" model — content by default,
+    // fill by opt-in — carried into the strength ladder.
+    return arrange::Strength::weak(2.0);
+}
+
 arrange::Constraint weakWidthDefault(BoxVariables const& box)
 {
     return (box.width() == arrange::Expression(100.0)) | weakestStrength();

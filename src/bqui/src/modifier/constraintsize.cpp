@@ -143,12 +143,7 @@ AnyWidgetModifier maxSize(avg::Vector2f size)
 
 AnyWidgetModifier defaultSize()
 {
-    return bothAxes(bq::signal::constant(avg::Vector2f(100.0f, 100.0f)),
-            [](PureAxis axis, bq::signal::AnySignal<float> value)
-            {
-                return detail::pureNaturalModifier(axis,
-                        widget::weakestStrength(), std::move(value));
-            });
+    return detail::pureContentDefaultModifier();
 }
 
 } // namespace bqui::modifier
