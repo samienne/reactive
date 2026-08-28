@@ -3,6 +3,7 @@
 #include "constraintlayout.h"
 
 #include "bqui/widget/box.h"
+#include "bqui/widget/filler.h"
 #include "bqui/widget/layout.h"
 #include "bqui/widget/resolvedguides.h"
 #include "bqui/widget/widget.h"
@@ -277,19 +278,80 @@ LayoutSpec makeBoxSpec(Axis axis, BoxVariables const& container,
     return spec;
 }
 
+// The signed trailing gap G is pulled to zero a shade below the weak size
+// default, so a filler (which carries no default) is dragged out to close the
+// gap and fill the container, while a plain child holds its default and leaves
+// the gap open rather than stretching. The pull is strictly weaker than the
+// default so it never overrides one; it only decides the free extent a filler
+// leaves. The gap is unbounded on both sides, so an over-full row drives it
+// negative and overflows past the container's end instead of squeezing.
+arrange::Strength gapDriveStrength()
+{
+    return arrange::Strength::weak(0.0008);
+}
+
+// The pure main-axis tiling: consecutive children meet, the first touches the
+// container's leading end, and the last is tied to the container's trailing end
+// through the signed gap variable @p gap -- last.trailing + gap ==
+// container.trailing, required -- which gapDriveStrength() then pulls to zero.
+// No child carries a size default here; a leaf contributes its own on this axis
+// and a filler its flex coupling, so the container states only the structure.
+void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
+        BoxVariables const& container,
+        std::vector<BoxVariables> const& boxes, arrange::Variable const& gap)
+{
+    for (std::size_t i = 0; i < boxes.size(); ++i)
+    {
+        BoxVariables const& child = boxes[i];
+        bool first = i == 0;
+        bool last = i + 1 == boxes.size();
+
+        arrange::Variable const& lead = axis == Axis::y ? child.top : child.left;
+        arrange::Variable const& trail =
+            axis == Axis::y ? child.bottom : child.right;
+        arrange::Variable const& containerLead =
+            axis == Axis::y ? container.top : container.left;
+        arrange::Variable const& containerTrail =
+            axis == Axis::y ? container.bottom : container.right;
+
+        if (first)
+        {
+            out.push_back(arrange::Expression(lead)
+                    == arrange::Expression(containerLead));
+        }
+        else
+        {
+            BoxVariables const& prev = boxes[i - 1];
+            out.push_back(arrange::Expression(lead)
+                    == arrange::Expression(
+                        axis == Axis::y ? prev.bottom : prev.right));
+        }
+
+        if (last)
+        {
+            out.push_back(arrange::Expression(trail) + arrange::Expression(gap)
+                    == arrange::Expression(containerTrail));
+            out.push_back((arrange::Expression(gap) == arrange::Expression(0.0))
+                    | gapDriveStrength());
+        }
+    }
+}
+
 // One axis's worth of a pure hbox/vbox fragment, band-free. @p boxAxis selects
 // the edge set this call constrains (x for left/right, y for top/bottom);
 // @p layoutAxis is the container's stacking axis. On the layout axis the
-// children are tiled edge to edge, the shared relation a stack means; on the
-// cross axis each child's leading edge is tied to the container's so its
-// position is definite while its extent falls to the weak default. Every child
-// carries the universal weak size default on this axis, and the anchored
-// outermost container also pins the context frame on it. Splitting the fragment
-// per axis here is what lets E1 route the two into two disjoint solves; E0
-// concatenates them.
+// children are tiled edge to edge and the trailing slack rides @p gap
+// (pureMainConstraints), the container stating structure only while each leaf
+// or filler owns its own extent. On the cross axis each child's leading edge is
+// tied to the container's so its position is definite, and the container keeps
+// stamping the weak size default there, the one axis a child does not decide
+// for itself. The anchored outermost container also pins the context frame on
+// this axis. Splitting the fragment per axis here is what lets E1 route the two
+// into two disjoint solves; E0 concatenates them.
 std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
         Axis layoutAxis, bool anchor, BoxVariables const& container,
-        std::vector<BoxVariables> const& boxes, avg::Vector2f size)
+        std::vector<BoxVariables> const& boxes, avg::Vector2f size,
+        arrange::Variable const& gap)
 {
     std::vector<arrange::Constraint> out;
 
@@ -313,8 +375,7 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
 
     if (boxAxis == layoutAxis)
     {
-        for (auto& constraint : boxConstraints(container, boxes, layoutAxis))
-            out.push_back(std::move(constraint));
+        pureMainConstraints(out, layoutAxis, container, boxes, gap);
     }
     else
     {
@@ -324,12 +385,12 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
                         == arrange::Expression(container.left))
                     : (arrange::Expression(child.top)
                         == arrange::Expression(container.top)));
-    }
 
-    for (BoxVariables const& child : boxes)
-        out.push_back(boxAxis == Axis::x
-                ? weakWidthDefault(child)
-                : weakHeightDefault(child));
+        for (BoxVariables const& child : boxes)
+            out.push_back(boxAxis == Axis::x
+                    ? weakWidthDefault(child)
+                    : weakHeightDefault(child));
+    }
 
     return out;
 }
@@ -567,6 +628,23 @@ bool pureSolver(BuildParams const& params)
     return context.evaluate<0>().get<0>();
 }
 
+// The flex variable and layout axis the enclosing pure-solver container seeded
+// for its fillers. Both are constants, so evaluating them in a throwaway
+// context is safe.
+arrange::Variable flexVariable(BuildParams const& params)
+{
+    auto context = bq::signal::makeSignalContext(
+            params.valueOrDefault<FlexVariableTag>());
+    return context.evaluate<0>().get<0>();
+}
+
+Axis flexAxis(BuildParams const& params)
+{
+    auto context = bq::signal::makeSignalContext(
+            params.valueOrDefault<FlexAxisTag>());
+    return context.evaluate<0>().get<0>();
+}
+
 // The plumbing every solver-laid-out container shares: collect the builders'
 // box variables and size hints, fold one Solver over the spec makeSpec builds
 // each frame, place each child at its solved rectangle, and report the
@@ -790,11 +868,12 @@ AnyWidget containerLayout(
             build,
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>,
             RegionContext)> buildRegion,
+        std::optional<Axis> flexAxis,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
     return makeWidget([build = std::move(build),
-                buildRegion = std::move(buildRegion)](BuildParams const& params,
-                auto widgets)
+                buildRegion = std::move(buildRegion), flexAxis](
+                BuildParams const& params, auto widgets)
         {
             auto collector = regionCollector(params);
 
@@ -824,6 +903,19 @@ AnyWidget containerLayout(
             // below.
             BuildParams childParams = params;
             childParams.set<RegionAnchorTag>(bq::signal::constant(false));
+
+            // A pure-solver stacking container mints one flex variable for its
+            // layout axis and seeds it, with the axis, for the fillers among its
+            // children to couple to. It is minted here rather than in the
+            // per-axis fragment because the children are built from these params
+            // before the fragment is assembled.
+            if (region.pure && flexAxis)
+            {
+                childParams.set<FlexVariableTag>(
+                        bq::signal::constant(arrange::Variable()));
+                childParams.set<FlexAxisTag>(
+                        bq::signal::constant(*flexAxis));
+            }
 
             auto builders = widgets.map(
                     [childParams](widget::AnyWidget const& widget)
@@ -930,6 +1022,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
+    arrange::Variable gap;
     bool anchor = region.anchor;
 
     auto boxes = bq::signal::join(array.map(
@@ -940,7 +1033,8 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
                 })).share();
 
     auto widget = makeWidgetWithSize(
-            [axis, anchor, container, region](auto size, auto boxes, auto array)
+            [axis, anchor, container, gap, region](auto size, auto boxes,
+                auto array)
             {
                 // The fragments must stay off the region solution, which the solve
                 // produces: only the anchored outermost container takes a real
@@ -955,19 +1049,19 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
                 auto sharedFrame = std::move(frame).share();
 
                 auto horizontal = merge(sharedFrame.clone(), boxes.clone())
-                    .map([axis, anchor, container](avg::Vector2f size,
+                    .map([axis, anchor, container, gap](avg::Vector2f size,
                                 std::vector<BoxVariables> const& boxes)
                         {
                             return pureAxisConstraints(Axis::x, axis, anchor,
-                                    container, boxes, size);
+                                    container, boxes, size, gap);
                         });
 
                 auto verticalFrame = sharedFrame.clone();
                 auto verticalBoxes = boxes.clone();
                 BoxDescriptor descriptor(container,
                         BoxDescriptor::Constraints(std::move(horizontal)),
-                        [axis, anchor, container, verticalFrame, verticalBoxes](
-                            bq::signal::AnySignal<float>)
+                        [axis, anchor, container, gap, verticalFrame,
+                            verticalBoxes](bq::signal::AnySignal<float>)
                         {
                             // A container's own vertical relations are
                             // width-independent (the weak height default does not
@@ -977,11 +1071,13 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
                             return BoxDescriptor::Constraints(
                                 merge(verticalFrame.clone(),
                                         verticalBoxes.clone())
-                                .map([axis, anchor, container](avg::Vector2f size,
+                                .map([axis, anchor, container, gap](
+                                            avg::Vector2f size,
                                             std::vector<BoxVariables> const& boxes)
                                     {
                                         return pureAxisConstraints(Axis::y, axis,
-                                                anchor, container, boxes, size);
+                                                anchor, container, boxes, size,
+                                                gap);
                                     }));
                         });
 
@@ -1140,6 +1236,7 @@ AnyWidget solverBox(Axis axis, CrossAlign align,
                 return solverBoxBuildersRegion(axis, align, std::move(region),
                         std::move(builders));
             },
+            axis,
             std::move(widgets));
 }
 
@@ -1168,6 +1265,53 @@ AnyWidget solverHbox(bq::signal::ArraySignal<AnyWidget> widgets)
 AnyWidget solverHbox(std::vector<AnyWidget> widgets)
 {
     return solverBox(Axis::x, CrossAlign::fill, std::move(widgets));
+}
+
+AnyWidget filler()
+{
+    return makeWidget()
+        | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                [](widget::AnyBuilder builder) -> widget::AnyBuilder
+                {
+                    BuildParams const& params = builder.getBuildParams();
+                    if (!pureSolver(params))
+                        return builder;
+
+                    Axis axis = flexAxis(params);
+                    arrange::Variable flex = flexVariable(params);
+                    BoxVariables box = builder.getBoxVariables();
+
+                    // The one relation a filler states: its extent on the
+                    // container's layout axis equals the shared flex variable,
+                    // at the weakest tier. It carries no size default on that
+                    // axis, so the container's gap drive is free to pull the
+                    // shared extent out to fill the slack; the cross axis falls
+                    // to the container's leading-edge pin and weak default.
+                    LayoutSpec spec;
+                    spec.constraints.push_back(
+                            ((axis == Axis::x ? box.width() : box.height())
+                                == arrange::Expression(flex))
+                            | weakestStrength());
+
+                    std::weak_ptr<bq::signal::SharedVector<
+                        bq::signal::AnySignal<LayoutSpec>>> handle;
+                    if (axis == Axis::x)
+                    {
+                        if (auto collector = regionCollector(params))
+                            handle = *collector;
+                    }
+                    else
+                    {
+                        handle = regionVerticalCollector(params);
+                    }
+
+                    if (auto collector = handle.lock())
+                        collector->write()->push_back(
+                                bq::signal::AnySignal<LayoutSpec>(
+                                    bq::signal::constant(std::move(spec))));
+
+                    return builder;
+                }));
 }
 
 AnyWidget baselineHbox(bq::signal::ArraySignal<AnyWidget> widgets)
@@ -1201,6 +1345,7 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
             {
                 return solverStackBuilders(std::move(builders));
             },
+            std::nullopt,
             std::move(widgets));
 }
 
@@ -1225,6 +1370,7 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             {
                 return build(std::move(builders));
             },
+            std::nullopt,
             toArray(std::move(widgets)));
 }
 
