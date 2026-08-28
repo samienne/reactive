@@ -1,5 +1,6 @@
 #include "bqui/widget/label.h"
 
+#include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
 #include "bqui/modifier/setsizehint.h"
@@ -87,6 +88,7 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")
         | modifier::setData("text", std::move(textData))
+        | modifier::defaultSize()
         ;
 }
 

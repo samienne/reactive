@@ -1,5 +1,6 @@
 #include "bqui/widget/textedit.h"
 
+#include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/margin.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/clip.h"
@@ -245,6 +246,7 @@ namespace
             | modifier::setData("text", std::move(textData))
             | modifier::addCapability(widget::Capability::Editable)
             | modifier::addCapability(widget::Capability::Focusable)
+            | modifier::defaultSize()
             ;
     }
 
