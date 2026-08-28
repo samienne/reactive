@@ -3,6 +3,7 @@
 
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/instancemodifier.h>
+#include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
 
@@ -223,6 +224,29 @@ TEST(PureSolverLayout, unconstrainedBoxIsHundredSquare)
     EXPECT_FLOAT_EQ(100.0f, obb.getSize()[1]);
     EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[0]);
     EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[1]);
+}
+
+// A size-dependent modifier must not orphan a pure-solver constraint. A
+// fixedWidth(80) leaf wrapped in onClick, which mints a fresh builder through
+// the with-size path, keeps its width at 80 rather than falling back to the
+// weak 100 default: the with-size path carries the builder's box, guide
+// alignments and pure-solver constraints onto the builder it mints.
+TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed40, fixed40)
+            | modifier::fixedWidth(80.0f)
+            | modifier::onClick(1, [](ClickEvent const&) {}));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
 }
 
 // A real nested vbox behind pureSolverRoot lays out with pure constraints plus
