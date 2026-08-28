@@ -793,3 +793,100 @@ TEST(PureSolverLayout, nestedMarginsSubsumeInnerBands)
     EXPECT_FLOAT_EQ(60.0f, g.size[0]);
     EXPECT_FLOAT_EQ(60.0f, g.size[1]);
 }
+
+// Flex aggregates up: an hbox holding a filler has flex>0 on its main axis and
+// so is itself a filler to its parent. An outer row of a fixed 100 leaf and such
+// an inner hbox in a 400-wide window: the inner stretches to absorb the outer's
+// 300 of leftover (behaving as a filler), and inside it its own fixed child
+// stays 60 while its filler takes the 240 of inner slack. This exercises both
+// the flex summary riding up and the shared-F coupling reaching the inner.
+TEST(PureSolverLayout, fillerInHboxIsAFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idInnerFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    innerRow.push_back(fillerProbe(idInnerFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(100.0f));
+    outerRow.push_back(std::move(inner));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry innerFixed = readProbe(instance, idInnerFixed);
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+
+    // The outer's fixed child holds 100; the inner hbox behaved as a filler.
+    EXPECT_FLOAT_EQ(100.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, fixed.position[0]);
+
+    // Inside the stretched inner (spanning 100..400): its fixed child stays 60
+    // and its filler takes the inner's slack, 300 - 60 = 240.
+    EXPECT_FLOAT_EQ(60.0f, innerFixed.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerFixed.position[0]);
+    EXPECT_FLOAT_EQ(240.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, innerFiller.position[0]);
+}
+
+// Overflow versus flex-response, forced by a too-small window. Fixed children
+// keep their size and overflow (the signed trailing gap goes negative); the same
+// shape with fillers shrinks them to share the row. Two 100s in a 150 row on the
+// one hand, two fillers on the other.
+TEST(PureSolverLayout, overflowVersusFlexResponse)
+{
+    avg::Vector2f const window(150.0f, 100.0f);
+
+    // Fixed children overflow rather than squeeze.
+    {
+        btl::UniqueId const idA = btl::makeUniqueId();
+        btl::UniqueId const idB = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(idA, fixed40, fixed40)
+                | modifier::fixedWidth(100.0f));
+        row.push_back(probe(idB, fixed40, fixed40)
+                | modifier::fixedWidth(100.0f));
+
+        Instance instance = realiseConverged(
+                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                window);
+
+        Geometry a = readProbe(instance, idA);
+        Geometry b = readProbe(instance, idB);
+
+        EXPECT_FLOAT_EQ(100.0f, a.size[0]);
+        EXPECT_FLOAT_EQ(100.0f, b.size[0]);
+        // The second child runs 100..200, past the row's 150 end: it overflows,
+        // the signed gap negative, rather than being squeezed.
+        EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+        EXPECT_FLOAT_EQ(100.0f, b.position[0]);
+    }
+
+    // Flexible children respond: they shrink to share the row.
+    {
+        btl::UniqueId const idA = btl::makeUniqueId();
+        btl::UniqueId const idB = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(fillerProbe(idA));
+        row.push_back(fillerProbe(idB));
+
+        Instance instance = realiseConverged(
+                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                window);
+
+        EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idA).size[0]);
+        EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idB).size[0]);
+    }
+}
