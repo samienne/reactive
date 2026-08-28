@@ -160,20 +160,23 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
-                // The solver box and guide alignments are the widget's stable
-                // identity, carried unchanged for its whole lifetime, so they
-                // must survive the fresh builder this mints -- otherwise a box a
-                // constraint was keyed on before this modifier is orphaned from
-                // the one a container tiles after it.
+                // The solver box, guide alignments and pure-solver constraints
+                // are the widget's stable identity, carried unchanged for its
+                // whole lifetime, so they must survive the fresh builder this
+                // mints -- otherwise a box a constraint was keyed on before this
+                // modifier is orphaned from the one a container tiles after it.
                 auto box = builder.getBoxVariables();
                 auto guideAlignments = builder.getGuideAlignments();
+                auto pureLayout = builder.getPureLayout();
 
                 auto result = widget::makeBuilder([builder=std::forward<T>(builder),
                     modifier=std::forward<U>(f)]
-                    (BuildParams const& /*params*/, auto size)
+                    (BuildParams const& /*params*/,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
                     {
                         auto element = builder.clone()
-                            (std::move(size))
+                            (std::move(size), std::move(solution))
                             | modifier;
 
                         return element;
@@ -185,6 +188,7 @@ namespace bqui::modifier
 
                 result.setBoxVariables(std::move(box));
                 result.setGuideAlignments(std::move(guideAlignments));
+                result.setPureLayout(std::move(pureLayout));
                 return result;
             }
         };

@@ -119,6 +119,19 @@ Instance realiseConverged(AnyWidget widget, avg::Vector2f size)
     return instance;
 }
 
+// A single evaluate with NO update passes. The forward-only pure solver settles
+// on the first frame -- its constraints ride the builders and its solution is a
+// build argument, not a tee'd input -- so the geometry read here has had no
+// chance to settle behind.
+Instance realiseOnce(AnyWidget widget, avg::Vector2f size)
+{
+    auto instanceSignal = std::move(widget)(BuildParams())(constant(size))
+        .getInstance();
+
+    auto context = makeSignalContext(std::move(instanceSignal));
+    return context.evaluate<0>().get<0>();
+}
+
 Band const fixed100 = { 100.0f, 100.0f, 100.0f };
 Band const fixed40 = { 40.0f, 40.0f, 40.0f };
 
@@ -644,4 +657,59 @@ TEST(PureSolverLayout, minWidthLargerThanRow)
     EXPECT_FLOAT_EQ(0.0f, big.position[0]);
     EXPECT_FLOAT_EQ(50.0f, sibling.size[0]);
     EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+}
+
+// The settle-behind is gone: the nested vbox({hbox, hbox}) demo is correct on a
+// SINGLE evaluate<0>() with no update passes. Rows stack, fixed items hold their
+// widths, each nested row gets a determinate height, and every filler is
+// positive and fills its row's slack. Before the forward-only restructure this
+// was fully bunched at the origin on a single evaluate.
+TEST(PureSolverLayout, nestedDemoCorrectOnSingleEvaluate)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idFill1 = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+    btl::UniqueId const idFill2 = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row1;
+    row1.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row1.push_back(fillerProbe(idFill1));
+    row1.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+
+    std::vector<ArraySignal<AnyWidget>> row2;
+    row2.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(120.0f));
+    row2.push_back(fillerProbe(idFill2));
+
+    std::vector<ArraySignal<AnyWidget>> rows;
+    rows.push_back(hbox(ArraySignal<AnyWidget>(std::move(row1))));
+    rows.push_back(hbox(ArraySignal<AnyWidget>(std::move(row2))));
+
+    Instance instance = realiseOnce(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(rows)))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry fill1 = readProbe(instance, idFill1);
+    Geometry b = readProbe(instance, idB);
+    Geometry c = readProbe(instance, idC);
+    Geometry fill2 = readProbe(instance, idFill2);
+
+    // Fixed items hold; each filler is positive and takes its row's slack.
+    EXPECT_FLOAT_EQ(80.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(240.0f, fill1.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, c.size[0]);
+    EXPECT_FLOAT_EQ(280.0f, fill2.size[0]);
+
+    // Each row is a determinate 100 tall and they stack: row1 on top (y=100 in
+    // the y-up window), row2 below (y=0).
+    EXPECT_FLOAT_EQ(100.0f, a.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, c.size[1]);
+    EXPECT_GT(fill1.size[1], 0.0f);
+    EXPECT_GT(fill2.size[1], 0.0f);
+    EXPECT_FLOAT_EQ(100.0f, a.position[1]);
+    EXPECT_FLOAT_EQ(0.0f, c.position[1]);
 }

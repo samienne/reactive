@@ -74,6 +74,48 @@ bq::signal::AnySignal<widget::Instance> buildChild(
         ).getInstance();
 }
 
+// The pure-solver counterpart of buildChild(): the child is placed at its solved
+// obb exactly as above, but the region solution is threaded into its build so a
+// nested container reads it to place its own children. A leaf ignores it.
+bq::signal::AnySignal<widget::Instance> buildChildInRegion(
+        widget::AnyBuilder const& builder,
+        bq::signal::AnySignal<avg::Obb> obb,
+        bq::signal::AnySignal<widget::LayoutSolution> solution)
+{
+    auto shared = obb.share();
+    auto transform = shared.map(&avg::Obb::getTransform);
+    auto size = shared.map(&avg::Obb::getSize);
+
+    auto placed = builder.clone()
+        | modifier::transformBuilder(std::move(transform));
+
+    return (std::move(placed)(std::move(size), std::move(solution))
+        | modifier::setElementId(bq::signal::constant(avg::UniqueId()))
+        ).getInstance();
+}
+
+// A widget whose build receives the region solution alongside its assigned size,
+// the vehicle a pure-solver container uses to place its children from the one
+// solved tableau. The inner group @p f builds needs no size of its own, so it is
+// handed the assigned size only to satisfy the build interface.
+template <typename F>
+AnyWidget makeSolutionWidget(F f)
+{
+    return makeWidgetFromBuilder(makeBuilder(
+            [f = std::move(f)](BuildParams params,
+                    bq::signal::AnySignal<avg::Vector2f> size,
+                    bq::signal::AnySignal<widget::LayoutSolution> solution)
+                    -> widget::AnyElement
+            {
+                auto sharedSize = std::move(size).share();
+                AnyWidget group = f(sharedSize.clone(), std::move(solution));
+                return std::move(group)(std::move(params))(sharedSize.clone());
+            },
+            bq::signal::constant(SizeHint(defaultSizeHint())),
+            BuildParams{},
+            bq::signal::constant(avg::Vector2f(0.5f, 0.5f))));
+}
+
 void append(LayoutSpec& spec, std::vector<arrange::Constraint> constraints)
 {
     for (auto& constraint : constraints)
@@ -580,22 +622,20 @@ std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
     return obbs;
 }
 
-// The context a region owner threads to every participating container: a
+// The context a banded region owner threads to every participating container: a
 // non-owning handle to the shared fragment collector to append to, the one
 // region solution to read geometry from, and whether this container is the
 // region's outermost and so anchors the coordinate origin. The collector handle
 // is weak so a container node holding it does not own the collector, which owns
-// the fragments the container builds — see RegionCollectorTag.
+// the fragments the container builds — see RegionCollectorTag. The pure-solver
+// region takes a separate path: its constraints ride the builder and its
+// solution arrives as a build argument, so it needs no such context.
 struct RegionContext
 {
     std::weak_ptr<bq::signal::SharedVector<
         bq::signal::AnySignal<LayoutSpec>>> collector;
-    std::weak_ptr<bq::signal::SharedVector<
-        bq::signal::AnySignal<LayoutSpec>>> verticalCollector;
     bq::signal::AnySignal<LayoutSolution> solution;
-    bq::signal::AnySignal<LayoutSolution> widthSolution;
     bool anchor;
-    bool pure;
 };
 
 // Reads the region collector handle out of the build params, present only
@@ -612,19 +652,6 @@ std::optional<std::weak_ptr<bq::signal::SharedVector<
         return std::nullopt;
 
     auto context = bq::signal::makeSignalContext(std::move(*entry));
-    return context.evaluate<0>().get<0>();
-}
-
-// The vertical fragment collector, present only inside a pure-solver region.
-// Unlike regionCollector(), region membership is already decided by the
-// horizontal collector, so this reads the default empty handle when absent
-// rather than distinguishing it. A constant the region owner seeded, so
-// evaluating it in its own context is safe.
-std::weak_ptr<bq::signal::SharedVector<bq::signal::AnySignal<LayoutSpec>>>
-    regionVerticalCollector(BuildParams const& params)
-{
-    auto context = bq::signal::makeSignalContext(
-            params.valueOrDefault<RegionVerticalCollectorTag>());
     return context.evaluate<0>().get<0>();
 }
 
@@ -884,13 +911,45 @@ AnyWidget containerLayout(
             build,
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>,
             RegionContext)> buildRegion,
+        btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>)>
+            buildRegionPure,
         std::optional<Axis> flexAxis,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
     return makeWidget([build = std::move(build),
-                buildRegion = std::move(buildRegion), flexAxis](
+                buildRegion = std::move(buildRegion),
+                buildRegionPure = std::move(buildRegionPure), flexAxis](
                 BuildParams const& params, auto widgets)
         {
+            // A pure-solver region composes its constraints on the builders and
+            // receives its solution as a build argument, so it reads no collector
+            // and threads no solution down through the params. Membership is the
+            // pure-solver flag the region owner seeded, not a collector handle.
+            if (pureSolver(params))
+            {
+                BuildParams childParams = params;
+
+                // A pure-solver stacking container mints one flex variable for
+                // its layout axis and seeds it, with the axis, for the fillers
+                // among its children to couple to.
+                if (flexAxis)
+                {
+                    childParams.set<FlexVariableTag>(
+                            bq::signal::constant(arrange::Variable()));
+                    childParams.set<FlexAxisTag>(
+                            bq::signal::constant(*flexAxis));
+                }
+
+                auto builders = widgets.map(
+                        [childParams](widget::AnyWidget const& widget)
+                        -> widget::AnyBuilder
+                        {
+                            return widget.clone()(childParams);
+                        });
+
+                return buildRegionPure(std::move(builders));
+            }
+
             auto collector = regionCollector(params);
 
             if (!collector)
@@ -907,11 +966,8 @@ AnyWidget containerLayout(
 
             RegionContext region{
                 std::move(*collector),
-                regionVerticalCollector(params),
                 params.valueOrDefault<LayoutSolutionTag>(),
-                params.valueOrDefault<LayoutWidthSolutionTag>(),
-                regionAnchor(params),
-                pureSolver(params)
+                regionAnchor(params)
             };
 
             // A descendant is placed by this container's tiling, not by anchoring
@@ -919,19 +975,6 @@ AnyWidget containerLayout(
             // below.
             BuildParams childParams = params;
             childParams.set<RegionAnchorTag>(bq::signal::constant(false));
-
-            // A pure-solver stacking container mints one flex variable for its
-            // layout axis and seeds it, with the axis, for the fillers among its
-            // children to couple to. It is minted here rather than in the
-            // per-axis fragment because the children are built from these params
-            // before the fragment is assembled.
-            if (region.pure && flexAxis)
-            {
-                childParams.set<FlexVariableTag>(
-                        bq::signal::constant(arrange::Variable()));
-                childParams.set<FlexAxisTag>(
-                        bq::signal::constant(*flexAxis));
-            }
 
             auto builders = widgets.map(
                     [childParams](widget::AnyWidget const& widget)
@@ -1025,21 +1068,22 @@ AnyWidget solverBoxBuildersRegion(Axis axis, CrossAlign align,
             container, std::move(region), std::move(array));
 }
 
-// The pure-solver counterpart of solverBoxBuildersRegion(): the container emits
-// a band-free fragment (adjacent-edge relations plus the universal weak defaults
-// on every child) into the shared region collectors and reads its children's
-// geometry back out of the one region solution. The two axes are assembled
-// separately through a BoxDescriptor and routed into the region's two disjoint
-// solves: the x-only fragment into the horizontal collector, the y-only fragment
-// (staged on the container's pass-1 resolved width) into the vertical collector.
-// Like the banded region path, its box is unified with the box its parent tiles
+// The pure-solver counterpart of solverBoxBuildersRegion(): rather than emitting
+// its band-free fragment into a shared collector while it builds, the container
+// composes its fragment -- adjacent-edge relations, the cross-fill, and the weak
+// defaults -- together with its children's own composed fragments onto its
+// builder (addPureConstraint / setPureLayout), the constraint set a firewall
+// reads off the builder and solves before any element is built. Its build then
+// places its children out of the region solution handed to it as a build
+// argument (makeSolutionWidget), passing that same solution on so a nested
+// container places its own children. The two axes stay apart for the region's
+// two disjoint solves. Its box is unified with the box its parent tiles
 // (setBoxVariables).
-AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
+AnyWidget solverBoxBuildersRegionPure(Axis axis,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
     arrange::Variable gap;
-    bool anchor = region.anchor;
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -1048,113 +1092,87 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
                             bq::signal::constant(builder.getBoxVariables()));
                 })).share();
 
-    auto widget = makeWidgetWithSize(
-            [axis, anchor, container, gap, region](auto size, auto boxes,
-                auto array)
+    // The children's composed fragments, gathered off their builders without
+    // building any element -- the pure analogue of accumulateSizeHints reading
+    // SizeHints off the child builders.
+    auto emptyFragments = []
+    {
+        return bq::signal::AnySignal<std::vector<LayoutSpec>>(
+                bq::signal::constant(std::vector<LayoutSpec>()));
+    };
+
+    auto childHorizontal = bq::signal::join(array.map(
+                [emptyFragments](widget::AnyBuilder const& builder)
+                {
+                    auto const& pure = builder.getPureLayout();
+                    return pure ? pure->horizontal : emptyFragments();
+                }));
+
+    auto childVertical = bq::signal::join(array.map(
+                [emptyFragments](widget::AnyBuilder const& builder)
+                {
+                    auto const& pure = builder.getPureLayout();
+                    return pure ? pure->vertical : emptyFragments();
+                }));
+
+    // This container's own relations on each axis, read back on that axis. The
+    // outermost container is anchored by the region owner, not here, so every
+    // container states purely relative structure.
+    auto ownHorizontal = boxes.clone().map(
+            [axis, container, gap](std::vector<BoxVariables> const& boxes)
             {
-                // The fragments must stay off the region solution, which the solve
-                // produces: only the anchored outermost container takes a real
-                // size, to pin the context frame. A nested container is placed by
-                // its parent's tiling, so its fragment needs no size and takes a
-                // constant instead, keeping it out of the build-order cycle.
-                bq::signal::AnySignal<avg::Vector2f> frame = anchor
-                    ? bq::signal::AnySignal<avg::Vector2f>(std::move(size))
-                    : bq::signal::AnySignal<avg::Vector2f>(
-                            bq::signal::constant(avg::Vector2f(0.0f, 0.0f)));
+                LayoutSpec spec;
+                append(spec, pureAxisConstraints(Axis::x, axis, false, container,
+                            boxes, avg::Vector2f(0.0f, 0.0f), gap));
+                // The container carries its own weak size default, so a nested
+                // container an axis of which its parent neither sizes nor fills
+                // (a row's height inside a column) still resolves to a definite
+                // extent instead of a free degree of freedom. Its parent's
+                // cross-fill and the window anchor both outrank it.
+                spec.constraints.push_back(weakWidthDefault(container));
+                readBackBoxesX(spec, boxes);
+                spec.variables.push_back(container.left);
+                spec.variables.push_back(container.right);
+                return spec;
+            });
 
-                auto sharedFrame = std::move(frame).share();
+    auto ownVertical = boxes.clone().map(
+            [axis, container, gap](std::vector<BoxVariables> const& boxes)
+            {
+                LayoutSpec spec;
+                append(spec, pureAxisConstraints(Axis::y, axis, false, container,
+                            boxes, avg::Vector2f(0.0f, 0.0f), gap));
+                spec.constraints.push_back(weakHeightDefault(container));
+                readBackBoxesY(spec, boxes);
+                spec.variables.push_back(container.top);
+                spec.variables.push_back(container.bottom);
+                return spec;
+            });
 
-                auto horizontal = merge(sharedFrame.clone(), boxes.clone())
-                    .map([axis, anchor, container, gap](avg::Vector2f size,
-                                std::vector<BoxVariables> const& boxes)
-                        {
-                            return pureAxisConstraints(Axis::x, axis, anchor,
-                                    container, boxes, size, gap);
-                        });
+    auto concat = [](std::vector<std::vector<LayoutSpec>> const& children,
+            LayoutSpec const& own)
+    {
+        std::vector<LayoutSpec> all;
+        for (auto const& child : children)
+            for (auto const& spec : child)
+                all.push_back(spec);
+        all.push_back(own);
+        return all;
+    };
 
-                auto verticalFrame = sharedFrame.clone();
-                auto verticalBoxes = boxes.clone();
-                BoxDescriptor descriptor(container,
-                        BoxDescriptor::Constraints(std::move(horizontal)),
-                        [axis, anchor, container, gap, verticalFrame,
-                            verticalBoxes](bq::signal::AnySignal<float>)
-                        {
-                            // A container's own vertical relations are
-                            // width-independent (the weak height default does not
-                            // read the width), so the resolved width the accessor
-                            // is handed is not consumed here; the staging it feeds
-                            // is what a width-dependent leaf constraint rides.
-                            return BoxDescriptor::Constraints(
-                                merge(verticalFrame.clone(),
-                                        verticalBoxes.clone())
-                                .map([axis, anchor, container, gap](
-                                            avg::Vector2f size,
-                                            std::vector<BoxVariables> const& boxes)
-                                    {
-                                        return pureAxisConstraints(Axis::y, axis,
-                                                anchor, container, boxes, size,
-                                                gap);
-                                    }));
-                        });
+    auto horizontal = merge(std::move(childHorizontal), std::move(ownHorizontal))
+        .map(concat);
+    auto vertical = merge(std::move(childVertical), std::move(ownVertical))
+        .map(concat);
 
-                // Pass 1's resolved width for this container (right - left),
-                // projected from the region's x-only solution, is the width the
-                // vertical accessor is staged on. It flows through the signal
-                // graph: when the x-solve re-runs this re-emits and the vertical
-                // fragment recomputes.
-                auto width = region.widthSolution.map(
-                        [container](LayoutSolution const& solution)
-                        {
-                            return readObb(solution, container).getSize()[0];
-                        });
+    auto widget = makeSolutionWidget(
+            [container, array, boxes](
+                bq::signal::AnySignal<avg::Vector2f> /*size*/,
+                bq::signal::AnySignal<LayoutSolution> solution) -> AnyWidget
+            {
+                auto sharedSolution = std::move(solution).share();
 
-                // Two disjoint solves, so the x-only and y-only constraint sets
-                // become two fragments, each read back on its own axis, routed to
-                // the horizontal and vertical collectors respectively.
-                auto horizontalSpec = merge(descriptor.getHorizontalConstraints(),
-                        boxes.clone())
-                    .map([container](
-                                std::vector<arrange::Constraint> const& horizontal,
-                                std::vector<BoxVariables> const& boxes)
-                        {
-                            LayoutSpec spec;
-                            append(spec, horizontal);
-                            readBackBoxesX(spec, boxes);
-                            spec.variables.push_back(container.left);
-                            spec.variables.push_back(container.right);
-                            return spec;
-                        });
-
-                auto verticalSpec = merge(
-                        descriptor.getVerticalConstraints(std::move(width)),
-                        boxes.clone())
-                    .map([container](
-                                std::vector<arrange::Constraint> const& vertical,
-                                std::vector<BoxVariables> const& boxes)
-                        {
-                            LayoutSpec spec;
-                            append(spec, vertical);
-                            readBackBoxesY(spec, boxes);
-                            spec.variables.push_back(container.top);
-                            spec.variables.push_back(container.bottom);
-                            return spec;
-                        });
-
-                if (auto collector = region.collector.lock())
-                {
-                    auto write = collector->write();
-                    write->push_back(bq::signal::AnySignal<LayoutSpec>(
-                                std::move(horizontalSpec)));
-                }
-
-                if (auto collector = region.verticalCollector.lock())
-                {
-                    auto write = collector->write();
-                    write->push_back(bq::signal::AnySignal<LayoutSpec>(
-                                std::move(verticalSpec)));
-                }
-
-                auto obbs = merge(region.solution, boxes.clone())
+                auto obbs = merge(sharedSolution.clone(), boxes.clone())
                     .map([container](LayoutSolution const& solution,
                                 std::vector<BoxVariables> const& boxes)
                         {
@@ -1162,23 +1180,27 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, RegionContext region,
                         });
 
                 auto instances = bq::signal::join(bq::signal::scatter(
-                            std::move(array), std::move(obbs), &buildChild));
+                            array, std::move(obbs),
+                            [sharedSolution](widget::AnyBuilder const& builder,
+                                bq::signal::AnySignal<avg::Obb> obb)
+                            {
+                                return buildChildInRegion(builder, std::move(obb),
+                                        sharedSolution.clone());
+                            }));
 
                 return widget::makeWidget()
                     | modifier::addWidgets(std::move(instances))
                     | modifier::setRole("Layout")
                     ;
-            },
-            boxes,
-            std::move(array)
-            );
+            });
 
     return std::move(widget)
         | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
         | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                [container](widget::AnyBuilder builder)
+                [container, horizontal, vertical](widget::AnyBuilder builder)
                 {
                     builder.setBoxVariables(container);
+                    builder.setPureLayout(PureLayout{ horizontal, vertical });
                     return builder;
                 }))
         ;
@@ -1245,12 +1267,12 @@ AnyWidget solverBox(Axis axis, CrossAlign align,
             [axis, align](bq::signal::ArraySignal<widget::AnyBuilder> builders,
                 RegionContext region)
             {
-                if (region.pure)
-                    return solverBoxBuildersRegionPure(axis, std::move(region),
-                            std::move(builders));
-
                 return solverBoxBuildersRegion(axis, align, std::move(region),
                         std::move(builders));
+            },
+            [axis](bq::signal::ArraySignal<widget::AnyBuilder> builders)
+            {
+                return solverBoxBuildersRegionPure(axis, std::move(builders));
             },
             axis,
             std::move(widgets));
@@ -1302,29 +1324,17 @@ AnyWidget filler()
                     // at the weakest tier. It carries no size default on that
                     // axis, so the container's gap drive is free to pull the
                     // shared extent out to fill the slack; the cross axis falls
-                    // to the container's leading-edge pin and weak default.
+                    // to the container's leading-edge pin, cross-fill and weak
+                    // default.
                     LayoutSpec spec;
                     spec.constraints.push_back(
                             ((axis == Axis::x ? box.width() : box.height())
                                 == arrange::Expression(flex))
                             | weakestStrength());
 
-                    std::weak_ptr<bq::signal::SharedVector<
-                        bq::signal::AnySignal<LayoutSpec>>> handle;
-                    if (axis == Axis::x)
-                    {
-                        if (auto collector = regionCollector(params))
-                            handle = *collector;
-                    }
-                    else
-                    {
-                        handle = regionVerticalCollector(params);
-                    }
-
-                    if (auto collector = handle.lock())
-                        collector->write()->push_back(
-                                bq::signal::AnySignal<LayoutSpec>(
-                                    bq::signal::constant(std::move(spec))));
+                    widget::addPureConstraint(builder, axis,
+                            bq::signal::AnySignal<LayoutSpec>(
+                                bq::signal::constant(std::move(spec))));
 
                     return builder;
                 }));
@@ -1361,6 +1371,10 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
             {
                 return solverStackBuilders(std::move(builders));
             },
+            [](bq::signal::ArraySignal<widget::AnyBuilder> builders)
+            {
+                return solverStackBuilders(std::move(builders));
+            },
             std::nullopt,
             std::move(widgets));
 }
@@ -1383,6 +1397,10 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             build,
             [build](bq::signal::ArraySignal<widget::AnyBuilder> builders,
                 RegionContext)
+            {
+                return build(std::move(builders));
+            },
+            [build](bq::signal::ArraySignal<widget::AnyBuilder> builders)
             {
                 return build(std::move(builders));
             },
@@ -1465,72 +1483,77 @@ AnyWidget regionRootImpl(AnyWidget content)
             );
 }
 
-// The pure-solver region owner: two disjoint per-axis solves rather than the one
-// combined solve regionRootImpl() runs. The x-solve resolves the horizontal
-// fragments; its solution is fed down (LayoutWidthSolutionTag) so each container
-// projects its resolved width and stages its vertical fragment on it; the y-solve
-// then resolves the vertical fragments; the two solutions are unioned into the
-// combined one every box reads its obb from (LayoutSolutionTag). Both solutions
-// are consumed while the region builds but produced by it, so each rides its own
-// makeInput/tee to break the build-order cycle, exactly as the single-solve owner
-// does for its one solution.
+// The pure-solver region owner. Because the constraints now ride the builders
+// (composed up, solution-independent), the solve is a plain forward step: turn
+// the content into a builder without building any element, read the domain's
+// composed constraints off it, anchor its outermost box to the window, and run
+// the two disjoint per-axis solves once. The combined solution is then handed
+// straight into the build as an argument, so the element is placed against a
+// real solution on the very first evaluate -- no makeInput seed, no tee, no
+// settling pass. The two solves stay disjoint (x, then y) as before.
 AnyWidget pureRegionRootImpl(AnyWidget content)
 {
     return makeWidgetWithSize(
             [content](auto size, BuildParams const& params)
             {
-                auto widthInput = bq::signal::makeInput(LayoutSolution());
-                auto solutionInput = bq::signal::makeInput(LayoutSolution());
-
-                auto horizontalCollector = makeCollector();
-                auto verticalCollector = makeCollector();
-
                 BuildParams childParams = params;
-                childParams.set<LayoutSolutionTag>(solutionInput.signal);
-                childParams.set<LayoutWidthSolutionTag>(widthInput.signal);
-                childParams.set<RegionCollectorTag>(bq::signal::constant(
-                            std::weak_ptr<bq::signal::SharedVector<
-                                bq::signal::AnySignal<LayoutSpec>>>(
-                                    horizontalCollector)));
-                childParams.set<RegionVerticalCollectorTag>(bq::signal::constant(
-                            std::weak_ptr<bq::signal::SharedVector<
-                                bq::signal::AnySignal<LayoutSpec>>>(
-                                    verticalCollector)));
-                childParams.set<RegionAnchorTag>(bq::signal::constant(true));
                 childParams.set<PureSolverTag>(bq::signal::constant(true));
 
-                auto childInstance = content.clone()(childParams)(std::move(size))
-                    .getInstance();
+                auto builder = content.clone()(childParams);
+                std::optional<PureLayout> pure = builder.getPureLayout();
+                BoxVariables root = builder.getBoxVariables();
 
-                // Pass 1 (x-only) is the acyclic root: the horizontal fragments
-                // depend on nothing downstream. Its solution feeds the width
-                // down-channel the vertical fragments are staged on.
-                auto horizontalSolution =
-                    layoutRegion(collectedFragments(horizontalCollector)).share();
-                auto widthDriver =
-                    horizontalSolution.clone().tee(widthInput.handle);
+                auto empty = bq::signal::AnySignal<std::vector<LayoutSpec>>(
+                        bq::signal::constant(std::vector<LayoutSpec>()));
+                auto horizontal = pure ? pure->horizontal : empty;
+                auto vertical = pure ? pure->vertical : empty;
 
-                // Pass 2 (y-only) resolves the vertical fragments, which settle a
-                // pass behind pass 1 through the width down-channel.
-                auto verticalSolution =
-                    layoutRegion(collectedFragments(verticalCollector));
+                auto sharedSize = std::move(size).share();
 
-                auto solution = combineSolutions(horizontalSolution.clone(),
-                        std::move(verticalSolution));
-                auto solutionDriver = solution.tee(solutionInput.handle);
+                // The region owner alone anchors the domain's outermost box to
+                // the window rectangle; every container inside states only
+                // relative structure.
+                auto anchored = [root](Axis axis)
+                {
+                    return [root, axis](std::vector<LayoutSpec> const& fragments,
+                            avg::Vector2f size)
+                    {
+                        std::vector<LayoutSpec> all = fragments;
+                        LayoutSpec anchor;
+                        arrange::Variable const& lead =
+                            axis == Axis::x ? root.left : root.top;
+                        arrange::Variable const& trail =
+                            axis == Axis::x ? root.right : root.bottom;
+                        float extent = axis == Axis::x ? size[0] : size[1];
+                        anchor.constraints.push_back(arrange::Expression(lead)
+                                == arrange::Expression(0.0));
+                        anchor.constraints.push_back(arrange::Expression(trail)
+                                == arrange::Expression(
+                                    static_cast<double>(extent)));
+                        anchor.variables.push_back(lead);
+                        anchor.variables.push_back(trail);
+                        all.push_back(std::move(anchor));
+                        return all;
+                    };
+                };
 
-                // The map keeps both driven solutions live and pins the sole
-                // owning references to the two collectors, off the
-                // fragment-reachable graph, so the weak down-channel handles
-                // cannot form a cycle.
-                auto instance = merge(std::move(childInstance),
-                        std::move(widthDriver), std::move(solutionDriver))
-                    .map([horizontalCollector, verticalCollector](
-                                widget::Instance instance,
-                                LayoutSolution const&, LayoutSolution const&)
-                        {
-                            return instance;
-                        });
+                auto horizontalFragments =
+                    merge(std::move(horizontal), sharedSize.clone())
+                    .map(anchored(Axis::x));
+                auto verticalFragments =
+                    merge(std::move(vertical), sharedSize.clone())
+                    .map(anchored(Axis::y));
+
+                auto solution = combineSolutions(
+                        layoutRegion(bq::signal::AnySignal<
+                                std::vector<LayoutSpec>>(
+                                std::move(horizontalFragments))),
+                        layoutRegion(bq::signal::AnySignal<
+                                std::vector<LayoutSpec>>(
+                                std::move(verticalFragments)))).share();
+
+                auto instance = std::move(builder)(sharedSize.clone(),
+                        solution.clone()).getInstance();
 
                 return widget::makeWidget()
                     | modifier::addWidget(std::move(instance));

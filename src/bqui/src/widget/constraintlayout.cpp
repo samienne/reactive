@@ -1,5 +1,7 @@
 #include "constraintlayout.h"
 
+#include "bqui/widget/builder.h"
+
 #include <avg/rendertree/uniqueid.h>
 #include <avg/transform.h>
 #include <avg/vector.h>
@@ -8,11 +10,14 @@
 #include <arrange/solver.h>
 #include <arrange/strength.h>
 
+#include <bq/signal/constant.h>
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
 #include <map>
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace bqui::widget
 {
@@ -39,6 +44,30 @@ namespace
         return arrange::Expression(a) == arrange::Expression(b);
     }
 } // namespace
+
+void addPureConstraint(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<LayoutSpec> fragment)
+{
+    std::optional<PureLayout> current = builder.getPureLayout();
+    PureLayout layout = current
+        ? *current
+        : PureLayout{
+            bq::signal::constant(std::vector<LayoutSpec>()),
+            bq::signal::constant(std::vector<LayoutSpec>())
+        };
+
+    auto& target = axis == Axis::x ? layout.horizontal : layout.vertical;
+
+    target = merge(std::move(target), std::move(fragment)).map(
+            [](std::vector<LayoutSpec> const& specs, LayoutSpec const& fragment)
+            {
+                std::vector<LayoutSpec> result = specs;
+                result.push_back(fragment);
+                return result;
+            });
+
+    builder.setPureLayout(std::move(layout));
+}
 
 arrange::Expression BoxVariables::width() const
 {
