@@ -5,6 +5,7 @@
 #include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
 #include "bqui/widget/guide.h"
+#include "bqui/widget/layoutspec.h"
 #include "bqui/widget/resolvedguides.h"
 
 #include <bq/signal/constant.h>
@@ -29,28 +30,53 @@
 
 namespace bqui::widget
 {
+    struct AnyBuilder;
+
     /**
-     * @brief One subtree's contribution to a solve: the constraints to apply
-     * and the variables whose solved values must be read back.
+     * @brief Accumulates one pure-solver fragment onto @p builder's constraints
+     * for @p axis (Axis::x horizontal, Axis::y vertical), minting the PureLayout
+     * on the first fragment and composing onto it thereafter.
      *
-     * The solver exposes no variable iteration, so the variables to read travel
-     * alongside the constraints that mention them.
+     * The pure analogue of setSizeHint(): where a size modifier sets a value a
+     * container aggregates, this appends a constraint stream a firewall reads off
+     * the builder and solves. Used by the size modifiers, filler() and each
+     * container to place its own relations alongside its children's.
      */
-    struct LayoutSpec
+    void addPureConstraint(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<LayoutSpec> fragment);
+
+    /**
+     * @brief The up-channel a region owner threads down for its participating
+     * containers to append their per-container spec fragments to.
+     *
+     * The presence of this entry is what marks a subtree as inside a banded
+     * region: a container that finds it appends its own fragment and reads its
+     * geometry from the shared LayoutSolutionTag rather than running its own
+     * solve. The region owner (regionRoot) holds the sole owning reference to
+     * the collector and folds its contents into the one region solve; this
+     * down-channel carries only a non-owning handle. That is deliberate: the
+     * collector owns the fragment signals, and a fragment reaches this params
+     * entry through the child builders it is built from, so an owning handle
+     * here would close a retain cycle collector -> fragment -> builder -> params
+     * -> collector. The weak handle breaks it, exactly as the solution
+     * down-channel's own back reference is weak. Fragments are appended as the
+     * subtree builds, so the collection settles a pass behind the build, like
+     * any change-driven input.
+     */
+    struct RegionCollectorTag
     {
-        std::vector<arrange::Constraint> constraints;
-        std::vector<arrange::Variable> variables;
+        using type = std::weak_ptr<bq::signal::SharedVector<
+            bq::signal::AnySignal<LayoutSpec>>>;
+
+        static bq::signal::AnySignal<type> getDefaultValue()
+        {
+            return bq::signal::constant(type());
+        }
     };
 
     /**
-     * @brief A solved layout: each read-back variable's value keyed by its
-     * arrange id.
-     */
-    using LayoutSolution = std::unordered_map<arrange::Id, double>;
-
-    /**
-     * @brief The down-channel entry a widget in a firewall region reads to learn
-     * the region's solved geometry.
+     * @brief The down-channel entry a widget in a banded firewall region reads
+     * to learn the region's solved geometry.
      *
      * A region owner runs one solve spanning every container in the region and
      * provides the shared solution here, so each participating box reads its own
@@ -67,82 +93,6 @@ namespace bqui::widget
         static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
         {
             return bq::signal::constant(LayoutSolution());
-        }
-    };
-
-    /**
-     * @brief The down-channel carrying a pure-solver region's pass-1 (x-only)
-     * solution, the horizontal geometry a box projects its resolved width from
-     * to stage its vertical constraints on.
-     *
-     * The two-phase pure solve resolves the x-edges first; this delivers that
-     * x-solution down so a container can read its own resolved width
-     * (right - left) out of it and feed it into getVerticalConstraints() before
-     * the y-edges are solved. It is disjoint from LayoutSolutionTag, which
-     * carries the combined solution a box reads its final obb from: the width is
-     * projected from the x-only pass so the vertical fragments never depend on
-     * the combined solution they help produce. Empty outside a pure region,
-     * which reads back a zero width.
-     */
-    struct LayoutWidthSolutionTag
-    {
-        using type = LayoutSolution;
-
-        static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
-        {
-            return bq::signal::constant(LayoutSolution());
-        }
-    };
-
-    /**
-     * @brief The up-channel a region owner threads down for its participating
-     * containers to append their per-container spec fragments to.
-     *
-     * The presence of this entry is what marks a subtree as inside a region: a
-     * container that finds it appends its own fragment and reads its geometry
-     * from the shared LayoutSolutionTag rather than running its own solve. The
-     * region owner (regionRoot) holds the sole owning reference to the collector
-     * and folds its contents into the one region solve; this down-channel carries
-     * only a non-owning handle. That is deliberate: the collector owns the
-     * fragment signals, and a fragment reaches this params entry through the
-     * child builders it is built from, so an owning handle here would close a
-     * retain cycle collector -> fragment -> builder -> params -> collector. The
-     * weak handle breaks it, exactly as the solution down-channel's own back
-     * reference is weak. Fragments are appended as the subtree builds, so the
-     * collection settles a pass behind the build, like any change-driven input.
-     */
-    struct RegionCollectorTag
-    {
-        using type = std::weak_ptr<bq::signal::SharedVector<
-            bq::signal::AnySignal<LayoutSpec>>>;
-
-        static bq::signal::AnySignal<type> getDefaultValue()
-        {
-            return bq::signal::constant(type());
-        }
-    };
-
-    /**
-     * @brief A pure-solver region's second collector: the vertical (y-only) spec
-     * fragments, gathered apart from the horizontal ones RegionCollectorTag
-     * gathers so the two axes solve as two disjoint passes.
-     *
-     * A pure region owner threads this alongside RegionCollectorTag; a container
-     * appends its x-only fragment to that one and its y-only fragment here. The
-     * y fragment is staged on the container's resolved width (from
-     * LayoutWidthSolutionTag), so it settles a pass behind the x-solve. Like the
-     * horizontal collector this is a non-owning weak handle, the owning
-     * reference staying with the region owner off the fragment-reachable path to
-     * break the retain cycle. Empty outside a pure region.
-     */
-    struct RegionVerticalCollectorTag
-    {
-        using type = std::weak_ptr<bq::signal::SharedVector<
-            bq::signal::AnySignal<LayoutSpec>>>;
-
-        static bq::signal::AnySignal<type> getDefaultValue()
-        {
-            return bq::signal::constant(type());
         }
     };
 

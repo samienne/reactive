@@ -11,7 +11,6 @@
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
-#include <memory>
 #include <utility>
 
 namespace bqui::modifier::detail
@@ -22,26 +21,13 @@ namespace
     using widget::BoxVariables;
     using widget::LayoutSpec;
 
-    using CollectorHandle = std::weak_ptr<bq::signal::SharedVector<
-        bq::signal::AnySignal<LayoutSpec>>>;
-
-    // The region-membership params are constants the region owner seeded, so
-    // evaluating them in a throwaway context is safe -- a constant does not
+    // The region-membership param is a constant the region owner seeded, so
+    // evaluating it in a throwaway context is safe -- a constant does not
     // diverge between contexts.
     bool inPureRegion(BuildParams const& params)
     {
         auto context = bq::signal::makeSignalContext(
                 params.valueOrDefault<widget::PureSolverTag>());
-        return context.evaluate<0>().get<0>();
-    }
-
-    CollectorHandle collectorFor(BuildParams const& params, PureAxis axis)
-    {
-        auto entry = axis == PureAxis::horizontal
-            ? params.valueOrDefault<widget::RegionCollectorTag>()
-            : params.valueOrDefault<widget::RegionVerticalCollectorTag>();
-
-        auto context = bq::signal::makeSignalContext(std::move(entry));
         return context.evaluate<0>().get<0>();
     }
 } // namespace
@@ -69,10 +55,9 @@ AnyWidgetModifier pureConstraintModifier(PureAxis axis,
                             return spec;
                         });
 
-                if (auto collector = collectorFor(params, axis).lock())
-                    collector->write()->push_back(
-                            bq::signal::AnySignal<LayoutSpec>(
-                                std::move(fragment)));
+                widget::addPureConstraint(builder,
+                        axis == PureAxis::horizontal ? Axis::x : Axis::y,
+                        bq::signal::AnySignal<LayoutSpec>(std::move(fragment)));
 
                 return builder;
             }));
