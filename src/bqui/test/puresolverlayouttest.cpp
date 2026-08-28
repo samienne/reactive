@@ -8,6 +8,7 @@
 
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
+#include <bqui/widget/label.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
@@ -554,4 +555,93 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
     EXPECT_FLOAT_EQ(60.0f, g.size[0]);
     EXPECT_FLOAT_EQ(150.0f, g.size[1]);
     EXPECT_FLOAT_EQ(0.0f, g.position[0]);
+}
+
+// A shipped content leaf carries its own weak 100 default with no defaultSize()
+// at the call site: a plain label() beside a filler settles at 100 and the
+// filler takes the rest, so baking the default into the leaf factories works.
+TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idLabel = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(label(std::string("hi")), idLabel));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idLabel).size[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idFiller).size[0]);
+}
+
+// maxWidth alone caps the weak 100 default: a required upper bound below the
+// default holds the width down to 60.
+TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed40, fixed40) | modifier::maxWidth(60.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, id).size[0]);
+}
+
+// minWidth alone raises the weak 100 default: a required lower bound above the
+// default lifts the width to 200 in a row with room to spare.
+TEST(PureSolverLayout, minWidthAloneRaisesTheDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed40, fixed40) | modifier::minWidth(200.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(200.0f, readProbe(instance, id).size[0]);
+}
+
+// The over-constraining edge: a required minWidth larger than the whole row.
+// The child needs 200 in a 100-wide window. This asserts the solver's ACTUAL
+// behavior (filled in from the run), including what happens to a fixed-width
+// sibling, so the required-vs-strong choice can be judged.
+TEST(PureSolverLayout, minWidthLargerThanRow)
+{
+    avg::Vector2f const window(100.0f, 100.0f);
+
+    btl::UniqueId const idBig = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idBig, fixed40, fixed40) | modifier::minWidth(200.0f));
+    row.push_back(probe(idSibling, fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry big = readProbe(instance, idBig);
+    Geometry sibling = readProbe(instance, idSibling);
+
+    // The required min holds at 200 and overflows the row; the signed gap goes
+    // negative and the fixed sibling keeps its size, pushed past the row's end.
+    EXPECT_FLOAT_EQ(200.0f, big.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, big.position[0]);
+    EXPECT_FLOAT_EQ(50.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
 }
