@@ -93,6 +93,13 @@ namespace bqui::modifier
      * tiling of a filler -- overrides it; it only decides an axis nothing else
      * pinned, keeping the solve well-posed. A no-op outside a pure-solver
      * region.
+     *
+     * The shipped content leaves (label, text edit, filled/stroked shapes) apply
+     * this themselves, so an ordinary layout needs no call. It cannot be baked
+     * into makeWidget() -- the leaf primitive lives in a public header that the
+     * private layout machinery this default needs must not reach -- so a widget
+     * built directly from makeWidget() (a custom leaf) still adds it by hand. A
+     * filler() must not: it is deliberately free on the layout axis.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize();
 } // namespace bqui::modifier
