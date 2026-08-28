@@ -103,4 +103,38 @@ namespace bqui::modifier
      * filler() must not: it is deliberately free on the layout axis.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize();
+
+    /**
+     * @brief Give this widget a fixed natural size in a pure-solver region, at
+     * the same content strength as defaultSize().
+     *
+     * The disposition for a leaf whose measured SizeHint is not a sensible pure
+     * natural -- a bare shape, whose banded "fill everything" hint would read as
+     * an absurd ~10000 natural. It settles at @p size unless a fixed size, a
+     * bound or a filler/fill() overrides it. A no-op outside a pure-solver region.
+     */
+    BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);
+
+    /**
+     * @brief Make this widget flexible on its container's layout axis in a
+     * pure-solver region: it grows to take a share of the container's leftover
+     * space, exactly as a filler() does, while keeping its content as a
+     * flex-basis for the container's aggregation.
+     *
+     * The general form of filler() for a content widget. It sets the pure flex
+     * band and couples the widget's extent to the container's shared flex
+     * variable, so it splits the slack with its filler and fill() siblings; its
+     * content natural is dropped only under that distribution. Because flex is a
+     * named band field, a later fixed size on the same axis overrides it. A no-op
+     * outside a pure-solver region. Fills only the container's layout axis (the
+     * one a filler fills); the cross axis keeps its content size.
+     */
+    BQUI_EXPORT AnyWidgetModifier fill();
+
+    /**
+     * @brief fill() with an explicit grow weight: the widget takes a share of the
+     * container's slack in proportion to @p weight, so a grow(2) child grows
+     * twice as fast as a grow(1) (or filler) sibling. @c fill() is @c grow(1).
+     */
+    BQUI_EXPORT AnyWidgetModifier grow(float weight);
 } // namespace bqui::modifier

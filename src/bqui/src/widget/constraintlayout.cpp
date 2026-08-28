@@ -259,7 +259,13 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
         return axis == Axis::x ? box.width() : box.height();
     };
 
-    if (constraints.natural)
+    // A flexing widget's natural is a flex-basis: dropped here so the container's
+    // slack distribution (the flex coupling plus the gap drive) is free to
+    // stretch it, exactly as a filler carries no natural on its flex axis. It
+    // stays in the band for the parent's aggregation; only the stamp onto the box
+    // drops it. Without a flex it is baked as the widget's content/natural size.
+    bool flexes = constraints.flex && constraints.flex->coeff > 0.0f;
+    if (constraints.natural && !flexes)
         spec.constraints.push_back(
                 (extent() == arrange::Expression(
                         static_cast<double>(constraints.natural->value)))

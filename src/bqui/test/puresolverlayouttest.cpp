@@ -14,10 +14,15 @@
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
+#include <bqui/shape/rectangle.h>
+
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
 #include <bqui/simplesizehint.h>
 #include <bqui/sizehint.h>
+
+#include <avg/brush.h>
+#include <avg/color.h>
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
@@ -961,4 +966,111 @@ TEST(PureSolverLayout, contentLeavesShareRowWithFiller)
     EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
     EXPECT_FLOAT_EQ(137.0f, narrow.position[0]);
     EXPECT_FLOAT_EQ(200.0f, filler.position[0]);
+}
+
+// fill() makes an ordinary content widget behave like a filler. A fixed 100 leaf
+// and a content probe carrying fill() in a 400-wide row: the fixed leaf holds
+// 100 and the filled probe absorbs the 300 of slack, its 40 content width
+// dropped under the distribution.
+TEST(PureSolverLayout, fillModifierActsAsFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFilled = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(probe(idFilled, fixed40, fixed40) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filled = readProbe(instance, idFilled);
+
+    EXPECT_FLOAT_EQ(100.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, filled.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, fixed.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, filled.position[0]);
+}
+
+// Two fill() widgets split the slack evenly, coupling to the one shared flex
+// variable just as two fillers do: a fixed 100 leaf and two filled probes in a
+// 400-wide row give 100 + 150 + 150.
+TEST(PureSolverLayout, twoFillModifiersShareSlackEvenly)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idSecond = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(probe(idFirst, fixed40, fixed40) | modifier::fill());
+    row.push_back(probe(idSecond, fixed40, fixed40) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idSecond).size[0]);
+}
+
+// grow(weight) splits the slack in proportion to the weights: a grow(1) and a
+// grow(3) probe in a 400-wide row take 100 and 300 (a 1:3 share).
+TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idOne = btl::makeUniqueId();
+    btl::UniqueId const idThree = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idOne, fixed40, fixed40) | modifier::grow(1.0f));
+    row.push_back(probe(idThree, fixed40, fixed40) | modifier::grow(3.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idOne).size[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idThree).size[0]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idOne).position[0]);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idThree).position[0]);
+}
+
+// A bare shape sizes to a modest pure default, not its banded fill-everything
+// hint: a plain filled rectangle in a wide window comes out 100x100 rather than
+// the absurd ~10000 its SizeHint natural would give. A fixedSize still overrides
+// it -- the swatch path is unbroken.
+TEST(PureSolverLayout, bareShapeHasModestPureDefault)
+{
+    avg::Vector2f const window(400.0f, 400.0f);
+
+    btl::UniqueId const idBare = btl::makeUniqueId();
+    btl::UniqueId const idSized = btl::makeUniqueId();
+
+    avg::Brush const brush{ avg::Color(1.0f, 0.0f, 0.0f, 1.0f) };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(shape::rectangle().fill(brush), idBare));
+    row.push_back(withArea(shape::rectangle().fill(brush)
+                | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f)), idSized));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry bare = readProbe(instance, idBare);
+    Geometry sized = readProbe(instance, idSized);
+
+    EXPECT_FLOAT_EQ(100.0f, bare.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, bare.size[1]);
+    EXPECT_FLOAT_EQ(48.0f, sized.size[0]);
+    EXPECT_FLOAT_EQ(48.0f, sized.size[1]);
 }

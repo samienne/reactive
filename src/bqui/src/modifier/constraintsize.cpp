@@ -146,4 +146,24 @@ AnyWidgetModifier defaultSize()
     return detail::pureContentDefaultModifier();
 }
 
+AnyWidgetModifier defaultSize(avg::Vector2f size)
+{
+    return bothAxes(bq::signal::constant(size),
+            [](PureAxis axis, bq::signal::AnySignal<float> value)
+            {
+                return detail::pureNaturalModifier(axis,
+                        widget::contentStrength(), std::move(value));
+            });
+}
+
+AnyWidgetModifier fill()
+{
+    return grow(1.0f);
+}
+
+AnyWidgetModifier grow(float weight)
+{
+    return detail::pureFillModifier(weight);
+}
+
 } // namespace bqui::modifier

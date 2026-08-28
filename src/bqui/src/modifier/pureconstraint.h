@@ -54,6 +54,18 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
 
     /**
+     * @brief A widget modifier that, inside a pure-solver region, makes the
+     * widget flexible on its container's layout axis with grow weight @p weight.
+     *
+     * The general form of filler() for a content widget: it sets the pure flex
+     * band and couples the widget's extent to the container's shared flex
+     * variable at @c extent==weight*F, so fillers and fill() widgets split the
+     * container's slack in proportion to their weights. A no-op outside a
+     * pure-solver region.
+     */
+    AnyWidgetModifier pureFillModifier(float weight);
+
+    /**
      * @brief A widget modifier that, inside a pure-solver region, seeds the
      * natural band on both axes from the builder's own SizeHint — the content
      * measurement — at contentStrength().
