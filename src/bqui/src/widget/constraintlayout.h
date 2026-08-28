@@ -33,17 +33,78 @@ namespace bqui::widget
     struct AnyBuilder;
 
     /**
-     * @brief Accumulates one pure-solver fragment onto @p builder's constraints
+     * @brief Appends one untagged relation fragment onto @p builder's descriptor
      * for @p axis (Axis::x horizontal, Axis::y vertical), minting the PureLayout
      * on the first fragment and composing onto it thereafter.
      *
-     * The pure analogue of setSizeHint(): where a size modifier sets a value a
-     * container aggregates, this appends a constraint stream a firewall reads off
-     * the builder and solves. Used by the size modifiers, filler() and each
-     * container to place its own relations alongside its children's.
+     * Relations are additive: a filler's flex coupling, a guide alignment, a
+     * container's tiling. The size band is set by name instead — see
+     * setPureNatural() and friends — so a size modifier overrides by replacement
+     * rather than piling a competing relation on.
      */
     void addPureConstraint(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<LayoutSpec> fragment);
+
+    /**
+     * @brief Replaces the natural (preferred) extent band on @p axis with
+     * @p value held at @p strength.
+     *
+     * The named-field write that makes a size word an override: a later
+     * setPureNatural() on the same axis wins outright, with no competing
+     * constraint left behind. A weakest strength is the leaf/container default; a
+     * strong one is a fixed size.
+     */
+    void setPureNatural(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value, arrange::Strength strength);
+
+    /**
+     * @brief Replaces the required lower-bound band on @p axis with @p value.
+     */
+    void setPureMin(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief Replaces the required upper-bound band on @p axis with @p value.
+     */
+    void setPureMax(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief Replaces the flex (grow) coefficient band on @p axis.
+     *
+     * The summary a container reads to aggregate flex up; the coupling relation a
+     * filler emits against its container's shared variable is a separate
+     * addPureConstraint().
+     */
+    void setPureFlex(AnyBuilder& builder, Axis axis, float coeff);
+
+    /**
+     * @brief Wraps @p builder's descriptor in a fresh outer box inset by
+     * @p inset on every edge, the solver half of an inset wrapper (margin,
+     * padding, border).
+     *
+     * Mints an outer box, grows the named bands by the inset and re-tags them
+     * onto it (the band fields carry values, so growing is arithmetic and the
+     * old box's band is simply dropped), appends the required inner/outer edge
+     * relations, and makes the outer box the one the builder now presents so its
+     * container tiles the outer extent. Exactly one band lives on the current
+     * outermost box at every step, which is what makes nested wrappers and a
+     * later resize compose: a size word replaces the single outer band and the
+     * relation chain distributes it inward.
+     */
+    void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset);
+
+    /**
+     * @brief Bakes one axis's @ref Constraints into a solver fragment on @p box.
+     *
+     * The band fields become constraints on the box's extent (@c natural at its
+     * strength, @c min / @c max required) and ride alongside the untagged
+     * relations. This is the point a value-carrying band turns into tableau: a
+     * container stamps each child here, and the region owner flattens the top
+     * descriptor. @p axis selects the box's width or height as the extent.
+     */
+    LayoutSpec flattenConstraints(Constraints const& constraints,
+            BoxVariables const& box, Axis axis);
 
     /**
      * @brief The up-channel a region owner threads down for its participating

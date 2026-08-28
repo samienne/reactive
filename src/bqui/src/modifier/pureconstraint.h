@@ -2,21 +2,15 @@
 
 #include "bqui/modifier/widgetmodifier.h"
 
-#include "bqui/widget/boxvariables.h"
-
 #include <bq/signal/signal.h>
 
-#include <arrange/constraint.h>
-
-#include <btl/function.h>
-
-#include <vector>
+#include <arrange/strength.h>
 
 namespace bqui::modifier::detail
 {
     /**
-     * @brief Which of a pure-solver region's two per-axis solves a leaf
-     * constraint joins: the horizontal solve resolves the x-edges, the vertical
+     * @brief Which of a pure-solver region's two per-axis solves a band or
+     * relation joins: the horizontal solve resolves the x-edges, the vertical
      * the y-edges.
      */
     enum class PureAxis
@@ -26,26 +20,38 @@ namespace bqui::modifier::detail
     };
 
     /**
-     * @brief A widget modifier that, when the widget it wraps is built inside a
-     * pure-solver region, contributes a per-axis constraint fragment keyed on
-     * this widget's own box into the region's solve.
+     * @brief A widget modifier that, inside a pure-solver region, replaces the
+     * natural (preferred) extent band on @p axis with @p value at @p strength.
      *
-     * The fragment is @p make applied to the box the enclosing container tiles
-     * this widget by and to @p value's current value, pushed into the region
-     * collector @p axis names. The builder carries that box unchanged from its
-     * birth to the container's read, so the fragment names exactly the box the
-     * container places, and the leaf's constraint solves alongside the
-     * container's relations and the universal weak default. A no-op outside a
-     * pure-solver region, where sizing comes from a SizeHint band instead.
-     *
-     * The fragment is derived only from @p value and the box's plain edge-
-     * variable values, never from the collector, so the weak collector handle it
-     * is pushed through stays free of a retain cycle.
+     * The band lives by name on the builder's descriptor, so a later natural
+     * write on the same axis overrides this one outright rather than competing
+     * with it. A no-op outside a pure-solver region, where sizing comes from a
+     * SizeHint band instead.
      */
-    AnyWidgetModifier pureConstraintModifier(PureAxis axis,
-            bq::signal::AnySignal<float> value,
-            btl::Function<std::vector<arrange::Constraint>(
-                widget::BoxVariables const&, float)> make);
+    AnyWidgetModifier pureNaturalModifier(PureAxis axis,
+            arrange::Strength strength, bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that, inside a pure-solver region, replaces the
+     * required lower-bound band on @p axis with @p value. A no-op outside one.
+     */
+    AnyWidgetModifier pureMinModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that, inside a pure-solver region, replaces the
+     * required upper-bound band on @p axis with @p value. A no-op outside one.
+     */
+    AnyWidgetModifier pureMaxModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that, inside a pure-solver region, wraps the
+     * builder's descriptor in a fresh outer box inset by @p amount on every
+     * edge — the solver half of a margin. A no-op outside a pure-solver region;
+     * the build-time inset placement is the wrapper's other half.
+     */
+    AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
 
     /**
      * @brief Applies @p first then @p second as one widget modifier, so a shared

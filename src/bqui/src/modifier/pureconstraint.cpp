@@ -7,6 +7,7 @@
 #include "bqui/widget/builder.h"
 
 #include "bqui/buildparams.h"
+#include "bqui/sizehint.h"
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -18,9 +19,6 @@ namespace bqui::modifier::detail
 
 namespace
 {
-    using widget::BoxVariables;
-    using widget::LayoutSpec;
-
     // The region-membership param is a constant the region owner seeded, so
     // evaluating it in a throwaway context is safe -- a constant does not
     // diverge between contexts.
@@ -30,37 +28,69 @@ namespace
                 params.valueOrDefault<widget::PureSolverTag>());
         return context.evaluate<0>().get<0>();
     }
+
+    Axis toAxis(PureAxis axis)
+    {
+        return axis == PureAxis::horizontal ? Axis::x : Axis::y;
+    }
+
+    // The shared shell of every pure-solver band modifier: a no-op outside a
+    // pure-solver region, and @p set applied to the builder inside one.
+    template <typename Set>
+    AnyWidgetModifier pureBuilderModifier(Set set)
+    {
+        return makeWidgetModifier(makeBuilderModifier(
+                [set = std::move(set)](widget::AnyBuilder builder)
+                    -> widget::AnyBuilder
+                {
+                    if (!inPureRegion(builder.getBuildParams()))
+                        return builder;
+
+                    set(builder);
+                    return builder;
+                }));
+    }
 } // namespace
 
-AnyWidgetModifier pureConstraintModifier(PureAxis axis,
-        bq::signal::AnySignal<float> value,
-        btl::Function<std::vector<arrange::Constraint>(
-            BoxVariables const&, float)> make)
+AnyWidgetModifier pureNaturalModifier(PureAxis axis,
+        arrange::Strength strength, bq::signal::AnySignal<float> value)
 {
-    return makeWidgetModifier(makeBuilderModifier(
-            [axis, value = std::move(value), make = std::move(make)](
-                widget::AnyBuilder builder) -> widget::AnyBuilder
+    return pureBuilderModifier(
+            [axis, strength, value = std::move(value)](
+                    widget::AnyBuilder& builder)
             {
-                BuildParams const& params = builder.getBuildParams();
-                if (!inPureRegion(params))
-                    return builder;
+                widget::setPureNatural(builder, toAxis(axis), value.clone(),
+                        strength);
+            });
+}
 
-                BoxVariables box = builder.getBoxVariables();
+AnyWidgetModifier pureMinModifier(PureAxis axis,
+        bq::signal::AnySignal<float> value)
+{
+    return pureBuilderModifier(
+            [axis, value = std::move(value)](widget::AnyBuilder& builder)
+            {
+                widget::setPureMin(builder, toAxis(axis), value.clone());
+            });
+}
 
-                auto fragment = value.clone().map(
-                        [box, make](float v)
-                        {
-                            LayoutSpec spec;
-                            spec.constraints = make(box, v);
-                            return spec;
-                        });
+AnyWidgetModifier pureMaxModifier(PureAxis axis,
+        bq::signal::AnySignal<float> value)
+{
+    return pureBuilderModifier(
+            [axis, value = std::move(value)](widget::AnyBuilder& builder)
+            {
+                widget::setPureMax(builder, toAxis(axis), value.clone());
+            });
+}
 
-                widget::addPureConstraint(builder,
-                        axis == PureAxis::horizontal ? Axis::x : Axis::y,
-                        bq::signal::AnySignal<LayoutSpec>(std::move(fragment)));
-
-                return builder;
-            }));
+AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount)
+{
+    return pureBuilderModifier(
+            [amount = std::move(amount)](widget::AnyBuilder& builder)
+            {
+                widget::applyPureInset(builder, amount.clone());
+            });
 }
 
 AnyWidgetModifier composeModifiers(AnyWidgetModifier first,
