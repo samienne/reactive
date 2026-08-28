@@ -301,35 +301,60 @@ int main()
     printWidgetHierarchy(widgets.clone(), avg::Vector2f(800.0f, 600.0f));
     printWidgetHierarchy(widgets.clone(), avg::Vector2f(400.0f, 300.0f));
 
-    // Pure-solver flex demo. Resize the window and watch the fillers reflow:
-    // the toolbar spacer, the form field, and the two equal-split spacers all
-    // grow and shrink with the available width, while the fixed items hold.
-    auto pureSolverDemo = widget::pureSolverRoot(widget::vbox({
-        // Toolbar: three 80px items with a growing spacer before the last one.
+    // A real content-sized scene behind the pure solver, built from ordinary
+    // widgets. Every leaf sizes to its own content; the fillers take the slack,
+    // so the toolbar's right-aligned button, the form field's trailing space and
+    // each row's tail reflow as the window resizes, while the panel frame and the
+    // margins hold. Restore the original UI by swapping std::move(panel) below for
+    // std::move(widgets) | modifier::focusGroup().
+    auto formState = bq::signal::makeInput(widget::TextEditState{"Ada Lovelace"});
+
+    Theme theme;
+
+    auto barButton = [](std::string text) -> widget::AnyWidget
+    {
+        return widget::button(text, bq::signal::constant(std::function<void()>(
+                        [text]() { std::cout << text << " clicked\n"; })))
+            | modifier::margin(4.0f);
+    };
+
+    auto swatch = [](avg::Color color) -> widget::AnyWidget
+    {
+        return shape::rectangle().fill(color)
+            | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f))
+            | modifier::margin(6.0f);
+    };
+
+    auto panel = widget::pureSolverRoot(widget::vbox({
+        // Toolbar: content-sized buttons, a filler, then a right-aligned button.
         widget::hbox({
-            widget::label("File") | modifier::frame()
-                | modifier::fixedWidth(80.0f),
-            widget::label("Edit") | modifier::frame()
-                | modifier::fixedWidth(80.0f),
+            barButton("New"),
+            barButton("Open"),
+            barButton("Save"),
             widget::filler(),
-            widget::label("Help") | modifier::frame()
-                | modifier::fixedWidth(80.0f),
-        }) | modifier::fixedHeight(40.0f),
+            barButton("Help"),
+        }),
 
-        // Form row: a fixed 120px label then a field that fills the rest.
+        // Form row: a label and a text field, both at content size; the trailing
+        // filler takes the slack. (A field that grows to fill the row itself
+        // would need a flex the pure path does not yet expose for an arbitrary
+        // widget -- only filler() is flexible.)
         widget::hbox({
-            widget::label("Name:") | modifier::frame()
-                | modifier::fixedWidth(120.0f),
-            widget::filler() | modifier::frame(),
-        }) | modifier::fixedHeight(40.0f),
+            widget::label("Name:") | modifier::margin(6.0f),
+            widget::AnyWidget(widget::textEdit(formState.handle,
+                        formState.signal.cast<widget::TextEditState>()))
+                | modifier::margin(6.0f),
+            widget::filler(),
+        }),
 
-        // Two fillers share the leftover width equally beside a fixed 60px box.
+        // Content row: a label, three fixed-size colored swatches, and a filler.
         widget::hbox({
-            widget::label("60") | modifier::frame()
-                | modifier::fixedWidth(60.0f),
-            widget::filler() | modifier::frame(),
-            widget::filler() | modifier::frame(),
-        }) | modifier::fixedHeight(40.0f),
+            widget::label("Palette:") | modifier::margin(6.0f),
+            swatch(theme.getOrange()),
+            swatch(theme.getBlue()),
+            swatch(theme.getGreen()),
+            widget::filler(),
+        }),
 
         // Absorb the remaining vertical space so the rows stay at the top.
         widget::filler(),
@@ -340,10 +365,11 @@ int main()
 
     return app()
         .addWindow(
-                window(bq::signal::constant<std::string>("Pure-solver flex demo")),
-                std::move(pureSolverDemo)
-                // Restore the original demo UI by swapping the two lines above
-                // for: std::move(widgets) | modifier::focusGroup()
+                window(bq::signal::constant<std::string>(
+                        "Pure-solver content layout")),
+                std::move(panel)
+                // Restore the original demo UI by swapping the line above for:
+                // std::move(widgets) | modifier::focusGroup()
                 )
         .run();
 }
