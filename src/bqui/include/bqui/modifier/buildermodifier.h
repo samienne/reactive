@@ -123,8 +123,15 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                // Carry the solver box, guide alignments and pure-solver
+                // constraints onto the fresh builder, as the element-modifier
+                // junction does: they are the widget's stable identity and would
+                // otherwise be orphaned across this size-dependent rebuild.
+                auto box = builder.getBoxVariables();
+                auto guideAlignments = builder.getGuideAlignments();
+                auto pureLayout = builder.getPureLayout();
 
-                return makeBuilder(btl::bindArguments(
+                auto result = makeBuilder(btl::bindArguments(
                     [](BuildParams const&, auto size, auto func,
                         auto builder, auto&&... ts)
                     {
@@ -144,6 +151,10 @@ namespace bqui::modifier
                     std::move(gravity)
                     );
 
+                result.setBoxVariables(std::move(box));
+                result.setGuideAlignments(std::move(guideAlignments));
+                result.setPureLayout(std::move(pureLayout));
+                return result;
             },
             std::forward<TFunc>(func),
             std::forward<Ts>(ts)...
