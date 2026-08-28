@@ -45,28 +45,235 @@ namespace
     }
 } // namespace
 
+namespace
+{
+    // An empty descriptor: no bands and no relations on either axis. The height
+    // phase ignores its width argument, as every widget's does this increment.
+    PureLayout emptyPureLayout()
+    {
+        return PureLayout{
+            bq::signal::constant(Constraints()),
+            [](bq::signal::AnySignal<float>)
+            {
+                return bq::signal::AnySignal<Constraints>(
+                        bq::signal::constant(Constraints()));
+            }
+        };
+    }
+
+    PureLayout pureLayoutOr(AnyBuilder const& builder)
+    {
+        std::optional<PureLayout> current = builder.getPureLayout();
+        return current ? *current : emptyPureLayout();
+    }
+
+    void appendSpec(LayoutSpec& dst, LayoutSpec const& src)
+    {
+        dst.constraints.insert(dst.constraints.end(),
+                src.constraints.begin(), src.constraints.end());
+        dst.variables.insert(dst.variables.end(),
+                src.variables.begin(), src.variables.end());
+    }
+
+    // Maps the axis's Constraints signal through @p apply, wrapping the height
+    // phase function so its width argument still threads through. The value the
+    // field is set from rides alongside as a second signal.
+    template <typename Apply>
+    void updateBand(PureLayout& layout, Axis axis,
+            bq::signal::AnySignal<float> value, Apply apply)
+    {
+        if (axis == Axis::x)
+        {
+            layout.width = merge(std::move(layout.width), std::move(value)).map(
+                    [apply](Constraints const& c, float v)
+                    {
+                        Constraints out = c;
+                        apply(out, v);
+                        return out;
+                    });
+        }
+        else
+        {
+            auto old = layout.heightForWidth;
+            layout.heightForWidth =
+                [old, value = std::move(value), apply](
+                        bq::signal::AnySignal<float> w)
+                    -> bq::signal::AnySignal<Constraints>
+                {
+                    return merge(old(std::move(w)), value.clone()).map(
+                            [apply](Constraints const& c, float v)
+                            {
+                                Constraints out = c;
+                                apply(out, v);
+                                return out;
+                            });
+                };
+        }
+    }
+} // namespace
+
 void addPureConstraint(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<LayoutSpec> fragment)
 {
-    std::optional<PureLayout> current = builder.getPureLayout();
-    PureLayout layout = current
-        ? *current
-        : PureLayout{
-            bq::signal::constant(std::vector<LayoutSpec>()),
-            bq::signal::constant(std::vector<LayoutSpec>())
-        };
+    PureLayout layout = pureLayoutOr(builder);
 
-    auto& target = axis == Axis::x ? layout.horizontal : layout.vertical;
+    auto append = [](Constraints const& c, LayoutSpec const& fragment)
+    {
+        Constraints out = c;
+        appendSpec(out.relations, fragment);
+        return out;
+    };
 
-    target = merge(std::move(target), std::move(fragment)).map(
-            [](std::vector<LayoutSpec> const& specs, LayoutSpec const& fragment)
+    if (axis == Axis::x)
+    {
+        layout.width = merge(std::move(layout.width), std::move(fragment))
+            .map(append);
+    }
+    else
+    {
+        auto old = layout.heightForWidth;
+        layout.heightForWidth =
+            [old, fragment = std::move(fragment), append](
+                    bq::signal::AnySignal<float> w)
+                -> bq::signal::AnySignal<Constraints>
             {
-                std::vector<LayoutSpec> result = specs;
-                result.push_back(fragment);
-                return result;
-            });
+                return merge(old(std::move(w)), fragment.clone()).map(append);
+            };
+    }
 
     builder.setPureLayout(std::move(layout));
+}
+
+void setPureNatural(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value, arrange::Strength strength)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [strength](Constraints& c, float v)
+            {
+                c.natural = BandNatural{ v, strength };
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
+void setPureMin(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [](Constraints& c, float v) { c.min = v; });
+    builder.setPureLayout(std::move(layout));
+}
+
+void setPureMax(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [](Constraints& c, float v) { c.max = v; });
+    builder.setPureLayout(std::move(layout));
+}
+
+void setPureFlex(AnyBuilder& builder, Axis axis, float coeff)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, bq::signal::constant(coeff),
+            [](Constraints& c, float v) { c.flex = Flex{ v }; });
+    builder.setPureLayout(std::move(layout));
+}
+
+void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    BoxVariables inner = builder.getBoxVariables();
+    BoxVariables outer;
+
+    auto insetShared = std::move(inset).share();
+
+    // The band grows by the inset on both edges and re-tags onto the outer box
+    // (which the builder adopts below, so a later flatten emits the grown band
+    // there); the old box keeps only the required inner/outer edge relations.
+    auto grow = [](Constraints& c, float ins)
+    {
+        float d = 2.0f * ins;
+        if (c.natural)
+            c.natural->value += d;
+        if (c.min)
+            *c.min += d;
+        if (c.max)
+            *c.max += d;
+    };
+
+    layout.width = merge(std::move(layout.width), insetShared.clone()).map(
+            [inner, outer, grow](Constraints const& c, float ins)
+            {
+                Constraints out = c;
+                grow(out, ins);
+                out.relations.constraints.push_back(
+                        arrange::Expression(outer.left)
+                            == arrange::Expression(inner.left)
+                                - arrange::Expression(static_cast<double>(ins)));
+                out.relations.constraints.push_back(
+                        arrange::Expression(outer.right)
+                            == arrange::Expression(inner.right)
+                                + arrange::Expression(static_cast<double>(ins)));
+                return out;
+            });
+
+    auto oldHeight = layout.heightForWidth;
+    layout.heightForWidth =
+        [oldHeight, inner, outer, grow, insetShared](
+                bq::signal::AnySignal<float> w)
+            -> bq::signal::AnySignal<Constraints>
+        {
+            return merge(oldHeight(std::move(w)), insetShared.clone()).map(
+                    [inner, outer, grow](Constraints const& c, float ins)
+                    {
+                        Constraints out = c;
+                        grow(out, ins);
+                        out.relations.constraints.push_back(
+                                arrange::Expression(outer.top)
+                                    == arrange::Expression(inner.top)
+                                        - arrange::Expression(
+                                            static_cast<double>(ins)));
+                        out.relations.constraints.push_back(
+                                arrange::Expression(outer.bottom)
+                                    == arrange::Expression(inner.bottom)
+                                        + arrange::Expression(
+                                            static_cast<double>(ins)));
+                        return out;
+                    });
+        };
+
+    builder.setPureLayout(std::move(layout));
+    builder.setBoxVariables(outer);
+}
+
+LayoutSpec flattenConstraints(Constraints const& constraints,
+        BoxVariables const& box, Axis axis)
+{
+    LayoutSpec spec = constraints.relations;
+
+    auto extent = [&]
+    {
+        return axis == Axis::x ? box.width() : box.height();
+    };
+
+    if (constraints.natural)
+        spec.constraints.push_back(
+                (extent() == arrange::Expression(
+                        static_cast<double>(constraints.natural->value)))
+                | constraints.natural->strength);
+    if (constraints.min)
+        spec.constraints.push_back(
+                extent() >= arrange::Expression(
+                        static_cast<double>(*constraints.min)));
+    if (constraints.max)
+        spec.constraints.push_back(
+                extent() <= arrange::Expression(
+                        static_cast<double>(*constraints.max)));
+
+    return spec;
 }
 
 arrange::Expression BoxVariables::width() const

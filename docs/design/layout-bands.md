@@ -47,6 +47,21 @@ Why this beats a separate band struct: a guide-deferred size need not collapse
 to a loose range - its `min`/`max` simply stay in the tableau as constraints and
 the firewall solve pins the exact value. Same representation, two dispositions.
 
+**Foundation as landed.** The named fields carry *values*, not pre-baked
+`Constraint`s: `min`/`max`/`natural` are `optional<float>` (the natural pairs its
+value with the strength it is held at), and `flex` an `optional<Flex>`. A value
+is baked into a solver constraint on the current box only at flatten time. This
+is what makes a wrapper's grow-and-retag arithmetic (add `2*inset`) rather than
+constraint surgery, and it makes "drop the inner band" fall out for free: a
+wrapper just swaps in a new outer box and grows the values, so the old box's band
+is never materialised to remove. `constraints` is a `LayoutSpec` (the untagged
+constraints plus the read-back variables the solver API needs), since the solver
+exposes no variable iteration. Per axis the descriptor is `PureLayout`: a phase-1
+`width()` and a phase-2 `heightForWidth(w)` (`widthForHeight` stubs to the
+phase-1 width). Phase 2 is width-independent for every widget here - content
+sizing, which is what makes a height read the resolved width, is a later
+increment - so the staging argument threads through but is ignored for now.
+
 ## Three-phase solve
 
 The descriptor exposes three functions, each returning `Constraints`:

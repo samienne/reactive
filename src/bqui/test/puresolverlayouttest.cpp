@@ -3,6 +3,7 @@
 
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/instancemodifier.h>
+#include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
@@ -736,4 +737,59 @@ TEST(PureSolverLayout, nestedDemoCorrectOnSingleEvaluate)
     EXPECT_GT(fill2.size[1], 0.0f);
     EXPECT_FLOAT_EQ(100.0f, a.position[1]);
     EXPECT_FLOAT_EQ(0.0f, c.position[1]);
+}
+
+// The load-bearing invariant: exactly one band on the current outermost box, and
+// every wrapper subsumes the inner band. A single margin around a fixed size
+// insets the content: fixedSize(100) sets the outer band, the wrapper ties the
+// inner box 10 in from it, so the image settles at 100 - 2*10 = 80. The leaf
+// sits inside a vbox in a 300-wide window, so its size comes from the solved
+// band (fixedSize 100), not from the window filling it.
+TEST(PureSolverLayout, singleMarginInsetsFixedSize)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed40, fixed40)
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
+
+    Instance instance = realiseOnce(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(80.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, g.size[1]);
+}
+
+// The nested-margin worked example, on a single evaluate. Stacking
+// margin | size | margin | size subsumes the inner band at each wrapper: the
+// outer fixedSize(100) is the one band, and the two insets distribute it inward
+// to image = 100 - 2*(10 + 10) = 60. Were a wrapper to keep its inner band
+// instead of subsuming it, the later size would contradict the stale constraint
+// and the number would not fall out. A single evaluate<0>() proves the
+// forward-only pure path settles it in one pass.
+TEST(PureSolverLayout, nestedMarginsSubsumeInnerBands)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed40, fixed40)
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f))
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
+
+    Instance instance = realiseOnce(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(60.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, g.size[1]);
 }
