@@ -6,6 +6,7 @@
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
 
+#include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
@@ -49,14 +50,11 @@ struct Geometry
     avg::Vector2f size;
 };
 
-// A leaf that fixes its size hint and tags its realised instance with an
-// InputArea, so its window-space geometry can be read back through the
-// accumulated transform. The pure-solver path ignores the hint entirely, so a
-// probe's band is set deliberately away from the weak 100 default to prove the
-// band is never read.
-AnyWidget probe(btl::UniqueId id, Band width, Band height)
+// Tags a widget's realised instance with an InputArea keyed by @p id, so its
+// window-space geometry can be read back through the accumulated transform.
+AnyWidget withArea(AnyWidget widget, btl::UniqueId id)
 {
-    return makeWidget()
+    return std::move(widget)
         | modifier::makeWidgetModifier(modifier::makeInstanceModifier(
                     [](Instance instance, btl::UniqueId id)
                     {
@@ -65,9 +63,26 @@ AnyWidget probe(btl::UniqueId id, Band width, Band height)
 
                         return std::move(instance)
                             .setInputAreas(std::move(areas));
-                    }, constant(id)))
-        | modifier::setSizeHint(constant(SizeHint(simpleSizeHint(width, height))))
-        ;
+                    }, constant(id)));
+}
+
+// A leaf that carries the weak 100 default a pure-solver leaf owns and tags its
+// instance for read-back. The pure-solver path ignores the size hint entirely,
+// so a probe's band is set deliberately away from the weak 100 default to prove
+// the band is never read.
+AnyWidget probe(btl::UniqueId id, Band width, Band height)
+{
+    return withArea(makeWidget()
+            | modifier::setSizeHint(
+                constant(SizeHint(simpleSizeHint(width, height))))
+            | modifier::defaultSize(),
+            id);
+}
+
+// A pure-solver filler tagged for geometry read-back.
+AnyWidget fillerProbe(btl::UniqueId id)
+{
+    return withArea(filler(), id);
 }
 
 Geometry readProbe(Instance const& instance, btl::UniqueId id)
@@ -348,13 +363,39 @@ TEST(PureSolverLayout, verticalPassSeesPass1ResolvedWidth)
     EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[1]);
 }
 
-// A toolbar written in the developer surface: a horizontal row of three
-// fixed-width buttons and a flexible spacer between them, each leaf pushing its
-// own size constraint into the enclosing pure region's solve. The three exact
-// widths (strong) beat the weak 100 default and hold; the spacer (fillWidth,
-// above the default but below the container's own weak fill) absorbs the
-// remaining width. In a 400-wide row: 80 + 80 + 160 + 80.
-TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
+// Form row: a fixed-width label and a filler that takes the rest. The label's
+// fixedWidth (strong) holds at 120; the filler carries no default on the layout
+// axis, so the container's gap drive pulls it out to close the row. In a
+// 400-wide row: 120 + 280.
+TEST(PureSolverLayout, formRowFixedLabelAndFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idLabel = btl::makeUniqueId();
+    btl::UniqueId const idField = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::fixedWidth(120.0f));
+    row.push_back(fillerProbe(idField));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry label = readProbe(instance, idLabel);
+    Geometry field = readProbe(instance, idField);
+
+    EXPECT_FLOAT_EQ(120.0f, label.size[0]);
+    EXPECT_FLOAT_EQ(280.0f, field.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, label.position[0]);
+    EXPECT_FLOAT_EQ(120.0f, field.position[0]);
+}
+
+// Toolbar: three fixed-width buttons and a filler that pushes them apart. The
+// three exact widths (strong) hold; the filler absorbs the slack. In a 400-wide
+// row: 80 + 80 + 160 + 80.
+TEST(PureSolverLayout, toolbarFixedItemsAndFiller)
 {
     avg::Vector2f const window(400.0f, 100.0f);
 
@@ -366,7 +407,7 @@ TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
     std::vector<ArraySignal<AnyWidget>> items;
     items.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
     items.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
-    items.push_back(probe(idSpacer, fixed40, fixed40) | modifier::fillWidth());
+    items.push_back(fillerProbe(idSpacer));
     items.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(80.0f));
 
     Instance instance = realiseConverged(
@@ -389,33 +430,104 @@ TEST(PureSolverLayout, toolbarRowFixedItemsAndFlexibleSpacer)
     EXPECT_FLOAT_EQ(320.0f, c.position[0]);
 }
 
-// A form row written in the developer surface: a fixed-width label followed by a
-// field that fills the remaining width. The label's fixedWidth (strong) holds at
-// 120; the field's fillWidth absorbs the rest, so in a 400-wide row the field is
-// 280 wide and starts where the label ends.
-TEST(PureSolverLayout, formRowFixedLabelAndFillingField)
+// Two fillers split the slack evenly: they couple to the one shared flex
+// variable, so a fixed 100 leaf and two fillers in a 400-wide row give
+// 100 + 150 + 150.
+TEST(PureSolverLayout, twoFillersSplitSlackEvenly)
 {
     avg::Vector2f const window(400.0f, 100.0f);
 
-    btl::UniqueId const idLabel = btl::makeUniqueId();
-    btl::UniqueId const idField = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idSecond = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::fixedWidth(120.0f));
-    row.push_back(probe(idField, fixed40, fixed40) | modifier::fillWidth());
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(fillerProbe(idFirst));
+    row.push_back(fillerProbe(idSecond));
 
     Instance instance = realiseConverged(
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
             window);
 
-    Geometry label = readProbe(instance, idLabel);
-    Geometry field = readProbe(instance, idField);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idSecond).size[0]);
+}
 
-    EXPECT_FLOAT_EQ(120.0f, label.size[0]);
-    EXPECT_FLOAT_EQ(280.0f, field.size[0]);
+// No implicit fill: with no filler present the last child is not stretched. Two
+// fixed 80s and a plain leaf in a 400-wide row leave the plain leaf at its weak
+// 100 default and open a trailing gap: 80 + 80 + 100 (140 of slack unfilled).
+TEST(PureSolverLayout, plainLastChildIsNotStretched)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
 
-    EXPECT_FLOAT_EQ(0.0f, label.position[0]);
-    EXPECT_FLOAT_EQ(120.0f, field.position[0]);
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idPlain = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(probe(idPlain, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idPlain).size[0]);
+}
+
+// A capped filler hands its surplus to the others. Three fillers share the
+// slack, but the middle one is capped at 60 (required maxWidth); the other two
+// absorb what it cannot, so in a 400-wide row: 170 + 60 + 170.
+TEST(PureSolverLayout, cappedFillerHandsSurplusToOthers)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idCapped = btl::makeUniqueId();
+    btl::UniqueId const idLast = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(fillerProbe(idFirst));
+    row.push_back(withArea(filler() | modifier::maxWidth(60.0f), idCapped));
+    row.push_back(fillerProbe(idLast));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idCapped).size[0]);
+    EXPECT_FLOAT_EQ(170.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(170.0f, readProbe(instance, idLast).size[0]);
+}
+
+// Overflow, never squeeze: two fixed 300s in a 400-wide row keep their sizes and
+// overflow past the container's end. The signed trailing gap goes negative
+// rather than the children being squeezed to fit.
+TEST(PureSolverLayout, fixedChildrenOverflowRatherThanSqueeze)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(300.0f));
+    row.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(300.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idA).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).position[0]);
 }
 
 // The strong exact size and the required bounds reach the right axis: a single
