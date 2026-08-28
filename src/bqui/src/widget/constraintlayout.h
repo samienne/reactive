@@ -185,6 +185,47 @@ namespace bqui::widget
     };
 
     /**
+     * @brief The shared flex variable a pure-solver container mints for its
+     * layout axis, seeded down for the fillers it holds to couple to.
+     *
+     * Every filler that is a direct child of the container adds
+     * @c extent==F at the weakest tier against this one variable, so the
+     * fillers all take the same extent and split the container's slack evenly;
+     * the container's gap drive then pulls that shared extent up to absorb the
+     * leftover. The value is a plain arrange variable (an id plus a name), not a
+     * handle into the builder graph, so carrying it down forms no retain cycle.
+     * Absent outside a pure-solver box, where a filler is inert.
+     */
+    struct FlexVariableTag
+    {
+        using type = arrange::Variable;
+
+        static bq::signal::AnySignal<arrange::Variable> getDefaultValue()
+        {
+            return bq::signal::constant(arrange::Variable());
+        }
+    };
+
+    /**
+     * @brief The layout (main) axis of the pure-solver container a filler is a
+     * direct child of, so the filler couples its extent on that axis.
+     *
+     * A filler constrains only the axis its container stacks along; the cross
+     * axis falls to the container's own leading-edge pin and weak default. The
+     * container seeds this alongside FlexVariableTag. Defaults to Axis::x, read
+     * only when a filler actually sits inside a pure-solver box.
+     */
+    struct FlexAxisTag
+    {
+        using type = Axis;
+
+        static bq::signal::AnySignal<Axis> getDefaultValue()
+        {
+            return bq::signal::constant(Axis::x);
+        }
+    };
+
+    /**
      * @brief A box's stable solver identity and the per-axis constraints it
      * contributes to its context's one solve.
      *
@@ -324,17 +365,19 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Strength weakestStrength();
 
     /**
-     * @brief The universal weak per-axis default @c width==100 on @p box.
+     * @brief The weak per-axis default @c width==100 on @p box.
      *
-     * Add-only: minted with the box and never removed, so an x-axis nothing else
-     * constrains still resolves to a definite width rather than leaving a free
-     * degree of freedom the solve is ill-posed on.
+     * A leaf contributes this on each axis it does not otherwise size
+     * (modifier::defaultSize()), and a stacking container adds it on its cross
+     * axis; either way a box nothing else constrains resolves to a definite
+     * width rather than leaving a free degree of freedom the solve is ill-posed
+     * on. Add-only: minted with the box and never removed.
      */
     BQUI_EXPORT arrange::Constraint weakWidthDefault(BoxVariables const& box);
 
     /**
-     * @brief The universal weak per-axis default @c height==100 on @p box, the
-     * vertical counterpart of weakWidthDefault().
+     * @brief The weak per-axis default @c height==100 on @p box, the vertical
+     * counterpart of weakWidthDefault().
      */
     BQUI_EXPORT arrange::Constraint weakHeightDefault(BoxVariables const& box);
 

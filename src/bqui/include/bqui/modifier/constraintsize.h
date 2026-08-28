@@ -84,22 +84,15 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier maxSize(avg::Vector2f size);
 
     /**
-     * @brief Make this widget absorb the slack width its container leaves along
-     * the main axis, so a spacer or field fills the remaining room.
+     * @brief Give this widget the weak natural size a pure-solver leaf carries:
+     * @c width==100 and @c height==100, each at the weakest tier.
      *
-     * The pure-solver counterpart of growWeight, split per axis because a
-     * pure-solver leaf constrains its own box and its container's cross axis is
-     * uncapped, where an axis-agnostic fill would run away. It contributes a soft
-     * pull toward a large width, above the weak 100 default so a filled child
-     * grows in preference to an untagged one, yet below the container's own weak
-     * fill so it settles at the room the container leaves rather than overflowing
-     * it. A no-op outside a pure-solver region.
+     * A pure-solver container states only the structure of its layout and no
+     * longer sizes its children, so a leaf contributes its own default size on
+     * each axis. Any firmer constraint -- a fixed size, a bound, a container's
+     * tiling of a filler -- overrides it; it only decides an axis nothing else
+     * pinned, keeping the solve well-posed. A no-op outside a pure-solver
+     * region.
      */
-    BQUI_EXPORT AnyWidgetModifier fillWidth();
-
-    /**
-     * @brief Make this widget absorb the slack height its container leaves along
-     * the main axis, the vertical counterpart of fillWidth().
-     */
-    BQUI_EXPORT AnyWidgetModifier fillHeight();
+    BQUI_EXPORT AnyWidgetModifier defaultSize();
 } // namespace bqui::modifier
