@@ -343,11 +343,13 @@ void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
 // children are tiled edge to edge and the trailing slack rides @p gap
 // (pureMainConstraints), the container stating structure only while each leaf
 // or filler owns its own extent. On the cross axis each child's leading edge is
-// tied to the container's so its position is definite, and the container keeps
-// stamping the weak size default there, the one axis a child does not decide
-// for itself. The anchored outermost container also pins the context frame on
-// this axis. Splitting the fragment per axis here is what lets E1 route the two
-// into two disjoint solves; E0 concatenates them.
+// tied to the container's so its position is definite and its trailing edge is
+// pulled to the container's above the weak size default, so a child -- a nested
+// container above all -- fills the container's cross extent instead of
+// collapsing to that default; the default sits below the fill and only settles
+// a cross axis the fill cannot reach. The anchored outermost container also pins
+// the context frame on this axis. Splitting the fragment per axis here is what
+// lets E1 route the two into two disjoint solves; E0 concatenates them.
 std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
         Axis layoutAxis, bool anchor, BoxVariables const& container,
         std::vector<BoxVariables> const& boxes, avg::Vector2f size,
@@ -380,16 +382,30 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
     else
     {
         for (BoxVariables const& child : boxes)
-            out.push_back(boxAxis == Axis::x
-                    ? (arrange::Expression(child.left)
-                        == arrange::Expression(container.left))
-                    : (arrange::Expression(child.top)
-                        == arrange::Expression(container.top)));
+        {
+            arrange::Variable const& lead =
+                boxAxis == Axis::x ? child.left : child.top;
+            arrange::Variable const& trail =
+                boxAxis == Axis::x ? child.right : child.bottom;
+            arrange::Variable const& containerLead =
+                boxAxis == Axis::x ? container.left : container.top;
+            arrange::Variable const& containerTrail =
+                boxAxis == Axis::x ? container.right : container.bottom;
 
-        for (BoxVariables const& child : boxes)
+            out.push_back(arrange::Expression(lead)
+                    == arrange::Expression(containerLead));
+
+            // The cross-fill: above the weak default, below a strong fixed size
+            // or a required bound, so a nested container stretches to its
+            // parent's cross extent while an explicit size still wins.
+            out.push_back((arrange::Expression(trail)
+                        == arrange::Expression(containerTrail))
+                    | arrange::Strength::weak(1.0));
+
             out.push_back(boxAxis == Axis::x
                     ? weakWidthDefault(child)
                     : weakHeightDefault(child));
+        }
     }
 
     return out;
