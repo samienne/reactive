@@ -1485,6 +1485,79 @@ AnyWidget filler()
                 }));
 }
 
+namespace
+{
+    // A directional filler: filler()'s layout-axis coupling gated to the axes it
+    // fills, plus the legacy grow SizeHint that drives it outside a pure region.
+    // @p fillX / @p fillY select the axes it fills. The one shared flex variable
+    // is the container's layout-axis slack, so it couples only when the layout
+    // axis is one it fills; on a filled cross axis it stretches via the
+    // container's cross-fill. An axis it does not fill is pinned to zero, since a
+    // child with no extent there is otherwise stretched by the gap drive or
+    // cross-fill -- the legacy filler collapses to nothing off its axis.
+    AnyWidget directionalFiller(bool fillX, bool fillY, Band xBand, Band yBand)
+    {
+        return makeWidget()
+            | modifier::setSizeHint(bq::signal::constant(
+                        simpleSizeHint(xBand, yBand)))
+            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                    [fillX, fillY](widget::AnyBuilder builder)
+                        -> widget::AnyBuilder
+                    {
+                        BuildParams const& params = builder.getBuildParams();
+                        if (!pureSolver(params))
+                            return builder;
+
+                        if (!fillX)
+                            widget::setPureNatural(builder, Axis::x,
+                                    bq::signal::constant(0.0f),
+                                    contentStrength());
+                        if (!fillY)
+                            widget::setPureNatural(builder, Axis::y,
+                                    bq::signal::constant(0.0f),
+                                    contentStrength());
+
+                        Axis axis = flexAxis(params);
+                        if (axis == Axis::x ? !fillX : !fillY)
+                            return builder;
+
+                        arrange::Variable flex = flexVariable(params);
+                        BoxVariables box = builder.getBoxVariables();
+
+                        LayoutSpec spec;
+                        spec.constraints.push_back(
+                                ((axis == Axis::x ? box.width() : box.height())
+                                    == arrange::Expression(flex))
+                                | weakestStrength());
+
+                        widget::addPureConstraint(builder, axis,
+                                bq::signal::AnySignal<LayoutSpec>(
+                                    bq::signal::constant(std::move(spec))));
+                        widget::setPureFlex(builder, axis, 1.0f);
+
+                        return builder;
+                    }));
+    }
+} // namespace
+
+AnyWidget hfiller()
+{
+    return directionalFiller(true, false,
+            Band{ 0, 0, 100000, 1 }, Band{ 0, 0, 0, 0 });
+}
+
+AnyWidget vfiller()
+{
+    return directionalFiller(false, true,
+            Band{ 0, 0, 0, 0 }, Band{ 0, 0, 100000, 1 });
+}
+
+AnyWidget hwfiller()
+{
+    return directionalFiller(true, true,
+            Band{ 0, 0, 100000, 1 }, Band{ 0, 0, 100000, 1 });
+}
+
 AnyWidget baselineHbox(bq::signal::ArraySignal<AnyWidget> widgets)
 {
     return solverBox(Axis::x, CrossAlign::baseline, std::move(widgets));

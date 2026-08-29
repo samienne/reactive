@@ -1343,6 +1343,82 @@ TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
     EXPECT_FLOAT_EQ(40.0f, fixed.position[0]);
 }
 
+// vfiller flexes vertically in a pure vbox: a 40-tall content leaf above it, and
+// the vfiller absorbs the rest of the column (300 - 40 = 260) while pinning its
+// width to zero on the cross axis. Before it carried a pure flex band it had no
+// pure size at all and could not take the slack.
+TEST(PureSolverLayout, vfillerFlexesInPureVbox)
+{
+    avg::Vector2f const window(100.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(probe(idFixed, fixed40, fixed40));
+    column.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.size[0]);
+}
+
+// hfiller flexes horizontally in a pure hbox: a fixed 80-wide leaf beside it, and
+// the hfiller takes the rest of the row (400 - 80 = 320) while pinning its height
+// to zero on the cross axis.
+TEST(PureSolverLayout, hfillerFlexesInPureHbox)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(withArea(hfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(320.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, filler.size[1]);
+}
+
+// Directionality: a vfiller placed in a pure HBOX must not steal the row's
+// horizontal slack -- it fills only its vertical axis. Beside a fixed 80 leaf in
+// a 400 row it stays 0 wide (the 320 remainder is left as a trailing gap), where
+// an hfiller would have taken it.
+TEST(PureSolverLayout, vfillerDoesNotFlexCrossAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idFiller).size[0]);
+}
+
 // Height reflows with the resolved width. A leaf whose content height is
 // area / width fills its row, so its resolved width is the window width; its
 // height then follows the width solution through phase 2. In a 400-wide window
