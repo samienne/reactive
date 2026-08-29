@@ -1,11 +1,8 @@
 #pragma once
 
-#include "bqui/modifier/setsizehint.h"
-
 #include "bqui/widget/widget.h"
 
 #include "bqui/bquivisibility.h"
-#include "bqui/simplesizehint.h"
 
 namespace bqui::widget
 {
@@ -22,28 +19,31 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget filler();
 
-    // A filler carries a positive grow weight on the axis it fills, so it draws
-    // a share of its container's leftover space; the large max keeps the
-    // container's cross-axis placement from clamping it back below that space.
-    inline auto hwfiller() -> AnyWidget
-    {
-        return makeWidget()
-            | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                        Band{0, 0, 100000, 1}, Band{0, 0, 100000, 1})));
-    }
+    /**
+     * @brief A filler that takes leftover space when its container lays out
+     * horizontally.
+     *
+     * In a pure-solver hbox it behaves as filler(); in a vbox it stays inert on
+     * the cross axis. Outside a pure-solver region its legacy grow SizeHint
+     * drives it instead.
+     */
+    BQUI_EXPORT AnyWidget hfiller();
 
-    inline auto hfiller() -> widget::AnyWidget
-    {
-        return makeWidget()
-            | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                        Band{0, 0, 100000, 1}, Band{0, 0, 0, 0})));
-    }
+    /**
+     * @brief A filler that takes leftover space when its container lays out
+     * vertically.
+     *
+     * In a pure-solver vbox it behaves as filler(); in an hbox it stays inert on
+     * the cross axis. Outside a pure-solver region its legacy grow SizeHint
+     * drives it instead.
+     */
+    BQUI_EXPORT AnyWidget vfiller();
 
-    inline auto vfiller() -> widget::AnyWidget
-    {
-        return makeWidget()
-            | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                        Band{0, 0, 0, 0}, Band{0, 0, 100000, 1})));
-    }
+    /**
+     * @brief A filler that takes leftover space on whichever axis its container
+     * lays out along, exactly as filler(), plus a legacy grow SizeHint for use
+     * outside a pure-solver region.
+     */
+    BQUI_EXPORT AnyWidget hwfiller();
 } // namespace bqui::widget
 
