@@ -11,9 +11,9 @@ namespace bqui::modifier
     /**
      * @brief Pin this widget's width to the given value in a pure-solver region.
      *
-     * A strong equality above the weak 100 default and below a required bound, so
-     * the width settles at the value unless a required min or max overrides it. A
-     * no-op outside a pure-solver region.
+     * A strong equality above the weak 100 default, so the width settles at the
+     * value unless a min or max at the same strength overrides it. A no-op outside
+     * a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width);
     BQUI_EXPORT AnyWidgetModifier fixedWidth(float width);
@@ -37,8 +37,9 @@ namespace bqui::modifier
      * @brief Hold this widget's width at or above the given value in a pure-solver
      * region.
      *
-     * A required lower bound the solve cannot violate. A no-op outside a
-     * pure-solver region.
+     * A strong lower bound: it clamps content but yields to the window anchor or a
+     * contradicting bound, so an unmeetable floor overflows rather than failing
+     * the solve. A no-op outside a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width);
     BQUI_EXPORT AnyWidgetModifier minWidth(float width);
@@ -62,8 +63,8 @@ namespace bqui::modifier
      * @brief Hold this widget's width at or below the given value in a pure-solver
      * region.
      *
-     * A required upper bound the solve cannot violate. A no-op outside a
-     * pure-solver region.
+     * A strong upper bound: the ceiling counterpart of minWidth(). A no-op outside
+     * a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width);
     BQUI_EXPORT AnyWidgetModifier maxWidth(float width);
@@ -84,50 +85,34 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier maxSize(avg::Vector2f size);
 
     /**
-     * @brief Give this widget the natural size a pure-solver leaf carries: its
-     * own SizeHint's natural width and height, at a content strength.
-     *
-     * A pure-solver container states only the structure of its layout and no
-     * longer sizes its children, so a leaf contributes its own content size on
-     * each axis, bridged from the SizeHint the widget already measures. The
-     * content strength sits above the bare fallback but below the cross-fill and
-     * any explicit size word, so a fixed size, a bound, a filler, or a
-     * container's cross-fill all override it. A no-op outside a pure-solver
-     * region, where the SizeHint drives sizing directly.
+     * @brief In a pure-solver region, size this widget to its own SizeHint's
+     * natural width and height (and its SizeHint bounds), so a leaf carries its
+     * content size where its container no longer sizes it. A fixed size, a bound,
+     * a filler or a cross-fill all override it; a no-op outside a pure-solver
+     * region.
      *
      * The shipped content leaves (label, text edit, filled/stroked shapes) apply
-     * this themselves, so an ordinary layout needs no call. It cannot be baked
-     * into makeWidget() -- the leaf primitive lives in a public header that the
-     * private layout machinery this default needs must not reach -- so a widget
-     * built directly from makeWidget() (a custom leaf) still adds it by hand. A
-     * filler() must not: it is deliberately free on the layout axis.
+     * this themselves, so an ordinary layout needs no call. A widget built
+     * directly from makeWidget() (a custom leaf) adds it by hand; a filler() must
+     * not, being deliberately free on the layout axis.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize();
 
     /**
-     * @brief Give this widget a fixed natural size in a pure-solver region, at
-     * the same content strength as defaultSize().
-     *
-     * The disposition for a leaf whose measured SizeHint is not a sensible pure
-     * natural -- a bare shape, whose banded "fill everything" hint would read as
-     * an absurd ~10000 natural. It settles at @p size unless a fixed size, a
-     * bound or a filler/fill() overrides it. A no-op outside a pure-solver region.
+     * @brief In a pure-solver region, give this widget the fixed natural @p size
+     * at content strength, for a leaf whose measured SizeHint is not a sensible
+     * pure natural (a bare shape). It settles at @p size unless a fixed size, a
+     * bound or a filler/fill() overrides it; a no-op outside a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);
 
     /**
-     * @brief Make this widget flexible on its container's layout axis in a
-     * pure-solver region: it grows to take a share of the container's leftover
-     * space, exactly as a filler() does, while keeping its content as a
-     * flex-basis for the container's aggregation.
-     *
-     * The general form of filler() for a content widget. It sets the pure flex
-     * band and couples the widget's extent to the container's shared flex
-     * variable, so it splits the slack with its filler and fill() siblings; its
-     * content natural is dropped only under that distribution. Because flex is a
-     * named band field, a later fixed size on the same axis overrides it. A no-op
-     * outside a pure-solver region. Fills only the container's layout axis (the
-     * one a filler fills); the cross axis keeps its content size.
+     * @brief In a pure-solver region, make this widget flexible on its
+     * container's layout axis, growing to take a share of the container's
+     * leftover space as a filler() does. The general form of filler() for a
+     * content widget. A later fixed size on the same axis overrides it; a no-op
+     * outside a pure-solver region. Fills only the layout axis; the cross axis
+     * keeps its content size.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 

@@ -855,6 +855,47 @@ TEST(PureSolverLayout, fillerInHboxIsAFiller)
     EXPECT_FLOAT_EQ(160.0f, innerFiller.position[0]);
 }
 
+// A flexing container couples to its parent by its aggregated flex weight, not a
+// flat 1. An inner hbox of two fillers aggregates flex coeff 2, so beside a plain
+// filler (coeff 1) in a 300-wide row the parent splits the slack 2:1 -- the inner
+// gets 200, the outer filler 100. Weight propagation makes the nesting behave as
+// three leaf fillers sharing evenly: all three end at 100. A coeff-1 coupling (the
+// bug) would instead give the inner 150 (two 75s) and the outer filler 150.
+TEST(PureSolverLayout, weightedContainerFlexSplitsByAggregatedWeight)
+{
+    avg::Vector2f const window(300.0f, 100.0f);
+
+    btl::UniqueId const idInnerA = btl::makeUniqueId();
+    btl::UniqueId const idInnerB = btl::makeUniqueId();
+    btl::UniqueId const idOuter = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(fillerProbe(idInnerA));
+    innerRow.push_back(fillerProbe(idInnerB));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idOuter));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry innerA = readProbe(instance, idInnerA);
+    Geometry innerB = readProbe(instance, idInnerB);
+    Geometry outer = readProbe(instance, idOuter);
+
+    // The inner hbox (coeff 2) takes 200, split into two 100s; the outer filler
+    // (coeff 1) takes 100 -- a 2:1 split, and all three fillers land at 100.
+    EXPECT_FLOAT_EQ(100.0f, innerA.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerB.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, outer.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerA.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerB.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, outer.position[0]);
+}
+
 // Overflow versus flex-response, forced by a too-small window. Fixed children
 // keep their size and overflow (the signed trailing gap goes negative); the same
 // shape with fillers shrinks them to share the row. Two 100s in a 150 row on the

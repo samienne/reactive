@@ -302,12 +302,10 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
                 (extent() == arrange::Expression(
                         static_cast<double>(constraints.natural->value)))
                 | constraints.natural->strength);
-    // The bounds are strong, not required: a bound that cannot be met (a min
-    // above the room, a min that ties a max) then degrades and overflows rather
-    // than throwing an arrange::Error that freezes the whole region back to its
-    // previous solution. Strong still outranks the weak content/natural pull, so
-    // a bound clamps content as before; it only yields to a required anchor or a
-    // contradicting bound of equal strength.
+    // The bounds are strong: they outrank the weak content/natural pull and so
+    // clamp content, but yield to a required anchor or a contradicting bound of
+    // equal strength, so an unmeetable bound overflows rather than failing the
+    // solve.
     if (constraints.min)
         spec.constraints.push_back(
                 (extent() >= arrange::Expression(
@@ -442,13 +440,8 @@ arrange::Strength weakestStrength()
 
 arrange::Strength contentStrength()
 {
-    // The heaviest pull in the weak lane, above the fallback default (0.001),
-    // the gap drive (0.0008) and the weak(1.0) cross-fill, but still weak — a
-    // whole lane below medium/strong/required. So a content leaf settles at its
-    // measured size on both axes by default, and stretching is opt-in: only a
-    // filler (which drops the natural), a fixed size, a bound or a guide takes it
-    // off content. This is the "filler is the flex" model — content by default,
-    // fill by opt-in — carried into the strength ladder.
+    // Top of the weak lane: above the fallback default (0.001), the gap drive
+    // (0.0008) and the weak(1.0) cross-fill, but a whole lane below medium.
     return arrange::Strength::weak(2.0);
 }
 

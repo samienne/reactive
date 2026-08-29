@@ -85,11 +85,9 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
                 BTL_FN(marginWidgetModifier), provider::provideBuildParams(),
                 amount);
 
-        // In a pure-solver region the shrink/translate/grow above places the
-        // inset content at build time, and this wraps the descriptor's band in a
-        // fresh outer box (grown by the inset, inner tied to outer) so the solver
-        // sizes the outer extent. A no-op outside a pure-solver region, where the
-        // grown SizeHint drives sizing instead.
+        // In a pure-solver region, pureInsetModifier wraps the descriptor's band
+        // in a fresh outer box grown by the inset; the shrink/translate/grow above
+        // places the inset content at build time. A no-op outside such a region.
         return std::move(widget)
             | shrinkModifier
             | transform(std::move(t))

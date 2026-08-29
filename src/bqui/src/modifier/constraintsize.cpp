@@ -18,9 +18,8 @@ namespace
 {
     using detail::PureAxis;
 
-    // A fixed size is a strong preference: above the weakest default, below a
-    // required bound. The bounds themselves are required inequalities the solve
-    // cannot violate.
+    // A fixed size is a strong preference: above the weakest default, and at the
+    // same strength as the min/max bounds, so it ties rather than loses to one.
     arrange::Strength fixedStrength()
     {
         return arrange::Strength::strong();

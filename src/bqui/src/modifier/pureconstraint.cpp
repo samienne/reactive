@@ -127,12 +127,10 @@ AnyWidgetModifier pureFillModifier(float weight)
 
                 // The same coupling a filler emits, weighted: the widget's extent
                 // on the container's layout axis equals weight times the shared
-                // flex variable, at the weakest tier. Every filler and fill()
-                // sibling ties to that one variable, so the slack splits between
-                // them in proportion to their weights; the container's gap drive
-                // then pulls the shared extent out to absorb the remainder. The
-                // widget's content natural rides up as a flex-basis and is dropped
-                // only when the container stamps it (flattenConstraints).
+                // flex variable, at the weakest tier, so the slack splits between
+                // every filler and fill() sibling in proportion to their weights.
+                // The content natural rides up as a flex-basis and is dropped when
+                // the container stamps it (flattenConstraints).
                 widget::LayoutSpec spec;
                 spec.constraints.push_back(
                         ((axis == Axis::x ? box.width() : box.height())
@@ -159,9 +157,8 @@ AnyWidgetModifier pureContentDefaultModifier()
                     return h.getWidth().extent.natural;
                 });
 
-                // Width-independent for now: the natural height is read at the
-                // natural width, not staged on a resolved width (wrapping text is
-                // a later increment).
+                // The natural height is read at the natural width, not staged on
+                // a resolved width.
                 auto height = hint.clone().map([](SizeHint const& h)
                 {
                     float width = h.getWidth().extent.natural;

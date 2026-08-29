@@ -111,6 +111,14 @@ Each container+alignment carries its own aggregation formula; it reads children'
 bands *and* anchors to produce the parent band. Still closed-form, just richer
 than sum/max.
 
+> **Callout - greedy cross-axis flex.** The cross-axis "any child flexes" rule
+> means a `vbox` whose *cross* axis is width, holding a row (`hbox`) that contains
+> a horizontal `filler`, aggregates a width `flex` and so **becomes a horizontal
+> filler in its parent**. A vertical stack thus greedily takes horizontal slack
+> because something deep inside it can stretch horizontally. This is intended per
+> the aggregation rule, but it is surprising and currently untested; revisit if it
+> proves too greedy in practice.
+
 ## Modifiers transform the `Constraints` - four patterns
 
 1. **Size-setters** (`fixedSize`/`min*`/`max*`): replace the one named field.
@@ -215,6 +223,25 @@ cross-axis **max**) and bake onto the container box without fighting the region
 anchor, and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuine
 floor below / cap above the natural — a bound equal to the natural is already the
 natural). Both were deferred while the bounds were required.
+
+**Why content strength sits above the cross-fill.** This is a deliberate
+*shrink-wrap-by-default* policy, not a tie-break. Under the solver's weighted-L1
+objective there is no tie to break: a content leaf's `natural` at `weak(2)`
+competes with the cross-fill pull at `weak(1)`, and `weak(2) > weak(1)`, so
+content wins outright and the leaf sizes to its measurement rather than stretching
+to fill. The margin is only ~2:1, though, so the weak lane is *fragile* - a new
+weak-lane pull added between them could flip the default; weigh any addition to
+the weak lane against this ordering.
+
+**Sharp edge - a flexing container floors no min for its fixed content.**
+`fixedWidth`/`fixedSize` set `natural` (strong), not `min`. A container that
+flexes drops its aggregate `natural`, and since its fixed children contributed
+only `natural` (not `min`), it publishes no `min` floor for them. So a parent that
+force-sizes a flexing container tighter than its fixed content can under-allocate
+it, and the fixed content overflows. Flooring the flex `min` at the fixed basis is
+deferred: it must sum only the *non-flexing* children's naturals (a `fill()`
+child's natural is a soft flex-basis, not a floor), and the cross-axis rule is
+unclear - so it is documented rather than rushed.
 
 ## Verification to aim for
 

@@ -35,13 +35,10 @@ namespace bqui::widget
     using LayoutSolution = std::unordered_map<arrange::Id, double>;
 
     /**
-     * @brief A widget's grow coefficient: how much of a filler it is on one
-     * axis.
-     *
-     * A filler contributes @c extent==coeff*F against its container's shared
-     * flex variable; the coefficient rides up in the band so a container holding
-     * a filler is itself a filler to its parent. The distribution stays the
-     * container's solve — this is only the summary.
+     * @brief A widget's grow coefficient on one axis: its filler weight. A widget
+     * contributes @c extent==coeff*F against its container's shared flex variable,
+     * and the coefficient rides up in the band so a container holding a filler is
+     * itself a filler to its parent.
      */
     struct Flex
     {
@@ -49,14 +46,10 @@ namespace bqui::widget
     };
 
     /**
-     * @brief The preferred (natural) extent of a box on one axis, at the
-     * strength it is held with.
-     *
-     * Distinct from the min/max bounds: the natural is the content/preferred
-     * size the box settles at inside its bounds. Its strength is the "how firmly"
-     * knob — weakest for a plain default, strong for a fixed size — so a fixed
-     * size overrides a default by replacing this field rather than piling a
-     * competing constraint on top.
+     * @brief The preferred (natural) extent of a box on one axis, with the
+     * strength it is held at (weakest for a default, strong for a fixed size).
+     * Distinct from the min/max bounds: the natural is the size the box settles
+     * at inside them.
      */
     struct BandNatural
     {
@@ -69,17 +62,15 @@ namespace bqui::widget
      *
      * The band is the four named, overridable-by-replacement fields
      * (@c min / @c max / @c natural / @c flex): a size modifier sets its one
-     * field, replacing whatever was there, so there is no strength ladder to
-     * exhaust and no over-constraint. The named fields carry target extents
-     * (values), not pre-baked solver constraints, precisely so a wrapper can grow
-     * a band by an inset and re-tag it onto its outer box; a constraint is baked
-     * from a field only at flatten time, against the box it is emitted on.
+     * field, replacing whatever was there. The fields carry target extents
+     * (values), not baked constraints, so a wrapper can grow a band by an inset
+     * and re-tag it onto its outer box; a field is baked into a constraint at
+     * flatten time, against the box it is emitted on.
      *
      * @c relations is everything else — tiling, wrapper inner/outer relations,
-     * guide alignments, a filler's flex coupling — and is additive: relations
-     * accumulate. It is a LayoutSpec rather than a bare constraint list so the
-     * read-back variables the solver API needs travel with the constraints that
-     * name them.
+     * guide alignments, a filler's flex coupling — and is additive. It is a
+     * LayoutSpec rather than a bare constraint list so the read-back variables
+     * the solver API needs travel with the constraints that name them.
      */
     struct Constraints
     {
@@ -102,11 +93,8 @@ namespace bqui::widget
      * The three phase functions each return one axis's @ref Constraints for the
      * outermost box: @ref getWidth resolves the width, @ref getHeightForWidth the
      * height given the resolved width, and @ref getWidthForHeight the width given
-     * the resolved height. Phase 3 is a no-op returning the phase-1 width for
-     * every widget here; phase 2 is width-independent for the widgets this
-     * carries (content-sizing, which makes a height depend on the width, is a
-     * later increment), so both simply ignore their argument for now while the
-     * signatures keep the staging point open.
+     * the resolved height. Phase 3 returns the phase-1 width unchanged, and phase
+     * 2 returns a width-independent height, so both ignore their argument.
      */
     struct PureLayout
     {
@@ -132,8 +120,10 @@ namespace bqui::widget
             return heightForWidth(std::move(w));
         }
 
-        /** @brief Phase 3 (stub): the width given the resolved height, which for
-         * every widget here is the phase-1 width unchanged. */
+        /**
+         * @brief Phase 3: the width given the resolved height, which is the
+         * phase-1 width unchanged.
+         */
         bq::signal::AnySignal<Constraints> getWidthForHeight(
                 bq::signal::AnySignal<float> /*h*/) const
         {
