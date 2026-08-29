@@ -174,11 +174,8 @@ AnyWidgetModifier pureContentDefaultModifier()
                 widget::bridgePureMin(builder, Axis::x, std::move(widthMin));
                 widget::bridgePureMax(builder, Axis::x, std::move(widthMax));
 
-                // The height band is read at the leaf's resolved width, taken
-                // from the phase-2 width solution rather than the natural width,
-                // so genuinely width-dependent content reflows. A width absent
-                // from the solution (before the width solve populates) falls back
-                // to the natural width.
+                // A width absent from the solution (before the width solve
+                // populates) falls back to the natural width.
                 widget::BoxVariables box = builder.getBoxVariables();
                 widget::PureLayout layout = *builder.getPureLayout();
                 auto old = layout.heightForWidth;
