@@ -2,6 +2,7 @@
 #include "widget/constraintlayout.h"
 
 #include <bqui/modifier/constraintsize.h>
+#include <bqui/modifier/frame.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
@@ -1273,6 +1274,73 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
     EXPECT_FLOAT_EQ(80.0f, narrow.size[0]);
     EXPECT_FLOAT_EQ(250.0f, filler.size[0]);
     EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
+}
+
+// A frame is layout-transparent in a pure region: its margin insets the
+// background shape, not the foreground child, so a framed leaf solves to the
+// exact box a bare one does. Before the passthrough fix the framed child lost
+// its band and collapsed to the weak 100x100 default at the wrong position.
+TEST(PureSolverLayout, frameIsLayoutTransparentInPureRegion)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const idBare = btl::makeUniqueId();
+    btl::UniqueId const idFramed = btl::makeUniqueId();
+
+    auto column = [](btl::UniqueId id, bool framed) -> AnyWidget
+    {
+        AnyWidget leaf = framed
+            ? (probe(id, fixed40, fixed40) | modifier::frame())
+            : probe(id, fixed40, fixed40);
+        std::vector<ArraySignal<AnyWidget>> children;
+        children.push_back(std::move(leaf));
+        return vbox(ArraySignal<AnyWidget>(std::move(children)));
+    };
+
+    Instance bare = realiseConverged(
+            pureSolverRoot(column(idBare, false)), window);
+    Instance framed = realiseConverged(
+            pureSolverRoot(column(idFramed, true)), window);
+
+    Geometry b = readProbe(bare, idBare);
+    Geometry f = readProbe(framed, idFramed);
+
+    // The framed leaf lands on the same box as the bare one, and that box is the
+    // probe's real 40x40 band -- not the collapsed 100x100 default.
+    EXPECT_FLOAT_EQ(b.size[0], f.size[0]);
+    EXPECT_FLOAT_EQ(b.size[1], f.size[1]);
+    EXPECT_FLOAT_EQ(b.position[0], f.position[0]);
+    EXPECT_FLOAT_EQ(b.position[1], f.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, f.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, f.size[1]);
+}
+
+// The container aggregates a framed child's real band, not the collapsed
+// default: a framed 40-wide leaf beside a fixed 80 leaf tiles to 40 + 80, so the
+// second child sits at 40. A lost band would put the framed child at 100 wide
+// and push the sibling to 100.
+TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFramed = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFramed, fixed40, fixed40) | modifier::frame());
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry framed = readProbe(instance, idFramed);
+    Geometry fixed = readProbe(instance, idFixed);
+
+    EXPECT_FLOAT_EQ(40.0f, framed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, framed.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fixed.position[0]);
 }
 
 // Height reflows with the resolved width. A leaf whose content height is
