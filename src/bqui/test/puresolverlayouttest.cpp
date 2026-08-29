@@ -1345,8 +1345,7 @@ TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
 
 // vfiller flexes vertically in a pure vbox: a 40-tall content leaf above it, and
 // the vfiller absorbs the rest of the column (300 - 40 = 260) while pinning its
-// width to zero on the cross axis. Before it carried a pure flex band it had no
-// pure size at all and could not take the slack.
+// width to zero on the cross axis.
 TEST(PureSolverLayout, vfillerFlexesInPureVbox)
 {
     avg::Vector2f const window(100.0f, 300.0f);
