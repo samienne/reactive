@@ -94,9 +94,8 @@ namespace bqui::widget
      * outermost box: @ref getWidth resolves the width, @ref getHeightForWidth the
      * height band given the resolved width solution, and @ref getWidthForHeight
      * the width given the resolved height. Phase 2 receives the whole width
-     * solution and each leaf reads its own resolved width from it; a container
-     * forwards the same solution to every child. Phase 3 returns the phase-1
-     * width unchanged.
+     * solution and each leaf reads its own resolved width from it. Phase 3
+     * returns the phase-1 width unchanged.
      */
     struct PureLayout
     {

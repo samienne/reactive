@@ -1274,10 +1274,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                 return buildAxis(Axis::x, axis, bands, boxes);
             });
 
-    // The container's height band as a function of the region's width solution:
-    // it forwards the same solution to every child's phase 2 unchanged, so each
-    // leaf reads its own resolved width from it, and aggregates the child height
-    // bands exactly as the width band aggregates the width ones.
+    // The container's height band, as a function of the region's width solution.
     auto verticalGiven =
         [buildAxis, boxes, array, axis](
                 bq::signal::AnySignal<LayoutSolution> widthSolution)
@@ -1686,8 +1683,7 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
                     };
                 };
 
-                // The width solve runs first; its solution feeds phase 2, so a
-                // widget reads its own resolved width when sizing its height.
+                // The width solve runs first; its solution feeds phase 2.
                 auto horizontalFragments =
                     merge(std::move(width), sharedSize.clone())
                     .map(anchored(Axis::x));
