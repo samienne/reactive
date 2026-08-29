@@ -73,23 +73,18 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Bridges a leaf's SizeHint lower bound into the pure band's @c min
-     * on @p axis, but only where it is a genuine floor below the band's current
-     * natural.
-     *
-     * The conditional is what makes the content-bound bridge safe: a bound equal
-     * to the natural (a rigid content leaf) is already expressed by the natural,
-     * so bridging it would leave a redundant strong bound that ties a later
-     * fixedSize / fill override. setPureMin() is the explicit, unconditional form
-     * a modifier uses. Apply after the natural so the comparison sees it.
+     * @brief Sets the pure band's @c min on @p axis to @p value only where it is
+     * a genuine floor below the band's current natural, for bridging a leaf's
+     * SizeHint lower bound. A bound equal to the natural is left off. Apply after
+     * setPureNatural(); setPureMin() is the unconditional form.
      */
     void bridgePureMin(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Bridges a leaf's SizeHint upper bound into the pure band's @c max
-     * on @p axis, but only where it is a genuine cap above the band's current
-     * natural. The ceiling counterpart of bridgePureMin().
+     * @brief Sets the pure band's @c max on @p axis to @p value only where it is
+     * a genuine cap above the band's current natural. The ceiling counterpart of
+     * bridgePureMin().
      */
     void bridgePureMax(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
@@ -109,13 +104,10 @@ namespace bqui::widget
      * padding, border).
      *
      * Mints an outer box, grows the named bands by the inset and re-tags them
-     * onto it (the band fields carry values, so growing is arithmetic and the
-     * old box's band is simply dropped), appends the required inner/outer edge
-     * relations, and makes the outer box the one the builder now presents so its
-     * container tiles the outer extent. Exactly one band lives on the current
-     * outermost box at every step, which is what makes nested wrappers and a
-     * later resize compose: a size word replaces the single outer band and the
-     * relation chain distributes it inward.
+     * onto it, appends the required inner/outer edge relations, and makes the
+     * outer box the one the builder presents. Exactly one band lives on the
+     * outermost box, so a later size word replaces it and the relation chain
+     * distributes it inward through any depth of nesting.
      */
     void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset);
 
@@ -124,9 +116,7 @@ namespace bqui::widget
      *
      * The band fields become constraints on the box's extent (@c natural at its
      * strength, @c min / @c max strong) and ride alongside the untagged
-     * relations. This is the point a value-carrying band turns into tableau: a
-     * container stamps each child here, and the region owner flattens the top
-     * descriptor. @p axis selects the box's width or height as the extent.
+     * relations. @p axis selects the box's width or height as the extent.
      */
     LayoutSpec flattenConstraints(Constraints const& constraints,
             BoxVariables const& box, Axis axis);
@@ -401,17 +391,10 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Strength weakestStrength();
 
     /**
-     * @brief The strength a content leaf holds its natural (content-measured)
-     * size at: the heaviest pull in the weak lane, yet a whole lane below
-     * medium/strong/required.
-     *
-     * A leaf bridges its SizeHint's natural into the pure band at this strength.
-     * It outranks every other weak-lane pull — the bare fallback default, the gap
-     * drive and the cross-fill — so a leaf settles at its measured size on both
-     * axes rather than a flat default or a stretched fill. Stretching is opt-in:
-     * a filler (which drops the natural), a fixed size, a bound, or a guide all
-     * replace or outrank it. This carries the "filler is the flex" model —
-     * content by default, fill by opt-in — into the strength ladder.
+     * @brief The strength a content leaf holds its content-measured natural at:
+     * the top of the weak lane, above every other weak-lane pull yet a whole lane
+     * below medium. Content sizes to its measurement by default; stretching (a
+     * filler, a fixed size, a bound, a guide) is opt-in.
      */
     BQUI_EXPORT arrange::Strength contentStrength();
 

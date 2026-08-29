@@ -1086,26 +1086,30 @@ arrange::Strength strongerStrength(arrange::Strength a, arrange::Strength b)
     return a >= b ? a : b;
 }
 
-// A container's aggregate natural on one axis. Children tile end-to-end on the
-// main axis so their naturals sum; they overlap on the cross axis so the largest
-// wins. Held at the strongest contributing child's strength, so a firmly sized
-// child carries its firmness up. Absent when no child carries a natural.
+// A container's aggregate natural on one axis. On the main axis children tile
+// end-to-end, so their naturals sum and the result is held at the firmest
+// contributing child's strength. On the cross axis they overlap, so the largest
+// wins and carries its own strength -- an unrelated smaller child's firmness
+// does not rigidify the container's cross natural. Absent when no child carries
+// a natural.
 std::optional<BandNatural> aggregateNatural(
         std::vector<Constraints> const& children, bool mainAxis)
 {
-    std::optional<float> value;
-    arrange::Strength strength = weakestStrength();
+    std::optional<BandNatural> result;
     for (Constraints const& child : children)
     {
         if (!child.natural)
             continue;
-        float v = child.natural->value;
-        value = value ? (mainAxis ? *value + v : std::max(*value, v)) : v;
-        strength = strongerStrength(strength, child.natural->strength);
+        BandNatural const& n = *child.natural;
+        if (!result)
+            result = n;
+        else if (mainAxis)
+            result = BandNatural{ result->value + n.value,
+                    strongerStrength(result->strength, n.strength) };
+        else if (n.value > result->value)
+            result = n;
     }
-    if (!value)
-        return std::nullopt;
-    return BandNatural{ *value, strength };
+    return result;
 }
 
 // A container's aggregate flex on one axis. Filler coefficients sum along the
@@ -1178,9 +1182,8 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                 })).share();
 
     // Each child's per-axis band (its width or height Constraints), read off its
-    // builder. Height is width-independent for the widgets here, and the resolved
-    // width is not known at build time in this compose-up architecture, so a
-    // placeholder rides into getHeightForWidth() and is ignored.
+    // builder. The resolved width is not known at build time in this compose-up
+    // architecture, so getHeightForWidth() is fed a placeholder width.
     auto childBand = [](Axis stampAxis)
     {
         return [stampAxis](widget::AnyBuilder const& builder)
@@ -1199,14 +1202,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     auto childWidth = bq::signal::join(array.map(childBand(Axis::x)));
     auto childHeight = bq::signal::join(array.map(childBand(Axis::y)));
 
-    // One axis of the container's published band. Its children's bands are baked
-    // onto their boxes (flattenConstraints) as untagged relations — the child's
-    // size is no longer overridable by name below this container — and the
-    // aggregate natural/min/max/flex is republished as the container's own band,
-    // so a size word at this level overrides it and its flex rides up to the
-    // parent. The bounds aggregate main-axis SUM / cross-axis MAX, mirroring the
-    // natural, and now that they are strong (not required) they no longer fight
-    // the region anchor: an aggregate min the window cannot honour overflows.
+    // One axis of the container's published band. Each child's band is baked onto
+    // its box (flattenConstraints) as untagged relations, and the aggregate
+    // natural/min/max/flex is republished as the container's own band: natural and
+    // the bounds aggregate main-axis SUM / cross-axis MAX, flex rides up, and a
+    // size word at this level overrides the republished band.
     auto buildAxis =
         [container, gap, parentFlex, parentAxis](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
@@ -1219,11 +1219,9 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
 
         Constraints result;
         result.flex = flex;
-        // A flexible extent must be free for the parent's slack to stretch it, so
-        // the natural is dropped on an axis the container flexes, exactly as a
-        // filler carries no natural on its flex axis. The bounds survive: a min is
-        // a floor the flex still respects and a max a cap it grows up to, exactly
-        // as flattenConstraints keeps a flexing box's own bounds.
+        // A flexible axis drops its natural so the parent's slack can stretch it.
+        // A fixed child sets natural, not min, so a flexing container publishes no
+        // min floor for its fixed content and a tight parent can under-allocate it.
         if (!flexes)
             result.natural = aggregateNatural(childBands, mainAxis);
         result.min = aggregateBound(childBands, mainAxis, &pickMin);
@@ -1249,18 +1247,18 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                     : weakHeightDefault(container));
 
         // The coupling that makes a flexible container a filler in its parent:
-        // its extent on the parent's layout axis equals the parent's shared flex
-        // variable, so the parent's slack distribution reaches it just as it
-        // reaches a leaf filler. Emitted only on the parent's axis and only where
-        // this container actually flexes there. When there is no real parent flex
-        // (the outermost container) the variable is free and the coupling is a
-        // no-op the anchor overrides.
+        // its extent on the parent's layout axis equals its own aggregated flex
+        // weight times the parent's shared flex variable, so the parent splits
+        // slack between this container and its siblings in proportion to their
+        // weights, exactly as it does between leaf fillers. Emitted only on the
+        // parent's axis and only where this container flexes there.
         if (thisAxis == parentAxis && flexes)
             rel.constraints.push_back(
                     ((thisAxis == Axis::x
                         ? container.width()
                         : container.height())
-                        == arrange::Expression(parentFlex))
+                        == static_cast<double>(flex->coeff)
+                            * arrange::Expression(parentFlex))
                     | weakestStrength());
 
         if (thisAxis == Axis::x)
@@ -1464,7 +1462,7 @@ AnyWidget filler()
                     // shared extent out to fill the slack; the cross axis falls
                     // to the container's leading-edge pin, cross-fill and weak
                     // default. The flex band rides up so a container holding a
-                    // filler is itself a filler to its parent (aggregated later).
+                    // filler is itself a filler to its parent.
                     LayoutSpec spec;
                     spec.constraints.push_back(
                             ((axis == Axis::x ? box.width() : box.height())

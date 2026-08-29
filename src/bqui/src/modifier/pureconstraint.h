@@ -33,14 +33,14 @@ namespace bqui::modifier::detail
 
     /**
      * @brief A widget modifier that, inside a pure-solver region, replaces the
-     * required lower-bound band on @p axis with @p value. A no-op outside one.
+     * strong lower-bound band on @p axis with @p value. A no-op outside one.
      */
     AnyWidgetModifier pureMinModifier(PureAxis axis,
             bq::signal::AnySignal<float> value);
 
     /**
      * @brief A widget modifier that, inside a pure-solver region, replaces the
-     * required upper-bound band on @p axis with @p value. A no-op outside one.
+     * strong upper-bound band on @p axis with @p value. A no-op outside one.
      */
     AnyWidgetModifier pureMaxModifier(PureAxis axis,
             bq::signal::AnySignal<float> value);
@@ -66,16 +66,15 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureFillModifier(float weight);
 
     /**
-     * @brief A widget modifier that, inside a pure-solver region, seeds the
-     * natural band on both axes from the builder's own SizeHint — the content
-     * measurement — at contentStrength().
+     * @brief A widget modifier that, inside a pure-solver region, seeds the pure
+     * band on both axes from the builder's own SizeHint: the natural at
+     * contentStrength(), and the SizeHint's min/max as strong bounds where they
+     * range beyond the natural.
      *
      * The bridge that makes a pure leaf size to its content rather than a flat
-     * default: the width natural is the SizeHint's natural width and the height
-     * natural its natural height (width-independent for now — no height-for-width
-     * staging). Being a natural write, a later fixed size, bound or filler on the
-     * same axis overrides it by named replacement. A no-op outside a pure-solver
-     * region, where the SizeHint band drives sizing directly.
+     * default. Being named writes, a later fixed size, bound or filler on the same
+     * axis overrides by named replacement. A no-op outside a pure-solver region,
+     * where the SizeHint band drives sizing directly.
      */
     AnyWidgetModifier pureContentDefaultModifier();
 
