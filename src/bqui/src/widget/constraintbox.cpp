@@ -1129,6 +1129,29 @@ std::optional<Flex> aggregateFlex(
     return Flex{ *coeff };
 }
 
+// A container's aggregate min or max on one axis. Children tile end-to-end on
+// the main axis so their bounds sum; they overlap on the cross axis so the
+// largest wins (a container is at least as wide as its widest child, and at
+// least as tall as the sum of a column's children). Absent when no child
+// carries this bound. @p pick reads the child's min or max field.
+std::optional<float> aggregateBound(std::vector<Constraints> const& children,
+        bool mainAxis,
+        std::optional<float> const& (*pick)(Constraints const&))
+{
+    std::optional<float> value;
+    for (Constraints const& child : children)
+    {
+        std::optional<float> const& b = pick(child);
+        if (!b)
+            continue;
+        value = value ? (mainAxis ? *value + *b : std::max(*value, *b)) : *b;
+    }
+    return value;
+}
+
+std::optional<float> const& pickMin(Constraints const& c) { return c.min; }
+std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
+
 // The pure-solver counterpart of solverBoxBuildersRegion(): composes this
 // container's fragment with its children's onto its builder for the region to
 // solve, then places its children from the solution handed to its build.
@@ -1179,13 +1202,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     // One axis of the container's published band. Its children's bands are baked
     // onto their boxes (flattenConstraints) as untagged relations — the child's
     // size is no longer overridable by name below this container — and the
-    // aggregate natural/flex is republished as the container's own band, so a
-    // size word at this level overrides it and its flex rides up to the parent.
-    //
-    // The min/max grow-and-retag aggregation is a later increment: baking a
-    // container's aggregate min/max as a required bound would fight the region
-    // anchor when the window forces a different size, so only natural and flex
-    // aggregate here.
+    // aggregate natural/min/max/flex is republished as the container's own band,
+    // so a size word at this level overrides it and its flex rides up to the
+    // parent. The bounds aggregate main-axis SUM / cross-axis MAX, mirroring the
+    // natural, and now that they are strong (not required) they no longer fight
+    // the region anchor: an aggregate min the window cannot honour overflows.
     auto buildAxis =
         [container, gap, parentFlex, parentAxis](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
@@ -1200,9 +1221,13 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         result.flex = flex;
         // A flexible extent must be free for the parent's slack to stretch it, so
         // the natural is dropped on an axis the container flexes, exactly as a
-        // filler carries no natural on its flex axis.
+        // filler carries no natural on its flex axis. The bounds survive: a min is
+        // a floor the flex still respects and a max a cap it grows up to, exactly
+        // as flattenConstraints keeps a flexing box's own bounds.
         if (!flexes)
             result.natural = aggregateNatural(childBands, mainAxis);
+        result.min = aggregateBound(childBands, mainAxis, &pickMin);
+        result.max = aggregateBound(childBands, mainAxis, &pickMax);
 
         LayoutSpec& rel = result.relations;
 

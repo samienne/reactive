@@ -174,6 +174,38 @@ void setPureMax(AnyBuilder& builder, Axis axis,
     builder.setPureLayout(std::move(layout));
 }
 
+void bridgePureMin(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [](Constraints& c, float v)
+            {
+                // Bridged only as a genuine floor below the natural: a floor
+                // equal to (or above) the natural is already carried by the
+                // natural, and a redundant strong bound would tie a later size
+                // override. setPureMin() is the unconditional, explicit form.
+                if (!c.natural || v < c.natural->value)
+                    c.min = v;
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
+void bridgePureMax(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [](Constraints& c, float v)
+            {
+                // The ceiling counterpart of bridgePureMin(): bridged only as a
+                // genuine cap above the natural.
+                if (!c.natural || v > c.natural->value)
+                    c.max = v;
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
 void setPureFlex(AnyBuilder& builder, Axis axis, float coeff)
 {
     PureLayout layout = pureLayoutOr(builder);
@@ -270,14 +302,22 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
                 (extent() == arrange::Expression(
                         static_cast<double>(constraints.natural->value)))
                 | constraints.natural->strength);
+    // The bounds are strong, not required: a bound that cannot be met (a min
+    // above the room, a min that ties a max) then degrades and overflows rather
+    // than throwing an arrange::Error that freezes the whole region back to its
+    // previous solution. Strong still outranks the weak content/natural pull, so
+    // a bound clamps content as before; it only yields to a required anchor or a
+    // contradicting bound of equal strength.
     if (constraints.min)
         spec.constraints.push_back(
-                extent() >= arrange::Expression(
-                        static_cast<double>(*constraints.min)));
+                (extent() >= arrange::Expression(
+                        static_cast<double>(*constraints.min)))
+                | arrange::Strength::strong());
     if (constraints.max)
         spec.constraints.push_back(
-                extent() <= arrange::Expression(
-                        static_cast<double>(*constraints.max)));
+                (extent() <= arrange::Expression(
+                        static_cast<double>(*constraints.max)))
+                | arrange::Strength::strong());
 
     return spec;
 }

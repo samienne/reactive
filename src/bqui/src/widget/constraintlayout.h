@@ -58,15 +58,40 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value, arrange::Strength strength);
 
     /**
-     * @brief Replaces the required lower-bound band on @p axis with @p value.
+     * @brief Replaces the lower-bound band on @p axis with @p value, held
+     * strong so an unmeetable floor overflows rather than freezing the region.
      */
     void setPureMin(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Replaces the required upper-bound band on @p axis with @p value.
+     * @brief Replaces the upper-bound band on @p axis with @p value, held
+     * strong so a contradicting cap ties gracefully rather than freezing the
+     * region.
      */
     void setPureMax(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief Bridges a leaf's SizeHint lower bound into the pure band's @c min
+     * on @p axis, but only where it is a genuine floor below the band's current
+     * natural.
+     *
+     * The conditional is what makes the content-bound bridge safe: a bound equal
+     * to the natural (a rigid content leaf) is already expressed by the natural,
+     * so bridging it would leave a redundant strong bound that ties a later
+     * fixedSize / fill override. setPureMin() is the explicit, unconditional form
+     * a modifier uses. Apply after the natural so the comparison sees it.
+     */
+    void bridgePureMin(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief Bridges a leaf's SizeHint upper bound into the pure band's @c max
+     * on @p axis, but only where it is a genuine cap above the band's current
+     * natural. The ceiling counterpart of bridgePureMin().
+     */
+    void bridgePureMax(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
 
     /**
@@ -98,7 +123,7 @@ namespace bqui::widget
      * @brief Bakes one axis's @ref Constraints into a solver fragment on @p box.
      *
      * The band fields become constraints on the box's extent (@c natural at its
-     * strength, @c min / @c max required) and ride alongside the untagged
+     * strength, @c min / @c max strong) and ride alongside the untagged
      * relations. This is the point a value-carrying band turns into tableau: a
      * container stamps each child here, and the region owner flattens the top
      * descriptor. @p axis selects the box's width or height as the extent.

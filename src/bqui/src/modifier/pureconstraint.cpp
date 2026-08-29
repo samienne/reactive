@@ -162,7 +162,7 @@ AnyWidgetModifier pureContentDefaultModifier()
                 // Width-independent for now: the natural height is read at the
                 // natural width, not staged on a resolved width (wrapping text is
                 // a later increment).
-                auto height = hint.map([](SizeHint const& h)
+                auto height = hint.clone().map([](SizeHint const& h)
                 {
                     float width = h.getWidth().extent.natural;
                     return h.getHeightForWidth(width).extent.natural;
@@ -172,6 +172,32 @@ AnyWidgetModifier pureContentDefaultModifier()
                         widget::contentStrength());
                 widget::setPureNatural(builder, Axis::y, std::move(height),
                         widget::contentStrength());
+
+                // The leaf's SizeHint bounds flow into the pure band as strong
+                // min/max, so a widget whose content genuinely ranges (a min
+                // below or a max above its natural) carries that range up. A
+                // bound equal to the natural is left off (see bridgePureMin): the
+                // natural already expresses it, and a redundant strong bound would
+                // only fight a later fixedSize / fill override.
+                auto widthMin = hint.clone().map([](SizeHint const& h)
+                        { return h.getWidth().extent.min; });
+                auto widthMax = hint.clone().map([](SizeHint const& h)
+                        { return h.getWidth().extent.max; });
+                auto heightMin = hint.clone().map([](SizeHint const& h)
+                {
+                    float w = h.getWidth().extent.natural;
+                    return h.getHeightForWidth(w).extent.min;
+                });
+                auto heightMax = hint.map([](SizeHint const& h)
+                {
+                    float w = h.getWidth().extent.natural;
+                    return h.getHeightForWidth(w).extent.max;
+                });
+
+                widget::bridgePureMin(builder, Axis::x, std::move(widthMin));
+                widget::bridgePureMax(builder, Axis::x, std::move(widthMax));
+                widget::bridgePureMin(builder, Axis::y, std::move(heightMin));
+                widget::bridgePureMax(builder, Axis::y, std::move(heightMax));
             });
 }
 

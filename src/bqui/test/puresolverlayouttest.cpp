@@ -525,8 +525,9 @@ TEST(PureSolverLayout, plainLastChildIsNotStretched)
 }
 
 // A capped filler hands its surplus to the others. Three fillers share the
-// slack, but the middle one is capped at 60 (required maxWidth); the other two
-// absorb what it cannot, so in a 400-wide row: 170 + 60 + 170.
+// slack, but the middle one is capped at 60 (strong maxWidth, which beats the
+// weakest flex coupling); the other two absorb what it cannot, so in a 400-wide
+// row: 170 + 60 + 170.
 TEST(PureSolverLayout, cappedFillerHandsSurplusToOthers)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -574,10 +575,10 @@ TEST(PureSolverLayout, fixedChildrenOverflowRatherThanSqueeze)
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).position[0]);
 }
 
-// The strong exact size and the required bounds reach the right axis: a single
+// The strong exact size and the strong bounds reach the right axis: a single
 // leaf pins its height to 150 (strong, beating its content height) and caps its
-// width at 60 (required, holding its 100 content width down). fixedHeight feeds
-// the vertical solve, maxWidth the horizontal one.
+// width at 60 (strong, beating the weak content pull holding its 100 content
+// width). fixedHeight feeds the vertical solve, maxWidth the horizontal one.
 TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 {
     avg::Vector2f const window(200.0f, 300.0f);
@@ -632,8 +633,8 @@ TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
     EXPECT_FLOAT_EQ(labelG.size[0], fillerG.position[0]);
 }
 
-// maxWidth alone caps the content width: a required upper bound below the leaf's
-// 100 content width holds it down to 60.
+// maxWidth alone caps the content width: a strong upper bound below the leaf's
+// 100 content width beats the weak content pull and holds it down to 60.
 TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -668,10 +669,10 @@ TEST(PureSolverLayout, minWidthAloneRaisesTheDefault)
     EXPECT_FLOAT_EQ(200.0f, readProbe(instance, id).size[0]);
 }
 
-// The over-constraining edge: a required minWidth larger than the whole row.
-// The child needs 200 in a 100-wide window. This asserts the solver's ACTUAL
-// behavior (filled in from the run), including what happens to a fixed-width
-// sibling, so the required-vs-strong choice can be judged.
+// The over-constraining edge: a strong minWidth larger than the whole row. The
+// child needs 200 in a 100-wide window. With no required conflict present the
+// strong min behaves exactly as a required one would -- it holds at 200 and
+// overflows the row -- and, crucially, the fixed-width sibling still lays out.
 TEST(PureSolverLayout, minWidthLargerThanRow)
 {
     avg::Vector2f const window(100.0f, 100.0f);
@@ -691,7 +692,7 @@ TEST(PureSolverLayout, minWidthLargerThanRow)
     Geometry big = readProbe(instance, idBig);
     Geometry sibling = readProbe(instance, idSibling);
 
-    // The required min holds at 200 and overflows the row; the signed gap goes
+    // The strong min holds at 200 and overflows the row; the signed gap goes
     // negative and the fixed sibling keeps its size, pushed past the row's end.
     EXPECT_FLOAT_EQ(200.0f, big.size[0]);
     EXPECT_FLOAT_EQ(0.0f, big.position[0]);
@@ -1073,4 +1074,124 @@ TEST(PureSolverLayout, bareShapeHasModestPureDefault)
     EXPECT_FLOAT_EQ(100.0f, bare.size[1]);
     EXPECT_FLOAT_EQ(48.0f, sized.size[0]);
     EXPECT_FLOAT_EQ(48.0f, sized.size[1]);
+}
+
+// The key win of strong over required bounds: a widget whose own bounds
+// contradict -- minWidth(200) tied against maxWidth(60) -- resolves to SOME
+// determinate size instead of throwing an arrange::Error that solveLayout would
+// catch by returning the previous solution, freezing every widget in the region.
+// The proof is the sibling: it still lays out at its own fixed 50 (a frozen
+// region reads back the empty previous solution, sizing it to 0).
+TEST(PureSolverLayout, contradictoryBoundsDoNotFreezeRegion)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+    btl::UniqueId const idClash = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idSibling, fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+    row.push_back(probe(idClash, fixed40, fixed40)
+            | modifier::minWidth(200.0f)
+            | modifier::maxWidth(60.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry sibling = readProbe(instance, idSibling);
+    Geometry clash = readProbe(instance, idClash);
+
+    // The sibling solved normally: the region did not freeze.
+    EXPECT_FLOAT_EQ(50.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, sibling.position[0]);
+
+    // The contradictory widget settled at a determinate, finite size somewhere
+    // between its tied bounds rather than aborting the solve.
+    EXPECT_TRUE(std::isfinite(clash.size[0]));
+    EXPECT_GT(clash.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(50.0f, clash.position[0]);
+}
+
+// Min aggregates as a main-axis SUM up a container. An inner hbox of two leaves,
+// each minWidth(100), publishes an aggregate min width of 100 + 100 = 200 (its
+// content natural, 40 + 40 = 80, is far weaker). Placed beside a filler in a
+// 400-wide row, that strong aggregate min holds the inner hbox at 200 and the
+// filler takes the remaining 200 -- where without the aggregation the inner's
+// weak natural would win and collapse it, handing the filler 320.
+TEST(PureSolverLayout, minAggregatesSumOnMainAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idA, fixed40, fixed40) | modifier::minWidth(100.0f));
+    innerRow.push_back(probe(idB, fixed40, fixed40) | modifier::minWidth(100.0f));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // Each leaf holds its own min; they tile to 200 and the aggregate min holds
+    // the inner hbox there, so the filler takes the other 200.
+    EXPECT_FLOAT_EQ(100.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, b.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.position[0]);
+}
+
+// Min aggregates as a cross-axis MAX up a container. An inner vbox (layout axis
+// vertical) of two leaves with minWidth(150) and minWidth(80) publishes an
+// aggregate min width of max(150, 80) = 150 across its cross axis. Beside a
+// filler in a 400-wide row, that holds the inner vbox at 150 and the filler
+// takes 250 -- without the aggregation the inner's weak natural collapses it and
+// the filler takes 360.
+TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerCol;
+    innerCol.push_back(probe(idWide, fixed40, fixed40)
+            | modifier::minWidth(150.0f));
+    innerCol.push_back(probe(idNarrow, fixed40, fixed40)
+            | modifier::minWidth(80.0f));
+    AnyWidget inner = vbox(ArraySignal<AnyWidget>(std::move(innerCol)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // Each leaf holds its own min; the widest (150) sets the inner vbox's cross
+    // min, so the filler takes 400 - 150 = 250.
+    EXPECT_FLOAT_EQ(150.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(250.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
 }
