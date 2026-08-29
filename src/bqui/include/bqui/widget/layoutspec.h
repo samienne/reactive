@@ -83,8 +83,8 @@ namespace bqui::widget
      */
     struct Constraints
     {
-        std::optional<float> min;            ///< required lower bound on extent
-        std::optional<float> max;            ///< required upper bound on extent
+        std::optional<float> min;            ///< strong lower bound on extent
+        std::optional<float> max;            ///< strong upper bound on extent
         std::optional<BandNatural> natural;  ///< preferred extent, at a strength
         std::optional<Flex> flex;            ///< filler coefficient (aggregated)
         LayoutSpec relations;                ///< untagged relations + read-backs

@@ -189,14 +189,32 @@ children overflow, flexible children respond, opt-in. Document the standard
 The top-level (window content) aggregate band drives the OS window min/max size,
 for free - the summary is already there.
 
-## Open knob: stamped-size strength
+## Stamped-size strength (decided)
 
-The one thing left to pin, and it decides overflow-vs-squish for rigid content:
-the strength at which a stamped size / `natural` sits. Lean: a **firm/strong**
-preference so rigid content overflows rather than silently squishing, with
-`filler`/flex as the deliberate way to make it give. Because `min`/`max` are band
-clamps resolved via the tags before the tableau, the old `required`-vs-`required`
-region-freeze does not arise. Finalize at stamping time.
+The strength question decides overflow-vs-squish for rigid content: the strength
+at which a stamped size / `natural` and the `min`/`max` bounds sit.
+
+- **`natural` / fixed size**: content strength (a heavy weak-lane pull) for a
+  content leaf, **strong** for a fixed size — so rigid content overflows rather
+  than silently squishing, with `filler`/`flex` the deliberate way to make it
+  give.
+- **`min`/`max` bounds: strong, not required.** A strong bound is a firm
+  preference that *degrades gracefully*: a min that cannot be met yields and
+  overflows, a `min` that ties a `max` settles at a determinate compromise —
+  where a `required` bound would raise `arrange::Error`, which `solveLayout`
+  catches by returning the *previous* solution, freezing every widget in the
+  region. Strong still outranks the weak content/natural pull, so a bound clamps
+  content as before; it only yields to the required window anchor or a
+  contradicting bound of equal strength. The tradeoff — bounds are firm
+  preferences, not hard guarantees, and can tie a `strong` fixed size — is
+  accepted, and is the same choice as force-sizing overflowing rather than
+  squishing.
+
+Because the bounds are strong, they aggregate up a container (main-axis **sum**,
+cross-axis **max**) and bake onto the container box without fighting the region
+anchor, and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuine
+floor below / cap above the natural — a bound equal to the natural is already the
+natural). Both were deferred while the bounds were required.
 
 ## Verification to aim for
 
