@@ -218,29 +218,27 @@ void setPureFlex(AnyBuilder& builder, Axis axis, float coeff)
 
 namespace
 {
-    // The framework's no-preference size band. A widget that never stated a
-    // size carries it, and it must not bridge to a pure natural -- the
-    // container's weak default sizes such a box instead.
-    bool isDefaultBand(Band const& band)
-    {
-        Band const def = defaultSizeHint().getWidth().extent;
-        return band.min == def.min && band.natural == def.natural
-            && band.max == def.max && band.grow == def.grow;
-    }
-
-    // Bridges one axis's SizeHint band into a pure band: the natural at content
-    // strength, the bounds only where they genuinely widen the natural (a bound
-    // equal to it is already expressed). A default band bridges to nothing.
+    // Bridges one axis's SizeHint band into a pure band, per field. A bound equal
+    // to the natural is already expressed by it, so only a genuinely widening
+    // bound bridges; the SizeHint fill sentinel (a max/natural at the default's
+    // ceiling, a min at its floor) means "no preference" on that field and
+    // bridges to nothing, so a bare or bound-only hint keeps the weak default. A
+    // positive grow becomes a flex band, its natural kept as the flex-basis.
     Constraints bandToConstraints(Band const& band)
     {
+        Band const def = defaultSizeHint().getWidth().extent;
+        float const noPreference = def.natural;
+        float const noFloor = def.min;
+
         Constraints c;
-        if (isDefaultBand(band))
-            return c;
-        c.natural = BandNatural{ band.natural, contentStrength() };
-        if (band.min < band.natural)
+        if (band.natural != noPreference)
+            c.natural = BandNatural{ band.natural, contentStrength() };
+        if (band.min > noFloor && band.min < band.natural)
             c.min = band.min;
-        if (band.max > band.natural)
+        if (band.max != noPreference && band.max > band.natural)
             c.max = band.max;
+        if (band.grow > 0.0f)
+            c.flex = Flex{ band.grow };
         return c;
     }
 } // namespace
