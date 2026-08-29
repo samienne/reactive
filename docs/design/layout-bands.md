@@ -57,10 +57,14 @@ wrapper just swaps in a new outer box and grows the values, so the old box's ban
 is never materialised to remove. `constraints` is a `LayoutSpec` (the untagged
 constraints plus the read-back variables the solver API needs), since the solver
 exposes no variable iteration. Per axis the descriptor is `PureLayout`: a phase-1
-`width()` and a phase-2 `heightForWidth(w)` (`widthForHeight` stubs to the
-phase-1 width). Phase 2 is width-independent for every widget here - content
-sizing, which is what makes a height read the resolved width, is a later
-increment - so the staging argument threads through but is ignored for now.
+`width()` and a phase-2 `heightForWidth(widthSolution)` (`widthForHeight` stubs to
+the phase-1 width). Phase 2 takes the whole width `LayoutSolution`, not a scalar:
+a container cannot turn its own resolved width into its children's widths without
+re-solving, so it forwards the same solution to every child unchanged and each
+leaf reads its own resolved width from it (`readObb(widthSolution, box)`),
+composing to any depth. The firewall sequences the solves - width first, its
+solution feeding phase 2 - so a leaf's content height reflows with its resolved
+width.
 
 ## Three-phase solve
 

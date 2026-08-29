@@ -92,17 +92,20 @@ namespace bqui::widget
      *
      * The three phase functions each return one axis's @ref Constraints for the
      * outermost box: @ref getWidth resolves the width, @ref getHeightForWidth the
-     * height given the resolved width, and @ref getWidthForHeight the width given
-     * the resolved height. Phase 3 returns the phase-1 width unchanged, and phase
-     * 2 returns a width-independent height, so both ignore their argument.
+     * height band given the resolved width solution, and @ref getWidthForHeight
+     * the width given the resolved height. Phase 2 receives the whole width
+     * solution and each leaf reads its own resolved width from it; a container
+     * forwards the same solution to every child. Phase 3 returns the phase-1
+     * width unchanged.
      */
     struct PureLayout
     {
         /**
-         * @brief The phase-2 shape: the height band given the resolved width.
+         * @brief The phase-2 shape: the height band given the resolved width
+         * solution.
          */
-        using WidthToConstraints = btl::Function<
-            bq::signal::AnySignal<Constraints>(bq::signal::AnySignal<float>)>;
+        using WidthToConstraints = btl::Function<bq::signal::AnySignal<
+            Constraints>(bq::signal::AnySignal<LayoutSolution>)>;
 
         bq::signal::AnySignal<Constraints> width;
         WidthToConstraints heightForWidth;
@@ -113,11 +116,14 @@ namespace bqui::widget
             return width;
         }
 
-        /** @brief Phase 2: the height band given the resolved width @p w. */
+        /**
+         * @brief Phase 2: the height band given the resolved width solution
+         * @p widthSolution, which each leaf reads its own resolved width from.
+         */
         bq::signal::AnySignal<Constraints> getHeightForWidth(
-                bq::signal::AnySignal<float> w) const
+                bq::signal::AnySignal<LayoutSolution> widthSolution) const
         {
-            return heightForWidth(std::move(w));
+            return heightForWidth(std::move(widthSolution));
         }
 
         /**
@@ -125,7 +131,7 @@ namespace bqui::widget
          * phase-1 width unchanged.
          */
         bq::signal::AnySignal<Constraints> getWidthForHeight(
-                bq::signal::AnySignal<float> /*h*/) const
+                bq::signal::AnySignal<LayoutSolution> /*heightSolution*/) const
         {
             return width;
         }
