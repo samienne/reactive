@@ -99,6 +99,19 @@ namespace bqui::widget
     void setPureFlex(AnyBuilder& builder, Axis axis, float coeff);
 
     /**
+     * @brief Synthesizes a PureLayout from @p hint on @p box, the universal
+     * bridge for a builder that reaches a pure container without one.
+     *
+     * The width band comes from the hint's width and the height band from the
+     * hint's height at @p box's resolved width, both held at content strength
+     * with the min/max bounds bridged in where they widen the natural. A hint
+     * that states no size preference (the framework default) bridges to an empty
+     * band, so the container's weak default still sizes the box.
+     */
+    PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
+            BoxVariables box);
+
+    /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
      * @p inset on every edge, the solver half of an inset wrapper (margin,
      * padding, border).

@@ -137,6 +137,20 @@ than sum/max.
 3. **Content leaves** (`label`, `image`): set `natural` from the measurement.
 4. **Relational** (align/gravity, guides): append to `constraints`, pick an anchor.
 
+## SizeHint bridges universally at consumption
+
+A builder that reaches a pure container or the firewall with no `PureLayout`
+gets one synthesized from its final `SizeHint` (`pureLayoutFromSizeHint`): the
+width band from `getWidth()` and the height band from `getHeightForWidth()` at
+the resolved width, at content strength with the bounds bridged. So the legacy
+size vocabulary (`setSizeHint`, `setSize`, `setMinimumSize`) drives a pure band
+without a per-widget pure modifier. Reading the *final* SizeHint at consumption
+(not at build) captures every size word regardless of modifier order. A hint
+that states no size preference (the framework default) bridges to nothing, so a
+bare widget keeps the weak default. The explicit `defaultSize()` on the shipped
+leaves is now redundant with this fallback and calls the same helper; it stays
+for now.
+
 ### The load-bearing invariant
 
 **Exactly one band lives on a widget's current outermost box; every wrapper

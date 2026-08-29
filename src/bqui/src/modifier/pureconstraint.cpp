@@ -150,64 +150,8 @@ AnyWidgetModifier pureContentDefaultModifier()
     return pureBuilderModifier(
             [](widget::AnyBuilder& builder)
             {
-                auto hint = builder.getSizeHint().share();
-
-                auto width = hint.clone().map([](SizeHint const& h)
-                {
-                    return h.getWidth().extent.natural;
-                });
-
-                widget::setPureNatural(builder, Axis::x, std::move(width),
-                        widget::contentStrength());
-
-                // The leaf's SizeHint bounds flow into the pure band as strong
-                // min/max, so a widget whose content genuinely ranges (a min
-                // below or a max above its natural) carries that range up. A
-                // bound equal to the natural is left off (see bridgePureMin): the
-                // natural already expresses it, and a redundant strong bound would
-                // only fight a later fixedSize / fill override.
-                auto widthMin = hint.clone().map([](SizeHint const& h)
-                        { return h.getWidth().extent.min; });
-                auto widthMax = hint.clone().map([](SizeHint const& h)
-                        { return h.getWidth().extent.max; });
-
-                widget::bridgePureMin(builder, Axis::x, std::move(widthMin));
-                widget::bridgePureMax(builder, Axis::x, std::move(widthMax));
-
-                // A width absent from the solution (before the width solve
-                // populates) falls back to the natural width.
-                widget::BoxVariables box = builder.getBoxVariables();
-                widget::PureLayout layout = *builder.getPureLayout();
-                auto old = layout.heightForWidth;
-                layout.heightForWidth =
-                    [old, hint, box](
-                            bq::signal::AnySignal<widget::LayoutSolution> ws)
-                        -> bq::signal::AnySignal<widget::Constraints>
-                    {
-                        auto shared = std::move(ws).share();
-                        return merge(old(shared.clone()), hint.clone(),
-                                shared.clone()).map(
-                            [box](widget::Constraints const& c,
-                                    SizeHint const& h,
-                                    widget::LayoutSolution const& sol)
-                            {
-                                float natural = h.getWidth().extent.natural;
-                                float w = widget::readObb(sol, box).getSize()[0];
-                                Band band =
-                                    h.getHeightForWidth(w > 0.0f ? w : natural)
-                                        .extent;
-
-                                widget::Constraints out = c;
-                                out.natural = widget::BandNatural{
-                                        band.natural, widget::contentStrength() };
-                                if (band.min < band.natural)
-                                    out.min = band.min;
-                                if (band.max > band.natural)
-                                    out.max = band.max;
-                                return out;
-                            });
-                    };
-                builder.setPureLayout(std::move(layout));
+                builder.setPureLayout(widget::pureLayoutFromSizeHint(
+                        builder.getSizeHint(), builder.getBoxVariables()));
             });
 }
 

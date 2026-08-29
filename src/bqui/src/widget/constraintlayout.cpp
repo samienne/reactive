@@ -2,6 +2,8 @@
 
 #include "bqui/widget/builder.h"
 
+#include "bqui/simplesizehint.h"
+
 #include <avg/rendertree/uniqueid.h>
 #include <avg/transform.h>
 #include <avg/vector.h>
@@ -212,6 +214,67 @@ void setPureFlex(AnyBuilder& builder, Axis axis, float coeff)
     updateBand(layout, axis, bq::signal::constant(coeff),
             [](Constraints& c, float v) { c.flex = Flex{ v }; });
     builder.setPureLayout(std::move(layout));
+}
+
+namespace
+{
+    // The framework's no-preference size band. A widget that never stated a
+    // size carries it, and it must not bridge to a pure natural -- the
+    // container's weak default sizes such a box instead.
+    bool isDefaultBand(Band const& band)
+    {
+        Band const def = defaultSizeHint().getWidth().extent;
+        return band.min == def.min && band.natural == def.natural
+            && band.max == def.max && band.grow == def.grow;
+    }
+
+    // Bridges one axis's SizeHint band into a pure band: the natural at content
+    // strength, the bounds only where they genuinely widen the natural (a bound
+    // equal to it is already expressed). A default band bridges to nothing.
+    Constraints bandToConstraints(Band const& band)
+    {
+        Constraints c;
+        if (isDefaultBand(band))
+            return c;
+        c.natural = BandNatural{ band.natural, contentStrength() };
+        if (band.min < band.natural)
+            c.min = band.min;
+        if (band.max > band.natural)
+            c.max = band.max;
+        return c;
+    }
+} // namespace
+
+PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
+        BoxVariables box)
+{
+    auto shared = std::move(hint).share();
+
+    auto width = shared.clone().map([](SizeHint const& h)
+            {
+                return bandToConstraints(h.getWidth().extent);
+            });
+
+    PureLayout::WidthToConstraints heightForWidth =
+        [shared, box](bq::signal::AnySignal<LayoutSolution> ws)
+            -> bq::signal::AnySignal<Constraints>
+        {
+            auto solution = std::move(ws).share();
+            return merge(shared.clone(), solution.clone()).map(
+                    [box](SizeHint const& h, LayoutSolution const& sol)
+                    {
+                        float natural = h.getWidth().extent.natural;
+                        float w = readObb(sol, box).getSize()[0];
+                        return bandToConstraints(
+                                h.getHeightForWidth(w > 0.0f ? w : natural)
+                                    .extent);
+                    });
+        };
+
+    return PureLayout{
+        bq::signal::AnySignal<Constraints>(std::move(width)),
+        std::move(heightForWidth)
+    };
 }
 
 void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
