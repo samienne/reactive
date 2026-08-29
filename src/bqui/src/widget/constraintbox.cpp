@@ -1181,15 +1181,18 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                             bq::signal::constant(builder.getBoxVariables()));
                 })).share();
 
-    // Each child's width band, read off its builder.
+    // Each child's width band, read off its builder. A child that reached the
+    // container without a pure descriptor gets one synthesized from its final
+    // SizeHint, so a leaf carrying only a size word still contributes a band.
     auto childWidth = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
                 {
                     std::optional<PureLayout> const& pure =
                         builder.getPureLayout();
-                    return pure ? pure->getWidth()
-                        : bq::signal::AnySignal<Constraints>(
-                                bq::signal::constant(Constraints()));
+                    PureLayout effective = pure ? *pure
+                        : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                builder.getBoxVariables());
+                    return effective.getWidth();
                 }));
 
     // One axis of the container's published band. Each child's band is baked onto
@@ -1285,10 +1288,10 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                     {
                         std::optional<PureLayout> const& pure =
                             builder.getPureLayout();
-                        return pure
-                            ? pure->getHeightForWidth(widthSolution.clone())
-                            : bq::signal::AnySignal<Constraints>(
-                                    bq::signal::constant(Constraints()));
+                        PureLayout effective = pure ? *pure
+                            : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                    builder.getBoxVariables());
+                        return effective.getHeightForWidth(widthSolution.clone());
                     }));
 
         return merge(std::move(childHeight), boxes.clone()).map(
@@ -1715,9 +1718,11 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
                 std::optional<PureLayout> pure = builder.getPureLayout();
                 BoxVariables root = builder.getBoxVariables();
 
-                auto emptyConstraints = bq::signal::AnySignal<Constraints>(
-                        bq::signal::constant(Constraints()));
-                auto width = pure ? pure->getWidth() : emptyConstraints;
+                // A top content builder with no pure descriptor is bridged from
+                // its SizeHint, as a child of a container would be.
+                PureLayout effective = pure ? *pure
+                    : pureLayoutFromSizeHint(builder.getSizeHint(), root);
+                auto width = effective.getWidth();
 
                 auto sharedSize = std::move(size).share();
 
@@ -1759,9 +1764,8 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
                         std::vector<LayoutSpec>>(
                         std::move(horizontalFragments))).share();
 
-                auto heightBands = pure
-                    ? pure->getHeightForWidth(widthSolution.clone())
-                    : emptyConstraints;
+                auto heightBands =
+                    effective.getHeightForWidth(widthSolution.clone());
                 auto verticalFragments =
                     merge(std::move(heightBands), sharedSize.clone())
                     .map(anchored(Axis::y));
