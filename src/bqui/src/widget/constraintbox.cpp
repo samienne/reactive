@@ -1181,26 +1181,16 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                             bq::signal::constant(builder.getBoxVariables()));
                 })).share();
 
-    // Each child's per-axis band (its width or height Constraints), read off its
-    // builder. The resolved width is not known at build time in this compose-up
-    // architecture, so getHeightForWidth() is fed a placeholder width.
-    auto childBand = [](Axis stampAxis)
-    {
-        return [stampAxis](widget::AnyBuilder const& builder)
-        {
-            std::optional<PureLayout> const& pure = builder.getPureLayout();
-            return pure
-                ? (stampAxis == Axis::x
-                    ? pure->getWidth()
-                    : pure->getHeightForWidth(bq::signal::AnySignal<float>(
-                            bq::signal::constant(0.0f))))
-                : bq::signal::AnySignal<Constraints>(
-                        bq::signal::constant(Constraints()));
-        };
-    };
-
-    auto childWidth = bq::signal::join(array.map(childBand(Axis::x)));
-    auto childHeight = bq::signal::join(array.map(childBand(Axis::y)));
+    // Each child's width band, read off its builder.
+    auto childWidth = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    std::optional<PureLayout> const& pure =
+                        builder.getPureLayout();
+                    return pure ? pure->getWidth()
+                        : bq::signal::AnySignal<Constraints>(
+                                bq::signal::constant(Constraints()));
+                }));
 
     // One axis of the container's published band. Each child's band is baked onto
     // its box (flattenConstraints) as untagged relations, and the aggregate
@@ -1283,13 +1273,34 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
             {
                 return buildAxis(Axis::x, axis, bands, boxes);
             });
-    auto vertical = bq::signal::AnySignal<Constraints>(
-            merge(std::move(childHeight), boxes.clone()).map(
-            [buildAxis, axis](std::vector<Constraints> const& bands,
-                    std::vector<BoxVariables> const& boxes)
-            {
-                return buildAxis(Axis::y, axis, bands, boxes);
-            }));
+
+    // The container's height band as a function of the region's width solution:
+    // it forwards the same solution to every child's phase 2 unchanged, so each
+    // leaf reads its own resolved width from it, and aggregates the child height
+    // bands exactly as the width band aggregates the width ones.
+    auto verticalGiven =
+        [buildAxis, boxes, array, axis](
+                bq::signal::AnySignal<LayoutSolution> widthSolution)
+            -> bq::signal::AnySignal<Constraints>
+    {
+        auto childHeight = bq::signal::join(array.map(
+                    [widthSolution](widget::AnyBuilder const& builder)
+                    {
+                        std::optional<PureLayout> const& pure =
+                            builder.getPureLayout();
+                        return pure
+                            ? pure->getHeightForWidth(widthSolution.clone())
+                            : bq::signal::AnySignal<Constraints>(
+                                    bq::signal::constant(Constraints()));
+                    }));
+
+        return merge(std::move(childHeight), boxes.clone()).map(
+                [buildAxis, axis](std::vector<Constraints> const& bands,
+                        std::vector<BoxVariables> const& boxes)
+                {
+                    return buildAxis(Axis::y, axis, bands, boxes);
+                });
+    };
 
     auto widget = makeSolutionWidget(
             [container, array, boxes](
@@ -1323,16 +1334,15 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     return std::move(widget)
         | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
         | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                [container, horizontal, vertical](widget::AnyBuilder builder)
+                [container, horizontal, verticalGiven](widget::AnyBuilder builder)
                 {
                     builder.setBoxVariables(container);
-                    // The published height is width-independent, so phase 2
-                    // ignores the resolved width it is handed.
                     builder.setPureLayout(PureLayout{
                             horizontal,
-                            [vertical](bq::signal::AnySignal<float>)
+                            [verticalGiven](
+                                bq::signal::AnySignal<LayoutSolution> ws)
                             {
-                                return vertical;
+                                return verticalGiven(std::move(ws));
                             }
                         });
                     return builder;
@@ -1643,13 +1653,6 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
                 auto emptyConstraints = bq::signal::AnySignal<Constraints>(
                         bq::signal::constant(Constraints()));
                 auto width = pure ? pure->getWidth() : emptyConstraints;
-                // Height is width-independent for the widgets here, so the
-                // resolved width fed to phase 2 is a placeholder; the staging
-                // point stays open for content-sizing later.
-                auto height = pure
-                    ? pure->getHeightForWidth(bq::signal::AnySignal<float>(
-                            bq::signal::constant(0.0f)))
-                    : emptyConstraints;
 
                 auto sharedSize = std::move(size).share();
 
@@ -1683,20 +1686,27 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
                     };
                 };
 
+                // The width solve runs first; its solution feeds phase 2, so a
+                // widget reads its own resolved width when sizing its height.
                 auto horizontalFragments =
                     merge(std::move(width), sharedSize.clone())
                     .map(anchored(Axis::x));
-                auto verticalFragments =
-                    merge(std::move(height), sharedSize.clone())
-                    .map(anchored(Axis::y));
+                auto widthSolution = layoutRegion(bq::signal::AnySignal<
+                        std::vector<LayoutSpec>>(
+                        std::move(horizontalFragments))).share();
 
-                auto solution = combineSolutions(
-                        layoutRegion(bq::signal::AnySignal<
-                                std::vector<LayoutSpec>>(
-                                std::move(horizontalFragments))),
-                        layoutRegion(bq::signal::AnySignal<
-                                std::vector<LayoutSpec>>(
-                                std::move(verticalFragments)))).share();
+                auto heightBands = pure
+                    ? pure->getHeightForWidth(widthSolution.clone())
+                    : emptyConstraints;
+                auto verticalFragments =
+                    merge(std::move(heightBands), sharedSize.clone())
+                    .map(anchored(Axis::y));
+                auto heightSolution = layoutRegion(bq::signal::AnySignal<
+                        std::vector<LayoutSpec>>(
+                        std::move(verticalFragments)));
+
+                auto solution = combineSolutions(widthSolution.clone(),
+                        std::move(heightSolution)).share();
 
                 auto instance = std::move(builder)(sharedSize.clone(),
                         solution.clone()).getInstance();

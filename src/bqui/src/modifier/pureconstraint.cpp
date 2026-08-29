@@ -157,17 +157,7 @@ AnyWidgetModifier pureContentDefaultModifier()
                     return h.getWidth().extent.natural;
                 });
 
-                // The natural height is read at the natural width, not staged on
-                // a resolved width.
-                auto height = hint.clone().map([](SizeHint const& h)
-                {
-                    float width = h.getWidth().extent.natural;
-                    return h.getHeightForWidth(width).extent.natural;
-                });
-
                 widget::setPureNatural(builder, Axis::x, std::move(width),
-                        widget::contentStrength());
-                widget::setPureNatural(builder, Axis::y, std::move(height),
                         widget::contentStrength());
 
                 // The leaf's SizeHint bounds flow into the pure band as strong
@@ -180,21 +170,47 @@ AnyWidgetModifier pureContentDefaultModifier()
                         { return h.getWidth().extent.min; });
                 auto widthMax = hint.clone().map([](SizeHint const& h)
                         { return h.getWidth().extent.max; });
-                auto heightMin = hint.clone().map([](SizeHint const& h)
-                {
-                    float w = h.getWidth().extent.natural;
-                    return h.getHeightForWidth(w).extent.min;
-                });
-                auto heightMax = hint.map([](SizeHint const& h)
-                {
-                    float w = h.getWidth().extent.natural;
-                    return h.getHeightForWidth(w).extent.max;
-                });
 
                 widget::bridgePureMin(builder, Axis::x, std::move(widthMin));
                 widget::bridgePureMax(builder, Axis::x, std::move(widthMax));
-                widget::bridgePureMin(builder, Axis::y, std::move(heightMin));
-                widget::bridgePureMax(builder, Axis::y, std::move(heightMax));
+
+                // The height band is read at the leaf's resolved width, taken
+                // from the phase-2 width solution rather than the natural width,
+                // so genuinely width-dependent content reflows. A width absent
+                // from the solution (before the width solve populates) falls back
+                // to the natural width.
+                widget::BoxVariables box = builder.getBoxVariables();
+                widget::PureLayout layout = *builder.getPureLayout();
+                auto old = layout.heightForWidth;
+                layout.heightForWidth =
+                    [old, hint, box](
+                            bq::signal::AnySignal<widget::LayoutSolution> ws)
+                        -> bq::signal::AnySignal<widget::Constraints>
+                    {
+                        auto shared = std::move(ws).share();
+                        return merge(old(shared.clone()), hint.clone(),
+                                shared.clone()).map(
+                            [box](widget::Constraints const& c,
+                                    SizeHint const& h,
+                                    widget::LayoutSolution const& sol)
+                            {
+                                float natural = h.getWidth().extent.natural;
+                                float w = widget::readObb(sol, box).getSize()[0];
+                                Band band =
+                                    h.getHeightForWidth(w > 0.0f ? w : natural)
+                                        .extent;
+
+                                widget::Constraints out = c;
+                                out.natural = widget::BandNatural{
+                                        band.natural, widget::contentStrength() };
+                                if (band.min < band.natural)
+                                    out.min = band.min;
+                                if (band.max > band.natural)
+                                    out.max = band.max;
+                                return out;
+                            });
+                    };
+                builder.setPureLayout(std::move(layout));
             });
 }
 

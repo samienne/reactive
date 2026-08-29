@@ -92,6 +92,44 @@ AnyWidget fillerProbe(btl::UniqueId id)
     return withArea(filler(), id);
 }
 
+// A SizeHint whose natural height is inversely proportional to width -- narrower
+// means taller (height == area / width) -- so it reflows only when phase 2 reads
+// the resolved width rather than the natural width.
+struct ReflowHint
+{
+    float area;
+    float fallbackWidth;
+
+    AxisHint getWidth() const
+    {
+        return AxisHint{ Band{ fallbackWidth, fallbackWidth, fallbackWidth },
+                Anchors() };
+    }
+
+    AxisHint getHeightForWidth(float width) const
+    {
+        float height = area / width;
+        return AxisHint{ Band{ height, height, height }, Anchors() };
+    }
+
+    AxisHint getWidthForHeight(float) const
+    {
+        return getWidth();
+    }
+};
+
+// A content leaf carrying a width-dependent height, filling its row so its
+// resolved width tracks the window. Tagged for geometry read-back.
+AnyWidget reflowProbe(btl::UniqueId id, float area, float fallbackWidth)
+{
+    return withArea(makeWidget()
+            | modifier::setSizeHint(
+                constant(SizeHint(ReflowHint{ area, fallbackWidth })))
+            | modifier::defaultSize()
+            | modifier::fill(),
+            id);
+}
+
 Geometry readProbe(Instance const& instance, btl::UniqueId id)
 {
     for (auto const& area : instance.getInputAreas())
@@ -1235,4 +1273,37 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
     EXPECT_FLOAT_EQ(80.0f, narrow.size[0]);
     EXPECT_FLOAT_EQ(250.0f, filler.size[0]);
     EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
+}
+
+// Height reflows with the resolved width. A leaf whose content height is
+// area / width fills its row, so its resolved width is the window width; its
+// height then follows the width solution through phase 2. In a 400-wide window
+// it is 30 tall (12000 / 400); in a 200-wide one it is 60 (12000 / 200) -- taller
+// where narrower. Were phase 2 blind to the resolved width, both would read the
+// natural-width height and be identical.
+TEST(PureSolverLayout, heightReflowsWithResolvedWidth)
+{
+    btl::UniqueId const id = btl::makeUniqueId();
+    float const area = 12000.0f;
+
+    auto makeTree = [&]() -> AnyWidget
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(reflowProbe(id, area, 100.0f));
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
+    };
+
+    Instance wide = realiseConverged(pureSolverRoot(makeTree()),
+            avg::Vector2f(400.0f, 300.0f));
+    Instance narrow = realiseConverged(pureSolverRoot(makeTree()),
+            avg::Vector2f(200.0f, 300.0f));
+
+    Geometry wideG = readProbe(wide, id);
+    Geometry narrowG = readProbe(narrow, id);
+
+    EXPECT_FLOAT_EQ(400.0f, wideG.size[0]);
+    EXPECT_FLOAT_EQ(30.0f, wideG.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, narrowG.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, narrowG.size[1]);
+    EXPECT_GT(narrowG.size[1], wideG.size[1]);
 }

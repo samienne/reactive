@@ -48,12 +48,12 @@ namespace
 namespace
 {
     // An empty descriptor: no bands and no relations on either axis. The height
-    // phase ignores its width argument, as every widget's does this increment.
+    // phase ignores the width solution it is handed.
     PureLayout emptyPureLayout()
     {
         return PureLayout{
             bq::signal::constant(Constraints()),
-            [](bq::signal::AnySignal<float>)
+            [](bq::signal::AnySignal<LayoutSolution>)
             {
                 return bq::signal::AnySignal<Constraints>(
                         bq::signal::constant(Constraints()));
@@ -76,7 +76,7 @@ namespace
     }
 
     // Maps the axis's Constraints signal through @p apply, wrapping the height
-    // phase function so its width argument still threads through. The value the
+    // phase function so its width solution still threads through. The value the
     // field is set from rides alongside as a second signal.
     template <typename Apply>
     void updateBand(PureLayout& layout, Axis axis,
@@ -97,7 +97,7 @@ namespace
             auto old = layout.heightForWidth;
             layout.heightForWidth =
                 [old, value = std::move(value), apply](
-                        bq::signal::AnySignal<float> w)
+                        bq::signal::AnySignal<LayoutSolution> w)
                     -> bq::signal::AnySignal<Constraints>
                 {
                     return merge(old(std::move(w)), value.clone()).map(
@@ -134,7 +134,7 @@ void addPureConstraint(AnyBuilder& builder, Axis axis,
         auto old = layout.heightForWidth;
         layout.heightForWidth =
             [old, fragment = std::move(fragment), append](
-                    bq::signal::AnySignal<float> w)
+                    bq::signal::AnySignal<LayoutSolution> w)
                 -> bq::signal::AnySignal<Constraints>
             {
                 return merge(old(std::move(w)), fragment.clone()).map(append);
@@ -255,7 +255,7 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
     auto oldHeight = layout.heightForWidth;
     layout.heightForWidth =
         [oldHeight, inner, outer, grow, insetShared](
-                bq::signal::AnySignal<float> w)
+                bq::signal::AnySignal<LayoutSolution> w)
             -> bq::signal::AnySignal<Constraints>
         {
             return merge(oldHeight(std::move(w)), insetShared.clone()).map(
