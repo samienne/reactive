@@ -83,9 +83,8 @@ namespace bqui::modifier
             ;
 
             // The frame is layout-transparent: its margin insets the background
-            // shape, not the foreground child, so the child's pure-solver band
-            // and box pass through unchanged and the container aggregates and
-            // positions the framed widget as the child itself.
+            // shape, not the foreground child, so the child's band forwards
+            // unchanged.
             if (!childPure)
                 return widget::AnyWidget(std::move(framed));
 
