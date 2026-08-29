@@ -1487,14 +1487,9 @@ AnyWidget filler()
 
 namespace
 {
-    // A directional filler: filler()'s layout-axis coupling gated to the axes it
-    // fills, plus the legacy grow SizeHint that drives it outside a pure region.
-    // @p fillX / @p fillY select the axes it fills. The one shared flex variable
-    // is the container's layout-axis slack, so it couples only when the layout
-    // axis is one it fills; on a filled cross axis it stretches via the
-    // container's cross-fill. An axis it does not fill is pinned to zero, since a
-    // child with no extent there is otherwise stretched by the gap drive or
-    // cross-fill -- the legacy filler collapses to nothing off its axis.
+    // fillX / fillY select the axes it fills. An axis it does not fill is pinned
+    // to zero, or the gap drive / cross-fill would stretch a no-extent child
+    // there.
     AnyWidget directionalFiller(bool fillX, bool fillY, Band xBand, Band yBand)
     {
         return makeWidget()

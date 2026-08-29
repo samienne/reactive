@@ -20,29 +20,31 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget filler();
 
     /**
-     * @brief A filler that takes leftover space when its container lays out
-     * horizontally.
+     * @brief An empty widget that fills horizontally.
      *
-     * In a pure-solver hbox it behaves as filler(); in a vbox it stays inert on
-     * the cross axis. Outside a pure-solver region its legacy grow SizeHint
-     * drives it instead.
+     * In a pure-solver hbox it splits the row's leftover space like filler(); in
+     * a pure-solver vbox it takes no vertical space and stretches to the column's
+     * width. Outside a pure-solver region it grows to fill available horizontal
+     * space.
      */
     BQUI_EXPORT AnyWidget hfiller();
 
     /**
-     * @brief A filler that takes leftover space when its container lays out
-     * vertically.
+     * @brief An empty widget that fills vertically.
      *
-     * In a pure-solver vbox it behaves as filler(); in an hbox it stays inert on
-     * the cross axis. Outside a pure-solver region its legacy grow SizeHint
-     * drives it instead.
+     * In a pure-solver vbox it splits the column's leftover space like filler();
+     * in a pure-solver hbox it takes no horizontal space and stretches to the
+     * row's height. Outside a pure-solver region it grows to fill available
+     * vertical space.
      */
     BQUI_EXPORT AnyWidget vfiller();
 
     /**
-     * @brief A filler that takes leftover space on whichever axis its container
-     * lays out along, exactly as filler(), plus a legacy grow SizeHint for use
-     * outside a pure-solver region.
+     * @brief An empty widget that fills both axes.
+     *
+     * In a pure-solver hbox or vbox it behaves as filler() on the layout axis and
+     * stretches to fill the cross axis. Outside a pure-solver region it grows to
+     * fill available space on both axes.
      */
     BQUI_EXPORT AnyWidget hwfiller();
 } // namespace bqui::widget
