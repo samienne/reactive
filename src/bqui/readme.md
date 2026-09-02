@@ -68,9 +68,7 @@ no cycle:
 ```cpp
 Window w = window(bq::signal::constant<std::string>("Details"));
 
-app().addWindow(w, widget::button("Close",
-        bq::signal::constant(std::function<void()>(
-                [w]() { w.close(); }))));
+app().addWindow(w, widget::button("Close", [w]() { w.close(); }));
 ```
 
 The collection is imperative: `App::addWindow` opens a window and

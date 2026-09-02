@@ -16,15 +16,15 @@ namespace bqui::modifier
 {
 
 OnKeyEvent::OnKeyEvent(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
-        bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) :
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)> predicate,
+        bq::signal::AnySignal<void(ase::KeyEvent const&)> action) :
     predicate_(std::move(predicate)),
     action_(std::move(action))
 {
 }
 
 OnKeyEvent OnKeyEvent::acceptIf(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)>
         predicate) &&
 {
     predicate_ = merge(std::move(predicate_), std::move(predicate))
@@ -40,7 +40,7 @@ OnKeyEvent OnKeyEvent::acceptIf(
 }
 
 OnKeyEvent OnKeyEvent::acceptIfNot(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)>
         predicate) &&
 {
     auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -54,7 +54,7 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
 }
 
 OnKeyEvent OnKeyEvent::action(
-        bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
+        bq::signal::AnySignal<void(ase::KeyEvent const&)> action) &&
 {
     action_ = merge(std::move(action_), std::move(action))
         .bindToFunction([](
@@ -92,8 +92,8 @@ bool isNavigationKey(KeyEvent const& e)
     return false;
 }
 
-AnyWidgetModifier onKeyEvent(bq::signal::AnySignal<std::function<InputResult(
-            ase::KeyEvent const&)>> cb)
+AnyWidgetModifier onKeyEvent(bq::signal::AnySignal<InputResult(
+            ase::KeyEvent const&)> cb)
 {
     return makeWidgetModifier(makeInstanceSignalModifier(
             onKeyEvent()

@@ -54,7 +54,7 @@ namespace
 } // anonymous namespace
 
 AnyWidget button(bq::signal::AnySignal<std::string> label,
-        bq::signal::AnySignal<std::function<void()>> onClick)
+        bq::signal::AnySignal<void()> onClick)
 {
     auto down = bq::signal::makeInput<bool>(false);
     auto hover = bq::signal::makeInput<bool>(false);

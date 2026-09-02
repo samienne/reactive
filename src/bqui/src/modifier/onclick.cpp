@@ -16,7 +16,7 @@ namespace bqui::modifier
 {
 
 AnyWidgetModifier onClick(unsigned int button,
-        bq::signal::AnySignal<std::function<void(ClickEvent const&)>> cb)
+        bq::signal::AnySignal<void(ClickEvent const&)> cb)
 {
     auto f = [button](
             std::function<void(ClickEvent const&)> const& cb,
@@ -49,7 +49,7 @@ AnyWidgetModifier onClick(unsigned int button,
 }
 
 AnyWidgetModifier onClick(unsigned int button,
-        bq::signal::AnySignal<std::function<void()>> cb)
+        bq::signal::AnySignal<void()> cb)
 {
     auto f = [](std::function<void()> cb, ClickEvent const&)
     {

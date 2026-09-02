@@ -84,11 +84,10 @@ void openSecondWindow()
     app().addWindow(
             w,
             widget::button("Close me",
-                    bq::signal::constant(std::function<void()>(
-                            [w]()
-                            {
-                                w.close();
-                            })))
+                    [w]()
+                    {
+                        w.close();
+                    })
                 | modifier::frame()
                 | modifier::focusGroup());
 }
@@ -205,11 +204,11 @@ int main()
 
         app().addWindow(
                 trackedWindow,
-                widget::button("Close me", bq::signal::constant(
-                        std::function<void()>([w]() mutable
-                            {
-                                w.close();
-                            })))
+                widget::button("Close me",
+                        [w]() mutable
+                        {
+                            w.close();
+                        })
                     | modifier::frame()
                     | modifier::focusGroup());
     };
@@ -217,8 +216,7 @@ int main()
     auto widgets = widget::hbox({
         widget::vbox({
             widget::button("Open another window",
-                    bq::signal::constant(std::function<void()>(
-                            []() { openSecondWindow(); })))
+                    []() { openSecondWindow(); })
                 | modifier::setSizeHint({ 250, 50 }),
             widget::button(
                     showTracked.signal.map([](bool b) -> std::string
