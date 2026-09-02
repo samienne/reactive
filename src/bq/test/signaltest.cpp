@@ -130,6 +130,16 @@ TEST(signal, sigShorthand)
     EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
 }
 
+TEST(signal, valueCtorIsSingleValueOnly)
+{
+    static_assert(std::is_constructible_v<AnySignal<int>, int>,
+            "a single-value AnySignal constructs from a value");
+    static_assert(!std::is_constructible_v<AnySignal<int, int>, int>,
+            "a multi-value AnySignal has no value constructor");
+    static_assert(std::is_constructible_v<AnySignal<int>, AnySignal<int>>,
+            "copy construction is preserved");
+}
+
 TEST(signal, signalContext)
 {
     auto c = makeSignalContext(constant(42));
