@@ -69,14 +69,6 @@ namespace
         return current ? *current : emptyPureLayout();
     }
 
-    void appendSpec(LayoutSpec& dst, LayoutSpec const& src)
-    {
-        dst.constraints.insert(dst.constraints.end(),
-                src.constraints.begin(), src.constraints.end());
-        dst.variables.insert(dst.variables.end(),
-                src.variables.begin(), src.variables.end());
-    }
-
     // Maps the axis's Constraints signal through @p apply, wrapping the height
     // phase function so its width solution still threads through. The value the
     // field is set from rides alongside as a second signal.
@@ -113,38 +105,6 @@ namespace
         }
     }
 } // namespace
-
-void addPureConstraint(AnyBuilder& builder, Axis axis,
-        bq::signal::AnySignal<LayoutSpec> fragment)
-{
-    PureLayout layout = pureLayoutOr(builder);
-
-    auto append = [](Constraints const& c, LayoutSpec const& fragment)
-    {
-        Constraints out = c;
-        appendSpec(out.relations, fragment);
-        return out;
-    };
-
-    if (axis == Axis::x)
-    {
-        layout.width = merge(std::move(layout.width), std::move(fragment))
-            .map(append);
-    }
-    else
-    {
-        auto old = layout.heightForWidth;
-        layout.heightForWidth =
-            [old, fragment = std::move(fragment), append](
-                    bq::signal::AnySignal<LayoutSolution> ws)
-                -> bq::signal::AnySignal<Constraints>
-            {
-                return merge(old(std::move(ws)), fragment.clone()).map(append);
-            };
-    }
-
-    builder.setPureLayout(std::move(layout));
-}
 
 void setPureNatural(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value, arrange::Strength strength)
@@ -205,14 +165,6 @@ void bridgePureMax(AnyBuilder& builder, Axis axis,
                 if (!c.natural || v > c.natural->value)
                     c.max = v;
             });
-    builder.setPureLayout(std::move(layout));
-}
-
-void setPureFlex(AnyBuilder& builder, Axis axis, float coeff)
-{
-    PureLayout layout = pureLayoutOr(builder);
-    updateBand(layout, axis, bq::signal::constant(coeff),
-            [](Constraints& c, float v) { c.flex = Flex{ v }; });
     builder.setPureLayout(std::move(layout));
 }
 

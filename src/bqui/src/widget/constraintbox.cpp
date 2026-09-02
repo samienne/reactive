@@ -683,8 +683,8 @@ bool pureSolver(BuildParams const& params)
 }
 
 // The flex variable and layout axis the enclosing pure-solver container seeded
-// for its fillers, as signals threaded into the constraint graph rather than
-// snapshotted through a throwaway context.
+// for its fillers, as signals. They stay signals so their values track the real
+// context a filler evaluates in rather than a parallel one that can diverge.
 bq::signal::AnySignal<arrange::Variable> flexVariable(BuildParams const& params)
 {
     return params.valueOrDefault<FlexVariableTag>();
@@ -1502,10 +1502,10 @@ namespace
     }
 
     // Builds a filler's PureLayout from the seeded layout-axis and flex-variable
-    // signals: @p band produces one axis's Constraints from the current values,
-    // threaded in through a map rather than snapshotted.
-    template <typename Band_>
-    PureLayout fillerPureLayout(Band_ band,
+    // signals: band produces one axis's Constraints from the current values,
+    // evaluated inside the per-axis map so it tracks the real context.
+    template <typename TBand>
+    PureLayout fillerPureLayout(TBand band,
             bq::signal::AnySignal<Axis> axisSig,
             bq::signal::AnySignal<arrange::Variable> flexSig)
     {

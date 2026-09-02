@@ -40,9 +40,10 @@ namespace
     }
 
     // The layout axis and shared flex variable the enclosing pure-solver
-    // container seeded for its fillers, as signals threaded into the band graph
-    // rather than snapshotted through a throwaway context. A fill() widget
-    // couples to the same pair a filler() child of that container does.
+    // container seeded for its fillers, as signals. They stay signals so their
+    // values track the real context the band is built in rather than a parallel
+    // one that can diverge. A fill() widget couples to the same pair a filler()
+    // child of that container does.
     bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
     {
         return params.valueOrDefault<widget::FlexAxisTag>();

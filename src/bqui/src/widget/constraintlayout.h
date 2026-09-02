@@ -33,19 +33,6 @@ namespace bqui::widget
     struct AnyBuilder;
 
     /**
-     * @brief Appends one untagged relation fragment onto @p builder's descriptor
-     * for @p axis (Axis::x horizontal, Axis::y vertical), minting the PureLayout
-     * on the first fragment and composing onto it thereafter.
-     *
-     * Relations are additive: a filler's flex coupling, a guide alignment, a
-     * container's tiling. The size band is set by name instead — see
-     * setPureNatural() and friends — so a size modifier overrides by replacement
-     * rather than piling a competing relation on.
-     */
-    void addPureConstraint(AnyBuilder& builder, Axis axis,
-            bq::signal::AnySignal<LayoutSpec> fragment);
-
-    /**
      * @brief Replaces the natural (preferred) extent band on @p axis with
      * @p value held at @p strength.
      *
@@ -88,15 +75,6 @@ namespace bqui::widget
      */
     void bridgePureMax(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
-
-    /**
-     * @brief Replaces the flex (grow) coefficient band on @p axis.
-     *
-     * The summary a container reads to aggregate flex up; the coupling relation a
-     * filler emits against its container's shared variable is a separate
-     * addPureConstraint().
-     */
-    void setPureFlex(AnyBuilder& builder, Axis axis, float coeff);
 
     /**
      * @brief Synthesizes a PureLayout from @p hint on @p box, the universal
