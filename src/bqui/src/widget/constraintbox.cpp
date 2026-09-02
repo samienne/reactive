@@ -1346,14 +1346,13 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                 [container, horizontal, verticalGiven](widget::AnyBuilder builder)
                 {
                     builder.setBoxVariables(container);
-                    builder.setPureLayout(PureLayout{
+                    builder.setPureLayout(simplePureLayout(
                             horizontal,
                             [verticalGiven](
                                 bq::signal::AnySignal<LayoutSolution> ws)
                             {
                                 return verticalGiven(std::move(ws));
-                            }
-                        });
+                            }));
                     return builder;
                 }))
         ;
@@ -1518,7 +1517,7 @@ namespace
                     return band(Axis::x, layoutAxis, flex);
                 });
 
-        PureLayout::WidthToConstraints heightForWidth =
+        WidthToConstraints heightForWidth =
             [band, sharedAxis, sharedFlex](
                     bq::signal::AnySignal<LayoutSolution>)
                 -> bq::signal::AnySignal<Constraints>
@@ -1530,10 +1529,9 @@ namespace
                         });
             };
 
-        return PureLayout{
-            bq::signal::AnySignal<Constraints>(std::move(width)),
-            std::move(heightForWidth)
-        };
+        return simplePureLayout(
+                bq::signal::AnySignal<Constraints>(std::move(width)),
+                std::move(heightForWidth));
     }
 } // namespace
 

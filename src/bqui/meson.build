@@ -49,6 +49,7 @@ libbquisrc = [
   'src/widget/instance.cpp',
   'src/widget/introspection.cpp',
   'src/widget/label.cpp',
+  'src/widget/layoutspec.cpp',
   'src/widget/scrollbar.cpp',
   'src/widget/scrollview.cpp',
   'src/widget/stack.cpp',

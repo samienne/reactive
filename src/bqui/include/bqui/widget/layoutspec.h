@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bqui/bquivisibility.h"
+
 #include <bq/signal/signal.h>
 
 #include <arrange/constraint.h>
@@ -8,8 +10,12 @@
 #include <arrange/variable.h>
 
 #include <btl/function.h>
+#include <btl/fmap.h>
+#include <btl/shared.h>
 
+#include <memory>
 #include <optional>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
@@ -82,6 +88,80 @@ namespace bqui::widget
     };
 
     /**
+     * @brief The phase-2/phase-3 shape: a widget's height (or width) band given a
+     * resolved perpendicular-axis solution, from which each leaf reads its own
+     * box.
+     */
+    using WidthToConstraints = btl::Function<bq::signal::AnySignal<
+        Constraints>(bq::signal::AnySignal<LayoutSolution>)>;
+
+    template <typename T, typename = void>
+    struct IsPureLayout : std::false_type {};
+
+    template <typename T>
+    struct IsPureLayout<T, std::enable_if_t<
+            btl::All<
+                std::is_same<bq::signal::AnySignal<Constraints>,
+                    decltype(std::declval<T>().getWidth())
+                >,
+                std::is_same<bq::signal::AnySignal<Constraints>,
+                    decltype(std::declval<T>().getHeightForWidth(
+                        std::declval<bq::signal::AnySignal<LayoutSolution>>()))
+                >,
+                std::is_same<bq::signal::AnySignal<Constraints>,
+                    decltype(std::declval<T>().getWidthForHeight(
+                        std::declval<bq::signal::AnySignal<LayoutSolution>>()))
+                >
+            >::value
+        >
+    > : std::true_type {};
+
+    namespace detail
+    {
+        struct PureLayoutBase
+        {
+            virtual ~PureLayoutBase() = default;
+            virtual bq::signal::AnySignal<Constraints> getWidth() const = 0;
+            virtual bq::signal::AnySignal<Constraints> getHeightForWidth(
+                    bq::signal::AnySignal<LayoutSolution> widthSolution)
+                const = 0;
+            virtual bq::signal::AnySignal<Constraints> getWidthForHeight(
+                    bq::signal::AnySignal<LayoutSolution> heightSolution)
+                const = 0;
+        };
+
+        template <typename T>
+        struct PureLayoutTyped final : PureLayoutBase
+        {
+            PureLayoutTyped(T&& impl) :
+                impl_(std::forward<T>(impl))
+            {
+            }
+
+            bq::signal::AnySignal<Constraints> getWidth() const override
+            {
+                return impl_.getWidth();
+            }
+
+            bq::signal::AnySignal<Constraints> getHeightForWidth(
+                    bq::signal::AnySignal<LayoutSolution> widthSolution)
+                const override
+            {
+                return impl_.getHeightForWidth(std::move(widthSolution));
+            }
+
+            bq::signal::AnySignal<Constraints> getWidthForHeight(
+                    bq::signal::AnySignal<LayoutSolution> heightSolution)
+                const override
+            {
+                return impl_.getWidthForHeight(std::move(heightSolution));
+            }
+
+            std::decay_t<T> const impl_;
+        };
+    } // detail
+
+    /**
      * @brief A subtree's pure-solver descriptor: the banded constraints its
      * current outermost box contributes to its region's solve, per phase.
      *
@@ -90,49 +170,78 @@ namespace bqui::widget
      * the builder) plus a stream of banded constraints a firewall reads off the
      * builder and solves. Absent outside a pure-solver region.
      *
-     * The three phase functions each return one axis's @ref Constraints for the
-     * outermost box: @ref getWidth resolves the width, @ref getHeightForWidth the
+     * A type-erased holder over any type implementing the three phase functions,
+     * so a widget can supply its own (a genuine width-for-height for aspect-locked
+     * content, say). @ref getWidth resolves the width, @ref getHeightForWidth the
      * height band given the resolved width solution, and @ref getWidthForHeight
-     * the width given the resolved height. Phase 2 receives the whole width
-     * solution and each leaf reads its own resolved width from it. Phase 3
-     * returns the phase-1 width unchanged.
+     * the width given the resolved height. Phase 2 and phase 3 receive the whole
+     * perpendicular solution, from which each leaf reads its own box.
+     *
+     * The simplePureLayout function is the easiest way to build one.
      */
-    struct PureLayout
+    class BQUI_EXPORT PureLayout
     {
-        /**
-         * @brief The phase-2 shape: the height band given the resolved width
-         * solution.
-         */
-        using WidthToConstraints = btl::Function<bq::signal::AnySignal<
-            Constraints>(bq::signal::AnySignal<LayoutSolution>)>;
+    public:
+        PureLayout() = delete;
 
+        template <typename T, typename = std::enable_if_t<
+            IsPureLayout<T>::value &&
+            !std::is_same_v<PureLayout, std::decay_t<T>>
+            >>
+        PureLayout(T&& impl) :
+            impl_(std::make_shared<detail::PureLayoutTyped<T>>(
+                    std::forward<T>(impl)))
+        {
+        }
+
+        PureLayout(PureLayout const&) = default;
+        PureLayout(PureLayout&&) noexcept = default;
+
+        PureLayout& operator=(PureLayout const&) = default;
+        PureLayout& operator=(PureLayout&&) noexcept = default;
+
+        bq::signal::AnySignal<Constraints> getWidth() const;
+        bq::signal::AnySignal<Constraints> getHeightForWidth(
+                bq::signal::AnySignal<LayoutSolution> widthSolution) const;
+        bq::signal::AnySignal<Constraints> getWidthForHeight(
+                bq::signal::AnySignal<LayoutSolution> heightSolution) const;
+
+    private:
+        btl::shared<detail::PureLayoutBase> impl_;
+    };
+
+    /**
+     * @brief The default PureLayout implementation: a fixed width band and a
+     * height-for-width function, with phase 3 the phase-1 width unchanged.
+     */
+    struct SimplePureLayout
+    {
         bq::signal::AnySignal<Constraints> width;
         WidthToConstraints heightForWidth;
 
-        /** @brief Phase 1: the width band and horizontal relations. */
         bq::signal::AnySignal<Constraints> getWidth() const
         {
             return width;
         }
 
-        /**
-         * @brief Phase 2: the height band given the resolved width solution
-         * @p widthSolution, which each leaf reads its own resolved width from.
-         */
         bq::signal::AnySignal<Constraints> getHeightForWidth(
                 bq::signal::AnySignal<LayoutSolution> widthSolution) const
         {
             return heightForWidth(std::move(widthSolution));
         }
 
-        /**
-         * @brief Phase 3: the width given the resolved height, which is the
-         * phase-1 width unchanged.
-         */
         bq::signal::AnySignal<Constraints> getWidthForHeight(
                 bq::signal::AnySignal<LayoutSolution> /*heightSolution*/) const
         {
             return width;
         }
     };
+
+    /**
+     * @brief Builds the default PureLayout from a width band and a
+     * height-for-width function.
+     */
+    BQUI_EXPORT PureLayout simplePureLayout(
+            bq::signal::AnySignal<Constraints> width,
+            WidthToConstraints heightForWidth);
 } // namespace bqui::widget
