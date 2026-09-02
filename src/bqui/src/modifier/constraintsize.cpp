@@ -49,20 +49,10 @@ AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width)
             std::move(width));
 }
 
-AnyWidgetModifier fixedWidth(float width)
-{
-    return fixedWidth(bq::signal::constant(width));
-}
-
 AnyWidgetModifier fixedHeight(bq::signal::AnySignal<float> height)
 {
     return detail::pureNaturalModifier(PureAxis::vertical, fixedStrength(),
             std::move(height));
-}
-
-AnyWidgetModifier fixedHeight(float height)
-{
-    return fixedHeight(bq::signal::constant(height));
 }
 
 AnyWidgetModifier fixedSize(bq::signal::AnySignal<avg::Vector2f> size)
@@ -75,19 +65,9 @@ AnyWidgetModifier fixedSize(bq::signal::AnySignal<avg::Vector2f> size)
             });
 }
 
-AnyWidgetModifier fixedSize(avg::Vector2f size)
-{
-    return fixedSize(bq::signal::constant(size));
-}
-
 AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width)
 {
     return detail::pureMinModifier(PureAxis::horizontal, std::move(width));
-}
-
-AnyWidgetModifier minWidth(float width)
-{
-    return minWidth(bq::signal::constant(width));
 }
 
 AnyWidgetModifier minHeight(bq::signal::AnySignal<float> height)
@@ -95,19 +75,9 @@ AnyWidgetModifier minHeight(bq::signal::AnySignal<float> height)
     return detail::pureMinModifier(PureAxis::vertical, std::move(height));
 }
 
-AnyWidgetModifier minHeight(float height)
-{
-    return minHeight(bq::signal::constant(height));
-}
-
 AnyWidgetModifier minSize(bq::signal::AnySignal<avg::Vector2f> size)
 {
     return bothAxes(std::move(size), &detail::pureMinModifier);
-}
-
-AnyWidgetModifier minSize(avg::Vector2f size)
-{
-    return minSize(bq::signal::constant(size));
 }
 
 AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width)
@@ -115,29 +85,14 @@ AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width)
     return detail::pureMaxModifier(PureAxis::horizontal, std::move(width));
 }
 
-AnyWidgetModifier maxWidth(float width)
-{
-    return maxWidth(bq::signal::constant(width));
-}
-
 AnyWidgetModifier maxHeight(bq::signal::AnySignal<float> height)
 {
     return detail::pureMaxModifier(PureAxis::vertical, std::move(height));
 }
 
-AnyWidgetModifier maxHeight(float height)
-{
-    return maxHeight(bq::signal::constant(height));
-}
-
 AnyWidgetModifier maxSize(bq::signal::AnySignal<avg::Vector2f> size)
 {
     return bothAxes(std::move(size), &detail::pureMaxModifier);
-}
-
-AnyWidgetModifier maxSize(avg::Vector2f size)
-{
-    return maxSize(bq::signal::constant(size));
 }
 
 AnyWidgetModifier defaultSize()
