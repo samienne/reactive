@@ -68,8 +68,7 @@ namespace
     widget::AnyWidget probeWidget(Probe probe)
     {
         return widget::makeWidget()
-            | modifier::onClick(0, bq::signal::constant(
-                        std::function<void()>([probe]() {})));
+            | modifier::onClick(0, [probe]() {});
     }
 
     Window makeWindow(std::string title, Opens& opens)
@@ -194,8 +193,7 @@ TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
 
         // The widget captures the owning window (to close it) and the probe.
         app.addWindow(w, widget::makeWidget()
-                | modifier::onClick(0, bq::signal::constant(
-                        std::function<void()>([w, held]() { w.close(); }))));
+                | modifier::onClick(0, [w, held]() { w.close(); }));
     }
 
     int frames = 0;

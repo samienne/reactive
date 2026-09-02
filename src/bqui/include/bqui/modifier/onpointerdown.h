@@ -12,8 +12,6 @@
 namespace bqui::modifier
 {
     BQUI_EXPORT AnyWidgetModifier onPointerDown(
-            bq::signal::AnySignal<std::function<EventResult(
-                PointerButtonEvent const&)
-            >> cb);
+            bq::signal::AnySignal<EventResult(PointerButtonEvent const&)> cb);
 }
 

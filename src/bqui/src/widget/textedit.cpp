@@ -261,7 +261,7 @@ TextEdit::operator AnyWidget() const
             );
 }
 
-TextEdit TextEdit::onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(bq::signal::AnySignal<void()> cb) &&
 {
     onEnter_.push_back(std::move(cb).share());
     return std::move(*this);
