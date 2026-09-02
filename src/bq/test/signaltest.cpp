@@ -182,6 +182,28 @@ TEST(signal, functionSignatureAnySignalIsSignal)
     EXPECT_EQ(9, *flag);
 }
 
+TEST(signal, functionSignatureAnySignalTransforms)
+{
+    auto flag = std::make_shared<int>(0);
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+
+    // eraseType() resolves to the std::function base.
+    AnySignal<std::function<void(int)>> erased = s.eraseType();
+    std::function<void(int)> ef = makeSignalContext(erased).evaluate<0>().get<0>();
+    ef(3);
+    EXPECT_EQ(3, *flag);
+
+    // map() instantiates on the std::function base, not the raw function type.
+    auto mapped = s.map([](std::function<void(int)> const& f) { return f ? 1 : 0; });
+    EXPECT_EQ(1, makeSignalContext(mapped).evaluate<0>().get<0>());
+
+    // share().clone() stays valid too.
+    auto shared = s.share().clone();
+    std::function<void(int)> sf = makeSignalContext(shared).evaluate<0>().get<0>();
+    sf(5);
+    EXPECT_EQ(5, *flag);
+}
+
 TEST(signal, signalContext)
 {
     auto c = makeSignalContext(constant(42));

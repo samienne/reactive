@@ -442,7 +442,8 @@ namespace bq::signal
     };
 
     /**
-     * @brief A callback signal: shorthand for AnySignal<std::function<R(Args...)>>.
+     * @brief A callback signal: shorthand for
+     * AnySignal<std::function<R(Args...)>>.
      *
      * Constructs from a matching callable (lambda, function, std::function) via
      * the value constructor, or from a signal of that std::function.

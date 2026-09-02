@@ -160,6 +160,12 @@ namespace bq::signal
         using type = T;
     };
 
+    template <typename R, typename... Args>
+    struct SingleSignalType<AnySignal<R(Args...)>>
+        : SingleSignalType<AnySignal<std::function<R(Args...)>>>
+    {
+    };
+
     template <typename T>
     using SingleSignalTypeT = typename SingleSignalType<T>::type;
 
