@@ -6,8 +6,6 @@
 
 #include <bq/signal/signal.h>
 
-#include <functional>
-
 namespace bqui::modifier
 {
     BQUI_EXPORT AnyWidgetModifier onClick(unsigned int button,
