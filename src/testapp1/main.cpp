@@ -313,8 +313,8 @@ int main()
 
     auto barButton = [](std::string text) -> widget::AnyWidget
     {
-        return widget::button(text, bq::signal::constant(std::function<void()>(
-                        [text]() { std::cout << text << " clicked\n"; })))
+        return widget::button(text,
+                        [text]() { std::cout << text << " clicked\n"; })
             | modifier::margin(4.0f);
     };
 
