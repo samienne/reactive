@@ -16,6 +16,7 @@
 #include <arrange/expression.h>
 #include <arrange/variable.h>
 
+#include <optional>
 #include <utility>
 
 namespace bqui::modifier::detail
@@ -39,21 +40,18 @@ namespace
     }
 
     // The layout axis and shared flex variable the enclosing pure-solver
-    // container seeded for its fillers. Both are constants, so evaluating them in
-    // a throwaway context is safe. A fill() widget couples to the same pair a
-    // filler() child of that container does.
-    Axis flexAxis(BuildParams const& params)
+    // container seeded for its fillers, as signals threaded into the band graph
+    // rather than snapshotted through a throwaway context. A fill() widget
+    // couples to the same pair a filler() child of that container does.
+    bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
     {
-        auto context = bq::signal::makeSignalContext(
-                params.valueOrDefault<widget::FlexAxisTag>());
-        return context.evaluate<0>().get<0>();
+        return params.valueOrDefault<widget::FlexAxisTag>();
     }
 
-    arrange::Variable flexVariable(BuildParams const& params)
+    bq::signal::AnySignal<arrange::Variable> flexVariable(
+            BuildParams const& params)
     {
-        auto context = bq::signal::makeSignalContext(
-                params.valueOrDefault<widget::FlexVariableTag>());
-        return context.evaluate<0>().get<0>();
+        return params.valueOrDefault<widget::FlexVariableTag>();
     }
 
     // The shared shell of every pure-solver band modifier: a no-op outside a
@@ -121,27 +119,69 @@ AnyWidgetModifier pureFillModifier(float weight)
             [weight](widget::AnyBuilder& builder)
             {
                 BuildParams const& params = builder.getBuildParams();
-                Axis axis = flexAxis(params);
-                arrange::Variable flex = flexVariable(params);
+                auto axisSig = flexAxis(params).share();
+                auto flexSig = flexVariable(params).share();
                 widget::BoxVariables box = builder.getBoxVariables();
 
-                // The same coupling a filler emits, weighted: the widget's extent
-                // on the container's layout axis equals weight times the shared
+                // The same coupling a filler emits, weighted: on the container's
+                // layout axis the widget's extent equals weight times the shared
                 // flex variable, at the weakest tier, so the slack splits between
                 // every filler and fill() sibling in proportion to their weights.
                 // The content natural rides up as a flex-basis and is dropped when
-                // the container stamps it (flattenConstraints).
-                widget::LayoutSpec spec;
-                spec.constraints.push_back(
-                        ((axis == Axis::x ? box.width() : box.height())
-                            == static_cast<double>(weight)
-                                * arrange::Expression(flex))
-                        | widget::weakestStrength());
+                // the container stamps it (flattenConstraints). Composed onto the
+                // existing band per axis, so the layout axis and flex variable
+                // thread in as the seeded signals.
+                auto couple = [box, weight](widget::Constraints const& c,
+                        Axis thisAxis, Axis layoutAxis, arrange::Variable flex)
+                {
+                    if (thisAxis != layoutAxis)
+                        return c;
 
-                widget::addPureConstraint(builder, axis,
-                        bq::signal::AnySignal<widget::LayoutSpec>(
-                            bq::signal::constant(std::move(spec))));
-                widget::setPureFlex(builder, axis, weight);
+                    widget::Constraints out = c;
+                    out.flex = widget::Flex{ weight };
+                    out.relations.constraints.push_back(
+                            ((thisAxis == Axis::x ? box.width() : box.height())
+                                == static_cast<double>(weight)
+                                    * arrange::Expression(flex))
+                            | widget::weakestStrength());
+                    return out;
+                };
+
+                std::optional<widget::PureLayout> current =
+                    builder.getPureLayout();
+                widget::PureLayout layout = current ? *current
+                    : widget::PureLayout{
+                        bq::signal::constant(widget::Constraints()),
+                        [](bq::signal::AnySignal<widget::LayoutSolution>)
+                        {
+                            return bq::signal::AnySignal<widget::Constraints>(
+                                    bq::signal::constant(widget::Constraints()));
+                        } };
+
+                layout.width = merge(std::move(layout.width), axisSig.clone(),
+                        flexSig.clone()).map(
+                        [couple](widget::Constraints const& c, Axis layoutAxis,
+                                arrange::Variable flex)
+                        {
+                            return couple(c, Axis::x, layoutAxis, flex);
+                        });
+
+                auto oldHeight = layout.heightForWidth;
+                layout.heightForWidth =
+                    [oldHeight, couple, axisSig, flexSig](
+                            bq::signal::AnySignal<widget::LayoutSolution> ws)
+                        -> bq::signal::AnySignal<widget::Constraints>
+                    {
+                        return merge(oldHeight(std::move(ws)), axisSig.clone(),
+                                flexSig.clone()).map(
+                                [couple](widget::Constraints const& c,
+                                        Axis layoutAxis, arrange::Variable flex)
+                                {
+                                    return couple(c, Axis::y, layoutAxis, flex);
+                                });
+                    };
+
+                builder.setPureLayout(std::move(layout));
             });
 }
 

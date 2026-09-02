@@ -1610,3 +1610,41 @@ TEST(PureSolverLayout, heightReflowsWithResolvedWidth)
     EXPECT_FLOAT_EQ(60.0f, narrowG.size[1]);
     EXPECT_GT(narrowG.size[1], wideG.size[1]);
 }
+
+// The shared-F coupling threads through three levels of flexing container, each
+// seeding its own flex variable. A filler nested three hboxes deep still takes
+// the innermost slack: 400 - 100 (outer fixed) - 50 (mid fixed) - 30 (inner
+// fixed) = 220. This exercises the signal-wired coupling across three distinct
+// seeded flex variables.
+TEST(PureSolverLayout, nestedFillerCouplesThroughFlexingContainers)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(30.0f));
+    innerRow.push_back(fillerProbe(idFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> midRow;
+    midRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+    midRow.push_back(std::move(inner));
+    AnyWidget mid = hbox(ArraySignal<AnyWidget>(std::move(midRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(100.0f));
+    outerRow.push_back(std::move(mid));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(220.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(180.0f, filler.position[0]);
+}

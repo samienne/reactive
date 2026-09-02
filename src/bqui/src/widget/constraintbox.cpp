@@ -683,20 +683,16 @@ bool pureSolver(BuildParams const& params)
 }
 
 // The flex variable and layout axis the enclosing pure-solver container seeded
-// for its fillers. Both are constants, so evaluating them in a throwaway
-// context is safe.
-arrange::Variable flexVariable(BuildParams const& params)
+// for its fillers, as signals threaded into the constraint graph rather than
+// snapshotted through a throwaway context.
+bq::signal::AnySignal<arrange::Variable> flexVariable(BuildParams const& params)
 {
-    auto context = bq::signal::makeSignalContext(
-            params.valueOrDefault<FlexVariableTag>());
-    return context.evaluate<0>().get<0>();
+    return params.valueOrDefault<FlexVariableTag>();
 }
 
-Axis flexAxis(BuildParams const& params)
+bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
 {
-    auto context = bq::signal::makeSignalContext(
-            params.valueOrDefault<FlexAxisTag>());
-    return context.evaluate<0>().get<0>();
+    return params.valueOrDefault<FlexAxisTag>();
 }
 
 // The plumbing every solver-laid-out container shares: collect the builders'
@@ -1169,10 +1165,10 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     arrange::Variable gap;
 
     // The parent container's shared flex variable and layout axis, read off this
-    // container's own params exactly as a filler reads them. Both are constants
-    // the parent seeded, so evaluating them in a throwaway context is safe.
-    arrange::Variable parentFlex = flexVariable(params);
-    Axis parentAxis = flexAxis(params);
+    // container's own params exactly as a filler reads them and threaded into the
+    // per-axis Constraints graph as signals.
+    auto parentFlexSig = flexVariable(params).share();
+    auto parentAxisSig = flexAxis(params).share();
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -1201,9 +1197,10 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     // the bounds aggregate main-axis SUM / cross-axis MAX, flex rides up, and a
     // size word at this level overrides the republished band.
     auto buildAxis =
-        [container, gap, parentFlex, parentAxis](Axis thisAxis, Axis layoutAxis,
+        [container, gap](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
-                std::vector<BoxVariables> const& boxes) -> Constraints
+                std::vector<BoxVariables> const& boxes,
+                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
     {
         bool mainAxis = thisAxis == layoutAxis;
 
@@ -1270,16 +1267,19 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         return result;
     };
 
-    auto horizontal = merge(std::move(childWidth), boxes.clone()).map(
+    auto horizontal = merge(std::move(childWidth), boxes.clone(),
+            parentFlexSig.clone(), parentAxisSig.clone()).map(
             [buildAxis, axis](std::vector<Constraints> const& bands,
-                    std::vector<BoxVariables> const& boxes)
+                    std::vector<BoxVariables> const& boxes,
+                    arrange::Variable parentFlex, Axis parentAxis)
             {
-                return buildAxis(Axis::x, axis, bands, boxes);
+                return buildAxis(Axis::x, axis, bands, boxes, parentFlex,
+                        parentAxis);
             });
 
     // The container's height band, as a function of the region's width solution.
     auto verticalGiven =
-        [buildAxis, boxes, array, axis](
+        [buildAxis, boxes, array, axis, parentFlexSig, parentAxisSig](
                 bq::signal::AnySignal<LayoutSolution> widthSolution)
             -> bq::signal::AnySignal<Constraints>
     {
@@ -1294,11 +1294,14 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                         return effective.getHeightForWidth(widthSolution.clone());
                     }));
 
-        return merge(std::move(childHeight), boxes.clone()).map(
+        return merge(std::move(childHeight), boxes.clone(),
+                parentFlexSig.clone(), parentAxisSig.clone()).map(
                 [buildAxis, axis](std::vector<Constraints> const& bands,
-                        std::vector<BoxVariables> const& boxes)
+                        std::vector<BoxVariables> const& boxes,
+                        arrange::Variable parentFlex, Axis parentAxis)
                 {
-                    return buildAxis(Axis::y, axis, bands, boxes);
+                    return buildAxis(Axis::y, axis, bands, boxes, parentFlex,
+                            parentAxis);
                 });
     };
 
@@ -1451,6 +1454,83 @@ AnyWidget solverHbox(std::vector<AnyWidget> widgets)
     return solverBox(Axis::x, CrossAlign::fill, std::move(widgets));
 }
 
+namespace
+{
+    // The one relation a filler states on the container's layout axis: its extent
+    // there equals the shared flex variable, at the weakest tier, so the gap
+    // drive pulls it out to fill the slack; the flex band rides up so a container
+    // holding a filler is itself a filler to its parent. Off the layout axis it
+    // contributes nothing, so the cross axis falls to the container's
+    // leading-edge pin, cross-fill and weak default. The layout axis and flex
+    // variable arrive as the seeded values threaded through the band map.
+    Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
+            Axis layoutAxis, arrange::Variable const& flex)
+    {
+        if (thisAxis != layoutAxis)
+            return Constraints();
+
+        Constraints c;
+        c.flex = Flex{ 1.0f };
+        c.relations.constraints.push_back(
+                ((thisAxis == Axis::x ? box.width() : box.height())
+                    == arrange::Expression(flex))
+                | weakestStrength());
+        return c;
+    }
+
+    // The band a directional filler contributes on one axis. An axis it does not
+    // fill is pinned to zero, or the gap drive / cross-fill would stretch a
+    // no-extent child there; an axis it fills couples like a plain filler when it
+    // is the layout axis and is left free (cross-fill stretches it) otherwise.
+    Constraints directionalFillerAxisBand(Axis thisAxis, bool fill,
+            BoxVariables const& box, Axis layoutAxis,
+            arrange::Variable const& flex)
+    {
+        if (!fill)
+        {
+            Constraints c;
+            c.natural = BandNatural{ 0.0f, contentStrength() };
+            return c;
+        }
+        return fillerAxisBand(thisAxis, box, layoutAxis, flex);
+    }
+
+    // Builds a filler's PureLayout from the seeded layout-axis and flex-variable
+    // signals: @p band produces one axis's Constraints from the current values,
+    // threaded in through a map rather than snapshotted.
+    template <typename Band_>
+    PureLayout fillerPureLayout(Band_ band,
+            bq::signal::AnySignal<Axis> axisSig,
+            bq::signal::AnySignal<arrange::Variable> flexSig)
+    {
+        auto sharedAxis = std::move(axisSig).share();
+        auto sharedFlex = std::move(flexSig).share();
+
+        auto width = merge(sharedAxis.clone(), sharedFlex.clone()).map(
+                [band](Axis layoutAxis, arrange::Variable flex)
+                {
+                    return band(Axis::x, layoutAxis, flex);
+                });
+
+        PureLayout::WidthToConstraints heightForWidth =
+            [band, sharedAxis, sharedFlex](
+                    bq::signal::AnySignal<LayoutSolution>)
+                -> bq::signal::AnySignal<Constraints>
+            {
+                return merge(sharedAxis.clone(), sharedFlex.clone()).map(
+                        [band](Axis layoutAxis, arrange::Variable flex)
+                        {
+                            return band(Axis::y, layoutAxis, flex);
+                        });
+            };
+
+        return PureLayout{
+            bq::signal::AnySignal<Constraints>(std::move(width)),
+            std::move(heightForWidth)
+        };
+    }
+} // namespace
+
 AnyWidget filler()
 {
     return makeWidget()
@@ -1461,38 +1541,21 @@ AnyWidget filler()
                     if (!pureSolver(params))
                         return builder;
 
-                    Axis axis = flexAxis(params);
-                    arrange::Variable flex = flexVariable(params);
                     BoxVariables box = builder.getBoxVariables();
-
-                    // The one relation a filler states: its extent on the
-                    // container's layout axis equals the shared flex variable,
-                    // at the weakest tier. It carries no natural size on that
-                    // axis, so the container's gap drive is free to pull the
-                    // shared extent out to fill the slack; the cross axis falls
-                    // to the container's leading-edge pin, cross-fill and weak
-                    // default. The flex band rides up so a container holding a
-                    // filler is itself a filler to its parent.
-                    LayoutSpec spec;
-                    spec.constraints.push_back(
-                            ((axis == Axis::x ? box.width() : box.height())
-                                == arrange::Expression(flex))
-                            | weakestStrength());
-
-                    widget::addPureConstraint(builder, axis,
-                            bq::signal::AnySignal<LayoutSpec>(
-                                bq::signal::constant(std::move(spec))));
-                    widget::setPureFlex(builder, axis, 1.0f);
-
+                    builder.setPureLayout(fillerPureLayout(
+                            [box](Axis thisAxis, Axis layoutAxis,
+                                    arrange::Variable flex)
+                            {
+                                return fillerAxisBand(thisAxis, box, layoutAxis,
+                                        flex);
+                            },
+                            flexAxis(params), flexVariable(params)));
                     return builder;
                 }));
 }
 
 namespace
 {
-    // fillX / fillY select the axes it fills. An axis it does not fill is pinned
-    // to zero, or the gap drive / cross-fill would stretch a no-extent child
-    // there.
     AnyWidget directionalFiller(bool fillX, bool fillY, Band xBand, Band yBand)
     {
         return makeWidget()
@@ -1506,33 +1569,16 @@ namespace
                         if (!pureSolver(params))
                             return builder;
 
-                        if (!fillX)
-                            widget::setPureNatural(builder, Axis::x,
-                                    bq::signal::constant(0.0f),
-                                    contentStrength());
-                        if (!fillY)
-                            widget::setPureNatural(builder, Axis::y,
-                                    bq::signal::constant(0.0f),
-                                    contentStrength());
-
-                        Axis axis = flexAxis(params);
-                        if (axis == Axis::x ? !fillX : !fillY)
-                            return builder;
-
-                        arrange::Variable flex = flexVariable(params);
                         BoxVariables box = builder.getBoxVariables();
-
-                        LayoutSpec spec;
-                        spec.constraints.push_back(
-                                ((axis == Axis::x ? box.width() : box.height())
-                                    == arrange::Expression(flex))
-                                | weakestStrength());
-
-                        widget::addPureConstraint(builder, axis,
-                                bq::signal::AnySignal<LayoutSpec>(
-                                    bq::signal::constant(std::move(spec))));
-                        widget::setPureFlex(builder, axis, 1.0f);
-
+                        builder.setPureLayout(fillerPureLayout(
+                                [box, fillX, fillY](Axis thisAxis,
+                                        Axis layoutAxis, arrange::Variable flex)
+                                {
+                                    return directionalFillerAxisBand(thisAxis,
+                                            thisAxis == Axis::x ? fillX : fillY,
+                                            box, layoutAxis, flex);
+                                },
+                                flexAxis(params), flexVariable(params)));
                         return builder;
                     }));
     }
