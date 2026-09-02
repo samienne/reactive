@@ -12,6 +12,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+
 using namespace bq::signal;
 
 static_assert(std::is_same_v<
@@ -138,6 +140,46 @@ TEST(signal, valueCtorIsSingleValueOnly)
             "a multi-value AnySignal has no value constructor");
     static_assert(std::is_constructible_v<AnySignal<int>, AnySignal<int>>,
             "copy construction is preserved");
+}
+
+TEST(signal, functionSignatureAnySignalWrapsStdFunction)
+{
+    auto flag = std::make_shared<int>(0);
+
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+
+    std::function<void(int)> f = makeSignalContext(s).evaluate<0>().get<0>();
+    f(7);
+    EXPECT_EQ(7, *flag);
+
+    // A multi-argument callable returns a value.
+    AnySignal<int(int, std::string)> g =
+        [](int a, std::string const& b) { return a + (int)b.size(); };
+
+    std::function<int(int, std::string)> gf =
+        makeSignalContext(g).evaluate<0>().get<0>();
+    EXPECT_EQ(4, gf(2, "hi"));
+}
+
+TEST(signal, functionSignatureAnySignalIsSignal)
+{
+    static_assert(IsSignal<AnySignal<void(int)>>::value,
+            "a function-signature AnySignal is treated as a signal");
+
+    // The derived converts to the underlying std::function AnySignal.
+    auto flag = std::make_shared<int>(0);
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+    AnySignal<std::function<void(int)>> base = s;
+
+    std::function<void(int)> f = makeSignalContext(base).evaluate<0>().get<0>();
+    f(5);
+    EXPECT_EQ(5, *flag);
+
+    // Copy of the derived carries the same callable.
+    AnySignal<void(int)> copy = s;
+    std::function<void(int)> cf = makeSignalContext(copy).evaluate<0>().get<0>();
+    cf(9);
+    EXPECT_EQ(9, *flag);
 }
 
 TEST(signal, signalContext)
