@@ -101,6 +101,35 @@ TEST(signal, constant)
     c.update(frame);
 }
 
+TEST(signal, valueConstructsConstant)
+{
+    AnySignal<int> i = 5;
+    auto ci = makeSignalContext(i);
+    EXPECT_EQ(5, ci.evaluate<0>().get<0>());
+
+    // A convertible value works too (const char* -> std::string).
+    AnySignal<std::string> s = "hi";
+    auto cs = makeSignalContext(s);
+    EXPECT_EQ(std::string("hi"), cs.evaluate<0>().get<0>());
+}
+
+TEST(signal, valueCtorDoesNotShadowSignalCtor)
+{
+    // An actual signal still selects the signal-converting constructor.
+    AnySignal<int> a = constant(7);
+    EXPECT_EQ(7, makeSignalContext(a).evaluate<0>().get<0>());
+
+    AnySignal<int> b = a;
+    EXPECT_EQ(7, makeSignalContext(b).evaluate<0>().get<0>());
+}
+
+TEST(signal, sigShorthand)
+{
+    auto c = makeSignalContext(bq::sig(1));
+    EXPECT_EQ(1, c.evaluate<0>().get<0>());
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
+}
+
 TEST(signal, signalContext)
 {
     auto c = makeSignalContext(constant(42));
