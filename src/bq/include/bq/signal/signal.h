@@ -398,8 +398,11 @@ namespace bq::signal
         {
         }
 
-        /** @brief Constructs a constant signal holding @p value, enabling
-         *         `AnySignal<T> s = value;`. Single-value signals only. */
+        /**
+         * @brief Constructs a constant signal holding @p value.
+         *
+         * Enables `AnySignal<T> s = value;`. Single-value signals only.
+         */
         template <typename U,
             typename V = std::tuple_element_t<0, std::tuple<Ts..., void>>,
             typename = std::enable_if_t<
@@ -446,7 +449,9 @@ namespace bq::signal
 
 namespace bq
 {
-    /** @brief Shorthand for signal::constant: a constant signal of @p value. */
+    /**
+     * @brief A constant signal of @p value; shorthand for signal::constant.
+     */
     template <typename T>
     auto sig(T&& value)
     {
