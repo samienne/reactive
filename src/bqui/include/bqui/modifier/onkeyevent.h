@@ -72,21 +72,12 @@ namespace bqui::modifier
                 bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
                 predicate) &&;
 
-        OnKeyEvent acceptIf(
-                std::function<bool(ase::KeyEvent const&)> pred) &&;
-
         OnKeyEvent acceptIfNot(
                 bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
                 predicate) &&;
 
-        OnKeyEvent acceptIfNot(
-                std::function<bool(ase::KeyEvent const&)> pred) &&;
-
         OnKeyEvent action(
                 bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&;
-
-        OnKeyEvent action(
-                std::function<void(ase::KeyEvent const&)> action) &&;
 
         template <typename TStreamHandle>
         auto send(TStreamHandle&& handle) &&
@@ -105,9 +96,6 @@ namespace bqui::modifier
     BQUI_EXPORT OnKeyEvent onKeyEvent();
 
     BQUI_EXPORT bool isNavigationKey(KeyEvent const& e);
-
-    BQUI_EXPORT AnyWidgetModifier onKeyEvent(
-            std::function<InputResult(ase::KeyEvent const&)> cb);
 
     BQUI_EXPORT AnyWidgetModifier onKeyEvent(
             bq::signal::AnySignal<std::function<InputResult(ase::KeyEvent const&)>> cb);

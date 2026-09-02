@@ -16,8 +16,5 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier onClick(unsigned int button,
             bq::signal::AnySignal<std::function<void()>> cb);
 
-    BQUI_EXPORT AnyWidgetModifier onClick(unsigned int button,
-            std::function<void(ClickEvent const&)> f);
-
 }
 

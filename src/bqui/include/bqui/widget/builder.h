@@ -122,11 +122,6 @@ namespace bqui::widget
             return copy;
         }
 
-        auto setGravity(avg::Vector2f gravity)
-        {
-            return setGravity(bq::signal::constant(std::move(gravity)));
-        }
-
         bq::signal::AnySignal<avg::Vector2f> getGravity() const
         {
             return gravity_;

@@ -14,9 +14,6 @@ namespace bqui::modifier
             std::function<EventResult(ase::PointerButtonEvent const&)>
             > cb);
 
-    AnyWidgetModifier onPointerUp(
-            std::function<EventResult(ase::PointerButtonEvent const&)> cb);
-
     AnyWidgetModifier onPointerUp(std::function<EventResult()> cb);
 }
 

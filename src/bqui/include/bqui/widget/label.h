@@ -11,6 +11,5 @@
 namespace bqui::widget
 {
     BQUI_EXPORT AnyWidget label(bq::signal::AnySignal<std::string> text);
-    BQUI_EXPORT AnyWidget label(std::string const& text);
 } // namespace bqui::widget
 

@@ -58,7 +58,7 @@ widget::AnyWidget spinner()
 
     return widget::makeWidget()
         | modifier::onDraw(drawSpinner, provider::provideTheme(), std::move(state))
-        | modifier::setSize({ 100.0f, 100.0f })
+        | modifier::setSize(avg::Vector2f{ 100.0f, 100.0f })
         ;
 }
 

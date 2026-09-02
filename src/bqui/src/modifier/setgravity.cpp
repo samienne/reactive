@@ -13,8 +13,4 @@ namespace bqui::modifier
             ));
     }
 
-    AnyWidgetModifier setGravity(avg::Vector2f gravity)
-    {
-        return setGravity(bq::signal::constant(gravity));
-    }
 }

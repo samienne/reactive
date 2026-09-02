@@ -60,10 +60,5 @@ AnyWidgetModifier onClick(unsigned int button,
     return onClick(button, c.template cast<std::function<void(ClickEvent const&)>>());
 }
 
-AnyWidgetModifier onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
-{
-    return onClick(button, bq::signal::constant(std::move(f)));
-}
-
 }
 

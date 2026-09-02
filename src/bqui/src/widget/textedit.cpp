@@ -267,11 +267,6 @@ TextEdit TextEdit::onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&
     return std::move(*this);
 }
 
-TextEdit TextEdit::onEnter(std::function<void()> cb) &&
-{
-    return std::move(*this).onEnter(bq::signal::constant(std::move(cb)));
-}
-
 AnyWidget TextEdit::build() &&
 {
     return *this;
