@@ -359,24 +359,30 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
     // drops it. Without a flex it is baked as the widget's content/natural size.
     bool flexes = constraints.flex && constraints.flex->coeff > 0.0f;
     if (constraints.natural && !flexes)
+    {
         spec.constraints.push_back(
                 (extent() == arrange::Expression(
                         static_cast<double>(constraints.natural->value)))
                 | constraints.natural->strength);
+    }
     // The bounds are strong: they outrank the weak content/natural pull and so
     // clamp content, but yield to a required anchor or a contradicting bound of
     // equal strength, so an unmeetable bound overflows rather than failing the
     // solve.
     if (constraints.min)
+    {
         spec.constraints.push_back(
                 (extent() >= arrange::Expression(
                         static_cast<double>(*constraints.min)))
                 | arrange::Strength::strong());
+    }
     if (constraints.max)
+    {
         spec.constraints.push_back(
                 (extent() <= arrange::Expression(
                         static_cast<double>(*constraints.max)))
                 | arrange::Strength::strong());
+    }
 
     return spec;
 }
