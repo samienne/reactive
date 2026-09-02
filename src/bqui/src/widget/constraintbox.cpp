@@ -1100,8 +1100,10 @@ std::optional<BandNatural> aggregateNatural(
         if (!result)
             result = n;
         else if (mainAxis)
+        {
             result = BandNatural{ result->value + n.value,
                     strongerStrength(result->strength, n.strength) };
+        }
         else if (n.value > result->value)
             result = n;
     }
@@ -1232,9 +1234,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // would beat the parent's gap drive and pin the extent, stopping the
         // stretch, so a flexible axis is left free just as a filler's is.
         if (!flexes)
+        {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
                     : weakHeightDefault(container));
+        }
 
         // The coupling that makes a flexible container a filler in its parent:
         // its extent on the parent's layout axis equals its own aggregated flex
@@ -1243,6 +1247,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // weights, exactly as it does between leaf fillers. Emitted only on the
         // parent's axis and only where this container flexes there.
         if (thisAxis == parentAxis && flexes)
+        {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x
                         ? container.width()
@@ -1250,6 +1255,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                         == static_cast<double>(flex->coeff)
                             * arrange::Expression(parentFlex))
                     | weakestStrength());
+        }
 
         if (thisAxis == Axis::x)
         {
