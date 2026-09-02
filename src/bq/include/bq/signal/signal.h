@@ -18,6 +18,7 @@
 #include <btl/async.h>
 #include <btl/bindarguments.h>
 
+#include <functional>
 #include <string>
 #include <tuple>
 
@@ -438,6 +439,19 @@ namespace bq::signal
         {
             return *this;
         }
+    };
+
+    /**
+     * @brief A callback signal: shorthand for AnySignal<std::function<R(Args...)>>.
+     *
+     * Constructs from a matching callable (lambda, function, std::function) via
+     * the value constructor, or from a signal of that std::function.
+     */
+    template <typename R, typename... Args>
+    class AnySignal<R(Args...)> : public AnySignal<std::function<R(Args...)>>
+    {
+    public:
+        using AnySignal<std::function<R(Args...)>>::AnySignal;
     };
 
     template <typename... Ts>

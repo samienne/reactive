@@ -92,6 +92,12 @@ namespace bq::signal
     {
     };
 
+    template <typename R, typename... Args>
+    struct SignalDataType<AnySignal<R(Args...)>>
+        : SignalDataType<AnySignal<std::function<R(Args...)>>>
+    {
+    };
+
     template <typename TSignal>
     using SignalDataTypeT = typename SignalDataType<TSignal>::type;
 
@@ -126,6 +132,12 @@ namespace bq::signal
     struct SignalType<AnySignal<Ts...>>
     {
         using type = SignalResult<Ts...>;
+    };
+
+    template <typename R, typename... Args>
+    struct SignalType<AnySignal<R(Args...)>>
+        : SignalType<AnySignal<std::function<R(Args...)>>>
+    {
     };
 
     template <typename TSignal>
