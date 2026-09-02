@@ -12,12 +12,14 @@
 #include "weak.h"
 #include "withchanged.h"
 #include "withprevious.h"
+#include "constant.h"
 
 #include <btl/future/future.h>
 #include <btl/async.h>
 #include <btl/bindarguments.h>
 
 #include <string>
+#include <tuple>
 
 namespace bq::signal
 {
@@ -396,6 +398,21 @@ namespace bq::signal
         {
         }
 
+        /** @brief Constructs a constant signal holding @p value, enabling
+         *         `AnySignal<T> s = value;`. Single-value signals only. */
+        template <typename U,
+            typename V = std::tuple_element_t<0, std::tuple<Ts..., void>>,
+            typename = std::enable_if_t<
+                sizeof...(Ts) == 1
+                && !IsSignal<std::decay_t<U>>::value
+                && std::is_convertible_v<U&&, V>
+            >>
+        AnySignal(U&& value) :
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(
+                        constant(static_cast<V>(std::forward<U>(value)))))
+        {
+        }
+
         template <typename TStorage, typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Us, Ts>...)
             >>
@@ -427,3 +444,12 @@ namespace bq::signal
     struct IsSignal<AnySignal<Ts...>> : std::true_type {};
 } // namespace bq::signal
 
+namespace bq
+{
+    /** @brief Shorthand for signal::constant: a constant signal of @p value. */
+    template <typename T>
+    auto sig(T&& value)
+    {
+        return signal::constant(std::forward<T>(value));
+    }
+} // namespace bq
