@@ -92,8 +92,8 @@ bool isNavigationKey(KeyEvent const& e)
     return false;
 }
 
-AnyWidgetModifier onKeyEvent(bq::signal::AnySignal<InputResult(
-            ase::KeyEvent const&)> cb)
+AnyWidgetModifier onKeyEvent(
+        bq::signal::AnySignal<InputResult(ase::KeyEvent const&)> cb)
 {
     return makeWidgetModifier(makeInstanceSignalModifier(
             onKeyEvent()
