@@ -238,6 +238,38 @@ AnySignal<std::vector<LayoutSpec>> oneFragment(AnySignal<LayoutSpec> spec)
                 }));
 }
 
+// A non-default PureLayout implementation: each phase reports a distinct natural
+// so the three getters can be told apart when read back through the erased
+// holder.
+struct CustomPureLayout
+{
+    AnySignal<Constraints> phase(float natural) const
+    {
+        Constraints c;
+        c.natural = BandNatural{ natural, contentStrength() };
+        return constant(c);
+    }
+
+    AnySignal<Constraints> getWidth() const { return phase(11.0f); }
+
+    AnySignal<Constraints> getHeightForWidth(AnySignal<LayoutSolution>) const
+    {
+        return phase(22.0f);
+    }
+
+    AnySignal<Constraints> getWidthForHeight(AnySignal<LayoutSolution>) const
+    {
+        return phase(33.0f);
+    }
+};
+
+float naturalOf(AnySignal<Constraints> band)
+{
+    auto context = makeSignalContext(std::move(band));
+    Constraints c = context.evaluate<0>().get<0>();
+    return c.natural ? c.natural->value : -1.0f;
+}
+
 } // namespace
 
 // A box with no constraint but the universal weak defaults resolves to 100x100.
@@ -1647,4 +1679,22 @@ TEST(PureSolverLayout, nestedFillerCouplesThroughFlexingContainers)
 
     EXPECT_FLOAT_EQ(220.0f, filler.size[0]);
     EXPECT_FLOAT_EQ(180.0f, filler.position[0]);
+}
+
+// PureLayout is type-erased: a custom implementation of the three-phase
+// interface is held and dispatched to through the getters. Each phase reads back
+// its own value -- in particular getWidthForHeight returns the custom 33, not the
+// phase-1 width the default SimplePureLayout would, proving a widget can override
+// any phase.
+TEST(PureSolverLayout, customImplementationComposesThroughPureLayout)
+{
+    PureLayout layout = CustomPureLayout();
+
+    auto solution = AnySignal<LayoutSolution>(constant(LayoutSolution()));
+
+    EXPECT_FLOAT_EQ(11.0f, naturalOf(layout.getWidth()));
+    EXPECT_FLOAT_EQ(22.0f,
+            naturalOf(layout.getHeightForWidth(solution.clone())));
+    EXPECT_FLOAT_EQ(33.0f,
+            naturalOf(layout.getWidthForHeight(solution.clone())));
 }

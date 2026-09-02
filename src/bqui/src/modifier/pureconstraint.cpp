@@ -150,16 +150,16 @@ AnyWidgetModifier pureFillModifier(float weight)
 
                 std::optional<widget::PureLayout> current =
                     builder.getPureLayout();
-                widget::PureLayout layout = current ? *current
-                    : widget::PureLayout{
+                widget::PureLayout old = current ? *current
+                    : widget::simplePureLayout(
                         bq::signal::constant(widget::Constraints()),
                         [](bq::signal::AnySignal<widget::LayoutSolution>)
                         {
                             return bq::signal::AnySignal<widget::Constraints>(
                                     bq::signal::constant(widget::Constraints()));
-                        } };
+                        });
 
-                layout.width = merge(std::move(layout.width), axisSig.clone(),
+                auto width = merge(old.getWidth(), axisSig.clone(),
                         flexSig.clone()).map(
                         [couple](widget::Constraints const& c, Axis layoutAxis,
                                 arrange::Variable flex)
@@ -167,22 +167,20 @@ AnyWidgetModifier pureFillModifier(float weight)
                             return couple(c, Axis::x, layoutAxis, flex);
                         });
 
-                auto oldHeight = layout.heightForWidth;
-                layout.heightForWidth =
-                    [oldHeight, couple, axisSig, flexSig](
+                builder.setPureLayout(widget::simplePureLayout(
+                    bq::signal::AnySignal<widget::Constraints>(std::move(width)),
+                    [old, couple, axisSig, flexSig](
                             bq::signal::AnySignal<widget::LayoutSolution> ws)
                         -> bq::signal::AnySignal<widget::Constraints>
                     {
-                        return merge(oldHeight(std::move(ws)), axisSig.clone(),
-                                flexSig.clone()).map(
+                        return merge(old.getHeightForWidth(std::move(ws)),
+                                axisSig.clone(), flexSig.clone()).map(
                                 [couple](widget::Constraints const& c,
                                         Axis layoutAxis, arrange::Variable flex)
                                 {
                                     return couple(c, Axis::y, layoutAxis, flex);
                                 });
-                    };
-
-                builder.setPureLayout(std::move(layout));
+                    }));
             });
 }
 

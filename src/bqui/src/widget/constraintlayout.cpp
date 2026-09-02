@@ -53,14 +53,13 @@ namespace
     // phase ignores the width solution it is handed.
     PureLayout emptyPureLayout()
     {
-        return PureLayout{
+        return simplePureLayout(
             bq::signal::constant(Constraints()),
             [](bq::signal::AnySignal<LayoutSolution>)
             {
                 return bq::signal::AnySignal<Constraints>(
                         bq::signal::constant(Constraints()));
-            }
-        };
+            });
     }
 
     PureLayout pureLayoutOr(AnyBuilder const& builder)
@@ -69,39 +68,49 @@ namespace
         return current ? *current : emptyPureLayout();
     }
 
-    // Maps the axis's Constraints signal through @p apply, wrapping the height
-    // phase function so its width solution still threads through. The value the
-    // field is set from rides alongside as a second signal.
+    // Maps the axis's Constraints band through @p apply, threading the value the
+    // field is set from alongside as a second signal. Reads and rebuilds through
+    // the PureLayout interface so the untouched axis passes through unchanged.
     template <typename Apply>
     void updateBand(PureLayout& layout, Axis axis,
             bq::signal::AnySignal<float> value, Apply apply)
     {
+        PureLayout old = layout;
+
         if (axis == Axis::x)
         {
-            layout.width = merge(std::move(layout.width), std::move(value)).map(
+            auto width = merge(old.getWidth(), std::move(value)).map(
                     [apply](Constraints const& c, float v)
                     {
                         Constraints out = c;
                         apply(out, v);
                         return out;
                     });
+            layout = simplePureLayout(
+                    bq::signal::AnySignal<Constraints>(std::move(width)),
+                    [old](bq::signal::AnySignal<LayoutSolution> ws)
+                    {
+                        return old.getHeightForWidth(std::move(ws));
+                    });
         }
         else
         {
-            auto old = layout.heightForWidth;
-            layout.heightForWidth =
-                [old, value = std::move(value), apply](
-                        bq::signal::AnySignal<LayoutSolution> ws)
-                    -> bq::signal::AnySignal<Constraints>
-                {
-                    return merge(old(std::move(ws)), value.clone()).map(
-                            [apply](Constraints const& c, float v)
-                            {
-                                Constraints out = c;
-                                apply(out, v);
-                                return out;
-                            });
-                };
+            auto shared = std::move(value).share();
+            layout = simplePureLayout(
+                    old.getWidth(),
+                    [old, shared, apply](
+                            bq::signal::AnySignal<LayoutSolution> ws)
+                        -> bq::signal::AnySignal<Constraints>
+                    {
+                        return merge(old.getHeightForWidth(std::move(ws)),
+                                shared.clone()).map(
+                                [apply](Constraints const& c, float v)
+                                {
+                                    Constraints out = c;
+                                    apply(out, v);
+                                    return out;
+                                });
+                    });
         }
     }
 } // namespace
@@ -205,7 +214,7 @@ PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
                 return bandToConstraints(h.getWidth().extent);
             });
 
-    PureLayout::WidthToConstraints heightForWidth =
+    WidthToConstraints heightForWidth =
         [shared, box](bq::signal::AnySignal<LayoutSolution> ws)
             -> bq::signal::AnySignal<Constraints>
         {
@@ -221,10 +230,9 @@ PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
                     });
         };
 
-    return PureLayout{
-        bq::signal::AnySignal<Constraints>(std::move(width)),
-        std::move(heightForWidth)
-    };
+    return simplePureLayout(
+            bq::signal::AnySignal<Constraints>(std::move(width)),
+            std::move(heightForWidth));
 }
 
 void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
@@ -249,7 +257,9 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
             *c.max += d;
     };
 
-    layout.width = merge(std::move(layout.width), insetShared.clone()).map(
+    PureLayout old = layout;
+
+    auto width = merge(old.getWidth(), insetShared.clone()).map(
             [inner, outer, grow](Constraints const& c, float ins)
             {
                 Constraints out = c;
@@ -265,13 +275,14 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
                 return out;
             });
 
-    auto oldHeight = layout.heightForWidth;
-    layout.heightForWidth =
-        [oldHeight, inner, outer, grow, insetShared](
+    layout = simplePureLayout(
+        bq::signal::AnySignal<Constraints>(std::move(width)),
+        [old, inner, outer, grow, insetShared](
                 bq::signal::AnySignal<LayoutSolution> ws)
             -> bq::signal::AnySignal<Constraints>
         {
-            return merge(oldHeight(std::move(ws)), insetShared.clone()).map(
+            return merge(old.getHeightForWidth(std::move(ws)),
+                    insetShared.clone()).map(
                     [inner, outer, grow](Constraints const& c, float ins)
                     {
                         Constraints out = c;
@@ -288,7 +299,7 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
                                             static_cast<double>(ins)));
                         return out;
                     });
-        };
+        });
 
     builder.setPureLayout(std::move(layout));
     builder.setBoxVariables(outer);
