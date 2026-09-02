@@ -189,7 +189,7 @@ bqui::widget::AnyWidget adder()
                     })
             }
         )
-        | modifier::setGravity({ 0.5f, 1.0f })
+        | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
         | modifier::setTheme(std::move(theme))
         ;
 }

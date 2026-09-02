@@ -105,10 +105,5 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
         ;
 }
 
-AnyWidget button(std::string label, bq::signal::AnySignal<std::function<void()>> onClick)
-{
-    return button(bq::signal::constant(std::move(label)), std::move(onClick));
-}
-
 }
 

@@ -45,7 +45,6 @@ namespace bqui::widget
     {
         operator AnyWidget() const;
         TextEdit onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&;
-        TextEdit onEnter(std::function<void()> cb) &&;
 
         AnyWidget build() &&;
 

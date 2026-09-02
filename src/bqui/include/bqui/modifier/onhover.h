@@ -16,10 +16,6 @@ namespace bqui::modifier
             std::function<void(HoverEvent const&)>
             > cb);
 
-    BQUI_EXPORT AnyWidgetModifier onHover(
-            std::function<void(HoverEvent const&)> cb
-            );
-
     BQUI_EXPORT AnyWidgetModifier onHover(bq::signal::InputHandle<bool> handle);
 
 

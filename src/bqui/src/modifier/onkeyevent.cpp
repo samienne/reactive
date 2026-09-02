@@ -39,13 +39,6 @@ OnKeyEvent OnKeyEvent::acceptIf(
     return std::move(*this);
 }
 
-OnKeyEvent OnKeyEvent::acceptIf(
-        std::function<bool(ase::KeyEvent const&)> pred) &&
-{
-    return std::move(*this)
-        .acceptIf(bq::signal::constant(std::move(pred)));
-}
-
 OnKeyEvent OnKeyEvent::acceptIfNot(
         bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
         predicate) &&
@@ -58,14 +51,6 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
 
     return std::move(*this)
         .acceptIf(std::move(predicate).bindToFunction(std::move(inverse)));
-}
-
-OnKeyEvent OnKeyEvent::acceptIfNot(
-        std::function<bool(ase::KeyEvent const&)> pred) &&
-{
-    return std::move(*this)
-        .acceptIf(bq::signal::constant([pred](KeyEvent const& e)
-                    { return !pred(e); }));
 }
 
 OnKeyEvent OnKeyEvent::action(
@@ -82,13 +67,6 @@ OnKeyEvent OnKeyEvent::action(
             });
 
     return std::move(*this);
-}
-
-OnKeyEvent OnKeyEvent::action(
-        std::function<void(ase::KeyEvent const&)> action) &&
-{
-    return std::move(*this)
-        .action(bq::signal::constant(std::move(action)));
 }
 
 
@@ -112,15 +90,6 @@ bool isNavigationKey(KeyEvent const& e)
         return true;
 
     return false;
-}
-
-AnyWidgetModifier onKeyEvent(std::function<InputResult(ase::KeyEvent const&)> cb)
-{
-    return makeWidgetModifier(makeInstanceSignalModifier(
-            onKeyEvent()
-            .acceptIfNot(&isNavigationKey)
-            .action(std::move(cb))
-            ));
 }
 
 AnyWidgetModifier onKeyEvent(bq::signal::AnySignal<std::function<InputResult(

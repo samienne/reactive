@@ -251,7 +251,7 @@ int main()
                         h.set(!b);
                     }).cast<std::function<void()>>())
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
-                | modifier::setMinimumSize({ 100.0f, 200.0f }),
+                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame()
                 | modifier::setName("curvesLabel"),
@@ -261,8 +261,8 @@ int main()
                         {
                             handle.set(static_cast<int>((i+1) % curves.size()));
                         }))
-                | modifier::setGravity({ 0.5f, 1.0f })
-                | modifier::setSize({ 150, 50 })
+                | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
+                | modifier::setSize(avg::Vector2f{ 150, 50 })
                 | modifier::setSizeHint({ 300, 300 })
                 | modifier::setName("nextCurveButton")
                 | modifier::setRole("Button"),

@@ -47,11 +47,5 @@ AnyWidgetModifier onPointerDown(bq::signal::AnySignal<
         ));
 }
 
-AnyWidgetModifier onPointerDown(
-        std::function<EventResult(PointerButtonEvent const&)> cb
-        )
-{
-    return onPointerDown(bq::signal::constant(std::move(cb)));
-}
 }
 

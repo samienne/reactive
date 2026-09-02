@@ -101,29 +101,14 @@ AnyWidgetModifier setMaximumSize(bq::signal::AnySignal<avg::Vector2f> size)
     return setMaximumSizeImpl(std::move(size));
 }
 
-AnyWidgetModifier setMaximumSize(avg::Vector2f size)
-{
-    return setMaximumSizeImpl(bq::signal::constant(std::move(size)));
-}
-
 AnyWidgetModifier setMaximumWidth(bq::signal::AnySignal<float> width)
 {
     return mapSizeHint(setMaximumWidthImpl, std::move(width));
 }
 
-AnyWidgetModifier setMaximumWidth(float width)
-{
-    return mapSizeHint(setMaximumWidthImpl, bq::signal::constant(width));
-}
-
 AnyWidgetModifier setMaximumHeight(bq::signal::AnySignal<float> height)
 {
     return mapSizeHint(setMaximumHeightImpl, std::move(height));
-}
-
-AnyWidgetModifier setMaximumHeight(float height)
-{
-    return mapSizeHint(setMaximumHeightImpl, bq::signal::constant(height));
 }
 
 }

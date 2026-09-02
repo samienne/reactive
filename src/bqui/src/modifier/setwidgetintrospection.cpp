@@ -26,12 +26,6 @@ AnyWidgetModifier setWidgetIntrospection(
         ));
 }
 
-AnyWidgetModifier setWidgetIntrospection(widget::Introspection introspection)
-{
-    return setWidgetIntrospection(
-            bq::signal::constant(std::move(introspection)));
-}
-
 AnyWidgetModifier setName(bq::signal::AnySignal<std::string> name)
 {
     return makeWidgetModifier(makeInstanceModifier(
@@ -44,11 +38,6 @@ AnyWidgetModifier setName(bq::signal::AnySignal<std::string> name)
         },
         std::move(name)
         ));
-}
-
-AnyWidgetModifier setName(std::string name)
-{
-    return setName(bq::signal::constant(std::move(name)));
 }
 
 AnyWidgetModifier setRole(bq::signal::AnySignal<std::string> role)
@@ -65,11 +54,6 @@ AnyWidgetModifier setRole(bq::signal::AnySignal<std::string> role)
         ));
 }
 
-AnyWidgetModifier setRole(std::string role)
-{
-    return setRole(bq::signal::constant(std::move(role)));
-}
-
 AnyWidgetModifier setData(std::string key,
         bq::signal::AnySignal<widget::DataValue> value)
 {
@@ -84,11 +68,6 @@ AnyWidgetModifier setData(std::string key,
         },
         std::move(value)
         ));
-}
-
-AnyWidgetModifier setData(std::string key, widget::DataValue value)
-{
-    return setData(std::move(key), bq::signal::constant(std::move(value)));
 }
 
 AnyWidgetModifier addCapability(widget::Capability capability)

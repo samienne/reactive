@@ -46,17 +46,11 @@ AnyWidgetModifier onPointerUp(bq::signal::AnySignal<
         ));
 }
 
-AnyWidgetModifier onPointerUp(
-        std::function<EventResult(ase::PointerButtonEvent const&)> cb)
-{
-    return onPointerUp(bq::signal::constant(std::move(cb)));
-}
-
 AnyWidgetModifier onPointerUp(std::function<EventResult()> cb)
 {
     std::function<EventResult(ase::PointerButtonEvent const& e)> f =
         std::bind(std::move(cb));
-    return onPointerUp(f);
+    return onPointerUp(bq::signal::constant(std::move(f)));
 }
 }
 

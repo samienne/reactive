@@ -101,29 +101,14 @@ AnyWidgetModifier setMinimumSize(bq::signal::AnySignal<avg::Vector2f> size)
     return setMinimumSizeImpl(std::move(size));
 }
 
-AnyWidgetModifier setMinimumSize(avg::Vector2f size)
-{
-    return setMinimumSizeImpl(bq::signal::constant(std::move(size)));
-}
-
 AnyWidgetModifier setMinimumWidth(bq::signal::AnySignal<float> width)
 {
     return mapSizeHint(setMinimumWidthImpl, std::move(width));
 }
 
-AnyWidgetModifier setMinimumWidth(float width)
-{
-    return mapSizeHint(setMinimumWidthImpl, bq::signal::constant(width));
-}
-
 AnyWidgetModifier setMinimumHeight(bq::signal::AnySignal<float> height)
 {
     return mapSizeHint(setMinimumHeightImpl, std::move(height));
-}
-
-AnyWidgetModifier setMinimumHeight(float height)
-{
-    return mapSizeHint(setMinimumHeightImpl, bq::signal::constant(height));
 }
 
 }

@@ -78,10 +78,5 @@ AnyWidget label(bq::signal::AnySignal<std::string> text)
     return makeWidget(makeLabel, provider::provideTheme(), std::move(text));
 }
 
-AnyWidget label(std::string const& text)
-{
-    return label(bq::signal::constant(std::move(text)));
-}
-
 }
 

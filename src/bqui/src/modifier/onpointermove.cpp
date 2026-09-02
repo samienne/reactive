@@ -42,12 +42,5 @@ AnyWidgetModifier onPointerMove(bq::signal::AnySignal<
             ));
 }
 
-AnyWidgetModifier onPointerMove(
-        std::function<EventResult(ase::PointerMoveEvent const&)> cb
-        )
-{
-    return onPointerMove(bq::signal::constant(std::move(cb)));
-}
-
 }
 

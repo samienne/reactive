@@ -75,13 +75,6 @@ AnyWidgetModifier onHover(bq::signal::AnySignal<
         ));
 }
 
-AnyWidgetModifier onHover(
-        std::function<void(HoverEvent const&)> cb
-        )
-{
-    return onHover(bq::signal::constant(std::move(cb)));
-}
-
 AnyWidgetModifier onHover(bq::signal::InputHandle<bool> handle)
 {
     return makeWidgetModifier([](auto widget, auto handle)

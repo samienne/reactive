@@ -25,10 +25,5 @@ AnyWidgetModifier onTextEvent(bq::signal::AnySignal<KeyboardInput::TextHandler> 
         ));
 }
 
-AnyWidgetModifier onTextEvent(KeyboardInput::TextHandler handler)
-{
-    return onTextEvent(bq::signal::constant(std::move(handler)));
-}
-
 }
 

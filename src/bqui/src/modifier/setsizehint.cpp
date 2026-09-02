@@ -17,11 +17,6 @@ AnyWidgetModifier setSizeHint(bq::signal::AnySignal<SizeHint>sizeHint)
     ));
 }
 
-AnyWidgetModifier setSizeHint(SizeHint sizeHint)
-{
-    return setSizeHint(bq::signal::constant(std::move(sizeHint)));
-}
-
 AnyWidgetModifier setSizeHint(avg::Vector2f requestedSize)
 {
     return setSizeHint(bq::signal::constant(
