@@ -830,6 +830,28 @@ TEST(signal, bindToFunction)
     EXPECT_EQ("42hello, world", f("world"));
 }
 
+TEST(signal, bindToFunctionWrongArityIsCleanFalse)
+{
+    // Probing the produced closure at the wrong arity must be a clean SFINAE
+    // false, not a hard error instantiated inside the closure body.
+    auto ignores = constant(true).bindToFunction([](bool) {});
+    auto ci = makeSignalContext(ignores);
+    auto fi = ci.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fi)&>);
+    static_assert(!std::is_invocable_v<decltype(fi)&, double>);
+
+    auto consumes = constant(true).bindToFunction([](bool, double) {});
+    auto cc = makeSignalContext(consumes);
+    auto fc = cc.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fc)&, double>);
+    static_assert(!std::is_invocable_v<decltype(fc)&>);
+
+    fi();
+    fc(3.14);
+}
+
 TEST(signal, withChanged)
 {
     auto input = makeInput(42, std::string("hello"));

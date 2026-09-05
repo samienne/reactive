@@ -14,6 +14,8 @@
 #include "withprevious.h"
 #include "constant.h"
 
+#include "detail/boundinvoker.h"
+
 #include <btl/future/future.h>
 #include <btl/async.h>
 #include <btl/bindarguments.h>
@@ -327,17 +329,8 @@ namespace bq::signal
         {
             return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
                 {
-                    return [func,
-                    params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
-                    (auto&&... us) mutable
-                    {
-                        return std::apply([&](auto&&... ts) mutable
-                                {
-                                    return func(std::forward<decltype(ts)>(ts)...,
-                                            std::forward<decltype(us)>(us)...);
-                                },
-                                params);
-                    };
+                    return detail::makeBoundInvoker(func,
+                            std::make_tuple(std::forward<decltype(ts)>(ts)...));
                 });
         }
 
