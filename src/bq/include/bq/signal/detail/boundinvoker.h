@@ -30,9 +30,9 @@ namespace bq::signal::detail
      * arguments it is called with.
      *
      * Produced by Signal::bindFirst: the signal's values become the callable's
-     * leading arguments and the call arguments follow them. The call operator
-     * is SFINAE-constrained so a wrong-arity call is a clean substitution
-     * failure rather than a hard error inside the body.
+     * leading arguments and the call arguments follow them. Probing the callable
+     * at the wrong arity (e.g. via std::is_invocable) yields a clean false
+     * rather than a hard error.
      */
     template <typename TFunc, typename TParams>
     class BoundInvoker
