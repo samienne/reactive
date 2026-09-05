@@ -51,6 +51,7 @@
 #include <ase/vector.h>
 
 #include <btl/future.h>
+#include <btl/dropparam.h>
 
 #include <iostream>
 #include <string>
@@ -243,11 +244,12 @@ int main()
                 .rotate(angle)
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
-                | modifier::onClick(0, m.signal.bindToFunction([h=m.handle](bool b) mutable
+                | modifier::onClick(0, m.signal.bindToFunction(
+                    btl::dropParam([h=m.handle](bool b) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
-                    }).cast<std::function<void()>>())
+                    })))
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
                 | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")

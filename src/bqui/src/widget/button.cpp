@@ -17,6 +17,10 @@
 
 #include "bqui/shapes.h"
 
+#include <btl/dropparam.h>
+
+#include <functional>
+
 namespace bqui::widget
 {
 
@@ -99,7 +103,11 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
             {
                 handle.set(e.hover);
             })
-        | modifier::onClick(1, std::move(onClick))
+        | modifier::onClick(1, std::move(onClick).map(
+                    [](std::function<void()> cb)
+                    {
+                        return btl::dropParam(std::move(cb));
+                    }))
         | modifier::setRole("Button")
         | modifier::setData("text", std::move(captionData))
         ;
