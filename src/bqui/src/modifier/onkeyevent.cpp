@@ -16,19 +16,19 @@ namespace bqui::modifier
 {
 
 OnKeyEvent::OnKeyEvent(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
-        bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) :
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)> predicate,
+        bq::signal::AnySignal<void(ase::KeyEvent const&)> action) :
     predicate_(std::move(predicate)),
     action_(std::move(action))
 {
 }
 
 OnKeyEvent OnKeyEvent::acceptIf(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)>
         predicate) &&
 {
     predicate_ = merge(std::move(predicate_), std::move(predicate))
-        .bindToFunction([](
+        .bindFirst([](
             std::function<bool(ase::KeyEvent const&)> const& pred1,
             std::function<bool(ase::KeyEvent const&)> const& pred2,
             ase::KeyEvent const& e)
@@ -39,15 +39,8 @@ OnKeyEvent OnKeyEvent::acceptIf(
     return std::move(*this);
 }
 
-OnKeyEvent OnKeyEvent::acceptIf(
-        std::function<bool(ase::KeyEvent const&)> pred) &&
-{
-    return std::move(*this)
-        .acceptIf(bq::signal::constant(std::move(pred)));
-}
-
 OnKeyEvent OnKeyEvent::acceptIfNot(
-        bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+        bq::signal::AnySignal<bool(ase::KeyEvent const&)>
         predicate) &&
 {
     auto inverse = [](std::function<bool(KeyEvent const&)> pred,
@@ -57,22 +50,14 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
     };
 
     return std::move(*this)
-        .acceptIf(std::move(predicate).bindToFunction(std::move(inverse)));
-}
-
-OnKeyEvent OnKeyEvent::acceptIfNot(
-        std::function<bool(ase::KeyEvent const&)> pred) &&
-{
-    return std::move(*this)
-        .acceptIf(bq::signal::constant([pred](KeyEvent const& e)
-                    { return !pred(e); }));
+        .acceptIf(std::move(predicate).bindFirst(std::move(inverse)));
 }
 
 OnKeyEvent OnKeyEvent::action(
-        bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&
+        bq::signal::AnySignal<void(ase::KeyEvent const&)> action) &&
 {
     action_ = merge(std::move(action_), std::move(action))
-        .bindToFunction([](
+        .bindFirst([](
                 std::function<void(ase::KeyEvent const&)> action1,
                 std::function<void(ase::KeyEvent const&)> action2,
                 ase::KeyEvent const& e)
@@ -82,13 +67,6 @@ OnKeyEvent OnKeyEvent::action(
             });
 
     return std::move(*this);
-}
-
-OnKeyEvent OnKeyEvent::action(
-        std::function<void(ase::KeyEvent const&)> action) &&
-{
-    return std::move(*this)
-        .action(bq::signal::constant(std::move(action)));
 }
 
 
@@ -114,17 +92,8 @@ bool isNavigationKey(KeyEvent const& e)
     return false;
 }
 
-AnyWidgetModifier onKeyEvent(std::function<InputResult(ase::KeyEvent const&)> cb)
-{
-    return makeWidgetModifier(makeInstanceSignalModifier(
-            onKeyEvent()
-            .acceptIfNot(&isNavigationKey)
-            .action(std::move(cb))
-            ));
-}
-
-AnyWidgetModifier onKeyEvent(bq::signal::AnySignal<std::function<InputResult(
-            ase::KeyEvent const&)>> cb)
+AnyWidgetModifier onKeyEvent(
+        bq::signal::AnySignal<InputResult(ase::KeyEvent const&)> cb)
 {
     return makeWidgetModifier(makeInstanceSignalModifier(
             onKeyEvent()

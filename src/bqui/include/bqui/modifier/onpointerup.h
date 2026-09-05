@@ -11,11 +11,8 @@
 namespace bqui::modifier
 {
     AnyWidgetModifier onPointerUp(bq::signal::AnySignal<
-            std::function<EventResult(ase::PointerButtonEvent const&)>
+            EventResult(ase::PointerButtonEvent const&)
             > cb);
-
-    AnyWidgetModifier onPointerUp(
-            std::function<EventResult(ase::PointerButtonEvent const&)> cb);
 
     AnyWidgetModifier onPointerUp(std::function<EventResult()> cb);
 }

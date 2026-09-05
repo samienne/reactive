@@ -9,9 +9,6 @@
 namespace bqui::widget
 {
     BQUI_EXPORT AnyWidget button(bq::signal::AnySignal<std::string> label,
-            bq::signal::AnySignal<std::function<void()>> onClick);
-
-    BQUI_EXPORT AnyWidget button(std::string label,
-            bq::signal::AnySignal<std::function<void()>> onClick);
+            bq::signal::AnySignal<void()> onClick);
 } // namespace bqui::widget
 

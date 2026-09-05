@@ -10,13 +10,12 @@
 #include <bq/signal/signal.h>
 
 #include <functional>
-#include <type_traits>
 
 namespace bqui::modifier
 {
 
 AnyWidgetModifier onClick(unsigned int button,
-        bq::signal::AnySignal<std::function<void(ClickEvent const&)>> cb)
+        bq::signal::AnySignal<void(ClickEvent const&)> cb)
 {
     auto f = [button](
             std::function<void(ClickEvent const&)> const& cb,
@@ -39,30 +38,13 @@ AnyWidgetModifier onClick(unsigned int button,
             return std::move(widget)
                 | onPointerUp(
                         merge(std::move(cb), std::move(size))
-                        .bindToFunction(std::move(f)))
+                        .bindFirst(std::move(f)))
                 | addCapability(widget::Capability::Clickable)
                 ;
         },
         std::move(f),
         std::move(cb).share()
         );
-}
-
-AnyWidgetModifier onClick(unsigned int button,
-        bq::signal::AnySignal<std::function<void()>> cb)
-{
-    auto f = [](std::function<void()> cb, ClickEvent const&)
-    {
-        cb();
-    };
-
-    auto c = std::move(cb).bindToFunction(std::move(f));
-    return onClick(button, c.template cast<std::function<void(ClickEvent const&)>>());
-}
-
-AnyWidgetModifier onClick(unsigned int button, std::function<void(ClickEvent const&)> f)
-{
-    return onClick(button, bq::signal::constant(std::move(f)));
 }
 
 }

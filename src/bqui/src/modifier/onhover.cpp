@@ -12,7 +12,7 @@ namespace bqui::modifier
 {
 
 AnyWidgetModifier onHover(
-        bq::signal::AnySignal<std::function<void(HoverEvent const&)>> cb,
+        bq::signal::AnySignal<void(HoverEvent const&)> cb,
         bq::signal::AnySignal<avg::Obb> area)
 {
     auto id = btl::makeUniqueId();
@@ -44,9 +44,8 @@ AnyWidgetModifier onHover(
             ));
 }
 
-AnyWidgetModifier onHover(bq::signal::AnySignal<
-        std::function<void(HoverEvent const&)>
-        > cb)
+AnyWidgetModifier onHover(
+        bq::signal::AnySignal<void(HoverEvent const&)> cb)
 {
     auto id = btl::makeUniqueId();
 
@@ -75,13 +74,6 @@ AnyWidgetModifier onHover(bq::signal::AnySignal<
         ));
 }
 
-AnyWidgetModifier onHover(
-        std::function<void(HoverEvent const&)> cb
-        )
-{
-    return onHover(bq::signal::constant(std::move(cb)));
-}
-
 AnyWidgetModifier onHover(bq::signal::InputHandle<bool> handle)
 {
     return makeWidgetModifier([](auto widget, auto handle)
@@ -102,11 +94,11 @@ AnyWidgetModifier onHover(bq::signal::AnySignal<avg::Obb> obb,
     return makeWidgetModifier([](auto widget, auto obb, auto handle)
         {
             return std::move(widget)
-                | onHover(bq::signal::constant([handle=std::move(handle)]
+                | onHover([handle=std::move(handle)]
                     (HoverEvent const& e) mutable
                     {
                         handle.set(e.hover);
-                    }), std::move(obb)
+                    }, std::move(obb)
                     )
                 ;
         },

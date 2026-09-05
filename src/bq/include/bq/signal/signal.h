@@ -12,12 +12,17 @@
 #include "weak.h"
 #include "withchanged.h"
 #include "withprevious.h"
+#include "constant.h"
+
+#include "detail/boundinvoker.h"
 
 #include <btl/future/future.h>
 #include <btl/async.h>
 #include <btl/bindarguments.h>
 
+#include <functional>
 #include <string>
+#include <tuple>
 
 namespace bq::signal
 {
@@ -26,6 +31,15 @@ namespace bq::signal
 
     template <typename... Ts>
     class AnySignal;
+
+    /**
+     * @brief Cast target for @ref Signal::cast: a bare function type
+     * @c R(Args...) maps to @c std::function<R(Args...)>, any other type to
+     * itself.
+     */
+    template <typename U>
+    using CastTargetT = std::conditional_t<
+        std::is_function_v<U>, std::function<U>, U>;
 
     template <typename TStorage, typename... Ts>
     class SignalWithStorage
@@ -289,14 +303,15 @@ namespace bq::signal
         }
 
         template <typename... Us, typename = std::enable_if_t<
-            btl::all(std::is_convertible_v<Ts, Us>...)
+            btl::all(std::is_convertible_v<Ts, CastTargetT<Us>>...)
             >>
         auto cast() const
         {
             return map([](auto&&... ts)
                 {
-                    return makeSignalResult<Us...>(
-                            static_cast<Us>(std::forward<decltype(ts)>(ts))...
+                    return makeSignalResult<CastTargetT<Us>...>(
+                            static_cast<CastTargetT<Us>>(
+                                std::forward<decltype(ts)>(ts))...
                             );
                 });
         }
@@ -309,22 +324,20 @@ namespace bq::signal
             return signal::merge(*this, std::forward<Us>(signals)...);
         }
 
+        /**
+         * @brief Binds the signal's values to @p func's leading parameters.
+         *
+         * Yields a signal of callables: each holds the current values as
+         * @p func's first arguments and takes the remaining arguments when
+         * called, so call-time arguments are trailing.
+         */
         template <typename TFunc>
-        auto bindToFunction(TFunc&& func) const
+        auto bindFirst(TFunc&& func) const
         {
             return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
                 {
-                    return [func,
-                    params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
-                    (auto&&... us) mutable
-                    {
-                        return std::apply([&](auto&&... ts) mutable
-                                {
-                                    return func(std::forward<decltype(ts)>(ts)...,
-                                            std::forward<decltype(us)>(us)...);
-                                },
-                                params);
-                    };
+                    return detail::makeBoundInvoker(func,
+                            std::make_tuple(std::forward<decltype(ts)>(ts)...));
                 });
         }
 
@@ -396,6 +409,24 @@ namespace bq::signal
         {
         }
 
+        /**
+         * @brief Constructs a constant signal holding @p value.
+         *
+         * Enables `AnySignal<T> s = value;`. Single-value signals only.
+         */
+        template <typename U,
+            typename V = std::tuple_element_t<0, std::tuple<Ts..., void>>,
+            typename = std::enable_if_t<
+                sizeof...(Ts) == 1
+                && !IsSignal<std::decay_t<U>>::value
+                && std::is_convertible_v<U&&, V>
+            >>
+        AnySignal(U&& value) :
+            Signal<void, Ts...>(makeTypelessSignal<Ts...>(
+                        constant(static_cast<V>(std::forward<U>(value)))))
+        {
+        }
+
         template <typename TStorage, typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Us, Ts>...)
             >>
@@ -420,6 +451,20 @@ namespace bq::signal
         }
     };
 
+    /**
+     * @brief A callback signal: shorthand for
+     * AnySignal<std::function<R(Args...)>>.
+     *
+     * Constructs from a matching callable (lambda, function, std::function) via
+     * the value constructor, or from a signal of that std::function.
+     */
+    template <typename R, typename... Args>
+    class AnySignal<R(Args...)> : public AnySignal<std::function<R(Args...)>>
+    {
+    public:
+        using AnySignal<std::function<R(Args...)>>::AnySignal;
+    };
+
     template <typename... Ts>
     struct IsSignal<Signal<Ts...>> : std::true_type {};
 
@@ -427,3 +472,14 @@ namespace bq::signal
     struct IsSignal<AnySignal<Ts...>> : std::true_type {};
 } // namespace bq::signal
 
+namespace bq
+{
+    /**
+     * @brief A constant signal of @p value; shorthand for signal::constant.
+     */
+    template <typename T>
+    auto sig(T&& value)
+    {
+        return signal::constant(std::forward<T>(value));
+    }
+} // namespace bq

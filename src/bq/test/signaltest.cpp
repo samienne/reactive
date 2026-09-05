@@ -12,6 +12,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+
 using namespace bq::signal;
 
 static_assert(std::is_same_v<
@@ -99,6 +101,107 @@ TEST(signal, constant)
     FrameInfo frame(1, signal_time_t(10));
 
     c.update(frame);
+}
+
+TEST(signal, valueConstructsConstant)
+{
+    AnySignal<int> i = 5;
+    auto ci = makeSignalContext(i);
+    EXPECT_EQ(5, ci.evaluate<0>().get<0>());
+
+    // A convertible value works too (const char* -> std::string).
+    AnySignal<std::string> s = "hi";
+    auto cs = makeSignalContext(s);
+    EXPECT_EQ(std::string("hi"), cs.evaluate<0>().get<0>());
+}
+
+TEST(signal, valueCtorDoesNotShadowSignalCtor)
+{
+    // An actual signal still selects the signal-converting constructor.
+    AnySignal<int> a = constant(7);
+    EXPECT_EQ(7, makeSignalContext(a).evaluate<0>().get<0>());
+
+    AnySignal<int> b = a;
+    EXPECT_EQ(7, makeSignalContext(b).evaluate<0>().get<0>());
+}
+
+TEST(signal, sigShorthand)
+{
+    auto c = makeSignalContext(bq::sig(1));
+    EXPECT_EQ(1, c.evaluate<0>().get<0>());
+    EXPECT_EQ(Type<int const&>(), getType(c.evaluate<0>().get<0>()));
+}
+
+TEST(signal, valueCtorIsSingleValueOnly)
+{
+    static_assert(std::is_constructible_v<AnySignal<int>, int>,
+            "a single-value AnySignal constructs from a value");
+    static_assert(!std::is_constructible_v<AnySignal<int, int>, int>,
+            "a multi-value AnySignal has no value constructor");
+    static_assert(std::is_constructible_v<AnySignal<int>, AnySignal<int>>,
+            "copy construction is preserved");
+}
+
+TEST(signal, functionSignatureAnySignalWrapsStdFunction)
+{
+    auto flag = std::make_shared<int>(0);
+
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+
+    std::function<void(int)> f = makeSignalContext(s).evaluate<0>().get<0>();
+    f(7);
+    EXPECT_EQ(7, *flag);
+
+    // A multi-argument callable returns a value.
+    AnySignal<int(int, std::string)> g =
+        [](int a, std::string const& b) { return a + (int)b.size(); };
+
+    std::function<int(int, std::string)> gf =
+        makeSignalContext(g).evaluate<0>().get<0>();
+    EXPECT_EQ(4, gf(2, "hi"));
+}
+
+TEST(signal, functionSignatureAnySignalIsSignal)
+{
+    static_assert(IsSignal<AnySignal<void(int)>>::value,
+            "a function-signature AnySignal is treated as a signal");
+
+    // The derived converts to the underlying std::function AnySignal.
+    auto flag = std::make_shared<int>(0);
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+    AnySignal<std::function<void(int)>> base = s;
+
+    std::function<void(int)> f = makeSignalContext(base).evaluate<0>().get<0>();
+    f(5);
+    EXPECT_EQ(5, *flag);
+
+    // Copy of the derived carries the same callable.
+    AnySignal<void(int)> copy = s;
+    std::function<void(int)> cf = makeSignalContext(copy).evaluate<0>().get<0>();
+    cf(9);
+    EXPECT_EQ(9, *flag);
+}
+
+TEST(signal, functionSignatureAnySignalTransforms)
+{
+    auto flag = std::make_shared<int>(0);
+    AnySignal<void(int)> s = [flag](int x) { *flag = x; };
+
+    // eraseType() resolves to the std::function base.
+    AnySignal<std::function<void(int)>> erased = s.eraseType();
+    std::function<void(int)> ef = makeSignalContext(erased).evaluate<0>().get<0>();
+    ef(3);
+    EXPECT_EQ(3, *flag);
+
+    // map() instantiates on the std::function base, not the raw function type.
+    auto mapped = s.map([](std::function<void(int)> const& f) { return f ? 1 : 0; });
+    EXPECT_EQ(1, makeSignalContext(mapped).evaluate<0>().get<0>());
+
+    // share().clone() stays valid too.
+    auto shared = s.share().clone();
+    std::function<void(int)> sf = makeSignalContext(shared).evaluate<0>().get<0>();
+    sf(5);
+    EXPECT_EQ(5, *flag);
 }
 
 TEST(signal, signalContext)
@@ -683,11 +786,32 @@ TEST(signal, cast)
     EXPECT_EQ("20", f(20));
 }
 
-TEST(signal, bindToFunction)
+TEST(signal, castFunctionShorthand)
+{
+    auto flag = std::make_shared<bool>(false);
+
+    auto s1 = constant([flag]() { *flag = true; });
+
+    auto s2 = s1.cast<void()>();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate<0>().get<0>();
+
+    EXPECT_EQ(Type<std::function<void()>>(), Type<decltype(f)>());
+
+    f();
+
+    EXPECT_TRUE(*flag);
+}
+
+TEST(signal, bindFirst)
 {
     auto input1 = makeInput(42, std::string("hello"));
 
-    auto s1 = input1.signal.bindToFunction([](int i, std::string const& s1,
+    auto s1 = input1.signal.bindFirst([](int i, std::string const& s1,
                 std::string const& s2)
             {
                 return std::to_string(i) + s1 + ", " + s2;
@@ -704,6 +828,28 @@ TEST(signal, bindToFunction)
     auto f = c.evaluate<0>().get<0>();
 
     EXPECT_EQ("42hello, world", f("world"));
+}
+
+TEST(signal, bindFirstWrongArityIsCleanFalse)
+{
+    // Probing the produced closure at the wrong arity must be a clean SFINAE
+    // false, not a hard error instantiated inside the closure body.
+    auto ignores = constant(true).bindFirst([](bool) {});
+    auto ci = makeSignalContext(ignores);
+    auto fi = ci.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fi)&>);
+    static_assert(!std::is_invocable_v<decltype(fi)&, double>);
+
+    auto consumes = constant(true).bindFirst([](bool, double) {});
+    auto cc = makeSignalContext(consumes);
+    auto fc = cc.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fc)&, double>);
+    static_assert(!std::is_invocable_v<decltype(fc)&>);
+
+    fi();
+    fc(3.14);
 }
 
 TEST(signal, withChanged)

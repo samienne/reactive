@@ -43,7 +43,7 @@ namespace
         auto handle = textState.handle;
 
         auto onEnterSignal = textState.signal
-            .bindToFunction(
+            .bindFirst(
                 [onEnter, handle]
                 (auto const state) mutable
                 {
@@ -88,7 +88,7 @@ bqui::widget::AnyWidget adder()
             {
                 return widget::hbox({
                 widget::button("U",
-                    textInputSignal.bindToFunction(
+                    textInputSignal.bindFirst(
                     [items, id] (std::string str) mutable
                     {
                         auto range = items.rangeLock();
@@ -179,7 +179,7 @@ bqui::widget::AnyWidget adder()
                 ),
                 widget::hbox({
                     widget::label("Theme:"),
-                    widget::button(std::move(buttonTitle), fancy.signal.bindToFunction(
+                    widget::button(std::move(buttonTitle), fancy.signal.bindFirst(
                         [handle=fancy.handle](bool fancy) mutable
                         {
                             auto a = withAnimation(0.3f, avg::curve::linear);
@@ -189,7 +189,7 @@ bqui::widget::AnyWidget adder()
                     })
             }
         )
-        | modifier::setGravity({ 0.5f, 1.0f })
+        | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
         | modifier::setTheme(std::move(theme))
         ;
 }

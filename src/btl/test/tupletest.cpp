@@ -96,6 +96,44 @@ TEST(Tuple, all_but_last)
             >::value, "");
 }
 
+TEST(Tuple, all_but_last_multi_element)
+{
+    auto t = btl::tuple_all_but_last(std::make_tuple(1, 2, 3));
+
+    static_assert(std::tuple_size<decltype(t)>::value == 2, "");
+
+    EXPECT_EQ(std::make_tuple(1, 2), t);
+}
+
+TEST(Tuple, all_but_last_single_to_empty)
+{
+    auto t = btl::tuple_all_but_last(std::make_tuple(42));
+
+    static_assert(std::is_same<std::tuple<>, decltype(t)>::value, "");
+    static_assert(std::tuple_size<decltype(t)>::value == 0, "");
+}
+
+TEST(Tuple, all_but_last_forwards_through_apply)
+{
+    int a = 1;
+    std::string b = "two";
+    double c = 3.0;
+
+    int seenA = 0;
+    std::string seenB;
+
+    std::apply(
+            [&](int x, std::string const& y)
+            {
+                seenA = x;
+                seenB = y;
+            },
+            btl::tuple_all_but_last(std::forward_as_tuple(a, b, c)));
+
+    EXPECT_EQ(1, seenA);
+    EXPECT_EQ(std::string("two"), seenB);
+}
+
 TEST(Tuple, last)
 {
     auto t1 = std::tuple<int, std::string, std::unique_ptr<int>>(

@@ -94,10 +94,5 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
     );
 }
 
-AnyWidgetModifier margin(float amount)
-{
-    return margin(bq::signal::constant(amount));
-}
-
 }
 

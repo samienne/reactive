@@ -81,7 +81,7 @@ AnyWidget scrollView(AnyWidget widget)
                 {{100, 800, 10000}}
                 )))
             | modifier::trackSize(viewSize.handle)
-            | modifier::onPointerDown(merge(x.signal, y.signal).bindToFunction(
+            | modifier::onPointerDown(merge(x.signal, y.signal).bindFirst(
                     [dragOffsetHandle=dragOffset.handle,
                     scrollPosHandle=scrollPos.handle
                     ]
@@ -98,7 +98,7 @@ AnyWidget scrollView(AnyWidget widget)
                     })
                     )
             | modifier::onPointerMove(merge(dragOffset.signal, viewSize.signal,
-                        contentSize, scrollPos.signal).bindToFunction(
+                        contentSize, scrollPos.signal).bindFirst(
                     [xHandle=x.handle, yHandle=y.handle]
                     (avg::Vector2f dragOffset, avg::Vector2f viewSize,
                         avg::Vector2f contentSize,

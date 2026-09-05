@@ -84,11 +84,10 @@ void openSecondWindow()
     app().addWindow(
             w,
             widget::button("Close me",
-                    bq::signal::constant(std::function<void()>(
-                            [w]()
-                            {
-                                w.close();
-                            })))
+                    [w]()
+                    {
+                        w.close();
+                    })
                 | modifier::frame()
                 | modifier::focusGroup());
 }
@@ -205,11 +204,11 @@ int main()
 
         app().addWindow(
                 trackedWindow,
-                widget::button("Close me", bq::signal::constant(
-                        std::function<void()>([w]() mutable
-                            {
-                                w.close();
-                            })))
+                widget::button("Close me",
+                        [w]() mutable
+                        {
+                            w.close();
+                        })
                     | modifier::frame()
                     | modifier::focusGroup());
     };
@@ -217,8 +216,7 @@ int main()
     auto widgets = widget::hbox({
         widget::vbox({
             widget::button("Open another window",
-                    bq::signal::constant(std::function<void()>(
-                            []() { openSecondWindow(); })))
+                    []() { openSecondWindow(); })
                 | modifier::setSizeHint({ 250, 50 }),
             widget::button(
                     showTracked.signal.map([](bool b) -> std::string
@@ -226,7 +224,7 @@ int main()
                             return b ? "Close tracked window"
                                 : "Open tracked window";
                         }),
-                    showTracked.signal.bindToFunction(
+                    showTracked.signal.bindFirst(
                         [trackedWindow, openTracked](bool b) mutable
                         {
                             if (b)
@@ -245,24 +243,25 @@ int main()
                 .rotate(angle)
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
-                | modifier::onClick(0, m.signal.bindToFunction([h=m.handle](bool b) mutable
+                | modifier::onClick(0, m.signal.bindFirst(
+                    [h=m.handle](bool b, ClickEvent const&) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
-                    }).cast<std::function<void()>>())
+                    }))
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
-                | modifier::setMinimumSize({ 100.0f, 200.0f }),
+                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame()
                 | modifier::setName("curvesLabel"),
             curveVisualizer(std::move(curve)),
-            widget::button(std::move(curveName), curveSelection.signal.bindToFunction(
+            widget::button(std::move(curveName), curveSelection.signal.bindFirst(
                         [handle=curveSelection.handle](int i) mutable
                         {
                             handle.set(static_cast<int>((i+1) % curves.size()));
                         }))
-                | modifier::setGravity({ 0.5f, 1.0f })
-                | modifier::setSize({ 150, 50 })
+                | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
+                | modifier::setSize(avg::Vector2f{ 150, 50 })
                 | modifier::setSizeHint({ 300, 300 })
                 | modifier::setName("nextCurveButton")
                 | modifier::setRole("Button"),

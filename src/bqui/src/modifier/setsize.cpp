@@ -55,8 +55,4 @@ namespace bqui::modifier
         return makeWidgetModifier(setSizeModifier, std::move(size));
     }
 
-    AnyWidgetModifier setSize(avg::Vector2f size)
-    {
-        return setSize(bq::signal::constant(size));
-    }
 }
