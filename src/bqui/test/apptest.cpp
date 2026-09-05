@@ -6,7 +6,7 @@
 
 #include <ase/dummyplatform.h>
 
-#include <btl/dropparam.h>
+#include <btl/ignorelast.h>
 #include <btl/runloop.h>
 
 #include <bq/signal/constant.h>
@@ -69,7 +69,7 @@ namespace
     widget::AnyWidget probeWidget(Probe probe)
     {
         return widget::makeWidget()
-            | modifier::onClick(0, btl::dropParam([probe]() {}));
+            | modifier::onClick(0, btl::ignoreLast([probe]() {}));
     }
 
     Window makeWindow(std::string title, Opens& opens)
@@ -195,7 +195,7 @@ TEST(App, aCloseButtonCapturingItsOwnWindowDoesNotLeak)
         // The widget captures the owning window (to close it) and the probe.
         app.addWindow(w, widget::makeWidget()
                 | modifier::onClick(0,
-                        btl::dropParam([w, held]() { w.close(); })));
+                        btl::ignoreLast([w, held]() { w.close(); })));
     }
 
     int frames = 0;

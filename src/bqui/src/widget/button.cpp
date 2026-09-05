@@ -17,7 +17,7 @@
 
 #include "bqui/shapes.h"
 
-#include <btl/dropparam.h>
+#include <btl/ignorelast.h>
 
 #include <functional>
 
@@ -106,7 +106,7 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
         | modifier::onClick(1, std::move(onClick).map(
                     [](std::function<void()> cb)
                     {
-                        return btl::dropParam(std::move(cb));
+                        return btl::ignoreLast(std::move(cb));
                     }))
         | modifier::setRole("Button")
         | modifier::setData("text", std::move(captionData))
