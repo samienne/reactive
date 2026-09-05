@@ -80,8 +80,8 @@ widget::AnyWidget makeTestWidget()
 
     return widget::makeWidget()
         | modifier::onDraw(drawTestWidget, std::move(state), std::move(textState))
-        | modifier::onClick(1, std::function<void()>(send(1, p.handle)))
-        | modifier::onClick(1, std::function<void()>(send(true, focus.handle)))
+        | modifier::onClick(1, send(1, p.handle))
+        | modifier::onClick(1, send(true, focus.handle))
         | modifier::onKeyEvent(sendKeysTo(p2.handle))
         | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
                     {{200.0f, 400.0f, 10000.0f}},

@@ -10,7 +10,6 @@
 #include <bq/signal/signal.h>
 
 #include <functional>
-#include <type_traits>
 
 namespace bqui::modifier
 {
@@ -46,18 +45,6 @@ AnyWidgetModifier onClick(unsigned int button,
         std::move(f),
         std::move(cb).share()
         );
-}
-
-AnyWidgetModifier onClick(unsigned int button,
-        bq::signal::AnySignal<void()> cb)
-{
-    auto f = [](std::function<void()> cb, ClickEvent const&)
-    {
-        cb();
-    };
-
-    auto c = std::move(cb).bindToFunction(std::move(f));
-    return onClick(button, c.template cast<std::function<void(ClickEvent const&)>>());
 }
 
 }
