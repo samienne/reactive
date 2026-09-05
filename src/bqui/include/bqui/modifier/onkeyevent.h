@@ -63,7 +63,7 @@ namespace bqui::modifier
 
             return std::move(instance)
                 | detail::onKeyEvent(
-                        merge(predicate_, action_).bindToFunction(f)
+                        merge(predicate_, action_).bindFirst(f)
                         )
                 ;
         }

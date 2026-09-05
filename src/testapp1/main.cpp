@@ -224,7 +224,7 @@ int main()
                             return b ? "Close tracked window"
                                 : "Open tracked window";
                         }),
-                    showTracked.signal.bindToFunction(
+                    showTracked.signal.bindFirst(
                         [trackedWindow, openTracked](bool b) mutable
                         {
                             if (b)
@@ -243,7 +243,7 @@ int main()
                 .rotate(angle)
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
-                | modifier::onClick(0, m.signal.bindToFunction(
+                | modifier::onClick(0, m.signal.bindFirst(
                     [h=m.handle](bool b, ClickEvent const&) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
@@ -255,7 +255,7 @@ int main()
                 | modifier::frame()
                 | modifier::setName("curvesLabel"),
             curveVisualizer(std::move(curve)),
-            widget::button(std::move(curveName), curveSelection.signal.bindToFunction(
+            widget::button(std::move(curveName), curveSelection.signal.bindFirst(
                         [handle=curveSelection.handle](int i) mutable
                         {
                             handle.set(static_cast<int>((i+1) % curves.size()));
