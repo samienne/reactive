@@ -786,6 +786,27 @@ TEST(signal, cast)
     EXPECT_EQ("20", f(20));
 }
 
+TEST(signal, castFunctionShorthand)
+{
+    auto flag = std::make_shared<bool>(false);
+
+    auto s1 = constant([flag]() { *flag = true; });
+
+    auto s2 = s1.cast<void()>();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate<0>().get<0>();
+
+    EXPECT_EQ(Type<std::function<void()>>(), Type<decltype(f)>());
+
+    f();
+
+    EXPECT_TRUE(*flag);
+}
+
 TEST(signal, bindToFunction)
 {
     auto input1 = makeInput(42, std::string("hello"));

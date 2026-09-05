@@ -30,6 +30,15 @@ namespace bq::signal
     template <typename... Ts>
     class AnySignal;
 
+    /**
+     * @brief Cast target for @ref Signal::cast: a bare function type
+     * @c R(Args...) maps to @c std::function<R(Args...)>, any other type to
+     * itself.
+     */
+    template <typename U>
+    using CastTargetT = std::conditional_t<
+        std::is_function_v<U>, std::function<U>, U>;
+
     template <typename TStorage, typename... Ts>
     class SignalWithStorage
     {
@@ -292,14 +301,15 @@ namespace bq::signal
         }
 
         template <typename... Us, typename = std::enable_if_t<
-            btl::all(std::is_convertible_v<Ts, Us>...)
+            btl::all(std::is_convertible_v<Ts, CastTargetT<Us>>...)
             >>
         auto cast() const
         {
             return map([](auto&&... ts)
                 {
-                    return makeSignalResult<Us...>(
-                            static_cast<Us>(std::forward<decltype(ts)>(ts))...
+                    return makeSignalResult<CastTargetT<Us>...>(
+                            static_cast<CastTargetT<Us>>(
+                                std::forward<decltype(ts)>(ts))...
                             );
                 });
         }
