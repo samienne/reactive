@@ -51,7 +51,6 @@
 #include <ase/vector.h>
 
 #include <btl/future.h>
-#include <btl/ignorelast.h>
 
 #include <iostream>
 #include <string>
@@ -245,11 +244,11 @@ int main()
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
                 | modifier::onClick(0, m.signal.bindToFunction(
-                    btl::ignoreLast([h=m.handle](bool b) mutable
+                    [h=m.handle](bool b, ClickEvent const&) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
-                    })))
+                    }))
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
                 | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
