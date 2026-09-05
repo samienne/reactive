@@ -38,7 +38,7 @@ AnyWidgetModifier onClick(unsigned int button,
             return std::move(widget)
                 | onPointerUp(
                         merge(std::move(cb), std::move(size))
-                        .bindToFunction(std::move(f)))
+                        .bindFirst(std::move(f)))
                 | addCapability(widget::Capability::Clickable)
                 ;
         },

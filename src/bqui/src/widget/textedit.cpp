@@ -217,7 +217,7 @@ namespace
                         keyHandle.push(e);
                     })
             //| modifier::onKeyEvent(sendKeysTo(keyStream.handle))
-            | modifier::onKeyEvent(bq::signal::combine(onEnter).bindToFunction(
+            | modifier::onKeyEvent(bq::signal::combine(onEnter).bindFirst(
                         [handle=keyStream.handle](
                             std::vector<std::function<void()>> onEnter,
                             KeyEvent const& keyEvent)

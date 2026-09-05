@@ -807,11 +807,11 @@ TEST(signal, castFunctionShorthand)
     EXPECT_TRUE(*flag);
 }
 
-TEST(signal, bindToFunction)
+TEST(signal, bindFirst)
 {
     auto input1 = makeInput(42, std::string("hello"));
 
-    auto s1 = input1.signal.bindToFunction([](int i, std::string const& s1,
+    auto s1 = input1.signal.bindFirst([](int i, std::string const& s1,
                 std::string const& s2)
             {
                 return std::to_string(i) + s1 + ", " + s2;
@@ -830,18 +830,18 @@ TEST(signal, bindToFunction)
     EXPECT_EQ("42hello, world", f("world"));
 }
 
-TEST(signal, bindToFunctionWrongArityIsCleanFalse)
+TEST(signal, bindFirstWrongArityIsCleanFalse)
 {
     // Probing the produced closure at the wrong arity must be a clean SFINAE
     // false, not a hard error instantiated inside the closure body.
-    auto ignores = constant(true).bindToFunction([](bool) {});
+    auto ignores = constant(true).bindFirst([](bool) {});
     auto ci = makeSignalContext(ignores);
     auto fi = ci.evaluate<0>().get<0>();
 
     static_assert(std::is_invocable_v<decltype(fi)&>);
     static_assert(!std::is_invocable_v<decltype(fi)&, double>);
 
-    auto consumes = constant(true).bindToFunction([](bool, double) {});
+    auto consumes = constant(true).bindFirst([](bool, double) {});
     auto cc = makeSignalContext(consumes);
     auto fc = cc.evaluate<0>().get<0>();
 

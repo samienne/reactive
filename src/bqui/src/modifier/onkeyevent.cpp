@@ -28,7 +28,7 @@ OnKeyEvent OnKeyEvent::acceptIf(
         predicate) &&
 {
     predicate_ = merge(std::move(predicate_), std::move(predicate))
-        .bindToFunction([](
+        .bindFirst([](
             std::function<bool(ase::KeyEvent const&)> const& pred1,
             std::function<bool(ase::KeyEvent const&)> const& pred2,
             ase::KeyEvent const& e)
@@ -50,14 +50,14 @@ OnKeyEvent OnKeyEvent::acceptIfNot(
     };
 
     return std::move(*this)
-        .acceptIf(std::move(predicate).bindToFunction(std::move(inverse)));
+        .acceptIf(std::move(predicate).bindFirst(std::move(inverse)));
 }
 
 OnKeyEvent OnKeyEvent::action(
         bq::signal::AnySignal<void(ase::KeyEvent const&)> action) &&
 {
     action_ = merge(std::move(action_), std::move(action))
-        .bindToFunction([](
+        .bindFirst([](
                 std::function<void(ase::KeyEvent const&)> action1,
                 std::function<void(ase::KeyEvent const&)> action2,
                 ase::KeyEvent const& e)

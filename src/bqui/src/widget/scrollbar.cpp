@@ -126,7 +126,7 @@ namespace
                 std::move(sizeSignal),
                 amountSignal,
                 std::move(handleSizeSignal)
-            ).bindToFunction([downHandle=std::move(downHandle)]
+            ).bindFirst([downHandle=std::move(downHandle)]
             (avg::Vector2f size, float amount, float handleSize,
              PointerButtonEvent e) mutable
             {
@@ -186,7 +186,7 @@ namespace
                     })
                 | modifier::onPointerMove(merge(downOffset.signal, size.clone(),
                             handleSize)
-                    .bindToFunction([scrollHandle]
+                    .bindFirst([scrollHandle]
                     (std::optional<avg::Vector2f> downOffset,
                         avg::Vector2f size, float handleSize,
                         PointerMoveEvent const& e) mutable -> EventResult

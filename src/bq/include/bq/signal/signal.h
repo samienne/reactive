@@ -324,8 +324,15 @@ namespace bq::signal
             return signal::merge(*this, std::forward<Us>(signals)...);
         }
 
+        /**
+         * @brief Binds the signal's values to @p func's leading parameters.
+         *
+         * Yields a signal of callables: each holds the current values as
+         * @p func's first arguments and takes the remaining arguments when
+         * called, so call-time arguments are trailing.
+         */
         template <typename TFunc>
-        auto bindToFunction(TFunc&& func) const
+        auto bindFirst(TFunc&& func) const
         {
             return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
                 {
