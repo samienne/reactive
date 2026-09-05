@@ -85,6 +85,10 @@ nlohmann::json toJson(widget::Introspection const& node)
     if (node.name)
         result["name"] = *node.name;
 
+    // The same numeric form avg's snapshot emits, so the two trees join on it.
+    if (node.id)
+        result["id"] = node.id->getValue();
+
     result["role"] = node.role;
 
     auto capabilities = nlohmann::json::array();

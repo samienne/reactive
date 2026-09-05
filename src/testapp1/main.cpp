@@ -17,6 +17,7 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/transform.h>
+#include <bqui/modifier/constraintsize.h>
 
 #include <bqui/widget/scrollbar.h>
 #include <bqui/widget/scrollview.h>
@@ -28,6 +29,7 @@
 #include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/vbox.h>
+#include <bqui/widget/puresolver.h>
 
 #include <bqui/shape/rectangle.h>
 
@@ -299,12 +301,74 @@ int main()
     printWidgetHierarchy(widgets.clone(), avg::Vector2f(800.0f, 600.0f));
     printWidgetHierarchy(widgets.clone(), avg::Vector2f(400.0f, 300.0f));
 
+    // A real content-sized scene behind the pure solver, built from ordinary
+    // widgets. Every leaf sizes to its own content; the fillers take the slack,
+    // so the toolbar's right-aligned button, the form field's trailing space and
+    // each row's tail reflow as the window resizes, while the panel frame and the
+    // margins hold. Restore the original UI by swapping std::move(panel) below for
+    // std::move(widgets) | modifier::focusGroup().
+    auto formState = bq::signal::makeInput(widget::TextEditState{"Ada Lovelace"});
+
+    Theme theme;
+
+    auto barButton = [](std::string text) -> widget::AnyWidget
+    {
+        return widget::button(text,
+                        [text]() { std::cout << text << " clicked\n"; })
+            | modifier::margin(4.0f);
+    };
+
+    auto swatch = [](avg::Color color) -> widget::AnyWidget
+    {
+        return shape::rectangle().fill(color)
+            | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f))
+            | modifier::margin(6.0f);
+    };
+
+    auto panel = widget::pureSolverRoot(widget::vbox({
+        // Toolbar: content-sized buttons, a filler, then a right-aligned button.
+        widget::hbox({
+            barButton("New"),
+            barButton("Open"),
+            barButton("Save"),
+            widget::filler(),
+            barButton("Help"),
+        }),
+
+        // Form row: a content-sized label and a text field that fills the rest of
+        // the row -- fill() makes the field flexible like a filler while keeping
+        // its content as a flex-basis.
+        widget::hbox({
+            widget::label("Name:") | modifier::margin(6.0f),
+            widget::AnyWidget(widget::textEdit(formState.handle,
+                        formState.signal.cast<widget::TextEditState>()))
+                | modifier::margin(6.0f)
+                | modifier::fill(),
+        }),
+
+        // Content row: a label, three fixed-size colored swatches, and a filler.
+        widget::hbox({
+            widget::label("Palette:") | modifier::margin(6.0f),
+            swatch(theme.getOrange()),
+            swatch(theme.getBlue()),
+            swatch(theme.getGreen()),
+            widget::filler(),
+        }),
+
+        // Absorb the remaining vertical space so the rows stay at the top.
+        widget::filler(),
+    }))
+        | modifier::margin(10.0f)
+        | modifier::frame()
+        | modifier::focusGroup();
+
     return app()
         .addWindow(
-                window(bq::signal::constant<std::string>("Test program")),
-                std::move(widgets)
-                //| debug::drawKeyboardInputs()
-                | modifier::focusGroup()
+                window(bq::signal::constant<std::string>(
+                        "Pure-solver content layout")),
+                std::move(panel)
+                // Restore the original demo UI by swapping the line above for:
+                // std::move(widgets) | modifier::focusGroup()
                 )
         .run();
 }

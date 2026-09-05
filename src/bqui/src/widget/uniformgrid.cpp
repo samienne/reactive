@@ -1,9 +1,7 @@
 #include "bqui/widget/uniformgrid.h"
 
-#include "bqui/widget/layout.h"
-
-#include "bqui/mapsizehint.h"
-#include "bqui/stacksizehint.h"
+#include "constraintbox.h"
+#include "constraintlayout.h"
 
 namespace bqui::widget
 {
@@ -23,75 +21,14 @@ auto UniformGrid::cell(unsigned int x, unsigned int y,
     return std::move(*this);
 }
 
-auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
-{
-    return mapSizeHint(sizeHint,
-            [x](SizeHintResult result) -> SizeHintResult
-            {
-                return {{ result[0] * x, result[1] * x, result[2] * x }};
-            },
-            [y](SizeHintResult result, float) -> SizeHintResult
-            {
-                return {{ result[0] * y, result[1] * y, result[2] * y }};
-            },
-            [x](SizeHintResult result, float) -> SizeHintResult
-            {
-                return {{ result[0] * x, result[1] * x, result[2] * x }};
-            }
-            );
-}
-
 UniformGrid::operator AnyWidget() &&
 {
-    return makeWidget([](auto widgets, auto cells,
-                unsigned int w, unsigned int h)
-        {
-            auto mapHints = [w, h](std::vector<SizeHint> const& hints)
-                -> SizeHint
-            {
-                return multiplySizeHint(stackSizeHints(hints), (float)w, (float)h);
-            };
+    std::vector<GridCell> cells;
+    cells.reserve(cells_.size());
+    for (Cell const& cell : cells_)
+        cells.push_back(GridCell{cell.x, cell.y, cell.w, cell.h});
 
-            auto mapObbs = [w, h, cells](ase::Vector2f size,
-                    std::vector<SizeHint> const& hints)
-                -> std::vector<avg::Obb>
-            {
-                if (hints.empty())
-                    return {};
-
-                auto cellSize = ase::Vector2f(
-                        size[0] / (float)w,
-                        size[1] / (float)h);
-
-                std::vector<avg::Obb> obbs;
-                for (auto const& cell : cells)
-                {
-                    auto t = avg::Transform().translate(
-                            (float)cell.x * cellSize[0],
-                            (float)cell.y * cellSize[1]);
-
-                    obbs.push_back(
-                            t * avg::Obb(ase::Vector2f(
-                                    (float)cell.w * cellSize[0],
-                                    (float)cell.h * cellSize[1])));
-                }
-
-                return obbs;
-            };
-
-            return layout(
-                    std::move(mapHints),
-                    std::move(mapObbs),
-                    std::move(widgets)
-                    );
-
-        },
-        std::move(widgets_),
-        std::move(cells_),
-        w_,
-        h_
-        );
+    return solverUniformGrid(std::move(widgets_), std::move(cells), w_, h_);
 }
 
 }
-

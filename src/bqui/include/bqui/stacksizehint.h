@@ -7,9 +7,9 @@ namespace bqui
 {
     struct BQUI_EXPORT StackSizeHint
     {
-        SizeHintResult getWidth() const;
-        SizeHintResult getHeightForWidth(float width) const;
-        SizeHintResult getWidthForHeight(float height) const;
+        AxisHint getWidth() const;
+        AxisHint getHeightForWidth(float width) const;
+        AxisHint getWidthForHeight(float height) const;
 
         std::vector<SizeHint> hints_;
     };

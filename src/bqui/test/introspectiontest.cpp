@@ -8,6 +8,7 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 #include <bqui/modifier/setsize.h>
+#include <bqui/modifier/setid.h>
 #include <bqui/modifier/onclick.h>
 
 #include <bqui/shape/shape.h>
@@ -16,6 +17,7 @@
 
 #include <avg/color.h>
 #include <avg/transform.h>
+#include <avg/rendertree.h>
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -158,7 +160,7 @@ TEST(introspection, childrenCarryOwnDivergentObb)
         | setSize(avg::Vector2f(100.0f, 20.0f))
         | setRole("Filler");
 
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(std::move(small));
     children.push_back(std::move(wide));
 
@@ -209,7 +211,7 @@ TEST(introspection, stretchedChildObbExceedsNatural)
     // A stretchy child (filled rect, ~zero natural size) placed in an hbox that
     // is realised much larger than natural: its child obb must reflect the
     // stretched bounds, not the small natural size.
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(filledRect() | setRole("Stretchy"));
 
     auto node = introspect(hbox(std::move(children)),
@@ -226,7 +228,7 @@ TEST(introspection, childObbIsWindowSpace)
     // Two fixed-size children in an hbox: the second child's obb must be offset
     // into window space by the first child's width (composed placement
     // transform), not sitting at the origin in its own local space.
-    std::vector<AnyWidget> children;
+    std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
             | setRole("First"));
     children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
@@ -288,6 +290,35 @@ TEST(introspection, resolveComposesDeepNestingAbsolutely)
     auto center = cur->obb.getCenter();
     EXPECT_FLOAT_EQ(expected, center[0]);
     EXPECT_FLOAT_EQ(expected, center[1]);
+}
+
+TEST(introspection, elementIdJoinsRenderAndIntrospection)
+{
+    // setElementId must stamp the same avg::UniqueId onto both sinks: the
+    // render IdNode and the introspection node. That shared value is the join
+    // key an out-of-process client uses to correlate the two trees.
+    avg::UniqueId const id;
+
+    auto element = (filledRect() | setId(bq::signal::constant(id)))
+        (BuildParams{})(bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
+
+    auto introspection =
+        bq::signal::makeSignalContext(element.getIntrospection())
+            .evaluate<0>().get<0>();
+
+    auto renderTree =
+        bq::signal::makeSignalContext(element.getRenderTree())
+            .evaluate<0>().get<0>();
+
+    auto const& root = renderTree.getRoot();
+    ASSERT_NE(nullptr, root);
+    ASSERT_TRUE(root->getId().has_value());
+    ASSERT_TRUE(introspection.id.has_value());
+
+    // Both sinks carry the exact id, so the two trees join on it.
+    EXPECT_EQ(id, *root->getId());
+    EXPECT_EQ(id, *introspection.id);
+    EXPECT_EQ(*root->getId(), *introspection.id);
 }
 
 TEST(introspection, resolveEqualsEagerComposition)
