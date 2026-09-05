@@ -51,7 +51,7 @@
 #include <ase/vector.h>
 
 #include <btl/future.h>
-#include <btl/dropparam.h>
+#include <btl/ignorelast.h>
 
 #include <iostream>
 #include <string>
@@ -245,7 +245,7 @@ int main()
                 .fillAndStroke(std::move(brush), std::move(pen))
                 | modifier::margin(std::move(margin))
                 | modifier::onClick(0, m.signal.bindToFunction(
-                    btl::dropParam([h=m.handle](bool b) mutable
+                    btl::ignoreLast([h=m.handle](bool b) mutable
                     {
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
