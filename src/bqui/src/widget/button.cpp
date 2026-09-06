@@ -17,6 +17,8 @@
 
 #include "bqui/shapes.h"
 
+#include <functional>
+
 namespace bqui::widget
 {
 
@@ -54,7 +56,7 @@ namespace
 } // anonymous namespace
 
 AnyWidget button(bq::signal::AnySignal<std::string> label,
-        bq::signal::AnySignal<std::function<void()>> onClick)
+        bq::signal::AnySignal<void()> onClick)
 {
     auto down = bq::signal::makeInput<bool>(false);
     auto hover = bq::signal::makeInput<bool>(false);
@@ -99,15 +101,14 @@ AnyWidget button(bq::signal::AnySignal<std::string> label,
             {
                 handle.set(e.hover);
             })
-        | modifier::onClick(1, std::move(onClick))
+        | modifier::onClick(1, std::move(onClick).map(
+                    [](std::function<void()> cb)
+                    {
+                        return [cb=std::move(cb)](ClickEvent const&) { cb(); };
+                    }))
         | modifier::setRole("Button")
         | modifier::setData("text", std::move(captionData))
         ;
-}
-
-AnyWidget button(std::string label, bq::signal::AnySignal<std::function<void()>> onClick)
-{
-    return button(bq::signal::constant(std::move(label)), std::move(onClick));
 }
 
 }

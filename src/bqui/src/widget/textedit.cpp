@@ -217,7 +217,7 @@ namespace
                         keyHandle.push(e);
                     })
             //| modifier::onKeyEvent(sendKeysTo(keyStream.handle))
-            | modifier::onKeyEvent(bq::signal::combine(onEnter).bindToFunction(
+            | modifier::onKeyEvent(bq::signal::combine(onEnter).bindFirst(
                         [handle=keyStream.handle](
                             std::vector<std::function<void()>> onEnter,
                             KeyEvent const& keyEvent)
@@ -261,15 +261,10 @@ TextEdit::operator AnyWidget() const
             );
 }
 
-TextEdit TextEdit::onEnter(bq::signal::AnySignal<std::function<void()>> cb) &&
+TextEdit TextEdit::onEnter(bq::signal::AnySignal<void()> cb) &&
 {
     onEnter_.push_back(std::move(cb).share());
     return std::move(*this);
-}
-
-TextEdit TextEdit::onEnter(std::function<void()> cb) &&
-{
-    return std::move(*this).onEnter(bq::signal::constant(std::move(cb)));
 }
 
 AnyWidget TextEdit::build() &&

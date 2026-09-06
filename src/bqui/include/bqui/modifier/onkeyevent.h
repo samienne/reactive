@@ -42,8 +42,8 @@ namespace bqui::modifier
     {
     public:
         OnKeyEvent(
-                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>> predicate,
-                bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action);
+                bq::signal::AnySignal<bool(ase::KeyEvent const&)> predicate,
+                bq::signal::AnySignal<void(ase::KeyEvent const&)> action);
 
         template <typename T>
         auto operator()(bq::signal::Signal<T, widget::Instance> instance) const
@@ -63,30 +63,21 @@ namespace bqui::modifier
 
             return std::move(instance)
                 | detail::onKeyEvent(
-                        merge(predicate_, action_).bindToFunction(f)
+                        merge(predicate_, action_).bindFirst(f)
                         )
                 ;
         }
 
         OnKeyEvent acceptIf(
-                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
-                predicate) &&;
-
-        OnKeyEvent acceptIf(
-                std::function<bool(ase::KeyEvent const&)> pred) &&;
-
-        OnKeyEvent acceptIfNot(
-                bq::signal::AnySignal<std::function<bool(ase::KeyEvent const&)>>
+                bq::signal::AnySignal<bool(ase::KeyEvent const&)>
                 predicate) &&;
 
         OnKeyEvent acceptIfNot(
-                std::function<bool(ase::KeyEvent const&)> pred) &&;
+                bq::signal::AnySignal<bool(ase::KeyEvent const&)>
+                predicate) &&;
 
         OnKeyEvent action(
-                bq::signal::AnySignal<std::function<void(ase::KeyEvent const&)>> action) &&;
-
-        OnKeyEvent action(
-                std::function<void(ase::KeyEvent const&)> action) &&;
+                bq::signal::AnySignal<void(ase::KeyEvent const&)> action) &&;
 
         template <typename TStreamHandle>
         auto send(TStreamHandle&& handle) &&
@@ -107,10 +98,7 @@ namespace bqui::modifier
     BQUI_EXPORT bool isNavigationKey(KeyEvent const& e);
 
     BQUI_EXPORT AnyWidgetModifier onKeyEvent(
-            std::function<InputResult(ase::KeyEvent const&)> cb);
-
-    BQUI_EXPORT AnyWidgetModifier onKeyEvent(
-            bq::signal::AnySignal<std::function<InputResult(ase::KeyEvent const&)>> cb);
+            bq::signal::AnySignal<InputResult(ase::KeyEvent const&)> cb);
 
 }
 

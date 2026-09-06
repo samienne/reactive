@@ -14,9 +14,8 @@
 namespace bqui::modifier
 {
 
-AnyWidgetModifier onPointerDown(bq::signal::AnySignal<
-        std::function<EventResult(PointerButtonEvent const&)>
-        > cb)
+AnyWidgetModifier onPointerDown(
+        bq::signal::AnySignal<EventResult(PointerButtonEvent const&)> cb)
 {
     btl::UniqueId id = btl::makeUniqueId();
 
@@ -47,11 +46,5 @@ AnyWidgetModifier onPointerDown(bq::signal::AnySignal<
         ));
 }
 
-AnyWidgetModifier onPointerDown(
-        std::function<EventResult(PointerButtonEvent const&)> cb
-        )
-{
-    return onPointerDown(bq::signal::constant(std::move(cb)));
-}
 }
 

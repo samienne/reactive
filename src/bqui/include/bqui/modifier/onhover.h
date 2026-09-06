@@ -9,16 +9,11 @@
 namespace bqui::modifier
 {
     BQUI_EXPORT AnyWidgetModifier onHover(
-            bq::signal::AnySignal<std::function<void(HoverEvent const&)>> cb,
+            bq::signal::AnySignal<void(HoverEvent const&)> cb,
             bq::signal::AnySignal<avg::Obb> area);
 
-    BQUI_EXPORT AnyWidgetModifier onHover(bq::signal::AnySignal<
-            std::function<void(HoverEvent const&)>
-            > cb);
-
     BQUI_EXPORT AnyWidgetModifier onHover(
-            std::function<void(HoverEvent const&)> cb
-            );
+            bq::signal::AnySignal<void(HoverEvent const&)> cb);
 
     BQUI_EXPORT AnyWidgetModifier onHover(bq::signal::InputHandle<bool> handle);
 
