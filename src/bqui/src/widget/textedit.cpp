@@ -246,7 +246,7 @@ namespace
             | modifier::setData("text", std::move(textData))
             | modifier::addCapability(widget::Capability::Editable)
             | modifier::addCapability(widget::Capability::Focusable)
-            | modifier::defaultSize()
+            | modifier::defaultSize(avg::Vector2f(250.0f, 40.0f))
             ;
     }
 

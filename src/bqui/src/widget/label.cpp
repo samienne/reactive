@@ -48,11 +48,14 @@ auto drawLabel(avg::DrawContext const& drawContext, avg::Vector2f size,
     return drawContext.drawing(std::move(textEntry));
 }
 
-SizeHint makeLabelSizeHint(std::string const& text, Theme const& theme)
+avg::TextExtents measureLabel(std::string const& text, Theme const& theme)
 {
-    auto extents = theme.getFont().getTextExtents(
+    return theme.getFont().getTextExtents(
             utf8::asUtf8(text), theme.getTextHeight());
+}
 
+SizeHint makeLabelSizeHint(avg::TextExtents const& extents)
+{
     // The glyph box's top sits bearing.y above the baseline, so the baseline is
     // that far below the box's top edge: the label's first baseline as a metric.
     float firstBaseline = extents.bearing[1];
@@ -82,13 +85,16 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
                 return DataValue(std::move(text));
             });
 
+    auto extents = merge(text, std::move(theme)).map(measureLabel).share();
+
     return makeWidget()
         | modifier::onDraw(drawLabel, text)
-        | modifier::setSizeHint(merge(text, std::move(theme)).map(makeLabelSizeHint))
+        | modifier::setSizeHint(extents.clone().map(makeLabelSizeHint))
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")
         | modifier::setData("text", std::move(textData))
-        | modifier::defaultSize()
+        | modifier::defaultSize(extents.clone().map(
+                    [](avg::TextExtents const& e) { return e.size; }))
         ;
 }
 

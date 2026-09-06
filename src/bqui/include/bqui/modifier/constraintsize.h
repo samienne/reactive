@@ -98,6 +98,16 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);
 
     /**
+     * @brief In a pure-solver region, give this widget the natural @p size at
+     * content strength, tracking the signal, for a leaf whose measured content
+     * size is its own pure natural (a label from its text extents). It settles at
+     * @p size unless a fixed size, a bound or a filler/fill() overrides it; a
+     * no-op outside a pure-solver region.
+     */
+    BQUI_EXPORT AnyWidgetModifier defaultSize(
+            bq::signal::AnySignal<avg::Vector2f> size);
+
+    /**
      * @brief In a pure-solver region, make this widget flexible on its
      * container's layout axis, growing to take a share of the container's
      * leftover space as a filler() does. The general form of filler() for a

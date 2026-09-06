@@ -15,6 +15,7 @@
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
+#include <bqui/widget/textedit.h>
 #include <bqui/widget/stack.h>
 #include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/vbox.h>
@@ -33,6 +34,7 @@
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
+#include <bq/signal/input.h>
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
@@ -707,6 +709,60 @@ TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
     EXPECT_FLOAT_EQ(400.0f, labelG.size[0] + fillerG.size[0]);
     EXPECT_FLOAT_EQ(0.0f, labelG.position[0]);
     EXPECT_FLOAT_EQ(labelG.size[0], fillerG.position[0]);
+}
+
+// A text edit emits a native pure band from its own fixed content size, no
+// SizeHint bridge in the loop: a lone textEdit under pureSolverRoot settles at
+// its declared 250x40 on both axes -- the width held at content strength (a
+// content leaf is not stretched to the row) and the height at its content value.
+TEST(PureSolverLayout, textEditSizesToNativeBand)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto state = makeInput(TextEditState{ "Test123" });
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(AnyWidget(textEdit(state.handle,
+                        state.signal.cast<TextEditState>())), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(250.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+}
+
+// A label emits a native pure band from its own measured text extents, no
+// SizeHint bridge in the loop: a lone label under pureSolverRoot settles at a
+// positive, content-sized box -- not the flat 100x100 a bandless pure leaf would
+// fall to, and not stretched to the window. The exact pixels are font-dependent,
+// so this asserts content-sizing (a small, positive box), not a pixel count.
+TEST(PureSolverLayout, labelSizesToNativeBand)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(label(std::string("Ping")), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_GT(g.size[0], 0.0f);
+    EXPECT_GT(g.size[1], 0.0f);
+
+    // A single line of text is far shorter than the flat 100x100 default a pure
+    // leaf with no band would take, so both extents landing well under 100 proves
+    // the measured content band, not the fallback, drove the size.
+    EXPECT_LT(g.size[0], 100.0f);
+    EXPECT_LT(g.size[1], 100.0f);
 }
 
 // maxWidth alone caps the content width: a strong upper bound below the leaf's

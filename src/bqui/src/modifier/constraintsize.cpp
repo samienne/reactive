@@ -102,7 +102,13 @@ AnyWidgetModifier defaultSize()
 
 AnyWidgetModifier defaultSize(avg::Vector2f size)
 {
-    return bothAxes(bq::signal::constant(size),
+    return defaultSize(bq::signal::AnySignal<avg::Vector2f>(
+                bq::signal::constant(size)));
+}
+
+AnyWidgetModifier defaultSize(bq::signal::AnySignal<avg::Vector2f> size)
+{
+    return bothAxes(std::move(size),
             [](PureAxis axis, bq::signal::AnySignal<float> value)
             {
                 return detail::pureNaturalModifier(axis,
