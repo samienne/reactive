@@ -1637,6 +1637,255 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
             std::move(array));
 }
 
+// Pure-solver counterpart of solverGridBuilders(). Like the stack it mints no
+// child flex variable, so a filler in a cell fills via the weak slot pull and
+// inherits the enclosing flex axis. The grid lines are pinned required to equal
+// fractions of the container box (gridAxisConstraints), so a cell is
+// independently sized once the container box solves and placeInSlot()'s default
+// fill can never drag the cell -- unlike the overlay stack's free slot.
+AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
+        unsigned int columns, unsigned int rows, BuildParams const& params,
+        bq::signal::ArraySignal<widget::AnyBuilder> array)
+{
+    BoxVariables container;
+
+    // The grid line families, minted once so their identities are stable across
+    // re-solves; the x lines ride the width solve and the y lines the height
+    // solve, so the two axes stay disjoint.
+    GridLines lines;
+    lines.xs.resize(columns + 1);
+    lines.ys.resize(rows + 1);
+
+    auto parentFlexSig = flexVariable(params).share();
+    auto parentAxisSig = flexAxis(params).share();
+
+    auto boxes = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return bq::signal::AnySignal<BoxVariables>(
+                            bq::signal::constant(builder.getBoxVariables()));
+                })).share();
+
+    auto gravities = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return builder.getGravity();
+                })).share();
+
+    auto childWidth = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    std::optional<PureLayout> const& pure =
+                        builder.getPureLayout();
+                    PureLayout effective = pure ? *pure
+                        : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                builder.getBoxVariables());
+                    return effective.getWidth();
+                }));
+
+    // One axis of the container's published band. Every child's band is baked
+    // onto its cell box (flattenConstraints) and the child is placed within its
+    // cell, bounded by the grid lines; the aggregate natural/min/max is the
+    // cross-axis maximum of the children's, scaled by the grid's dimension on
+    // this axis so a full-cell child asks the container for the whole track --
+    // matching the banded gridSizeHint. Flex rides up cross-style, so a grid
+    // holding a filler is itself a filler to its parent.
+    auto buildAxis =
+        [container, lines, cells, columns, rows](Axis thisAxis,
+                std::vector<Constraints> const& childBands,
+                std::vector<BoxVariables> const& boxes,
+                std::vector<avg::Vector2f> const& gravities,
+                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
+    {
+        float factor = static_cast<float>(
+                thisAxis == Axis::x ? columns : rows);
+
+        std::optional<Flex> flex = aggregateFlex(childBands, false);
+        bool flexes = flex && flex->coeff > 0.0f;
+
+        Constraints result;
+        result.flex = flex;
+        // A flexing axis drops its natural so the parent's slack can stretch it,
+        // exactly as the pure box and stack do.
+        if (!flexes)
+        {
+            result.natural = aggregateNatural(childBands, false);
+            if (result.natural)
+                result.natural->value *= factor;
+        }
+        result.min = aggregateBound(childBands, false, &pickMin);
+        if (result.min)
+            *result.min *= factor;
+        result.max = aggregateBound(childBands, false, &pickMax);
+        if (result.max)
+            *result.max *= factor;
+
+        LayoutSpec& rel = result.relations;
+
+        for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
+            appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
+                        thisAxis));
+
+        // Partition this axis into the grid's tracks. The x lines run
+        // left..right, the y lines bottom..top in the solver's top-down space.
+        if (thisAxis == Axis::x)
+            gridAxisConstraints(rel.constraints, lines.xs,
+                    container.left, container.right);
+        else
+            gridAxisConstraints(rel.constraints, lines.ys,
+                    container.bottom, container.top);
+
+        // Place each child within its cell box on this axis: it fills the cell
+        // up to its own max and, where it is smaller, settles under its gravity
+        // within the slack. The cell's solver-top edge is the higher-indexed y
+        // line (ys grow bottom to top while the solver runs top down), so
+        // ys[y+h] is the solver-top and ys[y] the solver-bottom. The vertical
+        // axis flips to y-up in the widget tree, so the child takes 1 - gravity.y
+        // there to keep a leading gravity leading.
+        for (std::size_t i = 0; i < boxes.size() && i < cells.size(); ++i)
+        {
+            GridCell const& cell = cells[i];
+            float maxExtent = (i < childBands.size() && childBands[i].max)
+                ? *childBands[i].max
+                : noSlotCap;
+            if (thisAxis == Axis::x)
+                placeInSlot(rel.constraints, boxes[i].left, boxes[i].right,
+                        lines.xs[cell.x], lines.xs[cell.x + cell.w],
+                        gravities[i].x(), maxExtent);
+            else
+                placeInSlot(rel.constraints, boxes[i].top, boxes[i].bottom,
+                        lines.ys[cell.y + cell.h], lines.ys[cell.y],
+                        1.0f - gravities[i].y(), maxExtent);
+        }
+
+        // The container's own weak size default, so an axis its parent neither
+        // sizes nor fills still resolves to a definite extent. Dropped where the
+        // container flexes, just as the pure box and stack drop it.
+        if (!flexes)
+        {
+            rel.constraints.push_back(thisAxis == Axis::x
+                    ? weakWidthDefault(container)
+                    : weakHeightDefault(container));
+        }
+
+        // The coupling that makes a flexing grid a filler in its parent: its
+        // extent on the parent's layout axis equals its aggregated flex weight
+        // times the parent's shared flex variable, the same coupling the pure box
+        // and stack emit.
+        if (thisAxis == parentAxis && flexes)
+        {
+            rel.constraints.push_back(
+                    ((thisAxis == Axis::x
+                        ? container.width()
+                        : container.height())
+                        == static_cast<double>(flex->coeff)
+                            * arrange::Expression(parentFlex))
+                    | weakestStrength());
+        }
+
+        if (thisAxis == Axis::x)
+        {
+            readBackBoxesX(rel, boxes);
+            rel.variables.push_back(container.left);
+            rel.variables.push_back(container.right);
+        }
+        else
+        {
+            readBackBoxesY(rel, boxes);
+            rel.variables.push_back(container.top);
+            rel.variables.push_back(container.bottom);
+        }
+
+        return result;
+    };
+
+    auto horizontal = merge(std::move(childWidth), boxes.clone(),
+            gravities.clone(), parentFlexSig.clone(), parentAxisSig.clone()).map(
+            [buildAxis](std::vector<Constraints> const& bands,
+                    std::vector<BoxVariables> const& boxes,
+                    std::vector<avg::Vector2f> const& gravities,
+                    arrange::Variable parentFlex, Axis parentAxis)
+            {
+                return buildAxis(Axis::x, bands, boxes, gravities, parentFlex,
+                        parentAxis);
+            });
+
+    // The container's height band, as a function of the region's width solution.
+    auto verticalGiven =
+        [buildAxis, boxes, gravities, array, parentFlexSig, parentAxisSig](
+                bq::signal::AnySignal<LayoutSolution> widthSolution)
+            -> bq::signal::AnySignal<Constraints>
+    {
+        auto childHeight = bq::signal::join(array.map(
+                    [widthSolution](widget::AnyBuilder const& builder)
+                    {
+                        std::optional<PureLayout> const& pure =
+                            builder.getPureLayout();
+                        PureLayout effective = pure ? *pure
+                            : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                    builder.getBoxVariables());
+                        return effective.getHeightForWidth(widthSolution.clone());
+                    }));
+
+        return merge(std::move(childHeight), boxes.clone(), gravities.clone(),
+                parentFlexSig.clone(), parentAxisSig.clone()).map(
+                [buildAxis](std::vector<Constraints> const& bands,
+                        std::vector<BoxVariables> const& boxes,
+                        std::vector<avg::Vector2f> const& gravities,
+                        arrange::Variable parentFlex, Axis parentAxis)
+                {
+                    return buildAxis(Axis::y, bands, boxes, gravities, parentFlex,
+                            parentAxis);
+                });
+    };
+
+    auto widget = makeSolutionWidget(
+            [container, array, boxes](
+                bq::signal::AnySignal<avg::Vector2f> /*size*/,
+                bq::signal::AnySignal<LayoutSolution> solution) -> AnyWidget
+            {
+                auto sharedSolution = std::move(solution).share();
+
+                auto obbs = merge(sharedSolution.clone(), boxes.clone())
+                    .map([container](LayoutSolution const& solution,
+                                std::vector<BoxVariables> const& boxes)
+                        {
+                            return regionToObbs(solution, boxes, container);
+                        });
+
+                auto instances = bq::signal::join(bq::signal::scatter(
+                            array, std::move(obbs),
+                            [sharedSolution](widget::AnyBuilder const& builder,
+                                bq::signal::AnySignal<avg::Obb> obb)
+                            {
+                                return buildChildInRegion(builder, std::move(obb),
+                                        sharedSolution.clone());
+                            }));
+
+                return widget::makeWidget()
+                    | modifier::addWidgets(std::move(instances))
+                    | modifier::setRole("Layout")
+                    ;
+            });
+
+    return std::move(widget)
+        | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
+        | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                [container, horizontal, verticalGiven](widget::AnyBuilder builder)
+                {
+                    builder.setBoxVariables(container);
+                    builder.setPureLayout(simplePureLayout(
+                            horizontal,
+                            [verticalGiven](
+                                bq::signal::AnySignal<LayoutSolution> ws)
+                            {
+                                return verticalGiven(std::move(ws));
+                            }));
+                    return builder;
+                }))
+        ;
+}
+
 AnyWidget solverBox(Axis axis, CrossAlign align,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
@@ -1897,10 +2146,12 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             {
                 return build(std::move(builders));
             },
-            [build](bq::signal::ArraySignal<widget::AnyBuilder> builders,
-                BuildParams const&)
+            [cells, columns, rows](
+                bq::signal::ArraySignal<widget::AnyBuilder> builders,
+                BuildParams const& params)
             {
-                return build(std::move(builders));
+                return solverGridBuildersRegionPure(cells, columns, rows, params,
+                        std::move(builders));
             },
             std::nullopt,
             toArray(std::move(widgets)));

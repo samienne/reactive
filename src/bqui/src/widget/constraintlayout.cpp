@@ -671,6 +671,20 @@ std::vector<arrange::Constraint> guideConstraints(
     return out;
 }
 
+void gridAxisConstraints(std::vector<arrange::Constraint>& out,
+        std::vector<arrange::Variable> const& lines,
+        arrange::Variable const& spanLead, arrange::Variable const& spanTrail)
+{
+    out.push_back(pin(lines.front(), spanLead));
+    out.push_back(pin(lines.back(), spanTrail));
+
+    for (std::size_t i = 1; i + 1 < lines.size(); ++i)
+        out.push_back(
+                (arrange::Expression(lines[i + 1]) - arrange::Expression(lines[i]))
+                == (arrange::Expression(lines[i])
+                    - arrange::Expression(lines[i - 1])));
+}
+
 GridLines gridLines(std::vector<arrange::Constraint>& out,
         BoxVariables const& container, unsigned int columns, unsigned int rows)
 {
@@ -684,23 +698,8 @@ GridLines gridLines(std::vector<arrange::Constraint>& out,
     lines.xs.resize(columns + 1);
     lines.ys.resize(rows + 1);
 
-    auto equalIntervals = [&out](std::vector<arrange::Variable> const& lines)
-    {
-        for (std::size_t i = 1; i + 1 < lines.size(); ++i)
-            out.push_back(
-                    (arrange::Expression(lines[i + 1])
-                        - arrange::Expression(lines[i]))
-                    == (arrange::Expression(lines[i])
-                        - arrange::Expression(lines[i - 1])));
-    };
-
-    out.push_back(pin(lines.xs.front(), container.left));
-    out.push_back(pin(lines.xs.back(), container.right));
-    equalIntervals(lines.xs);
-
-    out.push_back(pin(lines.ys.front(), container.bottom));
-    out.push_back(pin(lines.ys.back(), container.top));
-    equalIntervals(lines.ys);
+    gridAxisConstraints(out, lines.xs, container.left, container.right);
+    gridAxisConstraints(out, lines.ys, container.bottom, container.top);
 
     return lines;
 }

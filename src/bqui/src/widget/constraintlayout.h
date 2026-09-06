@@ -501,6 +501,22 @@ namespace bqui::widget
     };
 
     /**
+     * @brief Pins one pre-minted family of grid lines to equal intervals
+     * spanning @p spanLead to @p spanTrail, appending the constraints to @p out.
+     *
+     * The front line is pinned to @p spanLead and the back to @p spanTrail, and
+     * every interior interval is held equal to its neighbour, so the lines
+     * divide the span evenly. The line variables are the caller's, so a pure
+     * two-phase solve can mint one family per axis once and re-emit its
+     * constraints on every solve without re-minting the identities. gridLines()
+     * is the both-axes convenience over this.
+     */
+    BQUI_EXPORT void gridAxisConstraints(std::vector<arrange::Constraint>& out,
+            std::vector<arrange::Variable> const& lines,
+            arrange::Variable const& spanLead,
+            arrange::Variable const& spanTrail);
+
+    /**
      * @brief Divides @p container into @p columns equal-width columns and
      * @p rows equal-height rows, appending the line constraints to @p out and
      * returning the lines.

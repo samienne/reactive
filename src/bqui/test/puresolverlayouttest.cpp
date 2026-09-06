@@ -16,6 +16,7 @@
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
 #include <bqui/widget/stack.h>
+#include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
@@ -1948,4 +1949,149 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
     Geometry innerFiller = readProbe(instance, idInnerFiller);
 
     EXPECT_FLOAT_EQ(150.0f, innerFiller.size[0]);
+}
+
+// A pure grid partitions the container into uniform tracks and places each child
+// in its cell, centred by default. A 2x2 grid of 40x40 leaves in a 200x200 window
+// gives 100x100 cells; each leaf centres at a 30px inset in its cell, and the grid
+// coordinates run y-up -- grid row 0 is the bottom row.
+TEST(PureSolverLayout, gridPlacesChildrenInCells)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const id00 = btl::makeUniqueId();
+    btl::UniqueId const id10 = btl::makeUniqueId();
+    btl::UniqueId const id01 = btl::makeUniqueId();
+    btl::UniqueId const id11 = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probe(id00, fixed40, fixed40))
+        .cell(1, 0, 1, 1, probe(id10, fixed40, fixed40))
+        .cell(0, 1, 1, 1, probe(id01, fixed40, fixed40))
+        .cell(1, 1, 1, 1, probe(id11, fixed40, fixed40));
+
+    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+
+    Geometry g00 = readProbe(instance, id00);
+    Geometry g10 = readProbe(instance, id10);
+    Geometry g01 = readProbe(instance, id01);
+    Geometry g11 = readProbe(instance, id11);
+
+    for (Geometry const& g : { g00, g10, g01, g11 })
+    {
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    }
+
+    // Columns run left to right, rows bottom to top; each 40 leaf is centred with
+    // a 30px inset in its 100 cell.
+    EXPECT_FLOAT_EQ(30.0f, g00.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, g00.position[1]);
+    EXPECT_FLOAT_EQ(130.0f, g10.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, g10.position[1]);
+    EXPECT_FLOAT_EQ(30.0f, g01.position[0]);
+    EXPECT_FLOAT_EQ(130.0f, g01.position[1]);
+    EXPECT_FLOAT_EQ(130.0f, g11.position[0]);
+    EXPECT_FLOAT_EQ(130.0f, g11.position[1]);
+}
+
+// A cell whose content is smaller than its track honours the child's gravity
+// within the cell, exactly as the banded grid does. A single 40x40 leaf with
+// gravity (0, 0) in a 1x1 grid filling a 100x100 window settles in the cell's
+// bottom-left corner at the origin, not centred.
+TEST(PureSolverLayout, gridCellGravityWithinTrack)
+{
+    avg::Vector2f const window(100.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(1, 1)
+        .cell(0, 0, 1, 1, probe(id, fixed40, fixed40)
+                | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
+
+    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+
+    Geometry g = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[1]);
+}
+
+// A track sizes to the largest cell that occupies it, and the grid republishes
+// its aggregate band upward: a 2x1 grid of a 60-wide and a 40-wide leaf reports a
+// width of max(60, 40) * 2 columns = 120. Beside a filler in a 400-wide row that
+// holds the grid at 120 and the filler takes 280; inside, the 60 leaf fills its
+// 60 cell and the 40 leaf centres in the other.
+TEST(PureSolverLayout, gridTrackSizedToLargestCell)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content60 = { 60.0f, 60.0f, 60.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 1)
+        .cell(0, 0, 1, 1, probe(idWide, content60, fixed40))
+        .cell(1, 0, 1, 1, probe(idNarrow, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // The aggregate width (max 60 * 2 columns = 120) holds the grid; the filler
+    // takes the remaining 280.
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+
+    // Each cell is 60 wide: the 60 leaf fills its cell at the origin, the 40 leaf
+    // centres in the second cell at 60 + 10.
+    EXPECT_FLOAT_EQ(60.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(70.0f, narrow.position[0]);
+}
+
+// A spanning cell occupies every track it covers. In a 2x2 grid filling a 200x200
+// window, a filler in a cell spanning both columns of the top row stretches across
+// the full 200 width and the upper 100 of height, where a single-column cell would
+// bound it to one 100-wide track.
+TEST(PureSolverLayout, gridSpanningCellCoversItsTracks)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idCell = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, fillerProbe(idSpan))
+        .cell(0, 0, 1, 1, probe(idCell, fixed40, fixed40));
+
+    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry cell = readProbe(instance, idCell);
+
+    // The spanning filler covers both columns of the top row: 200 wide at x 0,
+    // 100 tall in the upper half (y 100..200 in the y-up window).
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, span.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, span.position[1]);
+
+    // The single-cell leaf sits centred in the bottom-left cell.
+    EXPECT_FLOAT_EQ(40.0f, cell.size[0]);
+    EXPECT_FLOAT_EQ(30.0f, cell.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, cell.position[1]);
 }
