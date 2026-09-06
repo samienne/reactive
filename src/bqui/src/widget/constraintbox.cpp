@@ -1382,6 +1382,230 @@ AnyWidget solverStackBuilders(bq::signal::ArraySignal<widget::AnyBuilder> array)
             std::move(array));
 }
 
+// The extent a stack child's overlay fill is capped at when its band states no
+// hard max: wide enough never to bind a real container, so flattenConstraints
+// alone owns any genuine ceiling and the fill is left effectively uncapped.
+constexpr float noSlotCap = 1.0e6f;
+
+// The pure-solver counterpart of solverStackBuilders(): a stack overlays every
+// child on the one container slot rather than tiling it, so both axes aggregate
+// cross-style (the largest child's band wins, matching stackSizeHints()) and
+// each child is placed within the container under its gravity, exactly as
+// placeChildInSlot() does for the banded stack. The container republishes that
+// aggregate band so a stack nested in a pure region reports its extent upward
+// just as the pure box does.
+AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
+        bq::signal::ArraySignal<widget::AnyBuilder> array)
+{
+    BoxVariables container;
+
+    auto parentFlexSig = flexVariable(params).share();
+    auto parentAxisSig = flexAxis(params).share();
+
+    auto boxes = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return bq::signal::AnySignal<BoxVariables>(
+                            bq::signal::constant(builder.getBoxVariables()));
+                })).share();
+
+    // A stack places each child under its gravity within the container slot, so
+    // the gravities ride into the per-axis graph alongside the boxes and bands.
+    auto gravities = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    return builder.getGravity();
+                })).share();
+
+    auto childWidth = bq::signal::join(array.map(
+                [](widget::AnyBuilder const& builder)
+                {
+                    std::optional<PureLayout> const& pure =
+                        builder.getPureLayout();
+                    PureLayout effective = pure ? *pure
+                        : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                builder.getBoxVariables());
+                    return effective.getWidth();
+                }));
+
+    // One axis of the container's published band. Every child's band is baked
+    // onto its box (flattenConstraints) and the child is overlaid on the whole
+    // container slot; the aggregate natural/min/max/flex is republished as the
+    // container's own band. A stack overlays on both axes, so every field
+    // aggregates cross-style -- the largest child wins -- and the flex rides up
+    // so a stack holding a filler is itself a filler to its parent.
+    auto buildAxis =
+        [container](Axis thisAxis, std::vector<Constraints> const& childBands,
+                std::vector<BoxVariables> const& boxes,
+                std::vector<avg::Vector2f> const& gravities,
+                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
+    {
+        std::optional<Flex> flex = aggregateFlex(childBands, false);
+        bool flexes = flex && flex->coeff > 0.0f;
+
+        Constraints result;
+        result.flex = flex;
+        // A flexing axis drops its natural so the parent's slack can stretch it,
+        // exactly as the pure box does.
+        if (!flexes)
+            result.natural = aggregateNatural(childBands, false);
+        result.min = aggregateBound(childBands, false, &pickMin);
+        result.max = aggregateBound(childBands, false, &pickMax);
+
+        LayoutSpec& rel = result.relations;
+
+        for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
+        {
+            appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
+                        thisAxis));
+
+            // Overlay the child on the whole container slot: it fills the slot up
+            // to its own max and, where it is smaller, settles under its gravity
+            // within the slack. The band's max (flattened above) owns any real
+            // ceiling, so a child stating none is left uncapped. The vertical axis
+            // flips to y-up in the widget tree, so the child takes 1 - gravity.y
+            // there to keep a leading gravity leading.
+            float maxExtent = childBands[i].max
+                ? *childBands[i].max
+                : noSlotCap;
+            if (thisAxis == Axis::x)
+                placeInSlot(rel.constraints, boxes[i].left, boxes[i].right,
+                        container.left, container.right,
+                        gravities[i].x(), maxExtent);
+            else
+                placeInSlot(rel.constraints, boxes[i].top, boxes[i].bottom,
+                        container.top, container.bottom,
+                        1.0f - gravities[i].y(), maxExtent);
+        }
+
+        // The container's own weak size default, so an axis its parent neither
+        // sizes nor fills still resolves to a definite extent. Dropped where the
+        // container flexes, just as the pure box drops it.
+        if (!flexes)
+        {
+            rel.constraints.push_back(thisAxis == Axis::x
+                    ? weakWidthDefault(container)
+                    : weakHeightDefault(container));
+        }
+
+        // The coupling that makes a flexing stack a filler in its parent: its
+        // extent on the parent's layout axis equals its aggregated flex weight
+        // times the parent's shared flex variable, the same coupling the pure box
+        // emits.
+        if (thisAxis == parentAxis && flexes)
+        {
+            rel.constraints.push_back(
+                    ((thisAxis == Axis::x
+                        ? container.width()
+                        : container.height())
+                        == static_cast<double>(flex->coeff)
+                            * arrange::Expression(parentFlex))
+                    | weakestStrength());
+        }
+
+        if (thisAxis == Axis::x)
+        {
+            readBackBoxesX(rel, boxes);
+            rel.variables.push_back(container.left);
+            rel.variables.push_back(container.right);
+        }
+        else
+        {
+            readBackBoxesY(rel, boxes);
+            rel.variables.push_back(container.top);
+            rel.variables.push_back(container.bottom);
+        }
+
+        return result;
+    };
+
+    auto horizontal = merge(std::move(childWidth), boxes.clone(),
+            gravities.clone(), parentFlexSig.clone(), parentAxisSig.clone()).map(
+            [buildAxis](std::vector<Constraints> const& bands,
+                    std::vector<BoxVariables> const& boxes,
+                    std::vector<avg::Vector2f> const& gravities,
+                    arrange::Variable parentFlex, Axis parentAxis)
+            {
+                return buildAxis(Axis::x, bands, boxes, gravities, parentFlex,
+                        parentAxis);
+            });
+
+    // The container's height band, as a function of the region's width solution.
+    auto verticalGiven =
+        [buildAxis, boxes, gravities, array, parentFlexSig, parentAxisSig](
+                bq::signal::AnySignal<LayoutSolution> widthSolution)
+            -> bq::signal::AnySignal<Constraints>
+    {
+        auto childHeight = bq::signal::join(array.map(
+                    [widthSolution](widget::AnyBuilder const& builder)
+                    {
+                        std::optional<PureLayout> const& pure =
+                            builder.getPureLayout();
+                        PureLayout effective = pure ? *pure
+                            : pureLayoutFromSizeHint(builder.getSizeHint(),
+                                    builder.getBoxVariables());
+                        return effective.getHeightForWidth(widthSolution.clone());
+                    }));
+
+        return merge(std::move(childHeight), boxes.clone(), gravities.clone(),
+                parentFlexSig.clone(), parentAxisSig.clone()).map(
+                [buildAxis](std::vector<Constraints> const& bands,
+                        std::vector<BoxVariables> const& boxes,
+                        std::vector<avg::Vector2f> const& gravities,
+                        arrange::Variable parentFlex, Axis parentAxis)
+                {
+                    return buildAxis(Axis::y, bands, boxes, gravities, parentFlex,
+                            parentAxis);
+                });
+    };
+
+    auto widget = makeSolutionWidget(
+            [container, array, boxes](
+                bq::signal::AnySignal<avg::Vector2f> /*size*/,
+                bq::signal::AnySignal<LayoutSolution> solution) -> AnyWidget
+            {
+                auto sharedSolution = std::move(solution).share();
+
+                auto obbs = merge(sharedSolution.clone(), boxes.clone())
+                    .map([container](LayoutSolution const& solution,
+                                std::vector<BoxVariables> const& boxes)
+                        {
+                            return regionToObbs(solution, boxes, container);
+                        });
+
+                auto instances = bq::signal::join(bq::signal::scatter(
+                            array, std::move(obbs),
+                            [sharedSolution](widget::AnyBuilder const& builder,
+                                bq::signal::AnySignal<avg::Obb> obb)
+                            {
+                                return buildChildInRegion(builder, std::move(obb),
+                                        sharedSolution.clone());
+                            }));
+
+                return widget::makeWidget()
+                    | modifier::addWidgets(std::move(instances))
+                    | modifier::setRole("Layout")
+                    ;
+            });
+
+    return std::move(widget)
+        | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
+        | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                [container, horizontal, verticalGiven](widget::AnyBuilder builder)
+                {
+                    builder.setBoxVariables(container);
+                    builder.setPureLayout(simplePureLayout(
+                            horizontal,
+                            [verticalGiven](
+                                bq::signal::AnySignal<LayoutSolution> ws)
+                            {
+                                return verticalGiven(std::move(ws));
+                            }));
+                    return builder;
+                }))
+        ;
+}
+
 AnyWidget solverGridBuilders(std::vector<GridCell> cells,
         unsigned int columns, unsigned int rows,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
@@ -1638,9 +1862,10 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
                 return solverStackBuilders(std::move(builders));
             },
             [](bq::signal::ArraySignal<widget::AnyBuilder> builders,
-                BuildParams const&)
+                BuildParams const& params)
             {
-                return solverStackBuilders(std::move(builders));
+                return solverStackBuildersRegionPure(params,
+                        std::move(builders));
             },
             std::nullopt,
             std::move(widgets));

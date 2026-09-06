@@ -6,6 +6,7 @@
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
+#include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/setminimumsize.h>
 #include <bqui/modifier/setsize.h>
 #include <bqui/modifier/setsizehint.h>
@@ -14,6 +15,7 @@
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
+#include <bqui/widget/stack.h>
 #include <bqui/widget/vbox.h>
 #include <bqui/widget/widget.h>
 
@@ -1697,4 +1699,150 @@ TEST(PureSolverLayout, customImplementationComposesThroughPureLayout)
             naturalOf(layout.getHeightForWidth(solution.clone())));
     EXPECT_FLOAT_EQ(33.0f,
             naturalOf(layout.getWidthForHeight(solution.clone())));
+}
+
+// A pure stack overlays its children on the one container slot rather than
+// tiling them. Two content leaves of distinct sizes in a 200x200 stack both
+// centre on the container: the 40 leaf at (80, 80) and the 100 leaf at (50, 50),
+// each sized to its own content. Were the stack tiling like a box the second
+// leaf would be offset past the first instead of overlapping it.
+TEST(PureSolverLayout, stackOverlaysChildrenInSameSlot)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idSmall = btl::makeUniqueId();
+    btl::UniqueId const idBig = btl::makeUniqueId();
+
+    Band const content100 = { 100.0f, 100.0f, 100.0f };
+
+    std::vector<AnyWidget> children;
+    children.push_back(probe(idSmall, fixed40, fixed40));
+    children.push_back(probe(idBig, content100, content100));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(stack(std::move(children))),
+            window);
+
+    Geometry small = readProbe(instance, idSmall);
+    Geometry big = readProbe(instance, idBig);
+
+    // Each leaf sizes to its own content, not the container.
+    EXPECT_FLOAT_EQ(40.0f, small.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, small.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, big.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, big.size[1]);
+
+    // Both are centred in the same 200x200 slot -- an overlay, not a tiling.
+    EXPECT_FLOAT_EQ(80.0f, small.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, small.position[1]);
+    EXPECT_FLOAT_EQ(50.0f, big.position[0]);
+    EXPECT_FLOAT_EQ(50.0f, big.position[1]);
+}
+
+// A pure stack honours each child's gravity within the slot, exactly as the
+// banded placeChildInSlot() does. Two 40x40 leaves in a 200x200 stack, one with
+// gravity (0, 0) and one with (1, 1), settle in opposite corners of the same
+// slot: bottom-left at (0, 0) and top-right at (160, 160) in the y-up window.
+TEST(PureSolverLayout, stackHonoursChildGravity)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idBottomLeft = btl::makeUniqueId();
+    btl::UniqueId const idTopRight = btl::makeUniqueId();
+
+    std::vector<AnyWidget> children;
+    children.push_back(probe(idBottomLeft, fixed40, fixed40)
+            | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
+    children.push_back(probe(idTopRight, fixed40, fixed40)
+            | modifier::setGravity(constant(avg::Vector2f(1.0f, 1.0f))));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(stack(std::move(children))),
+            window);
+
+    Geometry bottomLeft = readProbe(instance, idBottomLeft);
+    Geometry topRight = readProbe(instance, idTopRight);
+
+    EXPECT_FLOAT_EQ(0.0f, bottomLeft.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, bottomLeft.position[1]);
+    EXPECT_FLOAT_EQ(160.0f, topRight.position[0]);
+    EXPECT_FLOAT_EQ(160.0f, topRight.position[1]);
+}
+
+// A filler in a pure stack stretches to the whole container slot on both axes,
+// while a content sibling keeps its own size. A fillerProbe and a 40x40 leaf in
+// a 200x150 stack: the filler fills the container (200x150) at the origin and the
+// leaf stays 40x40, centred.
+TEST(PureSolverLayout, stackFillerStretchesToSlot)
+{
+    avg::Vector2f const window(200.0f, 150.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> children;
+    children.push_back(fillerProbe(idFiller));
+    children.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(stack(std::move(children))),
+            window);
+
+    Geometry filler = readProbe(instance, idFiller);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    // The filler overlays the whole slot; the content leaf keeps its own size.
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[1]);
+
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[1]);
+    EXPECT_FLOAT_EQ(80.0f, leaf.position[0]);
+    EXPECT_FLOAT_EQ(55.0f, leaf.position[1]);
+}
+
+// A pure stack republishes its aggregate band, so a stack nested in a pure
+// region reports its extent upward as the cross-axis maximum of its children. An
+// inner stack of a 120-wide and a 40-wide leaf publishes an aggregate width of
+// max(120, 40) = 120; beside a filler in a 400-wide row that holds the stack at
+// 120 and the filler takes the remaining 280. Inside the stack the wide leaf
+// spans it and the narrow one centres within it.
+TEST(PureSolverLayout, stackAggregatesMaxChildBandUpward)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const content120 = { 120.0f, 120.0f, 120.0f };
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(probe(idWide, content120, fixed40));
+    stackChildren.push_back(probe(idNarrow, fixed40, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // The aggregate width (max = 120) holds the stack, so the filler takes 280.
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+
+    // The wide leaf spans the stack; the narrow one overlays it, centred.
+    EXPECT_FLOAT_EQ(120.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.position[0]);
 }
