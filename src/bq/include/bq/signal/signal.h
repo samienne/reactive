@@ -302,6 +302,17 @@ namespace bq::signal
             return wrap(Cache<StorageType>(Super::sig_));
         }
 
+        /**
+         * @brief Converts each value to the requested type.
+         *
+         * A function type @c U names @c std::function<U>, so a callable signal
+         * casts to a signature without spelling out the wrapper:
+         *
+         * @code
+         * signal.cast<float>();       // Signal<int> -> Signal<float>
+         * callback.cast<void()>();    // -> Signal<std::function<void()>>
+         * @endcode
+         */
         template <typename... Us, typename = std::enable_if_t<
             btl::all(std::is_convertible_v<Ts, CastTargetT<Us>>...)
             >>
@@ -330,6 +341,11 @@ namespace bq::signal
          * Yields a signal of callables: each holds the current values as
          * @p func's first arguments and takes the remaining arguments when
          * called, so call-time arguments are trailing.
+         *
+         * @code
+         * // count is Signal<int>; the result takes the extra bool when called.
+         * count.bindFirst([](int n, bool flag) { ... });
+         * @endcode
          */
         template <typename TFunc>
         auto bindFirst(TFunc&& func) const
