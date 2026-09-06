@@ -1878,3 +1878,74 @@ TEST(PureSolverLayout, stackFlexesAsFillerInParent)
     EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
     EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
 }
+
+// Content children in a flexing stack settle at their own natural inside the
+// filled slot; they do not size the slot. A stack{filler, two 40-natural leaves}
+// beside a fixed 40 leaf in a 400 row still fills the remaining 360 -- the fill
+// lifts the content to the slot without the content dragging the slot down.
+TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idContentA = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(fillerProbe(idInnerFiller));
+    stackChildren.push_back(probe(idContentA, fixed40, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+    Geometry contentA = readProbe(instance, idContentA);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    EXPECT_FLOAT_EQ(360.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, contentA.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, contentA.position[0]);
+    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}
+
+// A flexing stack fills its parent's slack only up to its aggregate max bound,
+// the cross-axis maximum of its children's maxes. A stack{filler, leaf capped at
+// 100, leaf capped at 150} offered 360 of slack in a row holds at max(100,150)
+// = 150; a bug that let content drag the slot to its natural (40) or that summed
+// the caps (250) both fail this.
+TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idCap100 = btl::makeUniqueId();
+    btl::UniqueId const idCap150 = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    Band const cap100 = { 40.0f, 40.0f, 100.0f };
+    Band const cap150 = { 40.0f, 40.0f, 150.0f };
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(fillerProbe(idInnerFiller));
+    stackChildren.push_back(probe(idCap100, cap100, fixed40));
+    stackChildren.push_back(probe(idCap150, cap150, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+
+    EXPECT_FLOAT_EQ(150.0f, innerFiller.size[0]);
+}

@@ -1387,6 +1387,16 @@ AnyWidget solverStackBuilders(bq::signal::ArraySignal<widget::AnyBuilder> array)
 // alone owns any genuine ceiling and the fill is left effectively uncapped.
 constexpr float noSlotCap = 1.0e6f;
 
+// The strength a stack overlays a child on its slot at. Below the slack drive
+// (gapDriveStrength) so a fixed-size child fills up to the slot without dragging
+// the slot down to its own extent, leaving the slot's size to the flex/slack
+// drive and any real cap; a filler, having no size of its own, still tracks the
+// slot here.
+arrange::Strength overlayFillStrength()
+{
+    return arrange::Strength::weak(0.0004);
+}
+
 // Pure-solver counterpart of solverStackBuilders(). A stack mints no child flex
 // variable, so an inner filler fills via the weak slot pull and inherits the
 // enclosing flex axis -- the one real divergence from the pure box.
@@ -1465,11 +1475,12 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
             if (thisAxis == Axis::x)
                 placeInSlot(rel.constraints, boxes[i].left, boxes[i].right,
                         container.left, container.right,
-                        gravities[i].x(), maxExtent);
+                        gravities[i].x(), maxExtent, overlayFillStrength());
             else
                 placeInSlot(rel.constraints, boxes[i].top, boxes[i].bottom,
                         container.top, container.bottom,
-                        1.0f - gravities[i].y(), maxExtent);
+                        1.0f - gravities[i].y(), maxExtent,
+                        overlayFillStrength());
         }
 
         // The container's own weak size default, so an axis its parent neither

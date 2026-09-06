@@ -422,13 +422,20 @@ namespace bqui::widget
      * positioning on the vertical axis, which the widget tree flips to y-up,
      * passes 1 - g so a leading gravity still lands against the widget-space
      * leading edge.
+     *
+     * @p fillStrength weights the fill equality. The default suits a slot the
+     * caller has already sized; a caller whose slot is free to follow its
+     * content (an overlay container sizing to a filler) passes a strength below
+     * the slack drive so the fill lifts the content to the slot without dragging
+     * the slot down to a fixed-size child.
      */
     BQUI_EXPORT void placeInSlot(std::vector<arrange::Constraint>& out,
             arrange::Variable const& contentLead,
             arrange::Variable const& contentTrail,
             arrange::Variable const& slotLead,
             arrange::Variable const& slotTrail,
-            float gravity, float maxExtent);
+            float gravity, float maxExtent,
+            arrange::Strength fillStrength = arrange::Strength::weak());
 
     /**
      * @brief Lines each child edge named by a guide alignment up on a shared

@@ -539,7 +539,8 @@ void placeInSlot(std::vector<arrange::Constraint>& out,
         arrange::Variable const& contentTrail,
         arrange::Variable const& slotLead,
         arrange::Variable const& slotTrail,
-        float gravity, float maxExtent)
+        float gravity, float maxExtent,
+        arrange::Strength fillStrength)
 {
     auto contentExtent = [&]
     {
@@ -554,7 +555,7 @@ void placeInSlot(std::vector<arrange::Constraint>& out,
     // The content grows to fill the slot but never past its own maximum, so it
     // settles at the smaller of the two. The fill is weak and the cap strong,
     // so the cap wins when it bites.
-    out.push_back((contentExtent() == slotExtent()) | arrange::Strength::weak());
+    out.push_back((contentExtent() == slotExtent()) | fillStrength);
     out.push_back(
             (contentExtent() <= arrange::Expression(maxExtent))
             | arrange::Strength::strong());
