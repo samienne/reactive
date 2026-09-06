@@ -737,32 +737,37 @@ TEST(PureSolverLayout, textEditSizesToNativeBand)
 }
 
 // A label emits a native pure band from its own measured text extents, no
-// SizeHint bridge in the loop: a lone label under pureSolverRoot settles at a
-// positive, content-sized box -- not the flat 100x100 a bandless pure leaf would
-// fall to, and not stretched to the window. The exact pixels are font-dependent,
-// so this asserts content-sizing (a small, positive box), not a pixel count.
+// SizeHint bridge in the loop, and reproduces the banded footprint: the label's
+// margin is applied before the size word on both paths, so the same label sizes
+// identically laid out in a pure region and in the banded default. This pins the
+// margin ordering -- a pure size word landing after the margin would inset the
+// text instead of padding it, shrinking the box.
 TEST(PureSolverLayout, labelSizesToNativeBand)
 {
     avg::Vector2f const window(400.0f, 200.0f);
 
-    btl::UniqueId const id = btl::makeUniqueId();
+    btl::UniqueId const idPure = btl::makeUniqueId();
+    btl::UniqueId const idBanded = btl::makeUniqueId();
 
-    std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(withArea(label(std::string("Ping")), id));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+    std::vector<ArraySignal<AnyWidget>> pureRow;
+    pureRow.push_back(withArea(label(std::string("Ping")), idPure));
+    Instance pureInstance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(pureRow)))),
             window);
 
-    Geometry g = readProbe(instance, id);
-    EXPECT_GT(g.size[0], 0.0f);
-    EXPECT_GT(g.size[1], 0.0f);
+    std::vector<ArraySignal<AnyWidget>> bandedRow;
+    bandedRow.push_back(withArea(label(std::string("Ping")), idBanded));
+    Instance bandedInstance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(bandedRow))),
+            window);
 
-    // A single line of text is far shorter than the flat 100x100 default a pure
-    // leaf with no band would take, so both extents landing well under 100 proves
-    // the measured content band, not the fallback, drove the size.
-    EXPECT_LT(g.size[0], 100.0f);
-    EXPECT_LT(g.size[1], 100.0f);
+    Geometry pure = readProbe(pureInstance, idPure);
+    Geometry banded = readProbe(bandedInstance, idBanded);
+
+    EXPECT_GT(pure.size[0], 0.0f);
+    EXPECT_LT(pure.size[0], 100.0f);
+    EXPECT_FLOAT_EQ(banded.size[0], pure.size[0]);
+    EXPECT_FLOAT_EQ(banded.size[1], pure.size[1]);
 }
 
 // maxWidth alone caps the content width: a strong upper bound below the leaf's

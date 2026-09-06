@@ -90,11 +90,11 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
     return makeWidget()
         | modifier::onDraw(drawLabel, text)
         | modifier::setSizeHint(extents.clone().map(makeLabelSizeHint))
+        | modifier::defaultSize(extents.clone().map(
+                    [](avg::TextExtents const& e) { return e.size; }))
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")
         | modifier::setData("text", std::move(textData))
-        | modifier::defaultSize(extents.clone().map(
-                    [](avg::TextExtents const& e) { return e.size; }))
         ;
 }
 
