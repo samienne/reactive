@@ -1846,3 +1846,35 @@ TEST(PureSolverLayout, stackAggregatesMaxChildBandUpward)
     EXPECT_FLOAT_EQ(40.0f, narrow.size[0]);
     EXPECT_FLOAT_EQ(40.0f, narrow.position[0]);
 }
+
+// A pure stack holding a filler flexes, so nested in a row it rides up as a
+// filler and takes the slack -- exercising the container->parent flex coupling.
+// A stack{filler} beside a fixed 40 leaf in a 400 row fills the remaining 360
+// (its inner filler with it) while the leaf keeps 40.
+TEST(PureSolverLayout, stackFlexesAsFillerInParent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(fillerProbe(idInnerFiller));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    EXPECT_FLOAT_EQ(360.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerFiller.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}

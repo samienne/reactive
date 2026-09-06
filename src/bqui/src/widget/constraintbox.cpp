@@ -1387,13 +1387,9 @@ AnyWidget solverStackBuilders(bq::signal::ArraySignal<widget::AnyBuilder> array)
 // alone owns any genuine ceiling and the fill is left effectively uncapped.
 constexpr float noSlotCap = 1.0e6f;
 
-// The pure-solver counterpart of solverStackBuilders(): a stack overlays every
-// child on the one container slot rather than tiling it, so both axes aggregate
-// cross-style (the largest child's band wins, matching stackSizeHints()) and
-// each child is placed within the container under its gravity, exactly as
-// placeChildInSlot() does for the banded stack. The container republishes that
-// aggregate band so a stack nested in a pure region reports its extent upward
-// just as the pure box does.
+// Pure-solver counterpart of solverStackBuilders(). A stack mints no child flex
+// variable, so an inner filler fills via the weak slot pull and inherits the
+// enclosing flex axis -- the one real divergence from the pure box.
 AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
@@ -1409,8 +1405,6 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
                             bq::signal::constant(builder.getBoxVariables()));
                 })).share();
 
-    // A stack places each child under its gravity within the container slot, so
-    // the gravities ride into the per-axis graph alongside the boxes and bands.
     auto gravities = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
                 {
