@@ -680,7 +680,8 @@ void gridAxisConstraints(std::vector<arrange::Constraint>& out,
 
     for (std::size_t i = 1; i + 1 < lines.size(); ++i)
         out.push_back(
-                (arrange::Expression(lines[i + 1]) - arrange::Expression(lines[i]))
+                (arrange::Expression(lines[i + 1])
+                    - arrange::Expression(lines[i]))
                 == (arrange::Expression(lines[i])
                     - arrange::Expression(lines[i - 1])));
 }

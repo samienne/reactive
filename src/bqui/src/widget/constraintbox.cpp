@@ -1649,9 +1649,7 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
 {
     BoxVariables container;
 
-    // The grid line families, minted once so their identities are stable across
-    // re-solves; the x lines ride the width solve and the y lines the height
-    // solve, so the two axes stay disjoint.
+    // The x lines ride the width solve and the y lines the height solve.
     GridLines lines;
     lines.xs.resize(columns + 1);
     lines.ys.resize(rows + 1);
