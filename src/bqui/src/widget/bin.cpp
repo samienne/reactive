@@ -32,8 +32,7 @@ AnyWidget bin(AnyWidget contentWidget,
                 // The firewall: the content is solved as its own pure region
                 // anchored to its content size, so its containers place their
                 // children, and its size dies here rather than crossing into the
-                // parent's solve. The scroll offset and clip are applied to the
-                // solved instance exactly as the transform modifier would.
+                // parent's solve.
                 auto instance = solvePureRegionAtSize(contentWidget,
                         sharedContentSize.clone(), params);
 

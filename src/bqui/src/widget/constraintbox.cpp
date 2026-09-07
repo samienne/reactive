@@ -2268,11 +2268,6 @@ bool pureSolver(BuildParams const& params)
     return context.evaluate<0>().get<0>();
 }
 
-// Reads the content's composed pure descriptor (bridging its SizeHint where it
-// has none), anchors its outermost box to size, and runs the two disjoint
-// per-axis solves. The combined solution is handed into the build as an
-// argument, so the element is placed against a real solution on the first
-// evaluate.
 bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
         AnyWidget const& content,
         bq::signal::AnySignal<avg::Vector2f> size,

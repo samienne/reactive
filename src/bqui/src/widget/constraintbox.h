@@ -141,7 +141,7 @@ namespace bqui::widget
      * universal weak defaults rather than reading a SizeHint band.
      *
      * A constant the region owner seeded, so evaluating it in its own context is
-     * safe. Shared out of the library so a firewall (bin()) branches on the same
+     * safe. Shared across the library so a firewall (bin()) branches on the same
      * flag its containers do.
      */
     bool pureSolver(BuildParams const& params);

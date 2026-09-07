@@ -51,11 +51,12 @@ AnyWidget scrollView(AnyWidget widget)
                 }).share();
 
         // The content is clipped to the viewport, so its size is intrinsic to the
-        // content. In a pure-solver region a pure content no longer fills in a
-        // SizeHint, so its extent is the natural of its own pure band (the grid
-        // solved at its own size); the height reads its band at an empty width
-        // solution, so a genuinely width-dependent content falls back to the
-        // bridged SizeHint on the axis whose band carries no natural.
+        // content. In a pure-solver region a pure content's extent is the natural
+        // of its own pure band (the grid solved at its own size); an axis whose
+        // band states no natural falls back to the bridged SizeHint. The height
+        // reads the band at an empty width solution, so this is exact only where
+        // the height is width-independent; a genuinely reflowing content would
+        // measure at width zero -- a known limitation, not yet handled.
         bq::signal::AnySignal<avg::Vector2f> contentSizeSignal = hintSize.clone();
         if (inPureRegion && builder.getPureLayout())
         {
