@@ -6,19 +6,10 @@
 
 #include <btl/function.h>
 
+#include <vector>
+
 namespace bqui::widget
 {
-    using ObbMap = btl::Function<
-        std::vector<avg::Obb>(ase::Vector2f size,
-                std::vector<SizeHint> const&)>;
-
-    template <typename T>
-    struct IsObbMap :
-        btl::All<
-            std::is_assignable<ObbMap, T>,
-            std::is_copy_constructible<T>
-        > {};
-
     using SizeHintMap = btl::Function<
         SizeHint(std::vector<SizeHint> const&)
         >;
@@ -29,8 +20,4 @@ namespace bqui::widget
             std::is_assignable<SizeHintMap, T>,
             std::is_copy_constructible<T>
         > {};
-
-    BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, std::vector<AnyWidget> widgets);
 }
-

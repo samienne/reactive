@@ -1,24 +1,14 @@
 #include "bqui/widget/vbox.h"
 
-#include "bqui/widget/box.h"
-
-#include "bqui/dynamicbox.h"
-
-#include <bq/signal/signal.h>
+#include "constraintbox.h"
 
 namespace bqui::widget
 {
 
-AnyWidget vbox(std::vector<AnyWidget> widgets)
+AnyWidget vbox(bq::signal::ArraySignal<AnyWidget> widgets)
 {
-    return box<Axis::y>(std::move(widgets));
+    return solverVbox(std::move(widgets));
 }
 
-AnyWidget vbox(bq::signal::AnySignal<std::vector<std::pair<size_t,
-        AnyWidget>>> widgets)
-{
-    return dynamicBox<Axis::y>(std::move(widgets));
-}
-
-}
+} // namespace bqui::widget
 

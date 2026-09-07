@@ -10,8 +10,11 @@ libbquisrc = [
   'src/remote/tcplistener.cpp',
   'src/remote/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
+  'src/modifier/alignguide.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
+  'src/modifier/constraintsize.cpp',
+  'src/modifier/pureconstraint.cpp',
   'src/modifier/drawkeyboardinputs.cpp',
   'src/modifier/focusgroup.cpp',
   'src/modifier/focuson.cpp',
@@ -32,18 +35,21 @@ libbquisrc = [
   'src/modifier/setsize.cpp',
   'src/modifier/setsizehint.cpp',
   'src/modifier/setwidgetintrospection.cpp',
+  'src/modifier/sizevocabulary.cpp',
   'src/modifier/trackfocus.cpp',
   'src/modifier/transform.cpp',
 
   'src/widget/bin.cpp',
   'src/widget/button.cpp',
   'src/widget/box.cpp',
+  'src/widget/constraintbox.cpp',
+  'src/widget/constraintlayout.cpp',
   'src/widget/datavalue.cpp',
   'src/widget/hbox.cpp',
   'src/widget/instance.cpp',
   'src/widget/introspection.cpp',
   'src/widget/label.cpp',
-  'src/widget/layout.cpp',
+  'src/widget/layoutspec.cpp',
   'src/widget/scrollbar.cpp',
   'src/widget/scrollview.cpp',
   'src/widget/stack.cpp',
@@ -82,6 +88,15 @@ bquidep = [libbtldep, libbqdep, libasedep, libavgdep]
 nlohmanndep = dependency('nlohmann_json', include_type: 'system',
     default_options: subproject_warnings)
 
+# arrange is a vendored Cassowary linear-arithmetic constraint solver — UI-
+# agnostic layout math (an "Eigen, not a bq"). Its variables and expressions
+# appear in bqui's public layout interface (a Builder carries the box variables
+# that name it to the solver), so unlike nlohmann it is re-exported through
+# libbquidep and propagates to dependents — the one solver-math dependency
+# permitted in bqui's public surface, alongside avg.
+arrangedep = subproject('arrange',
+    default_options: subproject_warnings).get_variable('arrange_dep').as_system()
+
 # The TCP transport uses Winsock, which needs an explicit link to ws2_32 on
 # Windows; POSIX sockets need no extra link.
 bqui_link_args = []
@@ -93,7 +108,7 @@ libbqui = library(
   'bqui',
   [libbquisrc],
   include_directories: include_directories('include', 'src'),
-  dependencies: bquidep + [nlohmanndep],
+  dependencies: bquidep + [nlohmanndep, arrangedep],
   cpp_args: ['-DBQUI_EXPORT_SYMBOLS'],
   link_args: bqui_link_args,
   gnu_symbol_visibility: 'hidden'
@@ -101,7 +116,7 @@ libbqui = library(
 
 libbquidep = declare_dependency(
   link_with: libbqui,
-  dependencies: bquidep,
+  dependencies: bquidep + [arrangedep],
   link_args: bqui_link_args,
   include_directories: include_directories('include')
   )
@@ -109,13 +124,18 @@ libbquidep = declare_dependency(
 bquitestsrc = [
   'test/apptest.cpp',
   'test/collectiontest.cpp',
+  'test/constraintlayouttest.cpp',
   'test/databindtest.cpp',
+  'test/guidelayouttest.cpp',
   'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',
+  'test/puresolverlayouttest.cpp',
+  'test/regionlayouttest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/sizevocabularytest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
@@ -127,7 +147,7 @@ bquitestsrc = [
 # src headers (the adapter is a private header, not part of the public surface).
 bquitest =  executable('bquitest',
   bquitestsrc,
-  dependencies: [gtestdep, libbquidep, nlohmanndep],
+  dependencies: [gtestdep, libbquidep, nlohmanndep, arrangedep],
   include_directories: include_directories('src'),
   )
 
