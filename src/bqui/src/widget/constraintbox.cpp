@@ -1112,9 +1112,10 @@ std::optional<BandNatural> aggregateNatural(
 
 // A container's aggregate flex on one axis. Filler coefficients sum along the
 // main axis (fillers laid end-to-end each take a share) and take the max across
-// the cross axis (the container flexes if any child does). Absent when no child
-// flexes; its presence is what makes a container holding a filler itself a
-// filler to its parent.
+// the cross axis (any one flexing child flexes the whole). Absent when no child
+// flexes. The caller decides which axis this couples on: its presence there is
+// what makes a container holding a filler itself a filler to its parent, and a
+// container rides flex up only on that coupling axis.
 std::optional<Flex> aggregateFlex(
         std::vector<Constraints> const& children, bool mainAxis)
 {
@@ -1208,13 +1209,22 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
 
         std::optional<Flex> flex = aggregateFlex(childBands, mainAxis);
         bool flexes = flex && flex->coeff > 0.0f;
+        // Flex couples only on the main axis: there the container is a filler to
+        // its parent, so it drops its natural (a flex-basis for the parent's slack
+        // to stretch) and rides its flex up. On the cross axis a flexing child is
+        // real content -- the container is as wide as its widest child -- so the
+        // container keeps its max-of-children natural and rides no flex up: a cross
+        // band that carried flex would be dropped by the stamp onto the parent's
+        // box (flattenConstraints), losing the extent its non-flexing siblings
+        // define and undersizing the container.
+        bool couples = mainAxis && flexes;
 
         Constraints result;
-        result.flex = flex;
-        // A flexible axis drops its natural so the parent's slack can stretch it.
+        if (mainAxis)
+            result.flex = flex;
         // A fixed child sets natural, not min, so a flexing container publishes no
         // min floor for its fixed content and a tight parent can under-allocate it.
-        if (!flexes)
+        if (!couples)
             result.natural = aggregateNatural(childBands, mainAxis);
         result.min = aggregateBound(childBands, mainAxis, &pickMin);
         result.max = aggregateBound(childBands, mainAxis, &pickMax);
@@ -1230,10 +1240,10 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
-        // definite extent. Dropped where the container flexes: a definite default
+        // definite extent. Dropped only on a flexing main axis: a definite default
         // would beat the parent's gap drive and pin the extent, stopping the
-        // stretch, so a flexible axis is left free just as a filler's is.
-        if (!flexes)
+        // stretch, so that axis is left free just as a filler's is.
+        if (!couples)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
@@ -1245,8 +1255,10 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // weight times the parent's shared flex variable, so the parent splits
         // slack between this container and its siblings in proportion to their
         // weights, exactly as it does between leaf fillers. Emitted only on the
-        // parent's axis and only where this container flexes there.
-        if (thisAxis == parentAxis && flexes)
+        // parent's axis and only where this container flexes there -- which, since
+        // flex couples on the main axis, means the container's main axis coincides
+        // with the parent's layout axis.
+        if (thisAxis == parentAxis && couples)
         {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x
@@ -1446,12 +1458,18 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
     {
         std::optional<Flex> flex = aggregateFlex(childBands, false);
         bool flexes = flex && flex->coeff > 0.0f;
+        // A stack overlays on both axes, so it has no main axis of its own; it
+        // couples to its parent on the parent's layout axis. Only there does it
+        // drop its natural and ride flex up, as the pure box does on its main
+        // axis; on the other axis a flexing child is real overlay content, so the
+        // stack keeps its max-of-children natural and rides no flex up (a cross
+        // band carrying flex would be dropped by the parent's stamp).
+        bool couples = thisAxis == parentAxis && flexes;
 
         Constraints result;
-        result.flex = flex;
-        // A flexing axis drops its natural so the parent's slack can stretch it,
-        // exactly as the pure box does.
-        if (!flexes)
+        if (thisAxis == parentAxis)
+            result.flex = flex;
+        if (!couples)
             result.natural = aggregateNatural(childBands, false);
         result.min = aggregateBound(childBands, false, &pickMin);
         result.max = aggregateBound(childBands, false, &pickMax);
@@ -1484,9 +1502,10 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         }
 
         // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped where the
-        // container flexes, just as the pure box drops it.
-        if (!flexes)
+        // sizes nor fills still resolves to a definite extent. Dropped only on the
+        // coupling axis where the stack flexes, as the pure box drops it on a
+        // flexing main axis.
+        if (!couples)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
@@ -1497,7 +1516,7 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         // extent on the parent's layout axis equals its aggregated flex weight
         // times the parent's shared flex variable, the same coupling the pure box
         // emits.
-        if (thisAxis == parentAxis && flexes)
+        if (couples)
         {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x
@@ -1700,12 +1719,18 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
 
         std::optional<Flex> flex = aggregateFlex(childBands, false);
         bool flexes = flex && flex->coeff > 0.0f;
+        // Like the stack the grid has no main axis of its own; it couples to its
+        // parent on the parent's layout axis, and only there drops its natural and
+        // rides flex up. On the other axis a flexing cell child is real track
+        // content, so the grid keeps its max-of-children natural (scaled by the
+        // track count) and rides no flex up (a cross band carrying flex would be
+        // dropped by the parent's stamp).
+        bool couples = thisAxis == parentAxis && flexes;
 
         Constraints result;
-        result.flex = flex;
-        // A flexing axis drops its natural so the parent's slack can stretch it,
-        // exactly as the pure box and stack do.
-        if (!flexes)
+        if (thisAxis == parentAxis)
+            result.flex = flex;
+        if (!couples)
         {
             result.natural = aggregateNatural(childBands, false);
             if (result.natural)
@@ -1757,9 +1782,9 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         }
 
         // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped where the
-        // container flexes, just as the pure box and stack drop it.
-        if (!flexes)
+        // sizes nor fills still resolves to a definite extent. Dropped only on the
+        // coupling axis where the grid flexes, as the pure box and stack drop it.
+        if (!couples)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
@@ -1770,7 +1795,7 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // extent on the parent's layout axis equals its aggregated flex weight
         // times the parent's shared flex variable, the same coupling the pure box
         // and stack emit.
-        if (thisAxis == parentAxis && flexes)
+        if (couples)
         {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x

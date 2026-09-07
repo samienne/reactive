@@ -1376,6 +1376,143 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
     EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
 }
 
+// A column's cross natural encompasses its widest child even when a narrower row
+// flexes. A vbox of a narrow flexing row (fixed 60 + hfiller) and a wide fixed
+// row (fixed 200), placed beside a filler in a 400 row, holds the column at its
+// widest child's 200 -- so the sibling filler begins at 200 and takes the other
+// 200. Before the fix the column dropped its whole cross natural because the
+// narrow row flexes, collapsing to 60 and handing the sibling 340.
+TEST(PureSolverLayout, columnEncompassesWidestChildAcrossFlexingRow)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(column))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry narrowFixed = readProbe(instance, idNarrowFixed);
+    Geometry wideFixed = readProbe(instance, idWideFixed);
+    Geometry sibling = readProbe(instance, idSibling);
+
+    // The column encompasses its widest child (200), not the narrow row's 60.
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, sibling.size[0]);
+
+    EXPECT_FLOAT_EQ(60.0f, narrowFixed.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, wideFixed.size[0]);
+}
+
+// The negative-filler regression, downstream of the same undersizing. The column
+// is content-sized (nested beside a filler, not anchored to the window) so it
+// encompasses its widest child at 200; the narrow flexing row is then cross-filled
+// to 200 and its hfiller takes 200 - 60 = 140 -- positive. Before the fix the
+// column collapsed to 60, the required edge-tiling held the fixed 60 at full size,
+// and the hfiller was driven negative to reconcile.
+TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(column))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry narrowFiller = readProbe(instance, idNarrowFiller);
+
+    EXPECT_GE(narrowFiller.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, narrowFiller.position[0]);
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idNarrowFixed).size[0]);
+}
+
+// The adder-like double nesting: the widest child sits behind an extra column.
+// vbox({ vbox({ hbox({fixed 60, hfiller}) }), hbox({fixed 200}) }) must still
+// encompass the 200 fixed row, and the doubly nested filler stays non-negative --
+// the cross natural rides up through the inner column whose only child flexes.
+TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> innerColumn;
+    innerColumn.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> outerColumn;
+    outerColumn.push_back(vbox(ArraySignal<AnyWidget>(std::move(innerColumn))));
+    outerColumn.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(outerColumn))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry sibling = readProbe(instance, idSibling);
+    Geometry narrowFiller = readProbe(instance, idNarrowFiller);
+
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_GE(narrowFiller.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
+}
+
 // A frame is layout-transparent in a pure region: its margin insets the
 // background shape, not the foreground child, so a framed leaf solves to the
 // exact box a bare one does. Before the passthrough fix the framed child lost
