@@ -66,6 +66,21 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureFillModifier(float weight);
 
     /**
+     * @brief A widget modifier that, inside a pure-solver region, makes the
+     * widget fill along @p axis specifically, whichever axis its container
+     * stacks along.
+     *
+     * Emits the filler band on @p axis -- flex-coupling to the container's slack
+     * when @p axis is its layout axis, else left free for the container's
+     * cross-fill -- while leaving the other axis's band untouched, so a fixed
+     * thickness there stands. Adds no natural on @p axis, so a length natural
+     * cannot beat the cross-fill. Unlike pureFillModifier(), which fills the
+     * container's layout axis, this fills a named axis for a widget (a scroll
+     * bar) whose fill direction is its own. A no-op outside a pure-solver region.
+     */
+    AnyWidgetModifier pureGrowAxisModifier(PureAxis axis);
+
+    /**
      * @brief A widget modifier that, inside a pure-solver region, seeds the pure
      * band on both axes from the builder's own SizeHint: the natural at
      * contentStrength(), and the SizeHint's min/max as strong bounds where they

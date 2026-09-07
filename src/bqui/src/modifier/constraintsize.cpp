@@ -126,4 +126,14 @@ AnyWidgetModifier grow(float weight)
     return detail::pureFillModifier(weight);
 }
 
+AnyWidgetModifier growWidth()
+{
+    return detail::pureGrowAxisModifier(PureAxis::horizontal);
+}
+
+AnyWidgetModifier growHeight()
+{
+    return detail::pureGrowAxisModifier(PureAxis::vertical);
+}
+
 } // namespace bqui::modifier

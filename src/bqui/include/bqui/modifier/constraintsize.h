@@ -123,4 +123,25 @@ namespace bqui::modifier
      * twice as fast as a grow(1) (or filler) sibling. @c fill() is @c grow(1).
      */
     BQUI_EXPORT AnyWidgetModifier grow(float weight);
+
+    /**
+     * @brief In a pure-solver region, make this widget fill along its own width,
+     * whichever axis its container stacks along.
+     *
+     * On the width axis it takes a filler's share of the container's slack where
+     * that is the layout axis, and is stretched by the container's cross-fill
+     * where it is not, so a widget whose fill direction is its own (a horizontal
+     * scroll bar) fills its length in any container. It adds no natural on the
+     * width and leaves the height band untouched, so a fixed height stands
+     * alongside. A later fixed width overrides it; a no-op outside a pure-solver
+     * region.
+     */
+    BQUI_EXPORT AnyWidgetModifier growWidth();
+
+    /**
+     * @brief In a pure-solver region, make this widget fill along its own height,
+     * the vertical counterpart of growWidth(): fills its height in any container
+     * and leaves the width band untouched.
+     */
+    BQUI_EXPORT AnyWidgetModifier growHeight();
 } // namespace bqui::modifier

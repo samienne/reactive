@@ -1954,30 +1954,30 @@ AnyWidget solverHbox(std::vector<AnyWidget> widgets)
     return solverBox(Axis::x, CrossAlign::fill, std::move(widgets));
 }
 
+// The one relation a filler states on the container's layout axis: its extent
+// there equals the shared flex variable, at the weakest tier, so the gap
+// drive pulls it out to fill the slack; the flex band rides up so a container
+// holding a filler is itself a filler to its parent. Off the layout axis it
+// contributes nothing, so the cross axis falls to the container's
+// leading-edge pin, cross-fill and weak default. The layout axis and flex
+// variable arrive as the seeded values threaded through the band map.
+Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
+        Axis layoutAxis, arrange::Variable const& flex)
+{
+    if (thisAxis != layoutAxis)
+        return Constraints();
+
+    Constraints c;
+    c.flex = Flex{ 1.0f };
+    c.relations.constraints.push_back(
+            ((thisAxis == Axis::x ? box.width() : box.height())
+                == arrange::Expression(flex))
+            | weakestStrength());
+    return c;
+}
+
 namespace
 {
-    // The one relation a filler states on the container's layout axis: its extent
-    // there equals the shared flex variable, at the weakest tier, so the gap
-    // drive pulls it out to fill the slack; the flex band rides up so a container
-    // holding a filler is itself a filler to its parent. Off the layout axis it
-    // contributes nothing, so the cross axis falls to the container's
-    // leading-edge pin, cross-fill and weak default. The layout axis and flex
-    // variable arrive as the seeded values threaded through the band map.
-    Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
-            Axis layoutAxis, arrange::Variable const& flex)
-    {
-        if (thisAxis != layoutAxis)
-            return Constraints();
-
-        Constraints c;
-        c.flex = Flex{ 1.0f };
-        c.relations.constraints.push_back(
-                ((thisAxis == Axis::x ? box.width() : box.height())
-                    == arrange::Expression(flex))
-                | weakestStrength());
-        return c;
-    }
-
     // The band a directional filler contributes on one axis. An axis it does not
     // fill is pinned to zero, or the gap drive / cross-fill would stretch a
     // no-extent child there; an axis it fills couples like a plain filler when it

@@ -412,6 +412,18 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Constraint weakHeightDefault(BoxVariables const& box);
 
     /**
+     * @brief One axis's filler band: an @c extent==F coupling to the container's
+     * shared flex variable @p flex at the weakest tier when @p thisAxis is the
+     * container's @p layoutAxis, an empty band otherwise.
+     *
+     * So a filler fills the layout axis by flex and a cross axis by the
+     * container's cross-fill. Shared by filler(), the directional fillers and the
+     * axis-specific grow size words; @p box supplies the coupled extent variable.
+     */
+    Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
+            Axis layoutAxis, arrange::Variable const& flex);
+
+    /**
      * @brief Sizes and positions one content edge-pair within a slot edge-pair
      * on a single axis, reproducing gravity placement inside the solve.
      *

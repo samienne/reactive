@@ -184,6 +184,86 @@ AnyWidgetModifier pureFillModifier(float weight)
             });
 }
 
+AnyWidgetModifier pureGrowAxisModifier(PureAxis axis)
+{
+    return pureBuilderModifier(
+            [axis](widget::AnyBuilder& builder)
+            {
+                BuildParams const& params = builder.getBuildParams();
+                auto axisSig = flexAxis(params).share();
+                auto flexSig = flexVariable(params).share();
+                widget::BoxVariables box = builder.getBoxVariables();
+                Axis fillAxis = toAxis(axis);
+
+                // The filler's per-axis band, composed onto the existing band on
+                // the fill axis only: on the container's layout axis it adds the
+                // flex coupling, off it the band stays empty so the container's
+                // cross-fill stretches the widget. The other axis is left as it
+                // was, so a fixed thickness there stands, and no natural is added
+                // on the fill axis, or a length natural would beat the cross-fill.
+                auto couple = [box, fillAxis](widget::Constraints const& c,
+                        Axis layoutAxis, arrange::Variable flex)
+                {
+                    widget::Constraints band = widget::fillerAxisBand(fillAxis,
+                            box, layoutAxis, flex);
+                    widget::Constraints out = c;
+                    if (band.flex)
+                        out.flex = band.flex;
+                    for (auto const& relation : band.relations.constraints)
+                        out.relations.constraints.push_back(relation);
+                    return out;
+                };
+
+                std::optional<widget::PureLayout> current =
+                    builder.getPureLayout();
+                widget::PureLayout old = current ? *current
+                    : widget::simplePureLayout(
+                        bq::signal::constant(widget::Constraints()),
+                        [](bq::signal::AnySignal<widget::LayoutSolution>)
+                        {
+                            return bq::signal::AnySignal<widget::Constraints>(
+                                    bq::signal::constant(widget::Constraints()));
+                        });
+
+                if (fillAxis == Axis::x)
+                {
+                    auto width = merge(old.getWidth(), axisSig.clone(),
+                            flexSig.clone()).map(
+                            [couple](widget::Constraints const& c,
+                                    Axis layoutAxis, arrange::Variable flex)
+                            {
+                                return couple(c, layoutAxis, flex);
+                            });
+
+                    builder.setPureLayout(widget::simplePureLayout(
+                        bq::signal::AnySignal<widget::Constraints>(
+                            std::move(width)),
+                        [old](bq::signal::AnySignal<widget::LayoutSolution> ws)
+                        {
+                            return old.getHeightForWidth(std::move(ws));
+                        }));
+                }
+                else
+                {
+                    builder.setPureLayout(widget::simplePureLayout(
+                        old.getWidth(),
+                        [old, couple, axisSig, flexSig](
+                                bq::signal::AnySignal<widget::LayoutSolution> ws)
+                            -> bq::signal::AnySignal<widget::Constraints>
+                        {
+                            return merge(old.getHeightForWidth(std::move(ws)),
+                                    axisSig.clone(), flexSig.clone()).map(
+                                    [couple](widget::Constraints const& c,
+                                            Axis layoutAxis,
+                                            arrange::Variable flex)
+                                    {
+                                        return couple(c, layoutAxis, flex);
+                                    });
+                        }));
+                }
+            });
+}
+
 AnyWidgetModifier pureContentDefaultModifier()
 {
     return pureBuilderModifier(
