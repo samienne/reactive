@@ -17,6 +17,7 @@
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
+#include <bqui/widget/scrollbar.h>
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/stack.h>
 #include <bqui/widget/uniformgrid.h>
@@ -2566,4 +2567,108 @@ TEST(PureSolverLayout, overConstrainedFragmentDoesNotZeroSiblings)
     // leaf degrades.
     EXPECT_FLOAT_EQ(40.0f, healthy.size[0]);
     EXPECT_FLOAT_EQ(40.0f, healthy.size[1]);
+}
+
+// A scroll bar carries a native pure band that fills along its own axis: a
+// horizontal bar fills its width and a vertical bar its height, whichever way
+// the container it sits in stacks, while the perpendicular thickness holds at
+// 25. The two "across" cases -- a horizontal bar in a column, a vertical bar in
+// a row -- are the ones a container-relative fill() sized wrong, flexing the bar
+// on the container's main axis instead of filling its own length.
+
+// A horizontal bar's length axis (x) is a column's cross axis: the container's
+// cross-fill stretches it to the full width, and the thickness holds at 25.
+TEST(PureSolverLayout, hScrollBarFillsWidthAcrossAColumn)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(
+            hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(200.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(25.0f, bar.size[1]);
+}
+
+// A vertical bar's length axis (y) is a row's cross axis: the container's
+// cross-fill stretches it to the full height, and the thickness holds at 25.
+// This is the arrangement a scroll view lays a vertical bar into.
+TEST(PureSolverLayout, vScrollBarFillsHeightAcrossARow)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(
+            vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(25.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, bar.size[1]);
+}
+
+// A horizontal bar's length axis (x) is a row's layout axis: it fills the width
+// by flex, taking the row's slack, and the thickness holds at 25.
+TEST(PureSolverLayout, hScrollBarFillsWidthAlongARow)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(
+            hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(200.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(25.0f, bar.size[1]);
+}
+
+// A vertical bar's length axis (y) is a column's layout axis: it fills the
+// height by flex, and the thickness holds at 25.
+TEST(PureSolverLayout, vScrollBarFillsHeightAlongAColumn)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(
+            vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(25.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, bar.size[1]);
 }
