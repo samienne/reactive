@@ -1,6 +1,7 @@
 #include "widget/constraintbox.h"
 #include "widget/constraintlayout.h"
 
+#include <bqui/modifier/buildermodifier.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/instancemodifier.h>
@@ -2211,4 +2212,82 @@ TEST(PureSolverLayout, gridFlexesAsFillerInParent)
     EXPECT_FLOAT_EQ(0.0f, filler.position[0]);
     EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
     EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}
+
+namespace
+{
+
+// A leaf that anchors its own x-edges to an absolute rectangle
+// (anchorConstraints), the shape of an over-constrained fragment: placed as the
+// leading child of a row, its anchor fights the container's leading-edge tiling,
+// two opinions on the same edge. With the anchor held strong the tiling wins and
+// the box overflows locally; were the anchor required the two would be
+// infeasible, the region's whole width solve would throw, and every box on that
+// axis would read back zero-width from the empty solution.
+AnyWidget xAnchoredLeaf(btl::UniqueId id, float left, float right)
+{
+    return withArea(makeWidget()
+            | modifier::setSizeHint(
+                constant(SizeHint(simpleSizeHint(fixed40, fixed40))))
+            | modifier::defaultSize()
+            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                    [left, right](widget::AnyBuilder builder)
+                        -> widget::AnyBuilder
+                    {
+                        widget::BoxVariables box = builder.getBoxVariables();
+                        // defaultSize() above set the pure layout this extends.
+                        widget::PureLayout old = *builder.getPureLayout();
+
+                        auto width = old.getWidth().map(
+                                [box, left, right](widget::Constraints const& c)
+                                {
+                                    widget::Constraints out = c;
+                                    auto pins = widget::anchorConstraints(
+                                            box, left, 0.0f, right, 0.0f);
+                                    out.relations.constraints.push_back(pins[0]);
+                                    out.relations.constraints.push_back(pins[2]);
+                                    return out;
+                                });
+
+                        builder.setPureLayout(widget::simplePureLayout(
+                            bq::signal::AnySignal<widget::Constraints>(
+                                std::move(width)),
+                            [old](bq::signal::AnySignal<widget::LayoutSolution> ws)
+                            {
+                                return old.getHeightForWidth(std::move(ws));
+                            }));
+                        return builder;
+                    })),
+            id);
+}
+
+} // namespace
+
+// One over-constrained fragment must not zero its siblings. A leaf that anchors
+// its box to an absolute rectangle (strong) sits as the leading child of a row,
+// where the tiling pins its leading edge to the container origin -- an
+// irreconcilable pair had the anchor stayed required. The anchored leaf overflows
+// locally while the healthy sibling beside it keeps its full 40x40, proving the
+// region's width solve stays feasible instead of collapsing every box to zero.
+TEST(PureSolverLayout, overConstrainedFragmentDoesNotZeroSiblings)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idAnchored = btl::makeUniqueId();
+    btl::UniqueId const idHealthy = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(xAnchoredLeaf(idAnchored, 500.0f, 540.0f));
+    row.push_back(probe(idHealthy, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry healthy = readProbe(instance, idHealthy);
+
+    // The healthy sibling keeps its content size on both axes; only the anchored
+    // leaf degrades.
+    EXPECT_FLOAT_EQ(40.0f, healthy.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, healthy.size[1]);
 }

@@ -345,7 +345,12 @@ namespace bqui::widget
             BoxVariables const& box);
 
     /**
-     * @brief Pins a box to a fixed window-space rectangle (required).
+     * @brief Pins a box to a fixed window-space rectangle, held strong.
+     *
+     * Strong rather than required so a box that is both anchored and tiled by a
+     * parent overflows against the tiling instead of making the region solve
+     * infeasible (which zeroes every box on that axis); unopposed, the anchor
+     * still resolves the box to the exact rectangle.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> anchorConstraints(
             BoxVariables const& box,

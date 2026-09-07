@@ -383,7 +383,16 @@ bq::signal::AnySignal<LayoutSolution> solveLayout(
                 catch (arrange::Error const&)
                 {
                     // An unsatisfiable update keeps the previous solution rather
-                    // than tearing down the whole signal graph.
+                    // than tearing down the whole signal graph. On a first solve
+                    // that previous is empty, so every variable in the region
+                    // reads back zero and the whole region collapses to zero-size
+                    // boxes on that axis. The fragments must therefore never hand
+                    // this solve a required-strength contradiction; the size and
+                    // anchor pins are held strong precisely so an over-constrained
+                    // fragment overflows here rather than zeroing its siblings.
+                    // Containing the damage to the offending fragment itself is a
+                    // separate follow-up (this catch would keep the healthy part
+                    // of the region were the solve partitioned per fragment).
                     return state;
                 }
 
@@ -451,11 +460,22 @@ avg::Obb readObb(LayoutSolution const& solution, BoxVariables const& box)
 std::vector<arrange::Constraint> anchorConstraints(BoxVariables const& box,
         float left, float top, float right, float bottom)
 {
+    // Strong, not required: an anchor pins the box to its assigned rectangle and
+    // wins outright against the weak defaults and content pulls, but yields to a
+    // required relation. So a box that is both anchored here and tiled by a
+    // parent (two opinions on its position) overflows against the tiling rather
+    // than making the whole region's solve infeasible, which would zero every
+    // box on that axis. Unopposed, the strong anchor still resolves the box to
+    // the exact rectangle.
     return {
-        arrange::Expression(box.left) == arrange::Expression(left),
-        arrange::Expression(box.top) == arrange::Expression(top),
-        arrange::Expression(box.right) == arrange::Expression(right),
-        arrange::Expression(box.bottom) == arrange::Expression(bottom),
+        (arrange::Expression(box.left) == arrange::Expression(left))
+            | arrange::Strength::strong(),
+        (arrange::Expression(box.top) == arrange::Expression(top))
+            | arrange::Strength::strong(),
+        (arrange::Expression(box.right) == arrange::Expression(right))
+            | arrange::Strength::strong(),
+        (arrange::Expression(box.bottom) == arrange::Expression(bottom))
+            | arrange::Strength::strong(),
     };
 }
 
