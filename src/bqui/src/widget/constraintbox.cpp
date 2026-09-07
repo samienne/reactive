@@ -1146,6 +1146,40 @@ std::optional<float> aggregateBound(std::vector<Constraints> const& children,
 std::optional<float> const& pickMin(Constraints const& c) { return c.min; }
 std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
 
+// A container's aggregate min floor on one axis, published only when it flexes
+// (couples) and so drops its aggregate natural. Each child contributes the extent
+// below which it cannot shrink: its explicit @c min if set; otherwise, for a
+// child that does not flex on this axis, its @c natural (a fixed child's natural
+// is a hard floor); a flexing child can shrink to nothing and contributes zero.
+// The floors aggregate as extents do -- main-axis SUM (children tile end to end),
+// cross-axis MAX (children overlap) -- so a tight parent that force-sizes the
+// flexing container cannot squeeze it below what its fixed content needs. Absent
+// when no child floors above zero. Subsumes the explicit-min aggregate, so it
+// replaces (not supplements) aggregateBound(pickMin) on a coupling axis.
+std::optional<float> aggregateFloor(
+        std::vector<Constraints> const& children, bool mainAxis)
+{
+    std::optional<float> value;
+    for (Constraints const& child : children)
+    {
+        float floor;
+        if (child.min)
+            floor = *child.min;
+        else if (child.flex && child.flex->coeff > 0.0f)
+            floor = 0.0f;
+        else if (child.natural)
+            floor = child.natural->value;
+        else
+            floor = 0.0f;
+
+        if (floor <= 0.0f)
+            continue;
+        value = value ? (mainAxis ? *value + floor : std::max(*value, floor))
+                      : floor;
+    }
+    return value;
+}
+
 // The pure-solver counterpart of solverBoxBuildersRegion(): composes this
 // container's fragment with its children's onto its builder for the region to
 // solve, then places its children from the solution handed to its build.
@@ -1213,11 +1247,17 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         Constraints result;
         if (mainAxis)
             result.flex = flex;
-        // A fixed child sets natural, not min, so a flexing container publishes no
-        // min floor for its fixed content and a tight parent can under-allocate it.
+        // A flexing container drops its aggregate natural (a flex-basis for the
+        // parent to stretch), so its min is what floors its fixed content: a fixed
+        // child sets natural, not min, and aggregateFloor folds those naturals in
+        // so a tight parent cannot under-allocate the container. When it does not
+        // couple the published natural already floors it, so keep the plain
+        // explicit-min aggregate there and do not double-constrain.
         if (!couples)
             result.natural = aggregateNatural(childBands, mainAxis);
-        result.min = aggregateBound(childBands, mainAxis, &pickMin);
+        result.min = couples
+            ? aggregateFloor(childBands, mainAxis)
+            : aggregateBound(childBands, mainAxis, &pickMin);
         result.max = aggregateBound(childBands, mainAxis, &pickMax);
 
         LayoutSpec& rel = result.relations;
@@ -1459,7 +1499,11 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
             result.flex = flex;
         if (!couples)
             result.natural = aggregateNatural(childBands, false);
-        result.min = aggregateBound(childBands, false, &pickMin);
+        // On the coupling axis the stack drops its natural, so its min floors the
+        // overlaid content (cross-style, the largest child's floor wins).
+        result.min = couples
+            ? aggregateFloor(childBands, false)
+            : aggregateBound(childBands, false, &pickMin);
         result.max = aggregateBound(childBands, false, &pickMax);
 
         LayoutSpec& rel = result.relations;
@@ -1721,7 +1765,12 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
             if (result.natural)
                 result.natural->value *= factor;
         }
-        result.min = aggregateBound(childBands, false, &pickMin);
+        // On the coupling axis the grid drops its natural, so its min floors the
+        // track content; scaled by the track count like the natural, so a
+        // full-cell child's floor asks for the whole track.
+        result.min = couples
+            ? aggregateFloor(childBands, false)
+            : aggregateBound(childBands, false, &pickMin);
         if (result.min)
             *result.min *= factor;
         result.max = aggregateBound(childBands, false, &pickMax);

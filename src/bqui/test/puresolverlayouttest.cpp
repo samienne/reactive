@@ -997,6 +997,47 @@ TEST(PureSolverLayout, fillerInHboxIsAFiller)
     EXPECT_FLOAT_EQ(160.0f, innerFiller.position[0]);
 }
 
+// A flexing container floors its fixed content. The complement of
+// fillerInHboxIsAFiller: there the parent had slack to spare; here it is
+// over-subscribed. An inner hbox (fixed 200 + hfiller, so a filler to its parent)
+// beside a fixed 700 leaf in an 800 window leaves only 100 for the inner -- below
+// its fixed 200. The inner's min floor holds it at its fixed content's 200 (it
+// overflows the box rather than under-allocating), and its filler shrinks to 0
+// rather than being driven negative. Before the floor the inner took the 100 and
+// its filler went to -100.
+TEST(PureSolverLayout, flexingContainerFloorsFixedContent)
+{
+    avg::Vector2f const window(800.0f, 100.0f);
+
+    btl::UniqueId const idInnerFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idInnerFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+    innerRow.push_back(withArea(hfiller(), idInnerFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(700.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            window);
+
+    Geometry innerFixed = readProbe(instance, idInnerFixed);
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+
+    // The inner hbox encompasses its fixed content (its two children tile, so its
+    // width is their sum) rather than being squeezed to the 100 of slack, and its
+    // filler is non-negative.
+    EXPECT_GE(innerFixed.size[0] + innerFiller.size[0], 200.0f);
+    EXPECT_GE(innerFiller.size[0], 0.0f);
+}
+
 // A flexing container couples to its parent by its aggregated flex weight, not a
 // flat 1. An inner hbox of two fillers aggregates flex coeff 2, so beside a plain
 // filler (coeff 1) in a 300-wide row the parent splits the slack 2:1 -- the inner
