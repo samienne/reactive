@@ -3,6 +3,7 @@
 
 #include <bqui/modifier/buildermodifier.h>
 #include <bqui/modifier/constraintsize.h>
+#include <bqui/modifier/foreground.h>
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/margin.h>
@@ -1440,6 +1441,135 @@ TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
     EXPECT_FLOAT_EQ(0.0f, framed.position[0]);
     EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
     EXPECT_FLOAT_EQ(40.0f, fixed.position[0]);
+}
+
+// A framed pure CONTAINER lays its own children out, not just a framed leaf. An
+// hbox of two content probes wrapped in frame() places both probes at the same
+// boxes the bare hbox does; before the fix the framed container built against an
+// empty region solution and every descendant read back 0x0.
+TEST(PureSolverLayout, framedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    auto row = [&](btl::UniqueId idWide, btl::UniqueId idNarrow, bool framed)
+        -> AnyWidget
+    {
+        std::vector<ArraySignal<AnyWidget>> children;
+        children.push_back(probe(idWide, content137, content24));
+        children.push_back(probe(idNarrow, content63, content24));
+        AnyWidget h = hbox(ArraySignal<AnyWidget>(std::move(children)));
+        return framed ? (std::move(h) | modifier::frame()) : std::move(h);
+    };
+
+    btl::UniqueId const idBareWide = btl::makeUniqueId();
+    btl::UniqueId const idBareNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFramedWide = btl::makeUniqueId();
+    btl::UniqueId const idFramedNarrow = btl::makeUniqueId();
+
+    Instance bare = realiseConverged(
+            pureSolverRoot(row(idBareWide, idBareNarrow, false)), window);
+    Instance framed = realiseConverged(
+            pureSolverRoot(row(idFramedWide, idFramedNarrow, true)), window);
+
+    Geometry bareWide = readProbe(bare, idBareWide);
+    Geometry bareNarrow = readProbe(bare, idBareNarrow);
+    Geometry framedWide = readProbe(framed, idFramedWide);
+    Geometry framedNarrow = readProbe(framed, idFramedNarrow);
+
+    // The framed probes settle at their real content bands, tiled edge to edge --
+    // 137 at 0, 63 at 137 -- exactly as the bare row places them, not collapsed
+    // to 0x0 at the origin.
+    EXPECT_FLOAT_EQ(137.0f, framedWide.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, framedWide.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, framedWide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, framedNarrow.size[0]);
+    EXPECT_FLOAT_EQ(137.0f, framedNarrow.position[0]);
+
+    EXPECT_FLOAT_EQ(bareWide.size[0], framedWide.size[0]);
+    EXPECT_FLOAT_EQ(bareWide.position[0], framedWide.position[0]);
+    EXPECT_FLOAT_EQ(bareNarrow.size[0], framedNarrow.size[0]);
+    EXPECT_FLOAT_EQ(bareNarrow.position[0], framedNarrow.position[0]);
+}
+
+// A frame around a nested container reaches all the way down: an hbox holding a
+// fixed leaf and an inner vbox of two probes, wrapped in frame(), lays the inner
+// vbox's own children out. Both nested probes keep their real bands and stack in
+// the inner column, proving the threaded solution descends through more than one
+// container boundary.
+TEST(PureSolverLayout, framedNestedContainerPlacesGrandchildren)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idTop = btl::makeUniqueId();
+    btl::UniqueId const idBottom = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(idTop, fixed40, fixed40));
+    inner.push_back(probe(idBottom, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> outer;
+    outer.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(
+                hbox(ArraySignal<AnyWidget>(std::move(outer)))
+                | modifier::frame()),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry top = readProbe(instance, idTop);
+    Geometry bottom = readProbe(instance, idBottom);
+
+    // The outer fixed leaf holds 80 and the inner column sits beside it at x=80;
+    // its two probes keep their 40x40 bands and stack from the top of the row.
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, top.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, top.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, bottom.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, bottom.size[1]);
+    EXPECT_FLOAT_EQ(80.0f, top.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, bottom.position[0]);
+    EXPECT_GT(top.position[1], bottom.position[1]);
+}
+
+// foreground() is layout-transparent too: an overlay drawn over a pure container
+// must not stop that container placing its own children. An hbox of two content
+// probes wrapped in foreground() lays both probes out at their real bands, tiled
+// edge to edge -- not collapsed to 0x0 as the dropped region solution would.
+TEST(PureSolverLayout, foregroundedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(idWide, content137, content24));
+    children.push_back(probe(idNarrow, content63, content24));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(
+                hbox(ArraySignal<AnyWidget>(std::move(children)))
+                | modifier::foreground(makeWidget())),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(137.0f, narrow.position[0]);
 }
 
 // vfiller flexes vertically in a pure vbox: a 40-tall content leaf above it, and
