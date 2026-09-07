@@ -2,12 +2,15 @@
 
 #include "constraintlayout.h"
 
+#include "bqui/widget/instance.h"
 #include "bqui/widget/puresolver.h"
 #include "bqui/widget/widget.h"
 
 #include "bqui/bquivisibility.h"
 
 #include <bq/signal/arraysignal.h>
+
+#include <avg/vector.h>
 
 #include <cstddef>
 #include <vector>
@@ -131,6 +134,34 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             std::vector<GridCell> cells, unsigned int columns,
             unsigned int rows);
+
+    /**
+     * @brief Whether the region the widget reading @p params builds into is a
+     * pure-solver context: its members emit band-free constraints plus the
+     * universal weak defaults rather than reading a SizeHint band.
+     *
+     * A constant the region owner seeded, so evaluating it in its own context is
+     * safe. Shared out of the library so a firewall (bin()) branches on the same
+     * flag its containers do.
+     */
+    bool pureSolver(BuildParams const& params);
+
+    /**
+     * @brief Solves @p content as a self-contained pure-solver region anchored to
+     * @p size and returns its built, placed instance.
+     *
+     * The reusable core of a pure firewall. It seeds the pure-solver flag, reads
+     * @p content's composed pure descriptor (bridging its SizeHint where it has
+     * none), anchors its outermost box to @p size, runs the two disjoint per-axis
+     * region solves, and threads the combined solution into the build so every
+     * container inside places its children against a real solution on the first
+     * evaluate. pureSolverRoot() anchors to the window; bin() anchors to the
+     * clipped content size, so content size dies at the boundary.
+     */
+    bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
+            AnyWidget const& content,
+            bq::signal::AnySignal<avg::Vector2f> size,
+            BuildParams const& params);
 
     /**
      * @brief Diagnostic: the number of entries provideParam<ResolvedGuides>()

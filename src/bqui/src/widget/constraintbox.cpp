@@ -673,15 +673,6 @@ bool regionAnchor(BuildParams const& params)
     return context.evaluate<0>().get<0>();
 }
 
-// Whether the surrounding region is a pure-solver one. A constant the region
-// owner seeded, so evaluating it in its own context is safe.
-bool pureSolver(BuildParams const& params)
-{
-    auto context = bq::signal::makeSignalContext(
-            params.valueOrDefault<PureSolverTag>());
-    return context.evaluate<0>().get<0>();
-}
-
 // The flex variable and layout axis the enclosing pure-solver container seeded
 // for its fillers, as signals. They stay signals so their values track the real
 // context a filler evaluates in rather than a parallel one that can diverge.
@@ -2249,83 +2240,17 @@ AnyWidget regionRootImpl(AnyWidget content)
             );
 }
 
-// The pure-solver region owner. Turns the content into a builder without
-// building any element, reads the domain's composed constraints off it, anchors
-// its outermost box to the window, and runs the two disjoint per-axis solves.
-// The combined solution is handed into the build as an argument, so the element
-// is placed against a real solution on the first evaluate.
+// The pure-solver region owner. Anchors the content to the window and adds its
+// solved instance; the region solve itself is the reusable solvePureRegionAtSize
+// core, which a nested firewall (bin()) shares.
 AnyWidget pureRegionRootImpl(AnyWidget content)
 {
     return makeWidgetWithSize(
             [content](auto size, BuildParams const& params)
             {
-                BuildParams childParams = params;
-                childParams.set<PureSolverTag>(bq::signal::constant(true));
-
-                auto builder = content.clone()(childParams);
-                std::optional<PureLayout> pure = builder.getPureLayout();
-                BoxVariables root = builder.getBoxVariables();
-
-                // A top content builder with no pure descriptor is bridged from
-                // its SizeHint, as a child of a container would be.
-                PureLayout effective = pure ? *pure
-                    : pureLayoutFromSizeHint(builder.getSizeHint(), root);
-                auto width = effective.getWidth();
-
-                auto sharedSize = std::move(size).share();
-
-                // The region owner flattens the top descriptor's band onto its
-                // outermost box and alone anchors that box to the window
-                // rectangle; every container inside states only relative
-                // structure.
-                auto anchored = [root](Axis axis)
-                {
-                    return [root, axis](Constraints const& constraints,
-                            avg::Vector2f size)
-                    {
-                        std::vector<LayoutSpec> all;
-                        all.push_back(
-                                flattenConstraints(constraints, root, axis));
-                        LayoutSpec anchor;
-                        arrange::Variable const& lead =
-                            axis == Axis::x ? root.left : root.top;
-                        arrange::Variable const& trail =
-                            axis == Axis::x ? root.right : root.bottom;
-                        float extent = axis == Axis::x ? size[0] : size[1];
-                        anchor.constraints.push_back(arrange::Expression(lead)
-                                == arrange::Expression(0.0));
-                        anchor.constraints.push_back(arrange::Expression(trail)
-                                == arrange::Expression(
-                                    static_cast<double>(extent)));
-                        anchor.variables.push_back(lead);
-                        anchor.variables.push_back(trail);
-                        all.push_back(std::move(anchor));
-                        return all;
-                    };
-                };
-
-                // The width solve runs first; its solution feeds phase 2.
-                auto horizontalFragments =
-                    merge(std::move(width), sharedSize.clone())
-                    .map(anchored(Axis::x));
-                auto widthSolution = layoutRegion(bq::signal::AnySignal<
-                        std::vector<LayoutSpec>>(
-                        std::move(horizontalFragments))).share();
-
-                auto heightBands =
-                    effective.getHeightForWidth(widthSolution.clone());
-                auto verticalFragments =
-                    merge(std::move(heightBands), sharedSize.clone())
-                    .map(anchored(Axis::y));
-                auto heightSolution = layoutRegion(bq::signal::AnySignal<
-                        std::vector<LayoutSpec>>(
-                        std::move(verticalFragments)));
-
-                auto solution = combineSolutions(widthSolution.clone(),
-                        std::move(heightSolution)).share();
-
-                auto instance = std::move(builder)(sharedSize.clone(),
-                        solution.clone()).getInstance();
+                auto instance = solvePureRegionAtSize(content,
+                        bq::signal::AnySignal<avg::Vector2f>(std::move(size)),
+                        params);
 
                 return widget::makeWidget()
                     | modifier::addWidget(std::move(instance));
@@ -2335,6 +2260,88 @@ AnyWidget pureRegionRootImpl(AnyWidget content)
 }
 
 } // namespace
+
+bool pureSolver(BuildParams const& params)
+{
+    auto context = bq::signal::makeSignalContext(
+            params.valueOrDefault<PureSolverTag>());
+    return context.evaluate<0>().get<0>();
+}
+
+// Reads the content's composed pure descriptor (bridging its SizeHint where it
+// has none), anchors its outermost box to size, and runs the two disjoint
+// per-axis solves. The combined solution is handed into the build as an
+// argument, so the element is placed against a real solution on the first
+// evaluate.
+bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
+        AnyWidget const& content,
+        bq::signal::AnySignal<avg::Vector2f> size,
+        BuildParams const& params)
+{
+    BuildParams childParams = params;
+    childParams.set<PureSolverTag>(bq::signal::constant(true));
+
+    auto builder = content.clone()(childParams);
+    std::optional<PureLayout> pure = builder.getPureLayout();
+    BoxVariables root = builder.getBoxVariables();
+
+    // A top content builder with no pure descriptor is bridged from its
+    // SizeHint, as a child of a container would be.
+    PureLayout effective = pure ? *pure
+        : pureLayoutFromSizeHint(builder.getSizeHint(), root);
+    auto width = effective.getWidth();
+
+    auto sharedSize = std::move(size).share();
+
+    // The region owner flattens the top descriptor's band onto its outermost box
+    // and alone anchors that box to the assigned rectangle; every container
+    // inside states only relative structure.
+    auto anchored = [root](Axis axis)
+    {
+        return [root, axis](Constraints const& constraints,
+                avg::Vector2f size)
+        {
+            std::vector<LayoutSpec> all;
+            all.push_back(flattenConstraints(constraints, root, axis));
+            LayoutSpec anchor;
+            arrange::Variable const& lead =
+                axis == Axis::x ? root.left : root.top;
+            arrange::Variable const& trail =
+                axis == Axis::x ? root.right : root.bottom;
+            float extent = axis == Axis::x ? size[0] : size[1];
+            anchor.constraints.push_back(arrange::Expression(lead)
+                    == arrange::Expression(0.0));
+            anchor.constraints.push_back(arrange::Expression(trail)
+                    == arrange::Expression(static_cast<double>(extent)));
+            anchor.variables.push_back(lead);
+            anchor.variables.push_back(trail);
+            all.push_back(std::move(anchor));
+            return all;
+        };
+    };
+
+    // The width solve runs first; its solution feeds phase 2.
+    auto horizontalFragments =
+        merge(std::move(width), sharedSize.clone())
+        .map(anchored(Axis::x));
+    auto widthSolution = layoutRegion(bq::signal::AnySignal<
+            std::vector<LayoutSpec>>(
+            std::move(horizontalFragments))).share();
+
+    auto heightBands = effective.getHeightForWidth(widthSolution.clone());
+    auto verticalFragments =
+        merge(std::move(heightBands), sharedSize.clone())
+        .map(anchored(Axis::y));
+    auto heightSolution = layoutRegion(bq::signal::AnySignal<
+            std::vector<LayoutSpec>>(
+            std::move(verticalFragments)));
+
+    auto solution = combineSolutions(widthSolution.clone(),
+            std::move(heightSolution)).share();
+
+    return std::move(builder)(sharedSize.clone(), solution.clone())
+        .getInstance();
+}
 
 AnyWidget regionRoot(AnyWidget content)
 {

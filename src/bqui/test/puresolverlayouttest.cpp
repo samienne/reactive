@@ -14,10 +14,12 @@
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
 
+#include <bqui/widget/bin.h>
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
 #include <bqui/widget/scrollbar.h>
+#include <bqui/widget/scrollview.h>
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/stack.h>
 #include <bqui/widget/uniformgrid.h>
@@ -2671,4 +2673,109 @@ TEST(PureSolverLayout, vScrollBarFillsHeightAlongAColumn)
 
     EXPECT_FLOAT_EQ(25.0f, bar.size[0]);
     EXPECT_FLOAT_EQ(300.0f, bar.size[1]);
+}
+
+// bin() is a pure firewall: it solves its content as its own pure region
+// anchored to the content size, so a pure container inside the content is solved
+// at real sizes. Without the firewall the size-only build would thread an empty
+// solution and the nested column's leaves would collapse to 0x0. Here a column
+// of two 40x40 leaves behind bin() lays them out at 40x40, stacked. The viewport
+// equals the content size, so the firewall's bottom-align offset is zero and
+// nothing is clipped away.
+TEST(PureSolverLayout, binFirewallSolvesNestedContainer)
+{
+    avg::Vector2f const contentSize(40.0f, 80.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(probe(idA, fixed40, fixed40));
+    column.push_back(probe(idB, fixed40, fixed40));
+
+    AnyWidget content = vbox(ArraySignal<AnyWidget>(std::move(column)));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(bin(std::move(content), constant(contentSize))),
+            contentSize);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // Solved at the 40x40 content band, not the 0x0 an empty solution places a
+    // nested container's children at, nor a blown-up default.
+    for (Geometry const& g : { a, b })
+    {
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    }
+
+    // Stacked edge to edge inside the 80-tall content.
+    EXPECT_FLOAT_EQ(40.0f, std::abs(a.position[1] - b.position[1]));
+}
+
+// The firewall boundary: bin()'s own box is the assigned viewport size, while
+// the content behind it keeps its own, larger content size rather than being
+// squeezed to fit -- so it overflows the viewport, which is why bin() clips it.
+// A 40x400 leaf inside a 200x300 view stays 40x400 (content-sized, overflowing),
+// while bin() reports the 200x300 view size upward.
+TEST(PureSolverLayout, binFirewallIsViewportSizedNotContentSized)
+{
+    avg::Vector2f const viewport(200.0f, 300.0f);
+    avg::Vector2f const contentSize(40.0f, 400.0f);
+
+    btl::UniqueId const idView = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    AnyWidget content = probe(idLeaf, fixed40, fixed40)
+        | modifier::fixedSize(constant(contentSize));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(withArea(
+                    bin(std::move(content), constant(contentSize)), idView)),
+            viewport);
+
+    Geometry view = readProbe(instance, idView);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    // The firewall takes the viewport size, decoupled from the content size.
+    EXPECT_FLOAT_EQ(200.0f, view.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, view.size[1]);
+
+    // The content is solved at its own content size -- taller than the viewport,
+    // so it overflows and bin()'s clip() (see bin.cpp) crops it to the view.
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(400.0f, leaf.size[1]);
+}
+
+// The motivating case end to end: a scrollView of a pure uniformGrid under
+// pureSolverRoot, mirroring testapp1. The grid is a firewall solved at its own
+// content size (2x2 of 100x100 cells, so 200x200), so its cells get real sizes
+// instead of collapsing against the size-only build's empty solution (0x0) or
+// blowing up to the SizeHint ceiling. The content fits within the viewport, so
+// every cell is readable at its full size.
+TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
+{
+    avg::Vector2f const window(500.0f, 900.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    AnyWidget content = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probe(idA, fixed100, fixed100))
+        .cell(1, 1, 1, 1, probe(idB, fixed100, fixed100));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(scrollView(std::move(content))), window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // The grid cells are laid out at their real 100x100 size -- not the 0x0 an
+    // empty solution gives a nested container, nor a 10000 blow-up.
+    for (Geometry const& g : { a, b })
+    {
+        EXPECT_FLOAT_EQ(100.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(100.0f, g.size[1]);
+    }
 }
