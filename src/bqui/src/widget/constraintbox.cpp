@@ -1459,11 +1459,8 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         std::optional<Flex> flex = aggregateFlex(childBands, false);
         bool flexes = flex && flex->coeff > 0.0f;
         // A stack overlays on both axes, so it has no main axis of its own; it
-        // couples to its parent on the parent's layout axis. Only there does it
-        // drop its natural and ride flex up, as the pure box does on its main
-        // axis; on the other axis a flexing child is real overlay content, so the
-        // stack keeps its max-of-children natural and rides no flex up (a cross
-        // band carrying flex would be dropped by the parent's stamp).
+        // couples on the parent's layout axis and keeps its max-of-children
+        // natural on the other, as the pure box does across its two axes.
         bool couples = thisAxis == parentAxis && flexes;
 
         Constraints result;
@@ -1719,12 +1716,9 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
 
         std::optional<Flex> flex = aggregateFlex(childBands, false);
         bool flexes = flex && flex->coeff > 0.0f;
-        // Like the stack the grid has no main axis of its own; it couples to its
-        // parent on the parent's layout axis, and only there drops its natural and
-        // rides flex up. On the other axis a flexing cell child is real track
-        // content, so the grid keeps its max-of-children natural (scaled by the
-        // track count) and rides no flex up (a cross band carrying flex would be
-        // dropped by the parent's stamp).
+        // Like the stack, the grid couples on the parent's layout axis and keeps
+        // its max-of-children natural on the other (here scaled by the track
+        // count).
         bool couples = thisAxis == parentAxis && flexes;
 
         Constraints result;

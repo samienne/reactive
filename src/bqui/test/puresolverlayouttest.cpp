@@ -1468,7 +1468,7 @@ TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idNarrowFixed).size[0]);
 }
 
-// The adder-like double nesting: the widest child sits behind an extra column.
+// Double nesting: the widest child sits behind an extra column.
 // vbox({ vbox({ hbox({fixed 60, hfiller}) }), hbox({fixed 200}) }) must still
 // encompass the 200 fixed row, and the doubly nested filler stays non-negative --
 // the cross natural rides up through the inner column whose only child flexes.
