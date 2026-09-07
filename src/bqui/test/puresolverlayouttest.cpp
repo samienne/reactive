@@ -1031,11 +1031,11 @@ TEST(PureSolverLayout, flexingContainerFloorsFixedContent)
     Geometry innerFixed = readProbe(instance, idInnerFixed);
     Geometry innerFiller = readProbe(instance, idInnerFiller);
 
-    // The inner hbox encompasses its fixed content (its two children tile, so its
-    // width is their sum) rather than being squeezed to the 100 of slack, and its
-    // filler is non-negative.
-    EXPECT_GE(innerFixed.size[0] + innerFiller.size[0], 200.0f);
-    EXPECT_GE(innerFiller.size[0], 0.0f);
+    // The inner hbox is floored at its fixed content (200) rather than squeezed to
+    // the 100 of slack, so the fixed child keeps its 200 and the filler settles at
+    // 0 -- not the -100 it was driven to before the floor.
+    EXPECT_FLOAT_EQ(200.0f, innerFixed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerFiller.size[0]);
 }
 
 // A flexing container couples to its parent by its aggregated flex weight, not a

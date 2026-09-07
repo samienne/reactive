@@ -1162,7 +1162,7 @@ std::optional<float> aggregateFloor(
     std::optional<float> value;
     for (Constraints const& child : children)
     {
-        float floor;
+        float floor = 0.0f;
         if (child.min)
             floor = *child.min;
         else if (child.flex && child.flex->coeff > 0.0f)
