@@ -2572,9 +2572,9 @@ TEST(PureSolverLayout, overConstrainedFragmentDoesNotZeroSiblings)
 // A scroll bar carries a native pure band that fills along its own axis: a
 // horizontal bar fills its width and a vertical bar its height, whichever way
 // the container it sits in stacks, while the perpendicular thickness holds at
-// 25. The two "across" cases -- a horizontal bar in a column, a vertical bar in
-// a row -- are the ones a container-relative fill() sized wrong, flexing the bar
-// on the container's main axis instead of filling its own length.
+// 25. The "across" cases -- a horizontal bar in a column, a vertical bar in a
+// row -- pin that the bar fills its own length whichever axis its container
+// stacks along, not the container's layout axis.
 
 // A horizontal bar's length axis (x) is a column's cross axis: the container's
 // cross-fill stretches it to the full width, and the thickness holds at 25.
