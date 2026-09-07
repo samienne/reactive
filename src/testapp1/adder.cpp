@@ -8,6 +8,7 @@
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/setminimumsize.h>
+#include <bqui/modifier/constraintsize.h>
 
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/label.h>
@@ -241,6 +242,7 @@ bqui::widget::AnyWidget adder()
                             handle.set(!fancy);
                         }))
                         | modifier::setMinimumWidth(250.0f)
+                        | modifier::minWidth(250.0f)
                     })
             }
         )

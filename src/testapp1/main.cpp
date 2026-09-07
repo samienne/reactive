@@ -219,7 +219,8 @@ int main()
         widget::vbox({
             widget::button("Open another window",
                     []() { openSecondWindow(); })
-                | modifier::setSizeHint({ 250, 50 }),
+                | modifier::setSizeHint({ 250, 50 })
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             widget::button(
                     showTracked.signal.map([](bool b) -> std::string
                         {
@@ -234,7 +235,8 @@ int main()
                             else
                                 openTracked();
                         }))
-                | modifier::setSizeHint({ 250, 50 }),
+                | modifier::setSizeHint({ 250, 50 })
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             shape::rectangle()
                 //.size(bq::signal::constant(avg::Vector2f(100, 100)))
                 //.transform(bq::signal::constant(avg::translate(10, 20)))
@@ -252,7 +254,8 @@ int main()
                         h.set(!b);
                     }))
                 //| modifier::setSizeHint( {100.0f, 200.0} ),
-                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
+                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f })
+                | modifier::minSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame()
                 | modifier::setName("curvesLabel"),
@@ -265,6 +268,7 @@ int main()
                 | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
                 | modifier::setSize(avg::Vector2f{ 150, 50 })
                 | modifier::setSizeHint({ 300, 300 })
+                | modifier::fixedSize(avg::Vector2f{ 150, 50 })
                 | modifier::setName("nextCurveButton")
                 | modifier::setRole("Button"),
             widget::vfiller()
