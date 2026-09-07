@@ -22,6 +22,7 @@ namespace bqui::modifier
         {
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
+            auto gravity = builder.getGravity();
             std::optional<widget::PureLayout> childPure =
                 builder.getPureLayout();
             widget::BoxVariables childBox = builder.getBoxVariables();
@@ -55,7 +56,7 @@ namespace bqui::modifier
                 },
                 std::move(sizeHint),
                 params,
-                bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
+                std::move(gravity)
                 );
 
             // The overlay is layout-transparent: the wrapped child's band and box
