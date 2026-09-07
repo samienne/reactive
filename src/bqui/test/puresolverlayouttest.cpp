@@ -1382,9 +1382,17 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
 // widest child's 200 -- so the sibling filler begins at 200 and takes the other
 // 200. Before the fix the column dropped its whole cross natural because the
 // narrow row flexes, collapsing to 60 and handing the sibling 340.
+// A content-sized column holding a flexing row settles at its widest child and
+// does NOT compete for its parent's cross-axis slack. The window is wider than
+// the column + its content so the arrangement is under-subscribed: the column is
+// 200 (its widest child), and the sibling filler takes ALL the remaining 600.
+// This discriminates the fix: before it, the flexing narrow row made the column
+// ride x-flex up and split the 600 slack with the filler (filler -> 200); now the
+// column carries no cross-axis flex, so the filler takes the whole 600. (An
+// exactly-subscribed window would leave the filler at 200 either way.)
 TEST(PureSolverLayout, columnEncompassesWidestChildAcrossFlexingRow)
 {
-    avg::Vector2f const window(400.0f, 200.0f);
+    avg::Vector2f const window(800.0f, 200.0f);
 
     btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
     btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
@@ -1416,9 +1424,10 @@ TEST(PureSolverLayout, columnEncompassesWidestChildAcrossFlexingRow)
     Geometry wideFixed = readProbe(instance, idWideFixed);
     Geometry sibling = readProbe(instance, idSibling);
 
-    // The column encompasses its widest child (200), not the narrow row's 60.
+    // The column is content-sized at its widest child (200); the filler, not the
+    // column, claims the 600 of cross-axis slack.
     EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
-    EXPECT_FLOAT_EQ(200.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(600.0f, sibling.size[0]);
 
     EXPECT_FLOAT_EQ(60.0f, narrowFixed.size[0]);
     EXPECT_FLOAT_EQ(200.0f, wideFixed.size[0]);
