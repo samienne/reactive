@@ -142,12 +142,13 @@ namespace bq::signal
             std::is_invocable_v<TKeyFunc const&, T const&>
             && std::is_invocable_v<TDelegate const&, AnySignal<T>>;
 
-        /** @brief Whether forEach() accepts this key-passing delegate.
+        /**
+         * @brief Whether forEach() accepts this key-passing delegate.
          *
          * The variant whose delegate is handed the key alongside the value
-         * signal. Disjoint from isForEachCallable by arity: a value-only
-         * delegate is not invocable with two arguments, and a key-passing one
-         * is not invocable with one, so the two overloads never both match.
+         * signal. For a fixed-arity delegate this is disjoint from
+         * isForEachCallable: a one-argument delegate fails the two-argument test
+         * and vice versa, so the two overloads never both match.
          */
         template <typename TKeyFunc, typename TDelegate, typename T>
         constexpr bool isForEachKeyedCallable =
@@ -714,7 +715,8 @@ namespace bq::signal
                 });
     }
 
-    /** @brief forEach() whose delegate is also handed the key.
+    /**
+     * @brief forEach() whose delegate is also handed the key.
      *
      * The same operator, with the identity the caller keyed on passed to the
      * delegate as 'delegate(key, value)'. The key is already in hand where each
