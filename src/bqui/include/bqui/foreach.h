@@ -3,8 +3,7 @@
 #include "collection.h"
 #include "connection.h"
 
-#include <bqui/widget/widget.h>
-#include <bqui/widget/builder.h>
+#include "bqui/widget/widget.h"
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
@@ -20,23 +19,25 @@ namespace bqui
 {
     namespace detail
     {
-        /** @brief Blocks 'T' from being deduced from a parameter.
+        /**
+         * @brief Blocks 'T' from being deduced from a parameter.
          *
          * A delegate passed as a lambda cannot deduce 'T' against a
          * std::function, so 'T' is fixed by the Collection argument and the
          * delegate parameter is a non-deduced context.
          */
         template <typename T>
-        struct Identity
+        struct TypeIdentity
         {
             using type = T;
         };
 
         template <typename T>
-        using IdentityT = typename Identity<T>::type;
+        using TypeIdentityT = typename TypeIdentity<T>::type;
     }
 
-    /** @brief A reactive view of a Collection as id/value snapshots.
+    /**
+     * @brief A reactive view of a Collection as id/value snapshots.
      *
      * The signal carries a fresh 'rangeLock()' snapshot on every change to the
      * collection, each item paired with its stable 'getId()'. The subscription
@@ -69,7 +70,8 @@ namespace bqui
         *connections += collection.onMove(
                 [bump](size_t, int) mutable { bump(); });
         *connections += collection.onRefresh(
-                [bump](std::vector<std::pair<size_t, T>>) mutable { bump(); });
+                [bump](std::vector<std::pair<size_t, T>> const&) mutable
+                    { bump(); });
 
         return tick.signal.map(
                 [collection, connections](size_t)
@@ -86,17 +88,22 @@ namespace bqui
                 });
     }
 
-    /** @brief Builds one widget per collection item, keyed by its stable id.
+    /**
+     * @brief Builds one widget per collection item, keyed by its stable id.
      *
      * The delegate is invoked once per item identity and handed the item's
      * value as a signal plus its id. A value update or a reorder reaches the
      * built widget without rebuilding it; only a genuinely new id builds one
      * more, and an erased id retires its widget without disturbing the rest.
+     *
+     * Identity is the item's stable heap address ('getId'): an erase and
+     * re-insert across frames rebuilds, but a same-frame erase and insert whose
+     * new item reuses the freed address is one identity and reuses the widget.
      */
     template <typename T>
     bq::signal::AnySignal<std::vector<std::pair<size_t, widget::AnyWidget>>>
     forEach(Collection<T>& collection,
-            detail::IdentityT<std::function<widget::AnyWidget(
+            detail::TypeIdentityT<std::function<widget::AnyWidget(
                 bq::signal::AnySignal<T> value, size_t id)>> delegate)
     {
         using Item = std::pair<size_t, T>;
