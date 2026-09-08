@@ -39,7 +39,7 @@ AnyWidgetModifier onClick(unsigned int button,
             return std::move(widget)
                 | onPointerUp(
                         merge(std::move(cb), std::move(size))
-                        .bindToFunction(std::move(f)))
+                        .bindFirst(std::move(f)))
                 | addCapability(widget::Capability::Clickable)
                 ;
         },
@@ -56,7 +56,7 @@ AnyWidgetModifier onClick(unsigned int button,
         cb();
     };
 
-    auto c = std::move(cb).bindToFunction(std::move(f));
+    auto c = std::move(cb).bindFirst(std::move(f));
     return onClick(button, c.template cast<std::function<void(ClickEvent const&)>>());
 }
 

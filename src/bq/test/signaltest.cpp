@@ -12,6 +12,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+
 using namespace bq::signal;
 
 static_assert(std::is_same_v<
@@ -683,11 +685,32 @@ TEST(signal, cast)
     EXPECT_EQ("20", f(20));
 }
 
-TEST(signal, bindToFunction)
+TEST(signal, castFunctionShorthand)
+{
+    auto flag = std::make_shared<bool>(false);
+
+    auto s1 = constant([flag]() { *flag = true; });
+
+    auto s2 = s1.cast<void()>();
+
+    static_assert(checkSignal<decltype(s2.unwrap())>());
+
+    auto c = makeSignalContext(s2);
+
+    auto f = c.evaluate<0>().get<0>();
+
+    EXPECT_EQ(Type<std::function<void()>>(), Type<decltype(f)>());
+
+    f();
+
+    EXPECT_TRUE(*flag);
+}
+
+TEST(signal, bindFirst)
 {
     auto input1 = makeInput(42, std::string("hello"));
 
-    auto s1 = input1.signal.bindToFunction([](int i, std::string const& s1,
+    auto s1 = input1.signal.bindFirst([](int i, std::string const& s1,
                 std::string const& s2)
             {
                 return std::to_string(i) + s1 + ", " + s2;
@@ -704,6 +727,28 @@ TEST(signal, bindToFunction)
     auto f = c.evaluate<0>().get<0>();
 
     EXPECT_EQ("42hello, world", f("world"));
+}
+
+TEST(signal, bindFirstWrongArityIsCleanFalse)
+{
+    // Probing the produced closure at the wrong arity must be a clean SFINAE
+    // false, not a hard error instantiated inside the closure body.
+    auto ignores = constant(true).bindFirst([](bool) {});
+    auto ci = makeSignalContext(ignores);
+    auto fi = ci.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fi)&>);
+    static_assert(!std::is_invocable_v<decltype(fi)&, double>);
+
+    auto consumes = constant(true).bindFirst([](bool, double) {});
+    auto cc = makeSignalContext(consumes);
+    auto fc = cc.evaluate<0>().get<0>();
+
+    static_assert(std::is_invocable_v<decltype(fc)&, double>);
+    static_assert(!std::is_invocable_v<decltype(fc)&>);
+
+    fi();
+    fc(3.14);
 }
 
 TEST(signal, withChanged)

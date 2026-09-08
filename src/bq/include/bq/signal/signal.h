@@ -13,10 +13,13 @@
 #include "withchanged.h"
 #include "withprevious.h"
 
+#include "detail/boundinvoker.h"
+
 #include <btl/future/future.h>
 #include <btl/async.h>
 #include <btl/bindarguments.h>
 
+#include <functional>
 #include <string>
 
 namespace bq::signal
@@ -26,6 +29,15 @@ namespace bq::signal
 
     template <typename... Ts>
     class AnySignal;
+
+    /**
+     * @brief Cast target for @ref Signal::cast: a bare function type
+     * @c R(Args...) maps to @c std::function<R(Args...)>, any other type to
+     * itself.
+     */
+    template <typename U>
+    using CastTargetT = std::conditional_t<
+        std::is_function_v<U>, std::function<U>, U>;
 
     template <typename TStorage, typename... Ts>
     class SignalWithStorage
@@ -288,15 +300,27 @@ namespace bq::signal
             return wrap(Cache<StorageType>(Super::sig_));
         }
 
+        /**
+         * @brief Converts each value to the requested type.
+         *
+         * A function type @c U names @c std::function<U>, so a callable signal
+         * casts to a signature without spelling out the wrapper:
+         *
+         * @code
+         * signal.cast<float>();       // Signal<int> -> Signal<float>
+         * callback.cast<void()>();    // -> Signal<std::function<void()>>
+         * @endcode
+         */
         template <typename... Us, typename = std::enable_if_t<
-            btl::all(std::is_convertible_v<Ts, Us>...)
+            btl::all(std::is_convertible_v<Ts, CastTargetT<Us>>...)
             >>
         auto cast() const
         {
             return map([](auto&&... ts)
                 {
-                    return makeSignalResult<Us...>(
-                            static_cast<Us>(std::forward<decltype(ts)>(ts))...
+                    return makeSignalResult<CastTargetT<Us>...>(
+                            static_cast<CastTargetT<Us>>(
+                                std::forward<decltype(ts)>(ts))...
                             );
                 });
         }
@@ -309,22 +333,25 @@ namespace bq::signal
             return signal::merge(*this, std::forward<Us>(signals)...);
         }
 
+        /**
+         * @brief Binds the signal's values to @p func's leading parameters.
+         *
+         * Yields a signal of callables: each holds the current values as
+         * @p func's first arguments and takes the remaining arguments when
+         * called, so call-time arguments are trailing.
+         *
+         * @code
+         * // count is Signal<int>; the result takes the extra bool when called.
+         * count.bindFirst([](int n, bool flag) { ... });
+         * @endcode
+         */
         template <typename TFunc>
-        auto bindToFunction(TFunc&& func) const
+        auto bindFirst(TFunc&& func) const
         {
             return map([func=std::forward<TFunc>(func)](auto&&... ts) mutable
                 {
-                    return [func,
-                    params=std::make_tuple(std::forward<decltype(ts)>(ts)...)]
-                    (auto&&... us) mutable
-                    {
-                        return std::apply([&](auto&&... ts) mutable
-                                {
-                                    return func(std::forward<decltype(ts)>(ts)...,
-                                            std::forward<decltype(us)>(us)...);
-                                },
-                                params);
-                    };
+                    return detail::makeBoundInvoker(func,
+                            std::make_tuple(std::forward<decltype(ts)>(ts)...));
                 });
         }
 

@@ -56,7 +56,7 @@ int main(int argc, char** argv)
 
     auto incrementButton = widget::button(
             std::string("Increment"),
-            counter.signal.bindToFunction(
+            counter.signal.bindFirst(
                 [handle = counter.handle](int c) mutable { handle.set(c + 1); }))
         | modifier::setName("incrementButton");
 
