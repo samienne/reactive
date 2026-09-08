@@ -17,10 +17,8 @@
 #include <bqui/widget/hbox.h>
 
 #include <bqui/theme.h>
-#include <bqui/datasourcefromcollection.h>
-#include <bqui/datasource.h>
+#include <bqui/foreach.h>
 #include <bqui/withanimation.h>
-#include <bqui/databind.h>
 
 #include <bq/signal/signal.h>
 
@@ -81,8 +79,8 @@ bqui::widget::AnyWidget adder()
 
     auto swapState = std::make_shared<size_t>();
 
-    auto widgets = dataBind<std::string>(
-            dataSourceFromCollection(items),
+    auto widgets = forEach(
+            items,
             [items, textInputSignal=std::move(textInput.signal), swapState]
             (bq::signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
             {
