@@ -109,7 +109,7 @@ libbquidep = declare_dependency(
 bquitestsrc = [
   'test/apptest.cpp',
   'test/collectiontest.cpp',
-  'test/databindtest.cpp',
+  'test/collectionforeachtest.cpp',
   'test/headlessapptest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
