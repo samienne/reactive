@@ -23,7 +23,7 @@ namespace bqui
         };
 
         CollectionValue(CollectionValue const& rhs) :
-            value_(std::make_unique(*rhs.value_))
+            value_(std::make_unique<T>(*rhs.value_))
         {
         }
 
@@ -34,7 +34,7 @@ namespace bqui
 
         CollectionValue& operator=(CollectionValue const& rhs)
         {
-            value_ = std::make_unique<T>(rhs.value_);
+            value_ = std::make_unique<T>(*rhs.value_);
             return *this;
         }
 
