@@ -16,6 +16,8 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <cstdlib>
+
 static char const* simpleVsSource =
 "#version 330\n"
 "#extension GL_ARB_shading_language_420pack : require\n"
@@ -176,8 +178,25 @@ void Painter::flush()
 
     if (commandBuffer_.size() > 0)
     {
-        renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));
+        auto queue = renderContext_.getMainRenderQueue();
+        queue.submit(std::move(commandBuffer_));
         commandBuffer_ = ase::CommandBuffer();
+
+        // DIAGNOSTIC (not a production fix): force synchronous GL. Set
+        // ASE_SYNCHRONOUS_GL=1 to block here until the just-submitted command
+        // buffer has fully executed on the render dispatcher thread, so that
+        // thread never runs concurrently with the loop thread's next
+        // makeTransaction/onFrame. Used to confirm the suspected loop-vs-
+        // dispatcher data race on unsynchronized per-window render state.
+        // A no-op on the dummy backend (its queue finishes inline).
+        static bool const synchronousGl = []
+        {
+            char const* v = std::getenv("ASE_SYNCHRONOUS_GL");
+            return v && v[0] != '\0' && v[0] != '0';
+        }();
+
+        if (synchronousGl)
+            queue.finish();
     }
 }
 
