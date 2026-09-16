@@ -101,7 +101,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         auto steps = accumulator / step;
         auto n = steps < 1 ? decltype(steps){ 1 } : steps;
         auto dt = n * step;
-        accumulator -= steps * step;  // carry sub-step remainder, not n*step
+        accumulator -= n * step;
         frameTime += dt;
 
         Frame frame { frameTime, dt };
