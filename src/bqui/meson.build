@@ -116,6 +116,7 @@ bquitestsrc = [
   'test/layouttest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/swapcrashtest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
@@ -138,6 +139,17 @@ bquitest =  executable('bquitest',
 executable('bquiheadlesstest',
   'test/headlessrendertest.cpp',
   dependencies: [libbquidep],
+  )
+
+# Real-GL threaded race reproduction (diagnostic). Same GPU gating as
+# bquiheadlesstest: built everywhere, never registered as a test().
+bquiracetest_deps = [libbquidep]
+if host_machine.system() == 'windows'
+  bquiracetest_deps += meson.get_compiler('cpp').find_library('dbghelp')
+endif
+executable('bquiracetest',
+  'test/racetest.cpp',
+  dependencies: bquiracetest_deps,
   )
 
 test('bqui', bquitest, timeout: 1200,
