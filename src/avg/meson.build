@@ -81,6 +81,7 @@ avgtest =  executable('avgtest',
   'test/pathcrossingtest.cpp',
   'test/pentest.cpp',
   'test/snapshottest.cpp',
+  'test/transitionnodetest.cpp',
   dependencies: [gtestdep, libavgdep],
   )
 
