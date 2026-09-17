@@ -19,6 +19,7 @@
 #include <bq/signal/sharedvector.h>
 
 #include <avg/rendertree.h>
+#include <avg/rendertree/snapshot.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -472,6 +473,68 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 AnimationGuard App::withAnimation(avg::AnimationOptions options)
 {
     return AnimationGuard(*d(), std::move(options));
+}
+
+namespace
+{
+    void collectButtonText(avg::SnapshotNode const& node,
+            std::string const& caption, std::vector<ase::Vector2f>& out)
+    {
+        for (auto const& t : node.text)
+            if (t.text == caption)
+                out.push_back(t.obb.getCenter());
+
+        for (auto const& child : node.children)
+            collectButtonText(child, caption, out);
+    }
+
+    std::vector<ase::Vector2f> buttonCenters(WindowBridge const& impl,
+            std::string const& caption)
+    {
+        std::vector<ase::Vector2f> centers;
+        avg::Snapshot snap = impl.snapshot();
+        if (snap.root)
+            collectButtonText(*snap.root, caption, centers);
+        return centers;
+    }
+} // namespace
+
+size_t App::debugWindowCount() const
+{
+    return d()->windowBridges_.size();
+}
+
+size_t App::debugCountButtons(size_t index, std::string const& caption) const
+{
+    if (index >= d()->windowBridges_.size())
+        return 0;
+    return buttonCenters(*d()->windowBridges_[index], caption).size();
+}
+
+bool App::debugFindButton(size_t index, std::string const& caption,
+        size_t nth, float& outX, float& outY) const
+{
+    if (index >= d()->windowBridges_.size())
+        return false;
+
+    auto centers = buttonCenters(*d()->windowBridges_[index], caption);
+    if (nth >= centers.size())
+        return false;
+
+    outX = centers[nth][0];
+    outY = centers[nth][1];
+    return true;
+}
+
+void App::debugInjectClick(size_t index, float x, float y)
+{
+    if (index >= d()->windowBridges_.size())
+        return;
+
+    auto& impl = d()->windowBridges_[index];
+    ase::Vector2f pos(x, y);
+    impl->injectPointerButton(0, 1, pos, ase::ButtonState::down);
+    impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
 }
 
 AnimationGuard::AnimationGuard(AppDeferred& app,

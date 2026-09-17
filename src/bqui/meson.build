@@ -152,6 +152,11 @@ executable('bquiracetest',
   dependencies: bquiracetest_deps,
   )
 
+executable('bquiinputrepro',
+  'test/inputrepro.cpp',
+  dependencies: bquiracetest_deps,
+  )
+
 test('bqui', bquitest, timeout: 1200,
   args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
   workdir: meson.project_source_root())

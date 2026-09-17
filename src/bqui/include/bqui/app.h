@@ -117,6 +117,21 @@ namespace bqui
         [[nodiscard]]
         AnimationGuard withAnimation(avg::AnimationOptions options);
 
+        // DIAGNOSTIC test hooks (not production): drive the real input path on
+        // the app thread. Call only from within run() (e.g. the running signal),
+        // where the window impls exist and belong to this (app()) instance.
+        size_t debugWindowCount() const;
+        // Finds the center of the `nth` snapshot text run equal to `caption` in
+        // window `index` (window pixel space, pre-order = row order); false if
+        // there is no nth such run.
+        bool debugFindButton(size_t index, std::string const& caption,
+                size_t nth, float& outX, float& outY) const;
+        // Number of snapshot text runs equal to `caption` (e.g. rows present).
+        size_t debugCountButtons(size_t index, std::string const& caption) const;
+        // Injects a real pointer button down then up (a click) at (x,y) into
+        // window `index`, running the genuine hit-test -> onClick path.
+        void debugInjectClick(size_t index, float x, float y);
+
         friend class AnimationGuard;
 
     private:
