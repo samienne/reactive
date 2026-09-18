@@ -19,6 +19,7 @@
 #include <bq/signal/sharedvector.h>
 
 #include <avg/rendertree.h>
+#include <avg/rendertree/snapshot.h>
 #include <avg/painter.h>
 #include <avg/rendering.h>
 
@@ -472,6 +473,63 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 AnimationGuard App::withAnimation(avg::AnimationOptions options)
 {
     return AnimationGuard(*d(), std::move(options));
+}
+
+namespace
+{
+    bool findText(avg::SnapshotNode const& node, std::string const& caption,
+            ase::Vector2f& out)
+    {
+        for (auto const& t : node.text)
+        {
+            if (t.text == caption)
+            {
+                out = t.obb.getCenter();
+                return true;
+            }
+        }
+
+        for (auto const& child : node.children)
+            if (findText(child, caption, out))
+                return true;
+
+        return false;
+    }
+} // namespace
+
+std::size_t App::testWindowCount() const
+{
+    return d()->windowBridges_.size();
+}
+
+bool App::testFindText(std::size_t index, std::string const& caption,
+        float& outX, float& outY) const
+{
+    if (index >= d()->windowBridges_.size())
+        return false;
+
+    avg::Snapshot snap = d()->windowBridges_[index]->snapshot();
+    if (!snap.root)
+        return false;
+
+    ase::Vector2f center;
+    if (!findText(*snap.root, caption, center))
+        return false;
+
+    outX = center[0];
+    outY = center[1];
+    return true;
+}
+
+void App::testInjectClick(std::size_t index, float x, float y)
+{
+    if (index >= d()->windowBridges_.size())
+        return;
+
+    auto& impl = d()->windowBridges_[index];
+    ase::Vector2f pos(x, y);
+    impl->injectPointerButton(0, 1, pos, ase::ButtonState::down);
+    impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
 }
 
 AnimationGuard::AnimationGuard(AppDeferred& app,
