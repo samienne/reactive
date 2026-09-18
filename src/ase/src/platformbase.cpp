@@ -21,10 +21,11 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 {
     RunConfig config = runConfig();
 
-    auto const step = config.frameStep;
     auto const maxFrames = config.maxFrames;
 
-    frameStep_ = step;
+    // One startup-frozen source of the cadence, read by both the accumulator
+    // and the interactive pacing clamp in earliestFrameTime().
+    frameStep_ = config.frameStep;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
@@ -77,7 +78,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
-            &frameCallback, &accumulator, &frameTime, step, &framesRun,
+            &frameCallback, &accumulator, &frameTime, &framesRun,
             maxFrames, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
@@ -100,10 +101,10 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         lastFrame = thisFrame;
 
         accumulator += realElapsed;
-        auto steps = accumulator / step;
+        auto steps = accumulator / frameStep_;
         auto n = steps < 1 ? decltype(steps){ 1 } : steps;
-        auto dt = n * step;
-        accumulator -= n * step;
+        auto dt = n * frameStep_;
+        accumulator -= n * frameStep_;
         frameTime += dt;
 
         Frame frame { frameTime, dt };

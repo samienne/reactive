@@ -34,11 +34,15 @@ namespace ase
         void notifyClose();
         void resize(Vector2i size);
 
-        /** @brief The frame time this window next wants to render at, or nullopt
-         * if quiesced. */
+        /**
+         * @brief The frame time this window next wants to render at, or nullopt
+         * if quiesced.
+         */
         std::optional<std::chrono::microseconds> nextFrameTime() const;
 
-        /** @brief The frame time this window last rendered at. */
+        /**
+         * @brief The frame time this window last rendered at.
+         */
         std::chrono::microseconds lastFrameTime() const;
 
         void requestFrame();
