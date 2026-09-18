@@ -24,6 +24,8 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     auto const step = config.frameStep;
     auto const maxFrames = config.maxFrames;
 
+    frameStep_ = step;
+
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
 
@@ -220,9 +222,19 @@ PlatformBase::earliestFrameTime()
             if (window->canAcquire())
             {
                 auto due = window->nextFrameTime();
-                if (due && (!earliest || *due < *earliest))
+                if (due)
                 {
-                    earliest = due;
+                    // A live animation asks to render ASAP (onFrame returns 0);
+                    // the platform, not the content, owns the pace, so hold the
+                    // next frame to at least frameStep after the last one rather
+                    // than free-running the loop. A longer requested delay
+                    // (an idle window) is left alone.
+                    auto paced = window->lastFrameTime() + frameStep_;
+                    if (paced > *due)
+                        due = paced;
+
+                    if (!earliest || *due < *earliest)
+                        earliest = due;
                 }
             }
         }

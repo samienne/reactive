@@ -81,6 +81,10 @@ namespace ase
         // quiesced. The loop schedules its cadence from these across all windows.
         std::optional<std::chrono::microseconds> nextFrameTime() const;
 
+        // The frame time this window last rendered at; the loop paces the next
+        // frame relative to it.
+        std::chrono::microseconds lastFrameTime() const;
+
         virtual std::optional<std::chrono::microseconds> frame(
                 Frame const& frame) = 0;
 

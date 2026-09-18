@@ -37,6 +37,10 @@ namespace ase
         /** @brief The frame time this window next wants to render at, or nullopt
          * if quiesced. */
         std::optional<std::chrono::microseconds> nextFrameTime() const;
+
+        /** @brief The frame time this window last rendered at. */
+        std::chrono::microseconds lastFrameTime() const;
+
         void requestFrame();
 
         void setFrameCallback(
@@ -91,6 +95,7 @@ namespace ase
         // the Windows min() macro.
         std::optional<std::chrono::microseconds> nextFrame_ =
             (std::chrono::microseconds::min)();
+        std::chrono::microseconds lastFrameTime_{ 0 };
         bool hover_ = false;
 
         std::array<bool, 15> buttonPressedState_ = { {

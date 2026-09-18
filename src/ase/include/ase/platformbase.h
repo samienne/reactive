@@ -106,6 +106,10 @@ namespace ase
         // frames.
         int pauseCount_ = 0;
 
+        // The minimum interval between an animating window's frames, taken from
+        // runConfig().frameStep at loop start; caps the interactive cadence.
+        std::chrono::microseconds frameStep_{ 0 };
+
     private:
         void renderDirtyWindows(Frame const& frame);
 
