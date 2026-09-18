@@ -19,7 +19,9 @@ namespace bqui::test
      */
     struct BQUI_EXPORT WindowInput
     {
-        /** @brief Number of mounted windows. */
+        /**
+         * @brief Number of mounted windows.
+         */
         static std::size_t count(App const& app);
 
         /**
