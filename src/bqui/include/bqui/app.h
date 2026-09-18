@@ -23,6 +23,10 @@ namespace bqui
     class AppDeferred;
     class AnimationGuard;
 
+    // Test-support access (defined in the internal apptestsupport.h, not part of
+    // the shipped public interface).
+    namespace test { struct WindowInput; }
+
     class BQUI_EXPORT App
     {
     public:
@@ -117,24 +121,8 @@ namespace bqui
         [[nodiscard]]
         AnimationGuard withAnimation(avg::AnimationOptions options);
 
-        /** @name Test-support (not for production use)
-         *
-         * Drive the real input dispatch of a mounted window from the app
-         * thread, so a test can exercise the genuine hit-test -> onClick path.
-         * Only valid to call from within run() (e.g. a `running` signal), where
-         * the window impls exist.
-         * @{ */
-        std::size_t testWindowCount() const;
-        /** Center of the first snapshot text run equal to @p caption in window
-         * @p index (window pixel space); false if not present. */
-        bool testFindText(std::size_t index, std::string const& caption,
-                float& outX, float& outY) const;
-        /** Inject a real pointer button down then up (a click) at (@p x, @p y)
-         * into window @p index. */
-        void testInjectClick(std::size_t index, float x, float y);
-        /** @} */
-
         friend class AnimationGuard;
+        friend struct test::WindowInput;
 
     private:
         int runUntil(bq::signal::AnySignal<bool> running);

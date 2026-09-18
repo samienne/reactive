@@ -7,6 +7,8 @@
 
 #include <ase/dummyplatform.h>
 
+#include "apptestsupport.h"
+
 #include <btl/runloop.h>
 
 #include <bq/signal/constant.h>
@@ -23,16 +25,15 @@
 
 using namespace bqui;
 
-// A button whose onClick calls withAnimation used to crash with a use-after-free:
+// Invariant: dispatching an input event whose handler calls withAnimation must
+// complete without freeing the InputArea (or handler) it is running inside.
 // withAnimation re-enters WindowBridge::makeTransaction, which rebuilds the
-// widget instance and move-assigns fresh InputAreas over the stored ones --
-// freeing the very InputArea whose handler is still executing on the button-up
-// dispatch stack. The dispatch now runs from a copy, so the click must complete
-// cleanly (and ASan-clean under the Sanitize profile).
+// widget instance and reassigns the input-dispatch state; if dispatch held a
+// reference into that state, the running handler would be freed mid-invoke.
 //
 // A local App is used with App::withAnimation so the handler transacts this
 // window without touching the process-wide app() singleton. Injection goes
-// through the genuine hit-test -> onClick path (App::testInjectClick).
+// through the genuine hit-test -> onClick path (test::WindowInput::injectClick).
 TEST(inputReentrancy, withAnimationClickIsReentrancySafe)
 {
     btl::RunLoop loop;
@@ -73,12 +74,12 @@ TEST(inputReentrancy, withAnimationClickIsReentrancySafe)
             if (++frames > maxFrames)
                 return false;
 
-            if (i >= 2 && app.testWindowCount() > 0)
+            if (i >= 2 && test::WindowInput::count(app) > 0)
             {
                 float x = 0.0f;
                 float y = 0.0f;
-                if (app.testFindText(0, "Go", x, y))
-                    app.testInjectClick(0, x, y);
+                if (test::WindowInput::findText(app, 0, "Go", x, y))
+                    test::WindowInput::injectClick(app, 0, x, y);
             }
 
             if (i >= 8)

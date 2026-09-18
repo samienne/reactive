@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "windowdata.h"
 #include "windowbridge.h"
+#include "apptestsupport.h"
 
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
@@ -477,8 +478,8 @@ AnimationGuard App::withAnimation(avg::AnimationOptions options)
 
 namespace
 {
-    bool findText(avg::SnapshotNode const& node, std::string const& caption,
-            ase::Vector2f& out)
+    bool findSnapshotText(avg::SnapshotNode const& node,
+            std::string const& caption, ase::Vector2f& out)
     {
         for (auto const& t : node.text)
         {
@@ -490,30 +491,30 @@ namespace
         }
 
         for (auto const& child : node.children)
-            if (findText(child, caption, out))
+            if (findSnapshotText(child, caption, out))
                 return true;
 
         return false;
     }
 } // namespace
 
-std::size_t App::testWindowCount() const
+std::size_t test::WindowInput::count(App const& app)
 {
-    return d()->windowBridges_.size();
+    return app.d()->windowBridges_.size();
 }
 
-bool App::testFindText(std::size_t index, std::string const& caption,
-        float& outX, float& outY) const
+bool test::WindowInput::findText(App const& app, std::size_t index,
+        std::string const& caption, float& outX, float& outY)
 {
-    if (index >= d()->windowBridges_.size())
+    if (index >= app.d()->windowBridges_.size())
         return false;
 
-    avg::Snapshot snap = d()->windowBridges_[index]->snapshot();
+    avg::Snapshot snap = app.d()->windowBridges_[index]->snapshot();
     if (!snap.root)
         return false;
 
     ase::Vector2f center;
-    if (!findText(*snap.root, caption, center))
+    if (!findSnapshotText(*snap.root, caption, center))
         return false;
 
     outX = center[0];
@@ -521,12 +522,13 @@ bool App::testFindText(std::size_t index, std::string const& caption,
     return true;
 }
 
-void App::testInjectClick(std::size_t index, float x, float y)
+void test::WindowInput::injectClick(App& app, std::size_t index, float x,
+        float y)
 {
-    if (index >= d()->windowBridges_.size())
+    if (index >= app.d()->windowBridges_.size())
         return;
 
-    auto& impl = d()->windowBridges_[index];
+    auto& impl = app.d()->windowBridges_[index];
     ase::Vector2f pos(x, y);
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::down);
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
