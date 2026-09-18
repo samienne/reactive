@@ -75,12 +75,16 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         }
         else if (e.state == ase::ButtonState::up)
         {
-            for (auto const &a : areas_[e.button])
+            // Dispatch from a copy: a handler may call withAnimation, which
+            // re-enters makeTransaction and move-assigns fresh InputAreas over
+            // areas_ -- freeing the very one whose handler is running.
+            auto const areas = areas_[e.button];
+            areas_[e.button].clear();
+
+            for (auto const &a : areas)
             {
                 a.emitButtonEvent(e);
             }
-
-            areas_[e.button].clear();
 
             aseWindow.requestFrame();
         }
@@ -124,20 +128,23 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
             if (!e.buttons.at(item.first - 1))
                 continue;
 
+            // Dispatch from a copy: emitMoveEvent may call withAnimation, which
+            // re-enters makeTransaction and move-assigns over areas_ in place.
+            auto const stored = item.second;
             std::vector<InputArea> newAreas;
-            for (auto &&area : item.second)
+            for (auto const &area : stored)
             {
                 EventResult r = area.emitMoveEvent(e);
                 if (r == EventResult::accept)
                 {
                     newAreas.clear();
-                    newAreas.emplace_back(std::move(area));
+                    newAreas.push_back(area);
                     accepted = true;
                     break;
                 }
                 else if (r == EventResult::possible)
                 {
-                    newAreas.push_back(std::move(area));
+                    newAreas.push_back(area);
                 }
                 else if (r == EventResult::reject)
                 {
