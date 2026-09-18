@@ -129,7 +129,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
                 continue;
 
             // Dispatch from a copy: emitMoveEvent may call withAnimation, which
-            // re-enters makeTransaction and move-assigns over areas_ in place.
+            // re-enters makeTransaction and move-assigns fresh InputAreas over
+            // the ones stored in areas_ -- the same we would be iterating.
             auto const stored = item.second;
             std::vector<InputArea> newAreas;
             for (auto const &area : stored)
@@ -166,8 +167,12 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentKeyHandler_.has_value() && e.isDown())
         {
-            (*currentKeyHandler_)(e);
-            keys_[e.getKey()] = *currentKeyHandler_;
+            // Invoke a copy: a handler may call withAnimation, which re-enters
+            // makeTransaction and reassigns currentKeyHandler_, freeing the
+            // target mid-invoke.
+            auto handler = *currentKeyHandler_;
+            handler(e);
+            keys_[e.getKey()] = handler;
 
             aseWindow.requestFrame();
         }
@@ -189,7 +194,11 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentTextHandler_.has_value())
         {
-            (*currentTextHandler_)(e);
+            // Invoke a copy: a handler may call withAnimation, which re-enters
+            // makeTransaction and reassigns currentTextHandler_, freeing the
+            // target mid-invoke.
+            auto handler = *currentTextHandler_;
+            handler(e);
 
             aseWindow.requestFrame();
         }
