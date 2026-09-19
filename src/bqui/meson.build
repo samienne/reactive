@@ -112,6 +112,7 @@ bquitestsrc = [
   'test/collectionvaluetest.cpp',
   'test/databindtest.cpp',
   'test/headlessapptest.cpp',
+  'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
   'test/layouttest.cpp',

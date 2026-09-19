@@ -75,12 +75,13 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         }
         else if (e.state == ase::ButtonState::up)
         {
-            for (auto const &a : areas_[e.button])
+            std::vector<InputArea> areas;
+            std::swap(areas, areas_[e.button]);
+
+            for (auto const &a : areas)
             {
                 a.emitButtonEvent(e);
             }
-
-            areas_[e.button].clear();
 
             aseWindow.requestFrame();
         }
@@ -124,20 +125,21 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
             if (!e.buttons.at(item.first - 1))
                 continue;
 
+            auto const stored = item.second;
             std::vector<InputArea> newAreas;
-            for (auto &&area : item.second)
+            for (auto const &area : stored)
             {
                 EventResult r = area.emitMoveEvent(e);
                 if (r == EventResult::accept)
                 {
                     newAreas.clear();
-                    newAreas.emplace_back(std::move(area));
+                    newAreas.push_back(area);
                     accepted = true;
                     break;
                 }
                 else if (r == EventResult::possible)
                 {
-                    newAreas.push_back(std::move(area));
+                    newAreas.push_back(area);
                 }
                 else if (r == EventResult::reject)
                 {
@@ -159,8 +161,9 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentKeyHandler_.has_value() && e.isDown())
         {
-            (*currentKeyHandler_)(e);
-            keys_[e.getKey()] = *currentKeyHandler_;
+            auto handler = *currentKeyHandler_;
+            handler(e);
+            keys_[e.getKey()] = handler;
 
             aseWindow.requestFrame();
         }
@@ -182,7 +185,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentTextHandler_.has_value())
         {
-            (*currentTextHandler_)(e);
+            auto handler = *currentTextHandler_;
+            handler(e);
 
             aseWindow.requestFrame();
         }

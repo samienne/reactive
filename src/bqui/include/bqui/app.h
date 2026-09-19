@@ -23,6 +23,10 @@ namespace bqui
     class AppDeferred;
     class AnimationGuard;
 
+    // Test-support access (defined in the internal apptestsupport.h, not part of
+    // the shipped public interface).
+    namespace test { struct WindowInput; }
+
     class BQUI_EXPORT App
     {
     public:
@@ -118,6 +122,7 @@ namespace bqui
         AnimationGuard withAnimation(avg::AnimationOptions options);
 
         friend class AnimationGuard;
+        friend struct test::WindowInput;
 
     private:
         int runUntil(bq::signal::AnySignal<bool> running);
