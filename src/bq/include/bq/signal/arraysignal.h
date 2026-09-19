@@ -142,6 +142,22 @@ namespace bq::signal
             std::is_invocable_v<TKeyFunc const&, T const&>
             && std::is_invocable_v<TDelegate const&, AnySignal<T>>;
 
+        /**
+         * @brief Whether forEach() accepts this key-passing delegate.
+         *
+         * The variant whose delegate is handed the key alongside the value
+         * signal. For a fixed-arity delegate this is disjoint from
+         * isForEachCallable: a one-argument delegate fails the two-argument test
+         * and vice versa, so the two overloads never both match.
+         */
+        template <typename TKeyFunc, typename TDelegate, typename T>
+        constexpr bool isForEachKeyedCallable =
+            std::is_invocable_v<TKeyFunc const&, T const&>
+            && std::is_invocable_v<TDelegate const&,
+                std::decay_t<std::invoke_result_t<TKeyFunc const&, T const&>>
+                    const&,
+                AnySignal<T>>;
+
         /** @brief Whether scatter() accepts this delegate. */
         template <typename TFunc, typename T, typename W>
         constexpr bool isScatterCallable =
@@ -686,9 +702,33 @@ namespace bq::signal
      *         the context should be discarded rather than driven again.
      */
     template <typename TStorage, typename T, typename TKeyFunc,
-             typename TDelegate, typename = std::enable_if_t<
-                 detail::isForEachCallable<TKeyFunc, TDelegate, T>
-                 >>
+             typename TDelegate, std::enable_if_t<
+                 detail::isForEachCallable<TKeyFunc, TDelegate, T>, int> = 0>
+    auto forEach(Signal<TStorage, std::vector<T>> source, TKeyFunc keyFn,
+            TDelegate delegate)
+    {
+        return forEach(std::move(source), std::move(keyFn),
+                [delegate=std::move(delegate)](auto const&,
+                    AnySignal<T> value)
+                {
+                    return delegate(std::move(value));
+                });
+    }
+
+    /**
+     * @brief forEach() whose delegate is also handed the key.
+     *
+     * The same operator, with the identity the caller keyed on passed to the
+     * delegate as 'delegate(key, value)'. The key is already in hand where each
+     * value is built, so a delegate that needs it — to tag the built value with
+     * that identity — receives it without a second lookup. Everything the
+     * value-only overload guarantees holds: the delegate runs once per key per
+     * context and nothing it builds is destroyed by a value change.
+     */
+    template <typename TStorage, typename T, typename TKeyFunc,
+             typename TDelegate, std::enable_if_t<
+                 detail::isForEachKeyedCallable<TKeyFunc, TDelegate, T>,
+                 int> = 0>
     auto forEach(Signal<TStorage, std::vector<T>> source, TKeyFunc keyFn,
             TDelegate delegate)
     {
@@ -696,7 +736,7 @@ namespace bq::signal
             TKeyFunc const&, T const&>>;
 
         using U = std::decay_t<std::invoke_result_t<
-            TDelegate const&, AnySignal<T>>>;
+            TDelegate const&, Key const&, AnySignal<T>>>;
 
         auto shared = AnySignal<std::vector<T>>(source.share());
         auto keyed = detail::shareKeyed(shared, keyFn);
@@ -704,7 +744,7 @@ namespace bq::signal
         auto build = [keyed, delegate=std::move(delegate)](Key const& key,
                 T const&)
             {
-                return delegate(AnySignal<T>(detail::requirePresent(
+                return delegate(key, AnySignal<T>(detail::requirePresent(
                                 detail::pick(keyed, key),
                                 "an element of forEach")));
             };
