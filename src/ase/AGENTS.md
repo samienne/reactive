@@ -52,10 +52,10 @@ are in the top-level `docs/`.
   through the context the window carries, and fences on the window's own queue —
   so `run` names no `RenderContext` of its own.
   A backend supplies only what differs through protected virtuals: the static
-  cadence via `runConfig()` (`PlatformBase::RunConfig`: `frameStep` and the
-  dummy's `maxFrames` self-pump budget; the frame *rate* is per-window — the loop
-  schedules to the earliest of the windows' `nextFrameTime`, not a platform cap —
-  and the dummy queue completes fences inline), the OS `wakeSource()` (read
+  cadence via `runConfig()` (`PlatformBase::RunConfig`: just `frameStep`; the
+  frame *rate* is per-window — the loop schedules to the earliest of the windows'
+  `nextFrameTime`, not a platform cap — and the dummy queue completes fences
+  inline), the OS `wakeSource()` (read
   once at loop start), and the live `getRenderWindows()` list (re-read every tick,
   since windows open and close during a run); there is no `Session`. Manual
   driving is a `Platform::pause()` RAII token (`PauseToken`) whose `step(dt)`

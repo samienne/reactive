@@ -49,8 +49,8 @@ instead of "0 while animating" is a follow-up.)
 delegates to it. The loop is **context-free**: per dirty window it renders and
 presents through the context the window carries (`acquire` backpressure + fence
 on the window's own queue), so `run` names no `RenderContext`. A backend supplies
-only what differs — render list, wake source, cadence, and the dummy's self-pump
-budget — through a protected `runConfig()` override; the shared loop body is one
+only what differs — render list, wake source, and cadence — through a protected
+`runConfig()` override; the shared loop body is one
 `PlatformImpl::run`. There is no `Session` (it was dropped: with the context on
 the window, the loop, and the windows all unbound from it, nothing was left to
 bind). Manual driving is a `Platform::pause()` RAII token whose `step(dt)`

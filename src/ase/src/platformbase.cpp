@@ -21,20 +21,15 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 {
     RunConfig config = runConfig();
 
-    auto const maxFrames = config.maxFrames;
-
-    // One startup-frozen source of the cadence, read by both the accumulator
-    // and the interactive pacing clamp in earliestFrameTime().
+    // Cadence frozen at startup; also read by earliestFrameTime().
     frameStep_ = config.frameStep;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
 
-    std::chrono::microseconds accumulator{ 0 };
     std::chrono::microseconds frameTime{ 0 };
 
     std::chrono::microseconds steppedTime{ 0 };
-    std::uint64_t framesRun = 0;
 
     bool tickScheduled = false;
 
@@ -77,21 +72,14 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         }
     };
 
-    tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
-            &frameCallback, &accumulator, &frameTime, &framesRun,
-            maxFrames, &scheduleTick](
+    tick = [this, &tickScheduled, &clock, &lastFrame,
+            &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
         if (pauseCount_ != 0)
             return;
-
-        if (maxFrames != 0 && framesRun >= maxFrames)
-        {
-            controller.stop();
-            return;
-        }
 
         ZoneScopedN("frameTick");
 
@@ -100,11 +88,11 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
                 thisFrame - lastFrame);
         lastFrame = thisFrame;
 
-        accumulator += realElapsed;
-        auto steps = accumulator / frameStep_;
-        auto n = steps < 1 ? decltype(steps){ 1 } : steps;
-        auto dt = n * frameStep_;
-        accumulator -= n * frameStep_;
+        // Discard elapsed beyond the clamp so a long stall or pause drops
+        // frames at the correct speed rather than jumping the animation clock.
+        auto const maxDt = 4 * frameStep_;
+        auto dt = realElapsed > maxDt ? maxDt : realElapsed;
+
         frameTime += dt;
 
         Frame frame { frameTime, dt };
@@ -123,21 +111,9 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         renderDirtyWindows(frame);
 
-        ++framesRun;
-
-        if (maxFrames != 0)
-        {
-            // Headless self-pump: pump toward the budget as fast as the GPU
-            // allows, ignoring per-window cadence; a saturated queue waits for a
-            // fence to free a slot and wake the loop.
-            if (!anyWindowSaturated())
-                wakeTick(controller);
-            return;
-        }
-
-        // Interactive: reschedule to the earliest window's next-frame time; a
-        // saturated window instead resumes on its fence-wake, so the loop is
-        // never blocked or spun on backpressure.
+        // Reschedule to the earliest window's next-frame time; a saturated
+        // window instead resumes on its fence-wake, so the loop is never
+        // blocked or spun on backpressure.
         scheduleTick(controller);
     };
 
@@ -242,22 +218,6 @@ PlatformBase::earliestFrameTime()
     }
 
     return earliest;
-}
-
-bool PlatformBase::anyWindowSaturated()
-{
-    auto& renderWindows = getRenderWindows();
-
-    for (auto& weakWindow : renderWindows)
-    {
-        if (auto window = weakWindow.lock())
-        {
-            if (!window->canAcquire())
-                return true;
-        }
-    }
-
-    return false;
 }
 
 void PlatformBase::pauseFrames()
