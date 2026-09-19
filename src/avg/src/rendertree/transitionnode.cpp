@@ -87,6 +87,17 @@ UpdateResult TransitionNode::update(
             };
         }
 
+        // A node leaving with nothing to animate is dropped now: without this,
+        // it would fall through to newActive->update below, which returns
+        // non-null, so the parent container would retain it forever.
+        if (!animationOptions)
+        {
+            return {
+                nullptr,
+                std::nullopt
+            };
+        }
+
         oldActive = oldTransition.activeNode_;
         newActive = oldTransition.transitionedNode_;
         newTransitioned = oldTransition.transitionedNode_;
