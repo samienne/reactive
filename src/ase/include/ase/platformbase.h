@@ -116,8 +116,5 @@ namespace ase
         // The earliest frame time a renderable window wants its next frame at,
         // or nullopt if none does; the loop schedules its next tick to this.
         std::optional<std::chrono::microseconds> earliestFrameTime();
-
-        // Any window whose in-flight budget is full.
-        bool anyWindowSaturated();
     };
 }
