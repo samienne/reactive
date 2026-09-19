@@ -25,7 +25,7 @@ namespace bqui
 
     // Test-support access (defined in the internal apptestsupport.h, not part of
     // the shipped public interface).
-    namespace test { struct WindowInput; }
+    namespace test { struct WindowInput; struct FrameDriver; }
 
     class BQUI_EXPORT App
     {
@@ -123,6 +123,7 @@ namespace bqui
 
         friend class AnimationGuard;
         friend struct test::WindowInput;
+        friend struct test::FrameDriver;
 
     private:
         int runUntil(bq::signal::AnySignal<bool> running);

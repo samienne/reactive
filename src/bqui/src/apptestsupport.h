@@ -3,8 +3,14 @@
 #include "bqui/app.h"
 #include "bqui/bquivisibility.h"
 
+#include <chrono>
 #include <cstddef>
 #include <string>
+
+namespace btl
+{
+    class RunLoop;
+}
 
 namespace bqui::test
 {
@@ -40,5 +46,23 @@ namespace bqui::test
          * input path.
          */
         static void injectClick(App& app, std::size_t index, float x, float y);
+    };
+
+    /**
+     * @brief Test-only deterministic headless frame driver.
+     *
+     * Runs an app on a caller-owned loop and produces a fixed number of frames
+     * through the platform's manual pause/step path, then stops -- the bounded,
+     * cadence-independent alternative to letting the run loop pace frames. The
+     * app must be configured with a platform bound to @p loop before the call.
+     */
+    struct BQUI_EXPORT FrameDriver
+    {
+        /**
+         * @brief Run @p app, producing exactly @p frames frames of @p dt each,
+         * then stop. Returns App::run's result.
+         */
+        static int run(App& app, btl::RunLoop& loop, std::size_t frames,
+                std::chrono::microseconds dt);
     };
 }
