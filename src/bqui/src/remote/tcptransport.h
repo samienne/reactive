@@ -59,7 +59,7 @@ namespace bqui::remote
 
     private:
         TcpSocket sock_;
-        bool nonBlocking_ = false;
+        [[maybe_unused]] bool nonBlocking_ = false;
     };
 
     /**
