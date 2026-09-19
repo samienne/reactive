@@ -46,16 +46,10 @@ RenderContext DummyPlatform::makeRenderContext()
                 shared_from_this()));
 }
 
-void DummyPlatform::setMaxFrames(uint64_t maxFrames)
-{
-    maxFrames_ = maxFrames;
-}
-
 PlatformBase::RunConfig DummyPlatform::runConfig()
 {
     RunConfig config;
     config.frameStep = std::chrono::microseconds(16667);
-    config.maxFrames = maxFrames_;
 
     return config;
 }
