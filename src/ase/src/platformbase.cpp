@@ -23,14 +23,14 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
     auto const maxFrames = config.maxFrames;
 
-    // One startup-frozen source of the cadence, read by both the accumulator
-    // and the interactive pacing clamp in earliestFrameTime().
+    // One startup-frozen source of the cadence, read by the headless fixed
+    // step, the interactive max-dt clamp, and the pacing clamp in
+    // earliestFrameTime().
     frameStep_ = config.frameStep;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
 
-    std::chrono::microseconds accumulator{ 0 };
     std::chrono::microseconds frameTime{ 0 };
 
     std::chrono::microseconds steppedTime{ 0 };
@@ -78,7 +78,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
-            &frameCallback, &accumulator, &frameTime, &framesRun,
+            &frameCallback, &frameTime, &framesRun,
             maxFrames, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
@@ -95,16 +95,26 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         ZoneScopedN("frameTick");
 
-        auto thisFrame = clock.now();
-        auto realElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                thisFrame - lastFrame);
-        lastFrame = thisFrame;
+        std::chrono::microseconds dt;
+        if (maxFrames != 0)
+        {
+            // Headless self-pump: deterministic fixed step, independent of wall
+            // clock, so frame times are reproducible across hosts and runs.
+            dt = frameStep_;
+        }
+        else
+        {
+            auto thisFrame = clock.now();
+            auto realElapsed = std::chrono::duration_cast<std::chrono::microseconds>(
+                    thisFrame - lastFrame);
+            lastFrame = thisFrame;
 
-        accumulator += realElapsed;
-        auto steps = accumulator / frameStep_;
-        auto n = steps < 1 ? decltype(steps){ 1 } : steps;
-        auto dt = n * frameStep_;
-        accumulator -= n * frameStep_;
+            // Discard elapsed beyond the clamp so a long stall or pause drops
+            // frames at correct speed instead of teleporting the animation clock.
+            auto const maxDt = 4 * frameStep_;
+            dt = realElapsed > maxDt ? maxDt : realElapsed;
+        }
+
         frameTime += dt;
 
         Frame frame { frameTime, dt };
