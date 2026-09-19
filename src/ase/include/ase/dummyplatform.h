@@ -25,24 +25,12 @@ namespace ase
                 bool headless) override;
         RenderContext makeRenderContext() override;
 
-        /**
-         * @brief Cap the number of frames run() will pump.
-         *
-         * Zero (the default) is unbounded: run() never self-terminates. A
-         * non-zero budget stops run() after that many frames, letting a headless
-         * app run terminate without an OS window. Set before run().
-         */
-        void setMaxFrames(uint64_t maxFrames);
-
     protected:
         void handleEvents() override;
         RunConfig runConfig() override;
         std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
-        // Frame budget for run(); zero means unbounded (on-demand).
-        uint64_t maxFrames_ = 0;
-
         std::vector<std::weak_ptr<WindowBase>> renderWindows_;
     };
 

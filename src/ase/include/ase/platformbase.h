@@ -29,8 +29,7 @@ namespace ase
     class ASE_EXPORT PlatformBase : public PlatformImpl
     {
     public:
-        /** @brief The static cadence the shared frame loop targets, plus the
-         * headless self-pump parameters.
+        /** @brief The static cadence the shared frame loop targets.
          *
          * Just the scalars that differ between GLX, WGL and the dummy backends.
          */
@@ -38,10 +37,6 @@ namespace ase
         {
             /** The interval the frame cadence targets. */
             std::chrono::microseconds frameStep = std::chrono::microseconds(16667);
-
-            /** A non-zero budget bounds the run and makes it self-pump to that
-             * many frames (headless); zero leaves the loop on-demand. */
-            std::uint64_t maxFrames = 0;
         };
 
         void run(std::function<bool(Frame const&)> frameCallback) override;

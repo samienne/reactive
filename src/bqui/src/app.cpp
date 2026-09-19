@@ -318,17 +318,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     std::string remoteEndpoint =
         d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
 
-    if (useDummyEnv)
-    {
-        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
-        {
-            char* end = nullptr;
-            unsigned long n = std::strtoul(frames, &end, 10);
-            if (end != frames)
-                inner.getImpl<ase::DummyPlatform>().setMaxFrames(n);
-        }
-    }
-
     ase::Platform platform = std::move(inner);
 
     // Declared after `platform` so runningPlatform_ is nulled under the lock
@@ -450,6 +439,32 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
 
         driver.emplace(platform.runLoop(), *transport, std::move(remoteApp),
                 platform.pause());
+    }
+
+    // REACTIVE_FRAMES=N renders exactly N frames headless then exits, for
+    // scripted dummy-backend runs. It drives deterministic frameStep steps off
+    // the pause/step path -- bounding static and animating scenes alike -- posted
+    // ahead of run() so it fires from the loop thread. A remote driver owns the
+    // clock, so the knob is a no-op there.
+    if (remoteEndpoint.empty() && useDummyEnv)
+    {
+        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
+        {
+            char* end = nullptr;
+            unsigned long n = std::strtoul(frames, &end, 10);
+            if (end != frames)
+            {
+                auto step = ase::PlatformBase::RunConfig{}.frameStep;
+                platform.runLoop().post(
+                    [&platform, n, step](btl::RunLoop::Controller& controller)
+                    {
+                        auto token = platform.pause();
+                        for (unsigned long i = 0; i < n; ++i)
+                            token.step(step);
+                        controller.stop();
+                    });
+            }
+        }
     }
 
     platform.run(frameCallback);

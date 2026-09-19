@@ -21,10 +21,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 {
     RunConfig config = runConfig();
 
-    auto const maxFrames = config.maxFrames;
-
-    // Startup-frozen cadence, captured once and read per-tick without
-    // re-reading config.
+    // Cadence frozen at startup; also read by earliestFrameTime().
     frameStep_ = config.frameStep;
 
     std::chrono::steady_clock clock;
@@ -33,7 +30,6 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     std::chrono::microseconds frameTime{ 0 };
 
     std::chrono::microseconds steppedTime{ 0 };
-    std::uint64_t framesRun = 0;
 
     bool tickScheduled = false;
 
@@ -77,20 +73,13 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     tick = [this, &tickScheduled, &clock, &lastFrame,
-            &frameCallback, &frameTime, &framesRun,
-            maxFrames, &scheduleTick](
+            &frameCallback, &frameTime, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
         tickScheduled = false;
 
         if (pauseCount_ != 0)
             return;
-
-        if (maxFrames != 0 && framesRun >= maxFrames)
-        {
-            controller.stop();
-            return;
-        }
 
         ZoneScopedN("frameTick");
 
@@ -100,7 +89,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         lastFrame = thisFrame;
 
         // Discard elapsed beyond the clamp so a long stall or pause drops
-        // frames at correct speed instead of teleporting the animation clock.
+        // frames at the correct speed rather than jumping the animation clock.
         auto const maxDt = 4 * frameStep_;
         auto dt = realElapsed > maxDt ? maxDt : realElapsed;
 
@@ -122,11 +111,9 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 
         renderDirtyWindows(frame);
 
-        ++framesRun;
-
         // Reschedule to the earliest window's next-frame time; a saturated
-        // window instead resumes on its fence-wake, so the loop is never blocked
-        // or spun on backpressure.
+        // window instead resumes on its fence-wake, so the loop is never
+        // blocked or spun on backpressure.
         scheduleTick(controller);
     };
 

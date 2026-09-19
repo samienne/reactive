@@ -54,13 +54,15 @@ namespace bqui::test
      * Runs an app on a caller-owned loop and produces a fixed number of frames
      * through the platform's manual pause/step path, then stops -- the bounded,
      * cadence-independent alternative to letting the run loop pace frames. The
-     * app must be configured with a platform bound to @p loop before the call.
+     * app must be configured with a platform bound to the caller's loop first.
      */
     struct BQUI_EXPORT FrameDriver
     {
         /**
-         * @brief Run @p app, producing exactly @p frames frames of @p dt each,
-         * then stop. Returns App::run's result.
+         * @brief Run @p app, producing exactly @p frames explicit frames,
+         * advancing @p dt each, then stop.
+         *
+         * @return App::run's result.
          */
         static int run(App& app, btl::RunLoop& loop, std::size_t frames,
                 std::chrono::microseconds dt);
