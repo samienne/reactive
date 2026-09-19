@@ -75,11 +75,8 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         }
         else if (e.state == ase::ButtonState::up)
         {
-            // Dispatch from a copy: a handler may call withAnimation, which
-            // re-enters makeTransaction and move-assigns fresh InputAreas over
-            // areas_ -- freeing the very one whose handler is running.
-            auto const areas = areas_[e.button];
-            areas_[e.button].clear();
+            std::vector<InputArea> areas;
+            std::swap(areas, areas_[e.button]);
 
             for (auto const &a : areas)
             {
@@ -128,9 +125,6 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
             if (!e.buttons.at(item.first - 1))
                 continue;
 
-            // Dispatch from a copy: emitMoveEvent may call withAnimation, which
-            // re-enters makeTransaction and move-assigns fresh InputAreas over
-            // the ones stored in areas_ -- the same we would be iterating.
             auto const stored = item.second;
             std::vector<InputArea> newAreas;
             for (auto const &area : stored)
@@ -167,9 +161,6 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentKeyHandler_.has_value() && e.isDown())
         {
-            // Invoke a copy: a handler may call withAnimation, which re-enters
-            // makeTransaction and reassigns currentKeyHandler_, freeing the
-            // target mid-invoke.
             auto handler = *currentKeyHandler_;
             handler(e);
             keys_[e.getKey()] = handler;
@@ -194,9 +185,6 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     {
         if (currentTextHandler_.has_value())
         {
-            // Invoke a copy: a handler may call withAnimation, which re-enters
-            // makeTransaction and reassigns currentTextHandler_, freeing the
-            // target mid-invoke.
             auto handler = *currentTextHandler_;
             handler(e);
 
