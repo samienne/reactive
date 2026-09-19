@@ -40,6 +40,11 @@ WindowBase::nextFrameTime() const
     return genericWindow_.nextFrameTime();
 }
 
+std::chrono::microseconds WindowBase::lastFrameTime() const
+{
+    return genericWindow_.lastFrameTime();
+}
+
 bool WindowBase::canAcquire() const
 {
     auto sync = presentSync_;

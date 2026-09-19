@@ -21,8 +21,11 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
 {
     RunConfig config = runConfig();
 
-    auto const step = config.frameStep;
     auto const maxFrames = config.maxFrames;
+
+    // One startup-frozen source of the cadence, read by both the accumulator
+    // and the interactive pacing clamp in earliestFrameTime().
+    frameStep_ = config.frameStep;
 
     std::chrono::steady_clock clock;
     auto lastFrame = clock.now();
@@ -75,7 +78,7 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
     };
 
     tick = [this, &tickScheduled, &wakeTick, &clock, &lastFrame,
-            &frameCallback, &accumulator, &frameTime, step, &framesRun,
+            &frameCallback, &accumulator, &frameTime, &framesRun,
             maxFrames, &scheduleTick](
             btl::RunLoop::Controller& controller)
     {
@@ -98,10 +101,10 @@ void PlatformBase::run(std::function<bool(Frame const&)> frameCallback)
         lastFrame = thisFrame;
 
         accumulator += realElapsed;
-        auto steps = accumulator / step;
+        auto steps = accumulator / frameStep_;
         auto n = steps < 1 ? decltype(steps){ 1 } : steps;
-        auto dt = n * step;
-        accumulator -= n * step;
+        auto dt = n * frameStep_;
+        accumulator -= n * frameStep_;
         frameTime += dt;
 
         Frame frame { frameTime, dt };
@@ -220,9 +223,19 @@ PlatformBase::earliestFrameTime()
             if (window->canAcquire())
             {
                 auto due = window->nextFrameTime();
-                if (due && (!earliest || *due < *earliest))
+                if (due)
                 {
-                    earliest = due;
+                    // A live animation asks to render ASAP (onFrame returns 0);
+                    // the platform, not the content, owns the pace, so hold the
+                    // next frame to at least frameStep after the last one rather
+                    // than free-running the loop. A longer requested delay
+                    // (an idle window) is left alone.
+                    auto paced = window->lastFrameTime() + frameStep_;
+                    if (paced > *due)
+                        due = paced;
+
+                    if (!earliest || *due < *earliest)
+                        earliest = due;
                 }
             }
         }

@@ -80,6 +80,11 @@ GenericWindow::nextFrameTime() const
     return nextFrame_;
 }
 
+std::chrono::microseconds GenericWindow::lastFrameTime() const
+{
+    return lastFrameTime_;
+}
+
 void GenericWindow::requestFrame()
 {
     nextFrame_ = (std::chrono::microseconds::min)();
@@ -95,6 +100,8 @@ void GenericWindow::setFrameCallback(
 std::optional<std::chrono::microseconds> GenericWindow::frame(
         Frame const& frame)
 {
+    lastFrameTime_ = frame.time;
+
     if (frameCallback_)
     {
         auto delay = frameCallback_(frame);
