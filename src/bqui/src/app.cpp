@@ -534,6 +534,22 @@ void test::WindowInput::injectClick(App& app, std::size_t index, float x,
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
 }
 
+int test::FrameDriver::run(App& app, btl::RunLoop& loop, std::size_t frames,
+        std::chrono::microseconds dt)
+{
+    // pause()/step()/stop() run on the loop thread; posting ahead of run() lands
+    // the driver there once runningPlatform_ is set and stepFrame is bound.
+    loop.post([&app, frames, dt](btl::RunLoop::Controller& controller)
+        {
+            auto token = app.d()->runningPlatform_->pause();
+            for (std::size_t i = 0; i < frames; ++i)
+                token.step(dt);
+            controller.stop();
+        });
+
+    return app.run();
+}
+
 AnimationGuard::AnimationGuard(AppDeferred& app,
         std::optional<avg::AnimationOptions> options) :
     app_(&app),
