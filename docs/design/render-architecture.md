@@ -326,11 +326,6 @@ Latent and documented rather than fixed:
   is resumed after real time has passed produces a single frame whose `dt` covers
   the whole gap. A reset-on-resume (clamp or rebase the clock) is deferred until
   observer mode actually needs it.
-- **`REACTIVE_FRAMES=N` renders N frames on the dummy backend, then exits.** It
-  posts a driver ahead of `run()` that pauses the loop and drives N deterministic
-  `step(frameStep)` frames before stopping — the same pause/step path a manual
-  driver uses, so it bounds static and animating scenes alike. It is a no-op under
-  a remote driver: that client owns the clock and drives frames via `step` itself.
 
 ## What this resolves (vs the interim refactor)
 

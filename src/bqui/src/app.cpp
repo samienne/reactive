@@ -91,6 +91,29 @@ namespace
         char const* value = std::getenv("REACTIVE_REMOTE_ENDPOINT");
         return value ? std::string(value) : std::string();
     }
+
+    // Drives one explicit frame per loop turn: each invocation steps once and
+    // re-posts a copy of itself, so the loop drains between frames and stops
+    // when the count is exhausted or the app signals exit. Holds the pause
+    // across the whole chain so the loop's own real-time tick never
+    // interleaves. Posting a copy (not a self-reference) keeps it cycle-free.
+    struct FrameStepChain
+    {
+        std::shared_ptr<ase::PauseToken> token;
+        std::shared_ptr<std::size_t> remaining;
+        std::chrono::microseconds dt;
+
+        void operator()(btl::RunLoop::Controller& controller) const
+        {
+            if (*remaining == 0 || !token->step(dt))
+            {
+                controller.stop();
+                return;
+            }
+            --*remaining;
+            controller.post(*this);
+        }
+    };
 } // anonymous namespace
 
 class BQUI_EXPORT AppDeferred :
@@ -441,32 +464,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
                 platform.pause());
     }
 
-    // REACTIVE_FRAMES=N renders exactly N frames headless then exits, for
-    // scripted dummy-backend runs. It drives deterministic frameStep steps off
-    // the pause/step path -- bounding static and animating scenes alike -- posted
-    // ahead of run() so it fires from the loop thread. A remote driver owns the
-    // clock, so the knob is a no-op there.
-    if (remoteEndpoint.empty() && useDummyEnv)
-    {
-        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
-        {
-            char* end = nullptr;
-            unsigned long n = std::strtoul(frames, &end, 10);
-            if (end != frames)
-            {
-                auto step = ase::PlatformBase::RunConfig{}.frameStep;
-                platform.runLoop().post(
-                    [&platform, n, step](btl::RunLoop::Controller& controller)
-                    {
-                        auto token = platform.pause();
-                        for (unsigned long i = 0; i < n; ++i)
-                            token.step(step);
-                        controller.stop();
-                    });
-            }
-        }
-    }
-
     platform.run(frameCallback);
 
     driver.reset();
@@ -552,14 +549,17 @@ void test::WindowInput::injectClick(App& app, std::size_t index, float x,
 int test::FrameDriver::run(App& app, btl::RunLoop& loop, std::size_t frames,
         std::chrono::microseconds dt)
 {
-    // pause()/step()/stop() run on the loop thread; posting ahead of run() lands
-    // the driver there once runningPlatform_ is set and stepFrame is bound.
+    // pause()/step()/stop() run on the loop thread; posting ahead of run()
+    // lands the chain there once runningPlatform_ is set and stepFrame is
+    // bound.
     loop.post([&app, frames, dt](btl::RunLoop::Controller& controller)
         {
-            auto token = app.d()->runningPlatform_->pause();
-            for (std::size_t i = 0; i < frames; ++i)
-                token.step(dt);
-            controller.stop();
+            FrameStepChain chain{
+                std::make_shared<ase::PauseToken>(
+                        app.d()->runningPlatform_->pause()),
+                std::make_shared<std::size_t>(frames),
+                dt };
+            controller.post(chain);
         });
 
     return app.run();
