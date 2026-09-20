@@ -14,40 +14,41 @@
 #include <ase/pointerbuttonevent.h>
 #include <ase/keyevent.h>
 
+#include "apptestsupport.h"
+
 #include <btl/runloop.h>
 
 #include <gtest/gtest.h>
+
+#include <chrono>
 
 using namespace bqui;
 using namespace bqui::widget;
 
 namespace
 {
-    // A headless platform capped to a few frames, so a run is bounded and fast.
-    // The loop is injected by the caller: it must outlive the returned platform,
-    // so it cannot be a local here.
-    ase::Platform makeBoundedHeadless(btl::RunLoop& loop, uint64_t frames)
-    {
-        auto platform = ase::makeDummyPlatform(loop);
-        platform.getImpl<ase::DummyPlatform>().setMaxFrames(frames);
-        return platform;
-    }
+    // A ~60fps step. The exact value is immaterial to these tests, which assert
+    // the run completes cleanly, not its timing.
+    constexpr std::chrono::microseconds kFrameStep{ 16667 };
 } // namespace
 
 TEST(headlessApp, runsAndExitsWithNoWindow)
 {
-    // A minimal app driven by the headless backend must build, tick a bounded
+    // A minimal app driven by the headless backend must build, produce a bounded
     // number of frames, and return cleanly without ever opening an OS window.
+    // Frames are stepped explicitly, so the run is bounded by construction rather
+    // than by the loop's cadence.
     auto widget = label("Headless");
 
     btl::RunLoop loop;
 
-    int result = App()
-        .platform(makeBoundedHeadless(loop, 5))
-        .addWindow(
-                window(bq::signal::constant<std::string>("Test")),
-                std::move(widget))
-        .run();
+    App app;
+    app.platform(ase::makeDummyPlatform(loop));
+    app.addWindow(
+            window(bq::signal::constant<std::string>("Test")),
+            std::move(widget));
+
+    int result = test::FrameDriver::run(app, loop, 5, kFrameStep);
 
     EXPECT_EQ(0, result);
 }
@@ -113,12 +114,13 @@ TEST(headlessApp, secondAppRunsInTheSameProcess)
     {
         btl::RunLoop loop;
 
-        int result = App()
-            .platform(makeBoundedHeadless(loop, 3))
-            .addWindow(
-                    window(bq::signal::constant<std::string>("Test")),
-                    label("Rerun"))
-            .run();
+        App app;
+        app.platform(ase::makeDummyPlatform(loop));
+        app.addWindow(
+                window(bq::signal::constant<std::string>("Test")),
+                label("Rerun"));
+
+        int result = test::FrameDriver::run(app, loop, 3, kFrameStep);
 
         EXPECT_EQ(0, result);
     }

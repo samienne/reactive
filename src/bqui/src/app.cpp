@@ -91,6 +91,29 @@ namespace
         char const* value = std::getenv("REACTIVE_REMOTE_ENDPOINT");
         return value ? std::string(value) : std::string();
     }
+
+    // Drives one explicit frame per loop turn: each invocation steps once and
+    // re-posts a copy of itself, so the loop drains between frames and stops
+    // when the count is exhausted or the app signals exit. Holds the pause
+    // across the whole chain so the loop's own real-time tick never
+    // interleaves. Posting a copy (not a self-reference) keeps it cycle-free.
+    struct FrameStepChain
+    {
+        std::shared_ptr<ase::PauseToken> token;
+        std::shared_ptr<std::size_t> remaining;
+        std::chrono::microseconds dt;
+
+        void operator()(btl::RunLoop::Controller& controller) const
+        {
+            if (*remaining == 0 || !token->step(dt))
+            {
+                controller.stop();
+                return;
+            }
+            --*remaining;
+            controller.post(*this);
+        }
+    };
 } // anonymous namespace
 
 class BQUI_EXPORT AppDeferred :
@@ -318,17 +341,6 @@ int App::runUntil(bq::signal::AnySignal<bool> running)
     std::string remoteEndpoint =
         d()->remoteEndpointOverride_.value_or(remoteEndpointEnv());
 
-    if (useDummyEnv)
-    {
-        if (char const* frames = std::getenv("REACTIVE_FRAMES"))
-        {
-            char* end = nullptr;
-            unsigned long n = std::strtoul(frames, &end, 10);
-            if (end != frames)
-                inner.getImpl<ase::DummyPlatform>().setMaxFrames(n);
-        }
-    }
-
     ase::Platform platform = std::move(inner);
 
     // Declared after `platform` so runningPlatform_ is nulled under the lock
@@ -532,6 +544,25 @@ void test::WindowInput::injectClick(App& app, std::size_t index, float x,
     ase::Vector2f pos(x, y);
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::down);
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
+}
+
+int test::FrameDriver::run(App& app, btl::RunLoop& loop, std::size_t frames,
+        std::chrono::microseconds dt)
+{
+    // pause()/step()/stop() run on the loop thread; posting ahead of run()
+    // lands the chain there once runningPlatform_ is set and stepFrame is
+    // bound.
+    loop.post([&app, frames, dt](btl::RunLoop::Controller& controller)
+        {
+            FrameStepChain chain{
+                std::make_shared<ase::PauseToken>(
+                        app.d()->runningPlatform_->pause()),
+                std::make_shared<std::size_t>(frames),
+                dt };
+            controller.post(chain);
+        });
+
+    return app.run();
 }
 
 AnimationGuard::AnimationGuard(AppDeferred& app,
