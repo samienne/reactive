@@ -350,6 +350,37 @@ TEST(arraySignal, forEachBuildsOncePerKeyAndFollowsMembership)
     EXPECT_EQ(3, *builds);
 }
 
+// The key-passing overload hands the delegate the key it was built under, once
+// per identity, and a value change reaches the built value without rebuilding.
+TEST(arraySignal, forEachPassesTheKeyToTheDelegate)
+{
+    auto input = makeInput(items({ { "a", 1 }, { "b", 2 } }));
+    auto builds = std::make_shared<int>(0);
+
+    auto c = makeSignalContext(join(forEach(
+                    input.signal,
+                    itemKey,
+                    [builds](std::string const& key, AnySignal<Item> item)
+                    {
+                        ++*builds;
+                        return AnySignal<std::string>(itemValue(std::move(item))
+                                .map([key](int value)
+                                    {
+                                        return key + std::to_string(value);
+                                    }));
+                    })));
+
+    EXPECT_EQ((std::vector<std::string>{ "a1", "b2" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
+
+    input.handle.set(items({ { "a", 10 }, { "b", 2 } }));
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<std::string>{ "a10", "b2" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
+}
+
 // A key that leaves is retired, so the same key coming back is a new item
 // rather than a resumption of the old one.
 TEST(arraySignal, aReturningKeyIsANewIdentity)
