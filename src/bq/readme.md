@@ -57,11 +57,11 @@ bq::signal::Collection<std::string> todos;
 
 `forEach` builds something once per item and hands it the item's value as a
 signal, so editing an item updates what was built for it instead of rebuilding
-it:
+it. A delegate that also takes a second argument is handed the item's id too:
 
 ```cpp
 auto labels = forEach(todos,
-    [](bq::signal::AnySignal<std::string> text, std::uint64_t id)
+    [](bq::signal::AnySignal<std::string> text)
     {
         return bq::signal::AnySignal<std::string>(
             text.map([](std::string const& t) { return "- " + t; }));

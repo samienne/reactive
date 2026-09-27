@@ -229,8 +229,27 @@ namespace bq::signal
         };
 
         template <typename TDelegate, typename T>
-        constexpr bool isCollectionForEachCallable =
+        constexpr bool isKeyedCollectionForEachDelegate =
             std::is_invocable_v<TDelegate const&, AnySignal<T>, std::uint64_t>;
+
+        template <typename TDelegate, typename T>
+        constexpr bool isPlainCollectionForEachDelegate =
+            std::is_invocable_v<TDelegate const&, AnySignal<T>>;
+
+        template <typename TDelegate, typename T>
+        constexpr bool isCollectionForEachCallable =
+            isKeyedCollectionForEachDelegate<TDelegate, T>
+            || isPlainCollectionForEachDelegate<TDelegate, T>;
+
+        template <typename TDelegate, typename T>
+        auto invokeCollectionForEachDelegate(TDelegate const& delegate,
+                AnySignal<T> value, std::uint64_t id)
+        {
+            if constexpr (isKeyedCollectionForEachDelegate<TDelegate, T>)
+                return delegate(std::move(value), id);
+            else
+                return delegate(std::move(value));
+        }
     } // namespace detail
 
     template <typename T>
@@ -276,12 +295,13 @@ namespace bq::signal
     /**
      * @brief Builds one value per collection item, keyed by the item's id.
      *
-     * 'delegate' is invoked as 'delegate(value, id)' once per item id per
-     * context, where 'value' is a signal of the item's value. An update of
-     * the item reaches the built value through 'value' without rebuilding it,
-     * and changes no other item's signal. A reorder rebuilds nothing. An
-     * erased item's built value is released in the update that observes the
-     * erase.
+     * 'delegate' is invoked as 'delegate(value, id)', or as 'delegate(value)'
+     * if it takes only the value, once per item id per context, where 'value'
+     * is a signal of the item's value. A delegate callable both ways gets the
+     * id. An update of the item reaches the built value through 'value'
+     * without rebuilding it, and changes no other item's signal. A reorder
+     * rebuilds nothing. An erased item's built value is released in the
+     * update that observes the erase.
      *
      * The delegate is invoked as a const function.
      */
@@ -291,8 +311,11 @@ namespace bq::signal
     auto forEach(Collection<T> const& collection, TDelegate delegate)
     {
         using SnapshotPtr = typename Collection<T>::SnapshotPtr;
-        using U = std::decay_t<std::invoke_result_t<
-            TDelegate const&, AnySignal<T>, std::uint64_t>>;
+        using U = std::decay_t<decltype(
+                detail::invokeCollectionForEachDelegate(
+                    std::declval<TDelegate const&>(),
+                    std::declval<AnySignal<T>>(),
+                    std::uint64_t()))>;
 
         using Item = CollectionItem<T>;
 
@@ -306,9 +329,9 @@ namespace bq::signal
         auto build = [collection, delegate=std::move(delegate)](
                 std::uint64_t const& id, Item const& item)
             {
-                return delegate(AnySignal<T>(wrap(
-                                detail::CollectionItemSignal<T>(collection,
-                                    item))),
+                return detail::invokeCollectionForEachDelegate(delegate,
+                        AnySignal<T>(wrap(detail::CollectionItemSignal<T>(
+                                    collection, item))),
                         id);
             };
 

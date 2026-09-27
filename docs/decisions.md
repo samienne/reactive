@@ -6,6 +6,15 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## `forEach` delegates take the value first; the key is optional
+
+A `forEach` delegate takes the item's value signal first and its key (a
+`Collection` item's id) second, and may take only the value.
+
+**Why:** the plain form is then the keyed form minus its trailing argument.
+The value is what a delegate works with; the key is a construction-time extra
+that most delegates do not need.
+
 ## `forEach` builds each item's description once; delegates have no side effects
 
 `forEach` is the public way to turn a list into per-item results; `map`,

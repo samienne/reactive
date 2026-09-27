@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -567,4 +568,112 @@ TEST(collectionSignal, updatesReachItemsWithoutComparingValues)
     c.update(FrameInfo(2, {}));
     EXPECT_TRUE(c.didChange<0>());
     EXPECT_EQ(2, c.evaluate<0>().get<0>().front().value);
+}
+
+// A delegate may take only the value signal; it is still built once per id
+// and the value flows through it.
+TEST(collectionSignal, plainDelegateTakesOnlyTheValue)
+{
+    auto items = makeCollection({ "a", "b" });
+    std::uint64_t const idA = collectionIds(items)[0];
+
+    auto builds = std::make_shared<int>(0);
+    auto c = makeSignalContext(join(forEach(items,
+                    [builds](AnySignal<std::string> value)
+                    {
+                        ++*builds;
+                        return AnySignal<std::string>(value.map(
+                                    [](std::string const& v)
+                                    {
+                                        return v + "!";
+                                    }));
+                    })));
+
+    EXPECT_EQ((std::vector<std::string>{ "a!", "b!" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(2, *builds);
+
+    {
+        auto transaction = items.write();
+        transaction.update(transaction.findId(idA), "a2");
+    }
+    items.write().pushBack("c");
+    c.update(FrameInfo(1, {}));
+    EXPECT_EQ((std::vector<std::string>{ "a2!", "b!", "c!" }),
+            c.evaluate<0>().get<0>());
+    EXPECT_EQ(3, *builds);
+}
+
+namespace
+{
+    struct BothForms
+    {
+        AnySignal<int> operator()(AnySignal<std::string>) const
+        {
+            return AnySignal<int>(constant(0));
+        }
+
+        AnySignal<int> operator()(AnySignal<std::string>, std::uint64_t) const
+        {
+            return AnySignal<int>(constant(1));
+        }
+    };
+
+    template <typename TDelegate, typename = void>
+    struct AcceptsDelegate : std::false_type {};
+
+    template <typename TDelegate>
+    struct AcceptsDelegate<TDelegate, std::void_t<decltype(forEach(
+                std::declval<Collection<std::string> const&>(),
+                std::declval<TDelegate>()))>> : std::true_type {};
+} // namespace
+
+// A delegate callable both with and without the id is handed the id.
+TEST(collectionSignal, delegateCallableBothWaysGetsTheId)
+{
+    auto items = makeCollection({ "a", "b" });
+
+    auto variadic = makeSignalContext(join(forEach(items,
+                    [](AnySignal<std::string>, auto... rest)
+                    {
+                        return AnySignal<int>(constant(
+                                    static_cast<int>(sizeof...(rest))));
+                    })));
+    EXPECT_EQ((std::vector<int>{ 1, 1 }), variadic.evaluate<0>().get<0>());
+
+    auto overloaded = makeSignalContext(join(forEach(items, BothForms())));
+    EXPECT_EQ((std::vector<int>{ 1, 1 }), overloaded.evaluate<0>().get<0>());
+}
+
+// A delegate of neither form removes forEach from overload resolution, so
+// the mistake is reported at the call.
+TEST(collectionSignal, wrongShapedDelegateIsRejected)
+{
+    auto plain = [](AnySignal<std::string> value)
+    {
+        return value;
+    };
+    auto keyed = [](AnySignal<std::string> value, std::uint64_t)
+    {
+        return value;
+    };
+    auto keyFirst = [](std::uint64_t, AnySignal<std::string> value)
+    {
+        return value;
+    };
+    auto wrongValue = [](int)
+    {
+        return 0;
+    };
+    auto tooMany = [](AnySignal<std::string> value, std::uint64_t, int)
+    {
+        return value;
+    };
+
+    static_assert(AcceptsDelegate<decltype(plain)>::value);
+    static_assert(AcceptsDelegate<decltype(keyed)>::value);
+    static_assert(AcceptsDelegate<BothForms>::value);
+    static_assert(!AcceptsDelegate<decltype(keyFirst)>::value);
+    static_assert(!AcceptsDelegate<decltype(wrongValue)>::value);
+    static_assert(!AcceptsDelegate<decltype(tooMany)>::value);
 }

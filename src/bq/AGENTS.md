@@ -71,7 +71,8 @@ copy for a new node's per-context state.
 - A list whose items carry container-minted ids: `Collection<T>`
   (`bq/signal/collection.h`), read through `snapshotSignal`, `generationSignal`
   and a `forEach` over the collection, whose delegate receives each item's value
-  signal and id (`bq/signal/collectionsignal.h`). See *Collection* below.
+  signal and, if it takes a second argument, the item's id; a delegate callable
+  both ways gets the id (`bq/signal/collectionsignal.h`). See *Collection* below.
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 
