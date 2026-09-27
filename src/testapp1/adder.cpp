@@ -17,22 +17,45 @@
 #include <bqui/widget/hbox.h>
 
 #include <bqui/theme.h>
-#include <bqui/datasourcefromcollection.h>
-#include <bqui/datasource.h>
 #include <bqui/withanimation.h>
-#include <bqui/databind.h>
 
+#include <bq/signal/arraysignal.h>
+#include <bq/signal/collection.h>
+#include <bq/signal/collectionsignal.h>
+#include <bq/signal/constant.h>
 #include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 #include <avg/rendertree.h>
 
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace bqui;
 
 namespace
 {
+    using KeyedWidgets = std::vector<std::pair<size_t, widget::AnyWidget>>;
+
+    // The dynamic box takes widgets paired with an id; build one widget per
+    // collection item and pair it with the item's id.
+    template <typename T, typename TDelegate>
+    bq::signal::AnySignal<KeyedWidgets> keyedWidgets(
+            bq::signal::Collection<T> const& items, TDelegate delegate)
+    {
+        using Keyed = KeyedWidgets::value_type;
+
+        return bq::signal::join(bq::signal::forEach(items,
+                    [delegate=std::move(delegate)](
+                        bq::signal::AnySignal<T> value, size_t id)
+                    {
+                        return bq::signal::AnySignal<Keyed>(
+                                bq::signal::constant(Keyed(id,
+                                        delegate(std::move(value), id))));
+                    }));
+    }
+
     widget::AnyWidget itemEntry(
             bq::signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
@@ -66,7 +89,7 @@ namespace
 
 bqui::widget::AnyWidget adder()
 {
-    Collection<std::string> items;
+    bq::signal::Collection<std::string> items;
 
     {
         auto range = items.rangeLock();
@@ -81,10 +104,10 @@ bqui::widget::AnyWidget adder()
 
     auto swapState = std::make_shared<size_t>();
 
-    auto widgets = dataBind<std::string>(
-            dataSourceFromCollection(items),
+    auto widgets = keyedWidgets(
+            items,
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (bq::signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (bq::signal::AnySignal<std::string> value, size_t id) -> widget::AnyWidget
             {
                 return widget::hbox({
                 widget::button("U",
