@@ -72,6 +72,20 @@ If an exception leaves the transaction's scope, its edits are discarded and
 nothing is published. Reading never waits for a writer: `todos.read()` returns
 a view of the latest published snapshot.
 
+Iterating a snapshot, a view or a transaction yields the items, each with its
+id; `values()` yields just the values:
+
+```cpp
+auto view = todos.read();
+for (auto const& item : view)
+    std::cout << item.id << ": " << *item.value << "
+";
+
+for (auto const& text : view.values())
+    std::cout << text << "
+";
+```
+
 ## Streams — events over time
 
 A **stream** carries discrete events; every value pushed into it is delivered

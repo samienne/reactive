@@ -1,7 +1,7 @@
 # bq — agent notes
 
 *Last verified against `d2e8954` (2026-07-13); the Collection section against
-`9726f65` (2026-09-27).*
+`d5ecd0f` (2026-09-27).*
 
 Internals, entry points, and traps for the reactive core. Concepts and usage are
 in `readme.md`; project-wide conventions are in the top-level `docs/`. This file
@@ -102,6 +102,29 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   each callback runs in its own `try`/`catch (...)`, and a disconnected callback
   is flagged off before the list is compacted, so compaction failing to allocate
   only delays freeing it.
+- **Iterators are positions.** `CollectionIterator<T, TOwner>` holds its owner
+  (the snapshot, or the `Transaction`) and an index, and reads the owner's
+  current item vector on every dereference. That is what keeps a transaction's
+  iterators valid across its first effective mutation, which switches it from
+  the published vector to the working copy: swap, move, update and sort
+  invalidate none, and insert and erase shift what an index names. Moving a
+  `Transaction` leaves its iterators pointing at the moved-from object.
+  `CollectionValueIterator` adapts an item iterator and converts back to it,
+  which is how the mutations accept value iterators. `values()` is deleted on
+  an rvalue `View` or `Transaction`, since the range would outlive the snapshot
+  or the lock.
+- **`iter_swap` is a hidden friend of `Transaction`.** ADL finds it because the
+  transaction is a template argument of its iterators, and as a non-template it
+  beats `std::iter_swap`, which is also an ADL candidate whenever `T` comes from
+  `std`. Only unqualified calls (`using std::iter_swap; iter_swap(a, b)`) reach
+  it; no standard algorithm does. MSVC's `std::iter_swap` and `std::reverse`
+  call `swap(*a, *b)`, libstdc++ and libc++ call `std::iter_swap` qualified,
+  and `std::sort`-style algorithms move-assign through `*it`. Items and values
+  are const, so all of these fail to compile rather than bypass the
+  transaction. C++20's `std::ranges::iter_swap` would find the friend, but the
+  ranges permutation algorithms also require `indirectly_movable_storable`.
+  Routing them through the transaction would need a proxy reference type,
+  which a random access iterator may not have before C++20.
 - **Ids come from a per-collection 64-bit counter**, not addresses, so an erased id is
   never handed to a new item. They are unique within one collection only.
 - **One snapshot per collection per frame per context.** Every signal over a
