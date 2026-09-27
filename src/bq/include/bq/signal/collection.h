@@ -507,7 +507,7 @@ namespace bq::signal
         CollectionSnapshot(CollectionSnapshot const&) = delete;
         CollectionSnapshot& operator=(CollectionSnapshot const&) = delete;
 
-        std::uint64_t generation() const
+        std::uint64_t getGeneration() const
         {
             return generation_;
         }
@@ -565,7 +565,7 @@ namespace bq::signal
      *
      * Copies of a collection share one set of contents. Every change happens
      * inside a write transaction, opened by write(); reading, through read()
-     * or snapshot(), never waits for a writer.
+     * or getSnapshot(), never waits for a writer.
      *
      * Snapshots, views and transactions are not ranges themselves: iterate
      * their items() or their values().
@@ -640,7 +640,7 @@ namespace bq::signal
             /**
              * @brief The snapshot this view reads.
              */
-            SnapshotPtr const& snapshot() const
+            SnapshotPtr const& getSnapshot() const
             {
                 return snapshot_;
             }
@@ -925,7 +925,7 @@ namespace bq::signal
                 control_(std::move(control)),
                 lock_(control_->writeMutex),
                 published_(control_->load()),
-                generation_(published_->generation() + 1),
+                generation_(published_->getGeneration() + 1),
                 uncaughtExceptions_(std::uncaught_exceptions())
             {
             }
@@ -1005,7 +1005,7 @@ namespace bq::signal
          */
         View read() const
         {
-            return View(snapshot());
+            return View(getSnapshot());
         }
 
         /**
@@ -1014,7 +1014,7 @@ namespace bq::signal
          * Never waits for a writer: while a transaction is open this returns
          * the snapshot published before it.
          */
-        SnapshotPtr snapshot() const
+        SnapshotPtr getSnapshot() const
         {
             return control_->load();
         }
@@ -1022,9 +1022,9 @@ namespace bq::signal
         /**
          * @brief The generation of the latest published snapshot.
          */
-        std::uint64_t generation() const
+        std::uint64_t getGeneration() const
         {
-            return snapshot()->generation();
+            return getSnapshot()->getGeneration();
         }
 
         /**
@@ -1043,7 +1043,7 @@ namespace bq::signal
          * The callback runs on the writing thread after the write lock is
          * released, so it may read or write the collection. Writers on
          * different threads may invoke it concurrently and out of generation
-         * order; read snapshot() for the latest state rather than relying on
+         * order; read getSnapshot() for the latest state rather than relying on
          * the argument being the newest. An exception thrown by the callback
          * is caught and ignored, and the other callbacks still run.
          *

@@ -152,16 +152,16 @@ TEST(collection, updateStampsOnlyThatItem)
         transaction.pushBack(2);
     }
 
-    auto const first = collection.snapshot();
-    EXPECT_EQ(1u, first->generation());
+    auto const first = collection.getSnapshot();
+    EXPECT_EQ(1u, first->getGeneration());
 
     {
         auto transaction = collection.write();
         transaction.update(transaction.items().begin() + 1, 20);
     }
 
-    auto const second = collection.snapshot();
-    EXPECT_EQ(2u, second->generation());
+    auto const second = collection.getSnapshot();
+    EXPECT_EQ(2u, second->getGeneration());
     EXPECT_EQ(1u, second->items()[0].generation);
     EXPECT_EQ(2u, second->items()[1].generation);
     EXPECT_EQ(first->items()[0].value, second->items()[0].value);
@@ -276,7 +276,7 @@ TEST(collection, moveToSelfChangesNothing)
         transaction.move(items.begin() + 2, items.begin() + 2);
     }
 
-    EXPECT_EQ(1u, collection.generation());
+    EXPECT_EQ(1u, collection.getGeneration());
     EXPECT_EQ((std::vector<std::string>{ "test1", "test2", "test3" }),
             values(collection));
 }
@@ -295,11 +295,11 @@ TEST(collection, sort)
 
     EXPECT_EQ((std::vector<std::string>{ "test1", "test2", "test3" }),
             values(collection));
-    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(2u, collection.getGeneration());
 
     // Sorting what is already sorted is not a change.
     collection.write().sort();
-    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(2u, collection.getGeneration());
 }
 
 // However many mutations one transaction makes, it publishes one snapshot with
@@ -318,7 +318,7 @@ TEST(collection, oneTransactionIsOneGeneration)
                 collection.write();
             });
 
-    EXPECT_EQ(0u, collection.generation());
+    EXPECT_EQ(0u, collection.getGeneration());
 
     {
         auto transaction = collection.write();
@@ -329,12 +329,12 @@ TEST(collection, oneTransactionIsOneGeneration)
         transaction.erase(items.begin() + 1);
         transaction.swap(items.begin(), items.begin() + 2);
 
-        EXPECT_EQ(0u, collection.generation());
+        EXPECT_EQ(0u, collection.getGeneration());
         EXPECT_TRUE(notified.empty());
     }
 
-    EXPECT_EQ(1u, collection.generation());
-    EXPECT_EQ(99u, collection.snapshot()->size());
+    EXPECT_EQ(1u, collection.getGeneration());
+    EXPECT_EQ(99u, collection.getSnapshot()->size());
     EXPECT_EQ((std::vector<std::uint64_t>{ 1 }), notified);
 }
 
@@ -349,7 +349,7 @@ TEST(collection, aTransactionWithoutMutationPublishesNothing)
                 ++notified;
             });
 
-    auto const before = collection.snapshot();
+    auto const before = collection.getSnapshot();
     {
         auto transaction = collection.write();
         transaction.findId(12345);
@@ -357,7 +357,7 @@ TEST(collection, aTransactionWithoutMutationPublishesNothing)
         EXPECT_EQ(1u, transaction.size());
     }
 
-    EXPECT_EQ(before, collection.snapshot());
+    EXPECT_EQ(before, collection.getSnapshot());
     EXPECT_EQ(0, notified);
 }
 
@@ -412,14 +412,14 @@ TEST(collection, readersDoNotWaitForWriters)
 
     mutated.get_future().wait();
 
-    auto const snapshot = collection.snapshot();
-    EXPECT_EQ(1u, snapshot->generation());
+    auto const snapshot = collection.getSnapshot();
+    EXPECT_EQ(1u, snapshot->getGeneration());
     EXPECT_EQ((std::vector<int>{ 1 }), values(collection));
 
     read.set_value();
     writer.join();
 
-    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(2u, collection.getGeneration());
     EXPECT_EQ((std::vector<int>{ 10, 2 }), values(collection));
 
     EXPECT_EQ(1u, snapshot->size());
@@ -451,11 +451,11 @@ TEST(collection, concurrentWritersPublishWholeTransactions)
             std::uint64_t last = 0;
             while (!done)
             {
-                auto snapshot = collection.snapshot();
-                EXPECT_LE(last, snapshot->generation());
+                auto snapshot = collection.getSnapshot();
+                EXPECT_LE(last, snapshot->getGeneration());
                 EXPECT_EQ(0u, snapshot->size() % 2);
-                EXPECT_EQ(snapshot->generation() * 2, snapshot->size());
-                last = snapshot->generation();
+                EXPECT_EQ(snapshot->getGeneration() * 2, snapshot->size());
+                last = snapshot->getGeneration();
             }
         });
 
@@ -464,8 +464,8 @@ TEST(collection, concurrentWritersPublishWholeTransactions)
     done = true;
     reader.join();
 
-    EXPECT_EQ(2000u, collection.generation());
-    EXPECT_EQ(4000u, collection.snapshot()->size());
+    EXPECT_EQ(2000u, collection.getGeneration());
+    EXPECT_EQ(4000u, collection.getSnapshot()->size());
 }
 
 // An exception propagating out of a transaction discards all of its changes.
@@ -480,7 +480,7 @@ TEST(collection, anExceptionRollsBackTheTransaction)
                 ++notified;
             });
 
-    auto const before = collection.snapshot();
+    auto const before = collection.getSnapshot();
     EXPECT_THROW(
             {
                 auto transaction = collection.write();
@@ -490,15 +490,15 @@ TEST(collection, anExceptionRollsBackTheTransaction)
             },
             std::runtime_error);
 
-    EXPECT_EQ(before, collection.snapshot());
-    EXPECT_EQ(1u, collection.generation());
+    EXPECT_EQ(before, collection.getSnapshot());
+    EXPECT_EQ(1u, collection.getGeneration());
     EXPECT_EQ((std::vector<int>{ 1 }), values(collection));
     EXPECT_EQ(0, notified);
 
     // The lock was released.
     collection.write().pushBack(3);
     EXPECT_EQ((std::vector<int>{ 1, 3 }), values(collection));
-    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(2u, collection.getGeneration());
 }
 
 // A transaction opened while an exception is already in flight still publishes
@@ -552,7 +552,7 @@ TEST(collection, aThrowingCallbackDoesNotStopTheOthers)
 
     EXPECT_EQ(1, before);
     EXPECT_EQ(1, after);
-    EXPECT_EQ(1u, collection.generation());
+    EXPECT_EQ(1u, collection.getGeneration());
 }
 
 TEST(collection, noOpMutationsPublishNothing)
@@ -571,7 +571,7 @@ TEST(collection, noOpMutationsPublishNothing)
                 ++notified;
             });
 
-    auto const before = collection.snapshot();
+    auto const before = collection.getSnapshot();
     {
         auto transaction = collection.write();
         auto const items = transaction.items();
@@ -581,7 +581,7 @@ TEST(collection, noOpMutationsPublishNothing)
         transaction.sort();
     }
 
-    EXPECT_EQ(before, collection.snapshot());
+    EXPECT_EQ(before, collection.getSnapshot());
     EXPECT_EQ(0, notified);
 }
 
@@ -608,18 +608,19 @@ namespace
                     ++notified;
                 });
 
-        auto const before = collection.snapshot();
+        auto const before = collection.getSnapshot();
         {
             auto transaction = collection.write();
             transaction.update(transaction.items().begin(), second);
         }
 
-        EXPECT_EQ(2u, collection.generation());
+        EXPECT_EQ(2u, collection.getGeneration());
         EXPECT_EQ(1, notified);
-        EXPECT_EQ(2u, collection.snapshot()->items()[0].generation);
-        EXPECT_EQ(before->items()[0].id, collection.snapshot()->items()[0].id);
+        EXPECT_EQ(2u, collection.getSnapshot()->items()[0].generation);
+        EXPECT_EQ(before->items()[0].id,
+                collection.getSnapshot()->items()[0].id);
         EXPECT_NE(before->items()[0].value,
-                collection.snapshot()->items()[0].value);
+                collection.getSnapshot()->items()[0].value);
     }
 } // namespace
 
@@ -682,8 +683,8 @@ namespace
             expected.push_back(100);
         }
 
-        EXPECT_EQ(2u, collection.generation());
-        for (auto const& item : collection.snapshot()->items())
+        EXPECT_EQ(2u, collection.getGeneration());
+        for (auto const& item : collection.getSnapshot()->items())
             ASSERT_TRUE(item.value);
 
         EXPECT_EQ(expected, values(collection));
@@ -940,7 +941,7 @@ TEST(collection, snapshotIteratesItemsAndValues)
         transaction.pushBack("b");
     }
 
-    auto const snapshot = collection.snapshot();
+    auto const snapshot = collection.getSnapshot();
 
     std::vector<std::uint64_t> itemIds;
     for (CollectionItem<std::string> const& item : snapshot->items())
@@ -1050,7 +1051,7 @@ TEST(collection, rangesOwnTheirSnapshot)
 
     auto fromSnapshot = [&collection]()
         {
-            auto const snapshot = collection->snapshot();
+            auto const snapshot = collection->getSnapshot();
             return snapshot->values();
         }();
     static_assert(std::is_same_v<Snapshot::Values, decltype(fromSnapshot)>);
@@ -1217,7 +1218,7 @@ TEST(collection, onChangeConnectDisconnectRacesNotify)
 
     EXPECT_EQ(static_cast<std::uint64_t>(
                 writerCount * rounds * 4 + subscriberCount * rounds + 1),
-            collection.generation());
+            collection.getGeneration());
 }
 
 // With callbacks registered, concurrent writers lose no notification: the
@@ -1237,7 +1238,7 @@ TEST(collection, concurrentWritersNotifyTheFinalGeneration)
             [&](std::uint64_t generation)
             {
                 ++notified;
-                if (collection.generation() < generation)
+                if (collection.getGeneration() < generation)
                     published = false;
 
                 auto seen = newest.load();
@@ -1265,8 +1266,8 @@ TEST(collection, concurrentWritersNotifyTheFinalGeneration)
         writer.join();
 
     auto const final = static_cast<std::uint64_t>(writerCount * transactions);
-    EXPECT_EQ(final, collection.generation());
-    EXPECT_EQ(final * 2, collection.snapshot()->size());
+    EXPECT_EQ(final, collection.getGeneration());
+    EXPECT_EQ(final * 2, collection.getSnapshot()->size());
     EXPECT_EQ(final, newest.load());
     EXPECT_EQ(writerCount * transactions, notified.load());
     EXPECT_TRUE(published);

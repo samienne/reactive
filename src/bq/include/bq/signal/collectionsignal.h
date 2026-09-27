@@ -88,12 +88,12 @@ namespace bq::signal
                         });
 
                 entry->frameId = frame.getFrameId();
-                entry->snapshot = collection.snapshot();
+                entry->snapshot = collection.getSnapshot();
             }
             else if (frame.getFrameId() > entry->frameId)
             {
                 entry->frameId = frame.getFrameId();
-                auto latest = collection.snapshot();
+                auto latest = collection.getSnapshot();
                 if (latest != entry->snapshot)
                 {
                     entry->snapshot = std::move(latest);
@@ -144,8 +144,8 @@ namespace bq::signal
             {
                 acquireCollectionFrame(context, collection_, frame);
 
-                bool const changed = data.frame->snapshot->generation()
-                    != data.snapshot->generation();
+                bool const changed = data.frame->snapshot->getGeneration()
+                    != data.snapshot->getGeneration();
                 if (changed)
                     data.snapshot = data.frame->snapshot;
 
@@ -192,7 +192,7 @@ namespace bq::signal
                 if (!item)
                     item = &initial_;
 
-                auto const generation = entry->snapshot->generation();
+                auto const generation = entry->snapshot->getGeneration();
                 return { entry, generation, item->generation, item->value };
             }
 
@@ -208,10 +208,10 @@ namespace bq::signal
                 acquireCollectionFrame(context, collection_, frame);
 
                 auto const& snapshot = *data.frame->snapshot;
-                if (snapshot.generation() == data.snapshotGeneration)
+                if (snapshot.getGeneration() == data.snapshotGeneration)
                     return { false };
 
-                data.snapshotGeneration = snapshot.generation();
+                data.snapshotGeneration = snapshot.getGeneration();
 
                 auto item = data.frame->find(initial_.id);
                 if (!item || item->generation == data.itemGeneration)
@@ -269,7 +269,7 @@ namespace bq::signal
 
         return snapshotSignal(collection).map([](SnapshotPtr const& snapshot)
                 {
-                    return snapshot->generation();
+                    return snapshot->getGeneration();
                 });
     }
 

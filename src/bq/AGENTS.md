@@ -83,7 +83,7 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
 ## Collection
 
 - **Snapshots, not events.** The container holds one
-  `shared_ptr<CollectionSnapshot const>`; readers (`read()`, `snapshot()`)
+  `shared_ptr<CollectionSnapshot const>`; readers (`read()`, `getSnapshot()`)
   `atomic_load` it and never take the write lock, whatever the constness of the
   collection. A write transaction (`write()` returning a `Transaction`) reads the
   published snapshot until its first effective mutation, which allocates the

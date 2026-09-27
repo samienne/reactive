@@ -285,7 +285,7 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
         {
             auto const& snapshot = c.evaluate<0>().get<0>();
             EXPECT_EQ(snapshot, c.evaluate<3>().get<0>());
-            EXPECT_EQ(snapshot->generation(), c.evaluate<2>().get<0>());
+            EXPECT_EQ(snapshot->getGeneration(), c.evaluate<2>().get<0>());
 
             std::vector<Built> expected;
             for (auto const& item : snapshot->items())
@@ -306,14 +306,14 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     *armed = true;
     c.update(FrameInfo(1, {}));
     EXPECT_FALSE(*armed);
-    EXPECT_EQ(3u, items.generation());
+    EXPECT_EQ(3u, items.getGeneration());
     expectAgree();
-    EXPECT_EQ(2u, c.evaluate<0>().get<0>()->generation());
+    EXPECT_EQ(2u, c.evaluate<0>().get<0>()->getGeneration());
 
     // The intruding generation arrives at the next frame, for all of them.
     c.update(FrameInfo(2, {}));
     expectAgree();
-    EXPECT_EQ(3u, c.evaluate<0>().get<0>()->generation());
+    EXPECT_EQ(3u, c.evaluate<0>().get<0>()->getGeneration());
     EXPECT_EQ(4u, c.evaluate<1>().get<0>().size());
 
     items.write().sort();
@@ -356,7 +356,7 @@ TEST(collectionSignal, lateSubscriberSharesTheFrameSnapshot)
     EXPECT_TRUE(c.didChange<0>());
     ASSERT_TRUE(c.evaluate<1>().get<0>());
     EXPECT_EQ(c.evaluate<0>().get<0>(), c.evaluate<1>().get<0>());
-    EXPECT_EQ(2u, c.evaluate<1>().get<0>()->generation());
+    EXPECT_EQ(2u, c.evaluate<1>().get<0>()->getGeneration());
 
     c.update(FrameInfo(2, {}));
     EXPECT_FALSE(c.didChange<0>());
@@ -390,7 +390,7 @@ TEST(collectionSignal, observerAndSnapshotLifetimeFollowTheSignals)
 {
     auto items = makeCollection({ "a" });
     std::weak_ptr<Collection<std::string>::Snapshot const> held =
-        items.snapshot();
+        items.getSnapshot();
 
     auto wakes = std::make_shared<std::atomic<int>>(0);
     {
@@ -407,7 +407,7 @@ TEST(collectionSignal, observerAndSnapshotLifetimeFollowTheSignals)
 
         c.update(FrameInfo(1, {}));
         EXPECT_TRUE(held.expired());
-        held = items.snapshot();
+        held = items.getSnapshot();
         items.write().pushBack("c");
         EXPECT_EQ(2, wakes->load());
         EXPECT_FALSE(held.expired());
@@ -514,12 +514,12 @@ TEST(collectionSignal, aPublishRacingTheFirstReadWakesTheContext)
         writer.join();
 
         std::uint64_t const seen = c.evaluate<0>().get<0>();
-        ASSERT_TRUE(seen == items.generation() || *woke)
+        ASSERT_TRUE(seen == items.getGeneration() || *woke)
             << "round " << round << " saw " << seen << " of "
-            << items.generation();
+            << items.getGeneration();
 
         c.update(FrameInfo(2, {}));
-        EXPECT_EQ(items.generation(), c.evaluate<0>().get<0>());
+        EXPECT_EQ(items.getGeneration(), c.evaluate<0>().get<0>());
     }
 }
 
