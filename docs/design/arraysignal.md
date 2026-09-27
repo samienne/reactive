@@ -565,7 +565,7 @@ element's value never changes once built.
 forEach(AnySignal<std::vector<T>> source,
         keyFn   : T const& -> TKey,
         delegate: (AnySignal<T>) -> U
-               or (TKey, AnySignal<T>) -> U)
+               or (AnySignal<T>, TKey) -> U)
                                               -> ArraySignal<U>
 ```
 
@@ -926,7 +926,7 @@ ordered and comparable — `std::map` is the internal store, chosen for simplici
 over a hash map (no hash requirement on user keys, no `std::hash`
 specialisations to write).
 
-**delegate** is `(AnySignal<T>) -> U` or `(TKey, AnySignal<T>) -> U`, and those
+**delegate** is `(AnySignal<T>) -> U` or `(AnySignal<T>, TKey) -> U`, and those
 are the **only** forms. A `(T) -> U` shorthand was considered and deliberately
 rejected; the *Rationale* section is that argument, and it is the most important
 part of this document. Which of the two a delegate takes, and why the key is a
@@ -991,21 +991,18 @@ one the callable accepts:
 
 ```
 (AnySignal<T>) -> U
-(TKey, AnySignal<T>) -> U
+(AnySignal<T>, TKey) -> U
 ```
 
 Three decisions inside that, none of them free:
 
-- **Key first.** It reads as key-then-value, which is the conventional order for
-  a keyed callback. The retired `dataBind` put it last
-  (`(AnySignal<T> value, size_t id)`), so this is a deliberate break with the
-  one local precedent rather than an oversight — that precedent is a single
-  call site and the order it chose is the unusual one.
+- **Value first, key last.** The plain form is then the keyed form minus its
+  trailing argument, and the order is the one `Collection`'s `forEach` uses
+  (see `docs/decisions.md`).
 - **By value, not as a signal.** This is the whole point. Handing the key over
   as an `AnySignal<TKey>` would model a constant as time-varying, and the cost
-  is not theoretical: it is exactly what forced `adder`'s buttons to build their
-  callables through a `map` over the item signal when only the unkeyed form
-  existed.
+  is not theoretical: a delegate would have to build every callable that uses
+  the key through a `map` over that signal.
 - **A generic delegate gets the keyed form.** `[](auto&&...)` satisfies both,
   and there is no way to ask which one the author meant. The key is strictly
   more to work with and a delegate that names no parameter for it cannot tell

@@ -147,7 +147,7 @@ namespace bq::signal
          */
         template <typename TDelegate, typename TKey, typename T>
         constexpr bool isKeyedForEachDelegate =
-            std::is_invocable_v<TDelegate const&, TKey, AnySignal<T>>;
+            std::is_invocable_v<TDelegate const&, AnySignal<T>, TKey>;
 
         /**
          * @brief Whether `TDelegate` is forEach()'s plain delegate form.
@@ -164,7 +164,7 @@ namespace bq::signal
                 AnySignal<T> value)
         {
             if constexpr (isKeyedForEachDelegate<TDelegate, TKey, T>)
-                return delegate(std::move(key), std::move(value));
+                return delegate(std::move(value), std::move(key));
             else
                 return delegate(std::move(value));
         }
@@ -727,10 +727,10 @@ namespace bq::signal
      *
      * @code
      * (AnySignal<T>) -> U
-     * (TKey, AnySignal<T>) -> U
+     * (AnySignal<T>, TKey) -> U
      * @endcode
      *
-     * The key comes first, and by value rather than as a signal. A delegate
+     * The key comes last, and by value rather than as a signal. A delegate
      * that accepts both forms — a generic lambda does — is given the key.
      *
      * Eviction is strict. When a key leaves, its identity is dropped and what
@@ -768,7 +768,7 @@ namespace bq::signal
             || detail::isPlainForEachDelegate<TDelegate, T>;
 
         static_assert(isDelegate, "forEach's delegate must be const callable "
-                "as (TKey, AnySignal<T>) or as (AnySignal<T>)");
+                "as (AnySignal<T>, TKey) or as (AnySignal<T>)");
 
         // Guarded so a non-delegate stops at the assert, not a page of
         // node-internal errors.
