@@ -39,6 +39,21 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
   `modifier/setparams.h`); `Theme` is the common parameter.
 - Animation: `withanimation.h` (guard or lambda form) marks changes to animate.
 
+## `Collection` as a signal (`foreach.h`)
+
+`collectionSignal` (and so `forEach`) never reads the collection during graph
+evaluation. One `detail::CollectionSignalSource` per collection, cached weakly
+in the collection's control block, subscribes to every callback and `set`s a
+full snapshot into a `makeInput`. The signal is therefore a pure function of
+that input: every call, copy and context sees the same value per change, and
+the subscription drops when the last signal does.
+
+The snapshot is read from the storage *inside* the callback, unlocked. That
+relies on `Collection` invoking every callback with its (non-recursive
+`btl::SpinLock`) mutex held and after the mutation is applied; calling
+`rangeLock()` there would deadlock. Holding the lock is also what orders the
+`set`s: a later mutation's snapshot cannot be overtaken by an earlier one's.
+
 ## The app loop (`app.cpp`)
 
 **A `Window` is a handle; the widget is supplied at `addWindow`.** A `Window` is

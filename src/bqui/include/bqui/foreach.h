@@ -34,57 +34,122 @@ namespace bqui
 
         template <typename T>
         using TypeIdentityT = typename TypeIdentity<T>::type;
+
+        template <typename T>
+        class CollectionSignalSource
+        {
+        public:
+            using Items = std::vector<std::pair<size_t, T>>;
+
+            static std::shared_ptr<CollectionSignalSource> get(
+                    Collection<T>& collection)
+            {
+                using LockType = typename Collection<T>::LockType;
+
+                auto& control = *collection.control_;
+
+                {
+                    LockType lock(control.mutex);
+                    if (auto source = control.signalSource.lock())
+                        return source;
+                }
+
+                auto input = bq::signal::makeInput(Items());
+
+                // Collection invokes its callbacks with its lock already held
+                // and after the mutation is applied, so the storage is read
+                // here without locking and snapshots publish in mutation order.
+                auto publish = [control=&control, handle=input.handle]() mutable
+                    {
+                        handle.set(snapshot(*control));
+                    };
+
+                Connection connections;
+                connections += collection.onInsert(
+                        [publish](size_t, int, T const&) mutable { publish(); });
+                connections += collection.onUpdate(
+                        [publish](size_t, int, T const&) mutable { publish(); });
+                connections += collection.onErase(
+                        [publish](size_t) mutable { publish(); });
+                connections += collection.onSwap(
+                        [publish](size_t, int, size_t, int) mutable
+                            { publish(); });
+                connections += collection.onMove(
+                        [publish](size_t, int) mutable { publish(); });
+                connections += collection.onRefresh(
+                        [publish](Items const&) mutable { publish(); });
+
+                std::shared_ptr<CollectionSignalSource> source;
+                {
+                    LockType lock(control.mutex);
+                    source = control.signalSource.lock();
+                    if (!source)
+                    {
+                        input.handle.set(snapshot(control));
+                        source.reset(new CollectionSignalSource(
+                                    std::move(input.signal),
+                                    std::move(connections)));
+                        control.signalSource = source;
+                    }
+                }
+
+                return source;
+            }
+
+            bq::signal::AnySignal<Items> const& signal() const
+            {
+                return signal_;
+            }
+
+        private:
+            CollectionSignalSource(bq::signal::AnySignal<Items> signal,
+                    Connection connections) :
+                signal_(std::move(signal)),
+                connections_(std::move(connections))
+            {
+            }
+
+            static Items snapshot(
+                    typename Collection<T>::ControlBlock const& control)
+            {
+                using ConstIterator = typename Collection<T>::ConstIterator;
+
+                Items items;
+                items.reserve(control.data.size());
+
+                ConstIterator const end(control.data.end());
+                for (ConstIterator i(control.data.begin()); i != end; ++i)
+                    items.emplace_back(i.getId(), *i);
+
+                return items;
+            }
+
+            bq::signal::AnySignal<Items> signal_;
+            Connection connections_;
+        };
     }
 
     /**
      * @brief A reactive view of a Collection as id/value snapshots.
      *
-     * The signal carries a fresh 'rangeLock()' snapshot on every change to the
-     * collection, each item paired with its stable 'getId()'. The subscription
-     * to the collection lives as long as the signal does. Every mutation reads
-     * the live collection, so no change is missed between the initial snapshot
-     * and the first update.
+     * The signal carries a snapshot of the collection after every change to
+     * it, each item paired with its stable 'getId()'. Every signal made from
+     * one collection, and every copy of one, carries the same snapshot for a
+     * given change. The subscription to the collection lives as long as any
+     * such signal does.
      */
     template <typename T>
     bq::signal::AnySignal<std::vector<std::pair<size_t, T>>>
     collectionSignal(Collection<T>& collection)
     {
-        auto tick = bq::signal::makeInput<size_t>(0);
+        using Items = typename detail::CollectionSignalSource<T>::Items;
 
-        auto connections = std::make_shared<Connection>();
-        auto counter = std::make_shared<size_t>(0);
+        auto source = detail::CollectionSignalSource<T>::get(collection);
 
-        auto bump = [handle=tick.handle, counter]() mutable
-            {
-                handle.set(++*counter);
-            };
-
-        *connections += collection.onInsert(
-                [bump](size_t, int, T const&) mutable { bump(); });
-        *connections += collection.onUpdate(
-                [bump](size_t, int, T const&) mutable { bump(); });
-        *connections += collection.onErase(
-                [bump](size_t) mutable { bump(); });
-        *connections += collection.onSwap(
-                [bump](size_t, int, size_t, int) mutable { bump(); });
-        *connections += collection.onMove(
-                [bump](size_t, int) mutable { bump(); });
-        *connections += collection.onRefresh(
-                [bump](std::vector<std::pair<size_t, T>> const&) mutable
-                    { bump(); });
-
-        return tick.signal.map(
-                [collection, connections](size_t)
+        return source->signal().map(
+                [source](Items const& items)
                 {
-                    auto range = collection.rangeLock();
-
-                    std::vector<std::pair<size_t, T>> result;
-                    result.reserve(range.size());
-
-                    for (auto i = range.begin(); i != range.end(); ++i)
-                        result.emplace_back(i.getId(), *i);
-
-                    return result;
+                    return items;
                 });
     }
 

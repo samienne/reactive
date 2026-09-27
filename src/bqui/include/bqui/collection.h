@@ -13,6 +13,12 @@
 
 namespace bqui
 {
+    namespace detail
+    {
+        template <typename T>
+        class CollectionSignalSource;
+    }
+
     template <typename T>
     class CollectionValue
     {
@@ -521,6 +527,8 @@ namespace bqui
         }
 
     private:
+        friend class detail::CollectionSignalSource<T>;
+
         // The vec needs to inside the control block of the collection.
         template <typename U, typename V>
         Connection addCallbackTo(U& vec, V&& callback)
@@ -567,6 +575,7 @@ namespace bqui
             std::vector<std::pair<size_t, SwapCallback>> swapCallbacks;
             std::vector<std::pair<size_t, MoveCallback>> moveCallbacks;
             std::vector<std::pair<size_t, RefreshCallback>> refreshCallbacks;
+            std::weak_ptr<detail::CollectionSignalSource<T>> signalSource;
         };
 
         btl::shared<ControlBlock> control_;
