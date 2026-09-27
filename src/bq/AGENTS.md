@@ -70,8 +70,8 @@ copy for a new node's per-context state.
   does and does not catch is in the design record.
 - A list whose items carry container-minted ids: `Collection<T>`
   (`bq/signal/collection.h`), read through `snapshotSignal`, `generationSignal`
-  and `forEach(collection, delegate(value, id))` (`bq/signal/collectionsignal.h`).
-  See *Collection* below.
+  and a `forEach` over the collection, whose delegate receives each item's value
+  signal and id (`bq/signal/collectionsignal.h`). See *Collection* below.
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 
@@ -84,16 +84,19 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
 
 - **Snapshots, not events.** The container holds one
   `shared_ptr<CollectionSnapshot const>`; readers (`read()`, `getSnapshot()`)
-  `atomic_load` it and never take the write lock, whatever the constness of the
-  collection. A write transaction (`write()` returning a `Transaction`) reads the
-  published snapshot until its first effective mutation, which allocates the
-  next snapshot with a copy of the `CollectionItem` vector (the values stay
-  shared); positions are carried across that copy by index. Insert and update
-  stamp the touched item with the new generation; swap, move and sort only
-  reorder. No-op mutations (swap with itself, a move to the same position, an
-  update with an equal value when `T` is `btl::IsEqualityComparable`, sorting a
-  sorted list) never mark the transaction dirty, so a transaction made only of
-  them publishes nothing.
+  `atomic_load` it and never take the write lock. A write transaction
+  (`write()` returning a `Transaction`) reads the published snapshot until its
+  first effective mutation, which allocates the next snapshot with a copy of the
+  `CollectionItem` vector (the values stay shared); positions are carried across
+  that copy by index. Insert and update stamp the touched item with the new
+  generation; swap, move and sort only reorder. Update never compares values,
+  so every update is a change. Sort sorts a copy of the vector and swaps it in,
+  so a throwing comparator leaves the items untouched.
+- **No-op detection is per mutation, not per transaction.** Swapping an item
+  with itself, moving one to its own position and sorting a sorted list never
+  mark the transaction dirty, so a transaction made only of them publishes
+  nothing. Mutations that cancel out (an insert then an erase of that item, or
+  a move from A to B and back) each mark it dirty, so it still publishes.
 - **Commit is non-throwing.** The next snapshot is allocated during the
   mutation, so release only `atomic_store`s it, unlocks, and runs the `onChange`
   callbacks. If `std::uncaught_exceptions()` has grown since the transaction was
@@ -103,12 +106,11 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   is flagged off before the list is compacted, so compaction failing to allocate
   only delays freeing it.
 - **Only `items()` and `values()` iterate.** A snapshot, a view and a
-  transaction have no `begin()`/`end()` and no `operator[]`, so a loop or an
-  index always says whether it wants the `CollectionItem`s or just the values;
-  `size()`, `empty()` and `findId()` stay on the owner. Both ranges are
-  `CollectionItems`/`CollectionValues` over a holder: the
+  transaction have no `begin()`/`end()` and no `operator[]` (why:
+  `docs/decisions.md`); `size()`, `empty()` and `findId()` stay on the owner.
+  Both ranges are `CollectionItems`/`CollectionValues` over a holder: the
   `shared_ptr<CollectionSnapshot const>` for a snapshot or a view, a
-  `Transaction*` for a transaction.
+  `Transaction*` or `Transaction const*` for a transaction.
 - **Snapshot ranges own the snapshot.** A snapshot exists only inside the
   `shared_ptr` a collection makes (its constructor takes a private key and it
   is not copyable), and it is `enable_shared_from_this`, so `items()` and
@@ -124,31 +126,20 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   which switches it from the published vector to the working copy: swap, move,
   update and sort invalidate none, and insert and erase shift what an index
   names. A transaction range reads its end from the transaction, so it stays
-  current across mutations. Moving a `Transaction` leaves its iterators
-  pointing at the moved-from object. `CollectionValueIterator` adapts an item
-  iterator, reached only through `base()`: neither kind converts to or compares
-  with the other, and each mutation has an overload per kind.
-- **`iter_swap` is a hidden friend of `Transaction`**, one per iterator kind.
-  ADL finds it because the transaction is a template argument of the item
-  iterator, which a value iterator has as its own template argument, and as a
-  non-template it beats `std::iter_swap`, which is also an ADL candidate
-  whenever `T` comes from `std`. Only unqualified calls
-  (`using std::iter_swap; iter_swap(a, b)`) reach it; no standard algorithm
-  does. MSVC's `std::iter_swap` and `std::reverse` call `swap(*a, *b)`,
-  libstdc++ and libc++ call `std::iter_swap` qualified, and `std::sort`-style
-  algorithms move-assign through `*it`. Items and values are const, so all of
-  these fail to compile rather than bypass the transaction. C++20's
-  `std::ranges::iter_swap` would find the friend, but the ranges permutation
-  algorithms also require `indirectly_movable_storable`. Routing them through
-  the transaction would need a proxy reference type, which a random access
-  iterator may not have before C++20.
-- **Ids come from a per-collection 64-bit counter**, not addresses, so an erased id is
-  never handed to a new item. They are unique within one collection only.
+  current across mutations. A `Transaction` is neither copyable nor movable, so
+  the owner pointer cannot dangle while the transaction lives.
+  `CollectionValueIterator` adapts an item iterator, reached only through
+  `base()`: neither converts implicitly to, or compares with, the other, and
+  each mutation has an overload per kind. Items and values are yielded as const
+  references, so a mutating standard algorithm fails to compile rather than
+  bypass the transaction (why it is not supported: `docs/decisions.md`).
+- **Ids come from a per-collection 64-bit counter**, so an erased id is never
+  handed to a new item. They are unique within one collection only.
 - **One snapshot per collection per frame per context.** Every signal over a
   collection resolves `detail::CollectionFrame<T>` from the `DataContext`, keyed
   by the collection's `getId()` (a `makeUniqueId()`, so it cannot collide with
-  other entries). The first signal to reach it in a newer `FrameInfo` frame loads
-  the latest snapshot; the rest of that pass reuse it, including signals
+  other entries). The first signal to reach it in a newer `FrameInfo` frame
+  loads the latest snapshot; the rest of that pass reuse it, including signals
   initialized mid-pass. The frame entry holds the `onChange` registration that
   fires the context's `ObserveControl`, so the wake lives exactly as long as
   some signal over the collection does in that context.
@@ -156,7 +147,8 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   generation it last saw, so a signal initialized mid-frame does not inherit a
   sibling's `didChange`. An item signal additionally compares the item's own
   generation, so updating one item never reports a change for the others; a
-  reorder or insert changes membership (the `forEach` array) but no item signal.
+  reorder or insert changes the `forEach` array (order or membership) but no
+  item signal.
 - `forEach` keys the generic `detail::ArrayOnce` on the item id and hands the
   delegate a `detail::CollectionItemSignal` seeded with the item as it was when
   built, which it falls back to if the item is gone by the time another context
@@ -169,6 +161,11 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   even found by ADL. Build a no-input signal as a `constant` instead. The
   principled fix would be a `signal<void>` identity element for `merge` — see
   `docs/decisions.md`.
+- **Open an animation guard before a collection transaction.** A transaction
+  publishes when it is destroyed, and bqui's `withAnimation` guard animates only
+  what is published before it ends, so write
+  `auto a = withAnimation(...); auto tx = items.write();`; declared the other
+  way round, the change lands after the guard and is not animated.
 
 For cross-cutting rules (the `Any` = type-erasure convention, the include-dir
 firewall, symbol visibility) see `docs/conventions.md`; do not restate them here.

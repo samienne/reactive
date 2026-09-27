@@ -6,6 +6,25 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## `Collection` is iterated only through `items()` and `values()`
+
+A `Collection` snapshot, view or transaction is not a range and has no
+`operator[]`; iterating or indexing goes explicitly through `items()` or
+`values()`.
+
+**Why:** an item is both an id-carrying `CollectionItem` and a value, and
+neither is the obvious element. Making the caller name the one it wants keeps a
+loop or an index from silently picking the other.
+
+## Mutating standard algorithms do not work on a `Collection`
+
+Items and values are immutable, so `std::sort`, `std::reverse` and the like do
+not compile on a transaction's ranges; the transaction's own mutations, such as
+`sort` and `swap`, are the way to reorder.
+
+**Why:** routing an algorithm's writes through the transaction would need a
+proxy reference type, which a random access iterator may not have before C++20.
+
 ## `Collection` publishes generational snapshots and mints its own item ids
 
 `Collection<T>` lives in `bq` and is a sequence of immutable snapshots: a write
@@ -19,8 +38,11 @@ coherent list, and sharing one snapshot per frame keeps two views of one
 collection in one context in agreement. The previous `bqui` `Collection` used
 heap addresses as ids, which a reused allocation could hand to a new item.
 Container-minted ids are kept, against the `SharedVector` position that identity
-should come from content, because a list whose items the user edits in place
-otherwise needs an application-minted id in every element to keep its widgets.
+should come from content (`docs/design/arraysignal.md`, *No container-assigned
+item identity*), because a list whose items the user edits in place otherwise
+needs an application-minted id in every element to keep its widgets. An update
+is always a change, never compared with the old value, so values need not be
+comparable; signals detect changes by item generation.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

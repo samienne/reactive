@@ -33,10 +33,11 @@
 > **The `Collection` / `DataSource` / `dataBind` pipeline is gone.** `Collection`
 > moved to `bq` as a generational snapshot container whose ids are minted by the
 > collection (`src/bq/include/bq/signal/collection.h`), with its own keyed
-> `forEach(collection, delegate(value, id))` (`collectionsignal.h`); `dataBind`,
-> `DataSource` and `dataSourceFromCollection` were deleted. That reverses the
-> *No container-assigned item identity* position below for `Collection` (not for
-> `SharedVector`, which still assigns none) — see `docs/decisions.md`. The
+> `forEach` over the collection, whose delegate receives each item's value
+> signal and id (`collectionsignal.h`); `dataBind`, `DataSource` and
+> `dataSourceFromCollection` were deleted. That reverses the *No
+> container-assigned item identity* position below for `Collection` (not for
+> `SharedVector`, which still assigns none) - see `docs/decisions.md`. The
 > sections below that describe the old `bqui` types are the reasoning of the
 > time, not a description of the tree.
 
@@ -902,9 +903,9 @@ the framing promises they agree.
 forEach(collection, keyFn, delegate) -> ArraySignal<U>
 ```
 
-> **Current:** `bq`'s `Collection<T>` has its own keyless
-> `forEach(collection, delegate(value, id))`, keyed on the collection's item
-> ids.
+> **Current:** `bq`'s `Collection<T>` has its own keyless `forEach` over the
+> collection, keyed on the collection's item ids, whose delegate receives each
+> item's value signal and id.
 
 `forEach` is the producer of structural dynamism, the **entry** into the
 `ArraySignal` domain, and the replacement for the `Collection` / `DataSource` /
@@ -1329,9 +1330,9 @@ take a fixed number of children with fixed roles and stay exactly as they are.
 
 ## The mutable source: `SharedVector<T>`
 
-> **Current:** `Collection<T>` now lives in `bq` and feeds the keyless
-> `forEach(collection, delegate(value, id))`; `DataSource` and `dataBind` are
-> gone.
+> **Current:** `Collection<T>` now lives in `bq` and feeds its keyless
+> `forEach`, whose delegate receives each item's value signal and id;
+> `DataSource` and `dataBind` are gone.
 
 `forEach` consumes a signal; something has to drive that signal. `SharedVector<T>`
 (`src/bq/include/bq/signal/sharedvector.h`) is that something: an implicitly

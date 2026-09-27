@@ -37,7 +37,7 @@ A **constant** never changes, which is handy wherever a signal is expected:
 auto title = bq::signal::constant<std::string>("hello");
 ```
 
-## Collections — lists of items with identity
+## Collections - lists of items with identity
 
 A **collection** is a shared, mutable list whose every item has an id that
 survives updates and reorderings. Changes are made in a write transaction; each
