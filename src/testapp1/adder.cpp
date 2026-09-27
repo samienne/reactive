@@ -28,6 +28,7 @@
 #include <avg/curve/curves.h>
 #include <avg/rendertree.h>
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,8 +39,6 @@ namespace
 {
     using KeyedWidgets = std::vector<std::pair<size_t, widget::AnyWidget>>;
 
-    // The dynamic box takes widgets paired with an id; build one widget per
-    // collection item and pair it with the item's id.
     template <typename T, typename TDelegate>
     bq::signal::AnySignal<KeyedWidgets> keyedWidgets(
             bq::signal::Collection<T> const& items, TDelegate delegate)
@@ -48,7 +47,7 @@ namespace
 
         return bq::signal::join(bq::signal::forEach(items,
                     [delegate=std::move(delegate)](
-                        bq::signal::AnySignal<T> value, size_t id)
+                        bq::signal::AnySignal<T> value, std::uint64_t id)
                     {
                         return bq::signal::AnySignal<Keyed>(
                                 bq::signal::constant(Keyed(id,
@@ -92,43 +91,46 @@ bqui::widget::AnyWidget adder()
     bq::signal::Collection<std::string> items;
 
     {
-        auto range = items.rangeLock();
+        auto transaction = items.write();
 
-        range.pushBack("test 1");
-        range.pushBack("test 2");
-        range.pushBack("test 3");
-        range.pushBack("test 4");
+        transaction.pushBack("test 1");
+        transaction.pushBack("test 2");
+        transaction.pushBack("test 3");
+        transaction.pushBack("test 4");
     }
 
     auto textInput = bq::signal::makeInput<std::string>("");
 
-    auto swapState = std::make_shared<size_t>();
+    auto swapState = std::make_shared<std::uint64_t>();
 
     auto widgets = keyedWidgets(
             items,
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (bq::signal::AnySignal<std::string> value, size_t id) -> widget::AnyWidget
+            (bq::signal::AnySignal<std::string> value, std::uint64_t id)
+                -> widget::AnyWidget
             {
                 return widget::hbox({
                 widget::button("U",
                     textInputSignal.bindFirst(
                     [items, id] (std::string str) mutable
                     {
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
-                        if (i != range.end())
+                        auto transaction = items.write();
+                        auto i = transaction.findId(id);
+                        if (i != transaction.end())
                         {
-                            range.update(i, std::move(str));
+                            transaction.update(i, std::move(str));
                         }
                     })),
                 widget::button("T", bq::signal::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
-
-                        range.move(i, range.begin());
-                        }))
+                        auto transaction = items.write();
+                        auto i = transaction.findId(id);
+                        if (i != transaction.end())
+                        {
+                            transaction.move(i, transaction.begin());
+                        }
+                    }))
                 ,
                 widget::button("S", bq::signal::constant(
                     [items, id, swapState]() mutable
@@ -140,12 +142,16 @@ bqui::widget::AnyWidget adder()
                         }
                         else
                         {
-                            auto range = items.rangeLock();
-                            auto i = range.findId(id);
-                            auto j = range.findId(*swapState);
-
-                            range.swap(i, j);
+                            auto transaction = items.write();
+                            auto i = transaction.findId(id);
+                            auto j = transaction.findId(*swapState);
                             *swapState = 0;
+
+                            if (i != transaction.end()
+                                    && j != transaction.end())
+                            {
+                                transaction.swap(i, j);
+                            }
                         }
                     }))
                 ,
@@ -156,7 +162,7 @@ bqui::widget::AnyWidget adder()
                 widget::button("x", bq::signal::constant([id, items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
-                        items.rangeLock().eraseWithId(id);
+                        items.write().eraseWithId(id);
                     }))
                 })
                 | modifier::transition(modifier::transitionLeft())
@@ -192,12 +198,12 @@ bqui::widget::AnyWidget adder()
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
                     auto a = withAnimation(0.3f, avg::curve::easeInCubic);
-                    items.rangeLock().pushFront(std::move(text));
+                    items.write().pushFront(std::move(text));
                 },
                 [items]() mutable
                 {
                     auto a = withAnimation(0.5f, avg::curve::easeInOutCubic);
-                    items.rangeLock().sort();
+                    items.write().sort();
                 }
                 ),
                 widget::hbox({
