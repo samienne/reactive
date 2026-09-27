@@ -109,12 +109,14 @@ namespace
         ADD_FAILURE() << "expected a std::runtime_error containing " << text;
     }
 
-    using KeyedDelegate = std::function<AnySignal<int>(std::string,
-            AnySignal<Item>)>;
+    using KeyedDelegate = std::function<AnySignal<int>(AnySignal<Item>,
+            std::string)>;
     using KeyedByRefDelegate = std::function<AnySignal<int>(
-            std::string const&, AnySignal<Item>)>;
+            AnySignal<Item>, std::string const&)>;
     using KeyedByMutableRefDelegate = std::function<AnySignal<int>(
-            std::string&, AnySignal<Item>)>;
+            AnySignal<Item>, std::string&)>;
+    using KeyFirstDelegate = std::function<AnySignal<int>(std::string,
+            AnySignal<Item>)>;
     using PlainDelegate = std::function<AnySignal<int>(AnySignal<Item>)>;
     using WrongDelegate = std::function<AnySignal<int>(int, int)>;
 } // namespace
@@ -130,6 +132,8 @@ static_assert(!detail::isKeyedForEachDelegate<PlainDelegate, std::string,
 static_assert(!detail::isKeyedForEachDelegate<WrongDelegate, std::string,
         Item>);
 static_assert(!detail::isPlainForEachDelegate<WrongDelegate, Item>);
+static_assert(!detail::isKeyedForEachDelegate<KeyFirstDelegate, std::string,
+        Item>);
 
 // The key is handed over as a value, so a delegate may read it however a
 // parameter can be read — except by non-const reference, which is what asking
@@ -391,7 +395,7 @@ TEST(arraySignal, aKeyedDelegateIsGivenItsOwnKey)
     auto c = makeSignalContext(join(forEach(
                     input.signal,
                     itemKey,
-                    [builds](std::string key, AnySignal<Item> item)
+                    [builds](AnySignal<Item> item, std::string key)
                     {
                         ++*builds;
 
@@ -423,7 +427,7 @@ TEST(arraySignal, theKeyIsGivenAsAValue)
     auto c = makeSignalContext(join(forEach(
                     items({ { "a", 1 } }),
                     itemKey,
-                    [](auto&& key, AnySignal<Item> item)
+                    [](AnySignal<Item> item, auto&& key)
                     {
                         static_assert(std::is_same_v<decltype(key),
                                 std::string&&>);
@@ -466,7 +470,7 @@ TEST(arraySignal, bothDelegateFormsBuildTheSameArray)
                 }));
 
     auto keyed = join(forEach(input.signal, itemKey,
-                [](std::string, AnySignal<Item> item)
+                [](AnySignal<Item> item, std::string)
                 {
                     return itemValue(std::move(item));
                 }));
