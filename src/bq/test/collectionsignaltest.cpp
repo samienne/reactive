@@ -28,9 +28,8 @@ namespace
             Collection<std::string> const& collection)
     {
         std::vector<std::uint64_t> ids;
-        auto view = collection.read();
-        for (auto i = view.begin(); i != view.end(); ++i)
-            ids.push_back(i.getId());
+        for (auto const& item : collection.read())
+            ids.push_back(item.id);
 
         return ids;
     }

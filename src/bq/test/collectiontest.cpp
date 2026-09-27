@@ -21,16 +21,16 @@ namespace
     std::vector<T> values(Collection<T> const& collection)
     {
         auto view = collection.read();
-        return std::vector<T>(view.begin(), view.end());
+        auto values = view.values();
+        return std::vector<T>(values.begin(), values.end());
     }
 
     template <typename T>
     std::vector<std::uint64_t> ids(Collection<T> const& collection)
     {
         std::vector<std::uint64_t> result;
-        auto view = collection.read();
-        for (auto i = view.begin(); i != view.end(); ++i)
-            result.push_back(i.getId());
+        for (auto const& item : collection.read())
+            result.push_back(item.id);
 
         return result;
     }
@@ -48,11 +48,11 @@ TEST(collection, iterateForward)
     EXPECT_EQ(3u, transaction.size());
 
     auto i = transaction.begin();
-    EXPECT_EQ("test 1", *i);
+    EXPECT_EQ("test 1", *i->value);
     ++i;
-    EXPECT_EQ("test 2", *i);
+    EXPECT_EQ("test 2", *i->value);
     ++i;
-    EXPECT_EQ("test 3", *i);
+    EXPECT_EQ("test 3", *i->value);
     ++i;
     EXPECT_EQ(transaction.end(), i);
 }
@@ -67,11 +67,11 @@ TEST(collection, iterateBackward)
     transaction.pushBack("test 3");
 
     auto i = transaction.rbegin();
-    EXPECT_EQ("test 3", *i);
+    EXPECT_EQ("test 3", *i->value);
     ++i;
-    EXPECT_EQ("test 2", *i);
+    EXPECT_EQ("test 2", *i->value);
     ++i;
-    EXPECT_EQ("test 1", *i);
+    EXPECT_EQ("test 1", *i->value);
     ++i;
     EXPECT_EQ(transaction.rend(), i);
 }
@@ -90,10 +90,12 @@ TEST(collection, iterateConst)
     auto view = collection.read();
 
     EXPECT_EQ(3u, view.size());
+    auto values = view.values();
     EXPECT_EQ((std::vector<std::string>{ "test 3", "test 2", "test 1" }),
-            std::vector<std::string>(view.begin(), view.end()));
+            std::vector<std::string>(values.begin(), values.end()));
     EXPECT_EQ((std::vector<std::string>{ "test 1", "test 2", "test 3" }),
-            std::vector<std::string>(view.rbegin(), view.rend()));
+            std::vector<std::string>(std::make_reverse_iterator(values.end()),
+                std::make_reverse_iterator(values.begin())));
 }
 
 TEST(collection, insert)
@@ -174,16 +176,16 @@ TEST(collection, swap)
     transaction.pushBack("test2");
     transaction.pushBack("test3");
 
-    auto const id1 = transaction.begin().getId();
-    auto const id3 = (transaction.begin() + 2).getId();
+    auto const id1 = transaction.begin()->id;
+    auto const id3 = (transaction.begin() + 2)->id;
 
     transaction.swap(transaction.begin(), transaction.begin() + 2);
 
-    EXPECT_EQ("test3", transaction[0]);
-    EXPECT_EQ("test2", transaction[1]);
-    EXPECT_EQ("test1", transaction[2]);
-    EXPECT_EQ(id3, transaction.begin().getId());
-    EXPECT_EQ(id1, (transaction.begin() + 2).getId());
+    EXPECT_EQ("test3", transaction.values()[0]);
+    EXPECT_EQ("test2", transaction.values()[1]);
+    EXPECT_EQ("test1", transaction.values()[2]);
+    EXPECT_EQ(id3, transaction.begin()->id);
+    EXPECT_EQ(id1, (transaction.begin() + 2)->id);
 }
 
 TEST(collection, moveOneForward)
@@ -195,13 +197,13 @@ TEST(collection, moveOneForward)
     transaction.pushBack("test2");
     transaction.pushBack("test3");
 
-    auto const id = transaction.begin().getId();
+    auto const id = transaction.begin()->id;
     transaction.move(transaction.begin(), transaction.begin() + 1);
 
-    EXPECT_EQ("test2", transaction[0]);
-    EXPECT_EQ("test1", transaction[1]);
-    EXPECT_EQ("test3", transaction[2]);
-    EXPECT_EQ(id, (transaction.begin() + 1).getId());
+    EXPECT_EQ("test2", transaction.values()[0]);
+    EXPECT_EQ("test1", transaction.values()[1]);
+    EXPECT_EQ("test3", transaction.values()[2]);
+    EXPECT_EQ(id, (transaction.begin() + 1)->id);
 }
 
 TEST(collection, moveToLast)
@@ -215,15 +217,15 @@ TEST(collection, moveToLast)
 
     transaction.move(transaction.begin(), transaction.end());
 
-    EXPECT_EQ("test2", transaction[0]);
-    EXPECT_EQ("test3", transaction[1]);
-    EXPECT_EQ("test1", transaction[2]);
+    EXPECT_EQ("test2", transaction.values()[0]);
+    EXPECT_EQ("test3", transaction.values()[1]);
+    EXPECT_EQ("test1", transaction.values()[2]);
 
     transaction.move(transaction.begin() + 1, transaction.end());
 
-    EXPECT_EQ("test2", transaction[0]);
-    EXPECT_EQ("test1", transaction[1]);
-    EXPECT_EQ("test3", transaction[2]);
+    EXPECT_EQ("test2", transaction.values()[0]);
+    EXPECT_EQ("test1", transaction.values()[1]);
+    EXPECT_EQ("test3", transaction.values()[2]);
 }
 
 TEST(collection, moveToBegin)
@@ -237,15 +239,15 @@ TEST(collection, moveToBegin)
 
     transaction.move(transaction.begin() + 1, transaction.begin());
 
-    EXPECT_EQ("test2", transaction[0]);
-    EXPECT_EQ("test1", transaction[1]);
-    EXPECT_EQ("test3", transaction[2]);
+    EXPECT_EQ("test2", transaction.values()[0]);
+    EXPECT_EQ("test1", transaction.values()[1]);
+    EXPECT_EQ("test3", transaction.values()[2]);
 
     transaction.move(transaction.begin() + 2, transaction.begin());
 
-    EXPECT_EQ("test3", transaction[0]);
-    EXPECT_EQ("test2", transaction[1]);
-    EXPECT_EQ("test1", transaction[2]);
+    EXPECT_EQ("test3", transaction.values()[0]);
+    EXPECT_EQ("test2", transaction.values()[1]);
+    EXPECT_EQ("test1", transaction.values()[2]);
 }
 
 TEST(collection, moveToSelfChangesNothing)
@@ -594,9 +596,19 @@ TEST(collection, updatingAValueWithoutEqualityIsAChange)
 
 TEST(collection, iteratorsAreRandomAccess)
 {
-    using Iterator = Collection<int>::Iterator;
+    using Iterator = Collection<int>::View::Iterator;
+    using ValueIterator = Collection<int>::View::ValueIterator;
+    using WriteIterator = Collection<int>::Transaction::Iterator;
+    using WriteValueIterator = Collection<int>::Transaction::ValueIterator;
+
     static_assert(std::is_same_v<std::random_access_iterator_tag,
             std::iterator_traits<Iterator>::iterator_category>);
+    static_assert(std::is_same_v<std::random_access_iterator_tag,
+            std::iterator_traits<ValueIterator>::iterator_category>);
+    static_assert(std::is_same_v<std::random_access_iterator_tag,
+            std::iterator_traits<WriteIterator>::iterator_category>);
+    static_assert(std::is_same_v<std::random_access_iterator_tag,
+            std::iterator_traits<WriteValueIterator>::iterator_category>);
 
     Collection<int> collection;
     {
@@ -610,10 +622,10 @@ TEST(collection, iteratorsAreRandomAccess)
     Iterator i;
     i = view.begin();
     i += 3;
-    EXPECT_EQ(30, *i);
+    EXPECT_EQ(30, *i->value);
     i -= 1;
-    EXPECT_EQ(20, *i);
-    EXPECT_EQ(50, i[3]);
+    EXPECT_EQ(20, *(*i).value);
+    EXPECT_EQ(50, *i[3].value);
     EXPECT_EQ(view.begin() + 4, 4 + view.begin());
     EXPECT_TRUE(view.begin() <= i);
     EXPECT_TRUE(i <= i);
@@ -622,26 +634,60 @@ TEST(collection, iteratorsAreRandomAccess)
 
     auto j = view.begin();
     std::advance(j, 7);
-    EXPECT_EQ(70, *j);
+    EXPECT_EQ(70, *j->value);
     EXPECT_EQ(7, std::distance(view.begin(), j));
 
-    auto k = std::lower_bound(view.begin(), view.end(), 45);
+    auto values = view.values();
+    ValueIterator v;
+    v = values.begin();
+    v += 3;
+    EXPECT_EQ(30, *v);
+    v -= 1;
+    EXPECT_EQ(20, *v);
+    EXPECT_EQ(50, v[3]);
+    EXPECT_EQ(values.begin() + 4, 4 + values.begin());
+    EXPECT_TRUE(values.begin() <= v);
+    EXPECT_TRUE(values.end() >= v);
+    EXPECT_FALSE(values.begin() >= v);
+
+    auto w = values.begin();
+    std::advance(w, 7);
+    EXPECT_EQ(70, *w);
+    EXPECT_EQ(7, std::distance(values.begin(), w));
+
+    auto k = std::lower_bound(values.begin(), values.end(), 45);
     EXPECT_EQ(50, *k);
-    EXPECT_EQ(view.findId(k.getId()), k);
+    EXPECT_EQ(view.findId(k.base()->id), k.base());
+    EXPECT_EQ(view.begin() + 5, Iterator(k));
+
+    auto byValue = [](CollectionItem<int> const& item, int value)
+        {
+            return *item.value < value;
+        };
+    EXPECT_EQ(k.base(),
+            std::lower_bound(view.begin(), view.end(), 45, byValue));
 
     auto r = view.rbegin();
     r += 2;
-    EXPECT_EQ(70, *r);
-    EXPECT_EQ(60, r[1]);
+    EXPECT_EQ(70, *r->value);
+    EXPECT_EQ(60, *r[1].value);
 
-    // Mutations accept positions found by algorithms over a transaction.
+    // Mutations accept positions found by algorithms over a transaction, as
+    // item or value iterators.
     {
         auto transaction = collection.write();
-        auto at = std::lower_bound(transaction.begin(), transaction.end(), 45);
+        auto items = transaction.begin();
+        auto at = std::lower_bound(items, transaction.end(), 45, byValue);
         transaction.insert(at, 45);
+
+        auto writeValues = transaction.values();
+        auto again = std::lower_bound(writeValues.begin(), writeValues.end(),
+                55);
+        transaction.insert(again, 55);
     }
 
-    EXPECT_EQ(45, collection.read()[5]);
+    EXPECT_EQ(45, *collection.read()[5].value);
+    EXPECT_EQ(55, *collection.read()[7].value);
 }
 
 // Reading through a non-const collection takes no lock, so it works inside a
@@ -654,4 +700,238 @@ TEST(collection, readDoesNotTakeTheWriteLock)
 
     EXPECT_EQ(0u, collection.read().size());
     EXPECT_EQ(1u, transaction.size());
+}
+
+TEST(collection, snapshotIteratesItemsAndValues)
+{
+    Collection<std::string> collection;
+    {
+        auto transaction = collection.write();
+        transaction.pushBack("a");
+        transaction.pushBack("b");
+    }
+
+    auto const snapshot = collection.snapshot();
+
+    std::vector<std::uint64_t> itemIds;
+    for (CollectionItem<std::string> const& item : *snapshot)
+        itemIds.push_back(item.id);
+
+    EXPECT_EQ(ids(collection), itemIds);
+
+    std::vector<std::string> itemValues;
+    for (auto& value : snapshot->values())
+        itemValues.push_back(value);
+
+    EXPECT_EQ((std::vector<std::string>{ "a", "b" }), itemValues);
+
+    EXPECT_EQ(snapshot->begin(), std::begin(*snapshot));
+    EXPECT_EQ(snapshot->end(), std::end(*snapshot));
+    EXPECT_EQ(2, std::distance(std::begin(*snapshot), std::end(*snapshot)));
+    EXPECT_EQ(&snapshot->items[1], &*(std::begin(*snapshot) + 1));
+
+    auto const values = snapshot->values();
+    EXPECT_EQ(2u, values.size());
+    EXPECT_EQ("b", values[1]);
+    EXPECT_EQ("a", *std::begin(values));
+    EXPECT_EQ(2, std::distance(std::begin(values), std::end(values)));
+}
+
+namespace
+{
+    template <typename T, typename = void>
+    struct HasValues : std::false_type
+    {
+    };
+
+    template <typename T>
+    struct HasValues<T, std::void_t<decltype(std::declval<T>().values())>> :
+        std::true_type
+    {
+    };
+} // namespace
+
+TEST(collection, viewAndTransactionIterateItemsAndValues)
+{
+    using View = Collection<std::string>::View;
+    using Transaction = Collection<std::string>::Transaction;
+
+    // values() of a temporary would outlive the snapshot or the lock.
+    static_assert(HasValues<View&>::value);
+    static_assert(HasValues<View const&>::value);
+    static_assert(!HasValues<View>::value);
+    static_assert(HasValues<Transaction&>::value);
+    static_assert(!HasValues<Transaction>::value);
+
+    Collection<std::string> collection;
+    collection.write().pushBack("a");
+
+    {
+        auto transaction = collection.write();
+        transaction.pushBack("b");
+
+        std::vector<std::uint64_t> itemIds;
+        std::vector<std::uint64_t> itemGenerations;
+        for (auto const& item : transaction)
+        {
+            itemIds.push_back(item.id);
+            itemGenerations.push_back(item.generation);
+        }
+
+        EXPECT_EQ(2u, itemIds.size());
+        EXPECT_EQ((std::vector<std::uint64_t>{ 1, 2 }), itemGenerations);
+        EXPECT_EQ(transaction.findId(itemIds[1]), std::begin(transaction) + 1);
+        EXPECT_EQ(std::end(transaction), transaction.end());
+
+        std::vector<std::string> itemValues;
+        for (auto& value : transaction.values())
+            itemValues.push_back(value);
+
+        EXPECT_EQ((std::vector<std::string>{ "a", "b" }), itemValues);
+    }
+
+    auto view = collection.read();
+
+    std::vector<std::string> fromItems;
+    for (auto const& item : view)
+        fromItems.push_back(*item.value);
+
+    std::vector<std::string> fromValues;
+    for (auto& value : view.values())
+        fromValues.push_back(value);
+
+    EXPECT_EQ((std::vector<std::string>{ "a", "b" }), fromItems);
+    EXPECT_EQ(fromItems, fromValues);
+    EXPECT_EQ(view.begin(), std::begin(view));
+    EXPECT_EQ(view.end(), std::end(view));
+    EXPECT_EQ("b", view.values()[1]);
+    EXPECT_EQ("b", *view[1].value);
+}
+
+// Mutations accept value iterators at the position they name.
+TEST(collection, mutationsAcceptValueIterators)
+{
+    Collection<std::string> collection;
+    {
+        auto transaction = collection.write();
+        transaction.pushBack("a");
+        transaction.pushBack("b");
+        transaction.pushBack("c");
+    }
+
+    {
+        auto transaction = collection.write();
+        auto values = transaction.values();
+        transaction.erase(std::find(values.begin(), values.end(), "b"));
+
+        values = transaction.values();
+        transaction.update(values.begin(), "a2");
+
+        values = transaction.values();
+        transaction.move(values.begin(), values.end());
+    }
+
+    EXPECT_EQ((std::vector<std::string>{ "c", "a2" }), values(collection));
+}
+
+// 'iter_swap' on a transaction's iterators is the transaction's swap, whether
+// called unqualified or through the 'using std::iter_swap' idiom.
+TEST(collection, iterSwapSwapsThroughTheTransaction)
+{
+    Collection<std::string> collection;
+    {
+        auto transaction = collection.write();
+        transaction.pushBack("a");
+        transaction.pushBack("b");
+        transaction.pushBack("c");
+    }
+
+    auto const before = ids(collection);
+
+    int notified = 0;
+    auto connection = collection.onChange([&notified](std::uint64_t)
+            {
+                ++notified;
+            });
+
+    {
+        auto transaction = collection.write();
+        iter_swap(transaction.begin(), transaction.begin() + 2);
+
+        using std::iter_swap;
+        auto values = transaction.values();
+        iter_swap(values.begin(), values.begin() + 1);
+
+        EXPECT_EQ((std::vector<std::string>{ "b", "c", "a" }),
+                std::vector<std::string>(transaction.values().begin(),
+                    transaction.values().end()));
+    }
+
+    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(1, notified);
+    EXPECT_EQ((std::vector<std::string>{ "b", "c", "a" }), values(collection));
+    EXPECT_EQ((std::vector<std::uint64_t>{ before[1], before[2], before[0] }),
+            ids(collection));
+
+    // Only reordered: every item keeps the generation it was inserted in.
+    for (auto const& item : *collection.snapshot())
+        EXPECT_EQ(1u, item.generation);
+
+    // Swapping an item with itself is not a change.
+    auto const unchanged = collection.snapshot();
+    {
+        auto transaction = collection.write();
+        using std::iter_swap;
+        iter_swap(transaction.begin() + 1, transaction.begin() + 1);
+        auto values = transaction.values();
+        iter_swap(values.begin(), values.begin());
+    }
+
+    EXPECT_EQ(unchanged, collection.snapshot());
+    EXPECT_EQ(1, notified);
+}
+
+namespace
+{
+    template <typename TIterator>
+    void reverseBySwapping(TIterator first, TIterator last)
+    {
+        using std::iter_swap;
+        while (first != last && first != --last)
+        {
+            iter_swap(first, last);
+            ++first;
+        }
+    }
+} // namespace
+
+// Generic code that swaps through the 'using std::iter_swap' idiom reorders
+// the collection within one transaction.
+TEST(collection, genericIterSwapAlgorithm)
+{
+    Collection<std::string> collection;
+    {
+        auto transaction = collection.write();
+        for (auto value : { "a", "b", "c", "d", "e" })
+            transaction.pushBack(value);
+    }
+
+    {
+        auto transaction = collection.write();
+        reverseBySwapping(transaction.begin(), transaction.end());
+    }
+
+    EXPECT_EQ((std::vector<std::string>{ "e", "d", "c", "b", "a" }),
+            values(collection));
+    EXPECT_EQ(2u, collection.generation());
+
+    {
+        auto transaction = collection.write();
+        auto values = transaction.values();
+        reverseBySwapping(values.begin(), values.end());
+    }
+
+    EXPECT_EQ((std::vector<std::string>{ "a", "b", "c", "d", "e" }),
+            values(collection));
+    EXPECT_EQ(3u, collection.generation());
 }
