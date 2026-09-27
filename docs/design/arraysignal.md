@@ -2,10 +2,10 @@
 
 > **Status: revised design, implementation started.** All of `bq` —
 > `ArraySignal`, `forEach`, `scatter`/`join`, `SharedVector` — has landed, and so
-> has the layout rework; only the `Collection` / `DataSource` pipeline is
-> outstanding. This document has been amended to describe what was built rather
-> than what was first proposed. The earlier implementation on PR #100 is
-> a **superseded spike**:
+> has the layout rework, and the `Collection` / `DataSource` pipeline has been
+> replaced (see below). This document has been amended to describe what was
+> built rather than what was first proposed. The earlier
+> implementation on PR #100 is a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
 > relocates that state and, as a consequence, removes five operators. Read the
@@ -1556,10 +1556,8 @@ gave it an overload; the *One layout engine* finding superseded that. `hbox` and
 ambiguous. `layout()` keeps a vector overload for `stack` and `uniformGrid`,
 which are only ever called with a named vector.
 
-`dataBind`'s one remaining *production* caller was `src/testapp1/adder.cpp:84`,
-and it had to be ported in the same change — see *Step 6 was not separable*.
-`src/bqui/test/databindtest.cpp:18` still calls it, and still compiles, because
-it never fed the result to a box.
+`adder`, the one production caller of a dynamic `vbox`, had to be ported in the
+same change — see *Step 6 was not separable*.
 
 ## Rationale: why the delegate must take a signal
 
@@ -1767,10 +1765,9 @@ existing reference implementation; see *Sharing: `SharedArraySignal`*.
   out and later back in was never retired upstream, but the node evicted its `U`,
   so the delegate re-runs for an identity that never died and a filtered-out
   widget silently loses its state. Decide *before* adding it, not while.
-- **Whether `Collection<T>` and `DataSource<T>` are removed or kept.** `forEach`
-  supersedes the plumbing; `Collection` remains a reasonable mutable source. Note
-  that `Collection`'s ids are pointer values, so a `Collection` source must feed
-  its ids through as keys or be keyed on item content.
+- **Whether `Collection<T>` and `DataSource<T>` are removed or kept.**
+  *Settled:* `Collection` was kept, moved to `bq` with collection-minted ids and
+  its own keyed `forEach`, and `DataSource` was removed.
 
 ## Implementation order
 
@@ -1778,7 +1775,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 6 are done; step 7 is outstanding.
+Steps 0 to 7 are done.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1860,10 +1857,10 @@ Steps 0 to 6 are done; step 7 is outstanding.
    positional one; losing identity is a correctness regression and gaining it is
    a cost, so that is the direction to err in.
 
-7. **Retire `Collection`, `DataSource` and `dataBind`.** Outstanding. `adder`
-   no longer uses `dataBind`, so its remaining caller is
-   `src/bqui/test/databindtest.cpp:18`. Decide *Whether `Collection<T>` and
-   `DataSource<T>` are removed or kept* here.
+7. **Retire `Collection`, `DataSource` and `dataBind`.** *Done*, ahead of
+   step 6 rather than after it. `Collection` was kept and moved to `bq` with its
+   own keyed `forEach`; `DataSource`, `dataSourceFromCollection` and `dataBind`
+   were deleted.
 
 Steps 0-3 are `bq` only and landed before anything in `bqui` changed.
 
@@ -1882,39 +1879,17 @@ is to inject the platform into `App`: `src/bqui/test/apptest.cpp` calls
 compiles and runs on every platform. Anything else that wants end-to-end coverage
 of the app loop does the same rather than weakening the test.
 
-### Step 6 was not separable from porting `dataBind`'s caller
+### Step 6 was not separable from porting `adder`
 
 Recorded because the plan above assumed it was. Deleting `dynamicBox` deletes
 the only consumer of an `AnySignal<std::vector<std::pair<size_t, AnyWidget>>>`,
-which is `dataBind`'s exported shape, so `src/testapp1/adder.cpp` had to move to
-`forEach` in the same change. There is no adapter that could have deferred it:
-turning a signal *of widgets* into an `ArraySignal<AnyWidget>` would mean
-reading a widget out of a signal while describing the graph, which is precisely
-what cannot be done and precisely why `dynamicBox` had to either discard a
-changed widget or rebuild it.
-
-Three things fell out of doing it:
-
-- **A `Collection` reaches `forEach` through an ordinary fold.** The adapter
-  re-reads the collection on every event rather than replaying the event, which
-  is a few lines against `dataBind`'s branch per event kind. Nothing is lost by
-  the coarseness: `forEach` keys by the collection's own id, so an item that
-  stays put is not rebuilt whatever the event was.
-- **`forEach`'s delegate is not given its key**, and a delegate that needs the
-  item's identity — `adder`'s buttons act on a collection id — must re-derive it
-  from the item signal and produce its callables through a `map`. `dataBind`'s
-  delegate took the id directly, so this is a real ergonomic regression at the
-  one call site that exists. It is *not* the rejected index of *No index is
-  passed to the delegate*: a key is stable identity, which is the thing an index
-  is not. Handing the key to the delegate is a small change to `forEach` and
-  should be decided on its own; it was not made here.
-- **A value change now reaches every item, not one.** `dataBind` pushed a
-  changed value through that item's own `InputHandle`. A `pick` is a plain `map`
-  over one shared keyed source, so every item's signal reports a change whenever
-  any item does, and each row re-derives its label and its callables. Correct,
-  and O(rows) per event rather than O(1). This is exactly the case *`scatter`*'s
-  documentation tells callers to suppress with `.check()` where it matters; no
-  call site here matters yet.
+so `src/testapp1/adder.cpp`, which fed `vbox` that shape, had to move in the same
+change. The shape cannot be turned back into an `ArraySignal<AnyWidget>`: that
+would mean reading a widget out of a signal while describing the graph, which is
+precisely what cannot be done and precisely why `dynamicBox` had to either
+discard a changed widget or rebuild it. The other direction is easy, so `adder`
+joined its `Collection`'s `forEach` into that shape until then; step 6 drops the
+join and hands the array to `vbox` directly.
 
 ### Tests the departed-key invariant requires
 
