@@ -49,10 +49,10 @@ transaction publishes one immutable snapshot, however many edits it made:
 
 bq::signal::Collection<std::string> todos;
 {
-    auto range = todos.rangeLock();   // write transaction
-    range.pushBack("write docs");
-    range.pushBack("ship it");
-}                                     // one new snapshot published here
+    auto transaction = todos.write();
+    transaction.pushBack("write docs");
+    transaction.pushBack("ship it");
+}   // one new snapshot published here
 ```
 
 `forEach` builds something once per item and hands it the item's value as a
@@ -61,14 +61,16 @@ it:
 
 ```cpp
 auto labels = forEach(todos,
-    [](bq::signal::AnySignal<std::string> text, size_t id)
+    [](bq::signal::AnySignal<std::string> text, std::uint64_t id)
     {
-        return text.map([](std::string const& t) { return "- " + t; });
+        return bq::signal::AnySignal<std::string>(
+            text.map([](std::string const& t) { return "- " + t; }));
     });
 ```
 
-Reading never waits for a writer: `todos.snapshot()` returns the latest
-published snapshot.
+If an exception leaves the transaction's scope, its edits are discarded and
+nothing is published. Reading never waits for a writer: `todos.read()` returns
+a view of the latest published snapshot.
 
 ## Streams — events over time
 

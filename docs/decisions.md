@@ -1,7 +1,7 @@
 # Decisions
 
 *Last verified against `7429b35` (2026-08-17); the `Collection` entry against
-`a202cea` (2026-09-27).*
+`9726f65` (2026-09-27).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -9,25 +9,18 @@ Each entry is intentionally short: the decision and its rationale.
 ## `Collection` publishes generational snapshots and mints its own item ids
 
 `Collection<T>` lives in `bq` and is a sequence of immutable snapshots: a write
-transaction publishes exactly one snapshot with one new generation when it ends,
-readers load the latest snapshot without the write lock, and change callbacks
-run only after the lock is released. Item ids come from a per-collection
-counter. Its signals share one snapshot per collection per frame within a
-`SignalContext`, and `forEach` gives each item a signal that changes only when
-that item does.
+transaction publishes one snapshot with one new generation when it ends (or
+nothing, if it made no change or an exception left its scope), and readers load
+the latest snapshot without the write lock. Item ids are minted by the
+collection.
 
-**Why:** the previous `bqui` `Collection` ran caller callbacks under its spin
-lock, fed `dataBind` a delta protocol whose initial pull and event push were not
-synchronised, and used heap addresses as ids, which a freed-and-reused
-allocation could hand to a new item. A snapshot is a complete state that
-existed, so every consumer sees a coherent list and a per-frame shared snapshot
-keeps two views of one collection in one context in agreement. Container-minted
-ids are kept, against the `SharedVector` position that identity should come from
-content, because a list whose items the user edits in place (the `adder` case)
+**Why:** a snapshot is a complete state that existed, so every consumer sees a
+coherent list, and sharing one snapshot per frame keeps two views of one
+collection in one context in agreement. The previous `bqui` `Collection` used
+heap addresses as ids, which a reused allocation could hand to a new item.
+Container-minted ids are kept, against the `SharedVector` position that identity
+should come from content, because a list whose items the user edits in place
 otherwise needs an application-minted id in every element to keep its widgets.
-Per-change callbacks (`onInsert`, `onUpdate`, ...) were dropped: their only
-consumer was `dataBind`, and a generation plus a snapshot says everything they
-did.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

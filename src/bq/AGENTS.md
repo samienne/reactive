@@ -1,7 +1,7 @@
 # bq — agent notes
 
 *Last verified against `d2e8954` (2026-07-13); the Collection section against
-`a202cea` (2026-09-27).*
+`9726f65` (2026-09-27).*
 
 Internals, entry points, and traps for the reactive core. Concepts and usage are
 in `readme.md`; project-wide conventions are in the top-level `docs/`. This file
@@ -83,12 +83,26 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
 ## Collection
 
 - **Snapshots, not events.** The container holds one
-  `shared_ptr<CollectionSnapshot const>`; readers `atomic_load` it and never take
-  the write lock. A write transaction (`Range`) copies the item-pointer vector on
-  its first mutation, stamps every touched item with `generation + 1`, and on
-  release `atomic_store`s one new snapshot, unlocks, and only then runs the
-  `onChange` callbacks. A transaction that mutates nothing publishes nothing.
-- **Ids come from a per-collection counter**, not addresses, so an erased id is
+  `shared_ptr<CollectionSnapshot const>`; readers (`read()`, `snapshot()`)
+  `atomic_load` it and never take the write lock, whatever the constness of the
+  collection. A write transaction (`write()` returning a `Transaction`) reads the
+  published snapshot until its first effective mutation, which allocates the
+  next snapshot with a copy of the `CollectionItem` vector (the values stay
+  shared); positions are carried across that copy by index. Insert and update
+  stamp the touched item with the new generation; swap, move and sort only
+  reorder. No-op mutations (swap with itself, a move to the same position, an
+  update with an equal value when `T` is `btl::IsEqualityComparable`, sorting a
+  sorted list) never mark the transaction dirty, so a transaction made only of
+  them publishes nothing.
+- **Commit is non-throwing.** The next snapshot is allocated during the
+  mutation, so release only `atomic_store`s it, unlocks, and runs the `onChange`
+  callbacks. If `std::uncaught_exceptions()` has grown since the transaction was
+  opened, release drops the working snapshot instead (rollback). The callback
+  list is copy-on-write behind an `atomic_load`, so notifying allocates nothing;
+  each callback runs in its own `try`/`catch (...)`, and a disconnected callback
+  is flagged off before the list is compacted, so compaction failing to allocate
+  only delays freeing it.
+- **Ids come from a per-collection 64-bit counter**, not addresses, so an erased id is
   never handed to a new item. They are unique within one collection only.
 - **One snapshot per collection per frame per context.** Every signal over a
   collection resolves `detail::CollectionFrame<T>` from the `DataContext`, keyed

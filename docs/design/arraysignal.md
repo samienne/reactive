@@ -902,6 +902,10 @@ the framing promises they agree.
 forEach(collection, keyFn, delegate) -> ArraySignal<U>
 ```
 
+> **Current:** `bq`'s `Collection<T>` has its own keyless
+> `forEach(collection, delegate(value, id))`, keyed on the collection's item
+> ids.
+
 `forEach` is the producer of structural dynamism, the **entry** into the
 `ArraySignal` domain, and the replacement for the `Collection` / `DataSource` /
 `dataBind` plumbing. It is the only operation other than `pure` that mints
@@ -1324,6 +1328,10 @@ Two layouts actively shaped the design:
 take a fixed number of children with fixed roles and stay exactly as they are.
 
 ## The mutable source: `SharedVector<T>`
+
+> **Current:** `Collection<T>` now lives in `bq` and feeds the keyless
+> `forEach(collection, delegate(value, id))`; `DataSource` and `dataBind` are
+> gone.
 
 `forEach` consumes a signal; something has to drive that signal. `SharedVector<T>`
 (`src/bq/include/bq/signal/sharedvector.h`) is that something: an implicitly
