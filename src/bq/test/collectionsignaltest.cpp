@@ -201,7 +201,6 @@ TEST(collectionSignal, itemSignalsDidChangeOnlyForTheirItem)
     auto const& built = elements.evaluate<0>().get<0>();
     ASSERT_EQ(2u, built.size());
 
-    // Instantiate the two item signals side by side in one context.
     auto c = makeSignalContext(built[0].value, built[1].value);
     EXPECT_EQ("a", c.evaluate<0>().get<0>());
     EXPECT_EQ("b", c.evaluate<1>().get<0>());
@@ -404,7 +403,6 @@ TEST(collectionSignal, observerAndSnapshotLifetimeFollowTheSignals)
         items.write().pushBack("b");
         EXPECT_EQ(1, wakes->load());
 
-        // The context still holds the snapshot it is on.
         EXPECT_FALSE(held.expired());
 
         c.update(FrameInfo(1, {}));

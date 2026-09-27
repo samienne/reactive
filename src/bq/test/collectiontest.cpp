@@ -422,7 +422,6 @@ TEST(collection, readersDoNotWaitForWriters)
     EXPECT_EQ(2u, collection.generation());
     EXPECT_EQ((std::vector<int>{ 10, 2 }), values(collection));
 
-    // The old snapshot is unchanged.
     EXPECT_EQ(1u, snapshot->size());
     EXPECT_EQ(1, *snapshot->items()[0].value);
 }
@@ -802,8 +801,7 @@ TEST(collection, iteratorsAreRandomAccess)
     EXPECT_EQ(55, collection.read().values()[7]);
 }
 
-// Reading through a non-const collection takes no lock, so it works inside a
-// transaction on the same thread.
+// Reading takes no lock, so it works inside a transaction on the same thread.
 TEST(collection, readDoesNotTakeTheWriteLock)
 {
     Collection<int> collection;
@@ -1104,107 +1102,42 @@ TEST(collection, mutationsAcceptValueIterators)
     EXPECT_EQ((std::vector<std::string>{ "c", "a2" }), values(collection));
 }
 
-// 'iter_swap' on a transaction's iterators is the transaction's swap, whether
-// called unqualified or through the 'using std::iter_swap' idiom.
-TEST(collection, iterSwapSwapsThroughTheTransaction)
+TEST(collection, transactionIsNeitherCopyableNorMovable)
 {
-    Collection<std::string> collection;
-    {
-        auto transaction = collection.write();
-        transaction.pushBack("a");
-        transaction.pushBack("b");
-        transaction.pushBack("c");
-    }
+    using Transaction = Collection<int>::Transaction;
 
-    auto const before = ids(collection);
-
-    int notified = 0;
-    auto connection = collection.onChange([&notified](std::uint64_t)
-            {
-                ++notified;
-            });
-
-    {
-        auto transaction = collection.write();
-        auto const items = transaction.items();
-        iter_swap(items.begin(), items.begin() + 2);
-
-        using std::iter_swap;
-        auto values = transaction.values();
-        iter_swap(values.begin(), values.begin() + 1);
-
-        EXPECT_EQ((std::vector<std::string>{ "b", "c", "a" }),
-                std::vector<std::string>(transaction.values().begin(),
-                    transaction.values().end()));
-    }
-
-    EXPECT_EQ(2u, collection.generation());
-    EXPECT_EQ(1, notified);
-    EXPECT_EQ((std::vector<std::string>{ "b", "c", "a" }), values(collection));
-    EXPECT_EQ((std::vector<std::uint64_t>{ before[1], before[2], before[0] }),
-            ids(collection));
-
-    // Only reordered: every item keeps the generation it was inserted in.
-    for (auto const& item : collection.snapshot()->items())
-        EXPECT_EQ(1u, item.generation);
-
-    // Swapping an item with itself is not a change.
-    auto const unchanged = collection.snapshot();
-    {
-        auto transaction = collection.write();
-        auto const items = transaction.items();
-        using std::iter_swap;
-        iter_swap(items.begin() + 1, items.begin() + 1);
-        auto values = transaction.values();
-        iter_swap(values.begin(), values.begin());
-    }
-
-    EXPECT_EQ(unchanged, collection.snapshot());
-    EXPECT_EQ(1, notified);
+    static_assert(!std::is_copy_constructible_v<Transaction>);
+    static_assert(!std::is_move_constructible_v<Transaction>);
+    static_assert(!std::is_copy_assignable_v<Transaction>);
+    static_assert(!std::is_move_assignable_v<Transaction>);
 }
 
-namespace
+TEST(collection, aConstTransactionSearchesAndIterates)
 {
-    template <typename TIterator>
-    void reverseBySwapping(TIterator first, TIterator last)
-    {
-        using std::iter_swap;
-        while (first != last && first != --last)
-        {
-            iter_swap(first, last);
-            ++first;
-        }
-    }
-} // namespace
+    using Transaction = Collection<std::string>::Transaction;
 
-// Generic code that swaps through the 'using std::iter_swap' idiom reorders
-// the collection within one transaction.
-TEST(collection, genericIterSwapAlgorithm)
-{
+    static_assert(HasItems<Transaction const&>::value);
+    static_assert(HasValues<Transaction const&>::value);
+    static_assert(!HasItems<Transaction const>::value);
+    static_assert(!HasValues<Transaction const>::value);
+
     Collection<std::string> collection;
-    {
-        auto transaction = collection.write();
-        for (auto value : { "a", "b", "c", "d", "e" })
-            transaction.pushBack(value);
-    }
+    auto transaction = collection.write();
+    transaction.pushBack("a");
+    transaction.pushBack("b");
 
-    {
-        auto transaction = collection.write();
-        auto const items = transaction.items();
-        reverseBySwapping(items.begin(), items.end());
-    }
+    Transaction const& reader = transaction;
+    auto const items = reader.items();
+    auto const id = items[1].id;
 
-    EXPECT_EQ((std::vector<std::string>{ "e", "d", "c", "b", "a" }),
-            values(collection));
-    EXPECT_EQ(2u, collection.generation());
+    EXPECT_EQ(items.begin() + 1, reader.findId(id));
+    EXPECT_EQ(items.end(), reader.findId(12345));
+    EXPECT_EQ("b", reader.values()[1]);
+    EXPECT_EQ((std::vector<std::string>{ "a", "b" }),
+            std::vector<std::string>(reader.values().begin(),
+                reader.values().end()));
 
-    {
-        auto transaction = collection.write();
-        auto values = transaction.values();
-        reverseBySwapping(values.begin(), values.end());
-    }
-
-    EXPECT_EQ((std::vector<std::string>{ "a", "b", "c", "d", "e" }),
-            values(collection));
-    EXPECT_EQ(3u, collection.generation());
+    transaction.pushFront("c");
+    EXPECT_EQ(3u, items.size());
+    EXPECT_EQ("a", *(items.begin() + 1)->value);
 }

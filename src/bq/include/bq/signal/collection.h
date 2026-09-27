@@ -563,26 +563,12 @@ namespace bq::signal
      * @brief An ordered list of immutable items that several places can hold
      * and mutate, published as a sequence of immutable snapshots.
      *
-     * Copies of a collection share one set of contents.
-     *
-     * Every change happens inside a write transaction, opened by write() and
-     * ended when the returned Transaction is destroyed. However many
-     * mutations a transaction makes, it publishes exactly one new snapshot
-     * with exactly one new generation when it ends. A transaction publishes
-     * nothing if every mutation it made was a no-op, or if it ends by an
-     * exception propagating out of its scope, which discards all of its
-     * mutations. Transactions are serialized by a non-recursive lock: opening
-     * a second one on a thread that holds one deadlocks.
-     *
-     * Reading never waits for a writer. read() and snapshot() return the
-     * latest published snapshot; while a transaction is open they keep
-     * returning the one before it.
+     * Copies of a collection share one set of contents. Every change happens
+     * inside a write transaction, opened by write(); reading, through read()
+     * or snapshot(), never waits for a writer.
      *
      * Snapshots, views and transactions are not ranges themselves: iterate
      * their items() or their values().
-     *
-     * Every item has an id, never reused by this collection, which an update
-     * keeps. Ids are unique within one collection only.
      */
     template <typename T>
     class Collection
@@ -666,21 +652,23 @@ namespace bq::signal
         /**
          * @brief A write transaction.
          *
-         * Holds the collection's write lock for its lifetime. Reads through
-         * the transaction see its own changes. Destroying it publishes them,
-         * if there were any, as one snapshot with one new generation,
-         * releases the lock, and only then invokes the change callbacks. If
-         * it is destroyed by an exception propagating out of its scope it
-         * discards its changes instead. A moved-from transaction does
-         * nothing.
+         * Holds the collection's write lock for its lifetime, so it is bound
+         * to the scope and thread that opened it and can be neither copied
+         * nor moved. Transactions are serialized by a non-recursive lock:
+         * opening a second one on a thread that holds one deadlocks.
+         *
+         * Reads through the transaction see its own changes. However many
+         * mutations it makes, destroying it publishes them as one snapshot
+         * with one new generation, releases the lock, and only then invokes
+         * the change callbacks. It publishes nothing if every mutation was a
+         * no-op, and if it is destroyed by an exception propagating out of
+         * its scope it discards its changes instead.
          *
          * items() and values() are valid only as long as the transaction,
          * so neither is available on an rvalue. Their iterators name
          * positions, and the mutations take either kind: insert and erase
-         * invalidate those at or after the position they change, the other
-         * mutations invalidate none, and moving the transaction invalidates
-         * all of them. 'iter_swap(a, b)' on its iterators, found by
-         * argument-dependent lookup, is swap(a, b).
+         * invalidate those at or after the position they change, and the
+         * other mutations invalidate none.
          */
         class Transaction
         {
@@ -689,9 +677,15 @@ namespace bq::signal
             using Items = CollectionItems<Iterator, Transaction*>;
             using Values = CollectionValues<Iterator, Transaction*>;
             using ValueIterator = typename Values::Iterator;
+            using ConstIterator = CollectionIterator<T, Transaction const>;
+            using ConstItems = CollectionItems<ConstIterator,
+                  Transaction const*>;
+            using ConstValues = CollectionValues<ConstIterator,
+                  Transaction const*>;
+            using ConstValueIterator = typename ConstValues::Iterator;
 
             Transaction(Transaction const&) = delete;
-            Transaction(Transaction&&) noexcept = default;
+            Transaction(Transaction&&) = delete;
             Transaction& operator=(Transaction const&) = delete;
             Transaction& operator=(Transaction&&) = delete;
 
@@ -705,14 +699,26 @@ namespace bq::signal
                 return Items(this);
             }
 
+            ConstItems items() const&
+            {
+                return ConstItems(this);
+            }
+
             Items items() && = delete;
+            ConstItems items() const&& = delete;
 
             Values values() &
             {
                 return Values(this);
             }
 
+            ConstValues values() const&
+            {
+                return ConstValues(this);
+            }
+
             Values values() && = delete;
+            ConstValues values() const&& = delete;
 
             std::size_t size() const
             {
@@ -729,6 +735,12 @@ namespace bq::signal
              * none.
              */
             Iterator findId(std::uint64_t id)
+            {
+                auto const all = items();
+                return detail::findCollectionId(all.begin(), all.end(), id);
+            }
+
+            ConstIterator findId(std::uint64_t id) const
             {
                 auto const all = items();
                 return detail::findCollectionId(all.begin(), all.end(), id);
@@ -901,21 +913,13 @@ namespace bq::signal
                 dirty_ = true;
             }
 
-            friend void iter_swap(Iterator a, Iterator b)
-            {
-                ownerOf(a).swap(a, b);
-            }
-
-            friend void iter_swap(ValueIterator a, ValueIterator b)
-            {
-                ownerOf(a.base()).swap(a, b);
-            }
-
         private:
             friend class Collection;
 
             friend Iterator;
+            friend ConstIterator;
             friend Items;
+            friend ConstItems;
 
             explicit Transaction(std::shared_ptr<Control> control) :
                 control_(std::move(control)),
@@ -924,12 +928,6 @@ namespace bq::signal
                 generation_(published_->generation() + 1),
                 uncaughtExceptions_(std::uncaught_exceptions())
             {
-            }
-
-            static Transaction& ownerOf(Iterator const& position)
-            {
-                assert(position.owner_);
-                return *position.owner_;
             }
 
             ItemVector const& itemVector() const
@@ -960,9 +958,6 @@ namespace bq::signal
 
             void release() noexcept
             {
-                if (!lock_.owns_lock())
-                    return;
-
                 bool const publish = dirty_
                     && std::uncaught_exceptions() <= uncaughtExceptions_;
                 if (publish)
@@ -993,6 +988,11 @@ namespace bq::signal
 
         /**
          * @brief Opens a write transaction.
+         *
+         * The change is published when the transaction ends, so a scope that
+         * must contain the publish, such as bqui's withAnimation() guard,
+         * has to be opened first:
+         * 'auto a = withAnimation(...); auto tx = items.write();'.
          */
         Transaction write()
         {
