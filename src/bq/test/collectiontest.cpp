@@ -1141,3 +1141,133 @@ TEST(collection, aConstTransactionSearchesAndIterates)
     EXPECT_EQ(3u, items.size());
     EXPECT_EQ("a", *(items.begin() + 1)->value);
 }
+
+// Callbacks connected and disconnected while other threads publish: a
+// callback connected before a publish starts is called by it, and one that is
+// disconnected is called at most once more by each publish already in
+// progress on another thread, and never by a later one.
+TEST(collection, onChangeConnectDisconnectRacesNotify)
+{
+    constexpr int writerCount = 2;
+    constexpr int subscriberCount = 2;
+    constexpr int rounds = 300;
+
+    Collection<int> collection;
+
+    std::atomic<int> runningWriters{ writerCount };
+    std::vector<std::thread> threads;
+    for (int w = 0; w < writerCount; ++w)
+    {
+        threads.emplace_back([&collection, &runningWriters]()
+            {
+                for (int i = 0; i < rounds * 4; ++i)
+                    collection.write().pushBack(i);
+
+                --runningWriters;
+            });
+    }
+
+    struct Disconnected
+    {
+        std::shared_ptr<std::atomic<int>> calls;
+        int callsAtDisconnect;
+    };
+
+    std::vector<std::vector<Disconnected>> disconnected(subscriberCount);
+    for (int s = 0; s < subscriberCount; ++s)
+    {
+        threads.emplace_back([&collection, &out = disconnected[s]]()
+            {
+                for (int i = 0; i < rounds; ++i)
+                {
+                    auto calls = std::make_shared<std::atomic<int>>(0);
+                    auto connection = collection.onChange(
+                            [calls](std::uint64_t)
+                            {
+                                ++*calls;
+                            });
+
+                    collection.write().pushBack(-1);
+                    EXPECT_LE(1, calls->load());
+
+                    connection.disconnect();
+                    out.push_back({ calls, calls->load() });
+                }
+            });
+    }
+
+    for (auto& thread : threads)
+        thread.join();
+
+    EXPECT_EQ(0, runningWriters.load());
+
+    collection.write().pushBack(0);
+
+    // Each other writer thread had at most one publish in progress.
+    int const otherWriters = writerCount + subscriberCount - 1;
+    for (auto const& perSubscriber : disconnected)
+    {
+        ASSERT_EQ(static_cast<std::size_t>(rounds), perSubscriber.size());
+        for (auto const& entry : perSubscriber)
+        {
+            EXPECT_LE(entry.calls->load(),
+                    entry.callsAtDisconnect + otherWriters);
+        }
+    }
+
+    EXPECT_EQ(static_cast<std::uint64_t>(
+                writerCount * rounds * 4 + subscriberCount * rounds + 1),
+            collection.generation());
+}
+
+// With callbacks registered, concurrent writers lose no notification: the
+// newest generation is always notified, and every notification names a
+// generation that is already published.
+TEST(collection, concurrentWritersNotifyTheFinalGeneration)
+{
+    constexpr int writerCount = 4;
+    constexpr int transactions = 500;
+
+    Collection<int> collection;
+
+    std::atomic<std::uint64_t> newest{ 0 };
+    std::atomic<int> notified{ 0 };
+    std::atomic<bool> published{ true };
+    auto connection = collection.onChange(
+            [&](std::uint64_t generation)
+            {
+                ++notified;
+                if (collection.generation() < generation)
+                    published = false;
+
+                auto seen = newest.load();
+                while (seen < generation
+                        && !newest.compare_exchange_weak(seen, generation))
+                {
+                }
+            });
+
+    std::vector<std::thread> writers;
+    for (int w = 0; w < writerCount; ++w)
+    {
+        writers.emplace_back([&collection, w]()
+            {
+                for (int i = 0; i < transactions; ++i)
+                {
+                    auto transaction = collection.write();
+                    transaction.pushBack(w);
+                    transaction.pushBack(i);
+                }
+            });
+    }
+
+    for (auto& writer : writers)
+        writer.join();
+
+    auto const final = static_cast<std::uint64_t>(writerCount * transactions);
+    EXPECT_EQ(final, collection.generation());
+    EXPECT_EQ(final * 2, collection.snapshot()->size());
+    EXPECT_EQ(final, newest.load());
+    EXPECT_EQ(writerCount * transactions, notified.load());
+    EXPECT_TRUE(published);
+}
