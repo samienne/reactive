@@ -25,17 +25,14 @@ namespace bq::signal
     {
         /**
          * @brief The snapshot of one collection that one DataContext is on.
-         *
-         * Keyed in the DataContext by the collection's id, so every signal
-         * over the collection within one context reads one snapshot per
-         * frame. The signals hold it; the DataContext only finds it.
          */
         template <typename T>
         struct CollectionFrame
         {
             using SnapshotPtr = typename Collection<T>::SnapshotPtr;
+            using Index = std::unordered_map<std::uint64_t, std::size_t>;
 
-            std::size_t const* findIndex(std::size_t id)
+            std::size_t const* findIndex(std::uint64_t id)
             {
                 if (!index)
                 {
@@ -49,15 +46,15 @@ namespace bq::signal
                 return i == index->end() ? nullptr : &i->second;
             }
 
-            CollectionItem<T> const* find(std::size_t id)
+            CollectionItem<T> const* find(std::uint64_t id)
             {
                 std::size_t const* i = findIndex(id);
                 return i ? &snapshot->items[*i] : nullptr;
             }
 
-            uint64_t frameId = 0;
+            std::uint64_t frameId = 0;
             SnapshotPtr snapshot;
-            std::optional<std::unordered_map<std::size_t, std::size_t>> index;
+            std::optional<Index> index;
             btl::connection connection;
         };
 
@@ -83,7 +80,7 @@ namespace bq::signal
                 std::weak_ptr<ObserveControl> observe =
                     context.observeControl();
                 entry->connection = collection.onChange(
-                        [observe=std::move(observe)](uint64_t)
+                        [observe=std::move(observe)](std::uint64_t)
                         {
                             if (auto control = observe.lock())
                                 control->fire();
@@ -172,8 +169,8 @@ namespace bq::signal
             struct DataType
             {
                 std::shared_ptr<CollectionFrame<T>> frame;
-                uint64_t snapshotGeneration;
-                uint64_t itemGeneration;
+                std::uint64_t snapshotGeneration;
+                std::uint64_t itemGeneration;
                 std::shared_ptr<T const> value;
             };
 
@@ -232,7 +229,7 @@ namespace bq::signal
 
         template <typename TDelegate, typename T>
         constexpr bool isCollectionForEachCallable =
-            std::is_invocable_v<TDelegate const&, AnySignal<T>, std::size_t>;
+            std::is_invocable_v<TDelegate const&, AnySignal<T>, std::uint64_t>;
     } // namespace detail
 
     template <typename T>
@@ -252,7 +249,8 @@ namespace bq::signal
      * The signal keeps the collection's contents alive.
      */
     template <typename T>
-    auto snapshotSignal(Collection<T> const& collection)
+    AnySignal<typename Collection<T>::SnapshotPtr> snapshotSignal(
+            Collection<T> const& collection)
     {
         return AnySignal<typename Collection<T>::SnapshotPtr>(wrap(
                     detail::CollectionSnapshotSignal<T>(collection)));
@@ -264,7 +262,7 @@ namespace bq::signal
      * Changes whenever the collection publishes a new generation.
      */
     template <typename T>
-    AnySignal<uint64_t> generationSignal(Collection<T> const& collection)
+    AnySignal<std::uint64_t> generationSignal(Collection<T> const& collection)
     {
         using SnapshotPtr = typename Collection<T>::SnapshotPtr;
 
@@ -293,7 +291,7 @@ namespace bq::signal
     {
         using SnapshotPtr = typename Collection<T>::SnapshotPtr;
         using U = std::decay_t<std::invoke_result_t<
-            TDelegate const&, AnySignal<T>, std::size_t>>;
+            TDelegate const&, AnySignal<T>, std::uint64_t>>;
 
         using Item = CollectionItem<T>;
 
@@ -304,7 +302,7 @@ namespace bq::signal
                 });
 
         auto build = [collection, delegate=std::move(delegate)](
-                std::size_t const& id, Item const& item)
+                std::uint64_t const& id, Item const& item)
             {
                 return delegate(AnySignal<T>(wrap(
                                 detail::CollectionItemSignal<T>(collection,

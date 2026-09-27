@@ -3,17 +3,19 @@
 #include "datacontext.h"
 
 #include <btl/connection.h>
+#include <btl/typetraits.h>
 #include <btl/uniqueid.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <iterator>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -30,8 +32,8 @@ namespace bq::signal
     template <typename T>
     struct CollectionItem
     {
-        std::size_t id;
-        uint64_t generation;
+        std::uint64_t id;
+        std::uint64_t generation;
         std::shared_ptr<T const> value;
     };
 
@@ -44,7 +46,7 @@ namespace bq::signal
     template <typename T>
     struct CollectionSnapshot
     {
-        uint64_t generation;
+        std::uint64_t generation;
         std::vector<CollectionItem<T>> items;
     };
 
@@ -62,6 +64,8 @@ namespace bq::signal
         using reference = T const&;
         using iterator_category = std::random_access_iterator_tag;
 
+        CollectionIterator() = default;
+
         CollectionIterator(TIter iter) :
             iter_(std::move(iter))
         {
@@ -75,6 +79,11 @@ namespace bq::signal
         T const* operator->() const
         {
             return iter_->value.get();
+        }
+
+        T const& operator[](difference_type amount) const
+        {
+            return *iter_[amount].value;
         }
 
         CollectionIterator& operator++()
@@ -99,9 +108,27 @@ namespace bq::signal
             return CollectionIterator(iter_--);
         }
 
+        CollectionIterator& operator+=(difference_type amount)
+        {
+            iter_ += amount;
+            return *this;
+        }
+
+        CollectionIterator& operator-=(difference_type amount)
+        {
+            iter_ -= amount;
+            return *this;
+        }
+
         CollectionIterator operator+(difference_type amount) const
         {
             return CollectionIterator(iter_ + amount);
+        }
+
+        friend CollectionIterator operator+(difference_type amount,
+                CollectionIterator const& iter)
+        {
+            return iter + amount;
         }
 
         CollectionIterator operator-(difference_type amount) const
@@ -134,10 +161,20 @@ namespace bq::signal
             return iter_ > rhs.iter_;
         }
 
+        bool operator<=(CollectionIterator const& rhs) const
+        {
+            return iter_ <= rhs.iter_;
+        }
+
+        bool operator>=(CollectionIterator const& rhs) const
+        {
+            return iter_ >= rhs.iter_;
+        }
+
         /**
          * @brief The id of the item this iterator points at.
          */
-        std::size_t getId() const
+        std::uint64_t getId() const
         {
             return iter_->id;
         }
@@ -146,7 +183,7 @@ namespace bq::signal
          * @brief The generation in which the item was inserted or last
          * updated.
          */
-        uint64_t getGeneration() const
+        std::uint64_t getGeneration() const
         {
             return iter_->generation;
         }
@@ -160,7 +197,7 @@ namespace bq::signal
         }
 
     private:
-        TIter iter_;
+        TIter iter_{};
     };
 
     /**
@@ -169,20 +206,21 @@ namespace bq::signal
      *
      * Copies of a collection share one set of contents.
      *
-     * Every change happens inside a write transaction, opened by rangeLock()
-     * and ended when the returned Range is destroyed. However many mutations
-     * a transaction makes, it publishes exactly one new snapshot with exactly
-     * one new generation when it ends, and a transaction that mutates nothing
-     * publishes nothing. Transactions are serialized by a non-recursive lock:
-     * opening a second one on a thread that holds one deadlocks.
+     * Every change happens inside a write transaction, opened by write() and
+     * ended when the returned Transaction is destroyed. However many
+     * mutations a transaction makes, it publishes exactly one new snapshot
+     * with exactly one new generation when it ends. A transaction publishes
+     * nothing if every mutation it made was a no-op, or if it ends by an
+     * exception propagating out of its scope, which discards all of its
+     * mutations. Transactions are serialized by a non-recursive lock: opening
+     * a second one on a thread that holds one deadlocks.
      *
-     * Reading never waits for a writer. snapshot() and crangeLock() return
-     * the latest published snapshot; while a transaction is open they keep
+     * Reading never waits for a writer. read() and snapshot() return the
+     * latest published snapshot; while a transaction is open they keep
      * returning the one before it.
      *
-     * Every item has an id, drawn from a counter of this collection and never
-     * reused by it, which an update keeps. Ids are unique within one
-     * collection only.
+     * Every item has an id, never reused by this collection, which an update
+     * keeps. Ids are unique within one collection only.
      */
     template <typename T>
     class Collection
@@ -193,15 +231,11 @@ namespace bq::signal
         using SnapshotPtr = std::shared_ptr<Snapshot const>;
         using Items = std::vector<Item>;
 
-        using Iterator = CollectionIterator<T, typename Items::iterator>;
+        using Iterator = CollectionIterator<T, typename Items::const_iterator>;
         using ReverseIterator =
-            CollectionIterator<T, typename Items::reverse_iterator>;
-        using ConstIterator =
-            CollectionIterator<T, typename Items::const_iterator>;
-        using ConstReverseIterator =
             CollectionIterator<T, typename Items::const_reverse_iterator>;
 
-        using ChangeCallback = std::function<void(uint64_t generation)>;
+        using ChangeCallback = std::function<void(std::uint64_t generation)>;
 
     private:
         struct Control;
@@ -211,34 +245,34 @@ namespace bq::signal
          * @brief Read access to one snapshot.
          *
          * Holds no lock. The snapshot it was made from stays alive and
-         * unchanged for the range's lifetime.
+         * unchanged for the view's lifetime.
          */
-        class ConstRange
+        class View
         {
         public:
-            explicit ConstRange(SnapshotPtr snapshot) :
+            explicit View(SnapshotPtr snapshot) :
                 snapshot_(std::move(snapshot))
             {
             }
 
-            ConstIterator begin() const
+            Iterator begin() const
             {
-                return ConstIterator(snapshot_->items.cbegin());
+                return Iterator(snapshot_->items.cbegin());
             }
 
-            ConstIterator end() const
+            Iterator end() const
             {
-                return ConstIterator(snapshot_->items.cend());
+                return Iterator(snapshot_->items.cend());
             }
 
-            ConstReverseIterator rbegin() const
+            ReverseIterator rbegin() const
             {
-                return ConstReverseIterator(snapshot_->items.crbegin());
+                return ReverseIterator(snapshot_->items.crbegin());
             }
 
-            ConstReverseIterator rend() const
+            ReverseIterator rend() const
             {
-                return ConstReverseIterator(snapshot_->items.crend());
+                return ReverseIterator(snapshot_->items.crend());
             }
 
             std::size_t size() const
@@ -254,17 +288,13 @@ namespace bq::signal
             /**
              * @brief The item with 'id', or end() if there is none.
              */
-            ConstIterator findId(std::size_t id) const
+            Iterator findId(std::uint64_t id) const
             {
-                for (auto i = begin(); i != end(); ++i)
-                    if (i.getId() == id)
-                        return i;
-
-                return end();
+                return Collection::findId(begin(), end(), id);
             }
 
             /**
-             * @brief The snapshot this range reads.
+             * @brief The snapshot this view reads.
              */
             SnapshotPtr const& snapshot() const
             {
@@ -279,45 +309,47 @@ namespace bq::signal
          * @brief A write transaction.
          *
          * Holds the collection's write lock for its lifetime. Reads through
-         * the range see the transaction's own changes. Destroying it
-         * publishes them, if there were any, as one snapshot with one new
-         * generation, releases the lock, and only then invokes the change
-         * callbacks. A moved-from range does nothing.
+         * the transaction see its own changes. Destroying it publishes them,
+         * if there were any, as one snapshot with one new generation,
+         * releases the lock, and only then invokes the change callbacks. If
+         * it is destroyed by an exception propagating out of its scope it
+         * discards its changes instead. A moved-from transaction does
+         * nothing.
          *
-         * Iterators obtained from a range are invalidated by any mutation
-         * through it, as a 'std::vector''s are.
+         * Iterators obtained from a transaction are invalidated by any
+         * mutation through it, as a 'std::vector''s are.
          */
-        class Range
+        class Transaction
         {
         public:
-            Range(Range const&) = delete;
-            Range(Range&&) noexcept = default;
-            Range& operator=(Range const&) = delete;
-            Range& operator=(Range&&) = delete;
+            Transaction(Transaction const&) = delete;
+            Transaction(Transaction&&) noexcept = default;
+            Transaction& operator=(Transaction const&) = delete;
+            Transaction& operator=(Transaction&&) = delete;
 
-            ~Range()
+            ~Transaction()
             {
                 release();
             }
 
-            Iterator begin()
+            Iterator begin() const
             {
-                return Iterator(working().begin());
+                return Iterator(items().cbegin());
             }
 
-            Iterator end()
+            Iterator end() const
             {
-                return Iterator(working().end());
+                return Iterator(items().cend());
             }
 
-            ReverseIterator rbegin()
+            ReverseIterator rbegin() const
             {
-                return ReverseIterator(working().rbegin());
+                return ReverseIterator(items().crbegin());
             }
 
-            ReverseIterator rend()
+            ReverseIterator rend() const
             {
-                return ReverseIterator(working().rend());
+                return ReverseIterator(items().crend());
             }
 
             std::size_t size() const
@@ -333,13 +365,9 @@ namespace bq::signal
             /**
              * @brief The item with 'id', or end() if there is none.
              */
-            Iterator findId(std::size_t id)
+            Iterator findId(std::uint64_t id) const
             {
-                for (auto i = begin(); i != end(); ++i)
-                    if (i.getId() == id)
-                        return i;
-
-                return end();
+                return Collection::findId(begin(), end(), id);
             }
 
             void pushBack(T value)
@@ -357,39 +385,57 @@ namespace bq::signal
              */
             Iterator insert(Iterator position, T value)
             {
-                markDirty();
+                auto const index = indexOf(position);
+                Item item{
+                    control_->nextItemId++,
+                    generation_,
+                    makeValue(std::move(value))
+                };
+
                 auto& items = working();
-                return Iterator(items.insert(position.base(), Item{
-                            control_->nextItemId++,
-                            generation_,
-                            makeValue(std::move(value))
-                            }));
+                auto i = items.insert(items.begin() + index, std::move(item));
+                dirty_ = true;
+                return Iterator(i);
             }
 
             /**
              * @brief Replaces the value of the item at 'position', keeping
              * its id.
+             *
+             * If T is equality comparable, replacing a value with an equal
+             * one is not a change.
              */
             void update(Iterator position, T value)
             {
                 assert(position != end());
-                markDirty();
-                auto i = position.base();
-                i->value = makeValue(std::move(value));
-                i->generation = generation_;
+                auto const index = indexOf(position);
+
+                if constexpr (btl::IsEqualityComparable<T>::value)
+                {
+                    if (*items()[index].value == value)
+                        return;
+                }
+
+                auto newValue = makeValue(std::move(value));
+                auto& item = working()[index];
+                item.value = std::move(newValue);
+                item.generation = generation_;
+                dirty_ = true;
             }
 
             void erase(Iterator position)
             {
                 assert(position != end());
-                markDirty();
-                working().erase(position.base());
+                auto const index = indexOf(position);
+                auto& items = working();
+                items.erase(items.begin() + index);
+                dirty_ = true;
             }
 
             /**
              * @brief Erases the item with 'id', if there is one.
              */
-            void eraseWithId(std::size_t id)
+            void eraseWithId(std::uint64_t id)
             {
                 auto i = findId(id);
                 if (i != end())
@@ -402,8 +448,14 @@ namespace bq::signal
             void swap(Iterator a, Iterator b)
             {
                 assert(a != end() && b != end());
-                markDirty();
-                std::iter_swap(a.base(), b.base());
+                if (a == b)
+                    return;
+
+                auto const indexA = indexOf(a);
+                auto const indexB = indexOf(b);
+                auto& items = working();
+                std::swap(items[indexA], items[indexB]);
+                dirty_ = true;
             }
 
             /**
@@ -414,21 +466,19 @@ namespace bq::signal
             {
                 assert(from != end());
 
-                auto f = from.base();
-                auto t = to.base();
+                auto const f = indexOf(from);
+                auto const t = to == end() ? size() - 1 : indexOf(to);
+                if (f == t)
+                    return;
 
+                auto& items = working();
+                auto const first = items.begin();
                 if (t < f)
-                {
-                    markDirty();
-                    std::rotate(t, f, f + 1);
-                }
-                else if (f < t)
-                {
-                    markDirty();
-                    if (t != working().end())
-                        ++t;
-                    std::rotate(f, f + 1, t);
-                }
+                    std::rotate(first + t, first + f, first + f + 1);
+                else
+                    std::rotate(first + f, first + f + 1, first + t + 1);
+
+                dirty_ = true;
             }
 
             /**
@@ -447,25 +497,26 @@ namespace bq::signal
                 if (std::is_sorted(current.begin(), current.end(), byValue))
                     return;
 
-                markDirty();
                 auto& items = working();
                 std::stable_sort(items.begin(), items.end(), byValue);
+                dirty_ = true;
             }
 
         private:
             friend class Collection;
 
-            explicit Range(std::shared_ptr<Control> control) :
+            explicit Transaction(std::shared_ptr<Control> control) :
                 control_(std::move(control)),
                 lock_(control_->writeMutex),
-                generation_(control_->load()->generation + 1)
+                generation_(control_->load()->generation + 1),
+                uncaughtExceptions_(std::uncaught_exceptions())
             {
             }
 
             Items const& items() const
             {
                 if (working_)
-                    return *working_;
+                    return working_->items;
 
                 return control_->load()->items;
             }
@@ -473,15 +524,18 @@ namespace bq::signal
             Items& working()
             {
                 if (!working_)
-                    working_ = control_->load()->items;
+                {
+                    working_ = std::make_shared<Snapshot>(Snapshot{
+                            generation_, control_->load()->items });
+                }
 
-                return *working_;
+                return working_->items;
             }
 
-            void markDirty()
+            std::size_t indexOf(Iterator const& position) const
             {
-                working();
-                dirty_ = true;
+                return static_cast<std::size_t>(
+                        position.base() - items().cbegin());
             }
 
             void release() noexcept
@@ -489,12 +543,10 @@ namespace bq::signal
                 if (!lock_.owns_lock())
                     return;
 
-                bool const publish = dirty_;
+                bool const publish = dirty_
+                    && std::uncaught_exceptions() <= uncaughtExceptions_;
                 if (publish)
-                {
-                    control_->store(std::make_shared<Snapshot const>(Snapshot{
-                                generation_, std::move(*working_) }));
-                }
+                    control_->store(std::move(working_));
 
                 lock_.unlock();
 
@@ -504,8 +556,9 @@ namespace bq::signal
 
             std::shared_ptr<Control> control_;
             std::unique_lock<std::mutex> lock_;
-            uint64_t generation_;
-            std::optional<Items> working_;
+            std::uint64_t generation_;
+            int uncaughtExceptions_;
+            std::shared_ptr<Snapshot> working_;
             bool dirty_ = false;
         };
 
@@ -518,34 +571,20 @@ namespace bq::signal
         }
 
         /**
-         * @brief Copies share one set of contents.
-         */
-        Collection(Collection const&) = default;
-
-        /** @overload */
-        Collection& operator=(Collection const&) = default;
-
-        /**
          * @brief Opens a write transaction.
          */
-        Range rangeLock()
+        Transaction write()
         {
-            return Range(control_);
+            return Transaction(control_);
         }
 
         /**
          * @brief Reads the latest published snapshot, without waiting for a
          * writer.
          */
-        ConstRange rangeLock() const
+        View read() const
         {
-            return crangeLock();
-        }
-
-        /** @overload */
-        ConstRange crangeLock() const
-        {
-            return ConstRange(snapshot());
+            return View(snapshot());
         }
 
         /**
@@ -562,7 +601,7 @@ namespace bq::signal
         /**
          * @brief The generation of the latest published snapshot.
          */
-        uint64_t generation() const
+        std::uint64_t generation() const
         {
             return snapshot()->generation;
         }
@@ -584,7 +623,8 @@ namespace bq::signal
          * released, so it may read or write the collection. Writers on
          * different threads may invoke it concurrently and out of generation
          * order; read snapshot() for the latest state rather than relying on
-         * the argument being the newest. It must not throw.
+         * the argument being the newest. An exception thrown by the callback
+         * is caught and ignored, and the other callbacks still run.
          *
          * Disconnecting stops later notifications. One already in progress on
          * another thread may still invoke the callback once.
@@ -600,6 +640,28 @@ namespace bq::signal
             return std::make_shared<T>(std::move(value));
         }
 
+        static Iterator findId(Iterator begin, Iterator end, std::uint64_t id)
+        {
+            for (auto i = begin; i != end; ++i)
+                if (i.getId() == id)
+                    return i;
+
+            return end;
+        }
+
+        struct Callback
+        {
+            explicit Callback(ChangeCallback f) :
+                function(std::move(f))
+            {
+            }
+
+            ChangeCallback const function;
+            std::atomic<bool> connected{ true };
+        };
+
+        using Callbacks = std::vector<std::shared_ptr<Callback>>;
+
         struct Control : std::enable_shared_from_this<Control>
         {
             SnapshotPtr load() const
@@ -607,67 +669,90 @@ namespace bq::signal
                 return std::atomic_load(&current);
             }
 
-            void store(SnapshotPtr snapshot)
+            void store(SnapshotPtr snapshot) noexcept
             {
                 std::atomic_store(&current, std::move(snapshot));
             }
 
-            btl::connection addCallback(ChangeCallback callback)
+            btl::connection addCallback(ChangeCallback function)
             {
-                std::size_t callbackId = 0;
+                auto callback = std::make_shared<Callback>(std::move(function));
                 {
                     std::lock_guard<std::mutex> lock(callbackMutex);
-                    callbackId = nextCallbackId++;
-                    callbacks.emplace_back(callbackId,
-                            std::make_shared<ChangeCallback const>(
-                                std::move(callback)));
+                    auto next = connectedCallbacks();
+                    next->push_back(callback);
+                    std::atomic_store(&callbacks,
+                            std::shared_ptr<Callbacks const>(std::move(next)));
                 }
 
-                std::weak_ptr<Control> weak = this->shared_from_this();
+                std::weak_ptr<Control> weakControl = this->shared_from_this();
+                std::weak_ptr<Callback> weakCallback = callback;
                 return btl::connection::on_disconnect(
-                        [weak=std::move(weak), callbackId]()
+                        [weakControl=std::move(weakControl),
+                        weakCallback=std::move(weakCallback)]()
                         {
-                            if (auto control = weak.lock())
-                                control->removeCallback(callbackId);
+                            if (auto callback = weakCallback.lock())
+                                callback->connected = false;
+
+                            if (auto control = weakControl.lock())
+                                control->compactCallbacks();
                         });
             }
 
-            void removeCallback(std::size_t callbackId)
+            // Disconnecting has already happened through the flag; this only
+            // frees memory, so failing to allocate is not an error.
+            void compactCallbacks() noexcept
             {
-                std::lock_guard<std::mutex> lock(callbackMutex);
-                callbacks.erase(std::remove_if(callbacks.begin(),
-                            callbacks.end(),
-                            [callbackId](auto const& entry)
-                            {
-                                return entry.first == callbackId;
-                            }),
-                        callbacks.end());
-            }
-
-            void notify(uint64_t generation)
-            {
-                std::vector<std::shared_ptr<ChangeCallback const>> toCall;
+                try
                 {
                     std::lock_guard<std::mutex> lock(callbackMutex);
-                    toCall.reserve(callbacks.size());
-                    for (auto const& entry : callbacks)
-                        toCall.push_back(entry.second);
+                    std::atomic_store(&callbacks,
+                            std::shared_ptr<Callbacks const>(
+                                connectedCallbacks()));
                 }
+                catch (...)
+                {
+                }
+            }
 
-                for (auto const& callback : toCall)
-                    (*callback)(generation);
+            void notify(std::uint64_t generation) noexcept
+            {
+                auto const toCall = std::atomic_load(&callbacks);
+                for (auto const& callback : *toCall)
+                {
+                    if (!callback->connected)
+                        continue;
+
+                    try
+                    {
+                        callback->function(generation);
+                    }
+                    catch (...)
+                    {
+                    }
+                }
             }
 
             btl::UniqueId const id = makeUniqueId();
             std::mutex writeMutex;
-            std::size_t nextItemId = 1;
+            std::uint64_t nextItemId = 1;
             SnapshotPtr current =
                 std::make_shared<Snapshot const>(Snapshot{ 0, {} });
 
             std::mutex callbackMutex;
-            std::size_t nextCallbackId = 1;
-            std::vector<std::pair<std::size_t,
-                std::shared_ptr<ChangeCallback const>>> callbacks;
+            std::shared_ptr<Callbacks const> callbacks =
+                std::make_shared<Callbacks const>();
+
+        private:
+            std::shared_ptr<Callbacks> connectedCallbacks() const
+            {
+                auto result = std::make_shared<Callbacks>();
+                for (auto const& callback : *callbacks)
+                    if (callback->connected)
+                        result->push_back(callback);
+
+                return result;
+            }
         };
 
         std::shared_ptr<Control> control_;

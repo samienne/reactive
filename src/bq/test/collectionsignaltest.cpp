@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>
@@ -20,22 +21,23 @@ using namespace bq::signal;
 
 namespace
 {
-    using Built = std::pair<size_t, std::string>;
+    using Built = std::pair<std::uint64_t, std::string>;
     using StringSnapshot = Collection<std::string>::SnapshotPtr;
 
-    std::vector<size_t> collectionIds(Collection<std::string> const& collection)
+    std::vector<std::uint64_t> collectionIds(
+            Collection<std::string> const& collection)
     {
-        std::vector<size_t> ids;
-        auto range = collection.crangeLock();
-        for (auto i = range.begin(); i != range.end(); ++i)
+        std::vector<std::uint64_t> ids;
+        auto view = collection.read();
+        for (auto i = view.begin(); i != view.end(); ++i)
             ids.push_back(i.getId());
 
         return ids;
     }
 
-    std::vector<size_t> builtIds(std::vector<Built> const& built)
+    std::vector<std::uint64_t> builtIds(std::vector<Built> const& built)
     {
-        std::vector<size_t> ids;
+        std::vector<std::uint64_t> ids;
         for (auto const& entry : built)
             ids.push_back(entry.first);
 
@@ -48,7 +50,7 @@ namespace
             std::shared_ptr<int> builds = std::make_shared<int>(0))
     {
         return join(forEach(collection,
-                    [builds](AnySignal<std::string> value, size_t id)
+                    [builds](AnySignal<std::string> value, std::uint64_t id)
                     {
                         ++*builds;
                         return AnySignal<Built>(value.map(
@@ -62,9 +64,9 @@ namespace
     Collection<std::string> makeCollection(std::vector<std::string> items)
     {
         Collection<std::string> collection;
-        auto range = collection.rangeLock();
+        auto transaction = collection.write();
         for (auto& item : items)
-            range.pushBack(std::move(item));
+            transaction.pushBack(std::move(item));
 
         return collection;
     }
@@ -78,19 +80,19 @@ TEST(collectionSignal, buildsOncePerIdentityAndFollowsMembership)
     auto items = makeCollection({ "a", "b" });
 
     auto ids = collectionIds(items);
-    size_t const idA = ids[0];
-    size_t const idB = ids[1];
+    std::uint64_t const idA = ids[0];
+    std::uint64_t const idB = ids[1];
 
     auto builds = std::make_shared<int>(0);
     auto c = makeSignalContext(idsAndValues(items, builds));
 
-    EXPECT_EQ((std::vector<size_t>{ idA, idB }),
+    EXPECT_EQ((std::vector<std::uint64_t>{ idA, idB }),
             builtIds(c.evaluate<0>().get<0>()));
     EXPECT_EQ(2, *builds);
 
     {
-        auto range = items.rangeLock();
-        range.update(range.findId(idB), "b2");
+        auto transaction = items.write();
+        transaction.update(transaction.findId(idB), "b2");
     }
     c.update(FrameInfo(1, {}));
     EXPECT_EQ((std::vector<Built>{ { idA, "a" }, { idB, "b2" } }),
@@ -98,31 +100,31 @@ TEST(collectionSignal, buildsOncePerIdentityAndFollowsMembership)
     EXPECT_EQ(2, *builds);
 
     {
-        auto range = items.rangeLock();
-        range.swap(range.findId(idA), range.findId(idB));
+        auto transaction = items.write();
+        transaction.swap(transaction.findId(idA), transaction.findId(idB));
     }
     c.update(FrameInfo(2, {}));
-    EXPECT_EQ((std::vector<size_t>{ idB, idA }),
+    EXPECT_EQ((std::vector<std::uint64_t>{ idB, idA }),
             builtIds(c.evaluate<0>().get<0>()));
     EXPECT_EQ(2, *builds);
 
     {
-        auto range = items.rangeLock();
-        range.move(range.findId(idA), range.begin());
+        auto transaction = items.write();
+        transaction.move(transaction.findId(idA), transaction.begin());
     }
     c.update(FrameInfo(3, {}));
-    EXPECT_EQ((std::vector<size_t>{ idA, idB }),
+    EXPECT_EQ((std::vector<std::uint64_t>{ idA, idB }),
             builtIds(c.evaluate<0>().get<0>()));
     EXPECT_EQ(2, *builds);
 
-    items.rangeLock().pushBack("c");
-    size_t const idC = collectionIds(items).back();
+    items.write().pushBack("c");
+    std::uint64_t const idC = collectionIds(items).back();
     c.update(FrameInfo(4, {}));
-    EXPECT_EQ((std::vector<size_t>{ idA, idB, idC }),
+    EXPECT_EQ((std::vector<std::uint64_t>{ idA, idB, idC }),
             builtIds(c.evaluate<0>().get<0>()));
     EXPECT_EQ(3, *builds);
 
-    items.rangeLock().eraseWithId(idB);
+    items.write().eraseWithId(idB);
     c.update(FrameInfo(5, {}));
     EXPECT_EQ((std::vector<Built>{ { idA, "a" }, { idC, "c" } }),
             c.evaluate<0>().get<0>());
@@ -136,13 +138,13 @@ TEST(collectionSignal, valueFlowsAndSurvivorsPersistThroughChange)
     auto items = makeCollection({ "a", "b" });
 
     auto ids = collectionIds(items);
-    size_t const idA = ids[0];
-    size_t const idB = ids[1];
+    std::uint64_t const idA = ids[0];
+    std::uint64_t const idB = ids[1];
 
     auto markers = std::make_shared<std::vector<std::weak_ptr<int>>>();
 
     auto c = makeSignalContext(join(forEach(items,
-                    [markers](AnySignal<std::string> value, size_t)
+                    [markers](AnySignal<std::string> value, std::uint64_t)
                     {
                         auto marker = std::make_shared<int>(0);
                         markers->push_back(marker);
@@ -159,16 +161,16 @@ TEST(collectionSignal, valueFlowsAndSurvivorsPersistThroughChange)
     ASSERT_EQ(2u, markers->size());
 
     {
-        auto range = items.rangeLock();
-        range.update(range.findId(idA), "a2");
+        auto transaction = items.write();
+        transaction.update(transaction.findId(idA), "a2");
     }
     c.update(FrameInfo(1, {}));
     EXPECT_EQ((std::vector<std::string>{ "a2", "b" }),
             c.evaluate<0>().get<0>());
 
     {
-        auto range = items.rangeLock();
-        range.swap(range.findId(idA), range.findId(idB));
+        auto transaction = items.write();
+        transaction.swap(transaction.findId(idA), transaction.findId(idB));
     }
     c.update(FrameInfo(2, {}));
     EXPECT_EQ((std::vector<std::string>{ "b", "a2" }),
@@ -177,7 +179,7 @@ TEST(collectionSignal, valueFlowsAndSurvivorsPersistThroughChange)
     EXPECT_FALSE((*markers)[0].expired());
     EXPECT_FALSE((*markers)[1].expired());
 
-    items.rangeLock().eraseWithId(idA);
+    items.write().eraseWithId(idA);
     c.update(FrameInfo(3, {}));
     EXPECT_EQ((std::vector<std::string>{ "b" }), c.evaluate<0>().get<0>());
     EXPECT_TRUE((*markers)[0].expired());
@@ -191,7 +193,7 @@ TEST(collectionSignal, itemSignalsDidChangeOnlyForTheirItem)
     auto ids = collectionIds(items);
 
     auto array = forEach(items,
-            [](AnySignal<std::string> value, size_t)
+            [](AnySignal<std::string> value, std::uint64_t)
             {
                 return value;
             });
@@ -206,8 +208,8 @@ TEST(collectionSignal, itemSignalsDidChangeOnlyForTheirItem)
     EXPECT_EQ("b", c.evaluate<1>().get<0>());
 
     {
-        auto range = items.rangeLock();
-        range.update(range.findId(ids[1]), "b2");
+        auto transaction = items.write();
+        transaction.update(transaction.findId(ids[1]), "b2");
     }
     c.update(FrameInfo(1, {}));
     EXPECT_FALSE(c.didChange<0>());
@@ -216,16 +218,16 @@ TEST(collectionSignal, itemSignalsDidChangeOnlyForTheirItem)
 
     // A reorder or an insert is not a change of either item.
     {
-        auto range = items.rangeLock();
-        range.swap(range.begin(), range.begin() + 1);
-        range.pushBack("c");
+        auto transaction = items.write();
+        transaction.swap(transaction.begin(), transaction.begin() + 1);
+        transaction.pushBack("c");
     }
     c.update(FrameInfo(2, {}));
     EXPECT_FALSE(c.didChange<0>());
     EXPECT_FALSE(c.didChange<1>());
 
     // An erased item keeps its last value and stops changing.
-    items.rangeLock().eraseWithId(ids[0]);
+    items.write().eraseWithId(ids[0]);
     c.update(FrameInfo(3, {}));
     EXPECT_FALSE(c.didChange<0>());
     EXPECT_EQ("a", c.evaluate<0>().get<0>());
@@ -240,10 +242,10 @@ TEST(collectionSignal, oneTransactionIsOneChange)
     EXPECT_EQ(0u, c.evaluate<0>().get<0>());
 
     {
-        auto range = items.rangeLock();
+        auto transaction = items.write();
         for (int i = 0; i < 10; ++i)
-            range.pushBack(i);
-        range.update(range.begin(), 100);
+            transaction.pushBack(i);
+        transaction.update(transaction.begin(), 100);
     }
 
     c.update(FrameInfo(1, {}));
@@ -266,12 +268,12 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     auto armed = std::make_shared<bool>(false);
     auto writer = std::make_shared<Collection<std::string>>(items);
     auto intruder = generationSignal(items).map(
-            [armed, writer](uint64_t generation)
+            [armed, writer](std::uint64_t generation)
             {
                 if (*armed)
                 {
                     *armed = false;
-                    writer->rangeLock().pushBack("intruder");
+                    writer->write().pushBack("intruder");
                 }
 
                 return generation;
@@ -297,9 +299,9 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     expectAgree();
 
     {
-        auto range = items.rangeLock();
-        range.pushFront("c");
-        range.update(range.begin() + 1, "a2");
+        auto transaction = items.write();
+        transaction.pushFront("c");
+        transaction.update(transaction.begin() + 1, "a2");
     }
 
     *armed = true;
@@ -315,7 +317,7 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     EXPECT_EQ(3u, c.evaluate<0>().get<0>()->generation);
     EXPECT_EQ(4u, c.evaluate<1>().get<0>().size());
 
-    items.rangeLock().sort();
+    items.write().sort();
     c.update(FrameInfo(3, {}));
     expectAgree();
 }
@@ -327,7 +329,7 @@ TEST(collectionSignal, contextsAdvanceIndependently)
     auto items = makeCollection({ "a" });
 
     auto first = makeSignalContext(generationSignal(items));
-    items.rangeLock().pushBack("b");
+    items.write().pushBack("b");
     auto second = makeSignalContext(generationSignal(items));
 
     EXPECT_EQ(1u, first.evaluate<0>().get<0>());
@@ -348,7 +350,7 @@ TEST(collectionSignal, lateSubscriberSharesTheFrameSnapshot)
 
     auto c = makeSignalContext(snapshotSignal(items), late.signal.join());
 
-    items.rangeLock().pushBack("b");
+    items.write().pushBack("b");
     late.handle.set(snapshotSignal(items));
 
     c.update(FrameInfo(1, {}));
@@ -361,7 +363,7 @@ TEST(collectionSignal, lateSubscriberSharesTheFrameSnapshot)
     EXPECT_FALSE(c.didChange<0>());
     EXPECT_FALSE(c.didChange<1>());
 
-    items.rangeLock().pushBack("c");
+    items.write().pushBack("c");
     c.update(FrameInfo(3, {}));
     EXPECT_TRUE(c.didChange<1>());
     EXPECT_EQ(c.evaluate<0>().get<0>(), c.evaluate<1>().get<0>());
@@ -383,7 +385,7 @@ TEST(collectionSignal, observerAndSnapshotLifetimeFollowTheSignals)
                     ++*wakes;
                 });
 
-        items.rangeLock().pushBack("b");
+        items.write().pushBack("b");
         EXPECT_EQ(1, wakes->load());
 
         // The context still holds the snapshot it is on.
@@ -392,14 +394,14 @@ TEST(collectionSignal, observerAndSnapshotLifetimeFollowTheSignals)
         c.update(FrameInfo(1, {}));
         EXPECT_TRUE(held.expired());
         held = items.snapshot();
-        items.rangeLock().pushBack("c");
+        items.write().pushBack("c");
         EXPECT_EQ(2, wakes->load());
         EXPECT_FALSE(held.expired());
     }
 
     EXPECT_TRUE(held.expired());
 
-    items.rangeLock().pushBack("d");
+    items.write().pushBack("d");
     EXPECT_EQ(2, wakes->load());
 }
 
@@ -417,17 +419,18 @@ TEST(collectionSignal, signalsAgreeUnderConcurrentMutation)
         {
             for (int i = 0; i < 2000; ++i)
             {
-                auto range = items.rangeLock();
-                range.pushBack(std::to_string(i));
-                if (range.size() > 8)
-                    range.erase(range.begin());
+                auto transaction = items.write();
+                transaction.pushBack(std::to_string(i));
+                if (transaction.size() > 8)
+                    transaction.erase(transaction.begin());
                 if (i % 3 == 0)
-                    range.update(range.begin(), "u" + std::to_string(i));
+                    transaction.update(transaction.begin(),
+                            "u" + std::to_string(i));
             }
             done = true;
         });
 
-    uint64_t frame = 0;
+    std::uint64_t frame = 0;
     bool agreed = true;
     auto check = [&]()
         {
@@ -454,4 +457,54 @@ TEST(collectionSignal, signalsAgreeUnderConcurrentMutation)
     auto const last = c.evaluate<1>().get<0>();
     ASSERT_EQ(8u, last.size());
     EXPECT_EQ("1999", last.back().second);
+}
+
+// A publish racing a context's first read of a collection either lands in the
+// snapshot the context reads or wakes the context.
+TEST(collectionSignal, aPublishRacingTheFirstReadWakesTheContext)
+{
+    for (int round = 0; round < 1000; ++round)
+    {
+        Collection<int> items;
+
+        auto late = makeInput(AnySignal<std::uint64_t>(
+                    constant(std::uint64_t(0))));
+        auto c = makeSignalContext(late.signal.join());
+
+        auto woke = std::make_shared<std::atomic<bool>>(false);
+        c.observe([woke]()
+                {
+                    *woke = true;
+                });
+
+        late.handle.set(generationSignal(items));
+        *woke = false;
+
+        // Sweeps the publish across the context's first read.
+        std::atomic<bool> go{ false };
+        std::thread writer([&items, &go, round]()
+            {
+                while (!go)
+                {
+                }
+
+                for (volatile int spin = 0; spin < round % 200 * 100; ++spin)
+                {
+                }
+
+                items.write().pushBack(round);
+            });
+
+        go = true;
+        c.update(FrameInfo(1, {}));
+        writer.join();
+
+        std::uint64_t const seen = c.evaluate<0>().get<0>();
+        ASSERT_TRUE(seen == items.generation() || *woke)
+            << "round " << round << " saw " << seen << " of "
+            << items.generation();
+
+        c.update(FrameInfo(2, {}));
+        EXPECT_EQ(items.generation(), c.evaluate<0>().get<0>());
+    }
 }
