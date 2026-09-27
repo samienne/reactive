@@ -6,6 +6,26 @@
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## `forEach` builds each item's description once; delegates have no side effects
+
+`forEach` is the public way to turn a list into per-item results; `map`,
+`scatter` and `forEach` share one internal build-once-per-key node
+(`detail::ArrayOnce`). A delegate runs once per item identity per signal
+context and returns a live description, such as a widget, whose later changes
+arrive only through the signals it captured: the item's value signal, never a
+re-run. The item passed at build time is only a construction argument.
+Delegates must be free of side effects.
+
+**Why:** widgets, builders and elements are descriptions over signals, built
+once and then kept live, so the Widget -> Element chain for an item must be
+evaluated exactly once. "Once" is per context, because each context keeps its
+own table, so a delegate runs again in another window or in a second
+evaluation of the same signal; a side effect there would repeat, or be missed,
+depending on how the signal is evaluated. A `Collection` item signal keeps its
+last value when its item is already gone, where the vector `forEach` throws,
+because a description built from a collection may be instantiated after the
+item was erased.
+
 ## `Collection` is iterated only through `items()` and `values()`
 
 A `Collection` snapshot, view or transaction is not a range and has no
