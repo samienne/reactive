@@ -30,8 +30,18 @@
 > is now `WindowImpl` (see `docs/decisions.md`) — but none of that changes the
 > `ArraySignal` reasoning below, which describes the reverted experiment.
 
-*Last verified against `77e391f` (2026-07-22), amended for the `App` revert and
-the later window-handle rework.*
+> **The `Collection` / `DataSource` / `dataBind` pipeline is gone.** `Collection`
+> moved to `bq` as a generational snapshot container whose ids are minted by the
+> collection (`src/bq/include/bq/signal/collection.h`), with its own keyed
+> `forEach(collection, delegate(value, id))` (`collectionsignal.h`); `dataBind`,
+> `DataSource` and `dataSourceFromCollection` were deleted. That reverses the
+> *No container-assigned item identity* position below for `Collection` (not for
+> `SharedVector`, which still assigns none) — see `docs/decisions.md`. The
+> sections below that describe the old `bqui` types are the reasoning of the
+> time, not a description of the tree.
+
+*Last verified against `77e391f` (2026-07-22), amended for the `App` revert, the
+later window-handle rework, and the `Collection` move.*
 
 ## The problem
 

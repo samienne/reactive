@@ -1,6 +1,7 @@
 # bq — agent notes
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `d2e8954` (2026-07-13); the Collection section against
+`a202cea` (2026-09-27).*
 
 Internals, entry points, and traps for the reactive core. Concepts and usage are
 in `readme.md`; project-wide conventions are in the top-level `docs/`. This file
@@ -67,6 +68,10 @@ copy for a new node's per-context state.
   record, and the parts still outstanding, are in `docs/design/arraysignal.md`.
   `scatter`'s aggregate is positional and only its arity is checked; what that
   does and does not catch is in the design record.
+- A list whose items carry container-minted ids: `Collection<T>`
+  (`bq/signal/collection.h`), read through `snapshotSignal`, `generationSignal`
+  and `forEach(collection, delegate(value, id))` (`bq/signal/collectionsignal.h`).
+  See *Collection* below.
 - Streams: `pipe` (`bq/stream/pipe.h`) → `{handle, stream}`, `handle.push`;
   `iterate` (`bq/stream/iterate.h`) folds a stream into a signal; `collect`.
 
@@ -74,6 +79,34 @@ copy for a new node's per-context state.
 yet, in namespace `bq::signal::detail`. Currently `pick.h`: `shareKeyed`, `pick`
 and `requirePresent`, the groundwork for `ArraySignal` — see
 `docs/design/arraysignal.md`.
+
+## Collection
+
+- **Snapshots, not events.** The container holds one
+  `shared_ptr<CollectionSnapshot const>`; readers `atomic_load` it and never take
+  the write lock. A write transaction (`Range`) copies the item-pointer vector on
+  its first mutation, stamps every touched item with `generation + 1`, and on
+  release `atomic_store`s one new snapshot, unlocks, and only then runs the
+  `onChange` callbacks. A transaction that mutates nothing publishes nothing.
+- **Ids come from a per-collection counter**, not addresses, so an erased id is
+  never handed to a new item. They are unique within one collection only.
+- **One snapshot per collection per frame per context.** Every signal over a
+  collection resolves `detail::CollectionFrame<T>` from the `DataContext`, keyed
+  by the collection's `getId()` (a `makeUniqueId()`, so it cannot collide with
+  other entries). The first signal to reach it in a newer `FrameInfo` frame loads
+  the latest snapshot; the rest of that pass reuse it, including signals
+  initialized mid-pass. The frame entry holds the `onChange` registration that
+  fires the context's `ObserveControl`, so the wake lives exactly as long as
+  some signal over the collection does in that context.
+- **Change detection is per signal instance.** Each instance keeps the
+  generation it last saw, so a signal initialized mid-frame does not inherit a
+  sibling's `didChange`. An item signal additionally compares the item's own
+  generation, so updating one item never reports a change for the others; a
+  reorder or insert changes membership (the `forEach` array) but no item signal.
+- `forEach` keys the generic `detail::ArrayOnce` on the item id and hands the
+  delegate a `detail::CollectionItemSignal` seeded with the item as it was when
+  built, which it falls back to if the item is gone by the time another context
+  initializes it.
 
 ## Traps
 
