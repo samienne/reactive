@@ -28,7 +28,7 @@ namespace
             Collection<std::string> const& collection)
     {
         std::vector<std::uint64_t> ids;
-        for (auto const& item : collection.read())
+        for (auto const& item : collection.read().items())
             ids.push_back(item.id);
 
         return ids;
@@ -109,7 +109,7 @@ TEST(collectionSignal, buildsOncePerIdentityAndFollowsMembership)
 
     {
         auto transaction = items.write();
-        transaction.move(transaction.findId(idA), transaction.begin());
+        transaction.move(transaction.findId(idA), transaction.items().begin());
     }
     c.update(FrameInfo(3, {}));
     EXPECT_EQ((std::vector<std::uint64_t>{ idA, idB }),
@@ -218,7 +218,8 @@ TEST(collectionSignal, itemSignalsDidChangeOnlyForTheirItem)
     // A reorder or an insert is not a change of either item.
     {
         auto transaction = items.write();
-        transaction.swap(transaction.begin(), transaction.begin() + 1);
+        auto const all = transaction.items();
+        transaction.swap(all.begin(), all.begin() + 1);
         transaction.pushBack("c");
     }
     c.update(FrameInfo(2, {}));
@@ -244,7 +245,7 @@ TEST(collectionSignal, oneTransactionIsOneChange)
         auto transaction = items.write();
         for (int i = 0; i < 10; ++i)
             transaction.pushBack(i);
-        transaction.update(transaction.begin(), 100);
+        transaction.update(transaction.items().begin(), 100);
     }
 
     c.update(FrameInfo(1, {}));
@@ -285,10 +286,10 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
         {
             auto const& snapshot = c.evaluate<0>().get<0>();
             EXPECT_EQ(snapshot, c.evaluate<3>().get<0>());
-            EXPECT_EQ(snapshot->generation, c.evaluate<2>().get<0>());
+            EXPECT_EQ(snapshot->generation(), c.evaluate<2>().get<0>());
 
             std::vector<Built> expected;
-            for (auto const& item : snapshot->items)
+            for (auto const& item : snapshot->items())
                 expected.emplace_back(item.id, *item.value);
 
             EXPECT_EQ(expected, c.evaluate<1>().get<0>());
@@ -300,7 +301,7 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     {
         auto transaction = items.write();
         transaction.pushFront("c");
-        transaction.update(transaction.begin() + 1, "a2");
+        transaction.update(transaction.items().begin() + 1, "a2");
     }
 
     *armed = true;
@@ -308,12 +309,12 @@ TEST(collectionSignal, oneContextSeesOneSnapshotPerFrame)
     EXPECT_FALSE(*armed);
     EXPECT_EQ(3u, items.generation());
     expectAgree();
-    EXPECT_EQ(2u, c.evaluate<0>().get<0>()->generation);
+    EXPECT_EQ(2u, c.evaluate<0>().get<0>()->generation());
 
     // The intruding generation arrives at the next frame, for all of them.
     c.update(FrameInfo(2, {}));
     expectAgree();
-    EXPECT_EQ(3u, c.evaluate<0>().get<0>()->generation);
+    EXPECT_EQ(3u, c.evaluate<0>().get<0>()->generation());
     EXPECT_EQ(4u, c.evaluate<1>().get<0>().size());
 
     items.write().sort();
@@ -356,7 +357,7 @@ TEST(collectionSignal, lateSubscriberSharesTheFrameSnapshot)
     EXPECT_TRUE(c.didChange<0>());
     ASSERT_TRUE(c.evaluate<1>().get<0>());
     EXPECT_EQ(c.evaluate<0>().get<0>(), c.evaluate<1>().get<0>());
-    EXPECT_EQ(2u, c.evaluate<1>().get<0>()->generation);
+    EXPECT_EQ(2u, c.evaluate<1>().get<0>()->generation());
 
     c.update(FrameInfo(2, {}));
     EXPECT_FALSE(c.didChange<0>());
@@ -366,6 +367,22 @@ TEST(collectionSignal, lateSubscriberSharesTheFrameSnapshot)
     c.update(FrameInfo(3, {}));
     EXPECT_TRUE(c.didChange<1>());
     EXPECT_EQ(c.evaluate<0>().get<0>(), c.evaluate<1>().get<0>());
+}
+
+// The ranges of a snapshot taken from the signal keep that snapshot alive
+// after the context, the signal and the collection are gone.
+TEST(collectionSignal, snapshotRangesOutliveTheSignal)
+{
+    Collection<std::string>::Snapshot::Values values = []()
+        {
+            auto items = makeCollection({ "a", "b" });
+            auto c = makeSignalContext(snapshotSignal(items));
+            return c.evaluate<0>().get<0>()->values();
+        }();
+
+    EXPECT_EQ(2u, values.size());
+    EXPECT_EQ((std::vector<std::string>{ "a", "b" }),
+            std::vector<std::string>(values.begin(), values.end()));
 }
 
 // A publish wakes an observing context, and the snapshot a context holds lives
@@ -421,9 +438,9 @@ TEST(collectionSignal, signalsAgreeUnderConcurrentMutation)
                 auto transaction = items.write();
                 transaction.pushBack(std::to_string(i));
                 if (transaction.size() > 8)
-                    transaction.erase(transaction.begin());
+                    transaction.erase(transaction.items().begin());
                 if (i % 3 == 0)
-                    transaction.update(transaction.begin(),
+                    transaction.update(transaction.items().begin(),
                             "u" + std::to_string(i));
             }
             done = true;
@@ -435,7 +452,7 @@ TEST(collectionSignal, signalsAgreeUnderConcurrentMutation)
         {
             auto const& snapshot = c.evaluate<0>().get<0>();
             std::vector<Built> expected;
-            for (auto const& item : snapshot->items)
+            for (auto const& item : snapshot->items())
                 expected.emplace_back(item.id, *item.value);
 
             return expected == c.evaluate<1>().get<0>()

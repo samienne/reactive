@@ -116,7 +116,7 @@ bqui::widget::AnyWidget adder()
                     {
                         auto transaction = items.write();
                         auto i = transaction.findId(id);
-                        if (i != transaction.end())
+                        if (i != transaction.items().end())
                         {
                             transaction.update(i, std::move(str));
                         }
@@ -126,9 +126,9 @@ bqui::widget::AnyWidget adder()
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto transaction = items.write();
                         auto i = transaction.findId(id);
-                        if (i != transaction.end())
+                        if (i != transaction.items().end())
                         {
-                            transaction.move(i, transaction.begin());
+                            transaction.move(i, transaction.items().begin());
                         }
                     }))
                 ,
@@ -147,8 +147,8 @@ bqui::widget::AnyWidget adder()
                             auto j = transaction.findId(*swapState);
                             *swapState = 0;
 
-                            if (i != transaction.end()
-                                    && j != transaction.end())
+                            if (i != transaction.items().end()
+                                    && j != transaction.items().end())
                             {
                                 transaction.swap(i, j);
                             }

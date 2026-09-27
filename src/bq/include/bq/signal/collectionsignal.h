@@ -36,10 +36,11 @@ namespace bq::signal
             {
                 if (!index)
                 {
+                    auto const items = snapshot->items();
                     index.emplace();
-                    index->reserve(snapshot->items.size());
-                    for (std::size_t i = 0; i != snapshot->items.size(); ++i)
-                        index->emplace(snapshot->items[i].id, i);
+                    index->reserve(items.size());
+                    for (std::size_t i = 0; i != items.size(); ++i)
+                        index->emplace(items[i].id, i);
                 }
 
                 auto i = index->find(id);
@@ -49,7 +50,7 @@ namespace bq::signal
             CollectionItem<T> const* find(std::uint64_t id)
             {
                 std::size_t const* i = findIndex(id);
-                return i ? &snapshot->items[*i] : nullptr;
+                return i ? &snapshot->items()[*i] : nullptr;
             }
 
             std::uint64_t frameId = 0;
@@ -143,8 +144,8 @@ namespace bq::signal
             {
                 acquireCollectionFrame(context, collection_, frame);
 
-                bool const changed = data.frame->snapshot->generation
-                    != data.snapshot->generation;
+                bool const changed = data.frame->snapshot->generation()
+                    != data.snapshot->generation();
                 if (changed)
                     data.snapshot = data.frame->snapshot;
 
@@ -191,7 +192,7 @@ namespace bq::signal
                 if (!item)
                     item = &initial_;
 
-                auto const generation = entry->snapshot->generation;
+                auto const generation = entry->snapshot->generation();
                 return { entry, generation, item->generation, item->value };
             }
 
@@ -207,10 +208,10 @@ namespace bq::signal
                 acquireCollectionFrame(context, collection_, frame);
 
                 auto const& snapshot = *data.frame->snapshot;
-                if (snapshot.generation == data.snapshotGeneration)
+                if (snapshot.generation() == data.snapshotGeneration)
                     return { false };
 
-                data.snapshotGeneration = snapshot.generation;
+                data.snapshotGeneration = snapshot.generation();
 
                 auto item = data.frame->find(initial_.id);
                 if (!item || item->generation == data.itemGeneration)
@@ -268,7 +269,7 @@ namespace bq::signal
 
         return snapshotSignal(collection).map([](SnapshotPtr const& snapshot)
                 {
-                    return snapshot->generation;
+                    return snapshot->generation();
                 });
     }
 
@@ -298,7 +299,8 @@ namespace bq::signal
         AnySignal<std::vector<Item>> items = snapshotSignal(collection).map(
                 [](SnapshotPtr const& snapshot)
                 {
-                    return snapshot->items;
+                    auto const all = snapshot->items();
+                    return std::vector<Item>(all.begin(), all.end());
                 });
 
         auto build = [collection, delegate=std::move(delegate)](

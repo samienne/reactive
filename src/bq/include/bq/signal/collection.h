@@ -39,7 +39,16 @@ namespace bq::signal
     };
 
     template <typename T>
-    struct CollectionSnapshot;
+    class Collection;
+
+    template <typename T>
+    class CollectionSnapshot;
+
+    template <typename TIterator, typename THolder>
+    class CollectionItems;
+
+    template <typename TIterator, typename THolder>
+    class CollectionValues;
 
     /**
      * @brief Iterates the items of a collection snapshot or transaction.
@@ -73,7 +82,8 @@ namespace bq::signal
         reference operator[](difference_type amount) const
         {
             assert(owner_);
-            return itemsOf(*owner_)[static_cast<std::size_t>(index_ + amount)];
+            return owner_->itemVector()[
+                static_cast<std::size_t>(index_ + amount)];
         }
 
         CollectionIterator& operator++()
@@ -166,23 +176,13 @@ namespace bq::signal
     private:
         friend std::remove_const_t<TOwner>;
 
+        template <typename TIterator, typename THolder>
+        friend class CollectionItems;
+
         CollectionIterator(TOwner* owner, difference_type index) :
             owner_(owner),
             index_(index)
         {
-        }
-
-        static std::vector<CollectionItem<T>> const& itemsOf(TOwner& owner)
-        {
-            if constexpr (std::is_same_v<std::remove_const_t<TOwner>,
-                    CollectionSnapshot<T>>)
-            {
-                return owner.items;
-            }
-            else
-            {
-                return owner.items();
-            }
         }
 
         TOwner* owner_ = nullptr;
@@ -193,8 +193,8 @@ namespace bq::signal
      * @brief Iterates the values of a collection's items.
      *
      * A random access iterator yielding 'T const&', over the positions of the
-     * item iterator 'TIterator' it adapts. It converts to that iterator, so a
-     * transaction's mutations accept it too.
+     * item iterator 'TIterator' it adapts. base() is the item iterator at
+     * the same position; the two kinds do not convert or compare implicitly.
      */
     template <typename TIterator>
     class CollectionValueIterator
@@ -324,89 +324,240 @@ namespace bq::signal
             return iter_;
         }
 
-        operator TIterator() const
-        {
-            return iter_;
-        }
-
     private:
         TIterator iter_{};
     };
 
     /**
-     * @brief The values of a range of collection items, as a range.
+     * @brief The items of a collection snapshot or transaction, as a range.
      *
-     * Valid only as long as the snapshot, view or transaction it was made
-     * from; a mutation through that transaction invalidates it.
+     * Yields 'CollectionItem<T> const&'. A range from a snapshot or a view
+     * shares ownership of the snapshot: the range and its iterators stay
+     * valid while the range or a copy of it is alive. A range from a
+     * transaction is valid only as long as the transaction, and its
+     * iterators follow the transaction's invalidation rules.
      */
-    template <typename TIterator>
-    class CollectionValues
+    template <typename TIterator, typename THolder>
+    class CollectionItems
     {
     public:
-        using Iterator = CollectionValueIterator<TIterator>;
-
-        CollectionValues(TIterator begin, TIterator end) :
-            begin_(std::move(begin)),
-            end_(std::move(end))
-        {
-        }
+        using Iterator = TIterator;
+        using ReverseIterator = std::reverse_iterator<Iterator>;
 
         Iterator begin() const
         {
-            return Iterator(begin_);
+            return Iterator(&*owner_, 0);
         }
 
         Iterator end() const
         {
-            return Iterator(end_);
+            return Iterator(&*owner_, static_cast<std::ptrdiff_t>(size()));
+        }
+
+        ReverseIterator rbegin() const
+        {
+            return ReverseIterator(end());
+        }
+
+        ReverseIterator rend() const
+        {
+            return ReverseIterator(begin());
         }
 
         std::size_t size() const
         {
-            return static_cast<std::size_t>(end_ - begin_);
+            return owner_->itemVector().size();
+        }
+
+        bool empty() const
+        {
+            return size() == 0;
         }
 
         typename Iterator::reference operator[](std::size_t index) const
         {
-            return begin()[static_cast<std::ptrdiff_t>(index)];
+            return owner_->itemVector()[index];
         }
 
     private:
-        TIterator begin_;
-        TIterator end_;
+        template <typename T>
+        friend class CollectionSnapshot;
+
+        template <typename T>
+        friend class Collection;
+
+        friend class CollectionValues<TIterator, THolder>;
+
+        explicit CollectionItems(THolder owner) :
+            owner_(std::move(owner))
+        {
+        }
+
+        THolder owner_;
     };
 
     /**
-     * @brief The immutable contents of a collection as of one generation.
+     * @brief The values of a collection snapshot or transaction, as a range.
      *
-     * Held through a 'std::shared_ptr<CollectionSnapshot<T> const>'; a holder
-     * keeps it alive and unchanged regardless of later writes. Iterating a
-     * snapshot yields its items; values() yields just their values.
+     * Yields 'T const&', and otherwise behaves as CollectionItems, including
+     * its lifetime rules.
      */
-    template <typename T>
-    struct CollectionSnapshot
+    template <typename TIterator, typename THolder>
+    class CollectionValues
     {
-        using Iterator = CollectionIterator<T, CollectionSnapshot const>;
-        using Values = CollectionValues<Iterator>;
+    public:
+        using Iterator = CollectionValueIterator<TIterator>;
+        using ReverseIterator = std::reverse_iterator<Iterator>;
 
         Iterator begin() const
         {
-            return Iterator(this, 0);
+            return Iterator(items_.begin());
         }
 
         Iterator end() const
         {
-            return Iterator(this,
-                    static_cast<std::ptrdiff_t>(items.size()));
+            return Iterator(items_.end());
+        }
+
+        ReverseIterator rbegin() const
+        {
+            return ReverseIterator(end());
+        }
+
+        ReverseIterator rend() const
+        {
+            return ReverseIterator(begin());
+        }
+
+        std::size_t size() const
+        {
+            return items_.size();
+        }
+
+        bool empty() const
+        {
+            return items_.empty();
+        }
+
+        typename Iterator::reference operator[](std::size_t index) const
+        {
+            return *items_[index].value;
+        }
+
+    private:
+        template <typename T>
+        friend class CollectionSnapshot;
+
+        template <typename T>
+        friend class Collection;
+
+        explicit CollectionValues(THolder owner) :
+            items_(std::move(owner))
+        {
+        }
+
+        CollectionItems<TIterator, THolder> items_;
+    };
+
+    namespace detail
+    {
+        template <typename TIterator>
+        TIterator findCollectionId(TIterator begin, TIterator end,
+                std::uint64_t id)
+        {
+            return std::find_if(begin, end, [id](auto const& item)
+                    {
+                        return item.id == id;
+                    });
+        }
+    } // namespace detail
+
+    /**
+     * @brief The immutable contents of a collection as of one generation.
+     *
+     * Exists only behind the 'std::shared_ptr<CollectionSnapshot<T> const>'
+     * a collection hands out; a holder keeps it alive and unchanged
+     * regardless of later writes. items() and values() share that
+     * ownership.
+     */
+    template <typename T>
+    class CollectionSnapshot :
+        public std::enable_shared_from_this<CollectionSnapshot<T>>
+    {
+        struct Key
+        {
+            explicit Key() = default;
+        };
+
+    public:
+        using Item = CollectionItem<T>;
+        using Iterator = CollectionIterator<T, CollectionSnapshot const>;
+        using Items = CollectionItems<Iterator,
+                std::shared_ptr<CollectionSnapshot const>>;
+        using Values = CollectionValues<Iterator,
+                std::shared_ptr<CollectionSnapshot const>>;
+        using ValueIterator = typename Values::Iterator;
+
+        CollectionSnapshot(Key, std::uint64_t generation,
+                std::vector<Item> items) :
+            generation_(generation),
+            items_(std::move(items))
+        {
+        }
+
+        CollectionSnapshot(CollectionSnapshot const&) = delete;
+        CollectionSnapshot& operator=(CollectionSnapshot const&) = delete;
+
+        std::uint64_t generation() const
+        {
+            return generation_;
+        }
+
+        Items items() const
+        {
+            return Items(this->shared_from_this());
         }
 
         Values values() const
         {
-            return Values(begin(), end());
+            return Values(this->shared_from_this());
         }
 
-        std::uint64_t generation;
-        std::vector<CollectionItem<T>> items;
+        std::size_t size() const
+        {
+            return items_.size();
+        }
+
+        bool empty() const
+        {
+            return items_.empty();
+        }
+
+        /**
+         * @brief The item with 'id', or the end of items() if there is none.
+         *
+         * Valid while the snapshot is alive.
+         */
+        Iterator findId(std::uint64_t id) const
+        {
+            return detail::findCollectionId(Iterator(this, 0),
+                    Iterator(this, static_cast<std::ptrdiff_t>(size())), id);
+        }
+
+    private:
+        template <typename U>
+        friend class Collection;
+
+        friend Iterator;
+        friend Items;
+
+        std::vector<Item> const& itemVector() const
+        {
+            return items_;
+        }
+
+        std::uint64_t generation_;
+        std::vector<Item> items_;
     };
 
     /**
@@ -428,6 +579,9 @@ namespace bq::signal
      * latest published snapshot; while a transaction is open they keep
      * returning the one before it.
      *
+     * Snapshots, views and transactions are not ranges themselves: iterate
+     * their items() or their values().
+     *
      * Every item has an id, never reused by this collection, which an update
      * keeps. Ids are unique within one collection only.
      */
@@ -438,11 +592,12 @@ namespace bq::signal
         using Item = CollectionItem<T>;
         using Snapshot = CollectionSnapshot<T>;
         using SnapshotPtr = std::shared_ptr<Snapshot const>;
-        using Items = std::vector<Item>;
 
         using ChangeCallback = std::function<void(std::uint64_t generation)>;
 
     private:
+        using ItemVector = std::vector<Item>;
+
         struct Control;
 
     public:
@@ -450,15 +605,15 @@ namespace bq::signal
          * @brief Read access to one snapshot.
          *
          * Holds no lock. The snapshot it was made from stays alive and
-         * unchanged for the view's lifetime. Iterating a view yields the
-         * items; values() yields just their values.
+         * unchanged for the view's lifetime, and for that of the ranges
+         * made from it, which may outlive the view.
          */
         class View
         {
         public:
             using Iterator = typename Snapshot::Iterator;
-            using ReverseIterator = std::reverse_iterator<Iterator>;
-            using Values = CollectionValues<Iterator>;
+            using Items = typename Snapshot::Items;
+            using Values = typename Snapshot::Values;
             using ValueIterator = typename Values::Iterator;
 
             explicit View(SnapshotPtr snapshot) :
@@ -466,49 +621,35 @@ namespace bq::signal
             {
             }
 
-            Iterator begin() const
+            Items items() const
             {
-                return snapshot_->begin();
+                return snapshot_->items();
             }
 
-            Iterator end() const
-            {
-                return snapshot_->end();
-            }
-
-            ReverseIterator rbegin() const
-            {
-                return ReverseIterator(end());
-            }
-
-            ReverseIterator rend() const
-            {
-                return ReverseIterator(begin());
-            }
-
-            Values values() const&
+            Values values() const
             {
                 return snapshot_->values();
             }
 
-            Values values() && = delete;
-
             std::size_t size() const
             {
-                return snapshot_->items.size();
+                return snapshot_->size();
             }
 
-            Item const& operator[](std::size_t index) const
+            bool empty() const
             {
-                return snapshot_->items[index];
+                return snapshot_->empty();
             }
 
             /**
-             * @brief The item with 'id', or end() if there is none.
+             * @brief The item with 'id', or the end of items() if there is
+             * none.
+             *
+             * Valid while the snapshot is alive.
              */
             Iterator findId(std::uint64_t id) const
             {
-                return Collection::findId(begin(), end(), id);
+                return snapshot_->findId(id);
             }
 
             /**
@@ -534,8 +675,9 @@ namespace bq::signal
          * discards its changes instead. A moved-from transaction does
          * nothing.
          *
-         * Iterating a transaction yields the items; values() yields just
-         * their values. Its iterators name positions: insert and erase
+         * items() and values() are valid only as long as the transaction,
+         * so neither is available on an rvalue. Their iterators name
+         * positions, and the mutations take either kind: insert and erase
          * invalidate those at or after the position they change, the other
          * mutations invalidate none, and moving the transaction invalidates
          * all of them. 'iter_swap(a, b)' on its iterators, found by
@@ -545,8 +687,8 @@ namespace bq::signal
         {
         public:
             using Iterator = CollectionIterator<T, Transaction>;
-            using ReverseIterator = std::reverse_iterator<Iterator>;
-            using Values = CollectionValues<Iterator>;
+            using Items = CollectionItems<Iterator, Transaction*>;
+            using Values = CollectionValues<Iterator, Transaction*>;
             using ValueIterator = typename Values::Iterator;
 
             Transaction(Transaction const&) = delete;
@@ -559,59 +701,48 @@ namespace bq::signal
                 release();
             }
 
-            Iterator begin()
+            Items items() &
             {
-                return Iterator(this, 0);
+                return Items(this);
             }
 
-            Iterator end()
-            {
-                return Iterator(this, static_cast<std::ptrdiff_t>(size()));
-            }
-
-            ReverseIterator rbegin()
-            {
-                return ReverseIterator(end());
-            }
-
-            ReverseIterator rend()
-            {
-                return ReverseIterator(begin());
-            }
+            Items items() && = delete;
 
             Values values() &
             {
-                return Values(begin(), end());
+                return Values(this);
             }
 
             Values values() && = delete;
 
             std::size_t size() const
             {
-                return items().size();
+                return itemVector().size();
             }
 
-            Item const& operator[](std::size_t index) const
+            bool empty() const
             {
-                return items()[index];
+                return itemVector().empty();
             }
 
             /**
-             * @brief The item with 'id', or end() if there is none.
+             * @brief The item with 'id', or the end of items() if there is
+             * none.
              */
             Iterator findId(std::uint64_t id)
             {
-                return Collection::findId(begin(), end(), id);
+                auto const all = items();
+                return detail::findCollectionId(all.begin(), all.end(), id);
             }
 
             void pushBack(T value)
             {
-                insert(end(), std::move(value));
+                insert(items().end(), std::move(value));
             }
 
             void pushFront(T value)
             {
-                insert(begin(), std::move(value));
+                insert(items().begin(), std::move(value));
             }
 
             /**
@@ -632,6 +763,12 @@ namespace bq::signal
                 return position;
             }
 
+            ValueIterator insert(ValueIterator position, T value)
+            {
+                return ValueIterator(insert(position.base(),
+                            std::move(value)));
+            }
+
             /**
              * @brief Replaces the value of the item at 'position', keeping
              * its id.
@@ -641,12 +778,12 @@ namespace bq::signal
              */
             void update(Iterator position, T value)
             {
-                assert(position != end());
                 auto const index = indexOf(position);
+                assert(index < size());
 
                 if constexpr (btl::IsEqualityComparable<T>::value)
                 {
-                    if (*items()[index].value == value)
+                    if (*itemVector()[index].value == value)
                         return;
                 }
 
@@ -657,13 +794,23 @@ namespace bq::signal
                 dirty_ = true;
             }
 
+            void update(ValueIterator position, T value)
+            {
+                update(position.base(), std::move(value));
+            }
+
             void erase(Iterator position)
             {
-                assert(position != end());
                 auto const index = indexOf(position);
+                assert(index < size());
                 auto& items = working();
                 items.erase(items.begin() + index);
                 dirty_ = true;
+            }
+
+            void erase(ValueIterator position)
+            {
+                erase(position.base());
             }
 
             /**
@@ -672,7 +819,7 @@ namespace bq::signal
             void eraseWithId(std::uint64_t id)
             {
                 auto i = findId(id);
-                if (i != end())
+                if (i != items().end())
                     erase(i);
             }
 
@@ -681,27 +828,33 @@ namespace bq::signal
              */
             void swap(Iterator a, Iterator b)
             {
-                assert(a != end() && b != end());
-                if (a == b)
-                    return;
-
                 auto const indexA = indexOf(a);
                 auto const indexB = indexOf(b);
+                assert(indexA < size() && indexB < size());
+                if (indexA == indexB)
+                    return;
+
                 auto& items = working();
                 std::swap(items[indexA], items[indexB]);
                 dirty_ = true;
             }
 
+            void swap(ValueIterator a, ValueIterator b)
+            {
+                swap(a.base(), b.base());
+            }
+
             /**
              * @brief Moves the item at 'from' so that it ends up at the
-             * position 'to' names; 'end()' moves it last.
+             * position 'to' names; the end of items() moves it last.
              */
             void move(Iterator from, Iterator to)
             {
-                assert(from != end());
-
                 auto const f = indexOf(from);
-                auto const t = to == end() ? size() - 1 : indexOf(to);
+                assert(f < size());
+
+                auto const t = indexOf(to) == size() ? size() - 1
+                    : indexOf(to);
                 if (f == t)
                     return;
 
@@ -713,6 +866,11 @@ namespace bq::signal
                     std::rotate(first + f, first + f + 1, first + t + 1);
 
                 dirty_ = true;
+            }
+
+            void move(ValueIterator from, ValueIterator to)
+            {
+                move(from.base(), to.base());
             }
 
             /**
@@ -727,7 +885,7 @@ namespace bq::signal
                         return compare(*a.value, *b.value);
                     };
 
-                Items const& current = items();
+                ItemVector const& current = itemVector();
                 if (std::is_sorted(current.begin(), current.end(), byValue))
                     return;
 
@@ -743,19 +901,20 @@ namespace bq::signal
 
             friend void iter_swap(ValueIterator a, ValueIterator b)
             {
-                ownerOf(a).swap(a, b);
+                ownerOf(a.base()).swap(a, b);
             }
 
         private:
             friend class Collection;
 
             friend Iterator;
+            friend Items;
 
             explicit Transaction(std::shared_ptr<Control> control) :
                 control_(std::move(control)),
                 lock_(control_->writeMutex),
                 published_(control_->load()),
-                generation_(published_->generation + 1),
+                generation_(published_->generation() + 1),
                 uncaughtExceptions_(std::uncaught_exceptions())
             {
             }
@@ -766,23 +925,24 @@ namespace bq::signal
                 return *position.owner_;
             }
 
-            Items const& items() const
+            ItemVector const& itemVector() const
             {
                 if (working_)
-                    return working_->items;
+                    return working_->items_;
 
-                return published_->items;
+                return published_->items_;
             }
 
-            Items& working()
+            ItemVector& working()
             {
                 if (!working_)
                 {
-                    working_ = std::make_shared<Snapshot>(Snapshot{
-                            generation_, published_->items });
+                    working_ = std::make_shared<Snapshot>(
+                            typename Snapshot::Key(), generation_,
+                            published_->items_);
                 }
 
-                return working_->items;
+                return working_->items_;
             }
 
             std::size_t indexOf(Iterator const& position) const
@@ -857,7 +1017,7 @@ namespace bq::signal
          */
         std::uint64_t generation() const
         {
-            return snapshot()->generation;
+            return snapshot()->generation();
         }
 
         /**
@@ -892,16 +1052,6 @@ namespace bq::signal
         static std::shared_ptr<T const> makeValue(T value)
         {
             return std::make_shared<T>(std::move(value));
-        }
-
-        template <typename TIterator>
-        static TIterator findId(TIterator begin, TIterator end,
-                std::uint64_t id)
-        {
-            return std::find_if(begin, end, [id](Item const& item)
-                    {
-                        return item.id == id;
-                    });
         }
 
         struct Callback
@@ -991,8 +1141,8 @@ namespace bq::signal
             btl::UniqueId const id = makeUniqueId();
             std::mutex writeMutex;
             std::uint64_t nextItemId = 1;
-            SnapshotPtr current =
-                std::make_shared<Snapshot const>(Snapshot{ 0, {} });
+            SnapshotPtr current = std::make_shared<Snapshot>(
+                    typename Snapshot::Key(), 0, ItemVector());
 
             std::mutex callbackMutex;
             std::shared_ptr<Callbacks const> callbacks =
