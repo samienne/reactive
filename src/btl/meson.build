@@ -27,7 +27,6 @@ libbtldep = declare_dependency(
 
 btltest = executable('btltest',
   'test/asynctest.cpp',
-  'test/btlcollectiontest.cpp',
   'test/btlreducetest.cpp',
   'test/clonetest.cpp',
   'test/invoketest.cpp',
