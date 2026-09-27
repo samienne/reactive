@@ -161,11 +161,10 @@ and `requirePresent`, the groundwork for `ArraySignal` — see
   even found by ADL. Build a no-input signal as a `constant` instead. The
   principled fix would be a `signal<void>` identity element for `merge` — see
   `docs/decisions.md`.
-- **Open an animation guard before a collection transaction.** A transaction
-  publishes when it is destroyed, and bqui's `withAnimation` guard animates only
-  what is published before it ends, so write
-  `auto a = withAnimation(...); auto tx = items.write();`; declared the other
-  way round, the change lands after the guard and is not animated.
+- **Open a scope guard before a collection transaction.** A transaction
+  publishes when it is destroyed, so a guard that must contain the publish
+  (such as an animation scope) has to be declared first; declared the other
+  way round, the change lands after the guard ends.
 
 For cross-cutting rules (the `Any` = type-erasure convention, the include-dir
 firewall, symbol visibility) see `docs/conventions.md`; do not restate them here.

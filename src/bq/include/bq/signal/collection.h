@@ -989,10 +989,9 @@ namespace bq::signal
         /**
          * @brief Opens a write transaction.
          *
-         * The change is published when the transaction ends, so a scope that
-         * must contain the publish, such as bqui's withAnimation() guard,
-         * has to be opened first:
-         * 'auto a = withAnimation(...); auto tx = items.write();'.
+         * The change is published when the transaction ends, so a scope
+         * guard that must contain the publish has to be opened before the
+         * transaction.
          */
         Transaction write()
         {
