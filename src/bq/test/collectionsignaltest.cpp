@@ -524,3 +524,49 @@ TEST(collectionSignal, aPublishRacingTheFirstReadWakesTheContext)
         EXPECT_EQ(items.generation(), c.evaluate<0>().get<0>());
     }
 }
+
+namespace
+{
+    struct NoEq
+    {
+        int value;
+    };
+} // namespace
+
+// Item signals detect an update by generation, so values need no operator==,
+// and one with an ill-formed operator== is never instantiated.
+TEST(collectionSignal, updatesReachItemsWithoutComparingValues)
+{
+    using Value = std::vector<NoEq>;
+
+    Collection<Value> items;
+    items.write().pushBack(Value{ NoEq{ 1 } });
+
+    auto array = forEach(items,
+            [](AnySignal<Value> value, std::uint64_t)
+            {
+                return value;
+            });
+
+    auto elements = makeSignalContext(array.elements());
+    auto const& built = elements.evaluate<0>().get<0>();
+    ASSERT_EQ(1u, built.size());
+
+    auto c = makeSignalContext(built[0].value);
+    EXPECT_EQ(1, c.evaluate<0>().get<0>().front().value);
+
+    {
+        auto transaction = items.write();
+        transaction.update(transaction.items().begin(), Value{ NoEq{ 1 } });
+    }
+    c.update(FrameInfo(1, {}));
+    EXPECT_TRUE(c.didChange<0>());
+
+    {
+        auto transaction = items.write();
+        transaction.update(transaction.items().begin(), Value{ NoEq{ 2 } });
+    }
+    c.update(FrameInfo(2, {}));
+    EXPECT_TRUE(c.didChange<0>());
+    EXPECT_EQ(2, c.evaluate<0>().get<0>().front().value);
+}

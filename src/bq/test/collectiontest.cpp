@@ -579,7 +579,6 @@ TEST(collection, noOpMutationsPublishNothing)
         transaction.swap(items.begin(), items.begin());
         transaction.move(items.begin() + 2, items.end());
         transaction.move(items.begin() + 1, items.begin() + 1);
-        transaction.update(items.begin() + 1, "b");
         transaction.sort();
     }
 
@@ -587,22 +586,117 @@ TEST(collection, noOpMutationsPublishNothing)
     EXPECT_EQ(0, notified);
 }
 
-TEST(collection, updatingAValueWithoutEqualityIsAChange)
+namespace
 {
-    struct Opaque
+    struct NoEq
     {
         int value;
     };
 
-    Collection<Opaque> collection;
-    collection.write().pushBack(Opaque{ 1 });
+    // Has operator== declared for any T, but instantiating it does not
+    // compile for 'std::vector<NoEq>'.
+    using IllFormedEq = std::vector<NoEq>;
 
+    template <typename T>
+    void expectEveryUpdateIsAChange(T first, T second)
+    {
+        Collection<T> collection;
+        collection.write().pushBack(first);
+
+        int notified = 0;
+        auto connection = collection.onChange([&notified](std::uint64_t)
+                {
+                    ++notified;
+                });
+
+        auto const before = collection.snapshot();
+        {
+            auto transaction = collection.write();
+            transaction.update(transaction.items().begin(), second);
+        }
+
+        EXPECT_EQ(2u, collection.generation());
+        EXPECT_EQ(1, notified);
+        EXPECT_EQ(2u, collection.snapshot()->items()[0].generation);
+        EXPECT_EQ(before->items()[0].id, collection.snapshot()->items()[0].id);
+        EXPECT_NE(before->items()[0].value,
+                collection.snapshot()->items()[0].value);
+    }
+} // namespace
+
+TEST(collection, updateIsAlwaysAChange)
+{
+    expectEveryUpdateIsAChange(1, 1);
+    expectEveryUpdateIsAChange(NoEq{ 1 }, NoEq{ 1 });
+    expectEveryUpdateIsAChange(IllFormedEq{ NoEq{ 1 } },
+            IllFormedEq{ NoEq{ 2 } });
+
+    Collection<IllFormedEq> collection;
     {
         auto transaction = collection.write();
-        transaction.update(transaction.items().begin(), Opaque{ 1 });
+        transaction.pushBack({ NoEq{ 1 }, NoEq{ 2 } });
+        transaction.update(transaction.items().begin(), { NoEq{ 3 } });
     }
 
-    EXPECT_EQ(2u, collection.generation());
+    auto const values = collection.read().values();
+    ASSERT_EQ(1u, values.size());
+    ASSERT_EQ(1u, values[0].size());
+    EXPECT_EQ(3, values[0][0].value);
+}
+
+namespace
+{
+    // Sorts a descending list with a comparator that throws part-way through,
+    // catches that inside the transaction, then appends an item.
+    void throwInsideSort(bool changedFirst)
+    {
+        Collection<int> collection;
+        std::vector<int> expected;
+        {
+            auto transaction = collection.write();
+            for (int i = 50; i > 0; --i)
+            {
+                transaction.pushBack(i);
+                expected.push_back(i);
+            }
+        }
+
+        {
+            auto transaction = collection.write();
+            if (changedFirst)
+            {
+                transaction.pushBack(0);
+                expected.push_back(0);
+            }
+
+            int calls = 0;
+            EXPECT_THROW(transaction.sort([&calls](int a, int b)
+                        {
+                            if (++calls > 10)
+                                throw std::runtime_error("compare");
+
+                            return a < b;
+                        }),
+                    std::runtime_error);
+
+            transaction.pushBack(100);
+            expected.push_back(100);
+        }
+
+        EXPECT_EQ(2u, collection.generation());
+        for (auto const& item : collection.snapshot()->items())
+            ASSERT_TRUE(item.value);
+
+        EXPECT_EQ(expected, values(collection));
+    }
+} // namespace
+
+// A comparator that throws, caught inside the transaction, leaves the items as
+// they were before the sort, for the transaction's later mutations to build on.
+TEST(collection, aThrowingSortChangesNothing)
+{
+    throwInsideSort(false);
+    throwInsideSort(true);
 }
 
 TEST(collection, iteratorsAreRandomAccess)

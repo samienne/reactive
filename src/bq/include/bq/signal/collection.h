@@ -3,7 +3,6 @@
 #include "datacontext.h"
 
 #include <btl/connection.h>
-#include <btl/typetraits.h>
 #include <btl/uniqueid.h>
 
 #include <algorithm>
@@ -751,6 +750,7 @@ namespace bq::signal
             Iterator insert(Iterator position, T value)
             {
                 auto const index = indexOf(position);
+                assert(index <= size());
                 Item item{
                     control_->nextItemId++,
                     generation_,
@@ -773,19 +773,12 @@ namespace bq::signal
              * @brief Replaces the value of the item at 'position', keeping
              * its id.
              *
-             * If T is equality comparable, replacing a value with an equal
-             * one is not a change.
+             * Always a change, even if the new value equals the old one.
              */
             void update(Iterator position, T value)
             {
                 auto const index = indexOf(position);
                 assert(index < size());
-
-                if constexpr (btl::IsEqualityComparable<T>::value)
-                {
-                    if (*itemVector()[index].value == value)
-                        return;
-                }
 
                 auto newValue = makeValue(std::move(value));
                 auto& item = working()[index];
@@ -851,10 +844,10 @@ namespace bq::signal
             void move(Iterator from, Iterator to)
             {
                 auto const f = indexOf(from);
-                assert(f < size());
+                auto const target = indexOf(to);
+                assert(f < size() && target <= size());
 
-                auto const t = indexOf(to) == size() ? size() - 1
-                    : indexOf(to);
+                auto const t = target == size() ? size() - 1 : target;
                 if (f == t)
                     return;
 
@@ -889,8 +882,22 @@ namespace bq::signal
                 if (std::is_sorted(current.begin(), current.end(), byValue))
                     return;
 
-                auto& items = working();
-                std::stable_sort(items.begin(), items.end(), byValue);
+                // Sorted aside, so a throwing comparator leaves the items
+                // as they were.
+                ItemVector sorted = current;
+                std::stable_sort(sorted.begin(), sorted.end(), byValue);
+
+                if (working_)
+                {
+                    working_->items_.swap(sorted);
+                }
+                else
+                {
+                    working_ = std::make_shared<Snapshot>(
+                            typename Snapshot::Key(), generation_,
+                            std::move(sorted));
+                }
+
                 dirty_ = true;
             }
 
