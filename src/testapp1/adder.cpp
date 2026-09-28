@@ -109,10 +109,11 @@ bqui::widget::AnyWidget adder()
             (bq::signal::AnySignal<std::string> value, std::uint64_t id)
                 -> widget::AnyWidget
             {
+                // GCC 10/11 capture a plain [items] here as const.
                 return widget::hbox({
                 widget::button("U",
                     textInputSignal.bindFirst(
-                    [items, id] (std::string str) mutable
+                    [items = items, id] (std::string str) mutable
                     {
                         auto transaction = items.write();
                         auto i = transaction.findId(id);
@@ -121,7 +122,7 @@ bqui::widget::AnyWidget adder()
                             transaction.update(i, std::move(str));
                         }
                     })),
-                widget::button("T", bq::signal::constant([items, id]() mutable
+                widget::button("T", bq::signal::constant([items = items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         auto transaction = items.write();
@@ -133,7 +134,7 @@ bqui::widget::AnyWidget adder()
                     }))
                 ,
                 widget::button("S", bq::signal::constant(
-                    [items, id, swapState]() mutable
+                    [items = items, id, swapState]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         if (*swapState == 0)
@@ -159,7 +160,7 @@ bqui::widget::AnyWidget adder()
                 ,
                 widget::hfiller()
                 ,
-                widget::button("x", bq::signal::constant([id, items]() mutable
+                widget::button("x", bq::signal::constant([id, items = items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
                         items.write().eraseWithId(id);
