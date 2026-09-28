@@ -1,3 +1,4 @@
+#include <bqui/modifier/handlegravity.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
@@ -1208,4 +1209,39 @@ TEST(Layout, hboxListsOverOneCollectionKeepTheirOwnChildren)
 
     EXPECT_EQ(3 * perChild, *leftBuilds);
     EXPECT_EQ(3 * perChild, *rightBuilds);
+}
+
+TEST(Layout, handleGravityEvaluatesTheSizeHintOncePerPass)
+{
+    auto evaluations = std::make_shared<int>(0);
+    auto input = bq::signal::makeInput(avg::Vector2f(50.0f, 30.0f));
+
+    auto hint = input.signal.map([evaluations](avg::Vector2f size) -> SizeHint
+            {
+                ++*evaluations;
+
+                return simpleSizeHint(size.x(), size.y());
+            });
+
+    AnyWidget widget = makeWidget()
+        | modifier::setSizeHint(std::move(hint))
+        | modifier::handleGravity()
+        ;
+
+    auto instanceSignal = std::move(widget)(BuildParams())(
+            bq::signal::constant(avg::Vector2f(100.0f, 100.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    int const afterInit = *evaluations;
+
+    input.handle.set(avg::Vector2f(40.0f, 20.0f));
+    context.update(nextFrame(1));
+
+    EXPECT_EQ(afterInit + 1, *evaluations);
+
+    Instance const& instance = context.evaluate<0>().get<0>();
+    EXPECT_FLOAT_EQ(40.0f, instance.getSize()[0]);
+    EXPECT_FLOAT_EQ(20.0f, instance.getSize()[1]);
 }
