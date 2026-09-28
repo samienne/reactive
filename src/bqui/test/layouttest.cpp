@@ -607,6 +607,45 @@ TEST(Layout, mapObbsFitsNonMonotonicHintsInTheContainer)
     EXPECT_FLOAT_EQ(100.0f, obbs[1].getSize()[0]);
 }
 
+// The aggregate is read the way getSizes reads the children, so at its own
+// natural width the box can give the second child its natural 50.
+TEST(Layout, hboxAggregatesNonMonotonicHintsAsItAllocates)
+{
+    ProbeSet probes;
+
+    Children children;
+    children.push_back(probes.add(
+                SizeHintResult{{ 100.0f, 0.0f, 100.0f }},
+                fixed50
+                ));
+    children.push_back(probes.add(
+                SizeHintResult{{ 0.0f, 50.0f, 50.0f }},
+                fixed50
+                ));
+
+    auto builder = hbox(std::move(children))(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(100.0f, width[0]);
+    EXPECT_FLOAT_EQ(150.0f, width[1]);
+    EXPECT_FLOAT_EQ(150.0f, width[2]);
+
+    std::vector<SizeHint> hints {
+        simpleSizeHint(SizeHintResult{{ 100.0f, 0.0f, 100.0f }}, fixed50),
+        simpleSizeHint(SizeHintResult{{ 0.0f, 50.0f, 50.0f }}, fixed50)
+    };
+
+    auto obbs = mapObbs<Axis::x>(avg::Vector2f(width[1], 50.0f), hints);
+
+    ASSERT_EQ(2u, obbs.size());
+
+    EXPECT_FLOAT_EQ(100.0f, obbs[0].getSize()[0]);
+    EXPECT_FLOAT_EQ(50.0f, obbs[1].getSize()[0]);
+}
+
 // A maximum below the minimum does not pull a child below its minimum. The
 // minimums below total exactly the size, so each child is given its minimum.
 TEST(Layout, getSizesKeepsTheMinimumAboveASmallerMaximum)
