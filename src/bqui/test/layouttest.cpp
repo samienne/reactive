@@ -334,6 +334,33 @@ bq::signal::FrameInfo nextFrame(uint64_t frameId)
     return bq::signal::FrameInfo(frameId, std::chrono::microseconds(0));
 }
 
+/**
+ * @brief A size hint that records the size it was last queried at.
+ *
+ * Its height for a width and its width for a height are the size queried.
+ */
+struct QueryRecordingHint
+{
+    SizeHintResult getWidth() const
+    {
+        return fillHint;
+    }
+
+    SizeHintResult getHeightForWidth(float width) const
+    {
+        *queried = width;
+        return {{ width, width, width }};
+    }
+
+    SizeHintResult getWidthForHeight(float height) const
+    {
+        *queried = height;
+        return {{ height, height, height }};
+    }
+
+    std::shared_ptr<float> queried;
+};
+
 } // anonymous namespace
 
 TEST(Layout, hboxDistributesFillerSpace)
@@ -768,12 +795,9 @@ TEST(Layout, uniformGridPlacesCellsFromTheBottomLeft)
     expectGeometry("top row", geometries[2], 0.0f, 50.0f, 200.0f, 50.0f);
 }
 
-// Pins current behaviour rather than asserting correctness: the container hint
-// scales the aggregate by the grid dimensions alone and never looks at a
-// child's cell span. The child below spans the whole 2x2 grid and so receives
-// the container's full size, yet the container asks for twice what the child
-// wants on both axes.
-TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
+// The child below spans the whole 2x2 grid and so receives the container's
+// full size, so the container asks for exactly what the child wants.
+TEST(Layout, uniformGridSizeHintAccountsForCellSpans)
 {
     ProbeSet probes;
 
@@ -790,14 +814,79 @@ TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
     SizeHint const& hint = context.evaluate<0>().get<0>();
 
     SizeHintResult width = hint.getWidth();
-    EXPECT_FLOAT_EQ(20.0f, width[0]);
-    EXPECT_FLOAT_EQ(40.0f, width[1]);
-    EXPECT_FLOAT_EQ(60.0f, width[2]);
+    EXPECT_FLOAT_EQ(10.0f, width[0]);
+    EXPECT_FLOAT_EQ(20.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
 
     SizeHintResult height = hint.getHeightForWidth(40.0f);
-    EXPECT_FLOAT_EQ(10.0f, height[0]);
-    EXPECT_FLOAT_EQ(20.0f, height[1]);
-    EXPECT_FLOAT_EQ(30.0f, height[2]);
+    EXPECT_FLOAT_EQ(5.0f, height[0]);
+    EXPECT_FLOAT_EQ(10.0f, height[1]);
+    EXPECT_FLOAT_EQ(15.0f, height[2]);
+}
+
+// Each child's hint is spread over the cells it spans, and the grid needs the
+// largest per-cell share on every cell. The row below wants 30 across two
+// columns, 15 a column, which outweighs the 10 of the single cell under it.
+TEST(Layout, uniformGridSizeHintTakesTheLargestShareOfACell)
+{
+    ProbeSet probes;
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probes.add(
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }},
+                    SizeHintResult{{ 40.0f, 40.0f, 40.0f }}
+                    ))
+        .cell(0, 1, 2, 1, probes.add(
+                    SizeHintResult{{ 30.0f, 30.0f, 30.0f }},
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }}
+                    ))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(30.0f, width[0]);
+    EXPECT_FLOAT_EQ(30.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
+
+    // Rows are the other way round: the single cell's 40 outweighs the row's
+    // 10, so each of the two rows needs 40.
+    SizeHintResult height = hint.getHeightForWidth(30.0f);
+    EXPECT_FLOAT_EQ(80.0f, height[0]);
+    EXPECT_FLOAT_EQ(80.0f, height[1]);
+    EXPECT_FLOAT_EQ(80.0f, height[2]);
+}
+
+// A child spanning two of three columns is asked for its height at two thirds
+// of the grid's width, and likewise for rows.
+TEST(Layout, uniformGridQueriesAChildAtTheSizeOfItsSpan)
+{
+    auto queried = std::make_shared<float>(0.0f);
+
+    AnyWidget child = makeWidget()
+        | modifier::setSizeHint(bq::signal::constant(
+                    SizeHint(QueryRecordingHint{ queried })))
+        ;
+
+    AnyWidget grid = uniformGrid(3, 3)
+        .cell(0, 0, 2, 2, std::move(child))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult height = hint.getHeightForWidth(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, height[1]);
+
+    SizeHintResult width = hint.getWidthForHeight(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, width[1]);
 }
 
 TEST(Layout, nestedBoxesComposeTransforms)
