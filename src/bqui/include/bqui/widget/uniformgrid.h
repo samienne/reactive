@@ -2,7 +2,7 @@
 
 #include "widget.h"
 
-#include "bq/bqvisibility.h"
+#include "bqui/bquivisibility.h"
 
 namespace bqui::widget
 {
