@@ -1,5 +1,5 @@
 name: "lw build and test"
-description: "Create a throwaway lw profile for a configuration set, build it, then run its tests."
+description: "Create a throwaway lw profile for a configuration set, build every target, then run its tests."
 
 inputs:
   set:
@@ -27,9 +27,13 @@ runs:
 
         # --local: the profile is this runner's own and must never reach the
         # shared loomworks.json.
-        lw --no-input profile create "$LW_SET" "$LW_TOOL" --local
+        ./lw.sh --no-input profile create "$LW_SET" "$LW_TOOL" --local
 
-        lw --no-input test "$profile" --junit junit.xml -- --num-processes "$LW_TEST_JOBS"
+        # `lw test` builds only what the tests need; build everything first so
+        # the demo apps are compiled on every leg too.
+        ./lw.sh --no-input build "$profile"
+
+        ./lw.sh --no-input test "$profile" --junit junit.xml -- --num-processes "$LW_TEST_JOBS"
 
     - name: Upload test results
       if: always()
