@@ -700,12 +700,9 @@ TEST(Layout, uniformGridPlacesCellsFromTheBottomLeft)
     expectGeometry("top row", geometries[2], 0.0f, 50.0f, 200.0f, 50.0f);
 }
 
-// Pins current behaviour rather than asserting correctness: the container hint
-// scales the aggregate by the grid dimensions alone and never looks at a
-// child's cell span. The child below spans the whole 2x2 grid and so receives
-// the container's full size, yet the container asks for twice what the child
-// wants on both axes.
-TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
+// The child below spans the whole 2x2 grid and so receives the container's
+// full size, so the container asks for exactly what the child wants.
+TEST(Layout, uniformGridSizeHintAccountsForCellSpans)
 {
     ProbeSet probes;
 
@@ -722,14 +719,50 @@ TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
     SizeHint const& hint = context.evaluate<0>().get<0>();
 
     SizeHintResult width = hint.getWidth();
-    EXPECT_FLOAT_EQ(20.0f, width[0]);
-    EXPECT_FLOAT_EQ(40.0f, width[1]);
-    EXPECT_FLOAT_EQ(60.0f, width[2]);
+    EXPECT_FLOAT_EQ(10.0f, width[0]);
+    EXPECT_FLOAT_EQ(20.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
 
     SizeHintResult height = hint.getHeightForWidth(40.0f);
-    EXPECT_FLOAT_EQ(10.0f, height[0]);
-    EXPECT_FLOAT_EQ(20.0f, height[1]);
-    EXPECT_FLOAT_EQ(30.0f, height[2]);
+    EXPECT_FLOAT_EQ(5.0f, height[0]);
+    EXPECT_FLOAT_EQ(10.0f, height[1]);
+    EXPECT_FLOAT_EQ(15.0f, height[2]);
+}
+
+// Each child's hint is spread over the cells it spans, and the grid needs the
+// largest per-cell share on every cell. The row below wants 30 across two
+// columns, 15 a column, which outweighs the 10 of the single cell under it.
+TEST(Layout, uniformGridSizeHintTakesTheLargestShareOfACell)
+{
+    ProbeSet probes;
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probes.add(
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }},
+                    SizeHintResult{{ 40.0f, 40.0f, 40.0f }}
+                    ))
+        .cell(0, 1, 2, 1, probes.add(
+                    SizeHintResult{{ 30.0f, 30.0f, 30.0f }},
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }}
+                    ))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(30.0f, width[0]);
+    EXPECT_FLOAT_EQ(30.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
+
+    // Rows are the other way round: the single cell's 40 outweighs the row's
+    // 10, so each of the two rows needs 40.
+    SizeHintResult height = hint.getHeightForWidth(30.0f);
+    EXPECT_FLOAT_EQ(80.0f, height[0]);
+    EXPECT_FLOAT_EQ(80.0f, height[1]);
+    EXPECT_FLOAT_EQ(80.0f, height[2]);
 }
 
 TEST(Layout, nestedBoxesComposeTransforms)

@@ -2,7 +2,6 @@
 
 #include "bqui/widget/layout.h"
 
-#include "bqui/mapsizehint.h"
 #include "bqui/stacksizehint.h"
 
 namespace bqui::widget
@@ -23,33 +22,69 @@ auto UniformGrid::cell(unsigned int x, unsigned int y,
     return std::move(*this);
 }
 
-auto multiplySizeHint(SizeHint const& sizeHint, float x, float y) -> SizeHint
+namespace
 {
-    return mapSizeHint(sizeHint,
-            [x](SizeHintResult result) -> SizeHintResult
-            {
-                return {{ result[0] * x, result[1] * x, result[2] * x }};
-            },
-            [y](SizeHintResult result, float) -> SizeHintResult
-            {
-                return {{ result[0] * y, result[1] * y, result[2] * y }};
-            },
-            [x](SizeHintResult result, float) -> SizeHintResult
-            {
-                return {{ result[0] * x, result[1] * x, result[2] * x }};
-            }
-            );
+
+SizeHintResult scaleResult(SizeHintResult result, float factor)
+{
+    return {{ result[0] * factor, result[1] * factor, result[2] * factor }};
 }
+
+/**
+ * @brief The hint of an area @p x by @p y times the size of the one @p hint
+ * describes.
+ */
+struct ScaledSizeHint
+{
+    SizeHintResult getWidth() const
+    {
+        return scaleResult(hint.getWidth(), x);
+    }
+
+    SizeHintResult getHeightForWidth(float width) const
+    {
+        return scaleResult(hint.getHeightForWidth(width / x), y);
+    }
+
+    SizeHintResult getWidthForHeight(float height) const
+    {
+        return scaleResult(hint.getWidthForHeight(height / y), x);
+    }
+
+    SizeHint hint;
+    float x;
+    float y;
+};
+
+} // anonymous namespace
 
 UniformGrid::operator AnyWidget() &&
 {
     return makeWidget([](auto widgets, auto cells,
                 unsigned int w, unsigned int h)
         {
-            auto mapHints = [w, h](std::vector<SizeHint> const& hints)
+            auto mapHints = [w, h, cells](std::vector<SizeHint> const& hints)
                 -> SizeHint
             {
-                return multiplySizeHint(stackSizeHints(hints), (float)w, (float)h);
+                std::vector<SizeHint> perCell;
+                perCell.reserve(hints.size());
+
+                for (size_t i = 0; i < hints.size(); ++i)
+                {
+                    auto const& cell = cells[i];
+
+                    // A child with no cells to span is given no room and so
+                    // asks nothing of the grid.
+                    if (cell.w == 0 || cell.h == 0)
+                        continue;
+
+                    perCell.push_back(ScaledSizeHint{ hints[i],
+                            1.0f / (float)cell.w,
+                            1.0f / (float)cell.h });
+                }
+
+                return ScaledSizeHint{ stackSizeHints(std::move(perCell)),
+                    (float)w, (float)h };
             };
 
             auto mapObbs = [w, h, cells](ase::Vector2f size,
