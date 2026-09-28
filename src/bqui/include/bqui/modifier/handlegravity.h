@@ -36,8 +36,11 @@ namespace bqui::modifier
                     return { finalWidth, height };
                 }).share();
 
-            auto offset = merge(innerSize, std::move(outerSize),
-                    builder.getGravity()).map(
+            auto offset = merge(
+                    innerSize,
+                    std::move(outerSize),
+                    builder.getGravity()
+                    ).map(
                     [](avg::Vector2f innerSize, avg::Vector2f outerSize,
                         avg::Vector2f gravity)
                     -> avg::Transform

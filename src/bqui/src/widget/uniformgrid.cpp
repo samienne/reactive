@@ -38,8 +38,7 @@ SizeHintResult scaleResult(SizeHintResult result, float factor)
 }
 
 /**
- * @brief The hint of an area @p x by @p y times the size of the one @p hint
- * describes.
+ * @brief The hint scaled by x horizontally and y vertically.
  */
 struct ScaledSizeHint
 {
@@ -85,13 +84,18 @@ UniformGrid::operator AnyWidget() &&
                     if (cell.w == 0 || cell.h == 0)
                         continue;
 
-                    perCell.push_back(ScaledSizeHint{ hints[i],
+                    perCell.push_back(ScaledSizeHint{
+                            hints[i],
                             1.0f / (float)cell.w,
-                            1.0f / (float)cell.h });
+                            1.0f / (float)cell.h
+                            });
                 }
 
-                return ScaledSizeHint{ stackSizeHints(std::move(perCell)),
-                    (float)w, (float)h };
+                return ScaledSizeHint{
+                    stackSizeHints(std::move(perCell)),
+                    (float)w,
+                    (float)h
+                    };
             };
 
             auto mapObbs = [w, h, cells](ase::Vector2f size,

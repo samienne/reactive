@@ -1078,9 +1078,6 @@ TEST(Layout, dynamicHboxBuildsEachChildOncePerIdentity)
     EXPECT_EQ(3 * perChild, *builds);
 }
 
-// handleGravity() reads the hint once and hands the size it negotiates to both
-// the child and the offset that aligns it, so the hint is evaluated once per
-// pass rather than once per consumer.
 TEST(Layout, handleGravityEvaluatesTheSizeHintOncePerPass)
 {
     auto evaluations = std::make_shared<int>(0);
