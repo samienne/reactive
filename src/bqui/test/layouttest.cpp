@@ -306,6 +306,33 @@ bq::signal::FrameInfo nextFrame(uint64_t frameId)
     return bq::signal::FrameInfo(frameId, std::chrono::microseconds(0));
 }
 
+/**
+ * @brief A size hint that records the size it was last queried at.
+ *
+ * Its height for a width and its width for a height are the size queried.
+ */
+struct QueryRecordingHint
+{
+    SizeHintResult getWidth() const
+    {
+        return fillHint;
+    }
+
+    SizeHintResult getHeightForWidth(float width) const
+    {
+        *queried = width;
+        return {{ width, width, width }};
+    }
+
+    SizeHintResult getWidthForHeight(float height) const
+    {
+        *queried = height;
+        return {{ height, height, height }};
+    }
+
+    std::shared_ptr<float> queried;
+};
+
 } // anonymous namespace
 
 TEST(Layout, hboxDistributesFillerSpace)
@@ -803,6 +830,35 @@ TEST(Layout, uniformGridSizeHintTakesTheLargestShareOfACell)
     EXPECT_FLOAT_EQ(80.0f, height[0]);
     EXPECT_FLOAT_EQ(80.0f, height[1]);
     EXPECT_FLOAT_EQ(80.0f, height[2]);
+}
+
+// A child spanning two of three columns is asked for its height at two thirds
+// of the grid's width, and likewise for rows.
+TEST(Layout, uniformGridQueriesAChildAtTheSizeOfItsSpan)
+{
+    auto queried = std::make_shared<float>(0.0f);
+
+    AnyWidget child = makeWidget()
+        | modifier::setSizeHint(bq::signal::constant(
+                    SizeHint(QueryRecordingHint{ queried })))
+        ;
+
+    AnyWidget grid = uniformGrid(3, 3)
+        .cell(0, 0, 2, 2, std::move(child))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult height = hint.getHeightForWidth(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, height[1]);
+
+    SizeHintResult width = hint.getWidthForHeight(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, width[1]);
 }
 
 TEST(Layout, uniformGridRejectsAnEmptyDimension)
