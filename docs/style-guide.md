@@ -11,6 +11,9 @@ should be shaped. Where a rule has a *why* or a mechanism, it points at
 
 - Follow `.clang-format` (Allman braces, 80-column limit, one argument per line
   when a call wraps, expanded lambdas). Match the surrounding code.
+- Brace the body of an `if`, `else`, `for` or `while` whenever it spans more
+  than one line, including a nested control statement or a wrapped call. Only a
+  single-line body may go without braces.
 - To force a fluent chain or a template-argument list to break one-per-line
   where clang-format would otherwise pack it, end each element with a trailing
   empty `//` comment. These comments are load-bearing — keep them. (Mechanism:

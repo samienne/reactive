@@ -79,7 +79,15 @@ still reads its props and can be added again with a fresh widget.
 list, or a title that counts — but that signal reports the collection, it does
 not drive it.
 
-Signal changes made inside a `withAnimation` scope are animated.
+Signal changes made inside a `withAnimation` scope are animated. A `bq`
+collection publishes when its write transaction ends, so open the animation
+first and the transaction inside it:
+
+```cpp
+auto animation = withAnimation(0.3f, avg::curve::linear);
+auto transaction = items.write();
+transaction.pushFront("new");
+```
 
 ## Layout (of the source)
 

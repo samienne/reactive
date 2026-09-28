@@ -37,6 +37,53 @@ A **constant** never changes, which is handy wherever a signal is expected:
 auto title = bq::signal::constant<std::string>("hello");
 ```
 
+## Collections - lists of items with identity
+
+A **collection** is a shared, mutable list whose every item has an id that
+survives updates and reorderings. Changes are made in a write transaction; each
+transaction publishes one immutable snapshot, however many edits it made:
+
+```cpp
+#include <bq/signal/collection.h>
+#include <bq/signal/collectionsignal.h>
+
+bq::signal::Collection<std::string> todos;
+{
+    auto transaction = todos.write();
+    transaction.pushBack("write docs");
+    transaction.pushBack("ship it");
+}   // one new snapshot published here
+```
+
+`forEach` builds something once per item and hands it the item's value as a
+signal, so editing an item updates what was built for it instead of rebuilding
+it. A delegate that also takes a second argument is handed the item's id too:
+
+```cpp
+auto labels = forEach(todos,
+    [](bq::signal::AnySignal<std::string> text)
+    {
+        return bq::signal::AnySignal<std::string>(
+            text.map([](std::string const& t) { return "- " + t; }));
+    });
+```
+
+If an exception leaves the transaction's scope, its edits are discarded and
+nothing is published. Reading never waits for a writer: `todos.read()` returns
+a view of the latest published snapshot.
+
+A snapshot, a view or a transaction is not iterated directly: `items()` yields
+the items, each with its id, and `values()` yields just the values. The ranges
+of a view keep its snapshot alive, so they can be used straight off `read()`:
+
+```cpp
+for (auto const& item : todos.read().items())
+    std::cout << item.id << ": " << *item.value << '\n';
+
+for (auto const& text : todos.read().values())
+    std::cout << text << '\n';
+```
+
 ## Streams — events over time
 
 A **stream** carries discrete events; every value pushed into it is delivered
@@ -65,7 +112,7 @@ auto total = bq::stream::iterate(
 ## Layout
 
 - `bq/signal/` — signals and their combinators (`makeInput`, `constant`, `map`,
-  `merge`, and more).
+  `merge`, and more), and the state containers `Collection` and `SharedVector`.
 - `bq/stream/` — streams (`pipe`, `iterate`, `collect`).
 
 For how signals are represented and evaluated internally, and the traps to know

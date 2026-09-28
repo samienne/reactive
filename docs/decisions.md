@@ -1,9 +1,77 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17).*
+*Last verified against `7429b35` (2026-08-17); the `Collection` entry against
+`9726f65` (2026-09-27).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## `forEach` delegates take the value first; the key is optional
+
+A `forEach` delegate takes the item's value signal first and its key (a
+`Collection` item's id) second, and may take only the value.
+
+**Why:** the plain form is then the keyed form minus its trailing argument.
+The value is what a delegate works with; the key is a construction-time extra
+that most delegates do not need.
+
+## `forEach` builds each item's description once; delegates have no side effects
+
+`forEach` is the public way to turn a list into per-item results; `map`,
+`scatter` and `forEach` share one internal build-once-per-key node
+(`detail::ArrayOnce`). A delegate runs once per item identity per signal
+context and returns a live description, such as a widget, whose later changes
+arrive only through the signals it captured: the item's value signal, never a
+re-run. The item passed at build time is only a construction argument.
+Delegates must be free of side effects.
+
+**Why:** widgets, builders and elements are descriptions over signals, built
+once and then kept live, so the Widget -> Element chain for an item must be
+evaluated exactly once. "Once" is per context, because each context keeps its
+own table, so a delegate runs again in another window or in a second
+evaluation of the same signal; a side effect there would repeat, or be missed,
+depending on how the signal is evaluated. A `Collection` item signal keeps its
+last value when its item is already gone, where the vector `forEach` throws,
+because a description built from a collection may be instantiated after the
+item was erased.
+
+## `Collection` is iterated only through `items()` and `values()`
+
+A `Collection` snapshot, view or transaction is not a range and has no
+`operator[]`; iterating or indexing goes explicitly through `items()` or
+`values()`.
+
+**Why:** an item is both an id-carrying `CollectionItem` and a value, and
+neither is the obvious element. Making the caller name the one it wants keeps a
+loop or an index from silently picking the other.
+
+## Mutating standard algorithms do not work on a `Collection`
+
+Items and values are immutable, so `std::sort`, `std::reverse` and the like do
+not compile on a transaction's ranges; the transaction's own mutations, such as
+`sort` and `swap`, are the way to reorder.
+
+**Why:** routing an algorithm's writes through the transaction would need a
+proxy reference type, which a random access iterator may not have before C++20.
+
+## `Collection` publishes generational snapshots and mints its own item ids
+
+`Collection<T>` lives in `bq` and is a sequence of immutable snapshots: a write
+transaction publishes one snapshot with one new generation when it ends (or
+nothing, if it made no change or an exception left its scope), and readers load
+the latest snapshot without the write lock. Item ids are minted by the
+collection.
+
+**Why:** a snapshot is a complete state that existed, so every consumer sees a
+coherent list, and sharing one snapshot per frame keeps two views of one
+collection in one context in agreement. The previous `bqui` `Collection` used
+heap addresses as ids, which a reused allocation could hand to a new item.
+Container-minted ids are kept, against the `SharedVector` position that identity
+should come from content (`docs/design/arraysignal.md`, *No container-assigned
+item identity*), because a list whose items the user edits in place otherwise
+needs an application-minted id in every element to keep its widgets. An update
+is always a change, never compared with the old value, so values need not be
+comparable; signals detect changes by item generation.
 
 ## Per-window backpressure is a non-blocking readiness gate, not a blocking wait
 

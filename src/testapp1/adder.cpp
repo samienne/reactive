@@ -17,22 +17,44 @@
 #include <bqui/widget/hbox.h>
 
 #include <bqui/theme.h>
-#include <bqui/datasourcefromcollection.h>
-#include <bqui/datasource.h>
 #include <bqui/withanimation.h>
-#include <bqui/databind.h>
 
+#include <bq/signal/arraysignal.h>
+#include <bq/signal/collection.h>
+#include <bq/signal/collectionsignal.h>
+#include <bq/signal/constant.h>
 #include <bq/signal/signal.h>
 
 #include <avg/curve/curves.h>
 #include <avg/rendertree.h>
 
+#include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 using namespace bqui;
 
 namespace
 {
+    using KeyedWidgets = std::vector<std::pair<size_t, widget::AnyWidget>>;
+
+    template <typename T, typename TDelegate>
+    bq::signal::AnySignal<KeyedWidgets> keyedWidgets(
+            bq::signal::Collection<T> const& items, TDelegate delegate)
+    {
+        using Keyed = KeyedWidgets::value_type;
+
+        return bq::signal::join(bq::signal::forEach(items,
+                    [delegate=std::move(delegate)](
+                        bq::signal::AnySignal<T> value, std::uint64_t id)
+                    {
+                        return bq::signal::AnySignal<Keyed>(
+                                bq::signal::constant(Keyed(id,
+                                        delegate(std::move(value), id))));
+                    }));
+    }
+
     widget::AnyWidget itemEntry(
             bq::signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
@@ -66,46 +88,49 @@ namespace
 
 bqui::widget::AnyWidget adder()
 {
-    Collection<std::string> items;
+    bq::signal::Collection<std::string> items;
 
     {
-        auto range = items.rangeLock();
+        auto transaction = items.write();
 
-        range.pushBack("test 1");
-        range.pushBack("test 2");
-        range.pushBack("test 3");
-        range.pushBack("test 4");
+        transaction.pushBack("test 1");
+        transaction.pushBack("test 2");
+        transaction.pushBack("test 3");
+        transaction.pushBack("test 4");
     }
 
     auto textInput = bq::signal::makeInput<std::string>("");
 
-    auto swapState = std::make_shared<size_t>();
+    auto swapState = std::make_shared<std::uint64_t>();
 
-    auto widgets = dataBind<std::string>(
-            dataSourceFromCollection(items),
+    auto widgets = keyedWidgets(
+            items,
             [items, textInputSignal=std::move(textInput.signal), swapState]
-            (bq::signal::AnySignal<std::string> value, size_t id) mutable -> widget::AnyWidget
+            (bq::signal::AnySignal<std::string> value, std::uint64_t id)
+                -> widget::AnyWidget
             {
                 return widget::hbox({
                 widget::button("U",
                     textInputSignal.bindFirst(
                     [items, id] (std::string str) mutable
                     {
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
-                        if (i != range.end())
+                        auto transaction = items.write();
+                        auto i = transaction.findId(id);
+                        if (i != transaction.items().end())
                         {
-                            range.update(i, std::move(str));
+                            transaction.update(i, std::move(str));
                         }
                     })),
                 widget::button("T", bq::signal::constant([items, id]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
-                        auto range = items.rangeLock();
-                        auto i = range.findId(id);
-
-                        range.move(i, range.begin());
-                        }))
+                        auto transaction = items.write();
+                        auto i = transaction.findId(id);
+                        if (i != transaction.items().end())
+                        {
+                            transaction.move(i, transaction.items().begin());
+                        }
+                    }))
                 ,
                 widget::button("S", bq::signal::constant(
                     [items, id, swapState]() mutable
@@ -117,12 +142,16 @@ bqui::widget::AnyWidget adder()
                         }
                         else
                         {
-                            auto range = items.rangeLock();
-                            auto i = range.findId(id);
-                            auto j = range.findId(*swapState);
-
-                            range.swap(i, j);
+                            auto transaction = items.write();
+                            auto i = transaction.findId(id);
+                            auto j = transaction.findId(*swapState);
                             *swapState = 0;
+
+                            if (i != transaction.items().end()
+                                    && j != transaction.items().end())
+                            {
+                                transaction.swap(i, j);
+                            }
                         }
                     }))
                 ,
@@ -133,7 +162,7 @@ bqui::widget::AnyWidget adder()
                 widget::button("x", bq::signal::constant([id, items]() mutable
                     {
                         auto a = withAnimation(0.3f, avg::curve::linear);
-                        items.rangeLock().eraseWithId(id);
+                        items.write().eraseWithId(id);
                     }))
                 })
                 | modifier::transition(modifier::transitionLeft())
@@ -169,12 +198,12 @@ bqui::widget::AnyWidget adder()
             itemEntry(textInput.handle, [items](std::string text) mutable
                 {
                     auto a = withAnimation(0.3f, avg::curve::easeInCubic);
-                    items.rangeLock().pushFront(std::move(text));
+                    items.write().pushFront(std::move(text));
                 },
                 [items]() mutable
                 {
                     auto a = withAnimation(0.5f, avg::curve::easeInOutCubic);
-                    items.rangeLock().sort();
+                    items.write().sort();
                 }
                 ),
                 widget::hbox({
