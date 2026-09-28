@@ -115,6 +115,19 @@ another `&&`-qualified overload on it requires `std::move(*this)`. Forgetting
 this is a latent bug (see above): `return foo(...)` may need to be
 `return std::move(*this).foo(...)`.
 
+## A signal consumed twice duplicates everything behind it
+
+Consuming a signal from two places without a `.share()` between them
+instantiates and evaluates the whole chain behind it **once per consumer, per
+pass**. Treat that as a defect rather than a style preference: the values still
+agree, so nothing fails — the work is simply done twice, and anything stateful
+in the chain exists twice.
+
+Nothing catches it but reading the code — signals are freely copyable, so the
+compiler is no help. The surviving `.clone()` methods, and the habit of passing
+signals into widget-building functions as parameters rather than capturing them,
+are residue of an earlier move-only design (see `docs/decisions.md`).
+
 ## `merge()` has no zero-argument form
 
 `bq::signal::merge(...)` is variadic but does **not** support zero signals

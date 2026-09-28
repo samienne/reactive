@@ -1,7 +1,7 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` entry against
-`9726f65` (2026-09-27).*
+*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
+entries against `3ba9415` (2026-09-28).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -299,6 +299,17 @@ lets the unit tests cover drawing at all. The alternative — compiling ase's
 `dummy` back end alongside the real one to get a headless `Painter` — buys a
 whole headless *platform*, which is worth having on its own terms and is a
 separate concern; drawing does not need it.
+
+## Signals are copyable, not move-only
+
+`bq::signal` is freely copyable. It was once **move-only**, with an explicit
+`.clone()` to opt into copying, so a second consumer of a signal could not
+appear by accident.
+
+**Why the change:** move-only was too painful to write against. The cost is that
+accidental duplication of a signal chain (see `docs/conventions.md`) no longer
+fails to compile — only review catches it. The surviving `.clone()` methods and
+the parameter-passing habit are residue of the move-only era.
 
 ## bqui's type-erased classes use no `extern template`
 

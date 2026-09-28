@@ -33,7 +33,14 @@ namespace bqui::widget
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
             float prev = (i ? combined[i-1] : 0.0f);
-            float m = (size - prev) / (combined[i] - prev);
+            float span = combined[i] - prev;
+
+            // Empty interval (span 0): avoid the divide; the size either
+            // reaches it (1) or it does not (0).
+            float m = span != 0.0f
+                ? (size - prev) / span
+                : (size < prev ? 0.0f : 1.0f);
+
             multiplier[i] = std::max(0.0f, std::min(1.0f, m));
         }
 
@@ -102,7 +109,6 @@ namespace bqui::widget
                 : getLargestHint(xHints);
         }
 
-        //std::vector<SizeHint> const hints_;
         THints const hints_;
     };
 
@@ -111,13 +117,6 @@ namespace bqui::widget
         -> AccumulateSizeHint<dir, std::vector<SizeHint>>
     {
         return AccumulateSizeHint<dir, std::vector<SizeHint>>{std::move(hints)};
-    }
-
-    template <Axis dir, typename... Ts>
-    auto accumulateSizeHintsTuple(std::tuple<Ts...> hints)
-        -> AccumulateSizeHint<dir, std::tuple<Ts...>>
-    {
-        return AccumulateSizeHint<dir, std::tuple<Ts...>>{std::move(hints)};
     }
 
     template <Axis dir>
@@ -159,47 +158,6 @@ namespace bqui::widget
 
         return result;
     }
-
-    template <Axis dir>
-    struct MapObbs
-    {
-        template <typename TSizeHints>
-        auto operator()(ase::Vector2f size, TSizeHints const& hints2) const
-            -> std::vector<avg::Obb>
-        {
-            std::vector<SizeHint> hints;
-            btl::forEach(hints2, [&hints](auto&& hint)
-            {
-                hints.push_back(hint);
-            });
-
-            std::vector<avg::Vector2f> sizes = combineSizes<dir>(size, hints);
-
-            std::vector<avg::Obb> obbs;
-            obbs.reserve(hints.size());
-            float acc = dir == Axis::x ? 0.0f : size[1];
-
-            btl::forEach(std::move(sizes), [&acc, &obbs](auto&& size)
-            {
-                ase::Vector2f offset;
-                if (dir == Axis::x)
-                {
-                    offset = ase::Vector2f(acc, 0.0f);
-                    acc += size[0];
-                }
-                else
-                {
-                    acc -= size[1];
-                    offset = ase::Vector2f(0.0f, acc);
-                }
-
-                obbs.push_back(avg::Transform().translate(offset) *
-                        avg::Obb(size));
-            });
-
-            return obbs;
-        }
-    };
 
     template <Axis dir>
     auto mapObbs(ase::Vector2f size,
