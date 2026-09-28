@@ -8,8 +8,10 @@ namespace bqui::modifier
 {
     namespace {
         template <typename T, typename U>
-        auto handleGravityBuilderModifier(T&& builder, U&& outerSize)
+        auto handleGravityBuilderModifier(T&& builder, U&& size)
         {
+            auto outerSize = size.share();
+
             auto innerSize = merge(builder.getSizeHint(), outerSize).map(
                 [](SizeHint sizeHint, avg::Vector2f outerSize) -> avg::Vector2f
                 {
@@ -32,9 +34,10 @@ namespace bqui::modifier
                             std::max(finalWidthRequest[1], finalWidthRequest[2]));
 
                     return { finalWidth, height };
-                });
+                }).share();
 
-            auto offset = merge(innerSize, outerSize, builder.getGravity()).map(
+            auto offset = merge(innerSize, std::move(outerSize),
+                    builder.getGravity()).map(
                     [](avg::Vector2f innerSize, avg::Vector2f outerSize,
                         avg::Vector2f gravity)
                     -> avg::Transform
