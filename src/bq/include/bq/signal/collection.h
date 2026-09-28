@@ -1159,8 +1159,10 @@ namespace bq::signal
             {
                 auto result = std::make_shared<Callbacks>();
                 for (auto const& callback : *callbacks)
+                {
                     if (callback->connected)
                         result->push_back(callback);
+                }
 
                 return result;
             }

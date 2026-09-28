@@ -439,8 +439,10 @@ TEST(collectionSignal, signalsAgreeUnderConcurrentMutation)
                 if (transaction.size() > 8)
                     transaction.erase(transaction.items().begin());
                 if (i % 3 == 0)
+                {
                     transaction.update(transaction.items().begin(),
                             "u" + std::to_string(i));
+                }
             }
             done = true;
         });
