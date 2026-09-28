@@ -21,6 +21,24 @@ namespace bqui::widget
         return result;
     }
 
+    /**
+     * @brief Makes the entries of each hint non-negative and non-decreasing.
+     *
+     * A decreasing hint would otherwise take a negative share of an interval.
+     */
+    inline auto normaliseSizeHintResults(std::vector<SizeHintResult> hints)
+        -> std::vector<SizeHintResult>
+    {
+        for (auto& hint : hints)
+        {
+            hint[0] = std::max(0.0f, hint[0]);
+            hint[1] = std::max(hint[0], hint[1]);
+            hint[2] = std::max(hint[1], hint[2]);
+        }
+
+        return hints;
+    }
+
     inline auto getSizes(float size,
             std::vector<std::array<float, 3>> const& hints)
         -> std::vector<float>
@@ -28,7 +46,9 @@ namespace bqui::widget
         std::vector<float> result;
         result.reserve(hints.size());
 
-        auto combined = accumulateSizeHintResults(hints);
+        auto monotonic = normaliseSizeHintResults(hints);
+
+        auto combined = accumulateSizeHintResults(monotonic);
         std::array<float, 3> multiplier;
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
@@ -44,7 +64,7 @@ namespace bqui::widget
             multiplier[i] = std::max(0.0f, std::min(1.0f, m));
         }
 
-        for (auto const& hint : hints)
+        for (auto const& hint : monotonic)
         {
             float r = 0.0f;
             for (size_t i = 0; i < hint.size(); ++i)
@@ -63,11 +83,11 @@ namespace bqui::widget
     {
         SizeHintResult getWidth() const
         {
-            auto xHints = btl::fmap(hints_,
+            auto xHints = normaliseSizeHintResults(btl::fmap(hints_,
                     [](auto const& hint)
                     {
                         return hint.getWidth();
-                    });
+                    }));
 
             return dir == Axis::x
                 ? accumulateSizeHintResults(xHints)
@@ -85,11 +105,11 @@ namespace bqui::widget
             auto xSizes = getSizes(x, xHints);
 
             size_t i = 0;
-            auto yHints = btl::fmap(xSizes,
+            auto yHints = normaliseSizeHintResults(btl::fmap(xSizes,
                     [this, &i](auto const& xSize)
                     {
                         return hints_[i++].getHeightForWidth(xSize);
-                    });
+                    }));
 
             return dir == Axis::x
                 ? getLargestHint(yHints)
@@ -98,11 +118,11 @@ namespace bqui::widget
 
         SizeHintResult getWidthForHeight(float height) const
         {
-            auto xHints = btl::fmap(hints_,
+            auto xHints = normaliseSizeHintResults(btl::fmap(hints_,
                     [height](auto const& hint)
                     {
                         return hint.getWidthForHeight(height);
-                    });
+                    }));
 
             return dir == Axis::x
                 ? accumulateSizeHintResults(xHints)

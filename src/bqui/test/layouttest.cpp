@@ -613,11 +613,10 @@ TEST(Layout, emptyBoxHasNoChildrenAndAZeroSizeHint)
     EXPECT_TRUE(instance.getInputAreas().empty());
 }
 
-// Pins current behaviour rather than asserting correctness. getSizes assumes
-// the three entries of a hint are non-decreasing and never clamps its output
-// against the size it was given; a hint whose natural size is below its minimum
-// breaks that assumption and the children are handed more room than there is.
-TEST(Layout, mapObbsOverflowsOnNonMonotonicHints)
+// A hint whose natural size is below its minimum is read as if its natural
+// were raised to the minimum, so the children still share the container
+// between them rather than being handed more room than there is.
+TEST(Layout, mapObbsFitsNonMonotonicHintsInTheContainer)
 {
     SizeHintResult const nonMonotonic = {{ 100.0f, 0.0f, 100.0f }};
 
@@ -630,12 +629,66 @@ TEST(Layout, mapObbsOverflowsOnNonMonotonicHints)
 
     ASSERT_EQ(2u, obbs.size());
 
-    // Each child is given the whole 200, so the second one starts where the
-    // container ends and the two together cover twice the container.
     EXPECT_FLOAT_EQ(0.0f, obbs[0].getTransform().getTranslation()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[0].getSize()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[1].getTransform().getTranslation()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[1].getSize()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[0].getSize()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[1].getTransform().getTranslation()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[1].getSize()[0]);
+}
+
+// The aggregate is read the way getSizes reads the children, so at its own
+// natural width the box can give the second child its natural 50.
+TEST(Layout, hboxAggregatesNonMonotonicHintsAsItAllocates)
+{
+    ProbeSet probes;
+
+    Children children;
+    children.push_back(probes.add(
+                SizeHintResult{{ 100.0f, 0.0f, 100.0f }},
+                fixed50
+                ));
+    children.push_back(probes.add(
+                SizeHintResult{{ 0.0f, 50.0f, 50.0f }},
+                fixed50
+                ));
+
+    auto builder = hbox(std::move(children))(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(100.0f, width[0]);
+    EXPECT_FLOAT_EQ(150.0f, width[1]);
+    EXPECT_FLOAT_EQ(150.0f, width[2]);
+
+    std::vector<SizeHint> hints {
+        simpleSizeHint(SizeHintResult{{ 100.0f, 0.0f, 100.0f }}, fixed50),
+        simpleSizeHint(SizeHintResult{{ 0.0f, 50.0f, 50.0f }}, fixed50)
+    };
+
+    auto obbs = mapObbs<Axis::x>(avg::Vector2f(width[1], 50.0f), hints);
+
+    ASSERT_EQ(2u, obbs.size());
+
+    EXPECT_FLOAT_EQ(100.0f, obbs[0].getSize()[0]);
+    EXPECT_FLOAT_EQ(50.0f, obbs[1].getSize()[0]);
+}
+
+// A maximum below the minimum does not pull a child below its minimum. The
+// minimums below total exactly the size, so each child is given its minimum.
+TEST(Layout, getSizesKeepsTheMinimumAboveASmallerMaximum)
+{
+    std::vector<std::array<float, 3>> hints {
+        {{ 50.0f, 80.0f, 20.0f }},
+        {{ 10.0f, 10.0f, 10.0f }}
+    };
+
+    auto sizes = getSizes(60.0f, hints);
+
+    ASSERT_EQ(2u, sizes.size());
+
+    EXPECT_FLOAT_EQ(50.0f, sizes[0]);
+    EXPECT_FLOAT_EQ(10.0f, sizes[1]);
 }
 
 TEST(Layout, stackGivesEveryChildTheContainerSize)
