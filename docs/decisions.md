@@ -1,7 +1,7 @@
 # Decisions
 
-*Last verified against `7429b35` (2026-08-17); the `Collection` entry against
-`9726f65` (2026-09-27).*
+*Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
+entries against `3ba9415` (2026-09-28).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
