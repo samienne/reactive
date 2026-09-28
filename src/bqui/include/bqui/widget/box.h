@@ -28,7 +28,19 @@ namespace bqui::widget
         std::vector<float> result;
         result.reserve(hints.size());
 
-        auto combined = accumulateSizeHintResults(hints);
+        // A hint whose entries decrease would have a negative share of an
+        // interval, handing its siblings more than the size to make up for it.
+        std::vector<std::array<float, 3>> monotonic;
+        monotonic.reserve(hints.size());
+        for (auto const& hint : hints)
+        {
+            float minimum = std::max(0.0f, hint[0]);
+            float natural = std::max(minimum, hint[1]);
+            float maximum = std::max(natural, hint[2]);
+            monotonic.push_back({{ minimum, natural, maximum }});
+        }
+
+        auto combined = accumulateSizeHintResults(monotonic);
         std::array<float, 3> multiplier;
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
@@ -44,7 +56,7 @@ namespace bqui::widget
             multiplier[i] = std::max(0.0f, std::min(1.0f, m));
         }
 
-        for (auto const& hint : hints)
+        for (auto const& hint : monotonic)
         {
             float r = 0.0f;
             for (size_t i = 0; i < hint.size(); ++i)
