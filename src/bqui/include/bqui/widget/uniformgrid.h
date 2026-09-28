@@ -9,6 +9,11 @@ namespace bqui::widget
     class BQUI_EXPORT UniformGrid
     {
     public:
+        /**
+         * @brief A grid of @p w columns by @p h rows of equally sized cells.
+         *
+         * @throws std::invalid_argument if @p w or @p h is zero.
+         */
         UniformGrid(unsigned int w, unsigned int h);
 
         auto cell(unsigned int x, unsigned int y,
@@ -32,6 +37,11 @@ namespace bqui::widget
         std::vector<widget::AnyWidget> widgets_;
     };
 
+    /**
+     * @brief A grid of @p w columns by @p h rows of equally sized cells.
+     *
+     * @throws std::invalid_argument if @p w or @p h is zero.
+     */
     inline auto uniformGrid(unsigned int w, unsigned int h)
         -> UniformGrid
     {

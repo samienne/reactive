@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -763,6 +764,13 @@ TEST(Layout, uniformGridSizeHintTakesTheLargestShareOfACell)
     EXPECT_FLOAT_EQ(80.0f, height[0]);
     EXPECT_FLOAT_EQ(80.0f, height[1]);
     EXPECT_FLOAT_EQ(80.0f, height[2]);
+}
+
+TEST(Layout, uniformGridRejectsAnEmptyDimension)
+{
+    EXPECT_THROW(uniformGrid(0, 2), std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 0), std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(1, 1));
 }
 
 TEST(Layout, nestedBoxesComposeTransforms)
