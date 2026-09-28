@@ -1,0 +1,3 @@
+# The lw launchers must keep their native line endings on every checkout.
+lw.sh text eol=lf
+lw.cmd text eol=crlf
