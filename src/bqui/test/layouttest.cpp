@@ -37,6 +37,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -887,6 +888,13 @@ TEST(Layout, uniformGridQueriesAChildAtTheSizeOfItsSpan)
     SizeHintResult width = hint.getWidthForHeight(60.0f);
     EXPECT_FLOAT_EQ(40.0f, *queried);
     EXPECT_FLOAT_EQ(60.0f, width[1]);
+}
+
+TEST(Layout, uniformGridRejectsAnEmptyDimension)
+{
+    EXPECT_THROW(uniformGrid(0, 2), std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 0), std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(1, 1));
 }
 
 TEST(Layout, nestedBoxesComposeTransforms)

@@ -4,6 +4,8 @@
 
 #include "bqui/stacksizehint.h"
 
+#include <stdexcept>
+
 namespace bqui::widget
 {
 
@@ -11,6 +13,11 @@ UniformGrid::UniformGrid(unsigned int w, unsigned int h) :
     w_(w),
     h_(h)
 {
+    if (w == 0 || h == 0)
+    {
+        throw std::invalid_argument("UniformGrid: a grid needs at least one "
+                "column and one row.");
+    }
 }
 
 auto UniformGrid::cell(unsigned int x, unsigned int y,
