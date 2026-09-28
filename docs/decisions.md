@@ -403,9 +403,15 @@ path that no longer exists. Nothing else in the tree pointed at Azure DevOps.
 
 ## meson comes from pip, and the vendored copy is gone
 
-CI installs `lw` from a pinned, SHA-256-verified loomworks release, and gets
-meson and ninja from pip with no version pin. The vendored `build/meson`
-submodule and the `build/*.sh` wrappers around it are deleted.
+CI runs `lw` through the committed launcher (`./lw.sh`), which fetches the
+loomworks release pinned in `lw.pin` and checks it against the SHA-256 recorded
+there, and gets meson and ninja from pip with no version pin. The vendored
+`build/meson` submodule and the `build/*.sh` wrappers around it are deleted.
+
+**Why lw is pinned in the repo:** CI used to install a pinned lw and then run
+`lw self-update`, which floated to the latest release, so a loomworks release
+could change CI without a commit here. The pin now moves only when `lw update`
+rewrites `lw.pin` in a PR.
 
 **Why:** meson installs trivially from pip and its language is stable enough
 that floating costs less than maintaining a pin, so a submodule pinning a whole
