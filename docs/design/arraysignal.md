@@ -563,7 +563,9 @@ element's value never changes once built.
 ```
 forEach(AnySignal<std::vector<T>> source,
         keyFn   : T const& -> TKey,
-        delegate: AnySignal<T> -> U)          -> ArraySignal<U>
+        delegate: (AnySignal<T>) -> U
+               or (AnySignal<T>, TKey) -> U)
+                                              -> ArraySignal<U>
 ```
 
 The delegate runs **once per identity, per context**. `U` need not be a signal;
@@ -923,9 +925,12 @@ ordered and comparable — `std::map` is the internal store, chosen for simplici
 over a hash map (no hash requirement on user keys, no `std::hash`
 specialisations to write).
 
-**delegate** is `(AnySignal<T>) -> U`, and that is the **only** form.
-A `(T) -> U` shorthand was considered and deliberately rejected; the *Rationale*
-section is that argument, and it is the most important part of this document.
+**delegate** is `(AnySignal<T>) -> U` or `(AnySignal<T>, TKey) -> U`, and those
+are the **only** forms. A `(T) -> U` shorthand was considered and deliberately
+rejected; the *Rationale* section is that argument, and it is the most important
+part of this document. Which of the two a delegate takes, and why the key is a
+value rather than a signal, is argued under *No index is passed to the delegate
+— but the key is*.
 
 ### Behaviour
 
@@ -957,7 +962,7 @@ section is that argument, and it is the most important part of this document.
   than kept, because it added a concept to the model in exchange for defining
   behaviour after a programming error.
 
-### No index is passed to the delegate
+### No index is passed to the delegate — but the key is
 
 Deliberately. An index is *positional*, and position is exactly what keyed
 identity abandons. A delegate that closes over an index would have to re-run for
@@ -971,6 +976,48 @@ T>>>` before `forEach` sees it. With that comes a warning worth stating loudly:
 > **Key on the item's identity, not the injected index.** Keying on the index
 > makes every key change when the list reorders, which discards every id and
 > rebuilds everything — precisely the failure mode indices were avoiding.
+
+**The key is categorically different, and `forEach` does hand it over.** Read
+the argument above closely: every word of it is about *position*. A key is the
+one thing in this design that a neighbour's arrival cannot change — an element's
+key is what says which element it is, and it is fixed for the identity's whole
+life by construction. So the objection that rules out an index does not reach
+it, and nothing else does either: a delegate closing over its key closes over a
+constant.
+
+The delegate therefore takes either shape, and `forEach` picks by asking which
+one the callable accepts:
+
+```
+(AnySignal<T>) -> U
+(AnySignal<T>, TKey) -> U
+```
+
+Three decisions inside that, none of them free:
+
+- **Value first, key last.** The plain form is then the keyed form minus its
+  trailing argument, and the order is the one `Collection`'s `forEach` uses
+  (see `docs/decisions.md`).
+- **By value, not as a signal.** This is the whole point. Handing the key over
+  as an `AnySignal<TKey>` would model a constant as time-varying, and the cost
+  is not theoretical: a delegate would have to build every callable that uses
+  the key through a `map` over that signal.
+- **A generic delegate gets the keyed form.** `[](auto&&...)` satisfies both,
+  and there is no way to ask which one the author meant. The key is strictly
+  more to work with and a delegate that names no parameter for it cannot tell
+  the difference, so preferring the keyed form is the choice that loses nothing.
+
+A delegate matching neither shape is a `static_assert` naming both, not a
+deduction failure inside the node: the rest of `forEach`'s body is discarded by
+an `if constexpr` on the same condition, so nothing downstream of the assert
+fails as well. The call site still sees a function returning `void`, so it is
+one further error rather than none — the node's own instantiation trace, which
+is the unreadable part, is what goes away.
+
+`map` is **not** given the same treatment. Its function is value-level and runs
+inside a node that already knows the identity, but an `ArraySignal`'s identities
+are internal and no key survives `map` — there is nothing to hand over. The
+asymmetry is a consequence of *Identity is internal*, not an inconsistency.
 
 ### Skipping repeats is a property of the data, not a requirement on `T`
 

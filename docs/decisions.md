@@ -27,7 +27,8 @@ April 2027, is not a target.
 ## `forEach` delegates take the value first; the key is optional
 
 A `forEach` delegate takes the item's value signal first and its key (a
-`Collection` item's id) second, and may take only the value.
+`Collection` item's id, or what a vector `forEach`'s key function returned)
+second, and may take only the value.
 
 **Why:** the plain form is then the keyed form minus its trailing argument.
 The value is what a delegate works with; the key is a construction-time extra
