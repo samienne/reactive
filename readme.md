@@ -51,7 +51,7 @@ title; the widget is supplied to `addWindow`.
 ### Requirements
 
 - **Meson** and **Ninja**
-- A C++17 compiler — GCC 10+, Clang 11+, MSVC 2022, or clang-cl
+- A C++17 compiler — GCC 12+, Clang 15+, MSVC 2022, or clang-cl
 - On Linux, the OpenGL development headers (e.g. `libgl1-mesa-dev`)
 
 Third-party dependencies (Eigen, FreeType, and a few others) are downloaded
