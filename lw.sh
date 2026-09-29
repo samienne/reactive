@@ -68,23 +68,48 @@ sha_of() {
   else echo "lw: need sha256sum or shasum to verify the download" >&2; exit 1; fi
 }
 
-# Fetch $1 -> $2. A bare path / file:// (offline mirror) is copied, matching how
-# the host reads a local LOOMWORKS_RELEASE_URL; only real URLs use curl/wget.
+# Fetch $1 -> $2, quietly (a progress meter is noise in CI logs; errors still
+# show). A bare path / file:// (offline mirror) is copied, matching how the host
+# reads a local LOOMWORKS_RELEASE_URL; only real URLs use curl/wget. Status 127:
+# no downloader at all (retrying cannot help).
 fetch_to() {
   case "$1" in
     file://*) cp "$(printf '%s' "$1" | sed 's,^file://,,')" "$2" ;;
     *://*)
       if command -v curl >/dev/null 2>&1; then
         k=""; [ "$insecure" = "1" ] && k="-k"
-        curl -fL $k -o "$2" "$1"
+        curl -fsSL $k -o "$2" "$1"
       elif command -v wget >/dev/null 2>&1; then
         k=""; [ "$insecure" = "1" ] && k="--no-check-certificate"
-        wget $k -O "$2" "$1"
+        wget -q $k -O "$2" "$1"
       else
-        echo "lw: need curl or wget to download the pinned binary" >&2; return 1
+        echo "lw: need curl or wget to download the pinned binary" >&2; return 127
       fi ;;
     *) cp "$1" "$2" ;;
   esac
+}
+
+# Bounded retry for a network fetch: at most 3 attempts, 1 s then 2 s apart,
+# each from an empty file. A local copy is not retried. Reports its own failure.
+fetch_retry() {
+  remote=0
+  case "$1" in file://*) ;; *://*) remote=1 ;; esac
+  if [ "$remote" = 0 ]; then
+    fetch_to "$1" "$2" && return 0
+    echo "lw: copy failed: $1" >&2; return 1
+  fi
+  n=1
+  while :; do
+    rm -f "$2"
+    rc=0; fetch_to "$1" "$2" || rc=$?
+    [ "$rc" = 0 ] && return 0
+    [ "$rc" = 127 ] && return 1
+    if [ "$n" -ge 3 ]; then
+      echo "lw: download failed after $n attempts: $1" >&2; return 1
+    fi
+    echo "lw: download attempt $n failed; retrying..." >&2
+    sleep "$n"; n=$((n + 1))
+  done
 }
 
 # --- ensure the pinned binary is cached + verified (hash is mandatory) ----
@@ -96,9 +121,9 @@ if [ ! -f "$bin" ] || [ "$(sha_of "$bin" | tr 'A-Z' 'a-z')" != "$want" ]; then
   else
     url="https://github.com/samienne/loomworks.nvim/releases/download/v$version/$asset"
   fi
-  echo "lw: fetching pinned lw $version ($asset)..." >&2
+  echo "lw: fetching pinned lw $version ($asset) for $pin..." >&2
   tmp="$bin.dl.$$"
-  fetch_to "$url" "$tmp" || { echo "lw: download failed: $url" >&2; rm -f "$tmp"; exit 1; }
+  fetch_retry "$url" "$tmp" || { rm -f "$tmp"; exit 1; }
   got=$(sha_of "$tmp" | tr 'A-Z' 'a-z')
   if [ "$got" != "$want" ]; then
     echo "lw: sha256 mismatch for $asset (pin $want, got $got) -- aborting" >&2
