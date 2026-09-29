@@ -3,8 +3,9 @@ setlocal EnableExtensions EnableDelayedExpansion
 rem loomworks repo-local launcher (Windows). Committed alongside lw.pin. Fetches
 rem the pinned, verified lw host binary into .nvim\cache\ and runs it; the host
 rem provisions the pinned bundle itself. Regenerate with `lw update`.
-rem Windows system tools (find, findstr, certutil, curl, where) are called by
-rem their absolute %SystemRoot%\System32 path: a bare name can resolve to a
+rem Run it as .\lw.cmd: a bare lw.cmd can resolve to another one on PATH.
+rem Windows system tools (find, findstr, certutil, curl, where, ping) are called
+rem by their absolute %SystemRoot%\System32 path: a bare name can resolve to a
 rem same-named tool earlier on PATH (Git's usr/bin/find under Git Bash / CI).
 
 if not "%LOOMWORKS_LW%"=="" (
@@ -59,19 +60,39 @@ if defined LOOMWORKS_RELEASE_URL (
 ) else (
   set "url=https://github.com/samienne/loomworks.nvim/releases/download/v!version!/%asset%"
 )
-echo lw: fetching pinned lw !version! ^(%asset%^)... 1>&2
+echo lw: fetching pinned lw !version! ^(%asset%^) for %pin%... 1>&2
 set "tmp=%bin%.dl"
+set "islocal=0"
 echo(!url!| "%SystemRoot%\System32\find.exe" "://" >nul
-if errorlevel 1 (
+if errorlevel 1 set "islocal=1"
+set "kflag="
+if "!insecure!"=="1" set "kflag=-k"
+rem bounded retry: at most 3 attempts, 1 s then 2 s apart (ping -n N waits N-1 s),
+rem each from an empty file; a local copy is not retried. curl runs quietly
+rem (-sS: no progress meter, errors still shown).
+set "attempt=0"
+:fetch
+set /a attempt+=1
+del /f /q "%tmp%" 2>nul
+if "!islocal!"=="1" (
   rem bare path / offline mirror: copy instead of curl (matches the host)
   set "src=!url:/=\!"
   copy /y "!src!" "%tmp%" >nul
 ) else (
-  set "kflag="
-  if "!insecure!"=="1" set "kflag=-k"
-  "%SystemRoot%\System32\curl.exe" -fL !kflag! -o "%tmp%" "!url!"
+  "%SystemRoot%\System32\curl.exe" -fsSL !kflag! -o "%tmp%" "!url!"
 )
-if errorlevel 1 ( echo lw: download failed: !url! 1>&2 & del /f /q "%tmp%" 2>nul & exit /b 1 )
+if not errorlevel 1 goto fetched
+if "!islocal!"=="1" goto fetchfail
+if !attempt! GEQ 3 goto fetchfail
+echo lw: download attempt !attempt! failed; retrying... 1>&2
+set /a wait=attempt+1
+"%SystemRoot%\System32\ping.exe" -n !wait! 127.0.0.1 >nul
+goto fetch
+:fetchfail
+if "!islocal!"=="1" ( echo lw: copy failed: !url! 1>&2 ) else ( echo lw: download failed after !attempt! attempts: !url! 1>&2 )
+del /f /q "%tmp%" 2>nul
+exit /b 1
+:fetched
 call :sha "%tmp%"
 if /I not "!got!"=="!want!" (
   echo lw: sha256 mismatch for %asset% ^(pin !want!, got !got!^) -- aborting 1>&2
