@@ -182,7 +182,11 @@ branch protection.
 
 Builds run through **`lw`** (loomworks), not direct meson calls: a leg is a
 configuration set from `loomworks.json` plus a coarse toolchain pin, and the two
-composite actions under `.github/actions/` do the rest. One trap:
+composite actions under `.github/actions/` do the rest. Every leg runs the
+committed launcher `./lw.sh` (also on Windows, under Git Bash), so all legs use
+the version pinned in `lw.pin`; bump it with `lw update`. Each leg runs
+`lw build` before `lw test`, since `lw test` builds only what the tests need and
+would skip the demo apps. One trap:
 
 - **Create profiles with `--local`.** Profiles are per-machine but default to
   local+shared, so an unqualified `lw profile create` followed by `lw publish`

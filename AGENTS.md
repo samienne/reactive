@@ -54,9 +54,11 @@ meson test -C build                     # unit tests
 
 CI drives the same builds through `lw` (loomworks), using the configuration sets
 in `loomworks.json`: `lw profile create <set> <tool> --local`, then `lw build`
-and `lw test`. `lw` establishes the compiler environment itself, so it sidesteps
-the MSVC note below. Profiles are per-machine and deliberately uncommitted; see
-`lw help` and `lw help ci`.
+and `lw test`. It runs the committed launcher `./lw.sh` (`lw.cmd` from cmd),
+which fetches and verifies the version pinned in `lw.pin`, so no install is
+needed; bump the pin with `lw update`. `lw` establishes the compiler
+environment itself, so it sidesteps the MSVC note below. Profiles are
+per-machine and deliberately uncommitted; see `lw help` and `lw help ci`.
 
 Platform notes that will bite you:
 
