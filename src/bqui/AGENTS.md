@@ -183,7 +183,7 @@ owning `Window`.
   no explicit instantiation** — every translation unit instantiates them
   implicitly. GCC cannot export a specialization these classes name inside their
   own bodies, and a Release build hides that, so don't add one back; the
-  gcc-12/clang-11 Debug legs are what catch it (see `docs/conventions.md`).
+  gcc/clang Debug legs are what catch it (see `docs/conventions.md`).
 - Shape builder methods are `&&`-qualified — call other `&&` overloads via
   `std::move(*this)`. A parameterless shape can't use `merge()`; it's built as a
   constant (the `if constexpr (sizeof...(Ts) == 0)` branch in `shape/shape.h`).

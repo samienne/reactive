@@ -6,6 +6,24 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## The compiler floor is GCC 12, Clang 15 and MSVC 2022
+
+The oldest supported compilers are GCC 12, Clang 15, and MSVC 2022 or
+clang-cl, and CI builds nothing older. The language stays C++17 for now.
+
+**Why:** GCC 11 and older have bug
+[c++/94376](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=94376), fixed in GCC
+12 and never backported: a lambda's by-copy capture of a name that is itself a
+by-copy capture of an enclosing non-mutable lambda gets a const type, so even a
+mutable inner lambda cannot call a non-const member such as
+`Collection::write()`. The standard, GCC 12, clang and MSVC keep the original
+non-const type. The workarounds, an init-capture `[x = x]` or a mutable outer
+lambda, would leak into every user's code. Clang 11 is too old for the planned
+move to C++20 (it cannot build libstdc++'s `<ranges>`). CI runs Linux on
+ubuntu-24.04 and builds both the floor (GCC 12, Clang 15) and the newest
+compilers the image ships. Ubuntu 22.04, which leaves standard support in
+April 2027, is not a target.
+
 ## `forEach` delegates take the value first; the key is optional
 
 A `forEach` delegate takes the item's value signal first and its key (a

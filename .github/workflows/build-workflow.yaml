@@ -16,7 +16,7 @@ env:
 jobs:
     clang-format:
         name: "Clang-format"
-        runs-on: "ubuntu-latest"
+        runs-on: "ubuntu-24.04"
         if: false
         steps:
         - uses: actions/checkout@v5
@@ -43,23 +43,26 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
+                # GCC 12 and Clang 15 are the floor; the rest track what the
+                # runner image ships. Toolchains are installed explicitly so a
+                # leg does not depend on the image's preinstalled set.
                 leg: [
-                  { "deps": "gcc-10 g++-10", "tool": "gcc-10",   "set": "Release" },
-                  { "deps": "gcc-11 g++-11", "tool": "gcc-11",   "set": "Release" },
-                  { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Release" },
-                  { "deps": "clang-11",      "tool": "clang-11", "set": "Release" },
-                  { "deps": "clang-11",      "tool": "clang-11", "set": "Tracy"   },
-                  { "deps": "",              "tool": "clang-15", "set": "Sanitize" },
-                  { "deps": "gcc-12 g++-12", "tool": "gcc-12",   "set": "Debug"   },
-                  { "deps": "clang-11",      "tool": "clang-11", "set": "Debug"   } ]
-        runs-on: "ubuntu-22.04"
+                  { "deps": "g++-12",                      "tool": "gcc-12",   "set": "Release"  },
+                  { "deps": "g++-13",                      "tool": "gcc-13",   "set": "Release"  },
+                  { "deps": "g++-14",                      "tool": "gcc-14",   "set": "Release"  },
+                  { "deps": "g++-14",                      "tool": "gcc-14",   "set": "Debug"    },
+                  { "deps": "clang-15",                    "tool": "clang-15", "set": "Release"  },
+                  { "deps": "clang-18",                    "tool": "clang-18", "set": "Tracy"    },
+                  { "deps": "clang-18",                    "tool": "clang-18", "set": "Debug"    },
+                  { "deps": "clang-18 libclang-rt-18-dev", "tool": "clang-18", "set": "Sanitize" } ]
+        runs-on: "ubuntu-24.04"
         steps:
         - uses: actions/checkout@v5
 
         - name: Install dependencies
           run: |
             sudo apt-get update
-            sudo apt-get install -y libgl1-mesa-dev ${{ matrix.leg.deps }}
+            sudo apt-get install -y libgl1-mesa-dev libx11-dev libxext-dev ${{ matrix.leg.deps }}
 
         - uses: ./.github/actions/setup-lw
 
@@ -116,7 +119,7 @@ jobs:
         name: ci-success
         if: always()
         needs: [build-linux, build-macos, build-win]
-        runs-on: "ubuntu-22.04"
+        runs-on: "ubuntu-24.04"
         steps:
         - name: Verify all required jobs succeeded
           run: |
