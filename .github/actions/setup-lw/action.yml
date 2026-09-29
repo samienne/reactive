@@ -16,19 +16,12 @@ runs:
       run: python -m pip install --upgrade meson ninja
 
     # The first launcher call downloads and verifies the pinned lw and its
-    # bundle; retry it here so a network blip fails fast and visibly rather
-    # than in the middle of a build. lw.sh also handles Windows under Git
-    # Bash, so every leg uses it.
+    # bundle (retrying the download itself), so a network failure shows up
+    # here rather than in the middle of a build. lw.sh also handles Windows
+    # under Git Bash, so every leg uses it.
     - name: Fetch pinned lw
       shell: bash
       run: |
         set -euo pipefail
-        for attempt in 1 2 3; do
-          ./lw.sh --no-input tools && break
-          if [ "$attempt" = 3 ]; then
-            echo "::error::fetching the pinned lw failed after 3 attempts"
-            exit 1
-          fi
-          sleep 10
-        done
+        ./lw.sh --no-input tools
         ./lw.sh --version
