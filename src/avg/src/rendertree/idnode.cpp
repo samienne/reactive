@@ -33,7 +33,20 @@ UpdateResult IdNode::update(
         std::chrono::milliseconds time
         ) const
 {
-    if (!oldNode && newNode)
+    bool const hasOldNode = oldNode
+        && reinterpret_cast<IdNode const&>(*oldNode).childNode_;
+    bool const hasNewNode = newNode
+        && reinterpret_cast<IdNode const&>(*newNode).childNode_;
+
+    if (!hasOldNode && !hasNewNode)
+    {
+        return {
+            nullptr,
+            std::nullopt
+        };
+    }
+
+    if (!hasOldNode && hasNewNode)
     {
         // Appear
         auto const& newId = reinterpret_cast<IdNode const&>(*newNode);
@@ -64,7 +77,7 @@ UpdateResult IdNode::update(
             std::nullopt
         };
     }
-    else if (oldNode && !newNode)
+    else if (hasOldNode && !hasNewNode)
     {
         // Disappear
         auto const& oldId = reinterpret_cast<IdNode const&>(*oldNode);
@@ -155,6 +168,9 @@ std::pair<Drawing, bool> IdNode::draw(DrawContext const& context,
         std::chrono::milliseconds time
         ) const
 {
+    if (!childNode_)
+        return std::make_pair(context.drawing(), false);
+
     auto obb = parentObb.getTransform() * getObbAt(time);
 
     auto [drawing, childCont] = childNode_->draw(
