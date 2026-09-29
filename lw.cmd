@@ -2,13 +2,16 @@
 setlocal EnableExtensions EnableDelayedExpansion
 rem loomworks repo-local launcher (Windows). Committed alongside lw.pin. Fetches
 rem the pinned, verified lw host binary into .nvim\cache\ and runs it; the host
-rem provisions the pinned bundle itself. Regenerate with `lw update`.
+rem provisions the pinned bundle itself. Regenerate with `lw bootstrap install`.
 rem Run it as .\lw.cmd: a bare lw.cmd can resolve to another one on PATH.
+rem LOOMWORKS_LAUNCHER tells lw which launcher ran it, so the commands it prints
+rem read .\lw.cmd.
 rem Messages are `1>&2 echo text`: a trailing ` 1>&2` would leave a space at the
 rem end of every line.
 rem Windows system tools (find, findstr, certutil, curl, where, ping) are called
 rem by their absolute %SystemRoot%\System32 path: a bare name can resolve to a
 rem same-named tool earlier on PATH (Git's usr/bin/find under Git Bash / CI).
+set "LOOMWORKS_LAUNCHER=lw.cmd"
 
 if not "%LOOMWORKS_LW%"=="" (
   "%LOOMWORKS_LW%" %*
