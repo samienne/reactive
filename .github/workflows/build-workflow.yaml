@@ -62,7 +62,7 @@ jobs:
         - name: Install dependencies
           run: |
             sudo apt-get update
-            sudo apt-get install -y libgl1-mesa-dev ${{ matrix.leg.deps }}
+            sudo apt-get install -y libgl1-mesa-dev libx11-dev libxext-dev ${{ matrix.leg.deps }}
 
         - uses: ./.github/actions/setup-lw
 
