@@ -1,6 +1,6 @@
-version = 0.1.36
+version = 0.1.37-beta.1
 
-sha256_loomworks-lua-0.1.36.zip = 9d60ed7d74fe3229ef45a7f8a62dc5aecbb7d5fa1369c21cbc6002f0b1397cfc
-sha256_lw-linux-x86_64 = dce94f20637c50d7a1f267fa290cc67dc01b31c220e352f9a79414b9afa7a955
-sha256_lw-macos-arm64 = 937855ee3001b1b4a0082b040135d714c75ba2f4092deb95c912abdca807c676
-sha256_lw-windows-x86_64.exe = bccde968feaac838ecc1d579c5d5742f346317107e22df5bf0b70c687db3b242
+sha256_loomworks-lua-0.1.37-beta.1.zip = 2bc16b57e8d140daf57aade96f02eb1b826122d1216f2890b5666a0f0ac67aa7
+sha256_lw-linux-x86_64 = 2cf8b55255679b5506daab331f3656e1a764de72ffd97c8bb11be19cdd32c125
+sha256_lw-macos-arm64 = 2084f768c824911e8679de7cc86b21dfc817c5da89f04cea1d72d844cd428d2f
+sha256_lw-windows-x86_64.exe = 8a2f9d871d678d014b8ff5a0c76dd1a7bdefd0ee8b7de130cf1da1a071fdf8c8
