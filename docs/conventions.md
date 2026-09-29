@@ -93,7 +93,7 @@ because it has no such self-conversion operator.
 
 **A Release build hides the whole problem** — the members are small enough to
 inline at every call site, so no external reference is emitted. That is why the
-gcc-12 and clang-15 **Debug** matrix legs exist.
+gcc and clang **Debug** matrix legs exist.
 
 GCC **9 through 16** were probed and behave identically, so this is not
 something to gate on a version range. clang is unaffected.
@@ -170,9 +170,11 @@ template metaprogramming into named aliases, Doxygen-only API reference) live in
 
 ## CI
 
-The GitHub Actions matrix builds Linux (gcc-12 and clang-15 in Release and
-Debug, plus clang-15 with tracy and a clang-15 ASan+UBSan leg), macOS (Release
-and Debug), and Windows (**MSVC and clang-cl**). A single aggregating
+The GitHub Actions matrix builds Linux on ubuntu-24.04 (Release with gcc-12,
+gcc-13, gcc-14 and clang-15; Debug with gcc-14 and clang-18; clang-18 with
+tracy and a clang-18 ASan+UBSan leg), macOS (Release and Debug), and Windows
+(**MSVC and clang-cl**). The Linux legs cover both the compiler floor and the
+newest compilers the runner image ships. A single aggregating
 job, **`ci-success`**, `needs` all the build jobs and is the *only* required
 status check — new matrix legs are covered automatically, and a new top-level
 job just needs adding to its `needs` list. Mark only `ci-success` as required in

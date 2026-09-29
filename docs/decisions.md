@@ -19,8 +19,10 @@ mutable inner lambda cannot call a non-const member such as
 `Collection::write()`. The standard, GCC 12, clang and MSVC keep the original
 non-const type. The workarounds, an init-capture `[x = x]` or a mutable outer
 lambda, would leak into every user's code. Clang 11 is too old for the planned
-move to C++20 (it cannot build libstdc++'s `<ranges>`), and clang 15 is already
-on the CI runners.
+move to C++20 (it cannot build libstdc++'s `<ranges>`). CI runs Linux on
+ubuntu-24.04 and builds both the floor (GCC 12, Clang 15) and the newest
+compilers the image ships. Ubuntu 22.04, which leaves standard support in
+April 2027, is not a target.
 
 ## `forEach` delegates take the value first; the key is optional
 
