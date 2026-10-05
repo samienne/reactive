@@ -897,6 +897,22 @@ TEST(Layout, uniformGridRejectsAnEmptyDimension)
     EXPECT_NO_THROW(uniformGrid(1, 1));
 }
 
+TEST(Layout, uniformGridRejectsACellPastItsEdge)
+{
+    EXPECT_THROW(uniformGrid(2, 2).cell(2, 0, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 2, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, 2, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 1, 1, 2, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, ~0u, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(0, 0, 2, 2, makeWidget()));
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(1, 1, 1, 1, makeWidget()));
+}
+
 TEST(Layout, nestedBoxesComposeTransforms)
 {
     ProbeSet probes;

@@ -24,6 +24,12 @@ auto UniformGrid::cell(unsigned int x, unsigned int y,
         unsigned int w, unsigned int h,
         AnyWidget widget) && -> UniformGrid
 {
+    if (x >= w_ || y >= h_ || w > w_ - x || h > h_ - y)
+    {
+        throw std::invalid_argument("UniformGrid: a cell must lie within "
+                "the grid.");
+    }
+
     cells_.push_back({x, y, w, h});
     widgets_.push_back(std::move(widget));
     return std::move(*this);

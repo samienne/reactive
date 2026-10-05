@@ -16,6 +16,12 @@ namespace bqui::widget
          */
         UniformGrid(unsigned int w, unsigned int h);
 
+        /**
+         * @brief Places @p widget in the @p w by @p h cells whose bottom-left
+         * cell is at column @p x, row @p y.
+         *
+         * @throws std::invalid_argument if the cells extend past the grid.
+         */
         auto cell(unsigned int x, unsigned int y,
                 unsigned int w, unsigned int h,
                 widget::AnyWidget widget) && -> UniformGrid;
