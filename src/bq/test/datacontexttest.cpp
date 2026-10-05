@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <utility>
+#include <vector>
 
 using namespace bq::signal;
 
@@ -48,4 +50,31 @@ TEST(dataContext, reinitializingAnExpiredIdLeavesLiveIdsAlone)
     EXPECT_EQ(3, *context.findData<int>(second));
     EXPECT_EQ(1, *context.findData<int>(first));
     EXPECT_EQ(1, *kept);
+}
+
+TEST(dataContext, releasedEntriesArePrunedAndLiveOnesKeepTheirData)
+{
+    DataContext context;
+
+    std::vector<std::pair<DataContext::DataId, std::shared_ptr<int>>> kept;
+    for (int i = 0; i < 4; ++i)
+    {
+        auto id = makeUniqueId();
+        kept.emplace_back(id, context.initializeData<int>(id, i));
+        *kept.back().second += 10;
+    }
+
+    for (int i = 0; i < 1000; ++i)
+        context.initializeData<int>(makeUniqueId(), i);
+
+    // Pruning keeps at most max(16, 2 * live) entries, 16 here; 100 is a loose
+    // bound, far below the 1000 released, that avoids pinning the threshold.
+    EXPECT_LT(context.getEntryCount(), 100u);
+
+    for (int i = 0; i < 4; ++i)
+    {
+        auto found = context.findData<int>(kept[i].first);
+        EXPECT_EQ(kept[i].second, found);
+        EXPECT_EQ(i + 10, *found);
+    }
 }

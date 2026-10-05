@@ -96,16 +96,25 @@ namespace bq::signal
         DataContext();
         btl::UniqueId getId() const;
 
+        /**
+         * @brief The number of ids with an entry, including those whose data
+         * has been released but not yet pruned.
+         */
+        std::size_t getEntryCount() const;
+
         template <typename TData, typename... TArgs>
         std::shared_ptr<TData> initializeData(DataId id, TArgs&&... args)
         {
 #ifndef NDEBUG
             // An entry whose data has been released stays in the map until it
-            // is overwritten, so re-initializing an id is only an error while
-            // the previous data is still alive.
+            // is overwritten or pruned, so re-initializing an id is only an
+            // error while the previous data is still alive.
             auto existing = data_.find(id);
             assert(existing == data_.end() || existing->second.expired());
 #endif
+
+            if (data_.size() >= pruneThreshold_)
+                pruneExpired();
 
             auto data = std::make_shared<Data<TData>>(std::forward<TArgs>(args)...);
             data_.insert_or_assign(id, std::weak_ptr<Base>(data));
@@ -165,8 +174,11 @@ namespace bq::signal
         }
 
     private:
+        void pruneExpired();
+
         btl::UniqueId id_;
         std::unordered_map<DataId, std::weak_ptr<Base>> data_;
+        std::size_t pruneThreshold_;
         std::vector<std::shared_ptr<Base>> frameData_;
         std::vector<std::shared_ptr<Base>> prevFrameData_;
         std::shared_ptr<ObserveControl> observeControl_ =
