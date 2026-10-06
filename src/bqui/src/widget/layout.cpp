@@ -7,6 +7,7 @@
 #include "bqui/modifier/addwidgets.h"
 #include "bqui/modifier/handlegravity.h"
 #include "bqui/modifier/setwidgetintrospection.h"
+#include "bqui/modifier/setid.h"
 
 #include "bqui/provider/providebuildparams.h"
 
@@ -18,21 +19,8 @@ namespace bqui::widget
 namespace
 {
 
-bq::signal::ArraySignal<widget::AnyBuilder> toArray(
-        std::vector<widget::AnyBuilder> builders)
-{
-    std::vector<bq::signal::ArraySignal<widget::AnyBuilder>> children;
-    children.reserve(builders.size());
-
-    for (auto&& builder : builders)
-    {
-        children.push_back(bq::signal::ArraySignal<widget::AnyBuilder>(
-                    std::move(builder)));
-    }
-
-    return bq::signal::ArraySignal<widget::AnyBuilder>(std::move(children));
-}
-
+// Each child gets its own id so the render tree matches children by identity,
+// not by position, when the list changes.
 bq::signal::AnySignal<widget::Instance> buildChild(
         widget::AnyBuilder const& builder,
         bq::signal::AnySignal<avg::Obb> obb)
@@ -44,14 +32,14 @@ bq::signal::AnySignal<widget::Instance> buildChild(
     auto placed = builder.clone()
         | modifier::transformBuilder(std::move(transform));
 
-    return std::move(placed)(std::move(size)).getInstance();
+    return (std::move(placed)(std::move(size))
+        | modifier::setElementId(bq::signal::constant(avg::UniqueId()))
+        ).getInstance();
 }
 
 auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
-        std::vector<widget::AnyBuilder> builders)
+        bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
-    auto array = toArray(std::move(builders));
-
     auto hints = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
                 {
@@ -86,20 +74,19 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 } // anonymous namespace
 
 widget::AnyWidget layout(SizeHintMap sizeHintMap,
-        ObbMap obbMap, std::vector<widget::AnyWidget> widgets)
+        ObbMap obbMap, bq::signal::ArraySignal<widget::AnyWidget> widgets)
 {
     return makeWidget([](BuildParams const& params,
                 SizeHintMap sizeHintMap, ObbMap obbMap, auto widgets)
     {
-        std::vector<widget::AnyBuilder> builders;
-
-        for (auto&& widget : widgets)
-        {
-            builders.push_back((
-                        std::move(widget)
-                        | modifier::handleGravity()
-                        )(params));
-        }
+        auto builders = widgets.map(
+                [params](widget::AnyWidget const& widget)
+                -> widget::AnyBuilder
+                {
+                    return (widget.clone()
+                            | modifier::handleGravity()
+                            )(params);
+                });
 
         return layout(
                 std::move(sizeHintMap),

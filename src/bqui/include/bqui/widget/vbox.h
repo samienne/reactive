@@ -4,14 +4,21 @@
 
 #include "bqui/bquivisibility.h"
 
-#include <vector>
+#include <bq/signal/arraysignal.h>
 
 namespace bqui::widget
 {
-    BQUI_EXPORT AnyWidget vbox(std::vector<AnyWidget> widgets);
-
-    BQUI_EXPORT AnyWidget vbox(
-            bq::signal::AnySignal<std::vector<std::pair<size_t, AnyWidget>>> widgets
-            );
-} // namespace reactive
+    /**
+     * @brief Lays widgets out in a column, top to bottom.
+     *
+     * Takes a list of widgets, or the array forEach() makes from a changing
+     * list:
+     *
+     * @code
+     * vbox({ label("Name:"), button("OK", onClick) })
+     * vbox(forEach(items, key, makeRow))
+     * @endcode
+     */
+    BQUI_EXPORT AnyWidget vbox(bq::signal::ArraySignal<AnyWidget> widgets);
+} // namespace bqui::widget
 

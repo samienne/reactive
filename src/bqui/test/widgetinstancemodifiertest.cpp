@@ -5,10 +5,17 @@
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/elementmodifier.h>
+#include <bqui/modifier/setid.h>
+#include <bqui/modifier/transform.h>
 
 #include <bqui/provider/provideparam.h>
 
+#include <bqui/widget/instance.h>
 #include <bqui/widget/widget.h>
+
+#include <avg/obb.h>
+#include <avg/rendertree.h>
+#include <avg/transform.h>
 
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
@@ -236,4 +243,34 @@ TEST(Widget, elementModifierParams)
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);
     EXPECT_EQ("default value", tag3);
+}
+
+TEST(Widget, setIdOnAWidgetThatDrawsNothing)
+{
+    // Layouts give every child an id, including children that draw nothing;
+    // an empty render tree must stay empty.
+    auto element = (makeWidget() | setId(signal::constant(avg::UniqueId())))
+        (BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+
+    auto context = signal::makeSignalContext(std::move(element).getInstance());
+
+    EXPECT_FALSE(context.evaluate<0>().get<0>().getRenderTree().getRoot());
+}
+
+TEST(Widget, setIdDoesNotMoveWhatItNames)
+{
+    // The wrapped node is already placed; if the IdNode added the transform
+    // again, the child would be drawn at double the offset.
+    auto element = (makeWidget()
+            | frame()
+            | modifier::transform(signal::constant(avg::translate(10.0f, 20.0f)))
+            | setId(signal::constant(avg::UniqueId()))
+            )(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+
+    auto context = signal::makeSignalContext(std::move(element).getInstance());
+
+    auto root = context.evaluate<0>().get<0>().getRenderTree().getRoot();
+
+    ASSERT_TRUE(root);
+    EXPECT_EQ(avg::Transform(), root->getFinalObb().getTransform());
 }

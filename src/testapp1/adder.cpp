@@ -31,30 +31,11 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <vector>
 
 using namespace bqui;
 
 namespace
 {
-    using KeyedWidgets = std::vector<std::pair<size_t, widget::AnyWidget>>;
-
-    template <typename T, typename TDelegate>
-    bq::signal::AnySignal<KeyedWidgets> keyedWidgets(
-            bq::signal::Collection<T> const& items, TDelegate delegate)
-    {
-        using Keyed = KeyedWidgets::value_type;
-
-        return bq::signal::join(bq::signal::forEach(items,
-                    [delegate=std::move(delegate)](
-                        bq::signal::AnySignal<T> value, std::uint64_t id)
-                    {
-                        return bq::signal::AnySignal<Keyed>(
-                                bq::signal::constant(Keyed(id,
-                                        delegate(std::move(value), id))));
-                    }));
-    }
-
     widget::AnyWidget itemEntry(
             bq::signal::InputHandle<std::string> outHandle,
             std::function<void(std::string text)> onEnter,
@@ -103,7 +84,7 @@ bqui::widget::AnyWidget adder()
 
     auto swapState = std::make_shared<std::uint64_t>();
 
-    auto widgets = keyedWidgets(
+    auto widgets = bq::signal::forEach(
             items,
             [items, textInputSignal=std::move(textInput.signal), swapState]
             (bq::signal::AnySignal<std::string> value, std::uint64_t id)

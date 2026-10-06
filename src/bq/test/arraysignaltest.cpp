@@ -132,6 +132,15 @@ TEST(arraySignal, emptyAndSingletonBracesMeanWhatTheySay)
     EXPECT_EQ(std::vector<int>{ 7 }, c.evaluate<2>().get<0>());
 }
 
+TEST(arraySignal, aVectorOfItemsIsAList)
+{
+    ArraySignal<int> array = std::vector<int>{ 1, 2, 3 };
+
+    auto c = makeSignalContext(values(array));
+
+    EXPECT_EQ((std::vector<int>{ 1, 2, 3 }), c.evaluate<0>().get<0>());
+}
+
 TEST(arraySignal, concatJoinsArraysInOrder)
 {
     ArraySignal<int> first = { 1, 2 };

@@ -89,6 +89,9 @@ General rules:
   Doxygen when they are part of the caller's contract — e.g. how long a returned
   signal or view remains valid. Design rationale → `decisions.md`; mechanism →
   the library's `AGENTS.md`.
+- **Lead with what the caller passes, in plain words.** Say what goes in and
+  show a one-line example (`hbox({ label("a"), button("b", onClick) })`)
+  rather than defining it by contrasting cases in dense, contract-like phrasing.
 - **Docs may point at code; code never points at docs.**
 - **One home per fact:** concepts/usage → `readme.md`; API contract → Doxygen;
   cross-cutting model/conventions/decisions → top-level `docs/`; library-specific

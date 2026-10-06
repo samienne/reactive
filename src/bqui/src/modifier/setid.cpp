@@ -16,9 +16,15 @@ AnyElementModifier setElementId(bq::signal::AnySignal<avg::UniqueId> id)
     return makeElementModifier(makeInstanceModifier(
         [](widget::Instance instance, avg::UniqueId const& id)
         {
+            // Nothing to name: an avg::IdNode needs a child.
+            if (!instance.getRenderTree().getRoot())
+                return instance;
+
+            // The wrapped node is already placed, so the IdNode gets only the
+            // size; the full obb would apply the placement twice.
             auto container = std::make_shared<avg::IdNode>(
                     id,
-                    instance.getObb(),
+                    avg::Obb(instance.getSize()),
                     instance.getRenderTree().getRoot()
                     );
 

@@ -1,20 +1,22 @@
 # Design: `ArraySignal<T>`, `forEach`, and one layout engine
 
-> **Status: revised design, implementation started.** All of `bq` —
-> `ArraySignal`, `forEach`, `scatter`/`join`, `SharedVector` — has landed; the
-> layout rework is outstanding. This document has been amended to describe what
-> was built rather than what was first proposed. The earlier implementation on
-> PR #100 is
-> a **superseded spike**:
+> **Status: revised design, implemented.** Every step of the plan below is done
+> (step 4 was done and then reverted): all of `bq` — `ArraySignal`, `forEach`,
+> `scatter`/`join`, `SharedVector` — has landed, `layout()` has been reworked
+> over it, `dynamicBox` has been deleted with `hbox`/`vbox` routed through
+> `layout()`, and the `Collection` / `DataSource` pipeline has been replaced (see
+> below). The *Open questions* are still open. This document has been amended to
+> describe what was built rather than what was first proposed. The earlier
+> implementation on PR #100 is a **superseded spike**:
 > it put the per-identity table in the description rather than in the
 > `SignalContext`, which is a correctness defect, not a limitation. This revision
 > relocates that state and, as a consequence, removes five operators. Read the
 > spike only for the two `bq` `join` fixes it found and for its test cases.
 >
-> This document remains the design record until the work lands, at which point
-> the stable parts move to their normal homes — the model and its traps to
-> `docs/conventions.md`, the settled *why* to `docs/decisions.md`, and the API
-> contract to Doxygen in the new headers — and this file goes away.
+> This document remains the design record until the stable parts move to their
+> normal homes — the model and its traps to `docs/conventions.md`, the settled
+> *why* to `docs/decisions.md`, and the API contract to Doxygen in the new
+> headers — and this file goes away.
 
 > **`App` is no longer a consumer of this design.** An early step made `App`'s
 > window set an `ArraySignal<Window>`; that has since been reverted — the window
@@ -42,7 +44,8 @@
 > time, not a description of the tree.
 
 *Last verified against `77e391f` (2026-07-22), amended for the `App` revert, the
-later window-handle rework, and the `Collection` move.*
+later window-handle rework, and the `Collection` move; the `dynamicBox` passages
+re-checked against `bd71ae10` (2026-09-28), after its deletion.*
 
 ## The problem
 
@@ -50,10 +53,10 @@ A widget list whose *membership* changes at runtime cannot be expressed as a
 plain derivation. Deriving `vector<AnyWidget>` from `vector<T>` rebuilds every
 widget on every change, and rebuilding a widget destroys its state: the text a
 user typed, a cursor position, an animation in flight, a stream fold. The
-existing answer — `Collection` + `dataSourceFromCollection` + `dataBind` +
-`dynamicBox` — works, but it is a special-purpose pipeline bolted to one widget
-container, it is not composable, and it lives in `bqui` where only widgets can
-use it.
+answer before this design — `Collection` + `dataSourceFromCollection` +
+`dataBind` + `dynamicBox` — worked, but it was a special-purpose pipeline bolted
+to one widget container, it was not composable, and it lived in `bqui` where only
+widgets could use it.
 
 This design replaces that pipeline with three pieces:
 
@@ -73,11 +76,11 @@ tells us which operations must exist and what each does to identity.
 
 Two payoffs beyond the code sharing:
 
-- It **fixes a real bug**: `dynamicBox` today supports dynamic *membership* only,
-  and silently ignores a changed widget for an existing item.
+- It **fixes a real bug**: `dynamicBox` supported dynamic *membership* only,
+  and silently ignored a changed widget for an existing item.
 - It **unifies the static and dynamic layout engines**. `layout()`'s own type
   aliases turn out to be this API already, so `hbox`, `vbox`, `stack`,
-  `uniformGrid` and `dynamicBox` become one implementation rather than two that
+  `uniformGrid` and `dynamicBox` became one implementation rather than two that
   drift apart. That finding is the headline of this document; see *One layout
   engine*.
 
@@ -231,6 +234,7 @@ supported source type:
 | `T` (or anything convertible to `T`) | a single constant item |
 | `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
 | `std::vector<ArraySignal<T>>` | ditto, built at runtime |
+| `std::vector<T>` | a fixed list of constant items, built at runtime |
 **Every one of them is constant**, and that is the rule: anything that varies
 enters through `forEach`, which asks for the key that says which item is which.
 The one candidate that would break the rule, a reactive subtree taking
@@ -1026,8 +1030,8 @@ without a message.
 ### Alignment is a promise, and only its arity is checked
 
 `scatter`'s aggregate is positional, and the node checks that it has one entry
-per element. This is the same strength as the spike's
-`assert(obbs.size() == builders.size())` (`dynamicbox.h:70`) and the static
+per element. This is the same strength as the deleted `dynamicBox`'s
+`assert(obbs.size() == builders.size())` and the static
 engine's unchecked `obbs.at(index)` contract, which step 5 replaced, except
 that it is stated once and enforced in one place. A size check cannot catch a
 permutation, so it is worth being exact about what is left.
@@ -1122,10 +1126,10 @@ diamond (membership → builders → hints → obbs → elements), not a cycle.
 ## One layout engine
 
 This is the headline finding, and it was not the goal when the design started.
-`bqui` has **two** layout engines: the static one (`layout()`, used by `box`,
+`bqui` had **two** layout engines: the static one (`layout()`, used by `box`,
 `stack` and `uniformGrid`) and the dynamic one (`dynamicBox`, used by `hbox` and
-`vbox` when the child list is a signal). The operator set above does not add a
-third. It **collapses the two into one**.
+`vbox` when the child list was a signal). The operator set above did not add a
+third. It **collapsed the two into one**, in steps 5 and 6.
 
 ### `layout()`'s own type aliases already are this API
 
@@ -1211,13 +1215,12 @@ profile ever says otherwise the fix is in `keyByIdentity`, not in the framing.
 The static path fanned out with `obbs.at(index)` on a captured index. `at()`
 throws rather than corrupting, but the contract — "the obb vector has one entry
 per builder, in builder order" — was unchecked at the type level and asserted
-nowhere. It is the same unchecked contract as `dynamicBox`'s
-`assert(obbs.size() == builders.size())` (`dynamicbox.h:70`), written a
-different way.
+nowhere. It was the same unchecked contract as `dynamicBox`'s
+`assert(obbs.size() == builders.size())`, written a different way.
 
 Keyed fan-out removes both: `scatter` matches by identity, and checks the
 aggregate's size against the current membership in one place. Step 5 took the
-static half; `dynamicBox`'s assert goes with step 6.
+static half; `dynamicBox`'s assert went with step 6.
 
 The check is stronger than the one it replaced, in a way a caller outside the
 tree can feel: `at()` threw only when the `ObbMap` returned **fewer** obbs than
@@ -1227,12 +1230,12 @@ nothing here changes.
 
 ### The maintenance argument is the strongest one
 
-`dynamicBox` is missing `handleGravity()`. `layout()` applies it to every child
-before building it; `dynamicBox` does not apply it anywhere. `dynamicBox` also
-has the element-cache correctness bug described under *Rationale*.
+`dynamicBox` was missing `handleGravity()`. `layout()` applies it to every child
+before building it; `dynamicBox` did not apply it anywhere. `dynamicBox` also had
+the element-cache correctness bug described under *Rationale*.
 
-Neither is a hard problem. Both exist **because `dynamicBox` is a second
-implementation of `layout()` that drifted** — every fix to one has to be
+Neither was a hard problem. Both existed **because `dynamicBox` was a second
+implementation of `layout()` that drifted** — every fix to one had to be
 remembered for the other, and it was not. One engine makes drift structurally
 impossible, which is worth more than either individual fix.
 
@@ -1244,8 +1247,8 @@ impossible, which is worth more than either individual fix.
   button next to a nested box — so a homogeneous array of a concrete widget type
   could not hold them. Type erasure is not a compromise here; it is the only
   thing that describes the input.
-- Both existing engines already take `AnyWidget` (`layout.h:33-34`,
-  `dynamicbox.h:23-24`), so nothing is lost and no caller changes shape.
+- Both engines already took `AnyWidget`, so nothing was lost and no caller
+  changed shape.
 - `ArraySignal` is **type-erased regardless** (*There is deliberately no
   `AnyArraySignal`*), so a concrete element type would buy no devirtualisation
   even where the children happened to agree.
@@ -1257,52 +1260,48 @@ and those are exactly what `handleGravity` and the hint fan-in consume.
 
 ## Worked example: `dynamicBox`
 
-`dynamicBox` is ~150 lines of `dynamicbox.h`. Under the operator set it is
-roughly 15. The mapping, stage by stage:
+`dynamicBox` was ~150 lines of `dynamicbox.h`. Under the operator set it became
+roughly 15 — and then nothing of its own at all, because step 6 deleted it: `hbox`
+and `vbox` are now `box<dir>` over an `ArraySignal<AnyWidget>`, which is a plain
+`layout()` call with `accumulateSizeHints<dir>` and `mapObbs<dir>`. The mapping,
+stage by stage:
 
-| Current implementation | Becomes |
+| `dynamicBox` stage | Became |
 | --- | --- |
-| Apply `BuildParams` to each child widget (`dynamicbox.h:28-40`) | `map` |
-| Fan in each builder's size hint (`dynamicbox.h:42-53`) | `map(&Builder::getSizeHint)`, then `join` |
-| Container hint from children's hints (`dynamicbox.h:55-59`) | `map(accumulateSizeHints<dir>)` on the joined hints |
-| Obb computation (`dynamicbox.h:63-65`) | `map(&mapObbs<dir>)` on the joined hints and the size |
-| Re-key obbs positionally back onto builder ids (`dynamicbox.h:66-82`) | **deleted** — `scatter` matches by identity |
-| `withPrevious` element cache and per-child id lookup (`dynamicbox.h:85-141`) | `scatter` |
-| Fan in each element's instance (`dynamicbox.h:143-156`) | `map(&Element::getInstance)`, then `join` |
+| Apply `BuildParams` to each child widget | `map` |
+| Fan in each builder's size hint | `map(&Builder::getSizeHint)`, then `join` |
+| Container hint from children's hints | `map(accumulateSizeHints<dir>)` on the joined hints |
+| Obb computation | `map(&mapObbs<dir>)` on the joined hints and the size |
+| Re-key obbs positionally back onto builder ids | **deleted** — `scatter` matches by identity |
+| `withPrevious` element cache and per-child id lookup | `scatter` |
+| Fan in each element's instance | `map(&Element::getInstance)`, then `join` |
 
 Two of those rows are the interesting ones.
 
-**The re-keying block disappears entirely.** `dynamicbox.h:66-82` exists only to
-re-attach ids that were dropped when the hints were fanned in: it asserts the two
-vectors are the same length and zips them by position. That is the alignment
-invariant being re-established by hand after having been thrown away. `scatter`
-never throws it away, so there is nothing to re-establish.
+**The re-keying block disappeared entirely.** It existed only to re-attach ids
+that were dropped when the hints were fanned in: it asserted the two vectors were
+the same length and zipped them by position. That was the alignment invariant
+being re-established by hand after having been thrown away. `scatter` never
+throws it away, so there is nothing to re-establish.
 
-**The element cache becomes an operator.** `dynamicbox.h:85-141` is a
-`withPrevious` fold that, for each incoming builder id, linearly scans the
-previous result for a match, reuses it if found, and otherwise builds a new
-element whose obb comes from an O(n) search of the shared obb list
-(`dynamicbox.h:108-122`). That is apply-once-per-identity plus identity-matched
-fan-out, hand-rolled — `scatter`.
+**The element cache became an operator.** It was a `withPrevious` fold that, for
+each incoming builder id, linearly scanned the previous result for a match,
+reused it if found, and otherwise built a new element whose obb came from an O(n)
+search of the shared obb list. That is apply-once-per-identity plus
+identity-matched fan-out, hand-rolled — `scatter`.
 
-### The missing `handleGravity()` is fixed structurally
+### The missing `handleGravity()` was fixed structurally
 
 `layout()` pipes every child through `modifier::handleGravity()` before building
-it. `dynamicBox` does not, so a gravity set on a child of an
-`hbox`/`vbox` with a dynamic child list is silently ignored.
+it. `dynamicBox` did not, so a gravity set on a child of an `hbox`/`vbox` with a
+dynamic child list was silently ignored.
 
-Unifying fixes this by construction rather than by remembering to add a line.
+Unifying fixed this by construction rather than by remembering to add a line.
 `handleGravity` is a three-pass negotiation — it asks the child for
 `getWidth()`, clamps against the outer width, asks `getHeightForWidth()` with the
-result, clamps again, then asks `getWidthForHeight()` and clamps a third time
-(`handlegravity.h:16-34`) — and then offsets by the child's gravity
-(`handlegravity.h:37-46`). Its inputs are the child's own size hint, the outer
-size assigned to it, and the child's gravity.
-
-The `scatter` delegate has all three: the child's value (hence its builder, hence
-`getSizeHint()` and `getGravity()`), and the identity-matched obb, which *is* the
-assigned outer size. So `handleGravity` composes into the delegate with nothing
-threaded around.
+result, clamps again, then asks `getWidthForHeight()` and clamps a third time —
+and then offsets by the child's gravity. How it composed into the `scatter`
+delegate is recorded under step 6.
 
 ## Layout audit
 
@@ -1549,16 +1548,16 @@ shape (`databind.h:22`). `forEach` is the same operator with the delegate
 generalised to any `U`, the source generalised past `DataSource`, and the
 identity supplied by a key function instead of by the collection.
 
-**`dynamicBox`** (`src/bqui/include/bqui/dynamicbox.h:23`, the signal-taking
-overload of `hbox`/`vbox` — `src/bqui/src/widget/hbox.cpp:18`,
-`src/bqui/src/widget/vbox.cpp:20`) **goes away entirely.** Earlier drafts kept it
-and merely gave it an overload; the *One layout engine* finding supersedes that.
-`hbox`/`vbox` take an `ArraySignal<AnyWidget>`, and both the static and the
-dynamic case run through the single unified `layout()`.
+**`dynamicBox`** is **gone**, as of step 6. Earlier drafts kept it and merely
+gave it an overload; the *One layout engine* finding superseded that. `hbox` and
+`vbox` take an `ArraySignal<AnyWidget>` — one overload each, not two, because a
+`std::vector<AnyWidget>` overload alongside the array one makes `hbox({a, b, c})`
+ambiguous. A named `std::vector<AnyWidget>`, as `stack` and `uniformGrid` pass to
+`layout()`, converts through the array's own `std::vector<T>` constructor
+instead, so no function needs a vector overload.
 
-Existing callers are `src/bqui/test/databindtest.cpp:18` and
-`src/testapp1/adder.cpp:84`; both are `Collection` → `dataSourceFromCollection`
-→ `dataBind` → `vbox`, and both become a single `forEach`.
+`adder`, the one production caller of a dynamic `vbox`, had to be ported in the
+same change — see *Step 6 was not separable*.
 
 ## Rationale: why the delegate must take a signal
 
@@ -1597,17 +1596,14 @@ works.
 ### Rebuilding inside the same `SignalContext` does not help
 
 The tempting fix is "rebuild, but in the same context, so the state is still
-there." It does not work, and there is already a live demonstration.
+there." It does not work, and there was a live demonstration.
 
-`dynamicBox` rebuilds its children inside a `.map()` — `std::move(widget.second)(params)`
-invokes each child's whole build function (`src/bqui/include/bqui/dynamicbox.h:35`).
-That map node is created **once**, when `WindowGlue` constructs its
-`SignalContext` (`src/bqui/src/app.cpp:81-83`, member declared at `:438-439`),
-and that context lives for the entire run — it is pumped once per frame at
-`app.cpp:269` and torn down only when its `WindowGlue` is destroyed
-(`app.cpp:251`, `app.cpp:514`). So every list change
-re-executes the build inside the *same*, never-reinitialised context, and the
-rebuilt children still get fresh state. The context is shared; the *ids* are
+`dynamicBox` rebuilt its children inside a `.map()` — `std::move(widget.second)(params)`
+invoked each child's whole build function. That map node was created **once**,
+when the window's glue (then `WindowGlue`) constructed its `SignalContext`, and
+that context lived for the entire run — pumped once per frame and torn down only
+with the window. So every list change re-executed the build inside the *same*,
+never-reinitialised context, and the rebuilt children still got fresh state. The context is shared; the *ids* are
 not, because the rebuild constructed new controls.
 
 ### Most state is not in the `DataContext` at all
@@ -1671,36 +1667,35 @@ projects the state to `vector<pair<size_t, AnyWidget>>` (`databind.h:199-209`).
 That is the signal-taking delegate, hand-rolled: build once per identity, push
 values through a handle, never rebuild.
 
-**`dynamicBox` caches the built element by item id.** Its `withPrevious` fold
-keeps, for each id present in the new builder list, the element it built
-previously, and only constructs an element for ids it has not seen
-(`src/bqui/include/bqui/dynamicbox.h:85-141` — the `prev.first == id` hit at
-`:97-102` reuses the old element and `continue`s at `:105-106`).
+**`dynamicBox` cached the built element by item id.** Its `withPrevious` fold
+kept, for each id present in the new builder list, the element it built
+previously, and only constructed an element for ids it had not seen — a
+`prev.first == id` hit reused the old element and `continue`d.
 
 `forEach` formalises exactly this pattern and moves it below the UI layer, where
 it works for any `U` rather than only for widgets.
 
-### `dynamicBox` supports dynamic membership only — and `forEach` fixes it
+### `dynamicBox` supported dynamic membership only — and `forEach` fixed it
 
 This is a correctness finding, not just a design argument.
 
-`dynamicBox`'s cache is keyed by id and consulted *before* anything looks at the
-widget. For each entry in the incoming builder list it searches the previous
-result for the same id; on a hit it reuses the old element and `continue`s
-(`src/bqui/include/bqui/dynamicbox.h:94-106`). The builder that stage 1 just
-produced from the *current* widget is dropped on the floor.
+`dynamicBox`'s cache was keyed by id and consulted *before* anything looked at the
+widget. For each entry in the incoming builder list it searched the previous
+result for the same id; on a hit it reused the old element and `continue`d. The
+builder that stage 1 had just produced from the *current* widget was dropped on
+the floor.
 
-So if an existing id's **widget changes** — same item, different widget — the
-cache hits, the new widget is discarded, and **the change is silently ignored**.
-No assert, no diagnostic, no visible failure: the old widget simply stays on
-screen. `dynamicBox` presents itself as a container of dynamic widgets, but what
-it actually supports is dynamic **membership**. Items can come and go; an item's
-widget cannot change.
+So if an existing id's **widget changed** — same item, different widget — the
+cache hit, the new widget was discarded, and **the change was silently ignored**.
+No assert, no diagnostic, no visible failure: the old widget simply stayed on
+screen. `dynamicBox` presented itself as a container of dynamic widgets, but what
+it actually supported was dynamic **membership**. Items could come and go; an
+item's widget could not change.
 
-And it **cannot do better as written**. The only way to honour the new widget is
-to use the new builder — that is, to rebuild — and rebuilding is exactly what
+And it **could not do better as written**. The only way to honour the new widget
+was to use the new builder — that is, to rebuild — and rebuilding is exactly what
 destroys the item's state (the whole of this section). Ignoring the change and
-losing the user's typing are the only two options on offer. The cache picks the
+losing the user's typing were the only two options on offer. The cache picked the
 first, which is the less bad one, but both are wrong.
 
 `forEach`'s `(AnySignal<T>) -> U` **closes the hole** rather than choosing
@@ -1724,19 +1719,6 @@ as in branch B." Threading identity through the widget chain is the sound route
 to SwiftUI-style state preservation, and is strictly better than structural
 matching because the identity is *declared* rather than inferred. Out of scope
 here; noted so the option stays visible.
-
-**`dynamicBox` wastes work.** Its two stages disagree. Stage 1 (widget →
-builder, `dynamicbox.h:28-40`) re-invokes **every** child's build function on
-**every** list change, allocating throwaway inputs, pipes, and ids. Stage 2
-(builder → element, `dynamicbox.h:85-141`) then caches by id, so for every
-pre-existing item the builder stage 1 just produced is dropped unused at the
-`continue` on `dynamicbox.h:105-106`. The cache makes `dynamicBox` *correct*,
-not *cheap*: one insert costs an O(n) build-and-discard. `.share()`
-(`dynamicbox.h:40`) bounds it to once per changed frame, but not per changed
-item. This is the *performance* half of the same cache; the correctness half —
-that the discarded builder may carry a genuinely changed widget — is in
-*Rationale* above and is not merely a cleanup. Both are moot once `dynamicBox`
-is deleted in favour of the unified engine.
 
 **`DataContext` never prunes.** `data_` holds `weak_ptr`s and an expired entry is
 reclaimed only when the *same* id is initialised again (`datacontext.h:70-79`).
@@ -1766,10 +1748,9 @@ existing reference implementation; see *Sharing: `SharedArraySignal`*.
   out and later back in was never retired upstream, but the node evicted its `U`,
   so the delegate re-runs for an identity that never died and a filtered-out
   widget silently loses its state. Decide *before* adding it, not while.
-- **Whether `Collection<T>` and `DataSource<T>` are removed or kept.** `forEach`
-  supersedes the plumbing; `Collection` remains a reasonable mutable source. Note
-  that `Collection`'s ids are pointer values, so a `Collection` source must feed
-  its ids through as keys or be keyed on item content.
+- **Whether `Collection<T>` and `DataSource<T>` are removed or kept.**
+  *Settled:* `Collection` was kept, moved to `bq` with collection-minted ids and
+  its own keyed `forEach`, and `DataSource` was removed.
 
 ## Implementation order
 
@@ -1777,7 +1758,7 @@ Written for a from-scratch implementation. The spike on PR #100 is superseded an
 should not be extended; read it for the `join` fixes and the test cases, and
 otherwise start clean.
 
-Steps 0 to 5 are done; step 6 is outstanding.
+Steps 0 to 7 are done.
 
 0. **Fix `DataContext::initializeData`'s assert.** *Done.* A **prerequisite**,
    not a nicety. `data_` holds `weak_ptr`s and the assert required the id to be
@@ -1821,8 +1802,9 @@ Steps 0 to 5 are done; step 6 is outstanding.
 
 5. **Unify `layout()`** over `map`/`scatter`/`join`. *Done.* One behavioural
    consequence to know, since the step was otherwise behaviour-preserving: a
-   child's build function now runs from `scatter`'s delegate, which is **once
-   per `DataContext`** rather than once per description. Two contexts over one
+   child's build is now done inside the array — the widget-to-builder step in a
+   `map` and the builder-to-instance step in `scatter`'s delegate — which is
+   **once per `DataContext`** rather than once per description. Two contexts over one
    layout therefore build two sets of children, where before they shared one
    set of built descriptions. That follows from where the array keeps its state
    and is the more correct of the two, but it is a change. The builders
@@ -1835,11 +1817,33 @@ Steps 0 to 5 are done; step 6 is outstanding.
    construction as *Alignment is a promise* predicted: the hint fan-in and
    `scatter` read the array's one shared element signal.
 
-6. **Delete `dynamicBox`.** `hbox`/`vbox` take an `ArraySignal<AnyWidget>` and
-   route to the unified `layout()`. This is where the missing `handleGravity()`
-   and the element-cache bug disappear. Retire `dataBind` /
-   `dataSourceFromCollection` here, porting `src/bqui/test/databindtest.cpp:18`
-   and `src/testapp1/adder.cpp:84`.
+6. **Delete `dynamicBox`.** *Done.* `hbox`/`vbox` take an
+   `ArraySignal<AnyWidget>` and route to the unified `layout()`. Both defects
+   went with the implementation rather than being fixed: `layout()` puts
+   `modifier::handleGravity()` in front of every child, and the element cache
+   has no successor to be wrong in — `scatter` matches by identity and nothing
+   scans a previous result. The `withPrevious` fold, the positional re-keying
+   block and the `assert(obbs.size() == builders.size())` all went too.
+   `handleGravity` composed into the delegate exactly as predicted: it needs
+   the child's own hint, its gravity and its assigned outer size, and the
+   delegate has the first two through the child's value and the third through
+   the identity-matched obb.
+
+   One thing the audit missed and the rewrite had to put back: `dynamicBox` gave
+   every child an `avg::UniqueId` through `modifier::setElementId`, and the
+   static engine did not. `avg::ContainerNode` matches children by id when they
+   have one and **by position otherwise**, so without it a removal from a
+   dynamic list pairs the departing child with whichever one now occupies its
+   slot, and the wrong row animates out. The unified engine mints the id in
+   `scatter`'s delegate, which is once per identity, so both paths now have it.
+   The static path pays one node per child for a match that agrees with the
+   positional one; losing identity is a correctness regression and gaining it is
+   a cost, so that is the direction to err in.
+
+7. **Retire `Collection`, `DataSource` and `dataBind`.** *Done*, ahead of
+   step 6 rather than after it. `Collection` was kept and moved to `bq` with its
+   own keyed `forEach`; `DataSource`, `dataSourceFromCollection` and `dataBind`
+   were deleted.
 
 Steps 0-3 are `bq` only and landed before anything in `bqui` changed.
 
@@ -1857,6 +1861,18 @@ is to inject the platform into `App`: `src/bqui/test/apptest.cpp` calls
 `App().platform(ase::makeDummyPlatform())`, so it drives the headless backend and
 compiles and runs on every platform. Anything else that wants end-to-end coverage
 of the app loop does the same rather than weakening the test.
+
+### Step 6 was not separable from porting `adder`
+
+Recorded because the plan above assumed it was. Deleting `dynamicBox` deleted
+the only consumer of an `AnySignal<std::vector<std::pair<size_t, AnyWidget>>>`,
+so `src/testapp1/adder.cpp`, which fed `vbox` that shape, had to move in the same
+change. The shape cannot be turned back into an `ArraySignal<AnyWidget>`: that
+would mean reading a widget out of a signal while describing the graph, which is
+precisely what cannot be done and precisely why `dynamicBox` had to either
+discard a changed widget or rebuild it. The other direction is easy, so `adder`
+joined its `Collection`'s `forEach` into that shape until then; step 6 dropped the
+join and handed the array to `vbox` directly.
 
 ### Tests the departed-key invariant requires
 
