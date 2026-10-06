@@ -15,6 +15,8 @@
 #include <bqui/sizehint.h>
 
 #include <bq/signal/arraysignal.h>
+#include <bq/signal/collection.h>
+#include <bq/signal/collectionsignal.h>
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
 #include <bq/signal/input.h>
@@ -291,6 +293,39 @@ bq::signal::ArraySignal<AnyWidget> dynamicChildren(ProbeSet probes,
 
                 return countBuilds(builds, std::move(widget));
             });
+}
+
+/**
+ * @brief A child list built from a collection of probe indices.
+ *
+ * Each item names the probe at its value plus @p offset, so two lists over one
+ * collection can still carry probes of their own.
+ */
+bq::signal::ArraySignal<AnyWidget> collectionChildren(ProbeSet probes,
+        bq::signal::Collection<size_t> const& indices,
+        std::shared_ptr<int> builds, size_t offset = 0)
+{
+    return bq::signal::forEach(indices,
+            [probes, builds, offset](bq::signal::AnySignal<size_t> index)
+            {
+                auto probe = bq::signal::AnySignal<size_t>(index.map(
+                            [offset](size_t i)
+                            {
+                                return i + offset;
+                            }));
+
+                return countBuilds(builds, probes.fromSignal(std::move(probe)));
+            });
+}
+
+bq::signal::Collection<size_t> makeIndices(std::vector<size_t> indices)
+{
+    bq::signal::Collection<size_t> collection;
+    auto transaction = collection.write();
+    for (size_t index : indices)
+        transaction.pushBack(index);
+
+    return collection;
 }
 
 bq::signal::FrameInfo nextFrame(uint64_t frameId)
@@ -911,4 +946,266 @@ TEST(Layout, dynamicHboxBuildsEachChildOncePerIdentity)
     context.update(nextFrame(2));
 
     EXPECT_EQ(3 * perChild, *builds);
+}
+
+// One braced list mixes constant children with two collections. Each segment
+// keeps its place in the written order as its collection changes, and a change
+// builds only the item it adds.
+TEST(Layout, hboxMixesConstantsAndCollections)
+{
+    ProbeSet probes;
+
+    size_t const first = probes.addIndexed(fixed50, fixed50);
+    size_t const a0 = probes.addIndexed(fixed50, fixed50);
+    size_t const a1 = probes.addIndexed(fixed50, fixed50);
+    size_t const middle = probes.addIndexed(fixed50, fixed50);
+    size_t const b0 = probes.addIndexed(fixed50, fixed50);
+    size_t const b1 = probes.addIndexed(fixed50, fixed50);
+
+    auto as = makeIndices({ a0, a1 });
+    auto bs = makeIndices({ b0, b1 });
+
+    auto constantBuilds = std::make_shared<int>(0);
+    auto aBuilds = std::make_shared<int>(0);
+    auto bBuilds = std::make_shared<int>(0);
+
+    auto constant = [&](size_t index)
+    {
+        return countBuilds(constantBuilds,
+                probes.fromSignal(bq::signal::constant(index)));
+    };
+
+    auto instanceSignal = hbox({
+            constant(first),
+            collectionChildren(probes, as, aBuilds),
+            constant(middle),
+            collectionChildren(probes, bs, bBuilds)
+            })(BuildParams())(
+            bq::signal::constant(avg::Vector2f(1000.0f, 50.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    auto geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("a0", geometries[a0], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("a1", geometries[a1], 100.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b0", geometries[b0], 200.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b1", geometries[b1], 250.0f, 0.0f, 50.0f, 50.0f);
+
+    ASSERT_GT(*constantBuilds, 0);
+    ASSERT_EQ(0, *constantBuilds % 2);
+
+    int const perChild = *constantBuilds / 2;
+
+    EXPECT_EQ(2 * perChild, *aBuilds);
+    EXPECT_EQ(2 * perChild, *bBuilds);
+
+    size_t const b2 = probes.addIndexed(fixed50, fixed50);
+    bs.write().pushFront(b2);
+    context.update(nextFrame(1));
+
+    geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("a0", geometries[a0], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("a1", geometries[a1], 100.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b2", geometries[b2], 200.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b0", geometries[b0], 250.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b1", geometries[b1], 300.0f, 0.0f, 50.0f, 50.0f);
+
+    EXPECT_EQ(2 * perChild, *constantBuilds);
+    EXPECT_EQ(2 * perChild, *aBuilds);
+    EXPECT_EQ(3 * perChild, *bBuilds);
+
+    size_t const a2 = probes.addIndexed(fixed50, fixed50);
+    {
+        auto transaction = as.write();
+        transaction.erase(transaction.items().begin());
+        transaction.pushBack(a2);
+    }
+    context.update(nextFrame(2));
+
+    geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectNotRealised("a0", geometries[a0]);
+    expectGeometry("a1", geometries[a1], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("a2", geometries[a2], 100.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b2", geometries[b2], 200.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b0", geometries[b0], 250.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b1", geometries[b1], 300.0f, 0.0f, 50.0f, 50.0f);
+
+    EXPECT_EQ(2 * perChild, *constantBuilds);
+    EXPECT_EQ(3 * perChild, *aBuilds);
+    EXPECT_EQ(3 * perChild, *bBuilds);
+
+    {
+        auto transaction = bs.write();
+        transaction.erase(transaction.items().begin());
+    }
+    context.update(nextFrame(3));
+
+    geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("middle", geometries[middle], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectNotRealised("b2", geometries[b2]);
+    expectGeometry("b0", geometries[b0], 200.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("b1", geometries[b1], 250.0f, 0.0f, 50.0f, 50.0f);
+
+    EXPECT_EQ(2 * perChild, *constantBuilds);
+    EXPECT_EQ(3 * perChild, *aBuilds);
+    EXPECT_EQ(3 * perChild, *bBuilds);
+}
+
+TEST(Layout, vboxMixesConstantsAndCollections)
+{
+    ProbeSet probes;
+
+    size_t const first = probes.addIndexed(fixed50, fixed50);
+    size_t const a0 = probes.addIndexed(fixed50, fixed50);
+    size_t const middle = probes.addIndexed(fixed50, fixed50);
+    size_t const b0 = probes.addIndexed(fixed50, fixed50);
+
+    auto as = makeIndices({ a0 });
+    auto bs = makeIndices({ b0 });
+
+    auto builds = std::make_shared<int>(0);
+
+    auto instanceSignal = vbox({
+            probes.fromSignal(bq::signal::constant(first)),
+            collectionChildren(probes, as, builds),
+            probes.fromSignal(bq::signal::constant(middle)),
+            collectionChildren(probes, bs, builds)
+            })(BuildParams())(
+            bq::signal::constant(avg::Vector2f(50.0f, 250.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    size_t const b1 = probes.addIndexed(fixed50, fixed50);
+    bs.write().pushBack(b1);
+    context.update(nextFrame(1));
+
+    auto geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 200.0f, 50.0f, 50.0f);
+    expectGeometry("a0", geometries[a0], 0.0f, 150.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 0.0f, 100.0f, 50.0f, 50.0f);
+    expectGeometry("b0", geometries[b0], 0.0f, 50.0f, 50.0f, 50.0f);
+    expectGeometry("b1", geometries[b1], 0.0f, 0.0f, 50.0f, 50.0f);
+}
+
+TEST(Layout, hboxKeepsAnEmptyCollectionInPlace)
+{
+    ProbeSet probes;
+
+    size_t const first = probes.addIndexed(fixed50, fixed50);
+    size_t const last = probes.addIndexed(fixed50, fixed50);
+
+    auto items = makeIndices({});
+
+    auto builds = std::make_shared<int>(0);
+
+    auto instanceSignal = hbox({
+            probes.fromSignal(bq::signal::constant(first)),
+            collectionChildren(probes, items, builds),
+            probes.fromSignal(bq::signal::constant(last))
+            })(BuildParams())(
+            bq::signal::constant(avg::Vector2f(300.0f, 50.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    auto geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("last", geometries[last], 50.0f, 0.0f, 50.0f, 50.0f);
+
+    size_t const added = probes.addIndexed(fixed50, fixed50);
+    items.write().pushBack(added);
+    context.update(nextFrame(1));
+
+    geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("first", geometries[first], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("added", geometries[added], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("last", geometries[last], 100.0f, 0.0f, 50.0f, 50.0f);
+}
+
+// Two lists over one collection mint identities of their own, so each keeps
+// its own children and builds its own copy of an added item.
+TEST(Layout, hboxListsOverOneCollectionKeepTheirOwnChildren)
+{
+    ProbeSet probes;
+
+    size_t const left0 = probes.addIndexed(fixed50, fixed50);
+    size_t const left1 = probes.addIndexed(fixed50, fixed50);
+    size_t const left2 = probes.addIndexed(fixed50, fixed50);
+    size_t const right0 = probes.addIndexed(fixed50, fixed50);
+    size_t const right1 = probes.addIndexed(fixed50, fixed50);
+    size_t const right2 = probes.addIndexed(fixed50, fixed50);
+    size_t const middle = probes.addIndexed(fixed50, fixed50);
+
+    size_t const offset = right0 - left0;
+
+    auto items = makeIndices({ left0, left1 });
+
+    auto leftBuilds = std::make_shared<int>(0);
+    auto rightBuilds = std::make_shared<int>(0);
+
+    auto instanceSignal = hbox({
+            collectionChildren(probes, items, leftBuilds),
+            probes.fromSignal(bq::signal::constant(middle)),
+            collectionChildren(probes, items, rightBuilds, offset)
+            })(BuildParams())(
+            bq::signal::constant(avg::Vector2f(1000.0f, 50.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    ASSERT_GT(*leftBuilds, 0);
+    ASSERT_EQ(0, *leftBuilds % 2);
+    ASSERT_EQ(*leftBuilds, *rightBuilds);
+
+    int const perChild = *leftBuilds / 2;
+
+    items.write().pushBack(left2);
+    context.update(nextFrame(1));
+
+    auto geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectGeometry("left0", geometries[left0], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("left1", geometries[left1], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("left2", geometries[left2], 100.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("right0", geometries[right0], 200.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("right1", geometries[right1], 250.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("right2", geometries[right2], 300.0f, 0.0f, 50.0f, 50.0f);
+
+    EXPECT_EQ(3 * perChild, *leftBuilds);
+    EXPECT_EQ(3 * perChild, *rightBuilds);
+
+    {
+        auto transaction = items.write();
+        transaction.erase(transaction.items().begin());
+    }
+    context.update(nextFrame(2));
+
+    geometries = probes.read(context.evaluate<0>().get<0>());
+
+    expectNotRealised("left0", geometries[left0]);
+    expectGeometry("left1", geometries[left1], 0.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("left2", geometries[left2], 50.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("middle", geometries[middle], 100.0f, 0.0f, 50.0f, 50.0f);
+    expectNotRealised("right0", geometries[right0]);
+    expectGeometry("right1", geometries[right1], 150.0f, 0.0f, 50.0f, 50.0f);
+    expectGeometry("right2", geometries[right2], 200.0f, 0.0f, 50.0f, 50.0f);
+
+    EXPECT_EQ(3 * perChild, *leftBuilds);
+    EXPECT_EQ(3 * perChild, *rightBuilds);
 }
