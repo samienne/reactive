@@ -558,7 +558,9 @@ namespace bq::signal
         {
         }
 
-        /** @brief Constructs a list of constant items. */
+        /**
+         * @brief Constructs a list of constant items.
+         */
         ArraySignal(std::vector<T> items) :
             ArraySignal(constantElements(std::move(items)))
         {
