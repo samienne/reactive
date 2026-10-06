@@ -100,20 +100,4 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
     std::move(widgets)
     );
 }
-
-widget::AnyWidget layout(SizeHintMap sizeHintMap,
-        ObbMap obbMap, std::vector<widget::AnyWidget> widgets)
-{
-    std::vector<bq::signal::ArraySignal<widget::AnyWidget>> children;
-    children.reserve(widgets.size());
-
-    for (auto&& widget : widgets)
-        children.push_back(std::move(widget));
-
-    return layout(
-            std::move(sizeHintMap),
-            std::move(obbMap),
-            bq::signal::ArraySignal<widget::AnyWidget>(std::move(children))
-            );
-}
 }

@@ -252,9 +252,7 @@ SizeHintResult const fillHint = {{ 0.0f, 0.0f, 1000.0f }};
 SizeHintResult const fixed100 = {{ 100.0f, 100.0f, 100.0f }};
 SizeHintResult const fixed150 = {{ 150.0f, 150.0f, 150.0f }};
 
-// A child list built at runtime. An AnyWidget converts to a one-element array,
-// so a vector of them is the array of the whole list.
-using Children = std::vector<bq::signal::ArraySignal<AnyWidget>>;
+using Children = std::vector<AnyWidget>;
 
 /**
  * @brief Counts how many times @p widget is built.

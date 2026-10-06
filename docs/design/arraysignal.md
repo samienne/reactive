@@ -234,6 +234,7 @@ supported source type:
 | `T` (or anything convertible to `T`) | a single constant item |
 | `std::initializer_list<ArraySignal<T>>` | a fixed list of children |
 | `std::vector<ArraySignal<T>>` | ditto, built at runtime |
+| `std::vector<T>` | a fixed list of constant items, built at runtime |
 **Every one of them is constant**, and that is the rule: anything that varies
 enters through `forEach`, which asks for the key that says which item is which.
 The one candidate that would break the rule, a reactive subtree taking
@@ -1551,8 +1552,9 @@ identity supplied by a key function instead of by the collection.
 gave it an overload; the *One layout engine* finding superseded that. `hbox` and
 `vbox` take an `ArraySignal<AnyWidget>` — one overload each, not two, because a
 `std::vector<AnyWidget>` overload alongside the array one makes `hbox({a, b, c})`
-ambiguous. `layout()` keeps a vector overload for `stack` and `uniformGrid`,
-which are only ever called with a named vector.
+ambiguous. A named `std::vector<AnyWidget>`, as `stack` and `uniformGrid` pass to
+`layout()`, converts through the array's own `std::vector<T>` constructor
+instead, so no function needs a vector overload.
 
 `adder`, the one production caller of a dynamic `vbox`, had to be ported in the
 same change — see *Step 6 was not separable*.

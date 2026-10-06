@@ -45,11 +45,5 @@ namespace bqui::widget
      */
     BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
             ObbMap obbMap, bq::signal::ArraySignal<AnyWidget> widgets);
-
-    /**
-     * @overload
-     */
-    BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, std::vector<AnyWidget> widgets);
 }
 

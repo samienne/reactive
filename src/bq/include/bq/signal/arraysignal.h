@@ -558,6 +558,12 @@ namespace bq::signal
         {
         }
 
+        /** @brief Constructs a list of constant items. */
+        ArraySignal(std::vector<T> items) :
+            ArraySignal(constantElements(std::move(items)))
+        {
+        }
+
         /** @brief Constructs a single constant item. */
         template <typename U, typename = std::enable_if_t<
             detail::isPlainItem<U, T>
@@ -629,6 +635,16 @@ namespace bq::signal
         explicit ArraySignal(ElementsSignal elements) :
             elements_(elements.share())
         {
+        }
+
+        static ElementsSignal constantElements(std::vector<T> items)
+        {
+            Elements elements;
+            elements.reserve(items.size());
+            for (auto&& item : items)
+                elements.push_back({ detail::makeArrayId(), std::move(item) });
+
+            return constant(std::move(elements));
         }
 
         static ElementsSignal concatElements(
