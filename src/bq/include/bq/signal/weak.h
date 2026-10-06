@@ -71,6 +71,9 @@ namespace bq::signal
         UpdateResult update(DataContext& context, DataType& data,
                 FrameInfo const& frame)
         {
+            if (!data.contextData)
+                return {};
+
             if (data.contextData->frameId < frame.getFrameId())
             {
                 if (auto control = control_.lock())
@@ -80,7 +83,6 @@ namespace bq::signal
                     data.contextData->value = control->baseEvaluate(context,
                             *data.contextData->innerData);
                     data.contextData->didChange = result.didChange;
-                    return result;
                 }
                 else
                 {
