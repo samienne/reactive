@@ -247,11 +247,8 @@ TEST(Widget, elementModifierParams)
 
 TEST(Widget, setIdOnAWidgetThatDrawsNothing)
 {
-    // A layout names every child so that the render tree can pair children up
-    // across an update, and plenty of children (a filler, a spacer, an empty
-    // widget) draw nothing at all. An avg::IdNode has to have a child to
-    // draw, so naming an empty render tree has to leave it empty rather than
-    // wrap the nothing that is there.
+    // Layouts give every child an id, including children that draw nothing;
+    // an empty render tree must stay empty.
     auto element = (makeWidget() | setId(signal::constant(avg::UniqueId())))
         (BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
 
@@ -262,11 +259,8 @@ TEST(Widget, setIdOnAWidgetThatDrawsNothing)
 
 TEST(Widget, setIdDoesNotMoveWhatItNames)
 {
-    // An avg::IdNode sits between its parent and the node it wraps, and its
-    // own obb is applied on the way down. The node it wraps already carries
-    // wherever the instance was placed, so the IdNode has to contribute no
-    // transform of its own; otherwise the placement lands twice and the child
-    // is drawn at double the offset it was laid out at.
+    // The wrapped node is already placed; if the IdNode added the transform
+    // again, the child would be drawn at double the offset.
     auto element = (makeWidget()
             | frame()
             | modifier::transform(signal::constant(avg::translate(10.0f, 20.0f)))

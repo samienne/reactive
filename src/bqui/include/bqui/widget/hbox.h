@@ -9,11 +9,15 @@
 namespace bqui::widget
 {
     /**
-     * @brief Places its children in a row, left to right.
+     * @brief Lays widgets out in a row, left to right.
      *
-     * A braced list of widgets is a fixed row; an array built by forEach() is
-     * one whose membership changes, and neither is a special case of the other
-     * — see layout().
+     * Takes a list of widgets, or the array forEach() makes from a changing
+     * list:
+     *
+     * @code
+     * hbox({ label("Name:"), button("OK", onClick) })
+     * hbox(forEach(items, key, makeRow))
+     * @endcode
      */
     BQUI_EXPORT AnyWidget hbox(bq::signal::ArraySignal<AnyWidget> widgets);
 } // namespace bqui::widget

@@ -35,16 +35,13 @@ namespace bqui::widget
         > {};
 
     /**
-     * @brief Places a list of children, whose membership may change.
+     * @brief Lays widgets out with your own sizing and placement.
      *
-     * Children enter as an array. Every child is built once per identity, and
-     * an insertion or a removal leaves its siblings — and whatever they have
-     * accumulated — untouched.
-     *
-     * `sizeHintMap` computes the container's own hint from the children's, and
-     * `obbMap` places them; both see every child's hint at once. `obbMap` must
-     * return one obb per hint, which is checked. Every child is put through
-     * modifier::handleGravity() before it is built.
+     * Takes the same widgets as hbox(). `sizeHintMap` turns the children's
+     * size hints into the container's, and `obbMap` returns one obb per child
+     * for a given container size. Children go through
+     * modifier::handleGravity() first, and a child keeps its state when others
+     * are added or removed.
      */
     BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
             ObbMap obbMap, bq::signal::ArraySignal<AnyWidget> widgets);

@@ -257,11 +257,7 @@ SizeHintResult const fixed150 = {{ 150.0f, 150.0f, 150.0f }};
 using Children = std::vector<bq::signal::ArraySignal<AnyWidget>>;
 
 /**
- * @brief Counts the times the container asks @p widget to build itself.
- *
- * The count is what the container does with a child, not what produced the
- * child: a delegate that ran once still says nothing about whether the layout
- * rebuilt what it was handed.
+ * @brief Counts how many times @p widget is built.
  */
 AnyWidget countBuilds(std::shared_ptr<int> builds, AnyWidget widget)
 {
@@ -856,9 +852,7 @@ TEST(Layout, dynamicHboxFollowsReorderedKeys)
     expectGeometry("last", geometries[2], 0.0f, 0.0f, 150.0f, 50.0f);
 }
 
-// A dynamic child list is laid out by the same engine as a fixed one, so a
-// child that cannot use its whole slot is centered in it exactly as it is in a
-// fixed hbox. The probe below asks for 50x30 and is given a 50x100 slot.
+// The probe asks for 50x30 and gets a 50x100 slot, so it is centered in it.
 TEST(Layout, dynamicHboxAppliesGravity)
 {
     ProbeSet probes;
@@ -881,14 +875,9 @@ TEST(Layout, dynamicHboxAppliesGravity)
     expectGeometry("only", geometries[0], 0.0f, 35.0f, 50.0f, 30.0f);
 }
 
-// A child is built when its identity appears and not again, so one that
-// survives a membership change keeps the builder — and everything under it —
-// that it already had, however its siblings come and go around it.
-//
-// The count per child is more than one, because handleGravity() builds the
-// widget it is given a second time to negotiate against its own size hint.
-// That is a property of the modifier rather than of the container, so the cost
-// is derived from the first pass instead of written down here.
+// Adding or removing children does not rebuild the others. handleGravity()
+// builds each child more than once, so the per-child count is measured from
+// the first pass.
 TEST(Layout, dynamicHboxBuildsEachChildOncePerIdentity)
 {
     ProbeSet probes;
@@ -917,8 +906,7 @@ TEST(Layout, dynamicHboxBuildsEachChildOncePerIdentity)
     input.handle.set(std::vector<size_t>{ added, 0, 1 });
     context.update(nextFrame(1));
 
-    // Only the arrival is built, and it is built at the front without
-    // disturbing the two it displaced.
+    // Only the new child is built.
     EXPECT_EQ(3 * perChild, *builds);
 
     input.handle.set(std::vector<size_t>{ 1, added });

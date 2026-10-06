@@ -9,11 +9,15 @@
 namespace bqui::widget
 {
     /**
-     * @brief Places its children in a column, top to bottom.
+     * @brief Lays widgets out in a column, top to bottom.
      *
-     * A braced list of widgets is a fixed column; an array built by forEach()
-     * is one whose membership changes, and neither is a special case of the
-     * other — see layout().
+     * Takes a list of widgets, or the array forEach() makes from a changing
+     * list:
+     *
+     * @code
+     * vbox({ label("Name:"), button("OK", onClick) })
+     * vbox(forEach(items, key, makeRow))
+     * @endcode
      */
     BQUI_EXPORT AnyWidget vbox(bq::signal::ArraySignal<AnyWidget> widgets);
 } // namespace bqui::widget

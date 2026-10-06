@@ -19,10 +19,8 @@ namespace bqui::widget
 namespace
 {
 
-// Called once per identity, so the id it mints names this child for as long as
-// the child is there. avg::ContainerNode falls back to matching its children by
-// position when they carry no id, which for a list whose membership changes
-// pairs a departing child with whichever one now occupies its slot.
+// Each child gets its own id so the render tree matches children by identity,
+// not by position, when the list changes.
 bq::signal::AnySignal<widget::Instance> buildChild(
         widget::AnyBuilder const& builder,
         bq::signal::AnySignal<avg::Obb> obb)
