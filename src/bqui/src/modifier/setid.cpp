@@ -18,7 +18,7 @@ AnyElementModifier setElementId(bq::signal::AnySignal<avg::UniqueId> id)
         {
             // Nothing to name: an avg::IdNode needs a child.
             if (!instance.getRenderTree().getRoot())
-                return std::move(instance);
+                return instance;
 
             // The wrapped node is already placed, so the IdNode gets only the
             // size; the full obb would apply the placement twice.
