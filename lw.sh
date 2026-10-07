@@ -1,12 +1,14 @@
 #!/bin/sh
 # loomworks repo-local launcher. Committed alongside lw.pin. Fetches the pinned,
 # verified lw host binary into .nvim/cache/ and execs it; the host provisions the
-# pinned bundle itself. Regenerate with `lw update`. See `lw help bootstrap`.
+# pinned bundle itself. Regenerate with `lw bootstrap install`. See
+# `lw help bootstrap`. LOOMWORKS_LAUNCHER tells lw which launcher ran it, so the
+# commands it prints read ./lw.sh.
 set -eu
 
 # Dev / test-at-head override: run a named binary, bypassing the pin entirely.
 if [ -n "${LOOMWORKS_LW:-}" ]; then
-  exec "$LOOMWORKS_LW" "$@"
+  LOOMWORKS_LAUNCHER=lw.sh exec "$LOOMWORKS_LW" "$@"
 fi
 
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -145,4 +147,4 @@ if [ "$do_verify" = "1" ]; then
 fi
 
 # --- exec the pinned host; it provisions the pinned bundle itself ----------
-LOOMWORKS_PINNED="$version" LW_ROOT="$PWD" exec "$bin" "$@"
+LOOMWORKS_LAUNCHER=lw.sh LOOMWORKS_PINNED="$version" LW_ROOT="$PWD" exec "$bin" "$@"

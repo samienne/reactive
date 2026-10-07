@@ -2,16 +2,22 @@
 setlocal EnableExtensions EnableDelayedExpansion
 rem loomworks repo-local launcher (Windows). Committed alongside lw.pin. Fetches
 rem the pinned, verified lw host binary into .nvim\cache\ and runs it; the host
-rem provisions the pinned bundle itself. Regenerate with `lw update`.
+rem provisions the pinned bundle itself. Regenerate with `lw bootstrap install`.
 rem Run it as .\lw.cmd: a bare lw.cmd can resolve to another one on PATH.
+rem LOOMWORKS_LAUNCHER tells lw which launcher ran it, so the commands it prints
+rem read .\lw.cmd.
 rem Messages are `1>&2 echo text`: a trailing ` 1>&2` would leave a space at the
 rem end of every line.
 rem Windows system tools (find, findstr, certutil, curl, where, ping) are called
 rem by their absolute %SystemRoot%\System32 path: a bare name can resolve to a
 rem same-named tool earlier on PATH (Git's usr/bin/find under Git Bash / CI).
+rem lw runs as `... & call :status`: Ctrl-C / Ctrl-Break reach lw, which cleans
+rem up and exits 130, but cmd.exe sees the same event and would then ask
+rem "Terminate batch job (Y/N)?" and wait. A `call` on the same line clears that.
+set "LOOMWORKS_LAUNCHER=lw.cmd"
 
 if not "%LOOMWORKS_LW%"=="" (
-  "%LOOMWORKS_LW%" %*
+  "%LOOMWORKS_LW%" %* & call :status
   exit /b !ERRORLEVEL!
 )
 
@@ -132,8 +138,11 @@ set "fwd=%fwd% %1"
 shift
 goto peel
 :peeled
-"%PINBIN%"%fwd%
+"%PINBIN%"%fwd% & call :status
 exit /b %ERRORLEVEL%
+
+:status
+exit /b
 
 :sha
 set "got="
