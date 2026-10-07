@@ -410,7 +410,7 @@ there, and gets meson and ninja from pip with no version pin. The vendored
 
 **Why lw is pinned in the repo:** CI used to install a pinned lw and then run
 `lw self-update`, which floated to the latest release, so a loomworks release
-could change CI without a commit here. The pin now moves only when `lw update`
+could change CI without a commit here. The pin now moves only when `lw bootstrap install`
 rewrites `lw.pin` in a PR.
 
 **Why:** meson installs trivially from pip and its language is stable enough
