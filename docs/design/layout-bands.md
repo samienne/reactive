@@ -295,8 +295,13 @@ children overflow, flexible children respond, opt-in. Document the standard
 
 ## Window / OS limits
 
-The top-level (window content) aggregate band drives the OS window min/max size,
-for free - the summary is already there.
+The root region publishes its band: the content's phase-1 width band and its
+phase-2 height band at the width the window is currently solved at (so a
+reflowing content reports the height it needs at the present width). The window
+bridge reads it on every update (`WindowBridge::getRootBand`). Nothing drives
+the OS window from it yet - ase has no API to set a window's size or its min/max
+limits - so the window still opens at a fixed size; sizing and limiting the OS
+window from the root band is the remaining step.
 
 ## Stamped-size strength (decided)
 
