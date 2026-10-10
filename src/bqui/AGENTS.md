@@ -192,7 +192,9 @@ owning `Window`.
 - **Known and unfixed: a child's size hint is instantiated twice under every
   `layout()` container.** The hint fan-in reads each child's `getSizeHint()`,
   and `handleGravity` reads it again when that child's element is built, so the
-  hint chain is evaluated once per child per pass instead of once. Fixing it
+  hint chain is evaluated twice per child per pass instead of once.
+  `handleGravity` shares its own read between the child and the alignment
+  offset, so it adds one evaluation rather than one per consumer. Fixing it
   means having the builder hand out one shared hint signal rather than a fresh
   one per call — builder plumbing, not layout — which is why it is recorded here
   instead of patched at the call site.

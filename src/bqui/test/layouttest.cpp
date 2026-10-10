@@ -1,3 +1,4 @@
+#include <bqui/modifier/handlegravity.h>
 #include <bqui/modifier/instancemodifier.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/widgetmodifier.h>
@@ -36,6 +37,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -333,6 +335,33 @@ bq::signal::FrameInfo nextFrame(uint64_t frameId)
     return bq::signal::FrameInfo(frameId, std::chrono::microseconds(0));
 }
 
+/**
+ * @brief A size hint that records the size it was last queried at.
+ *
+ * Its height for a width and its width for a height are the size queried.
+ */
+struct QueryRecordingHint
+{
+    SizeHintResult getWidth() const
+    {
+        return fillHint;
+    }
+
+    SizeHintResult getHeightForWidth(float width) const
+    {
+        *queried = width;
+        return {{ width, width, width }};
+    }
+
+    SizeHintResult getWidthForHeight(float height) const
+    {
+        *queried = height;
+        return {{ height, height, height }};
+    }
+
+    std::shared_ptr<float> queried;
+};
+
 } // anonymous namespace
 
 TEST(Layout, hboxDistributesFillerSpace)
@@ -612,11 +641,10 @@ TEST(Layout, emptyBoxHasNoChildrenAndAZeroSizeHint)
     EXPECT_TRUE(instance.getInputAreas().empty());
 }
 
-// Pins current behaviour rather than asserting correctness. getSizes assumes
-// the three entries of a hint are non-decreasing and never clamps its output
-// against the size it was given; a hint whose natural size is below its minimum
-// breaks that assumption and the children are handed more room than there is.
-TEST(Layout, mapObbsOverflowsOnNonMonotonicHints)
+// A hint whose natural size is below its minimum is read as if its natural
+// were raised to the minimum, so the children still share the container
+// between them rather than being handed more room than there is.
+TEST(Layout, mapObbsFitsNonMonotonicHintsInTheContainer)
 {
     SizeHintResult const nonMonotonic = {{ 100.0f, 0.0f, 100.0f }};
 
@@ -629,12 +657,66 @@ TEST(Layout, mapObbsOverflowsOnNonMonotonicHints)
 
     ASSERT_EQ(2u, obbs.size());
 
-    // Each child is given the whole 200, so the second one starts where the
-    // container ends and the two together cover twice the container.
     EXPECT_FLOAT_EQ(0.0f, obbs[0].getTransform().getTranslation()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[0].getSize()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[1].getTransform().getTranslation()[0]);
-    EXPECT_FLOAT_EQ(200.0f, obbs[1].getSize()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[0].getSize()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[1].getTransform().getTranslation()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obbs[1].getSize()[0]);
+}
+
+// The aggregate is read the way getSizes reads the children, so at its own
+// natural width the box can give the second child its natural 50.
+TEST(Layout, hboxAggregatesNonMonotonicHintsAsItAllocates)
+{
+    ProbeSet probes;
+
+    Children children;
+    children.push_back(probes.add(
+                SizeHintResult{{ 100.0f, 0.0f, 100.0f }},
+                fixed50
+                ));
+    children.push_back(probes.add(
+                SizeHintResult{{ 0.0f, 50.0f, 50.0f }},
+                fixed50
+                ));
+
+    auto builder = hbox(std::move(children))(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(100.0f, width[0]);
+    EXPECT_FLOAT_EQ(150.0f, width[1]);
+    EXPECT_FLOAT_EQ(150.0f, width[2]);
+
+    std::vector<SizeHint> hints {
+        simpleSizeHint(SizeHintResult{{ 100.0f, 0.0f, 100.0f }}, fixed50),
+        simpleSizeHint(SizeHintResult{{ 0.0f, 50.0f, 50.0f }}, fixed50)
+    };
+
+    auto obbs = mapObbs<Axis::x>(avg::Vector2f(width[1], 50.0f), hints);
+
+    ASSERT_EQ(2u, obbs.size());
+
+    EXPECT_FLOAT_EQ(100.0f, obbs[0].getSize()[0]);
+    EXPECT_FLOAT_EQ(50.0f, obbs[1].getSize()[0]);
+}
+
+// A maximum below the minimum does not pull a child below its minimum. The
+// minimums below total exactly the size, so each child is given its minimum.
+TEST(Layout, getSizesKeepsTheMinimumAboveASmallerMaximum)
+{
+    std::vector<std::array<float, 3>> hints {
+        {{ 50.0f, 80.0f, 20.0f }},
+        {{ 10.0f, 10.0f, 10.0f }}
+    };
+
+    auto sizes = getSizes(60.0f, hints);
+
+    ASSERT_EQ(2u, sizes.size());
+
+    EXPECT_FLOAT_EQ(50.0f, sizes[0]);
+    EXPECT_FLOAT_EQ(10.0f, sizes[1]);
 }
 
 TEST(Layout, stackGivesEveryChildTheContainerSize)
@@ -714,12 +796,9 @@ TEST(Layout, uniformGridPlacesCellsFromTheBottomLeft)
     expectGeometry("top row", geometries[2], 0.0f, 50.0f, 200.0f, 50.0f);
 }
 
-// Pins current behaviour rather than asserting correctness: the container hint
-// scales the aggregate by the grid dimensions alone and never looks at a
-// child's cell span. The child below spans the whole 2x2 grid and so receives
-// the container's full size, yet the container asks for twice what the child
-// wants on both axes.
-TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
+// The child below spans the whole 2x2 grid and so receives the container's
+// full size, so the container asks for exactly what the child wants.
+TEST(Layout, uniformGridSizeHintAccountsForCellSpans)
 {
     ProbeSet probes;
 
@@ -736,14 +815,102 @@ TEST(Layout, uniformGridSizeHintIgnoresCellSpans)
     SizeHint const& hint = context.evaluate<0>().get<0>();
 
     SizeHintResult width = hint.getWidth();
-    EXPECT_FLOAT_EQ(20.0f, width[0]);
-    EXPECT_FLOAT_EQ(40.0f, width[1]);
-    EXPECT_FLOAT_EQ(60.0f, width[2]);
+    EXPECT_FLOAT_EQ(10.0f, width[0]);
+    EXPECT_FLOAT_EQ(20.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
 
     SizeHintResult height = hint.getHeightForWidth(40.0f);
-    EXPECT_FLOAT_EQ(10.0f, height[0]);
-    EXPECT_FLOAT_EQ(20.0f, height[1]);
-    EXPECT_FLOAT_EQ(30.0f, height[2]);
+    EXPECT_FLOAT_EQ(5.0f, height[0]);
+    EXPECT_FLOAT_EQ(10.0f, height[1]);
+    EXPECT_FLOAT_EQ(15.0f, height[2]);
+}
+
+// Each child's hint is spread over the cells it spans, and the grid needs the
+// largest per-cell share on every cell. The row below wants 30 across two
+// columns, 15 a column, which outweighs the 10 of the single cell under it.
+TEST(Layout, uniformGridSizeHintTakesTheLargestShareOfACell)
+{
+    ProbeSet probes;
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probes.add(
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }},
+                    SizeHintResult{{ 40.0f, 40.0f, 40.0f }}
+                    ))
+        .cell(0, 1, 2, 1, probes.add(
+                    SizeHintResult{{ 30.0f, 30.0f, 30.0f }},
+                    SizeHintResult{{ 10.0f, 10.0f, 10.0f }}
+                    ))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult width = hint.getWidth();
+    EXPECT_FLOAT_EQ(30.0f, width[0]);
+    EXPECT_FLOAT_EQ(30.0f, width[1]);
+    EXPECT_FLOAT_EQ(30.0f, width[2]);
+
+    // Rows are the other way round: the single cell's 40 outweighs the row's
+    // 10, so each of the two rows needs 40.
+    SizeHintResult height = hint.getHeightForWidth(30.0f);
+    EXPECT_FLOAT_EQ(80.0f, height[0]);
+    EXPECT_FLOAT_EQ(80.0f, height[1]);
+    EXPECT_FLOAT_EQ(80.0f, height[2]);
+}
+
+// A child spanning two of three columns is asked for its height at two thirds
+// of the grid's width, and likewise for rows.
+TEST(Layout, uniformGridQueriesAChildAtTheSizeOfItsSpan)
+{
+    auto queried = std::make_shared<float>(0.0f);
+
+    AnyWidget child = makeWidget()
+        | modifier::setSizeHint(bq::signal::constant(
+                    SizeHint(QueryRecordingHint{ queried })))
+        ;
+
+    AnyWidget grid = uniformGrid(3, 3)
+        .cell(0, 0, 2, 2, std::move(child))
+        ;
+
+    auto builder = std::move(grid)(BuildParams());
+
+    auto context = bq::signal::makeSignalContext(builder.getSizeHint());
+    SizeHint const& hint = context.evaluate<0>().get<0>();
+
+    SizeHintResult height = hint.getHeightForWidth(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, height[1]);
+
+    SizeHintResult width = hint.getWidthForHeight(60.0f);
+    EXPECT_FLOAT_EQ(40.0f, *queried);
+    EXPECT_FLOAT_EQ(60.0f, width[1]);
+}
+
+TEST(Layout, uniformGridRejectsAnEmptyDimension)
+{
+    EXPECT_THROW(uniformGrid(0, 2), std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 0), std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(1, 1));
+}
+
+TEST(Layout, uniformGridRejectsACellPastItsEdge)
+{
+    EXPECT_THROW(uniformGrid(2, 2).cell(2, 0, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 2, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, 2, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 1, 1, 2, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, ~0u, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(0, 0, 2, 2, makeWidget()));
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(1, 1, 1, 1, makeWidget()));
 }
 
 TEST(Layout, nestedBoxesComposeTransforms)
@@ -1208,4 +1375,39 @@ TEST(Layout, hboxListsOverOneCollectionKeepTheirOwnChildren)
 
     EXPECT_EQ(3 * perChild, *leftBuilds);
     EXPECT_EQ(3 * perChild, *rightBuilds);
+}
+
+TEST(Layout, handleGravityEvaluatesTheSizeHintOncePerPass)
+{
+    auto evaluations = std::make_shared<int>(0);
+    auto input = bq::signal::makeInput(avg::Vector2f(50.0f, 30.0f));
+
+    auto hint = input.signal.map([evaluations](avg::Vector2f size) -> SizeHint
+            {
+                ++*evaluations;
+
+                return simpleSizeHint(size.x(), size.y());
+            });
+
+    AnyWidget widget = makeWidget()
+        | modifier::setSizeHint(std::move(hint))
+        | modifier::handleGravity()
+        ;
+
+    auto instanceSignal = std::move(widget)(BuildParams())(
+            bq::signal::constant(avg::Vector2f(100.0f, 100.0f)))
+        .getInstance();
+
+    auto context = bq::signal::makeSignalContext(std::move(instanceSignal));
+
+    int const afterInit = *evaluations;
+
+    input.handle.set(avg::Vector2f(40.0f, 20.0f));
+    context.update(nextFrame(1));
+
+    EXPECT_EQ(afterInit + 1, *evaluations);
+
+    Instance const& instance = context.evaluate<0>().get<0>();
+    EXPECT_FLOAT_EQ(40.0f, instance.getSize()[0]);
+    EXPECT_FLOAT_EQ(20.0f, instance.getSize()[1]);
 }
