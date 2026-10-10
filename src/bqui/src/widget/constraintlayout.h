@@ -68,16 +68,16 @@ namespace bqui::widget
             bq::signal::AnySignal<float> weight);
 
     /**
-     * @brief Replaces the lower-bound band on @p axis with @p value, held
-     * strong so an unmeetable floor overflows rather than freezing the region.
+     * @brief Replaces the lower-bound band on @p axis with @p value, held at
+     * minStrength() so an unmeetable floor overflows rather than freezing the
+     * region.
      */
     void setPureMin(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Replaces the upper-bound band on @p axis with @p value, held
-     * strong so a contradicting cap ties gracefully rather than freezing the
-     * region.
+     * @brief Replaces the upper-bound band on @p axis with @p value, held at
+     * maxStrength(): it caps a fixed size but yields to a contradicting min.
      */
     void setPureMax(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
@@ -99,7 +99,8 @@ namespace bqui::widget
      * @brief Bakes one axis's @ref Constraints into a solver fragment on @p box.
      *
      * The band fields become constraints on the box's extent (@c natural at its
-     * strength, @c min / @c max strong, and a strong floor at zero) and ride
+     * strength, @c min and a floor at zero at minStrength(), @c max at
+     * maxStrength()) and ride
      * alongside the untagged relations. @p axis selects the box's width or
      * height as the extent.
      */
@@ -224,16 +225,43 @@ namespace bqui::widget
             BoxVariables const& box);
 
     /**
-     * @brief Pins a box to a fixed window-space rectangle, held strong.
+     * @brief Pins a box to a fixed window-space rectangle, held at
+     * fixedStrength().
      *
-     * Strong rather than required so a box that is both anchored and tiled by a
-     * parent overflows against the tiling instead of making the region solve
-     * infeasible (which zeroes every box on that axis); unopposed, the anchor
-     * still resolves the box to the exact rectangle.
+     * Not required, so a box that is both anchored and tiled by a parent
+     * overflows against the tiling instead of making the region solve
+     * infeasible, and below the region's own anchor; unopposed, the anchor
+     * resolves the box to the exact rectangle.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> anchorConstraints(
             BoxVariables const& box,
             float left, float top, float right, float bottom);
+
+    /**
+     * @brief The strength a region holds its outermost box at the assigned
+     * size: above every stated size so the region always takes its size, yet
+     * not required, so nothing a widget states can make the solve infeasible.
+     */
+    BQUI_EXPORT arrange::Strength regionAnchorStrength();
+
+    /**
+     * @brief The strength of a @c min bound and of the @c >=0 extent floor,
+     * the firmest stated size: a minimum beats a contradicting maximum and a
+     * fixed size.
+     */
+    BQUI_EXPORT arrange::Strength minStrength();
+
+    /**
+     * @brief The strength of a @c max bound: below a minimum, above a fixed
+     * size.
+     */
+    BQUI_EXPORT arrange::Strength maxStrength();
+
+    /**
+     * @brief The strength of a fixed size, the weakest strong pull: a bound it
+     * contradicts wins and the fixed size yields.
+     */
+    BQUI_EXPORT arrange::Strength fixedStrength();
 
     /**
      * @brief The strictly-weakest strength tier, below gravity and natural size,
@@ -285,7 +313,7 @@ namespace bqui::widget
      * on a single axis, reproducing gravity placement inside the solve.
      *
      * The content fills the slot — a weak pull equalising the two extents — but
-     * never grows past @p maxExtent, a strong cap, so it settles at the smaller
+     * never grows past @p maxExtent, a cap at maxStrength(), so it settles at the smaller
      * of the slot and its own maximum. Where it is smaller than the slot it sits
      * at @p gravity of the slack: 0 against the leading edge, 1 against the
      * trailing, 0.5 centred. That placement is a weak pull, so a medium

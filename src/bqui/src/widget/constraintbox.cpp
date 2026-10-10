@@ -204,34 +204,15 @@ void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
 // axis a child that does not hold its own extent there (@p ownExtent, parallel
 // to @p boxes) fills the container's cross extent, and every child settles
 // under its gravity (@p gravities, parallel to @p boxes) within the cross
-// extent. The anchored outermost container also pins the context frame on this
-// axis.
+// extent.
 std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
-        Axis layoutAxis, bool anchor, BoxVariables const& container,
+        Axis layoutAxis, BoxVariables const& container,
         std::vector<BoxVariables> const& boxes,
         std::vector<bool> const& ownExtent,
         std::vector<avg::Vector2f> const& gravities,
-        avg::Vector2f size, arrange::Variable const& gap, bool driveGap)
+        arrange::Variable const& gap, bool driveGap)
 {
     std::vector<arrange::Constraint> out;
-
-    if (anchor)
-    {
-        if (boxAxis == Axis::x)
-        {
-            out.push_back(arrange::Expression(container.left)
-                    == arrange::Expression(0.0));
-            out.push_back(arrange::Expression(container.right)
-                    == arrange::Expression(size[0]));
-        }
-        else
-        {
-            out.push_back(arrange::Expression(container.top)
-                    == arrange::Expression(0.0));
-            out.push_back(arrange::Expression(container.bottom)
-                    == arrange::Expression(size[1]));
-        }
-    }
 
     if (boxAxis == layoutAxis)
     {
@@ -630,9 +611,8 @@ AnyWidget solverBoxBuilders(Axis axis,
                         flexShare);
         }
 
-        append(rel, pureAxisConstraints(thisAxis, layoutAxis, false, container,
-                    boxes, ownExtents(childBands), gravities,
-                    avg::Vector2f(0.0f, 0.0f), gap, flexes));
+        append(rel, pureAxisConstraints(thisAxis, layoutAxis, container,
+                    boxes, ownExtents(childBands), gravities, gap, flexes));
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
@@ -1392,26 +1372,33 @@ PureRegion buildPureRegion(AnyWidget const& content,
 
     auto sharedSize = std::move(size).share();
 
-    // The region owner flattens the top descriptor's band onto its outermost box
-    // and alone anchors that box to the assigned rectangle; every container
-    // inside states only relative structure.
+    // The region owner alone anchors the outermost box to the assigned
+    // rectangle; every container inside states only relative structure. The
+    // root is built at the assigned size whatever the solve says, so only the
+    // top descriptor's relations are flattened: its band would only lose to the
+    // anchor.
     auto anchored = [root](Axis axis)
     {
         return [root, axis](Constraints const& constraints,
                 avg::Vector2f size)
         {
+            Constraints content;
+            content.relations = constraints.relations;
             std::vector<LayoutSpec> all;
-            all.push_back(flattenConstraints(constraints, root, axis));
+            all.push_back(flattenConstraints(content, root, axis));
             LayoutSpec anchor;
             arrange::Variable const& lead =
                 axis == Axis::x ? root.left : root.top;
             arrange::Variable const& trail =
                 axis == Axis::x ? root.right : root.bottom;
             float extent = axis == Axis::x ? size[0] : size[1];
-            anchor.constraints.push_back(arrange::Expression(lead)
-                    == arrange::Expression(0.0));
-            anchor.constraints.push_back(arrange::Expression(trail)
-                    == arrange::Expression(static_cast<double>(extent)));
+            anchor.constraints.push_back(
+                    (arrange::Expression(lead) == arrange::Expression(0.0))
+                    | regionAnchorStrength());
+            anchor.constraints.push_back(
+                    (arrange::Expression(trail)
+                        == arrange::Expression(static_cast<double>(extent)))
+                    | regionAnchorStrength());
             anchor.variables.push_back(lead);
             anchor.variables.push_back(trail);
             all.push_back(std::move(anchor));
