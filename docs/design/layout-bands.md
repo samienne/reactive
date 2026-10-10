@@ -217,7 +217,8 @@ So the override chain runs up to each container and resets there; below it,
 stamped.
 
 A container adds its own weak 100 default on an axis only when it neither flexes
-there nor has a child stating a natural. The default is baked into the
+there nor has a child stating a natural; a container with no children at all
+states a zero natural instead, so an empty box takes no room. The default is baked into the
 container's relations rather than its band, so a `fill()` applied to the
 container afterwards cannot drop it; where it coexisted with a natural it would
 outlast the fill and hold the container at 100 against the parent's slack drive.

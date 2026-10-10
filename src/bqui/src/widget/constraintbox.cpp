@@ -1162,10 +1162,14 @@ std::vector<bool> ownExtents(std::vector<Constraints> const& bands)
 // contributing child's strength. On the cross axis they overlap, so the largest
 // wins and carries its own strength -- an unrelated smaller child's firmness
 // does not rigidify the container's cross natural. Absent when no child carries
-// a natural.
+// a natural, except that a container with no children is empty content of zero
+// natural rather than an unconstrained box left to the weak 100 default.
 std::optional<BandNatural> aggregateNatural(
         std::vector<Constraints> const& children, bool mainAxis)
 {
+    if (children.empty())
+        return BandNatural{ 0.0f, contentStrength() };
+
     std::optional<BandNatural> result;
     for (Constraints const& child : children)
     {
