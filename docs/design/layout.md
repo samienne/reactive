@@ -1,6 +1,6 @@
 # Layout: the pure-solver model
 
-*Last verified against `0ba669c4` (2026-10-10).*
+*Last verified against `d29aa67f` (2026-10-10).*
 
 How `bqui` sizes and places widgets. The code lives in
 `src/bqui/src/widget/constraintbox.*` (containers, fillers, the region solve),
@@ -48,9 +48,9 @@ function; phase 3 returns the phase-1 width).
 ## Regions
 
 **One region is one solve.** `buildPureRegion` reads the top builder's
-`PureLayout`, flattens its band onto the outermost box, anchors that box to the
-assigned size, solves width, then solves height given the width solution, and
-combines the two. It builds the content with the combined solution as an
+`PureLayout`, flattens its relations (not its band, which would only lose to the
+anchor) onto the outermost box, anchors that box to the assigned size, solves
+width, then solves height given the width solution, and combines the two. It builds the content with the combined solution as an
 explicit build argument. The solution is not a `BuildParams` value, because
 params are captured at widget-to-builder time, before the solve exists.
 
@@ -67,10 +67,15 @@ params are captured at widget-to-builder time, before the solve exists.
   `buildInRegion()` (`src/bqui/test/purelayouttestutil.h`), which wraps the
   widget in the same region core.
 - **Solves are change-gated and from scratch.** `solveLayout` re-solves when the
-  constraint signal changes, starting from a cleared solver each time. An
-  infeasible spec (`arrange::Error`) keeps the previous solution, so on a first
-  solve the whole region collapses to zero. This is why nearly everything that
-  can conflict is held `strong`, not `required` (see Strengths).
+  constraint signal changes, starting from a cleared solver each time. Only
+  structure is `required` (see Strengths), so a solve is always feasible and a
+  conflict between stated values resolves by strength. An infeasible spec
+  (`arrange::Error`) would mean a bug in a fragment: it is logged and the
+  previous solution kept, so on a first solve the region collapses to zero.
+- **Conflicts are logged.** After each solve the strong constraints are checked
+  against the solution, and any left unmet are logged to stderr as one line
+  naming their kind (`region`, `min`, `max`, `fixed`) and the solved value
+  against the stated one, only when that set changes.
 
 ## Sizing
 
@@ -83,7 +88,9 @@ axes:
   later `fill()`/`grow()` re-enables flex, and the fixed value then rides as the
   flex basis.
 - **`minWidth`/`maxWidth`/...** set strong bounds and **leave `flex` alone**.
-  They bound a flexing widget's stretch rather than cancel it.
+  They bound a flexing widget's stretch rather than cancel it, and they beat a
+  fixed size they contradict: `fixedWidth(300) | maxWidth(200)` is 200 in either
+  order, and a `min` beats a `max`.
 - **`defaultSize`** sets a natural at content strength, for a leaf with no
   measured size of its own.
 - **`fill()` and `grow(w)` flex on both axes.** `growWidth()`/`growHeight()` are
@@ -181,11 +188,17 @@ possible but is deliberately not offered.
 Strengths rank firmness for graceful degradation, not authority (authority is
 the band's last-writer-wins). From firmest:
 
-- **required**: structural relations (tiling, the signed gap equation, inset
-  edges, grid lines) and the region anchor.
-- **strong**: a fixed size, `min`/`max` bounds, the `>= 0` extent floor. A strong
-  bound that cannot be met yields and overflows rather than failing the solve,
-  and a fixed size ties with a bound rather than losing to it.
+- **required**: structure only: tiling and the signed gap equation, inset edges,
+  grid lines. Each child edge is tied once and every container's slack rides a
+  free gap variable, so these are jointly satisfiable whatever the sizes, and no
+  stated value can make the solve infeasible. Lowering them buys nothing and
+  would let a stated value tear a row apart instead of overflowing it.
+- **strong**, scaled to a fixed precedence, as CSS ranks `min-width` over
+  `max-width` over `width`: the region anchor (10), then `min` and the `>= 0`
+  extent floor (3), then `max` and a slot's fill cap (2), then a fixed size and
+  a widget's own pins (1). A losing value yields and overflows. The weights stay
+  small because the objective mixes them with the weak(1e-5) flex coupling,
+  which a much heavier strong weight would lose to round-off.
 - **weak**, in order: content natural (2.0), cross-axis fill (1.0), the 100
   default (0.001), the gap drive (0.0008), stack slot fill (0.0004), flex
   coupling (0.00001).
@@ -201,8 +214,11 @@ weigh any new weak constraint against it.
   modest; beyond a ratio of about 80 the split degrades.
 - **Phase 3 is not run.** `getWidthForHeight` is part of the descriptor, but
   regions run only the width and height-for-width solves.
-- **Infeasibility is silent.** An infeasible region keeps its previous solution
-  with no diagnostic.
+- **Conflict logs name kinds, not widgets.** An unmet-constraint line says
+  which kind of value lost and by how much, but not which widget stated it.
+- **Container bounds are aggregates.** A container's `min` and `max` are summed
+  or maxed from its children, so they beat a fixed size on the container too: a
+  flexing container fixed below its content's floor takes the floor.
 
 ## Future work
 
@@ -210,7 +226,5 @@ weigh any new weak constraint against it.
   baselines and aggregate its cross extent from them.
 - Guides, re-added on the pure path and scoped to a region (resolved at the
   common ancestor of their participants).
-- Non-structural required constraints made strong, and an infeasible solve
-  logged.
 - Sizing and limiting the OS window from the root band (ase has no API to set a
   window's size or limits yet).
