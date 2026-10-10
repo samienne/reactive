@@ -2478,6 +2478,116 @@ TEST(PureSolverLayout, gridSpanningCellCoversItsTracks)
     EXPECT_FLOAT_EQ(30.0f, cell.position[1]);
 }
 
+// A spanning cell's natural is shared across the tracks it covers, as the banded
+// gridSizeHint shares it. In a 2x2 grid a 120-wide leaf spanning both columns
+// asks 60 of each, so beside two 40 leaves the grid reports max(60, 40) * 2 =
+// 120, not 240. Beside a filler in a 400 row the filler takes 280; each column
+// is 60, so the spanning leaf fills the row and the 40 leaf centres at 60 + 10.
+TEST(PureSolverLayout, gridSpanningCellSharesNaturalAcrossTracks)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content120 = { 120.0f, 120.0f, 120.0f };
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idRight = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, content120, fixed40))
+        .cell(0, 0, 1, 1, probe(btl::makeUniqueId(), fixed40, fixed40))
+        .cell(1, 0, 1, 1, probe(idRight, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry right = readProbe(instance, idRight);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(120.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, right.size[0]);
+    EXPECT_FLOAT_EQ(70.0f, right.position[0]);
+}
+
+// A spanning cell does not inflate a single track to its whole extent. In a 2x1
+// grid a 100-wide leaf spanning both columns asks 50 of each, so an 80-wide leaf
+// in the first column sets the tracks: the grid reports 80 * 2 = 160, not the
+// 200 a whole-span share would. Beside a filler in a 400 row the filler takes
+// 240, and the 80 leaf fills its 80 column.
+TEST(PureSolverLayout, gridSpanningCellDoesNotInflateTrack)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content80 = { 80.0f, 80.0f, 80.0f };
+    Band const content100 = { 100.0f, 100.0f, 100.0f };
+
+    btl::UniqueId const idSingle = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(btl::makeUniqueId(), content100, fixed40))
+        .cell(0, 0, 1, 1, probe(idSingle, content80, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry single = readProbe(instance, idSingle);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(240.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, single.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, single.position[0]);
+}
+
+// A spanning cell's min floor is shared across its tracks too. A 2x2 grid
+// holding a filler flexes, so it floors its fixed content instead of publishing a
+// natural: a fixed 200 leaf spanning both columns floors each track at 100 and
+// the grid at 200, not 400. Beside a fixed 700 leaf in an over-subscribed 800 row
+// the grid is held at 200, so the fixed leaf starts at 200.
+TEST(PureSolverLayout, gridSpanningCellSharesFloorAcrossTracks)
+{
+    avg::Vector2f const window(800.0f, 100.0f);
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, fixed40, fixed40)
+                | modifier::fixedWidth(200.0f))
+        .cell(0, 0, 1, 1, fillerProbe(btl::makeUniqueId()));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(700.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry fixed = readProbe(instance, idFixed);
+
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, fixed.position[0]);
+}
+
 // A growable cell child that is not a filler settles at its own natural inside a
 // larger cell, gravity-positioned; it does not fill the cell up to its max. A
 // content natural (content strength) outranks the weak cell fill -- the pure
