@@ -35,8 +35,10 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 - Layout: each builder carries a `PureLayout` (min/max/natural/flex bands per
   axis) solved by `arrange`; the window root (`windowbridge.cpp`) wraps its
-  content in the internal `pureSolverRoot`, so every app is a pure region. The
-  old banded `SizeHint` path still compiles and is slated for removal.
+  content in the internal `pureSolverRoot`, so every app is a pure region and
+  a container is only ever laid out by its region's solve; one built outside
+  any region gets an empty solution. `SizeHint` still rides the builder (a few
+  modifiers and `scrollView` read it) but no container lays out from it.
   `gravity` aligns within allocated space.
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.

@@ -27,36 +27,21 @@ AnyWidget bin(AnyWidget contentWidget,
                         return avg::translate(0.0f, -offY);
                     });
 
-            if (pureSolver(params))
-            {
-                // The firewall: the content is solved as its own pure region
-                // anchored to its content size, so its containers place their
-                // children, and its size dies here rather than crossing into the
-                // parent's solve.
-                auto instance = solvePureRegionAtSize(contentWidget,
-                        sharedContentSize.clone(), params);
+            // The firewall: the content is solved as its own pure region
+            // anchored to its content size, so its containers place their
+            // children, and its size dies here rather than crossing into the
+            // parent's solve.
+            auto instance = solvePureRegionAtSize(contentWidget,
+                    sharedContentSize.clone(), params);
 
-                auto transformed = merge(std::move(instance), std::move(offset))
-                    .map([](widget::Instance instance, avg::Transform t)
-                        {
-                            return std::move(instance).transform(t);
-                        });
-
-                return makeWidget()
-                    | modifier::addWidget(std::move(transformed))
-                    | modifier::clip()
-                    ;
-            }
-
-            auto transformedContent = std::move(contentWidget)
-                | modifier::transform(std::move(offset))
-                ;
+            auto transformed = merge(std::move(instance), std::move(offset))
+                .map([](widget::Instance instance, avg::Transform t)
+                    {
+                        return std::move(instance).transform(t);
+                    });
 
             return makeWidget()
-                | modifier::addWidget(std::move(transformedContent)
-                        (params)
-                        (sharedContentSize.clone()).getInstance()
-                        )
+                | modifier::addWidget(std::move(transformed))
                 | modifier::clip()
                 ;
         },

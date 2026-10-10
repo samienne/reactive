@@ -225,13 +225,14 @@ TEST(introspection, obbTracksRealisedSizeNotNatural)
 
 TEST(introspection, stretchedChildObbExceedsNatural)
 {
-    // A stretchy child (filled rect, ~zero natural size) placed in an hbox that
-    // is realised much larger than natural: its child obb must reflect the
-    // stretched bounds, not the small natural size.
+    // A child growing on both axes placed in an hbox that is realised much
+    // larger than its natural: its child obb must reflect the stretched bounds,
+    // not the natural size.
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
-    children.push_back(filledRect() | setRole("Stretchy"));
+    children.push_back(filledRect() | growWidth() | growHeight()
+            | setRole("Stretchy"));
 
-    auto node = introspect(hbox(std::move(children)),
+    auto node = introspectPure(hbox(std::move(children)),
             avg::Vector2f(600.0f, 400.0f));
 
     ASSERT_EQ(1u, node.children.size());

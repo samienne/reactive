@@ -15,8 +15,7 @@ namespace bqui::modifier
      * value unless a min or max at the same strength overrides it. It replaces
      * any flex on the width, whether set by an earlier fill() or growWidth() or
      * aggregated up from a flexing child, so the widget no longer stretches there;
-     * a later fill() or growWidth() makes it flexible again. A no-op outside a
-     * pure-solver region.
+     * a later fill() or growWidth() makes it flexible again.
      */
     BQUI_EXPORT AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width);
 
@@ -40,7 +39,7 @@ namespace bqui::modifier
      * A strong lower bound: it clamps content but yields to the window anchor or a
      * contradicting bound, so an unmeetable floor overflows rather than failing
      * the solve. A flexible widget stays flexible, its stretch bounded by the
-     * floor. A no-op outside a pure-solver region.
+     * floor.
      */
     BQUI_EXPORT AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width);
 
@@ -62,8 +61,7 @@ namespace bqui::modifier
      * region.
      *
      * A strong upper bound: the ceiling counterpart of minWidth(), which likewise
-     * bounds rather than cancels a flexible widget's stretch. A no-op outside a
-     * pure-solver region.
+     * bounds rather than cancels a flexible widget's stretch.
      */
     BQUI_EXPORT AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width);
 
@@ -84,7 +82,7 @@ namespace bqui::modifier
      * @brief In a pure-solver region, give this widget the fixed natural @p size
      * at content strength, for a leaf whose measured SizeHint is not a sensible
      * pure natural (a bare shape). It settles at @p size unless a fixed size, a
-     * bound or a filler/fill() overrides it; a no-op outside a pure-solver region.
+     * bound or a filler/fill() overrides it.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);
 
@@ -92,8 +90,7 @@ namespace bqui::modifier
      * @brief In a pure-solver region, give this widget the natural @p size at
      * content strength, tracking the signal, for a leaf whose measured content
      * size is its own pure natural (a label from its text extents). It settles at
-     * @p size unless a fixed size, a bound or a filler/fill() overrides it; a
-     * no-op outside a pure-solver region.
+     * @p size unless a fixed size, a bound or a filler/fill() overrides it.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(
             bq::signal::AnySignal<avg::Vector2f> size);
@@ -103,7 +100,7 @@ namespace bqui::modifier
      * container's layout axis, growing to take a share of the container's
      * leftover space as a filler() does. The general form of filler() for a
      * content widget. A later fixed size on the same axis overrides it, and it
-     * overrides an earlier one; a no-op outside a pure-solver region. Fills only
+     * overrides an earlier one. Fills only
      * the layout axis; the cross axis keeps its content size. A grid has no
      * layout axis, so there it fills its cell (or span) on both axes.
      *
@@ -133,8 +130,7 @@ namespace bqui::modifier
      * scroll bar) fills its length in any container. It is flexible on the
      * width either way, so its container is too, and adds no natural there; it
      * leaves the height free, so a fixed height stands alongside. A later fixed
-     * width overrides it, and it overrides an earlier one. A no-op outside a
-     * pure-solver region.
+     * width overrides it, and it overrides an earlier one.
      */
     BQUI_EXPORT AnyWidgetModifier growWidth();
 

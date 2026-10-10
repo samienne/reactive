@@ -113,9 +113,9 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
                 },
                 amount);
 
-        // In a pure-solver region, pureInsetModifier wraps the descriptor's band
-        // in a fresh outer box grown by the inset; the shrink/translate/grow above
-        // places the inset content at build time. A no-op outside such a region.
+        // pureInsetModifier wraps the descriptor's band in a fresh outer box
+        // grown by the inset; the shrink/translate/grow above places the inset
+        // content at build time.
         return std::move(widget)
             | shrinkModifier
             | transform(std::move(t))
