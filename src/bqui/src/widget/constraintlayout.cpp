@@ -580,10 +580,31 @@ void placeInSlot(std::vector<arrange::Constraint>& out,
             (contentExtent() <= arrange::Expression(maxExtent))
             | arrange::Strength::strong());
 
-    // Where the content is smaller than the slot it sits at the gravity fraction
-    // of the slack, a weak pull a medium guide alignment overrides. The two weak
-    // pulls do not fight: the fill fixes the extent while this fixes the leading
-    // offset, independent degrees of freedom.
+    // The fill fixes the extent while the gravity pull fixes the leading
+    // offset, independent degrees of freedom, so the two weak pulls do not
+    // fight.
+    placeAtGravity(out, contentLead, contentTrail, slotLead, slotTrail,
+            gravity);
+}
+
+void placeAtGravity(std::vector<arrange::Constraint>& out,
+        arrange::Variable const& contentLead,
+        arrange::Variable const& contentTrail,
+        arrange::Variable const& slotLead,
+        arrange::Variable const& slotTrail,
+        float gravity)
+{
+    auto contentExtent = [&]
+    {
+        return arrange::Expression(contentTrail)
+            - arrange::Expression(contentLead);
+    };
+    auto slotExtent = [&]
+    {
+        return arrange::Expression(slotTrail) - arrange::Expression(slotLead);
+    };
+
+    // A weak pull a medium guide alignment overrides.
     out.push_back(
             (arrange::Expression(contentLead) - arrange::Expression(slotLead)
                 == static_cast<double>(gravity) * slotExtent()
