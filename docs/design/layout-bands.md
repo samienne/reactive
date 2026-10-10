@@ -209,6 +209,14 @@ aggregate band** (per its alignment) that is overridable again at the next level
 So the override chain runs up to each container and resets there; below it,
 stamped.
 
+A container adds its own weak 100 default on an axis only when it neither flexes
+there nor has a child stating a natural. The default is baked into the
+container's relations rather than its band, so a `fill()` applied to the
+container afterwards cannot drop it; where it coexisted with a natural it would
+outlast the fill and hold the container at 100 against the parent's slack drive.
+A wrapper (`margin`) adds no default of its own: it publishes its child's band
+grown by the insets.
+
 ## Firewalls solve and propagate
 
 A firewall reads the accumulated constraints off the top builder, runs the
