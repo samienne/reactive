@@ -29,8 +29,9 @@ namespace bqui::widget
      * row's; one that publishes no baseline (an image, a plain box) aligns its
      * bottom edge there instead. A child that fills the row's height, or has
      * none of its own, fills it as in hbox(). The row is tall enough for the
-     * deepest ascent and the deepest descent, and publishes its baseline, so
-     * rows nest and a margin or background around one keeps it.
+     * deepest ascent and the deepest descent; a taller row places the aligned
+     * children by its own gravity, centred by default. It publishes its
+     * baseline, so rows nest and a margin or background around one keeps it.
      *
      * @code
      * baselineHbox({ label("Name:"), bigTitle, button("OK", onClick) })
