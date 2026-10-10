@@ -167,9 +167,8 @@ namespace bqui::widget
      * @brief A subtree's pure-solver descriptor: the banded constraints its
      * current outermost box contributes to its region's solve, per phase.
      *
-     * The inverse of a SizeHint. Where a SizeHint is a size value aggregated up
-     * the tree, this is a stable identity (the box's edge variables, carried on
-     * the builder) plus a stream of banded constraints a firewall reads off the
+     * It is a stable identity (the box's edge variables, carried on the
+     * builder) plus a stream of banded constraints a firewall reads off the
      * builder and solves.
      *
      * A type-erased holder over any type implementing the three phase functions,

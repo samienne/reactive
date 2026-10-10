@@ -35,7 +35,6 @@ libbquisrc = [
 
   'src/widget/bin.cpp',
   'src/widget/button.cpp',
-  'src/widget/box.cpp',
   'src/widget/constraintbox.cpp',
   'src/widget/constraintlayout.cpp',
   'src/widget/datavalue.cpp',
@@ -70,10 +69,6 @@ libbquisrc = [
   'src/pointerbuttonevent.cpp',
   'src/pointermoveevent.cpp',
   'src/hoverevent.cpp',
-  'src/simplesizehint.cpp',
-  'src/stacksizehint.cpp',
-  'src/growsizehint.cpp',
-  'src/sizehint.cpp',
   'src/withanimation.cpp',
 ]
 
