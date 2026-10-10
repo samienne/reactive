@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrange/export.h>
+
 #include <arrange/id.h>
 
 #include <cstddef>
@@ -10,7 +12,7 @@
 namespace arrange
 {
 
-class Variable
+class ARRANGE_API Variable
 {
 public:
     Variable();
@@ -30,7 +32,7 @@ private:
     std::shared_ptr<const std::string> name_{};
 };
 
-struct VariableHash
+struct ARRANGE_API VariableHash
 {
     std::size_t operator()(const Variable& v) const noexcept;
 };

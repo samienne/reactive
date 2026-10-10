@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrange/export.h>
+
 #include <arrange/expression.h>
 #include <arrange/id.h>
 #include <arrange/strength.h>
@@ -12,7 +14,7 @@ namespace arrange
 class ConstraintImpl;
 class SolverImpl;
 
-class Constraint
+class ARRANGE_API Constraint
 {
 public:
     Constraint(const Constraint&) = default;
@@ -28,9 +30,9 @@ public:
     Constraint withStrength(Strength strength) const;
 
 private:
-    friend Constraint operator==(Expression lhs, Expression rhs);
-    friend Constraint operator<=(Expression lhs, Expression rhs);
-    friend Constraint operator>=(Expression lhs, Expression rhs);
+    friend ARRANGE_API Constraint operator==(Expression lhs, Expression rhs);
+    friend ARRANGE_API Constraint operator<=(Expression lhs, Expression rhs);
+    friend ARRANGE_API Constraint operator>=(Expression lhs, Expression rhs);
     friend class SolverImpl;
 
     explicit Constraint(std::shared_ptr<const ConstraintImpl> impl) noexcept;
@@ -38,11 +40,11 @@ private:
     std::shared_ptr<const ConstraintImpl> impl_{};
 };
 
-Constraint operator==(Expression lhs, Expression rhs);
-Constraint operator<=(Expression lhs, Expression rhs);
-Constraint operator>=(Expression lhs, Expression rhs);
+ARRANGE_API Constraint operator==(Expression lhs, Expression rhs);
+ARRANGE_API Constraint operator<=(Expression lhs, Expression rhs);
+ARRANGE_API Constraint operator>=(Expression lhs, Expression rhs);
 
-Constraint operator|(Constraint c, Strength s);
-Constraint operator|(Strength s, Constraint c);
+ARRANGE_API Constraint operator|(Constraint c, Strength s);
+ARRANGE_API Constraint operator|(Strength s, Constraint c);
 
 }  // namespace arrange
