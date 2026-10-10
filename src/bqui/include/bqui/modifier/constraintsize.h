@@ -131,9 +131,10 @@ namespace bqui::modifier
      * On the width axis it takes a filler's share of the container's slack where
      * that is the layout axis, and is stretched by the container's cross-fill
      * where it is not, so a widget whose fill direction is its own (a horizontal
-     * scroll bar) fills its length in any container. It adds no natural on the
-     * width and leaves the height free, so a fixed height stands alongside. A
-     * later fixed width overrides it; a no-op outside a pure-solver region.
+     * scroll bar) fills its length in any container. It is flexible on the
+     * width either way, so its container is too, and adds no natural there; it
+     * leaves the height free, so a fixed height stands alongside. A no-op
+     * outside a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier growWidth();
 

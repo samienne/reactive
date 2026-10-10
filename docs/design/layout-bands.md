@@ -119,9 +119,19 @@ than sum/max.
 > means a `vbox` whose *cross* axis is width, holding a row (`hbox`) that contains
 > a horizontal `filler`, aggregates a width `flex` and so **becomes a horizontal
 > filler in its parent**. A vertical stack thus greedily takes horizontal slack
-> because something deep inside it can stretch horizontally. This is intended per
-> the aggregation rule, but it is surprising and currently untested; revisit if it
-> proves too greedy in practice.
+> because something deep inside it can stretch horizontally. This is intended
+> (decided): a flexible child uses all the space its flex allows on both axes.
+> A user who does not want that wraps the widget in fillers.
+
+**Fill-to-slot (decided).** A flexing container drops its natural on every axis
+it flexes on, not only its main axis, and publishes its `aggregateFloor` as its
+`min`, so a cross-flexible child's natural (a scroll view's preferred height)
+never inflates the container past what its fixed siblings need. Placement
+matches: a child that holds an extent of its own (a natural that is not a
+flex-basis) keeps it and sits per gravity/alignment, *unpulled*, since a pull it
+resisted would drag a flexible container down against the slack drive; every
+other child fills its slot (box cross extent, stack slot, grid cell) up to its
+strong `max`. The same rule holds in the pure box, stack and grid.
 
 ## Modifiers transform the `Constraints` - four patterns
 
@@ -242,7 +252,9 @@ anchor, and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuin
 floor below / cap above the natural — a bound equal to the natural is already the
 natural). Both were deferred while the bounds were required.
 
-**Why content strength sits above the cross-fill.** This is a deliberate
+**Why content strength sits above the cross-fill.** (Since fill-to-slot, a
+child holding its own extent is no longer pulled at all; the ordering still
+governs any pull that meets content.) This is a deliberate
 *shrink-wrap-by-default* policy, not a tie-break. Under the solver's weighted-L1
 objective there is no tie to break: a content leaf's `natural` at `weak(2)`
 competes with the cross-fill pull at `weak(1)`, and `weak(2) > weak(1)`, so

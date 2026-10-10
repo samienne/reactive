@@ -197,18 +197,17 @@ AnyWidgetModifier pureGrowAxisModifier(PureAxis axis)
 
                 // The filler's per-axis band, composed onto the existing band on
                 // the fill axis only: on the container's layout axis it adds the
-                // flex coupling, off it the band stays empty so the container's
-                // cross-fill stretches the widget. The other axis is left as it
-                // was, so a fixed thickness there stands, and no natural is added
-                // on the fill axis, or a length natural would beat the cross-fill.
+                // flex coupling, off it only the flex, so the container's
+                // cross-fill stretches the widget. Either way the widget flexes
+                // there, its natural a flex-basis. The other axis is left as it
+                // was, so a fixed thickness there stands.
                 auto couple = [box, fillAxis](widget::Constraints const& c,
                         Axis layoutAxis, arrange::Variable flex)
                 {
                     widget::Constraints band = widget::fillerAxisBand(fillAxis,
                             box, layoutAxis, flex);
                     widget::Constraints out = c;
-                    if (band.flex)
-                        out.flex = band.flex;
+                    out.flex = band.flex.value_or(widget::Flex{ 1.0f });
                     for (auto const& relation : band.relations.constraints)
                         out.relations.constraints.push_back(relation);
                     return out;
