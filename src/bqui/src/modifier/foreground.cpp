@@ -10,7 +10,6 @@
 
 #include <avg/brush.h>
 
-#include <optional>
 #include <utility>
 
 namespace bqui::modifier
@@ -23,8 +22,7 @@ namespace bqui::modifier
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
-            std::optional<widget::PureLayout> childPure =
-                builder.getPureLayout();
+            widget::PureLayout childPure = builder.getPureLayout();
             widget::BoxVariables childBox = builder.getBoxVariables();
 
             auto composed = widget::makeBuilder(
@@ -61,11 +59,8 @@ namespace bqui::modifier
 
             // The overlay is layout-transparent: the wrapped child's band and box
             // forward unchanged for the enclosing region to solve it in place.
-            if (childPure)
-            {
-                composed.setPureLayout(std::move(childPure));
-                composed.setBoxVariables(std::move(childBox));
-            }
+            composed.setPureLayout(std::move(childPure));
+            composed.setBoxVariables(std::move(childBox));
 
             return makeWidgetFromBuilder(std::move(composed));
         },

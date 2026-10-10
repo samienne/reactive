@@ -18,7 +18,6 @@
 #include <btl/cloneoncopy.h>
 
 #include <functional>
-#include <optional>
 #include <type_traits>
 
 namespace bqui::widget
@@ -171,12 +170,11 @@ namespace bqui::widget
 
         /**
          * @brief This widget's accumulated pure-solver constraints, composed up
-         * from its children. Absent on a builder minted without one, which a
-         * pure-solver region bridges from its SizeHint. Preserved across a
-         * copy, a size-hint change and type erasure, exactly as the box
-         * variables are.
+         * from its children; empty on a builder minted without one. Preserved
+         * across a copy, a size-hint change and type erasure, exactly as the
+         * box variables are.
          */
-        std::optional<PureLayout> const& getPureLayout() const
+        PureLayout const& getPureLayout() const
         {
             return pureLayout_;
         }
@@ -185,7 +183,7 @@ namespace bqui::widget
          * @brief Replaces this widget's composed pure-solver constraints, used to
          * carry them across a rebuild that mints a fresh builder.
          */
-        void setPureLayout(std::optional<PureLayout> pureLayout)
+        void setPureLayout(PureLayout pureLayout)
         {
             pureLayout_ = std::move(pureLayout);
         }
@@ -297,7 +295,7 @@ namespace bqui::widget
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
         BoxVariables box_;
         std::vector<GuideAlignment> guideAlignments_;
-        std::optional<PureLayout> pureLayout_;
+        PureLayout pureLayout_ = emptyPureLayout();
     };
 
     struct AnyBuilder : Builder<std::function<widget::AnyElement(
@@ -355,7 +353,7 @@ namespace bqui::widget
 
     inline auto makeBuilder()
     {
-        auto builder = makeBuilder(
+        return makeBuilder(
                 [](BuildParams params, auto size)
                 {
                     return makeElement(size)
@@ -366,15 +364,6 @@ namespace bqui::widget
                 BuildParams{},
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
-
-        builder.setPureLayout(simplePureLayout(
-                    bq::signal::constant(Constraints()),
-                    [](bq::signal::AnySignal<LayoutSolution>)
-                    {
-                        return bq::signal::AnySignal<Constraints>(
-                                bq::signal::constant(Constraints()));
-                    }));
-        return builder;
     }
 
     template <typename T>

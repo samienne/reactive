@@ -89,19 +89,6 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureGrowAxisModifier(PureAxis axis);
 
     /**
-     * @brief A widget modifier that, inside a pure-solver region, seeds the pure
-     * band on both axes from the builder's own SizeHint: the natural at
-     * contentStrength(), and the SizeHint's min/max as strong bounds where they
-     * range beyond the natural.
-     *
-     * The bridge that makes a pure leaf size to its content rather than a flat
-     * default. Being named writes, a later fixed size, bound or filler on the same
-     * axis overrides by named replacement. A no-op outside a pure-solver region,
-     * where the SizeHint band drives sizing directly.
-     */
-    AnyWidgetModifier pureContentDefaultModifier();
-
-    /**
      * @brief Applies @p first then @p second as one widget modifier, so a shared
      * band modifier and a pure-solver constraint modifier travel together under
      * one name.

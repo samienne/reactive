@@ -133,16 +133,7 @@ AnyWidgetModifier pureFillModifier(float weight)
                     return out;
                 };
 
-                std::optional<widget::PureLayout> current =
-                    builder.getPureLayout();
-                widget::PureLayout old = current ? *current
-                    : widget::simplePureLayout(
-                        bq::signal::constant(widget::Constraints()),
-                        [](bq::signal::AnySignal<widget::LayoutSolution>)
-                        {
-                            return bq::signal::AnySignal<widget::Constraints>(
-                                    bq::signal::constant(widget::Constraints()));
-                        });
+                widget::PureLayout old = builder.getPureLayout();
 
                 auto width = merge(old.getWidth(), axisSig.clone()).map(
                         [flexOn](widget::Constraints const& c,
@@ -175,16 +166,6 @@ AnyWidgetModifier pureGrowAxisModifier(PureAxis axis)
             {
                 widget::setPureFlex(builder, toAxis(axis),
                         bq::signal::constant(1.0f));
-            });
-}
-
-AnyWidgetModifier pureContentDefaultModifier()
-{
-    return pureBuilderModifier(
-            [](widget::AnyBuilder& builder)
-            {
-                builder.setPureLayout(widget::pureLayoutFromSizeHint(
-                        builder.getSizeHint(), builder.getBoxVariables()));
             });
 }
 
