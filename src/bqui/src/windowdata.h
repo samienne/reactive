@@ -4,9 +4,12 @@
 
 #include <btl/uniqueid.h>
 
+#include <avg/vector.h>
+
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,14 +19,14 @@ namespace bqui
 
     /** @brief A window's persistent state, shared by every copy of a Window.
      *
-     * Holds the window's identity, title and close callbacks — but none of its
-     * contents: the widget is supplied to App::addWindow at mount and lives in
+     * Holds the window's identity, title, initial size and close callbacks — but
+     * none of its contents: the widget is supplied to App::addWindow at mount and lives in
      * the app-owned impl, so a widget may capture the Window that owns it
      * without a retain cycle. The link back to the app is weak, so close() is a
      * no-op for a window that was never added or whose app is gone.
      *
-     * The mutable parts (the app reference and the close callbacks) are guarded
-     * by a mutex, so a Window is safe to read and to close from any thread.
+     * The mutable parts (the app reference, the initial size and the close
+     * callbacks) are guarded by a mutex, so a Window is safe to read and to close from any thread.
      */
     class WindowData
     {
@@ -44,6 +47,18 @@ namespace bqui
         bq::signal::AnySignal<std::string> const& getTitle() const
         {
             return title_;
+        }
+
+        void setInitialSize(avg::Vector2f size)
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            initialSize_ = size;
+        }
+
+        std::optional<avg::Vector2f> getInitialSize() const
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            return initialSize_;
         }
 
         void addCloseCallback(std::function<void()> const& cb)
@@ -96,5 +111,6 @@ namespace bqui
         mutable std::mutex mutex_;
         mutable std::weak_ptr<AppDeferred> app_;
         std::vector<std::function<void()>> closeCallbacks_;
+        std::optional<avg::Vector2f> initialSize_;
     };
 } // namespace bqui

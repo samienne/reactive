@@ -258,7 +258,19 @@ namespace bqui::modifier
                                     std::forward<decltype(ts)>(ts)...
                                 );
 
-                        return std::move(newWidget)(builder.getBuildParams());
+                        // The rebuilt copy mints boxes the enclosing solve never
+                        // saw, so it is laid out as its own region at the
+                        // assigned size.
+                        return widget::makeBuilder(
+                            [newWidget = widget::AnyWidget(std::move(newWidget))](
+                                BuildParams const& params,
+                                bq::signal::AnySignal<avg::Vector2f> size)
+                            {
+                                return widget::detail::buildRegionAtSize(
+                                        newWidget, std::move(size), params);
+                            },
+                            builder.getBuildParams(),
+                            builder.getGravity());
                     },
                     std::move(func),
                     widget.clone(),

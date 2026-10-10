@@ -1,0 +1,116 @@
+#pragma once
+
+#include "bqui/modifier/widgetmodifier.h"
+#include "bqui/widget/layoutspec.h"
+
+#include <bq/signal/signal.h>
+
+#include <arrange/strength.h>
+#include <arrange/variable.h>
+
+namespace bqui::modifier::detail
+{
+    /**
+     * @brief Which of a pure-solver region's two per-axis solves a band or
+     * relation joins: the horizontal solve resolves the x-edges, the vertical
+     * the y-edges.
+     */
+    enum class PureAxis
+    {
+        horizontal,
+        vertical
+    };
+
+    /**
+     * @brief A widget modifier that replaces the natural (preferred) extent band
+     * on @p axis with @p value at @p strength.
+     *
+     * The band lives by name on the builder's descriptor, so a later natural
+     * write on the same axis overrides this one outright rather than competing
+     * with it.
+     */
+    AnyWidgetModifier pureNaturalModifier(PureAxis axis,
+            arrange::Strength strength, bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that fixes the extent on @p axis at @p value,
+     * replacing the natural and clearing any flex there (widget::setPureFixed()).
+     */
+    AnyWidgetModifier pureFixedModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that replaces the strong lower-bound band on
+     * @p axis with @p value.
+     */
+    AnyWidgetModifier pureMinModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that replaces the strong upper-bound band on
+     * @p axis with @p value.
+     */
+    AnyWidgetModifier pureMaxModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief A widget modifier that wraps the builder's descriptor in a fresh
+     * outer box inset by @p amount on every edge — the solver half of a margin;
+     * the build-time inset placement is the wrapper's other half.
+     */
+    AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
+
+    /**
+     * @brief A widget modifier that publishes the anchor @p id on @p axis
+     * (widget::setPureAnchor()).
+     */
+    AnyWidgetModifier pureAnchorModifier(PureAxis axis, widget::AnchorId id,
+            bq::signal::AnySignal<widget::Anchor> anchor);
+
+    /**
+     * @brief A widget modifier that binds the point @p at on @p axis to
+     * @p guide (widget::setPureGuide()).
+     */
+    AnyWidgetModifier pureGuideModifier(PureAxis axis,
+            arrange::Variable guide, widget::Anchor at);
+
+    /**
+     * @brief A widget modifier that binds the anchor @p id on @p axis to
+     * @p guide (widget::setPureGuideAnchor()).
+     */
+    AnyWidgetModifier pureGuideAnchorModifier(PureAxis axis,
+            arrange::Variable guide, widget::AnchorId id);
+
+    /**
+     * @brief A widget modifier that makes the widget flexible on both axes with
+     * grow weight @p weight.
+     *
+     * The general form of filler() for a content widget: it sets the pure flex
+     * band on both axes, which a box couples to its shared flex variable along
+     * its layout axis and fills to its cross extent across it, so fillers and
+     * fill() widgets split the container's slack in proportion to their weights.
+     */
+    AnyWidgetModifier pureFillModifier(float weight);
+
+    /**
+     * @brief A widget modifier that makes the widget fill along @p axis
+     * specifically, whichever axis its container stacks along.
+     *
+     * Sets a unit flex on @p axis -- which the container couples to its slack
+     * when @p axis is its layout axis, and stretches by its cross-fill otherwise
+     * -- while leaving the other axis's band untouched, so a fixed thickness
+     * there stands. Adds no natural on @p axis, so a length natural
+     * cannot beat the cross-fill. Unlike pureFillModifier(), which fills both
+     * axes, this fills a named axis for a widget (a scroll bar) whose fill
+     * direction is its own.
+     */
+    AnyWidgetModifier pureGrowAxisModifier(PureAxis axis);
+
+    /**
+     * @brief Applies @p first then @p second as one widget modifier, so a shared
+     * band modifier and a pure-solver constraint modifier travel together under
+     * one name.
+     */
+    AnyWidgetModifier composeModifiers(AnyWidgetModifier first,
+            AnyWidgetModifier second);
+} // namespace bqui::modifier::detail

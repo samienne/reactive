@@ -25,8 +25,6 @@ namespace bqui
         bq::signal::AnySignal<widget::Instance> const& getWidget();
         avg::UniqueId const& getId() const;
 
-        bq::signal::AnySignal<SizeHint> const& getSizeHint() const;
-
     private:
         struct Impl
         {
@@ -37,10 +35,7 @@ namespace bqui
                 bq::signal::SignalResult<avg::Vector2f>> sizeInput_;
             bq::signal::Input<bq::signal::SignalResult<avg::Transform>,
                 bq::signal::SignalResult<avg::Transform>> transformInput_;
-            std::pair<
-                bq::signal::AnySignal<widget::Instance>,
-                btl::CloneOnCopy<bq::signal::AnySignal<SizeHint>>
-                > widget_;
+            bq::signal::AnySignal<widget::Instance> widget_;
         };
 
         btl::shared<Impl> impl_;

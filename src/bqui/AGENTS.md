@@ -14,7 +14,8 @@ toward drawable state (`widget/`):
 
 - `AnyWidget = Widget<std::function<AnyBuilder(BuildParams)>>` — the user-facing,
   type-erased description.
-- `Builder` receives `BuildParams` (theme, environment) and produces size hints.
+- `Builder` receives `BuildParams` (theme, environment) and carries the
+  widget's `PureLayout` band and solver box up to its region.
 - `Element` (`AnyElement = Element<AnySignal<Instance>>`) wires up signals and
   receives the resolved size.
 - `Instance` is the realised widget: its render tree, input areas, hit regions.
@@ -33,8 +34,17 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 ## Layout, environment, animation
 
-- Layout: size hints (min/natural/stretch) negotiated by containers; `gravity`
-  aligns within allocated space. Size hints are signals.
+- Layout: each builder carries a `PureLayout` (min/max/natural/flex bands and
+  keyed anchors such as `baselineAnchor` per axis) solved by `arrange`; the window root (`windowbridge.cpp`) solves its
+  content as one region (`buildPureRegion`, the core of the internal
+  `pureSolverRoot`), so every app is a pure region and a container is only
+  ever laid out by its region's solve; one built outside any region throws. `makeWidgetWithSize`, `bin` and
+  `scrollView` are size boundaries: their outward band is their own, never the
+  content's, and the content is solved as its own region inside.
+  `gravity` aligns within allocated space. Guides (`XGuide`/`YGuide`, the
+  `align*` modifiers) line points up across one region; their bindings ride
+  the band and the solve places them in a second step (`guideConstraints`). The model is in
+  `docs/design/layout.md`.
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.
 - Animation: `withanimation.h` (guard or lambda form) marks changes to animate.
@@ -189,16 +199,7 @@ owning `Window`.
   constant (the `if constexpr (sizeof...(Ts) == 0)` branch in `shape/shape.h`).
 - Builder-style template APIs are guarded by an instantiation smoke test
   (`test/shapetest.cpp`) — extend it when adding builder methods.
-- **Known and unfixed: a child's size hint is instantiated twice under every
-  `layout()` container.** The hint fan-in reads each child's `getSizeHint()`,
-  and `handleGravity` reads it again when that child's element is built, so the
-  hint chain is evaluated twice per child per pass instead of once.
-  `handleGravity` shares its own read between the child and the alignment
-  offset, so it adds one evaluation rather than one per consumer. Fixing it
-  means having the builder hand out one shared hint signal rather than a fresh
-  one per call — builder plumbing, not layout — which is why it is recorded here
-  instead of patched at the call site.
-- Geometry recovered from input areas (`test/layouttest.cpp`) says nothing about
+- Geometry recovered from input areas (`test/puresolverlayouttest.cpp`) says nothing about
   the render tree: a node placed wrongly, one that cannot be drawn at all, or
   one paired with the wrong sibling across an update all leave the input areas
   intact. Anything that only manifests when drawing belongs in

@@ -1,11 +1,9 @@
 #include "adder.h"
 #include "spinner.h"
 #include "curvevisualizer.h"
+#include "playground.h"
 
-#include <bqui/modifier/setsize.h>
-#include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/drawkeyboardinputs.h>
-#include <bqui/modifier/setminimumsize.h>
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/focusgroup.h>
 #include <bqui/modifier/frame.h>
@@ -17,6 +15,7 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/transform.h>
+#include <bqui/modifier/constraintsize.h>
 
 #include <bqui/widget/scrollbar.h>
 #include <bqui/widget/scrollview.h>
@@ -33,7 +32,6 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 
-#include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
 #include <bqui/buildparams.h>
 #include <bqui/send.h>
@@ -89,7 +87,16 @@ void openSecondWindow()
                 | modifier::focusGroup());
 }
 
-int main()
+void openPlayground()
+{
+    app().addWindow(
+            // The scenarios stack far taller than a screen.
+            window(bq::signal::constant<std::string>("Layout playground"))
+                .initialSize(avg::Vector2f(1280.0f, 800.0f)),
+            layoutPlayground() | modifier::focusGroup());
+}
+
+int main(int argc, char** argv)
 {
     auto textState = bq::signal::makeInput(widget::TextEditState{"Test123"});
 
@@ -165,9 +172,12 @@ int main()
 
     auto widgets = widget::hbox({
         widget::vbox({
+            widget::button("Open layout playground",
+                    []() { openPlayground(); })
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             widget::button("Open another window",
                     []() { openSecondWindow(); })
-                | modifier::setSizeHint({ 250, 50 }),
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             widget::button(
                     showTracked.signal.map([](bool b) -> std::string
                         {
@@ -182,7 +192,7 @@ int main()
                             else
                                 openTracked();
                         }))
-                | modifier::setSizeHint({ 250, 50 }),
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             shape::rectangle()
                 //.size(bq::signal::constant(avg::Vector2f(100, 100)))
                 //.transform(bq::signal::constant(avg::translate(10, 20)))
@@ -199,8 +209,7 @@ int main()
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
                     }))
-                //| modifier::setSizeHint( {100.0f, 200.0} ),
-                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f }),
+                | modifier::minSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame()
                 | modifier::setName("curvesLabel"),
@@ -211,8 +220,7 @@ int main()
                             handle.set(static_cast<int>((i+1) % curves.size()));
                         }))
                 | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
-                | modifier::setSize(avg::Vector2f{ 150, 50 })
-                | modifier::setSizeHint({ 300, 300 })
+                | modifier::fixedSize(avg::Vector2f{ 150, 50 })
                 | modifier::setName("nextCurveButton")
                 | modifier::setRole("Button"),
             widget::vfiller()
@@ -246,12 +254,12 @@ int main()
                 bq::signal::constant(0.5f))
     });
 
+    if (argc > 1 && std::string(argv[1]) == "--playground")
+        openPlayground();
+
     return app()
         .addWindow(
-                window(bq::signal::constant<std::string>("Test program")),
-                std::move(widgets)
-                //| debug::drawKeyboardInputs()
-                | modifier::focusGroup()
-                )
+                window(bq::signal::constant<std::string>("testapp1")),
+                std::move(widgets) | modifier::focusGroup())
         .run();
 }

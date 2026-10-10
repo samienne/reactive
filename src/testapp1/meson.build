@@ -4,6 +4,7 @@ executable('testapp1',
         'curvevisualizer.cpp',
         'adder.cpp',
         'testwidget.cpp',
+        'playground.cpp',
         'main.cpp',
         dependencies : [libbquidep]
         )

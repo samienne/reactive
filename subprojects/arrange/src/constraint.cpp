@@ -44,6 +44,11 @@ Strength Constraint::strength() const noexcept
     return impl_ ? impl_->strength : Strength::required();
 }
 
+Relation Constraint::relation() const noexcept
+{
+    return impl_ ? impl_->relation : Relation::eq;
+}
+
 Constraint Constraint::withId(Id id) const
 {
     return Constraint{makeImpl(impl_->expression, impl_->relation, impl_->strength, id)};

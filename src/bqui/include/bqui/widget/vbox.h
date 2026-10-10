@@ -18,6 +18,9 @@ namespace bqui::widget
      * vbox({ label("Name:"), button("OK", onClick) })
      * vbox(forEach(items, key, makeRow))
      * @endcode
+     *
+     * Publishes its first child's baseline, so a column aligns in a
+     * baselineHbox() by its first line.
      */
     BQUI_EXPORT AnyWidget vbox(bq::signal::ArraySignal<AnyWidget> widgets);
 } // namespace bqui::widget

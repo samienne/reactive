@@ -1,0 +1,3597 @@
+#include "purelayouttestutil.h"
+
+#include "widget/constraintbox.h"
+#include "widget/constraintlayout.h"
+
+#include <bqui/modifier/buildermodifier.h>
+#include <bqui/modifier/clip.h>
+#include <bqui/modifier/constraintsize.h>
+#include <bqui/modifier/foreground.h>
+#include <bqui/modifier/frame.h>
+#include <bqui/modifier/instancemodifier.h>
+#include <bqui/modifier/margin.h>
+#include <bqui/modifier/onclick.h>
+#include <bqui/modifier/setgravity.h>
+#include <bqui/modifier/transition.h>
+#include <bqui/modifier/widgetmodifier.h>
+
+#include <bqui/widget/bin.h>
+#include <bqui/widget/button.h>
+#include <bqui/widget/filler.h>
+#include <bqui/widget/hbox.h>
+#include <bqui/widget/label.h>
+#include <bqui/widget/scrollbar.h>
+#include <bqui/widget/scrollview.h>
+#include <bqui/widget/textedit.h>
+#include <bqui/widget/stack.h>
+#include <bqui/widget/uniformgrid.h>
+#include <bqui/widget/vbox.h>
+#include <bqui/widget/widget.h>
+
+#include <bqui/shape/rectangle.h>
+
+#include <bqui/buildparams.h>
+#include <bqui/inputarea.h>
+
+#include <avg/brush.h>
+#include <avg/color.h>
+
+#include <bq/signal/arraysignal.h>
+#include <bq/signal/constant.h>
+#include <bq/signal/frameinfo.h>
+#include <bq/signal/input.h>
+#include <bq/signal/signal.h>
+#include <bq/signal/signalcontext.h>
+
+#include <arrange/expression.h>
+#include <arrange/variable.h>
+
+#include <avg/obb.h>
+#include <avg/transform.h>
+#include <avg/vector.h>
+
+#include <btl/uniqueid.h>
+
+#include <gtest/gtest.h>
+
+#include <chrono>
+#include <functional>
+#include <stdexcept>
+#include <cmath>
+#include <string>
+#include <vector>
+
+using namespace bqui;
+using namespace bqui::widget;
+using namespace bq::signal;
+using namespace bqui::test;
+
+namespace
+{
+
+// A synthetic pure-solver leaf whose height is a step function of its resolved
+// width -- 30px for every 50px width band -- emitted as a required
+// height == f(width) constraint. The step is genuinely non-linear: only the
+// staged pipeline, where pass 2 sees pass 1's resolved width as a concrete
+// value, can express it; a single linear x+y solve cannot compute ceil(). The
+// horizontal accessor pins the leaf's width, so the value driving f in pass 2 is
+// known, but f reads it back off the pass-1 solution rather than the literal.
+BoxDescriptor stepHeightLeaf(BoxVariables box, float width)
+{
+    auto horizontal = constant(std::vector<arrange::Constraint>{
+            arrange::Expression(box.left) == arrange::Expression(0.0),
+            arrange::Expression(box.right)
+                == arrange::Expression(static_cast<double>(width))
+            });
+
+    return BoxDescriptor(box, BoxDescriptor::Constraints(std::move(horizontal)),
+            [box](AnySignal<float> width)
+            {
+                return BoxDescriptor::Constraints(std::move(width).map(
+                        [box](float w) -> std::vector<arrange::Constraint>
+                        {
+                            float height = 30.0f * std::ceil(w / 50.0f);
+                            return {
+                                arrange::Expression(box.top)
+                                    == arrange::Expression(0.0),
+                                arrange::Expression(box.bottom)
+                                    == arrange::Expression(box.top)
+                                        + arrange::Expression(
+                                                static_cast<double>(height))
+                            };
+                        }));
+            });
+}
+
+// Concatenates a fixed set of per-box constraint vectors into one fragment
+// solved on its own axis, reading the named variables back.
+LayoutSpec makeFragment(std::vector<arrange::Constraint> const& a,
+        std::vector<arrange::Constraint> const& b,
+        std::vector<arrange::Variable> variables)
+{
+    LayoutSpec spec;
+    spec.constraints = a;
+    spec.constraints.insert(spec.constraints.end(), b.begin(), b.end());
+    spec.variables = std::move(variables);
+    return spec;
+}
+
+AnySignal<std::vector<LayoutSpec>> oneFragment(AnySignal<LayoutSpec> spec)
+{
+    return AnySignal<std::vector<LayoutSpec>>(std::move(spec).map(
+                [](LayoutSpec const& spec)
+                {
+                    return std::vector<LayoutSpec>{ spec };
+                }));
+}
+
+// A non-default PureLayout implementation: each phase reports a distinct natural
+// so the three getters can be told apart when read back through the erased
+// holder.
+struct CustomPureLayout
+{
+    AnySignal<Constraints> phase(float natural) const
+    {
+        Constraints c;
+        c.natural = BandNatural{ natural, contentStrength() };
+        return constant(c);
+    }
+
+    AnySignal<Constraints> getWidth() const { return phase(11.0f); }
+
+    AnySignal<Constraints> getHeightForWidth(AnySignal<LayoutSolution>) const
+    {
+        return phase(22.0f);
+    }
+
+    AnySignal<Constraints> getWidthForHeight(AnySignal<LayoutSolution>) const
+    {
+        return phase(33.0f);
+    }
+};
+
+float naturalOf(AnySignal<Constraints> band)
+{
+    auto context = makeSignalContext(std::move(band));
+    Constraints c = context.evaluate<0>().get<0>();
+    return c.natural ? c.natural->value : -1.0f;
+}
+
+} // namespace
+
+// A box with no constraint but the universal weak defaults resolves to 100x100.
+// The defaults sit at the strictly-weakest tier, so on an axis nothing else
+// pins they are the only pull and settle the extent at 100 exactly, keeping the
+// solve well-posed rather than leaving a free degree of freedom.
+TEST(PureSolverLayout, unconstrainedBoxIsHundredSquare)
+{
+    BoxVariables box;
+
+    LayoutSpec spec;
+    // Pin the origin so the position is definite; the size is left entirely to
+    // the weak defaults.
+    spec.constraints.push_back(
+            arrange::Expression(box.left) == arrange::Expression(0.0));
+    spec.constraints.push_back(
+            arrange::Expression(box.top) == arrange::Expression(0.0));
+    spec.constraints.push_back(weakWidthDefault(box));
+    spec.constraints.push_back(weakHeightDefault(box));
+    spec.variables = { box.left, box.top, box.right, box.bottom };
+
+    std::vector<LayoutSpec> fragments{ std::move(spec) };
+    auto solutionSignal = layoutRegion(
+            AnySignal<std::vector<LayoutSpec>>(constant(std::move(fragments))));
+    auto context = makeSignalContext(std::move(solutionSignal));
+    LayoutSolution solution = context.evaluate<0>().get<0>();
+
+    avg::Obb obb = readObb(solution, box);
+    EXPECT_FLOAT_EQ(100.0f, obb.getSize()[0]);
+    EXPECT_FLOAT_EQ(100.0f, obb.getSize()[1]);
+    EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[0]);
+    EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[1]);
+}
+
+// A container built with no enclosing region has no solve to place its children,
+// which is a programming error, so it throws rather than laying them out at 0x0.
+TEST(PureSolverLayout, containerOutsideRegionThrows)
+{
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    auto instance = hbox(ArraySignal<AnyWidget>(std::move(row)))(BuildParams())(
+            constant(avg::Vector2f(100.0f, 100.0f)),
+            AnySignal<LayoutSolution>(constant(LayoutSolution()))).getInstance();
+
+    EXPECT_THROW(makeSignalContext(std::move(instance)).evaluate<0>(),
+            std::logic_error);
+}
+
+// A size-dependent modifier must not orphan a pure-solver constraint. A
+// fixedWidth(80) leaf wrapped in onClick, which mints a fresh builder through
+// the with-size path, keeps its width at 80 rather than falling back to the
+// weak 100 default: the with-size path carries the builder's box and
+// pure-solver constraints onto the builder it mints.
+TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed40, fixed40)
+            | modifier::fixedWidth(80.0f)
+            | modifier::onClick(1, [](ClickEvent const&) {}));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
+}
+
+// A container under a modifier that rebuilds it from its assigned size is
+// still placed: the rebuilt copy is solved as its own region, so the row's
+// children land side by side instead of the build throwing.
+TEST(PureSolverLayout, clickableRowPlacesItsChildren)
+{
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40));
+    row.push_back(probe(idB, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row)))
+            | modifier::onClick(1, [](ClickEvent const&) {}));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(400.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(readProbe(instance, idA).position[0] + 40.0f,
+            readProbe(instance, idB).position[0]);
+}
+
+// The transition's second copy of a container is built as its own region at
+// the active copy's size, as testapp1's adder rows are.
+TEST(PureSolverLayout, transitionedRowPlacesItsChildren)
+{
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40));
+    row.push_back(probe(idB, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row)))
+            | modifier::transition(modifier::transitionLeft())
+            | modifier::clip());
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(400.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(readProbe(instance, idA).position[0] + 40.0f,
+            readProbe(instance, idB).position[0]);
+}
+
+// A real nested vbox behind pureSolverRoot lays its content leaves out at their
+// natural: every leaf carries a 40x40 band and comes out 40x40, stacked
+// edge to edge. The outer column holds a leaf and the inner column; the inner
+// holds two leaves. Nothing forces the leaves wider, so they size to content on
+// both axes (a leaf fills only when a container has slack to give -- here it
+// does not), and stack from the top with the leftover as a trailing gap.
+TEST(PureSolverLayout, nestedColumnsSizeToContent)
+{
+    avg::Vector2f const window(100.0f, 300.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+    btl::UniqueId const idD = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(idC, fixed40, fixed40));
+    inner.push_back(probe(idD, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> outer;
+    outer.push_back(probe(idA, fixed40, fixed40));
+    outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(outer))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry c = readProbe(instance, idC);
+    Geometry d = readProbe(instance, idD);
+
+    // Every leaf sizes to its 40x40 content band, centred in the column.
+    for (Geometry const& g : { a, c, d })
+    {
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+        EXPECT_FLOAT_EQ(30.0f, g.position[0]);
+    }
+
+    // Stacked from the top of the 300-tall window (y-up): A at 260..300, then C
+    // at 220..260, then D at 180..220, the remaining 180 an unfilled gap below.
+    EXPECT_FLOAT_EQ(260.0f, a.position[1]);
+    EXPECT_FLOAT_EQ(220.0f, c.position[1]);
+    EXPECT_FLOAT_EQ(180.0f, d.position[1]);
+}
+
+// The two-phase solve stages pass 2 on pass 1's resolved width. Two synthetic
+// leaves whose height is a non-linear step function of their resolved width lay
+// out through the split pipeline: pass 1 resolves the x-edges (the widths), each
+// width is projected as a signal into the leaf's getVerticalConstraints(), and
+// pass 2 solves the y-edges with height == f(width). The two (width, height)
+// pairs the step produces are not colinear through the origin, so no single
+// linear relation a combined x+y solve could hold reproduces both -- the height
+// can only come from pass 2 reading pass 1's concrete width.
+TEST(PureSolverLayout, verticalPassSeesPass1ResolvedWidth)
+{
+    BoxVariables p;
+    BoxVariables q;
+
+    BoxDescriptor dp = stepHeightLeaf(p, 120.0f);
+    BoxDescriptor dq = stepHeightLeaf(q, 60.0f);
+
+    // Pass 1: solve the x-edges alone.
+    auto horizontalSpec = merge(dp.getHorizontalConstraints(),
+            dq.getHorizontalConstraints())
+        .map([p, q](std::vector<arrange::Constraint> const& cp,
+                    std::vector<arrange::Constraint> const& cq)
+            {
+                return makeFragment(cp, cq, { p.left, p.right, q.left, q.right });
+            });
+
+    auto horizontalSolution =
+        layoutRegion(oneFragment(AnySignal<LayoutSpec>(std::move(horizontalSpec))))
+        .share();
+
+    // Project each leaf's pass-1 resolved width (right - left) as a signal.
+    auto widthP = horizontalSolution.clone().map(
+            [p](LayoutSolution const& s) { return readObb(s, p).getSize()[0]; });
+    auto widthQ = horizontalSolution.clone().map(
+            [q](LayoutSolution const& s) { return readObb(s, q).getSize()[0]; });
+
+    // Pass 2: stage each leaf's vertical constraints on its resolved width and
+    // solve the y-edges alone.
+    auto verticalSpec = merge(dp.getVerticalConstraints(std::move(widthP)),
+            dq.getVerticalConstraints(std::move(widthQ)))
+        .map([p, q](std::vector<arrange::Constraint> const& cp,
+                    std::vector<arrange::Constraint> const& cq)
+            {
+                return makeFragment(cp, cq, { p.top, p.bottom, q.top, q.bottom });
+            });
+
+    auto verticalSolution =
+        layoutRegion(oneFragment(AnySignal<LayoutSpec>(std::move(verticalSpec))));
+
+    auto solutionSignal = combineSolutions(horizontalSolution.clone(),
+            std::move(verticalSolution));
+
+    auto context = makeSignalContext(std::move(solutionSignal));
+    LayoutSolution solution = context.evaluate<0>().get<0>();
+
+    avg::Obb pObb = readObb(solution, p);
+    avg::Obb qObb = readObb(solution, q);
+
+    // 120 -> 30*ceil(120/50) = 30*3 = 90 (ratio 0.75);
+    // 60  -> 30*ceil(60/50)  = 30*2 = 60 (ratio 1.0).
+    EXPECT_FLOAT_EQ(120.0f, pObb.getSize()[0]);
+    EXPECT_FLOAT_EQ(90.0f, pObb.getSize()[1]);
+    EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[0]);
+    EXPECT_FLOAT_EQ(60.0f, qObb.getSize()[1]);
+}
+
+// Form row: a fixed-width label and a filler that takes the rest. The label's
+// fixedWidth (strong) holds at 120; the filler carries no default on the layout
+// axis, so the container's gap drive pulls it out to close the row. In a
+// 400-wide row: 120 + 280.
+TEST(PureSolverLayout, formRowFixedLabelAndFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idLabel = btl::makeUniqueId();
+    btl::UniqueId const idField = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idLabel, fixed40, fixed40) | modifier::fixedWidth(120.0f));
+    row.push_back(fillerProbe(idField));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry label = readProbe(instance, idLabel);
+    Geometry field = readProbe(instance, idField);
+
+    EXPECT_FLOAT_EQ(120.0f, label.size[0]);
+    EXPECT_FLOAT_EQ(280.0f, field.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, label.position[0]);
+    EXPECT_FLOAT_EQ(120.0f, field.position[0]);
+}
+
+// Toolbar: three fixed-width buttons and a filler that pushes them apart. The
+// three exact widths (strong) hold; the filler absorbs the slack. In a 400-wide
+// row: 80 + 80 + 160 + 80.
+TEST(PureSolverLayout, toolbarFixedItemsAndFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idSpacer = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> items;
+    items.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    items.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    items.push_back(fillerProbe(idSpacer));
+    items.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(items))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+    Geometry spacer = readProbe(instance, idSpacer);
+    Geometry c = readProbe(instance, idC);
+
+    EXPECT_FLOAT_EQ(80.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, spacer.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, c.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.position[0]);
+    EXPECT_FLOAT_EQ(160.0f, spacer.position[0]);
+    EXPECT_FLOAT_EQ(320.0f, c.position[0]);
+}
+
+// Two fillers split the slack evenly: they couple to the one shared flex
+// variable, so a fixed 100 leaf and two fillers in a 400-wide row give
+// 100 + 150 + 150.
+TEST(PureSolverLayout, twoFillersSplitSlackEvenly)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idSecond = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(fillerProbe(idFirst));
+    row.push_back(fillerProbe(idSecond));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idSecond).size[0]);
+}
+
+// No implicit fill: with no filler present the last child is not stretched. Two
+// fixed 80s and a plain content leaf in a 400-wide row leave the plain leaf at
+// its 40 content width and open a trailing gap: 80 + 80 + 40 (200 unfilled).
+TEST(PureSolverLayout, plainLastChildIsNotStretched)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idPlain = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(probe(idPlain, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idPlain).size[0]);
+}
+
+// A capped filler hands its surplus to the others. Three fillers share the
+// slack, but the middle one is capped at 60 (strong maxWidth, which beats the
+// weakest flex coupling); the other two absorb what it cannot, so in a 400-wide
+// row: 170 + 60 + 170.
+TEST(PureSolverLayout, cappedFillerHandsSurplusToOthers)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idCapped = btl::makeUniqueId();
+    btl::UniqueId const idLast = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(fillerProbe(idFirst));
+    row.push_back(withArea(filler() | modifier::maxWidth(60.0f), idCapped));
+    row.push_back(fillerProbe(idLast));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idCapped).size[0]);
+    EXPECT_FLOAT_EQ(170.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(170.0f, readProbe(instance, idLast).size[0]);
+}
+
+// Overflow, never squeeze: two fixed 300s in a 400-wide row keep their sizes and
+// overflow past the container's end. The signed trailing gap goes negative
+// rather than the children being squeezed to fit.
+TEST(PureSolverLayout, fixedChildrenOverflowRatherThanSqueeze)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(300.0f));
+    row.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(300.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idA).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).position[0]);
+}
+
+// The strong exact size and the strong bounds reach the right axis: a single
+// leaf pins its height to 150 (strong, beating its content height) and caps its
+// width at 60 (strong, beating the weak content pull holding its 100 content
+// width). fixedHeight feeds the vertical solve, maxWidth the horizontal one.
+TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed100, fixed100)
+            | modifier::fixedHeight(150.0f)
+            | modifier::maxWidth(60.0f));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(60.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, g.size[1]);
+    EXPECT_FLOAT_EQ(70.0f, g.position[0]);
+}
+
+// A shipped content leaf sizes to its own content with no defaultSize() at the
+// call site: a plain label() beside a filler settles at its measured content
+// width and the filler takes the rest of the row, so the shipped leaf factories
+// carry their own pure band. The exact width is font-dependent, so this asserts
+// the invariant -- the label is content-sized (positive, well under the full
+// row) and the filler absorbs the remainder -- not a pixel count.
+TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idLabel = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(label(std::string("hi")), idLabel));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry labelG = readProbe(instance, idLabel);
+    Geometry fillerG = readProbe(instance, idFiller);
+
+    EXPECT_GT(labelG.size[0], 0.0f);
+    EXPECT_LT(labelG.size[0], 400.0f);
+    EXPECT_GT(fillerG.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(400.0f, labelG.size[0] + fillerG.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, labelG.position[0]);
+    EXPECT_FLOAT_EQ(labelG.size[0], fillerG.position[0]);
+}
+
+// A text edit emits a native pure band from its own fixed content size: a lone
+// textEdit under pureSolverRoot settles at its declared 250x40 on both axes --
+// the width held at content strength (a content leaf is not stretched to the
+// row) and the height at its content value.
+TEST(PureSolverLayout, textEditSizesToNativeBand)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto state = makeInput(TextEditState{ "Test123" });
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(AnyWidget(textEdit(state.handle,
+                        state.signal.cast<TextEditState>())), id));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(250.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+}
+
+// A label sizes to a native pure band measured from its own text: a short
+// label comes out small and positive, a longer text on the same font is wider
+// at the same height, and neither is stretched to the 400-wide row.
+TEST(PureSolverLayout, labelSizesToNativeBand)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idShort = btl::makeUniqueId();
+    btl::UniqueId const idLong = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(label(std::string("Ping")), idShort));
+    row.push_back(withArea(label(std::string("Ping Ping")), idLong));
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry shortLabel = readProbe(instance, idShort);
+    Geometry longLabel = readProbe(instance, idLong);
+
+    EXPECT_GT(shortLabel.size[0], 0.0f);
+    EXPECT_LT(shortLabel.size[0], 100.0f);
+    EXPECT_GT(shortLabel.size[1], 0.0f);
+    EXPECT_LT(shortLabel.size[1], 100.0f);
+
+    EXPECT_GT(longLabel.size[0], shortLabel.size[0]);
+    EXPECT_FLOAT_EQ(shortLabel.size[1], longLabel.size[1]);
+    EXPECT_FLOAT_EQ(shortLabel.size[0], longLabel.position[0]);
+}
+
+// maxWidth alone caps the content width: a strong upper bound below the leaf's
+// 100 content width beats the weak content pull and holds it down to 60.
+TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed100, fixed100) | modifier::maxWidth(60.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, id).size[0]);
+}
+
+// minWidth alone raises the weak 100 default: a required lower bound above the
+// default lifts the width to 200 in a row with room to spare.
+TEST(PureSolverLayout, minWidthAloneRaisesTheDefault)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, fixed40, fixed40) | modifier::minWidth(200.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(200.0f, readProbe(instance, id).size[0]);
+}
+
+// The over-constraining edge: a strong minWidth larger than the whole row. The
+// child needs 200 in a 100-wide window. With no required conflict present the
+// strong min behaves exactly as a required one would -- it holds at 200 and
+// overflows the row -- and, crucially, the fixed-width sibling still lays out.
+TEST(PureSolverLayout, minWidthLargerThanRow)
+{
+    avg::Vector2f const window(100.0f, 100.0f);
+
+    btl::UniqueId const idBig = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idBig, fixed40, fixed40) | modifier::minWidth(200.0f));
+    row.push_back(probe(idSibling, fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry big = readProbe(instance, idBig);
+    Geometry sibling = readProbe(instance, idSibling);
+
+    // The strong min holds at 200 and overflows the row; the signed gap goes
+    // negative and the fixed sibling keeps its size, pushed past the row's end.
+    EXPECT_FLOAT_EQ(200.0f, big.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, big.position[0]);
+    EXPECT_FLOAT_EQ(50.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+}
+
+// The settle-behind is gone: the nested vbox({hbox, hbox}) demo is correct on a
+// SINGLE evaluate<0>() with no update passes. Rows stack, fixed items hold their
+// widths, each nested row gets a determinate height, and every filler is
+// positive and fills its row's slack. Before the forward-only restructure this
+// was fully bunched at the origin on a single evaluate.
+TEST(PureSolverLayout, nestedDemoCorrectOnSingleEvaluate)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idFill1 = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+    btl::UniqueId const idFill2 = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row1;
+    row1.push_back(probe(idA, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row1.push_back(fillerProbe(idFill1));
+    row1.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+
+    std::vector<ArraySignal<AnyWidget>> row2;
+    row2.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(120.0f));
+    row2.push_back(fillerProbe(idFill2));
+
+    std::vector<ArraySignal<AnyWidget>> rows;
+    rows.push_back(hbox(ArraySignal<AnyWidget>(std::move(row1))));
+    rows.push_back(hbox(ArraySignal<AnyWidget>(std::move(row2))));
+
+    Instance instance = realiseOnce(
+            vbox(ArraySignal<AnyWidget>(std::move(rows))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry fill1 = readProbe(instance, idFill1);
+    Geometry b = readProbe(instance, idB);
+    Geometry c = readProbe(instance, idC);
+    Geometry fill2 = readProbe(instance, idFill2);
+
+    // Fixed items hold; each filler is positive and takes its row's slack.
+    EXPECT_FLOAT_EQ(80.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(240.0f, fill1.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, c.size[0]);
+    EXPECT_FLOAT_EQ(280.0f, fill2.size[0]);
+
+    // Each row is a determinate 40 tall (its content-sized items) and they stack
+    // from the top: row1 at 160..200 in the y-up window, row2 at 120..160.
+    EXPECT_FLOAT_EQ(40.0f, a.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, c.size[1]);
+    EXPECT_GT(fill1.size[1], 0.0f);
+    EXPECT_GT(fill2.size[1], 0.0f);
+    EXPECT_FLOAT_EQ(160.0f, a.position[1]);
+    EXPECT_FLOAT_EQ(120.0f, c.position[1]);
+}
+
+// The load-bearing invariant: exactly one band on the current outermost box, and
+// every wrapper subsumes the inner band. A single margin around a fixed size
+// insets the content: fixedSize(100) sets the outer band, the wrapper ties the
+// inner box 10 in from it, so the image settles at 100 - 2*10 = 80. The leaf
+// sits inside a vbox in a 300-wide window, so its size comes from the solved
+// band (fixedSize 100), not from the window filling it.
+TEST(PureSolverLayout, singleMarginInsetsFixedSize)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed40, fixed40)
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
+
+    Instance instance = realiseOnce(
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(80.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, g.size[1]);
+}
+
+// A margin around a pure CONTAINER insets it and still lets it lay out its own
+// children: the margin threads the region solution into the container's build
+// rather than building it against an empty one, which read every descendant
+// back as 0x0.
+TEST(PureSolverLayout, marginedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(idWide, content137, content24));
+    children.push_back(probe(idNarrow, content63, content24));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(children)))
+                | modifier::margin(10.0f),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, wide.size[1]);
+    EXPECT_FLOAT_EQ(10.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(147.0f, narrow.position[0]);
+}
+
+// The nested-margin worked example, on a single evaluate. Stacking
+// margin | size | margin | size subsumes the inner band at each wrapper: the
+// outer fixedSize(100) is the one band, and the two insets distribute it inward
+// to image = 100 - 2*(10 + 10) = 60. Were a wrapper to keep its inner band
+// instead of subsuming it, the later size would contradict the stale constraint
+// and the number would not fall out. A single evaluate<0>() proves the
+// forward-only pure path settles it in one pass.
+TEST(PureSolverLayout, nestedMarginsSubsumeInnerBands)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(id, fixed40, fixed40)
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f))
+            | modifier::margin(10.0f)
+            | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
+
+    Instance instance = realiseOnce(
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(60.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, g.size[1]);
+}
+
+// Flex aggregates up: an hbox holding a filler has flex>0 on its main axis and
+// so is itself a filler to its parent. An outer row of a fixed 100 leaf and such
+// an inner hbox in a 400-wide window: the inner stretches to absorb the outer's
+// 300 of leftover (behaving as a filler), and inside it its own fixed child
+// stays 60 while its filler takes the 240 of inner slack. This exercises both
+// the flex summary riding up and the shared-F coupling reaching the inner.
+TEST(PureSolverLayout, fillerInHboxIsAFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idInnerFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    innerRow.push_back(fillerProbe(idInnerFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(100.0f));
+    outerRow.push_back(std::move(inner));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry innerFixed = readProbe(instance, idInnerFixed);
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+
+    // The outer's fixed child holds 100; the inner hbox behaved as a filler.
+    EXPECT_FLOAT_EQ(100.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, fixed.position[0]);
+
+    // Inside the stretched inner (spanning 100..400): its fixed child stays 60
+    // and its filler takes the inner's slack, 300 - 60 = 240.
+    EXPECT_FLOAT_EQ(60.0f, innerFixed.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerFixed.position[0]);
+    EXPECT_FLOAT_EQ(240.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, innerFiller.position[0]);
+}
+
+// A flexing container floors its fixed content. The complement of
+// fillerInHboxIsAFiller: there the parent had slack to spare; here it is
+// over-subscribed. An inner hbox (fixed 200 + hfiller, so a filler to its parent)
+// beside a fixed 700 leaf in an 800 window leaves only 100 for the inner -- below
+// its fixed 200. The inner's min floor holds it at its fixed content's 200 (it
+// overflows the box rather than under-allocating), and its filler shrinks to 0
+// rather than being driven negative. Before the floor the inner took the 100 and
+// its filler went to -100.
+TEST(PureSolverLayout, flexingContainerFloorsFixedContent)
+{
+    avg::Vector2f const window(800.0f, 100.0f);
+
+    btl::UniqueId const idInnerFixed = btl::makeUniqueId();
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idInnerFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+    innerRow.push_back(withArea(hfiller(), idInnerFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(700.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry innerFixed = readProbe(instance, idInnerFixed);
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+
+    // The inner hbox is floored at its fixed content (200) rather than squeezed to
+    // the 100 of slack, so the fixed child keeps its 200 and the filler settles at
+    // 0 -- not the -100 it was driven to before the floor.
+    EXPECT_FLOAT_EQ(200.0f, innerFixed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerFiller.size[0]);
+}
+
+// A flexing container couples to its parent by its aggregated flex weight, not a
+// flat 1. An inner hbox of two fillers aggregates flex coeff 2, so beside a plain
+// filler (coeff 1) in a 300-wide row the parent splits the slack 2:1 -- the inner
+// gets 200, the outer filler 100. Weight propagation makes the nesting behave as
+// three leaf fillers sharing evenly: all three end at 100. A coeff-1 coupling (the
+// bug) would instead give the inner 150 (two 75s) and the outer filler 150.
+TEST(PureSolverLayout, weightedContainerFlexSplitsByAggregatedWeight)
+{
+    avg::Vector2f const window(300.0f, 100.0f);
+
+    btl::UniqueId const idInnerA = btl::makeUniqueId();
+    btl::UniqueId const idInnerB = btl::makeUniqueId();
+    btl::UniqueId const idOuter = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(fillerProbe(idInnerA));
+    innerRow.push_back(fillerProbe(idInnerB));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idOuter));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry innerA = readProbe(instance, idInnerA);
+    Geometry innerB = readProbe(instance, idInnerB);
+    Geometry outer = readProbe(instance, idOuter);
+
+    // The inner hbox (coeff 2) takes 200, split into two 100s; the outer filler
+    // (coeff 1) takes 100 -- a 2:1 split, and all three fillers land at 100.
+    EXPECT_FLOAT_EQ(100.0f, innerA.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerB.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, outer.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerA.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, innerB.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, outer.position[0]);
+}
+
+// Overflow versus flex-response, forced by a too-small window. Fixed children
+// keep their size and overflow (the signed trailing gap goes negative); the same
+// shape with fillers shrinks them to share the row. Two 100s in a 150 row on the
+// one hand, two fillers on the other.
+TEST(PureSolverLayout, overflowVersusFlexResponse)
+{
+    avg::Vector2f const window(150.0f, 100.0f);
+
+    // Fixed children overflow rather than squeeze.
+    {
+        btl::UniqueId const idA = btl::makeUniqueId();
+        btl::UniqueId const idB = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(idA, fixed40, fixed40)
+                | modifier::fixedWidth(100.0f));
+        row.push_back(probe(idB, fixed40, fixed40)
+                | modifier::fixedWidth(100.0f));
+
+        Instance instance = realiseConverged(
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
+                window);
+
+        Geometry a = readProbe(instance, idA);
+        Geometry b = readProbe(instance, idB);
+
+        EXPECT_FLOAT_EQ(100.0f, a.size[0]);
+        EXPECT_FLOAT_EQ(100.0f, b.size[0]);
+        // The second child runs 100..200, past the row's 150 end: it overflows,
+        // the signed gap negative, rather than being squeezed.
+        EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+        EXPECT_FLOAT_EQ(100.0f, b.position[0]);
+    }
+
+    // Flexible children respond: they shrink to share the row.
+    {
+        btl::UniqueId const idA = btl::makeUniqueId();
+        btl::UniqueId const idB = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(fillerProbe(idA));
+        row.push_back(fillerProbe(idB));
+
+        Instance instance = realiseConverged(
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
+                window);
+
+        EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idA).size[0]);
+        EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idB).size[0]);
+    }
+}
+
+// A content leaf sizes to its natural, not a flat default. A probe whose natural
+// is a distinct 137x24 comes out exactly 137x24 -- not the old flat 100, not the
+// 40 the other probes carry -- proving the natural drives the pure band on both
+// axes.
+TEST(PureSolverLayout, leafSizesToContent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(id, content137, content24));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry g = readProbe(instance, id);
+    EXPECT_FLOAT_EQ(137.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, g.size[1]);
+}
+
+// Content leaves take their content widths and a filler absorbs the rest. Two
+// probes of distinct content widths (137 and 63) and a filler in a 400-wide row:
+// the probes settle at 137 and 63, and the filler takes the remaining 200.
+TEST(PureSolverLayout, contentLeavesShareRowWithFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idWide, content137, content24));
+    row.push_back(probe(idNarrow, content63, content24));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(137.0f, narrow.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.position[0]);
+}
+
+// fill() makes an ordinary content widget behave like a filler. A fixed 100 leaf
+// and a content probe carrying fill() in a 400-wide row: the fixed leaf holds
+// 100 and the filled probe absorbs the 300 of slack, its 40 content width
+// dropped under the distribution.
+TEST(PureSolverLayout, fillModifierActsAsFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFilled = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(probe(idFilled, fixed40, fixed40) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filled = readProbe(instance, idFilled);
+
+    EXPECT_FLOAT_EQ(100.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, filled.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, fixed.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, filled.position[0]);
+}
+
+// Two fill() widgets split the slack evenly, coupling to the one shared flex
+// variable just as two fillers do: a fixed 100 leaf and two filled probes in a
+// 400-wide row give 100 + 150 + 150.
+TEST(PureSolverLayout, twoFillModifiersShareSlackEvenly)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFirst = btl::makeUniqueId();
+    btl::UniqueId const idSecond = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(100.0f));
+    row.push_back(probe(idFirst, fixed40, fixed40) | modifier::fill());
+    row.push_back(probe(idSecond, fixed40, fixed40) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFirst).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idSecond).size[0]);
+}
+
+// grow(weight) splits the slack in proportion to the weights: a grow(1) and a
+// grow(3) probe in a 400-wide row each start from their 40 natural and share the
+// 320 left 1:3, taking 120 and 280.
+TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idOne = btl::makeUniqueId();
+    btl::UniqueId const idThree = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idOne, fixed40, fixed40) | modifier::grow(1.0f));
+    row.push_back(probe(idThree, fixed40, fixed40) | modifier::grow(3.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idOne).size[0]);
+    EXPECT_FLOAT_EQ(280.0f, readProbe(instance, idThree).size[0]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idOne).position[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idThree).position[0]);
+}
+
+// A bare shape sizes to a modest pure default: a plain filled rectangle in a
+// wide window comes out 100x100 rather than filling the window. A fixedSize
+// still overrides it -- the swatch path is unbroken.
+TEST(PureSolverLayout, bareShapeHasModestPureDefault)
+{
+    avg::Vector2f const window(400.0f, 400.0f);
+
+    btl::UniqueId const idBare = btl::makeUniqueId();
+    btl::UniqueId const idSized = btl::makeUniqueId();
+
+    avg::Brush const brush{ avg::Color(1.0f, 0.0f, 0.0f, 1.0f) };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(shape::rectangle().fill(brush), idBare));
+    row.push_back(withArea(shape::rectangle().fill(brush)
+                | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f)), idSized));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry bare = readProbe(instance, idBare);
+    Geometry sized = readProbe(instance, idSized);
+
+    EXPECT_FLOAT_EQ(100.0f, bare.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, bare.size[1]);
+    EXPECT_FLOAT_EQ(48.0f, sized.size[0]);
+    EXPECT_FLOAT_EQ(48.0f, sized.size[1]);
+}
+
+// The key win of strong over required bounds: a widget whose own bounds
+// contradict -- minWidth(200) tied against maxWidth(60) -- resolves to SOME
+// determinate size instead of throwing an arrange::Error that solveLayout would
+// catch by returning the previous solution, freezing every widget in the region.
+// The proof is the sibling: it still lays out at its own fixed 50 (a frozen
+// region reads back the empty previous solution, sizing it to 0).
+TEST(PureSolverLayout, contradictoryBoundsDoNotFreezeRegion)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+    btl::UniqueId const idClash = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idSibling, fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+    row.push_back(probe(idClash, fixed40, fixed40)
+            | modifier::minWidth(200.0f)
+            | modifier::maxWidth(60.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry sibling = readProbe(instance, idSibling);
+    Geometry clash = readProbe(instance, idClash);
+
+    // The sibling solved normally: the region did not freeze.
+    EXPECT_FLOAT_EQ(50.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, sibling.position[0]);
+
+    // The contradictory widget settled at a determinate, finite size somewhere
+    // between its tied bounds rather than aborting the solve.
+    EXPECT_TRUE(std::isfinite(clash.size[0]));
+    EXPECT_GT(clash.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(50.0f, clash.position[0]);
+}
+
+// Min aggregates as a main-axis SUM up a container. An inner hbox of two leaves,
+// each minWidth(100), publishes an aggregate min width of 100 + 100 = 200 (its
+// content natural, 40 + 40 = 80, is far weaker). Placed beside a filler in a
+// 400-wide row, that strong aggregate min holds the inner hbox at 200 and the
+// filler takes the remaining 200 -- where without the aggregation the inner's
+// weak natural would win and collapse it, handing the filler 320.
+TEST(PureSolverLayout, minAggregatesSumOnMainAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(idA, fixed40, fixed40) | modifier::minWidth(100.0f));
+    innerRow.push_back(probe(idB, fixed40, fixed40) | modifier::minWidth(100.0f));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // Each leaf holds its own min; they tile to 200 and the aggregate min holds
+    // the inner hbox there, so the filler takes the other 200.
+    EXPECT_FLOAT_EQ(100.0f, a.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, b.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, a.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, b.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, filler.position[0]);
+}
+
+// Min aggregates as a cross-axis MAX up a container. An inner vbox (layout axis
+// vertical) of two leaves with minWidth(150) and minWidth(80) publishes an
+// aggregate min width of max(150, 80) = 150 across its cross axis. Beside a
+// filler in a 400-wide row, that holds the inner vbox at 150 and the filler
+// takes 250 -- without the aggregation the inner's weak natural collapses it and
+// the filler takes 360.
+TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerCol;
+    innerCol.push_back(probe(idWide, fixed40, fixed40)
+            | modifier::minWidth(150.0f));
+    innerCol.push_back(probe(idNarrow, fixed40, fixed40)
+            | modifier::minWidth(80.0f));
+    AnyWidget inner = vbox(ArraySignal<AnyWidget>(std::move(innerCol)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(std::move(inner));
+    outerRow.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // Each leaf holds its own min; the widest (150) sets the inner vbox's cross
+    // min, so the filler takes 400 - 150 = 250.
+    EXPECT_FLOAT_EQ(150.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(80.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(250.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
+}
+
+// A row's horizontal flex is cross-axis to the column holding it, so it does not
+// make the column horizontally flexible: beside a sibling filler in an 800 row
+// the column settles at its widest child's 200 and the sibling takes the 600
+// left. Its fixed content keeps its own size.
+TEST(PureSolverLayout, columnHoldingFlexingRowKeepsItsNaturalWidth)
+{
+    avg::Vector2f const window(800.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(column))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry narrowFixed = readProbe(instance, idNarrowFixed);
+    Geometry wideFixed = readProbe(instance, idWideFixed);
+    Geometry sibling = readProbe(instance, idSibling);
+
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(600.0f, sibling.size[0]);
+
+    EXPECT_FLOAT_EQ(60.0f, narrowFixed.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, wideFixed.size[0]);
+}
+
+// The negative-filler regression. The column is nested beside a filler, not
+// anchored to the window, so it settles at its widest child's 200. The narrow
+// flexing row is then cross-filled to 200 and its hfiller takes 200 - 60 = 140
+// -- positive. Before the fix the column collapsed to 60, the required
+// edge-tiling held the fixed 60 at full size, and the hfiller was driven
+// negative to reconcile.
+TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(column))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry narrowFiller = readProbe(instance, idNarrowFiller);
+
+    EXPECT_GE(narrowFiller.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, narrowFiller.position[0]);
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idNarrowFixed).size[0]);
+}
+
+// Double nesting: the widest child sits behind an extra column.
+// vbox({ vbox({ hbox({fixed 60, hfiller}) }), hbox({fixed 200}) }) must still
+// encompass the 200 fixed row, and the doubly nested filler stays non-negative.
+// The row's horizontal flex is cross-axis to the inner column, so the inner
+// column holds its natural 60 rather than stretching to 200, leaving the filler
+// nothing.
+TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idNarrowFixed = btl::makeUniqueId();
+    btl::UniqueId const idNarrowFiller = btl::makeUniqueId();
+    btl::UniqueId const idWideFixed = btl::makeUniqueId();
+    btl::UniqueId const idSibling = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> narrowRow;
+    narrowRow.push_back(probe(idNarrowFixed, fixed40, fixed40)
+            | modifier::fixedWidth(60.0f));
+    narrowRow.push_back(withArea(hfiller(), idNarrowFiller));
+
+    std::vector<ArraySignal<AnyWidget>> innerColumn;
+    innerColumn.push_back(hbox(ArraySignal<AnyWidget>(std::move(narrowRow))));
+
+    std::vector<ArraySignal<AnyWidget>> wideRow;
+    wideRow.push_back(probe(idWideFixed, fixed40, fixed40)
+            | modifier::fixedWidth(200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> outerColumn;
+    outerColumn.push_back(vbox(ArraySignal<AnyWidget>(std::move(innerColumn))));
+    outerColumn.push_back(hbox(ArraySignal<AnyWidget>(std::move(wideRow))));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(vbox(ArraySignal<AnyWidget>(std::move(outerColumn))));
+    outerRow.push_back(fillerProbe(idSibling));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry sibling = readProbe(instance, idSibling);
+    Geometry narrowFiller = readProbe(instance, idNarrowFiller);
+
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_GE(narrowFiller.size[0], 0.0f);
+    EXPECT_FLOAT_EQ(0.0f, narrowFiller.size[0]);
+}
+
+// A frame is layout-transparent in a pure region: its margin insets the
+// background shape, not the foreground child, so a framed leaf solves to the
+// exact box a bare one does. Before the passthrough fix the framed child lost
+// its band and collapsed to the weak 100x100 default at the wrong position.
+TEST(PureSolverLayout, frameIsLayoutTransparentInPureRegion)
+{
+    avg::Vector2f const window(300.0f, 300.0f);
+
+    btl::UniqueId const idBare = btl::makeUniqueId();
+    btl::UniqueId const idFramed = btl::makeUniqueId();
+
+    auto column = [](btl::UniqueId id, bool framed) -> AnyWidget
+    {
+        AnyWidget leaf = framed
+            ? (probe(id, fixed40, fixed40) | modifier::frame())
+            : probe(id, fixed40, fixed40);
+        std::vector<ArraySignal<AnyWidget>> children;
+        children.push_back(std::move(leaf));
+        return vbox(ArraySignal<AnyWidget>(std::move(children)));
+    };
+
+    Instance bare = realiseConverged(
+            column(idBare, false), window);
+    Instance framed = realiseConverged(
+            column(idFramed, true), window);
+
+    Geometry b = readProbe(bare, idBare);
+    Geometry f = readProbe(framed, idFramed);
+
+    // The framed leaf lands on the same box as the bare one, and that box is the
+    // probe's real 40x40 band -- not the collapsed 100x100 default.
+    EXPECT_FLOAT_EQ(b.size[0], f.size[0]);
+    EXPECT_FLOAT_EQ(b.size[1], f.size[1]);
+    EXPECT_FLOAT_EQ(b.position[0], f.position[0]);
+    EXPECT_FLOAT_EQ(b.position[1], f.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, f.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, f.size[1]);
+}
+
+// The container aggregates a framed child's real band, not the collapsed
+// default: a framed 40-wide leaf beside a fixed 80 leaf tiles to 40 + 80, so the
+// second child sits at 40. A lost band would put the framed child at 100 wide
+// and push the sibling to 100.
+TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFramed = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFramed, fixed40, fixed40) | modifier::frame());
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry framed = readProbe(instance, idFramed);
+    Geometry fixed = readProbe(instance, idFixed);
+
+    EXPECT_FLOAT_EQ(40.0f, framed.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, framed.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fixed.position[0]);
+}
+
+// A framed pure CONTAINER lays its own children out, not just a framed leaf. An
+// hbox of two content probes wrapped in frame() places both probes at the same
+// boxes the bare hbox does; before the fix the framed container built against an
+// empty region solution and every descendant read back 0x0.
+TEST(PureSolverLayout, framedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    auto row = [&](btl::UniqueId idWide, btl::UniqueId idNarrow, bool framed)
+        -> AnyWidget
+    {
+        std::vector<ArraySignal<AnyWidget>> children;
+        children.push_back(probe(idWide, content137, content24));
+        children.push_back(probe(idNarrow, content63, content24));
+        AnyWidget h = hbox(ArraySignal<AnyWidget>(std::move(children)));
+        return framed ? (std::move(h) | modifier::frame()) : std::move(h);
+    };
+
+    btl::UniqueId const idBareWide = btl::makeUniqueId();
+    btl::UniqueId const idBareNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFramedWide = btl::makeUniqueId();
+    btl::UniqueId const idFramedNarrow = btl::makeUniqueId();
+
+    Instance bare = realiseConverged(
+            row(idBareWide, idBareNarrow, false), window);
+    Instance framed = realiseConverged(
+            row(idFramedWide, idFramedNarrow, true), window);
+
+    Geometry bareWide = readProbe(bare, idBareWide);
+    Geometry bareNarrow = readProbe(bare, idBareNarrow);
+    Geometry framedWide = readProbe(framed, idFramedWide);
+    Geometry framedNarrow = readProbe(framed, idFramedNarrow);
+
+    // The framed probes settle at their real content bands, tiled edge to edge --
+    // 137 at 0, 63 at 137 -- exactly as the bare row places them, not collapsed
+    // to 0x0 at the origin.
+    EXPECT_FLOAT_EQ(137.0f, framedWide.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, framedWide.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, framedWide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, framedNarrow.size[0]);
+    EXPECT_FLOAT_EQ(137.0f, framedNarrow.position[0]);
+
+    EXPECT_FLOAT_EQ(bareWide.size[0], framedWide.size[0]);
+    EXPECT_FLOAT_EQ(bareWide.position[0], framedWide.position[0]);
+    EXPECT_FLOAT_EQ(bareNarrow.size[0], framedNarrow.size[0]);
+    EXPECT_FLOAT_EQ(bareNarrow.position[0], framedNarrow.position[0]);
+}
+
+// A frame around a nested container reaches all the way down: an hbox holding a
+// fixed leaf and an inner vbox of two probes, wrapped in frame(), lays the inner
+// vbox's own children out. Both nested probes keep their real bands and stack in
+// the inner column, proving the threaded solution descends through more than one
+// container boundary.
+TEST(PureSolverLayout, framedNestedContainerPlacesGrandchildren)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idTop = btl::makeUniqueId();
+    btl::UniqueId const idBottom = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(idTop, fixed40, fixed40));
+    inner.push_back(probe(idBottom, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> outer;
+    outer.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
+
+    Instance instance = realiseConverged(
+            
+                hbox(ArraySignal<AnyWidget>(std::move(outer)))
+                | modifier::frame(),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry top = readProbe(instance, idTop);
+    Geometry bottom = readProbe(instance, idBottom);
+
+    // The outer fixed leaf holds 80 and the inner column sits beside it at x=80;
+    // its two probes keep their 40x40 bands and stack from the top of the row.
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, top.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, top.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, bottom.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, bottom.size[1]);
+    EXPECT_FLOAT_EQ(80.0f, top.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, bottom.position[0]);
+    EXPECT_GT(top.position[1], bottom.position[1]);
+}
+
+// foreground() is layout-transparent too: an overlay drawn over a pure container
+// must not stop that container placing its own children. An hbox of two content
+// probes wrapped in foreground() lays both probes out at their real bands, tiled
+// edge to edge -- not collapsed to 0x0 as the dropped region solution would.
+TEST(PureSolverLayout, foregroundedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(idWide, content137, content24));
+    children.push_back(probe(idNarrow, content63, content24));
+
+    Instance instance = realiseConverged(
+            
+                hbox(ArraySignal<AnyWidget>(std::move(children)))
+                | modifier::foreground(makeWidget()),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(137.0f, narrow.position[0]);
+}
+
+// vfiller flexes vertically in a pure vbox: a 40-tall content leaf above it, and
+// the vfiller absorbs the rest of the column (300 - 40 = 260) while pinning its
+// width to zero on the cross axis.
+TEST(PureSolverLayout, vfillerFlexesInPureVbox)
+{
+    avg::Vector2f const window(100.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(probe(idFixed, fixed40, fixed40));
+    column.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.size[0]);
+}
+
+// hfiller flexes horizontally in a pure hbox: a fixed 80-wide leaf beside it, and
+// the hfiller takes the rest of the row (400 - 80 = 320) while pinning its height
+// to zero on the cross axis.
+TEST(PureSolverLayout, hfillerFlexesInPureHbox)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(withArea(hfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(320.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, filler.size[1]);
+}
+
+// Directionality: a vfiller placed in a pure HBOX must not steal the row's
+// horizontal slack -- it fills only its vertical axis. Beside a fixed 80 leaf in
+// a 400 row it stays 0 wide (the 320 remainder is left as a trailing gap), where
+// an hfiller would have taken it.
+TEST(PureSolverLayout, vfillerDoesNotFlexCrossAxis)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
+    row.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idFiller).size[0]);
+}
+
+// Height reflows with the resolved width. A leaf whose content height is
+// area / width fills its row, so its resolved width is the window width; its
+// height then follows the width solution through phase 2. In a 400-wide window
+// it is 30 tall (12000 / 400); in a 200-wide one it is 60 (12000 / 200) -- taller
+// where narrower. Were phase 2 blind to the resolved width, both would read the
+// natural-width height and be identical.
+TEST(PureSolverLayout, heightReflowsWithResolvedWidth)
+{
+    btl::UniqueId const id = btl::makeUniqueId();
+    float const area = 12000.0f;
+
+    auto makeTree = [&]() -> AnyWidget
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(reflowProbe(id, area, 100.0f));
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
+    };
+
+    Instance wide = realiseConverged(makeTree(),
+            avg::Vector2f(400.0f, 300.0f));
+    Instance narrow = realiseConverged(makeTree(),
+            avg::Vector2f(200.0f, 300.0f));
+
+    Geometry wideG = readProbe(wide, id);
+    Geometry narrowG = readProbe(narrow, id);
+
+    EXPECT_FLOAT_EQ(400.0f, wideG.size[0]);
+    EXPECT_FLOAT_EQ(30.0f, wideG.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, narrowG.size[0]);
+    EXPECT_FLOAT_EQ(60.0f, narrowG.size[1]);
+    EXPECT_GT(narrowG.size[1], wideG.size[1]);
+}
+
+// The shared-F coupling threads through three levels of flexing container, each
+// seeding its own flex variable. A filler nested three hboxes deep still takes
+// the innermost slack: 400 - 100 (outer fixed) - 50 (mid fixed) - 30 (inner
+// fixed) = 220. This exercises the signal-wired coupling across three distinct
+// seeded flex variables.
+TEST(PureSolverLayout, nestedFillerCouplesThroughFlexingContainers)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> innerRow;
+    innerRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(30.0f));
+    innerRow.push_back(fillerProbe(idFiller));
+    AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
+
+    std::vector<ArraySignal<AnyWidget>> midRow;
+    midRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(50.0f));
+    midRow.push_back(std::move(inner));
+    AnyWidget mid = hbox(ArraySignal<AnyWidget>(std::move(midRow)));
+
+    std::vector<ArraySignal<AnyWidget>> outerRow;
+    outerRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(100.0f));
+    outerRow.push_back(std::move(mid));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
+            window);
+
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(220.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(180.0f, filler.position[0]);
+}
+
+// PureLayout is type-erased: a custom implementation of the three-phase
+// interface is held and dispatched to through the getters. Each phase reads back
+// its own value -- in particular getWidthForHeight returns the custom 33, not the
+// phase-1 width the default SimplePureLayout would, proving a widget can override
+// any phase.
+TEST(PureSolverLayout, customImplementationComposesThroughPureLayout)
+{
+    PureLayout layout = CustomPureLayout();
+
+    auto solution = AnySignal<LayoutSolution>(constant(LayoutSolution()));
+
+    EXPECT_FLOAT_EQ(11.0f, naturalOf(layout.getWidth()));
+    EXPECT_FLOAT_EQ(22.0f,
+            naturalOf(layout.getHeightForWidth(solution.clone())));
+    EXPECT_FLOAT_EQ(33.0f,
+            naturalOf(layout.getWidthForHeight(solution.clone())));
+}
+
+// A pure stack overlays its children on the one container slot rather than
+// tiling them. Two content leaves of distinct sizes in a 200x200 stack both
+// centre on the container: the 40 leaf at (80, 80) and the 100 leaf at (50, 50),
+// each sized to its own content. Were the stack tiling like a box the second
+// leaf would be offset past the first instead of overlapping it.
+TEST(PureSolverLayout, stackOverlaysChildrenInSameSlot)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idSmall = btl::makeUniqueId();
+    btl::UniqueId const idBig = btl::makeUniqueId();
+
+    Band const content100 = { 100.0f, 100.0f, 100.0f };
+
+    std::vector<AnyWidget> children;
+    children.push_back(probe(idSmall, fixed40, fixed40));
+    children.push_back(probe(idBig, content100, content100));
+
+    Instance instance = realiseConverged(
+            stack(std::move(children)),
+            window);
+
+    Geometry small = readProbe(instance, idSmall);
+    Geometry big = readProbe(instance, idBig);
+
+    // Each leaf sizes to its own content, not the container.
+    EXPECT_FLOAT_EQ(40.0f, small.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, small.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, big.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, big.size[1]);
+
+    // Both are centred in the same 200x200 slot -- an overlay, not a tiling.
+    EXPECT_FLOAT_EQ(80.0f, small.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, small.position[1]);
+    EXPECT_FLOAT_EQ(50.0f, big.position[0]);
+    EXPECT_FLOAT_EQ(50.0f, big.position[1]);
+}
+
+// A pure stack honours each child's gravity within the slot, exactly as the
+// banded placeChildInSlot() does. Two 40x40 leaves in a 200x200 stack, one with
+// gravity (0, 0) and one with (1, 1), settle in opposite corners of the same
+// slot: bottom-left at (0, 0) and top-right at (160, 160) in the y-up window.
+TEST(PureSolverLayout, stackHonoursChildGravity)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idBottomLeft = btl::makeUniqueId();
+    btl::UniqueId const idTopRight = btl::makeUniqueId();
+
+    std::vector<AnyWidget> children;
+    children.push_back(probe(idBottomLeft, fixed40, fixed40)
+            | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
+    children.push_back(probe(idTopRight, fixed40, fixed40)
+            | modifier::setGravity(constant(avg::Vector2f(1.0f, 1.0f))));
+
+    Instance instance = realiseConverged(
+            stack(std::move(children)),
+            window);
+
+    Geometry bottomLeft = readProbe(instance, idBottomLeft);
+    Geometry topRight = readProbe(instance, idTopRight);
+
+    EXPECT_FLOAT_EQ(0.0f, bottomLeft.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, bottomLeft.position[1]);
+    EXPECT_FLOAT_EQ(160.0f, topRight.position[0]);
+    EXPECT_FLOAT_EQ(160.0f, topRight.position[1]);
+}
+
+// A filler in a pure stack stretches to the whole container slot on both axes,
+// while a content sibling keeps its own size. A fillerProbe and a 40x40 leaf in
+// a 200x150 stack: the filler fills the container (200x150) at the origin and the
+// leaf stays 40x40, centred.
+TEST(PureSolverLayout, stackFillerStretchesToSlot)
+{
+    avg::Vector2f const window(200.0f, 150.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> children;
+    children.push_back(fillerProbe(idFiller));
+    children.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            stack(std::move(children)),
+            window);
+
+    Geometry filler = readProbe(instance, idFiller);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    // The filler overlays the whole slot; the content leaf keeps its own size.
+    EXPECT_FLOAT_EQ(200.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(150.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[1]);
+
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[1]);
+    EXPECT_FLOAT_EQ(80.0f, leaf.position[0]);
+    EXPECT_FLOAT_EQ(55.0f, leaf.position[1]);
+}
+
+// A pure stack republishes its aggregate band, so a stack nested in a pure
+// region reports its extent upward as the cross-axis maximum of its children. An
+// inner stack of a 120-wide and a 40-wide leaf publishes an aggregate width of
+// max(120, 40) = 120; beside a filler in a 400-wide row that holds the stack at
+// 120 and the filler takes the remaining 280. Inside the stack the wide leaf
+// spans it and the narrow one centres within it.
+TEST(PureSolverLayout, stackAggregatesMaxChildBandUpward)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const content120 = { 120.0f, 120.0f, 120.0f };
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(probe(idWide, content120, fixed40));
+    stackChildren.push_back(probe(idNarrow, fixed40, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // The aggregate width (max = 120) holds the stack, so the filler takes 280.
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+
+    // The wide leaf spans the stack; the narrow one overlays it, centred.
+    EXPECT_FLOAT_EQ(120.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.position[0]);
+}
+
+// A pure stack holding a filler flexes, so nested in a row it rides up as a
+// filler and takes the slack -- exercising the container->parent flex coupling.
+// A stack{filler} beside a fixed 40 leaf in a 400 row fills the remaining 360
+// (its inner filler with it) while the leaf keeps 40.
+TEST(PureSolverLayout, stackFlexesAsFillerInParent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(fillerProbe(idInnerFiller));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    EXPECT_FLOAT_EQ(360.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, innerFiller.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}
+
+// Content children in a flexing stack settle at their own natural inside the
+// filled slot; they do not size the slot. A stack{filler, two 40-natural leaves}
+// beside a fixed 40 leaf in a 400 row still fills the remaining 360 -- the fill
+// lifts the content to the slot without the content dragging the slot down.
+TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idContentA = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(fillerProbe(idInnerFiller));
+    stackChildren.push_back(probe(idContentA, fixed40, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry innerFiller = readProbe(instance, idInnerFiller);
+    Geometry contentA = readProbe(instance, idContentA);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    EXPECT_FLOAT_EQ(360.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, contentA.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, contentA.position[0]);
+    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}
+
+// A flexing stack fills its parent's slack only up to its aggregate max bound,
+// the cross-axis maximum of its children's maxes, published since every child
+// is capped. A stack{filler capped at 120, leaf capped at 100, leaf capped at
+// 150} offered 360 of slack in a row holds at max(120,100,150) = 150, so the
+// leaf after it starts at 150; a bug that let content drag the slot to its
+// natural (40) or that summed the caps (370) both fail this. A single uncapped
+// child would leave the stack uncapped.
+TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInnerFiller = btl::makeUniqueId();
+    btl::UniqueId const idCap100 = btl::makeUniqueId();
+    btl::UniqueId const idCap150 = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    Band const cap100 = { 40.0f, 40.0f, 100.0f };
+    Band const cap150 = { 40.0f, 40.0f, 150.0f };
+
+    std::vector<AnyWidget> stackChildren;
+    stackChildren.push_back(withArea(filler() | modifier::maxWidth(120.0f),
+                idInnerFiller));
+    stackChildren.push_back(probe(idCap100, cap100, fixed40));
+    stackChildren.push_back(probe(idCap150, cap150, fixed40));
+    AnyWidget inner = stack(std::move(stackChildren));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(inner));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idInnerFiller).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idLeaf).position[0]);
+}
+
+// A pure grid partitions the container into uniform tracks and places each child
+// in its cell, centred by default. A 2x2 grid of 40x40 leaves in a 200x200 window
+// gives 100x100 cells; each leaf centres at a 30px inset in its cell, and the grid
+// coordinates run y-up -- grid row 0 is the bottom row.
+TEST(PureSolverLayout, gridPlacesChildrenInCells)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const id00 = btl::makeUniqueId();
+    btl::UniqueId const id10 = btl::makeUniqueId();
+    btl::UniqueId const id01 = btl::makeUniqueId();
+    btl::UniqueId const id11 = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probe(id00, fixed40, fixed40))
+        .cell(1, 0, 1, 1, probe(id10, fixed40, fixed40))
+        .cell(0, 1, 1, 1, probe(id01, fixed40, fixed40))
+        .cell(1, 1, 1, 1, probe(id11, fixed40, fixed40));
+
+    Instance instance = realiseConverged(std::move(grid), window);
+
+    Geometry g00 = readProbe(instance, id00);
+    Geometry g10 = readProbe(instance, id10);
+    Geometry g01 = readProbe(instance, id01);
+    Geometry g11 = readProbe(instance, id11);
+
+    for (Geometry const& g : { g00, g10, g01, g11 })
+    {
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    }
+
+    // Columns run left to right, rows bottom to top; each 40 leaf is centred with
+    // a 30px inset in its 100 cell.
+    EXPECT_FLOAT_EQ(30.0f, g00.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, g00.position[1]);
+    EXPECT_FLOAT_EQ(130.0f, g10.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, g10.position[1]);
+    EXPECT_FLOAT_EQ(30.0f, g01.position[0]);
+    EXPECT_FLOAT_EQ(130.0f, g01.position[1]);
+    EXPECT_FLOAT_EQ(130.0f, g11.position[0]);
+    EXPECT_FLOAT_EQ(130.0f, g11.position[1]);
+}
+
+// A cell whose content is smaller than its track honours the child's gravity
+// within the cell, exactly as the banded grid does. A single 40x40 leaf with
+// gravity (0, 0) in a 1x1 grid filling a 100x100 window settles in the cell's
+// bottom-left corner at the origin, not centred.
+TEST(PureSolverLayout, gridCellGravityWithinTrack)
+{
+    avg::Vector2f const window(100.0f, 100.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(1, 1)
+        .cell(0, 0, 1, 1, probe(id, fixed40, fixed40)
+                | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
+
+    Instance instance = realiseConverged(std::move(grid), window);
+
+    Geometry g = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[1]);
+}
+
+// A track sizes to the largest cell that occupies it, and the grid republishes
+// its aggregate band upward: a 2x1 grid of a 60-wide and a 40-wide leaf reports a
+// width of max(60, 40) * 2 columns = 120. Beside a filler in a 400-wide row that
+// holds the grid at 120 and the filler takes 280; inside, the 60 leaf fills its
+// 60 cell and the 40 leaf centres in the other.
+TEST(PureSolverLayout, gridTrackSizedToLargestCell)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content60 = { 60.0f, 60.0f, 60.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 1)
+        .cell(0, 0, 1, 1, probe(idWide, content60, fixed40))
+        .cell(1, 0, 1, 1, probe(idNarrow, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+    Geometry filler = readProbe(instance, idFiller);
+
+    // The aggregate width (max 60 * 2 columns = 120) holds the grid; the filler
+    // takes the remaining 280.
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+
+    // Each cell is 60 wide: the 60 leaf fills its cell at the origin, the 40 leaf
+    // centres in the second cell at 60 + 10.
+    EXPECT_FLOAT_EQ(60.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(70.0f, narrow.position[0]);
+}
+
+// A spanning cell occupies every track it covers. In a 2x2 grid filling a 200x200
+// window, a filler in a cell spanning both columns of the top row stretches across
+// the full 200 width and the upper 100 of height, where a single-column cell would
+// bound it to one 100-wide track.
+TEST(PureSolverLayout, gridSpanningCellCoversItsTracks)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idCell = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, fillerProbe(idSpan))
+        .cell(0, 0, 1, 1, probe(idCell, fixed40, fixed40));
+
+    Instance instance = realiseConverged(std::move(grid), window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry cell = readProbe(instance, idCell);
+
+    // The spanning filler covers both columns of the top row: 200 wide at x 0,
+    // 100 tall in the upper half (y 100..200 in the y-up window).
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(100.0f, span.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, span.position[1]);
+
+    // The single-cell leaf sits centred in the bottom-left cell.
+    EXPECT_FLOAT_EQ(40.0f, cell.size[0]);
+    EXPECT_FLOAT_EQ(30.0f, cell.position[0]);
+    EXPECT_FLOAT_EQ(30.0f, cell.position[1]);
+}
+
+// A spanning cell's natural is shared across the tracks it covers. In a 2x2 grid a 120-wide leaf spanning both columns
+// asks 60 of each, so beside two 40 leaves the grid reports max(60, 40) * 2 =
+// 120, not 240. Beside a filler in a 400 row the filler takes 280; each column
+// is 60, so the spanning leaf fills the row and the 40 leaf centres at 60 + 10.
+TEST(PureSolverLayout, gridSpanningCellSharesNaturalAcrossTracks)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content120 = { 120.0f, 120.0f, 120.0f };
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idRight = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, content120, fixed40))
+        .cell(0, 0, 1, 1, probe(btl::makeUniqueId(), fixed40, fixed40))
+        .cell(1, 0, 1, 1, probe(idRight, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry right = readProbe(instance, idRight);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(280.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(120.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, right.size[0]);
+    EXPECT_FLOAT_EQ(70.0f, right.position[0]);
+}
+
+// A spanning cell does not inflate a single track to its whole extent. In a 2x1
+// grid a 100-wide leaf spanning both columns asks 50 of each, so an 80-wide leaf
+// in the first column sets the tracks: the grid reports 80 * 2 = 160, not the
+// 200 a whole-span share would. Beside a filler in a 400 row the filler takes
+// 240, and the 80 leaf fills its 80 column.
+TEST(PureSolverLayout, gridSpanningCellDoesNotInflateTrack)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content80 = { 80.0f, 80.0f, 80.0f };
+    Band const content100 = { 100.0f, 100.0f, 100.0f };
+
+    btl::UniqueId const idSingle = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(btl::makeUniqueId(), content100, fixed40))
+        .cell(0, 0, 1, 1, probe(idSingle, content80, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(fillerProbe(idFiller));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry single = readProbe(instance, idSingle);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(240.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(160.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, single.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, single.position[0]);
+}
+
+// A spanning cell's min floor is shared across its tracks too. A 2x2 grid
+// holding a filler flexes, so it floors its fixed content instead of publishing a
+// natural: a fixed 200 leaf spanning both columns floors each track at 100 and
+// the grid at 200, not 400. Beside a fixed 700 leaf in an over-subscribed 800 row
+// the grid is held at 200, so the fixed leaf starts at 200.
+TEST(PureSolverLayout, gridSpanningCellSharesFloorAcrossTracks)
+{
+    avg::Vector2f const window(800.0f, 100.0f);
+
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(2, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, fixed40, fixed40)
+                | modifier::fixedWidth(200.0f))
+        .cell(0, 0, 1, 1, fillerProbe(btl::makeUniqueId()));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(probe(idFixed, fixed40, fixed40)
+            | modifier::fixedWidth(700.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry span = readProbe(instance, idSpan);
+    Geometry fixed = readProbe(instance, idFixed);
+
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, span.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, fixed.position[0]);
+}
+
+// A growable cell child that is not a filler settles at its own natural inside a
+// larger cell, gravity-positioned; it does not fill the cell up to its max. A
+// content natural (content strength) outranks the weak cell fill -- the pure
+// model, a deliberate divergence from the banded grid's fill-to-max.
+TEST(PureSolverLayout, gridGrowableCellChildStaysAtNatural)
+{
+    avg::Vector2f const window(200.0f, 200.0f);
+
+    btl::UniqueId const idChild = btl::makeUniqueId();
+    Band const growable = { 40.0f, 40.0f, 100.0f };
+
+    AnyWidget grid = uniformGrid(1, 1)
+        .cell(0, 0, 1, 1, probe(idChild, growable, growable));
+
+    Instance instance = realiseConverged(
+            std::move(grid), window);
+
+    Geometry child = readProbe(instance, idChild);
+
+    // Natural 40, not its max 100 nor the 200 cell, centred at (200 - 40) / 2.
+    EXPECT_FLOAT_EQ(40.0f, child.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, child.size[1]);
+    EXPECT_FLOAT_EQ(80.0f, child.position[0]);
+    EXPECT_FLOAT_EQ(80.0f, child.position[1]);
+}
+
+// A grid holding a filler flexes, so nested in a row it rides up as a filler and
+// takes the slack, mirroring the stack. A 1x1 grid{filler} beside a fixed 40 leaf
+// in a 400 row fills the remaining 360.
+TEST(PureSolverLayout, gridFlexesAsFillerInParent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(1, 1)
+        .cell(0, 0, 1, 1, fillerProbe(idFiller));
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(std::move(grid));
+    row.push_back(probe(idLeaf, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry filler = readProbe(instance, idFiller);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    EXPECT_FLOAT_EQ(360.0f, filler.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+}
+
+namespace
+{
+
+// A leaf that anchors its own x-edges to an absolute rectangle
+// (anchorConstraints), the shape of an over-constrained fragment: placed as the
+// leading child of a row, its anchor fights the container's leading-edge tiling,
+// two opinions on the same edge. With the anchor held strong the tiling wins and
+// the box overflows locally; were the anchor required the two would be
+// infeasible, the region's whole width solve would throw, and every box on that
+// axis would read back zero-width from the empty solution.
+AnyWidget xAnchoredLeaf(btl::UniqueId id, float left, float right)
+{
+    return withArea(makeWidget()
+            | modifier::defaultSize(avg::Vector2f(40.0f, 40.0f))
+            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                    [left, right](widget::AnyBuilder builder)
+                        -> widget::AnyBuilder
+                    {
+                        widget::BoxVariables box = builder.getBoxVariables();
+                        // defaultSize() above set the pure layout this extends.
+                        widget::PureLayout old = builder.getPureLayout();
+
+                        auto width = old.getWidth().map(
+                                [box, left, right](widget::Constraints const& c)
+                                {
+                                    widget::Constraints out = c;
+                                    auto pins = widget::anchorConstraints(
+                                            box, left, 0.0f, right, 0.0f);
+                                    out.relations.constraints.push_back(pins[0]);
+                                    out.relations.constraints.push_back(pins[2]);
+                                    return out;
+                                });
+
+                        builder.setPureLayout(widget::simplePureLayout(
+                            bq::signal::AnySignal<widget::Constraints>(
+                                std::move(width)),
+                            [old](bq::signal::AnySignal<widget::LayoutSolution> ws)
+                            {
+                                return old.getHeightForWidth(std::move(ws));
+                            }));
+                        return builder;
+                    })),
+            id);
+}
+
+} // namespace
+
+// One over-constrained fragment must not zero its siblings. A leaf that anchors
+// its box to an absolute rectangle (strong) sits as the leading child of a row,
+// where the tiling pins its leading edge to the container origin -- an
+// irreconcilable pair had the anchor stayed required. The anchored leaf overflows
+// locally while the healthy sibling beside it keeps its full 40x40, proving the
+// region's width solve stays feasible instead of collapsing every box to zero.
+TEST(PureSolverLayout, overConstrainedFragmentDoesNotZeroSiblings)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idAnchored = btl::makeUniqueId();
+    btl::UniqueId const idHealthy = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(xAnchoredLeaf(idAnchored, 500.0f, 540.0f));
+    row.push_back(probe(idHealthy, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry healthy = readProbe(instance, idHealthy);
+
+    // The healthy sibling keeps its content size on both axes; only the anchored
+    // leaf degrades.
+    EXPECT_FLOAT_EQ(40.0f, healthy.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, healthy.size[1]);
+}
+
+// A scroll bar carries a native pure band that fills along its own axis: a
+// horizontal bar fills its width and a vertical bar its height, whichever way
+// the container it sits in stacks, while the perpendicular thickness holds at
+// 25. The "across" cases -- a horizontal bar in a column, a vertical bar in a
+// row -- pin that the bar fills its own length whichever axis its container
+// stacks along, not the container's layout axis.
+
+// A horizontal bar's length axis (x) is a column's cross axis: the container's
+// cross-fill stretches it to the full width, and the thickness holds at 25.
+TEST(PureSolverLayout, hScrollBarFillsWidthAcrossAColumn)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(
+            hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(200.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(25.0f, bar.size[1]);
+}
+
+// A vertical bar's length axis (y) is a row's cross axis: the container's
+// cross-fill stretches it to the full height, and the thickness holds at 25.
+// This is the arrangement a scroll view lays a vertical bar into.
+TEST(PureSolverLayout, vScrollBarFillsHeightAcrossARow)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(
+            vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(25.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, bar.size[1]);
+}
+
+// A horizontal bar's length axis (x) is a row's layout axis: it fills the width
+// by flex, taking the row's slack, and the thickness holds at 25.
+TEST(PureSolverLayout, hScrollBarFillsWidthAlongARow)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(
+            hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(200.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(25.0f, bar.size[1]);
+}
+
+// A vertical bar's length axis (y) is a column's layout axis: it fills the
+// height by flex, and the thickness holds at 25.
+TEST(PureSolverLayout, vScrollBarFillsHeightAlongAColumn)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    auto scroll = makeInput(0.5f);
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(
+            vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry bar = readProbe(instance, id);
+
+    EXPECT_FLOAT_EQ(25.0f, bar.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, bar.size[1]);
+}
+
+// bin() is a pure firewall: it solves its content as its own pure region
+// anchored to the content size, so a pure container inside the content is solved
+// at real sizes. Without the firewall the size-only build would thread an empty
+// solution and the nested column's leaves would collapse to 0x0. Here a column
+// of two 40x40 leaves behind bin() lays them out at 40x40, stacked. The viewport
+// equals the content size, so the firewall's bottom-align offset is zero and
+// nothing is clipped away.
+TEST(PureSolverLayout, binFirewallSolvesNestedContainer)
+{
+    avg::Vector2f const contentSize(40.0f, 80.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(probe(idA, fixed40, fixed40));
+    column.push_back(probe(idB, fixed40, fixed40));
+
+    AnyWidget content = vbox(ArraySignal<AnyWidget>(std::move(column)));
+
+    Instance instance = realiseConverged(
+            bin(std::move(content), constant(contentSize)),
+            contentSize);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // Solved at the 40x40 content band, not the 0x0 an empty solution places a
+    // nested container's children at, nor a blown-up default.
+    for (Geometry const& g : { a, b })
+    {
+        EXPECT_FLOAT_EQ(40.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(40.0f, g.size[1]);
+    }
+
+    // Stacked edge to edge inside the 80-tall content.
+    EXPECT_FLOAT_EQ(40.0f, std::abs(a.position[1] - b.position[1]));
+}
+
+// The firewall boundary: bin()'s own box is the assigned viewport size, while
+// the content behind it keeps its own, larger content size rather than being
+// squeezed to fit -- so it overflows the viewport, which is why bin() clips it.
+// A 40x400 leaf inside a 200x300 view stays 40x400 (content-sized, overflowing),
+// while bin() reports the 200x300 view size upward.
+TEST(PureSolverLayout, binFirewallIsViewportSizedNotContentSized)
+{
+    avg::Vector2f const viewport(200.0f, 300.0f);
+    avg::Vector2f const contentSize(40.0f, 400.0f);
+
+    btl::UniqueId const idView = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    AnyWidget content = probe(idLeaf, fixed40, fixed40)
+        | modifier::fixedSize(constant(contentSize));
+
+    Instance instance = realiseConverged(
+            withArea(
+                    bin(std::move(content), constant(contentSize)), idView),
+            viewport);
+
+    Geometry view = readProbe(instance, idView);
+    Geometry leaf = readProbe(instance, idLeaf);
+
+    // The firewall takes the viewport size, decoupled from the content size.
+    EXPECT_FLOAT_EQ(200.0f, view.size[0]);
+    EXPECT_FLOAT_EQ(300.0f, view.size[1]);
+
+    // The content is solved at its own content size -- taller than the viewport,
+    // so it overflows and bin()'s clip() (see bin.cpp) crops it to the view.
+    EXPECT_FLOAT_EQ(40.0f, leaf.size[0]);
+    EXPECT_FLOAT_EQ(400.0f, leaf.size[1]);
+}
+
+// The motivating case end to end: a scrollView of a pure uniformGrid under
+// pureSolverRoot, mirroring testapp1. The grid is a firewall solved at its own
+// content size (2x2 of 100x100 cells, so 200x200), so its cells get real sizes
+// instead of collapsing against the size-only build's empty solution (0x0).
+// The content fits within the viewport, so every cell is readable at its full
+// size.
+TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
+{
+    avg::Vector2f const window(500.0f, 900.0f);
+
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    AnyWidget content = uniformGrid(2, 2)
+        .cell(0, 0, 1, 1, probe(idA, fixed100, fixed100))
+        .cell(1, 1, 1, 1, probe(idB, fixed100, fixed100));
+
+    Instance instance = realiseConverged(
+            scrollView(std::move(content)), window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // The grid cells are laid out at their real 100x100 size -- not the 0x0 an
+    // empty solution gives a nested container, nor a 10000 blow-up.
+    for (Geometry const& g : { a, b })
+    {
+        EXPECT_FLOAT_EQ(100.0f, g.size[0]);
+        EXPECT_FLOAT_EQ(100.0f, g.size[1]);
+    }
+}
+
+// A child flexible on its row's cross axis fills the height the row takes from
+// its children's naturals, without making the row flexible: a flexible leaf with
+// a 20 natural height beside a fixed 40 leaf, in a row above a fixed 40 footer in
+// a 300-tall window, fills the row's 40 rather than the row taking the 260 the
+// footer leaves.
+TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+    btl::UniqueId const idFooter = btl::makeUniqueId();
+
+    Band const growX = { 20.0f, 60.0f, 10000.0f, 1.0f };
+    Band const growY = { 10.0f, 20.0f, 10000.0f, 1.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40));
+    row.push_back(probe(idFlex, growX, growY));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    column.push_back(probe(idFooter, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry flex = readProbe(instance, idFlex);
+    Geometry footer = readProbe(instance, idFooter);
+
+    EXPECT_FLOAT_EQ(40.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, flex.position[1]);
+
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, fixed.position[1]);
+
+    EXPECT_FLOAT_EQ(40.0f, footer.size[1]);
+    EXPECT_FLOAT_EQ(220.0f, footer.position[1]);
+}
+
+// A cross-flexible child fills its slot only up to its own max: in a 300-tall
+// row a flexible leaf capped at 150 stops at 150, centred in the row.
+TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+
+    Band const cappedY = { 20.0f, 60.0f, 150.0f, 1.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40));
+    row.push_back(probe(idFlex, fixed40, cappedY));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry flex = readProbe(instance, idFlex);
+
+    EXPECT_FLOAT_EQ(150.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(75.0f, flex.position[1]);
+}
+
+// Wrapping a flexible child in fillers is the way to keep it from filling: a
+// height-growing leaf between two vfillers in a 300-tall row takes only its 40
+// natural plus an even share of the 260 left, centred, while the same leaf
+// unwrapped fills the row.
+TEST(PureSolverLayout, fillerWrappedFlexibleChildDoesNotFill)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idWrapped = btl::makeUniqueId();
+    btl::UniqueId const idBare = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> wrapper;
+    wrapper.push_back(vfiller());
+    wrapper.push_back(probe(idWrapped, fixed40, fixed40)
+            | modifier::growHeight());
+    wrapper.push_back(vfiller());
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(vbox(ArraySignal<AnyWidget>(std::move(wrapper))));
+    row.push_back(probe(idBare, fixed40, fixed40) | modifier::growHeight());
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry wrapped = readProbe(instance, idWrapped);
+    Geometry bare = readProbe(instance, idBare);
+
+    EXPECT_NEAR(40.0f + 260.0f / 3.0f, wrapped.size[1], 1e-3f);
+    EXPECT_NEAR(260.0f / 3.0f, wrapped.position[1], 1e-3f);
+
+    EXPECT_FLOAT_EQ(300.0f, bare.size[1]);
+}
+
+// The motivating case: a scrollView beside a fixed leaf in a row fills the
+// window's height rather than publishing its 800 viewport natural into the row
+// and overflowing.
+TEST(PureSolverLayout, scrollViewInRowFillsVertically)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idScroll = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idFixed, fixed40, fixed40));
+    row.push_back(withArea(scrollView(probe(btl::makeUniqueId(), fixed100,
+                        fixed100)), idScroll));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry scroll = readProbe(instance, idScroll);
+    Geometry fixed = readProbe(instance, idFixed);
+
+    EXPECT_FLOAT_EQ(300.0f, scroll.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, scroll.position[1]);
+    EXPECT_FLOAT_EQ(360.0f, scroll.size[0]);
+
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+}
+
+// A flexible child fills its grid cell, and its natural does not inflate the
+// grid: a 2x1 grid holding a fixed 40 leaf and a flexible leaf with an 800
+// natural height, above a fixed 40 footer in a 300-tall window, takes the 260
+// left over and the flexible leaf fills its cell's height.
+TEST(PureSolverLayout, flexibleChildFillsGridCell)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+    btl::UniqueId const idFooter = btl::makeUniqueId();
+
+    Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+
+    AnyWidget grid = uniformGrid(2, 1)
+        .cell(0, 0, 1, 1, probe(idFixed, fixed40, fixed40))
+        .cell(1, 0, 1, 1, probe(idFlex, fixed40, growY));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(std::move(grid));
+    column.push_back(probe(idFooter, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry flex = readProbe(instance, idFlex);
+    Geometry footer = readProbe(instance, idFooter);
+
+    EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
+}
+
+// A flexible child fills its stack slot, and its natural does not inflate the
+// stack: the layout of flexibleChildFillsGridCell with the two leaves overlaid
+// in a stack.
+TEST(PureSolverLayout, flexibleChildFillsStackSlot)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+    btl::UniqueId const idFooter = btl::makeUniqueId();
+
+    Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+
+    std::vector<AnyWidget> layers;
+    layers.push_back(probe(idFixed, fixed40, fixed40));
+    layers.push_back(probe(idFlex, fixed40, growY));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(stack(std::move(layers)));
+    column.push_back(probe(idFooter, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fixed = readProbe(instance, idFixed);
+    Geometry flex = readProbe(instance, idFlex);
+    Geometry footer = readProbe(instance, idFooter);
+
+    EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
+}
+
+namespace
+{
+
+// A column holding a row that carries an hfiller, made flexible on its width
+// (the column's cross axis, which the row's flex does not carry across), so it
+// fills its slot in a parent row unless a fixed width says otherwise.
+AnyWidget flexingColumn(btl::UniqueId leafId)
+{
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(leafId, fixed40, fixed40));
+    row.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    return vbox(ArraySignal<AnyWidget>(std::move(column)))
+        | modifier::growWidth();
+}
+
+} // namespace
+
+// A fixed width on a widget that flexes holds: a column flexing on its width
+// through an inner hfiller, fixed at 200 in a 400-wide row beside a fixed 40
+// leaf, takes 200 rather than filling the row's slack. The fixed width clears the
+// column's flex, so the row couples nothing to it.
+TEST(PureSolverLayout, fixedWidthHoldsOnFlexingColumn)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idColumn = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+    btl::UniqueId const idSide = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(flexingColumn(idLeaf)
+                | modifier::fixedWidth(200.0f), idColumn));
+    row.push_back(probe(idSide, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry column = readProbe(instance, idColumn);
+    Geometry side = readProbe(instance, idSide);
+
+    EXPECT_FLOAT_EQ(200.0f, column.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, column.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, side.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, side.size[0]);
+}
+
+// A fixed sidebar beside flexible content: both are columns that flex on their
+// width, the sidebar fixed at 120. In a 400-wide row the sidebar holds 120 and
+// the content takes the remaining 280.
+TEST(PureSolverLayout, fixedSidebarBesideFlexibleContent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idSidebar = btl::makeUniqueId();
+    btl::UniqueId const idContent = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(flexingColumn(btl::makeUniqueId())
+                | modifier::fixedWidth(120.0f), idSidebar));
+    row.push_back(withArea(flexingColumn(btl::makeUniqueId()), idContent));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry sidebar = readProbe(instance, idSidebar);
+    Geometry content = readProbe(instance, idContent);
+
+    EXPECT_FLOAT_EQ(120.0f, sidebar.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, sidebar.position[0]);
+    EXPECT_FLOAT_EQ(280.0f, content.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, content.position[0]);
+}
+
+// The main-axis form of the same bug: a row flexing on its width through an
+// hfiller, fixed at 200 inside a 400-wide row beside a fixed 40 leaf, holds 200.
+TEST(PureSolverLayout, fixedWidthHoldsOnMainAxisFlexingRow)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInner = btl::makeUniqueId();
+    btl::UniqueId const idSide = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    inner.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(inner)))
+                | modifier::fixedWidth(200.0f), idInner));
+    row.push_back(probe(idSide, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry innerRow = readProbe(instance, idInner);
+    Geometry side = readProbe(instance, idSide);
+
+    EXPECT_FLOAT_EQ(200.0f, innerRow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, side.position[0]);
+}
+
+// A fixed height on a child flexing on its row's cross axis holds: in a
+// 300-tall row a height-growing leaf fixed at 100 takes 100, centred in the
+// row, rather than filling it.
+TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+
+    Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    row.push_back(probe(idFlex, fixed40, growY)
+            | modifier::fixedHeight(100.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    Geometry flex = readProbe(instance, idFlex);
+
+    EXPECT_FLOAT_EQ(100.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, flex.position[1]);
+}
+
+// Size words on one axis are last-writer-wins between a fixed size and a flex:
+// fixedWidth(80) then fill() flexes and takes the 360 a fixed 40 sibling leaves
+// in a 400-wide row, while fill() then fixedWidth(80) holds 80.
+TEST(PureSolverLayout, laterSizeWordWinsBetweenFixedAndFill)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto layout = [&](modifier::AnyWidgetModifier first,
+            modifier::AnyWidgetModifier second)
+    {
+        btl::UniqueId const id = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(id, fixed40, fixed40) | std::move(first)
+                | std::move(second));
+        row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+        Instance instance = realiseConverged(
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
+                window);
+        return readProbe(instance, id).size[0];
+    };
+
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+                modifier::fill()));
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::fill(),
+                modifier::fixedWidth(80.0f)));
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+                modifier::growWidth()));
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::growWidth(),
+                modifier::fixedWidth(80.0f)));
+}
+
+// A min or max bounds a flexing widget without cancelling its flex: in a
+// 400-wide row a fill() leaf beside a fixed 40 leaf takes the 360 left; capped
+// at 150 it stops there, and floored at 100 it still flexes to 360.
+TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto layout = [&](modifier::AnyWidgetModifier bound)
+    {
+        btl::UniqueId const id = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(id, fixed40, fixed40) | modifier::fill()
+                | std::move(bound));
+        row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+        Instance instance = realiseConverged(
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
+                window);
+        return readProbe(instance, id).size[0];
+    };
+
+    EXPECT_FLOAT_EQ(150.0f, layout(modifier::maxWidth(150.0f)));
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::minWidth(100.0f)));
+}
+
+// A classic tree -- labels, a button, text edits, scroll bars, a framed label,
+// fillers, a uniform grid of sized leaves inside a scroll view, nested hbox and
+// vbox -- lays out under pureSolverRoot from native pure bands alone, and the
+// scroll view flexes to fill its slot.
+TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
+{
+    avg::Vector2f const window(800.0f, 1200.0f);
+
+    btl::UniqueId const idScroll = btl::makeUniqueId();
+    btl::UniqueId const idEdit = btl::makeUniqueId();
+
+    auto text = makeInput(TextEditState{ "Text" });
+    auto scroll = makeInput(0.5f);
+
+    auto cellLeaf = []()
+    {
+        return makeWidget()
+            | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f));
+    };
+
+    auto grid = AnyWidget(UniformGrid(3, 3)
+            .cell(0, 0, 1, 1, cellLeaf())
+            .cell(1, 1, 1, 1, cellLeaf())
+            .cell(2, 2, 1, 1, cellLeaf()));
+
+    std::vector<ArraySignal<AnyWidget>> toolbar;
+    toolbar.push_back(label(std::string("Title")) | modifier::frame());
+    toolbar.push_back(button(constant<std::string>("Go"),
+                constant(std::function<void()>([]() {}))));
+    toolbar.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> side;
+    side.push_back(label(std::string("Side")));
+    side.push_back(withArea(AnyWidget(textEdit(text.handle,
+                        text.signal.cast<TextEditState>())), idEdit));
+    side.push_back(hScrollBar(scroll.handle, scroll.signal, constant(0.0f)));
+    side.push_back(vfiller());
+
+    std::vector<ArraySignal<AnyWidget>> body;
+    body.push_back(withArea(scrollView(std::move(grid)), idScroll));
+    body.push_back(vbox(ArraySignal<AnyWidget>(std::move(side))));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(toolbar))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(body))));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry edit = readProbe(instance, idEdit);
+    Geometry view = readProbe(instance, idScroll);
+
+    EXPECT_FLOAT_EQ(250.0f, edit.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, edit.size[1]);
+
+    // The side column flexes across through its scroll bar, so the two each
+    // start from their natural and split the rest of the row evenly, the view
+    // ending where the side column begins; down, the view grows past its 800
+    // natural to fill the body.
+    EXPECT_FLOAT_EQ(edit.position[0], view.size[0]);
+    EXPECT_GT(view.size[0], 400.0f);
+    EXPECT_GT(view.size[1], 800.0f);
+
+}
+
+// A container publishes a max only when every child carries one. A row holding
+// fill | min 200, fill | max 80 and a plain fill() child is uncapped, so the
+// column cross-fills it to the full 400 rather than capping it at the one 80 max
+// and squeezing the others: the bounded children clamp and the uncapped one
+// takes the rest.
+TEST(PureSolverLayout, partlyCappedRowPublishesNoMax)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idMin = btl::makeUniqueId();
+    btl::UniqueId const idMax = btl::makeUniqueId();
+    btl::UniqueId const idFree = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idMin, fixed40, fixed40) | modifier::fill()
+            | modifier::minWidth(200.0f));
+    row.push_back(probe(idMax, fixed40, fixed40) | modifier::fill()
+            | modifier::maxWidth(80.0f));
+    row.push_back(probe(idFree, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row))),
+                idRow));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    EXPECT_FLOAT_EQ(400.0f, readProbe(instance, idRow).size[0]);
+    EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idMin).size[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idMax).size[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idFree).size[0]);
+    EXPECT_FLOAT_EQ(280.0f, readProbe(instance, idFree).position[0]);
+}
+
+// When every child is capped the row publishes the sum of their maxes on its
+// main axis, so the column fills it only up to 50 + 70.
+TEST(PureSolverLayout, fullyCappedRowPublishesSummedMax)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fill() | modifier::maxWidth(50.0f));
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fill() | modifier::maxWidth(70.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row))),
+                idRow));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idRow).size[0]);
+}
+
+// An over-full row hands its filler a negative share of the slack; the filler
+// stops at zero instead, so the fixed child after it is not pulled back over
+// the first one.
+TEST(PureSolverLayout, overfullRowFillerStopsAtZero)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    btl::UniqueId const idLast = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(300.0f));
+    row.push_back(fillerProbe(idFiller));
+    row.push_back(probe(idLast, fixed40, fixed40)
+            | modifier::fixedWidth(300.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idFiller).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).size[0]);
+}
+
+// fill() on a container that does not flex by itself stretches it: the row's
+// weak 100 default is not baked under its children's natural, where it would
+// outlast the fill and hold the row at 100 against the column's gap drive. The
+// row fills the 300 column, and the margined filler beside a 36-high leaf fills
+// the row's height, its margin adding no size of its own.
+TEST(PureSolverLayout, filledRowWithMarginedFillerTakesColumn)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idMargined = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    Band const fixed36 = { 36.0f, 36.0f, 36.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(filler() | modifier::margin(20.0f), idMargined));
+    row.push_back(probe(idLeaf, fixed40, fixed36));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row)))
+                | modifier::fill(), idRow));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idRow).size[1]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idMargined).size[1]);
+    EXPECT_FLOAT_EQ(360.0f, readProbe(instance, idMargined).size[0]);
+    EXPECT_FLOAT_EQ(36.0f, readProbe(instance, idLeaf).size[1]);
+}
+
+// A grid has no layout axis, so fill() on a cell child flexes it on both axes and
+// it fills its cell -- or the tracks it spans -- across and down, rather than
+// only along the axis of the box the grid sits in.
+TEST(PureSolverLayout, fillInGridCellFillsBothAxes)
+{
+    avg::Vector2f const window(300.0f, 200.0f);
+
+    btl::UniqueId const idCell = btl::makeUniqueId();
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idPlain = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(3, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, fixed40, fixed40) | modifier::fill())
+        .cell(0, 0, 1, 1, probe(idCell, fixed40, fixed40) | modifier::fill())
+        .cell(1, 0, 1, 1, probe(idPlain, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(std::move(grid) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry cell = readProbe(instance, idCell);
+    Geometry span = readProbe(instance, idSpan);
+    Geometry plain = readProbe(instance, idPlain);
+
+    EXPECT_FLOAT_EQ(100.0f, cell.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, cell.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, span.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, plain.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, plain.size[1]);
+}
+
+// Flex basis is the natural (CSS flex: auto): each flexing child starts from its
+// natural and the slack is shared by weight. A natural, a fill() and a grow(2)
+// probe, all 90 wide, in a 400 row: the natural holds 90 and the 130 left goes
+// 1:2 to the other two.
+TEST(PureSolverLayout, flexersStartFromTheirNatural)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idNatural = btl::makeUniqueId();
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idGrow = btl::makeUniqueId();
+
+    Band const fixed90 = { 90.0f, 90.0f, 90.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idNatural, fixed90, fixed40));
+    row.push_back(probe(idFill, fixed90, fixed40) | modifier::fill());
+    row.push_back(probe(idGrow, fixed90, fixed40) | modifier::grow(2.0f));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            window);
+
+    EXPECT_FLOAT_EQ(90.0f, readProbe(instance, idNatural).size[0]);
+    EXPECT_NEAR(90.0f + 130.0f / 3.0f, readProbe(instance, idFill).size[0],
+            1e-3f);
+    EXPECT_NEAR(90.0f + 260.0f / 3.0f, readProbe(instance, idGrow).size[0],
+            1e-3f);
+}
+
+// A flexing child capped by its max stops there and its sibling filler takes the
+// rest, rather than the cap holding the shared flex back and leaving a trailing
+// gap. The same holds with the row nested in a column, which no longer caps it.
+TEST(PureSolverLayout, cappedFillBesideFillerHandsRestToFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto makeRow = [](btl::UniqueId capped, btl::UniqueId filler)
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(capped, fixed40, fixed40) | modifier::fill()
+                | modifier::maxWidth(150.0f));
+        row.push_back(fillerProbe(filler));
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
+    };
+
+    btl::UniqueId const idCapped = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Instance flat = realiseConverged(makeRow(idCapped, idFiller),
+            window);
+
+    EXPECT_FLOAT_EQ(150.0f, readProbe(flat, idCapped).size[0]);
+    EXPECT_FLOAT_EQ(250.0f, readProbe(flat, idFiller).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(flat, idFiller).position[0]);
+
+    btl::UniqueId const idNestedCapped = btl::makeUniqueId();
+    btl::UniqueId const idNestedFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(makeRow(idNestedCapped, idNestedFiller));
+
+    Instance nested = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    EXPECT_FLOAT_EQ(150.0f, readProbe(nested, idNestedCapped).size[0]);
+    EXPECT_FLOAT_EQ(250.0f, readProbe(nested, idNestedFiller).size[0]);
+}
+
+// Short of space the deficit is shared by weight, each flexer shrinking from its
+// natural: fill()s of natural 40 and 120 in a 100 row both give up 30. In a 60
+// row their 50 shares would take the 40 one below zero, so it stops at zero and
+// the other takes the rest of the deficit.
+TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
+{
+    Band const fixed120 = { 120.0f, 120.0f, 120.0f };
+
+    auto makeRow = [&](btl::UniqueId small, btl::UniqueId large)
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(small, fixed40, fixed40) | modifier::fill());
+        row.push_back(probe(large, fixed120, fixed40) | modifier::fill());
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
+    };
+
+    btl::UniqueId const idSmall = btl::makeUniqueId();
+    btl::UniqueId const idLarge = btl::makeUniqueId();
+
+    Instance shared = realiseConverged(makeRow(idSmall, idLarge),
+            avg::Vector2f(100.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(10.0f, readProbe(shared, idSmall).size[0]);
+    EXPECT_FLOAT_EQ(90.0f, readProbe(shared, idLarge).size[0]);
+
+    btl::UniqueId const idEmptied = btl::makeUniqueId();
+    btl::UniqueId const idRest = btl::makeUniqueId();
+
+    Instance clamped = realiseConverged(makeRow(idEmptied, idRest),
+            avg::Vector2f(60.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(0.0f, readProbe(clamped, idEmptied).size[0]);
+    EXPECT_FLOAT_EQ(60.0f, readProbe(clamped, idRest).size[0]);
+}
+
+// A row's flex along its own axis carries outward: a row holding a fill() leaf
+// beside a fixed 40 leaf, itself beside a fixed 40 leaf in a 300 row, takes the
+// 260 left and its fill leaf the 220 beyond its sibling. Across the outer row it
+// keeps its natural 40, which the fill leaf fills.
+TEST(PureSolverLayout, rowWithFillChildFillsAlongOuterRow)
+{
+    avg::Vector2f const window(300.0f, 100.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idOuterFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    inner.push_back(probe(idFill, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> outer;
+    outer.push_back(hbox(ArraySignal<AnyWidget>(std::move(inner))));
+    outer.push_back(probe(idOuterFixed, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(outer))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+
+    EXPECT_FLOAT_EQ(220.0f, fill.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, readProbe(instance, idOuterFixed).position[0]);
+}
+
+// A row holding a fill() leaf is horizontally flexible, so a column fills it
+// across its whole width, while a row of fixed content keeps its natural width.
+TEST(PureSolverLayout, rowWithFillChildFillsAcrossOuterColumn)
+{
+    avg::Vector2f const window(300.0f, 200.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> flexingRow;
+    flexingRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    flexingRow.push_back(probe(idFill, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> fixedRow;
+    fixedRow.push_back(probe(idFixed, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(flexingRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(fixedRow))));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+
+    EXPECT_FLOAT_EQ(260.0f, fill.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idFixed).size[0]);
+}
+
+// A child flexing across a row does not make the row flexible on that axis: in a
+// column beside a vfiller, a row holding a fill() leaf of natural height 20 and a
+// fixed 40 leaf keeps its natural 40 height, the fill leaf fills those 40, and
+// the filler takes the 260 left.
+TEST(PureSolverLayout, rowWithCrossFillChildKeepsNaturalHeight)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const short20 = { 0.0f, 20.0f, 10000.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    row.push_back(probe(idFill, fixed40, short20) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    column.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, fill.position[1]);
+    EXPECT_FLOAT_EQ(260.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[1]);
+}
+
+namespace
+{
+
+// A container holding one fill() leaf, laid out first beside a fixed 40 leaf in
+// a row and then in a column, so its flex is seen on each axis in turn: it takes
+// what the fixed leaf leaves along the box and fills the box across it.
+void expectFillableOnBothAxes(
+        std::function<AnyWidget(AnyWidget)> const& container)
+{
+    btl::UniqueId const idInRow = btl::makeUniqueId();
+    btl::UniqueId const idInColumn = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(container(probe(idInRow, fixed40, fixed40)
+                | modifier::fill()));
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    Instance rowInstance = realiseConverged(
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
+            avg::Vector2f(300.0f, 200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(container(probe(idInColumn, fixed40, fixed40)
+                | modifier::fill()));
+    column.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    Instance columnInstance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(200.0f, 300.0f));
+
+    Geometry inRow = readProbe(rowInstance, idInRow);
+    EXPECT_FLOAT_EQ(260.0f, inRow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, inRow.size[1]);
+
+    Geometry inColumn = readProbe(columnInstance, idInColumn);
+    EXPECT_FLOAT_EQ(200.0f, inColumn.size[0]);
+    EXPECT_FLOAT_EQ(260.0f, inColumn.size[1]);
+}
+
+} // namespace
+
+// A stack treats both axes as main axes: a fill() child makes it flexible on
+// either, and the child fills its slot.
+TEST(PureSolverLayout, stackWithFillChildIsFillableOnBothAxes)
+{
+    expectFillableOnBothAxes([](AnyWidget child)
+            {
+                std::vector<AnyWidget> children;
+                children.push_back(std::move(child));
+                return stack(std::move(children));
+            });
+}
+
+// A grid treats both axes as main axes: a fill() child makes it flexible on
+// either, and the child fills its cell.
+TEST(PureSolverLayout, gridWithFillChildIsFillableOnBothAxes)
+{
+    expectFillableOnBothAxes([](AnyWidget child)
+            {
+                return AnyWidget(uniformGrid(1, 1)
+                        .cell(0, 0, 1, 1, std::move(child)));
+            });
+}
+
+TEST(UniformGrid, rejectsAnEmptyDimension)
+{
+    EXPECT_THROW(uniformGrid(0, 2), std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 0), std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(1, 1));
+}
+
+TEST(UniformGrid, rejectsACellPastItsEdge)
+{
+    EXPECT_THROW(uniformGrid(2, 2).cell(2, 0, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 2, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, 2, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 1, 1, 2, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, ~0u, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(0, 0, 2, 2, makeWidget()));
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(1, 1, 1, 1, makeWidget()));
+}

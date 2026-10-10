@@ -1,12 +1,15 @@
 #include "bqui/modifier/background.h"
 
 #include "bqui/modifier/addwidgets.h"
-#include "bqui/modifier/setsizehint.h"
-#include "bqui/modifier/setgravity.h"
 
 #include "bqui/provider/providetheme.h"
 
 #include "bqui/shape/rectangle.h"
+
+#include "bqui/widget/boxvariables.h"
+#include "bqui/widget/builder.h"
+#include "bqui/widget/layoutspec.h"
+#include "bqui/widget/widget.h"
 
 #include <bq/signal/signal.h>
 
@@ -39,40 +42,52 @@ namespace bqui::modifier
     AnyWidgetModifier background(widget::AnyWidget bgWidget)
     {
         return makeWidgetModifier([](auto widget, auto bgWidget,
-                    BuildParams const& params)
+                    BuildParams const& params) -> widget::AnyWidget
         {
             auto builder = std::move(widget)(params);
-            auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
+            widget::PureLayout childPure = builder.getPureLayout();
+            widget::BoxVariables childBox = builder.getBoxVariables();
 
-            return makeWidgetWithSize([](auto size, BuildParams const& params,
-                        auto builder, auto bgWidget)
-            {
-                auto s = std::move(size).share();
-                auto fgElement = std::move(builder)(s);
-                auto bgElement = std::move(bgWidget)(params)(s);
+            auto framed = widget::makeBuilder(
+                [builder = std::move(builder), bgWidget = std::move(bgWidget)](
+                        BuildParams const& params,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
+                        -> widget::AnyElement
+                {
+                    auto s = std::move(size).share();
+                    // The foreground child is built through the solution-carrying
+                    // interface, so a framed pure container reads the one region
+                    // solution to place its own children; the background is outside
+                    // that solve and is laid out as its own region.
+                    auto fgElement = builder.clone()(s.clone(),
+                            std::move(solution));
+                    auto bgElement = widget::detail::buildRegionAtSize(
+                            bgWidget, s.clone(), params);
 
-                auto newInstance = merge(
-                        std::move(fgElement).getInstance(),
-                        std::move(bgElement).getInstance()).map(
-                        [](auto fgInstance, auto bgInstance)
-                        {
-                            return addWidgets(std::move(bgInstance),
-                                    { std::move(fgInstance) });
-                        });
+                    auto newInstance = merge(
+                            std::move(fgElement).getInstance(),
+                            std::move(bgElement).getInstance()).map(
+                            [](auto fgInstance, auto bgInstance)
+                            {
+                                return addWidgets(std::move(bgInstance),
+                                        { std::move(fgInstance) });
+                            });
 
-                return makeWidgetFromElement(
-                        makeElement(std::move(newInstance), params)
-                        )
-                    ;
-            },
-            params,
-            std::move(builder),
-            std::move(bgWidget)
-            )
-            | setGravity(std::move(gravity))
-            | setSizeHint(std::move(sizeHint))
-            ;
+                    return makeElement(std::move(newInstance), params);
+                },
+                params,
+                std::move(gravity)
+                );
+
+            // The frame is layout-transparent: its margin insets the background
+            // shape, not the foreground child, so the child's band forwards
+            // unchanged for the enclosing region to solve the child in place.
+            framed.setPureLayout(std::move(childPure));
+            framed.setBoxVariables(std::move(childBox));
+
+            return makeWidgetFromBuilder(std::move(framed));
         },
         std::move(bgWidget),
         provider::provideBuildParams()

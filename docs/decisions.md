@@ -6,6 +6,17 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## A window sizes to its content once, at opening
+
+A window opens at its root's natural size (height read at the natural width),
+or at `Window::initialSize`; the root band's min and max always win. After
+that the window keeps its size when the content's natural changes, like a
+window the user has sized, rather than tracking content (WPF's
+`SizeToContent`). Only a stated min or max limits it; a root that does not flex
+is not locked to its natural. Since ase cannot resize a window, a size outside
+the limits is clamped in bqui: the root is laid out at the clamped size from
+the window's top-left corner.
+
 ## The compiler floor is GCC 12, Clang 15 and MSVC 2022
 
 The oldest supported compilers are GCC 12, Clang 15, and MSVC 2022 or
@@ -524,13 +535,74 @@ The one hard correctness constraint: `dataContext_.swapFrameData()` runs
 **exactly once per update pass, after every entry has updated** — never per
 entry, or one entry would rotate away frame data another still needs.
 
+## Layout is one constraint solve per region, with named size bands
+
+Each builder publishes a per-axis band (`min`, `max`, `natural`, `flex`) plus
+untagged relations; a container stamps its children's bands into one Cassowary
+solve per region and republishes an aggregate band. The rules that follow
+(model in `docs/design/layout.md`):
+
+- **Size words replace a band field; last writer wins.** There is no strength
+  contest for authority. A fixed size clears flex on its axis, and a later
+  `fill()`/`grow()` re-enables it; `min`/`max` bound flex without clearing it.
+- **The natural is the flex basis** (CSS `flex: auto`): slack and deficit are
+  shared by flex weight on top of each child's natural, not from zero.
+- **Fixed children overflow rather than being squeezed**; flex is the opt-in for
+  content that gives.
+- **Size boundaries take their band from outside.** `makeWidgetWithSize`, `bin`
+  and `scrollView` never publish their content's size; the content is solved as
+  its own region at the size the boundary is assigned.
+- **A container outside a region throws** `std::logic_error` instead of laying
+  out at 0x0. Every window root is a region, and tests build through one.
+- **Only structure is required.** Every stated value, the region anchor
+  included, is strong, ranked anchor > `min` > `max` > fixed. Structure is
+  satisfiable by construction, so a solve always yields some layout; an
+  infeasible required set left a region blank or frozen with no diagnostic.
+  Unmet strong constraints are logged instead.
+- **Anchors are affine values, keyed by typed keys.** An anchor is
+  `leading + fraction * extent + offset` on one axis, carried in the band under
+  its key's id. A key is a value with a process-unique id, typed by axis
+  (`XAnchorKey`/`YAnchorKey`): user code creates keys without touching the
+  library, an x key cannot be used on y, and ids compare as integers. A
+  string name was rejected because two libraries picking the same name would
+  alias, and a tag type per key because it makes every anchor a template. A
+  baseline row
+  (`baselineHbox`, its own container rather than an hbox option) aligns
+  children on one line, and a child without a baseline aligns its bottom edge
+  (as CSS does for an inline block). A taller row places its aligned block
+  by its own gravity, which is only known where the row is stamped, so the
+  row's band carries the placement and its baseline's gravity part unresolved
+  (rather than reading the gravity off the builder, which a later
+  `setGravity` would bypass).
+- **Guides are region-scoped and settle in a second step.** A guide is a token
+  (`XGuide`/`YGuide`) whose bindings ride the band like anchors and reach the
+  region's solve wherever they sit; a size boundary is a separate region, so a
+  guide never crosses one. The region solves without the guides, sets each
+  guide to the furthest of its points, then pulls the points onto it at the
+  weakest strong strength, below every stated size.
+
+**Why:** the earlier `SizeHint` model computed sizes in closed form per container
+and could not express relations across container levels; a single solve per
+region can, and named band fields keep overrides cheap without a strength ladder.
+Throwing outside a region turns a silent 0x0 layout into an immediate error.
+An anchor carries a fraction as well as an offset because content placed
+relative to its box (a label centres its text) moves its baseline when the box
+is sized away from its natural; a value rather than a solver variable lets a
+wrapper re-express it by arithmetic, as it grows the band.
+A guide resolved inside the one solve settles between its points, not at the
+furthest: every position it is measured from is a weak preference, so shrinking
+or shifting the furthest point costs no more than moving the others out to it.
+Measuring first makes "the widest label sets the column" exact. Scoping guides
+to a region keeps the boundary a firewall: content size never crosses one, and
+neither do guides.
+
 ## Shape transforms are paint-time; layout size is separate
 
 Transforms on a shape (`translate`/`rotate`/`scale`/`transform`) and the
 paint-time `.size(size, gravity)` change *what is drawn* and never affect the
 widget's layout size — translating a shape 50px does not move its neighbours.
-Layout size is a distinct axis, set at the widget level (size-hint modifiers)
-or, in future, a dedicated shape-level `.frame()`.
+Layout size is a distinct axis, set at the widget level (size words such as
+`fixedSize` and `fill`) or, in future, a dedicated shape-level `.frame()`.
 
 **Why:** the two axes are genuinely independent (how big the widget is vs. how
 the shape paints within it), and keeping transforms paint-only makes them
