@@ -14,6 +14,10 @@
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
+#include <cmath>
+#include <iostream>
+#include <sstream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,7 +33,76 @@ namespace
     {
         arrange::Solver solver;
         LayoutSolution solution;
+        std::string unmet;
     };
+
+    void logLayout(std::string const& message)
+    {
+        std::cerr << "bqui layout: " << message << std::endl;
+    }
+
+    char const* strengthName(arrange::Strength const& strength)
+    {
+        if (strength == regionAnchorStrength())
+            return "region";
+        if (strength == minStrength())
+            return "min";
+        if (strength == maxStrength())
+            return "max";
+        if (strength == fixedStrength())
+            return "fixed";
+        return "strong";
+    }
+
+    // Lists the strong constraints the solution leaves violated, by kind and
+    // with the solved left-hand side against the stated value. Required ones
+    // hold by construction and the weak lane is violated by design, so only
+    // the strong lane is checked: one pass over its expressions per solve.
+    std::string describeUnmet(arrange::Solver const& solver,
+            std::vector<arrange::Constraint> const& constraints)
+    {
+        double const tolerance = 0.01;
+        std::ostringstream out;
+        std::size_t count = 0;
+        for (auto const& c : constraints)
+        {
+            arrange::Strength strength = c.strength();
+            if (strength.isRequired() || strength < arrange::Strength::strong())
+                continue;
+
+            arrange::Expression const& e = c.expression();
+            double lhs = 0.0;
+            for (std::size_t i = 0; i < e.termCount(); ++i)
+            {
+                auto term = e.term(i);
+                lhs += term.coefficient * solver.valueOf(term.variable);
+            }
+            double rhs = 0.0 - e.constant();
+            double error = lhs - rhs;
+
+            char const* op = "==";
+            bool met = std::abs(error) <= tolerance;
+            if (c.relation() == arrange::Relation::le)
+            {
+                op = "<=";
+                met = error <= tolerance;
+            }
+            else if (c.relation() == arrange::Relation::ge)
+            {
+                op = ">=";
+                met = error >= -tolerance;
+            }
+            if (met)
+                continue;
+
+            out << (count++ ? ", " : "") << strengthName(strength) << " ("
+                << lhs << " " << op << " " << rhs << ")";
+        }
+        if (!count)
+            return {};
+        return std::to_string(count) + " strong constraint(s) unmet: "
+            + out.str();
+    }
 
     float valueOf(LayoutSolution const& solution, arrange::Variable const& v)
     {
@@ -290,21 +363,22 @@ bq::signal::AnySignal<LayoutSolution> solveLayout(
                 {
                     state.solver.setConstraints(spec.constraints);
                 }
-                catch (arrange::Error const&)
+                catch (arrange::Error const& e)
                 {
-                    // An unsatisfiable update keeps the previous solution rather
-                    // than tearing down the whole signal graph. On a first solve
-                    // that previous is empty, so every variable in the region
-                    // reads back zero and the whole region collapses to zero-size
-                    // boxes on that axis. The fragments must therefore never hand
-                    // this solve a required-strength contradiction; the size and
-                    // anchor pins are held strong precisely so an over-constrained
-                    // fragment overflows here rather than zeroing its siblings.
-                    // Containing the damage to the offending fragment itself is a
-                    // separate follow-up (this catch would keep the healthy part
-                    // of the region were the solve partitioned per fragment).
+                    // Only the structural relations are required, and they are
+                    // always jointly satisfiable, so this means a bug in a
+                    // fragment. Keeping the previous solution leaves a first
+                    // solve's region at zero size.
+                    logLayout(std::string("infeasible solve, keeping the "
+                                "previous solution: ") + e.what());
                     return state;
                 }
+
+                std::string unmet = describeUnmet(state.solver,
+                        spec.constraints);
+                if (!unmet.empty() && unmet != state.unmet)
+                    logLayout(unmet);
+                state.unmet = std::move(unmet);
 
                 LayoutSolution solution;
                 solution.reserve(spec.variables.size());
