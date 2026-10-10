@@ -2323,10 +2323,12 @@ TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
 }
 
 // A flexing stack fills its parent's slack only up to its aggregate max bound,
-// the cross-axis maximum of its children's maxes. A stack{filler, leaf capped at
-// 100, leaf capped at 150} offered 360 of slack in a row holds at max(100,150)
-// = 150; a bug that let content drag the slot to its natural (40) or that summed
-// the caps (250) both fail this.
+// the cross-axis maximum of its children's maxes, published since every child
+// is capped. A stack{filler capped at 120, leaf capped at 100, leaf capped at
+// 150} offered 360 of slack in a row holds at max(120,100,150) = 150, so the
+// leaf after it starts at 150; a bug that let content drag the slot to its
+// natural (40) or that summed the caps (370) both fail this. A single uncapped
+// child would leave the stack uncapped.
 TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -2340,7 +2342,8 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
     Band const cap150 = { 40.0f, 40.0f, 150.0f };
 
     std::vector<AnyWidget> stackChildren;
-    stackChildren.push_back(fillerProbe(idInnerFiller));
+    stackChildren.push_back(withArea(filler() | modifier::maxWidth(120.0f),
+                idInnerFiller));
     stackChildren.push_back(probe(idCap100, cap100, fixed40));
     stackChildren.push_back(probe(idCap150, cap150, fixed40));
     AnyWidget inner = stack(std::move(stackChildren));
@@ -2353,9 +2356,8 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
             window);
 
-    Geometry innerFiller = readProbe(instance, idInnerFiller);
-
-    EXPECT_FLOAT_EQ(150.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idInnerFiller).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idLeaf).position[0]);
 }
 
 // A pure grid partitions the container into uniform tracks and places each child
@@ -3421,4 +3423,91 @@ TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(legacy)))),
             window);
     EXPECT_LT(before, pureLayoutBridgeCount());
+}
+
+// A container publishes a max only when every child carries one. A row holding
+// fill | min 200, fill | max 80 and a plain fill() child is uncapped, so the
+// column cross-fills it to the full 400 rather than capping it at the one 80 max
+// and squeezing the others: the bounded children clamp and the uncapped one
+// takes the rest.
+TEST(PureSolverLayout, partlyCappedRowPublishesNoMax)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idMin = btl::makeUniqueId();
+    btl::UniqueId const idMax = btl::makeUniqueId();
+    btl::UniqueId const idFree = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idMin, fixed40, fixed40) | modifier::fill()
+            | modifier::minWidth(200.0f));
+    row.push_back(probe(idMax, fixed40, fixed40) | modifier::fill()
+            | modifier::maxWidth(80.0f));
+    row.push_back(probe(idFree, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row))),
+                idRow));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    EXPECT_FLOAT_EQ(400.0f, readProbe(instance, idRow).size[0]);
+    EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idMin).size[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idMax).size[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idFree).size[0]);
+    EXPECT_FLOAT_EQ(280.0f, readProbe(instance, idFree).position[0]);
+}
+
+// When every child is capped the row publishes the sum of their maxes on its
+// main axis, so the column fills it only up to 50 + 70.
+TEST(PureSolverLayout, fullyCappedRowPublishesSummedMax)
+{
+    avg::Vector2f const window(400.0f, 200.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fill() | modifier::maxWidth(50.0f));
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fill() | modifier::maxWidth(70.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row))),
+                idRow));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idRow).size[0]);
+}
+
+// An over-full row hands its filler a negative share of the slack; the filler
+// stops at zero instead, so the fixed child after it is not pulled back over
+// the first one.
+TEST(PureSolverLayout, overfullRowFillerStopsAtZero)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    btl::UniqueId const idLast = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
+            | modifier::fixedWidth(300.0f));
+    row.push_back(fillerProbe(idFiller));
+    row.push_back(probe(idLast, fixed40, fixed40)
+            | modifier::fixedWidth(300.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idFiller).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).position[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).size[0]);
 }

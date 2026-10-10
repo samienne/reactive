@@ -384,6 +384,14 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
                 | arrange::Strength::strong());
     }
 
+    // An over-full container hands a flexing child a negative share of the
+    // slack; the extent stops at zero and the deficit overflows instead. Strong,
+    // not required, so a contradicting required relation degrades rather than
+    // failing the solve.
+    spec.constraints.push_back(
+            (extent() >= arrange::Expression(0.0))
+            | arrange::Strength::strong());
+
     return spec;
 }
 
