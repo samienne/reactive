@@ -1,5 +1,7 @@
 #pragma once
 
+#include "anchorkey.h"
+
 #include "bqui/bquivisibility.h"
 
 #include <bq/signal/signal.h>
@@ -19,7 +21,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -96,12 +97,6 @@ namespace bqui::widget
     };
 
     /**
-     * @brief The first-baseline anchor, published on the vertical axis by
-     * text leaves and by rows that align their children on it.
-     */
-    inline constexpr char const* baselineAnchor = "baseline";
-
-    /**
      * @brief A point on the box bound to a guide: the region's solve pulls the
      * point @p at onto the shared variable @p guide.
      */
@@ -126,7 +121,7 @@ namespace bqui::widget
      * LayoutSpec rather than a bare constraint list so the read-back variables
      * the solver API needs travel with the constraints that name them.
      *
-     * @c anchors names points on the box beyond its edges (baselineAnchor).
+     * @c anchors keys points on the box beyond its edges (baselineAnchor).
      * Size words keep them, an inset wrapper offsets them onto its outer box,
      * and a container publishes only the anchors it defines itself.
      *
@@ -140,7 +135,7 @@ namespace bqui::widget
         std::optional<float> max;            ///< strong upper bound on extent
         std::optional<BandNatural> natural;  ///< preferred extent, at a strength
         std::optional<Flex> flex;            ///< filler coefficient (aggregated)
-        std::map<std::string, Anchor> anchors; ///< named anchors on this axis
+        std::map<AnchorId, Anchor> anchors;  ///< keyed anchors on this axis
         std::vector<GuideBinding> guides;    ///< points bound to guides
         LayoutSpec relations;                ///< untagged relations + read-backs
     };

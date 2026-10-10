@@ -169,12 +169,15 @@ default of its own.
 
 ## Anchors
 
-`Constraints` also carries **named anchors**: points on the box beyond its
-edges, each `leading + fraction * extent + offset` along that axis (top down on
-y), keyed by name. The only name so far is `baseline` (the first baseline, on
-the vertical axis).
+`Constraints` also carries **anchors**: points on the box beyond its edges,
+each `leading + fraction * extent + offset` along that axis (top down on y),
+keyed by an anchor key (`widget/anchorkey.h`). A key is typed by axis
+(`XAnchorKey`, `YAnchorKey`), so an x key cannot name a y anchor. The only
+predefined key is `baselineAnchor` (the first baseline); a user creates more by
+constructing a key, and copies name the same anchor.
 
-- **Leaves publish them.** `label` publishes the baseline where it draws it:
+- **Leaves publish them** with `modifier::setAnchor`. `label` publishes the
+  baseline where it draws it:
   the text is centred in its box, so the anchor is half the box height plus half
   the text height less the font's descender. The fraction keeps it right when
   a size word moves the label off its natural height.
@@ -209,7 +212,7 @@ anywhere in one region align to, across sibling containers and at any depth:
 form labels in separate rows, say, whose fields should start in one column.
 The guide is a token the user creates and captures into the widgets; copies
 name the same line. The `align*` modifiers (`modifier/alignguide.h`) bind an
-edge, the centre, the baseline or any named anchor of a widget's box to it.
+edge, the centre, the baseline or any anchor of a widget's box to it.
 
 - **Bindings ride the band.** A binding is an anchor-shaped point on the box,
   kept in the band beside the anchors. Size words keep it, `margin`

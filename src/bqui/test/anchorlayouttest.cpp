@@ -1,10 +1,14 @@
 #include "purelayouttestutil.h"
 
+#include <bqui/modifier/alignguide.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/margin.h>
+#include <bqui/modifier/setanchor.h>
+#include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/settheme.h>
 
 #include <bqui/widget/filler.h>
+#include <bqui/widget/guide.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
 #include <bqui/widget/vbox.h>
@@ -33,13 +37,8 @@ AnyWidget baselineProbe(btl::UniqueId id, float width, float height,
 {
     return withArea(makeWidget()
             | modifier::defaultSize(avg::Vector2f(width, height))
-            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                    [baseline](AnyBuilder builder) -> AnyBuilder
-                    {
-                        setPureAnchor(builder, Axis::y, baselineAnchor,
-                                constant(Anchor{ 0.0f, baseline }));
-                        return builder;
-                    })),
+            | modifier::setAnchor(baselineAnchor,
+                constant(Anchor{ 0.0f, baseline })),
             id);
 }
 
@@ -73,6 +72,13 @@ float top(Geometry const& g)
 float bottom(Geometry const& g)
 {
     return window[1] - g.position[1];
+}
+
+// A row holding @p child at the region's left edge, free to move right.
+AnyWidget leftRow(AnyWidget child)
+{
+    return hbox(list({ std::move(child) }))
+        | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.5f)));
 }
 
 TEST(AnchorLayout, rowAlignsBaselinesAndAggregatesHeight)
@@ -225,6 +231,66 @@ TEST(AnchorLayout, childWithoutBaselineAlignsItsBottom)
     // A child with no height of its own fills the row as in an hbox.
     EXPECT_NEAR(top(row), top(fill), 0.01f);
     EXPECT_NEAR(row.size[1], fill.size[1], 0.01f);
+}
+
+// A user-defined key published with setAnchor reaches alignAnchor: the two
+// anchor points meet on the guide, at the furthest of them.
+TEST(AnchorLayout, customAnchorKeyBindsToAGuide)
+{
+    XAnchorKey const notch;
+    XGuide line;
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    auto notched = [&](btl::UniqueId id, float at)
+    {
+        return probe(id, Band{ 60.0f, 60.0f, 60.0f },
+                    Band{ 20.0f, 20.0f, 20.0f })
+            | modifier::setAnchor(notch, constant(Anchor{ 0.0f, at }))
+            | modifier::alignAnchor(line, notch);
+    };
+
+    Instance instance = realiseConverged(vbox(list({
+            leftRow(notched(idA, 10.0f)),
+            leftRow(notched(idB, 40.0f)),
+            vfiller() })),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    EXPECT_NEAR(40.0f, a.position[0] + 10.0f, 0.01f);
+    EXPECT_NEAR(40.0f, b.position[0] + 40.0f, 0.01f);
+}
+
+// A key is its own identity: a key that was never published binds nothing,
+// even on a widget that publishes another key.
+TEST(AnchorLayout, distinctKeysDoNotAlias)
+{
+    XAnchorKey const published;
+    XAnchorKey const other;
+    XGuide line;
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    EXPECT_NE(published, other);
+
+    Instance instance = realiseConverged(vbox(list({
+            leftRow(probe(idA, Band{ 60.0f, 60.0f, 60.0f },
+                        Band{ 20.0f, 20.0f, 20.0f })
+                | modifier::setAnchor(published,
+                    constant(Anchor{ 0.0f, 10.0f }))
+                | modifier::alignAnchor(line, other)),
+            leftRow(probe(idB, Band{ 60.0f, 60.0f, 60.0f },
+                        Band{ 20.0f, 20.0f, 20.0f })
+                | modifier::setAnchor(published,
+                    constant(Anchor{ 0.0f, 40.0f }))
+                | modifier::alignAnchor(line, published)),
+            vfiller() })),
+            window);
+
+    EXPECT_NEAR(0.0f, readProbe(instance, idA).position[0], 0.01f);
+    EXPECT_NEAR(0.0f, readProbe(instance, idB).position[0], 0.01f);
 }
 
 TEST(AnchorLayout, tallerRowCentresTheAlignedBlock)

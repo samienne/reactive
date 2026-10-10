@@ -548,9 +548,14 @@ solve per region and republishes an aggregate band. The rules that follow
   satisfiable by construction, so a solve always yields some layout; an
   infeasible required set left a region blank or frozen with no diagnostic.
   Unmet strong constraints are logged instead.
-- **Named anchors are affine values, keyed by name.** An anchor is
-  `leading + fraction * extent + offset` on one axis, carried in the band by a
-  string name so new anchors need no type change. A baseline row
+- **Anchors are affine values, keyed by typed keys.** An anchor is
+  `leading + fraction * extent + offset` on one axis, carried in the band under
+  its key's id. A key is a value with a process-unique id, typed by axis
+  (`XAnchorKey`/`YAnchorKey`): user code creates keys without touching the
+  library, an x key cannot be used on y, and ids compare as integers. A
+  string name was rejected because two libraries picking the same name would
+  alias, and a tag type per key because it makes every anchor a template. A
+  baseline row
   (`baselineHbox`, its own container rather than an hbox option) aligns
   children on one line, and a child without a baseline aligns its bottom edge
   (as CSS does for an inline block).

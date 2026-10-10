@@ -8,8 +8,6 @@
 #include <arrange/strength.h>
 #include <arrange/variable.h>
 
-#include <string>
-
 namespace bqui::modifier::detail
 {
     /**
@@ -63,10 +61,10 @@ namespace bqui::modifier::detail
     AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
 
     /**
-     * @brief A widget modifier that publishes the anchor @p name on @p axis
+     * @brief A widget modifier that publishes the anchor @p id on @p axis
      * (widget::setPureAnchor()).
      */
-    AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
+    AnyWidgetModifier pureAnchorModifier(PureAxis axis, widget::AnchorId id,
             bq::signal::AnySignal<widget::Anchor> anchor);
 
     /**
@@ -77,11 +75,11 @@ namespace bqui::modifier::detail
             arrange::Variable guide, widget::Anchor at);
 
     /**
-     * @brief A widget modifier that binds the anchor @p name on @p axis to
+     * @brief A widget modifier that binds the anchor @p id on @p axis to
      * @p guide (widget::setPureGuideAnchor()).
      */
     AnyWidgetModifier pureGuideAnchorModifier(PureAxis axis,
-            arrange::Variable guide, std::string name);
+            arrange::Variable guide, widget::AnchorId id);
 
     /**
      * @brief A widget modifier that makes the widget flexible on both axes with

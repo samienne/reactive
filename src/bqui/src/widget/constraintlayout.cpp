@@ -264,15 +264,15 @@ void setPureMax(AnyBuilder& builder, Axis axis,
     builder.setPureLayout(std::move(layout));
 }
 
-void setPureAnchor(AnyBuilder& builder, Axis axis, std::string name,
+void setPureAnchor(AnyBuilder& builder, Axis axis, AnchorId id,
         bq::signal::AnySignal<Anchor> anchor)
 {
     PureLayout old = builder.getPureLayout();
     auto shared = std::move(anchor).share();
-    auto apply = [name = std::move(name)](Constraints const& c, Anchor a)
+    auto apply = [id](Constraints const& c, Anchor a)
     {
         Constraints out = c;
-        out.anchors[name] = a;
+        out.anchors[id] = a;
         return out;
     };
 
@@ -312,13 +312,13 @@ void setPureGuide(AnyBuilder& builder, Axis axis, arrange::Variable guide,
 }
 
 void setPureGuideAnchor(AnyBuilder& builder, Axis axis,
-        arrange::Variable guide, std::string name)
+        arrange::Variable guide, AnchorId id)
 {
     PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, bq::signal::constant(0.0f),
-            [guide, name = std::move(name)](Constraints& c, float)
+            [guide, id](Constraints& c, float)
             {
-                auto it = c.anchors.find(name);
+                auto it = c.anchors.find(id);
                 if (it != c.anchors.end())
                     c.guides.push_back(GuideBinding{ guide, it->second });
             });
@@ -347,7 +347,7 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
             *c.min += d;
         if (c.max)
             *c.max += d;
-        for (auto& [name, anchor] : c.anchors)
+        for (auto& [id, anchor] : c.anchors)
             anchor.offset += ins * (1.0f - 2.0f * anchor.fraction);
         for (auto& binding : c.guides)
             binding.at.offset += ins * (1.0f - 2.0f * binding.at.fraction);
