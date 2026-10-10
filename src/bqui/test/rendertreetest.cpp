@@ -1,4 +1,4 @@
-#include "widget/constraintbox.h"
+#include "purelayouttestutil.h"
 
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/ondraw.h>
@@ -282,7 +282,7 @@ TEST(RenderTree, everyChildDrawsInTheSlotTheLayoutGaveIt)
     children.push_back(drawProbe(2));
 
     auto context = bq::signal::makeSignalContext(
-            pureSolverRoot(hbox(std::move(children)))(BuildParams())(
+            bqui::test::buildInRegion(hbox(std::move(children)),
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -306,7 +306,7 @@ TEST(RenderTree, aChildThatDrawsNothingContributesNothing)
     children.push_back(drawProbe(2));
 
     auto context = bq::signal::makeSignalContext(
-            pureSolverRoot(hbox(std::move(children)))(BuildParams())(
+            bqui::test::buildInRegion(hbox(std::move(children)),
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -327,7 +327,7 @@ TEST(RenderTree, removingAMiddleChildLeavesItsNeighboursNodes)
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
-            pureSolverRoot(dynamicRow(input.signal))(BuildParams())(
+            bqui::test::buildInRegion(dynamicRow(input.signal),
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -366,7 +366,7 @@ TEST(RenderTree, reorderingMovesNodesRatherThanRebuildingThem)
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
-            pureSolverRoot(dynamicRow(input.signal))(BuildParams())(
+            bqui::test::buildInRegion(dynamicRow(input.signal),
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);

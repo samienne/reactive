@@ -251,6 +251,11 @@ as an explicit build argument** (the forward-only mechanism from
 gets a size, solves its interior, and its own band (computed size-independently)
 is what its parent sees.
 
+Every container must sit inside a region: a window wraps its content in one, and
+a test builds through the same wrapper. A container whose build receives no
+solution (no region above it) throws `std::logic_error` on its first evaluate
+rather than laying its children out at 0x0.
+
 ## Guides resolve at the common ancestor
 
 Not implemented: the earlier guide machinery (`XGuide`/`YGuide`, the
