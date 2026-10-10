@@ -5,8 +5,6 @@
 #include "bqui/provider/paramprovider.h"
 
 #include "bqui/buildparams.h"
-#include "bqui/simplesizehint.h"
-#include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
 #include "bqui/widget/layoutspec.h"
 
@@ -21,7 +19,7 @@
 
 namespace bqui::widget
 {
-    template <typename TFunc, typename TSizeHint>
+    template <typename TFunc>
     class Builder;
 
     struct AnyBuilder;
@@ -29,8 +27,7 @@ namespace bqui::widget
     using BuilderBase = Builder<
         std::function<widget::AnyElement(BuildParams params,
                 bq::signal::AnySignal<avg::Vector2f>,
-                bq::signal::AnySignal<LayoutSolution>)>,
-        bq::signal::AnySignal<SizeHint>
+                bq::signal::AnySignal<LayoutSolution>)>
         >;
 
     template <typename T>
@@ -90,31 +87,27 @@ namespace bqui::widget
                     bq::signal::AnySignal<LayoutSolution>>>>;
     } // namespace detail
 
-    template <typename TFunc, typename TSizeHint, typename = std::enable_if_t<
+    template <typename TFunc, typename = std::enable_if_t<
         detail::IsBuildFunc<TFunc>::value
         >
     >
-    auto makeBuilder(TFunc&& func, TSizeHint&& sizeHint,
-            BuildParams params, bq::signal::AnySignal<avg::Vector2f> gravity)
+    auto makeBuilder(TFunc&& func, BuildParams params,
+            bq::signal::AnySignal<avg::Vector2f> gravity)
     {
-        return Builder<std::decay_t<TFunc>, std::decay_t<TSizeHint>>(
+        return Builder<std::decay_t<TFunc>>(
                 std::forward<TFunc>(func),
-                std::forward<TSizeHint>(sizeHint),
                 std::move(params),
                 std::move(gravity)
                 );
     }
 
-    template <typename TFunc, typename TSizeHint>
+    template <typename TFunc>
     class Builder
     {
     public:
-        using SizeHintType = std::decay_t<TSizeHint>;
-
-        Builder(TFunc func, TSizeHint sizeHint, BuildParams params,
+        Builder(TFunc func, BuildParams params,
                 bq::signal::AnySignal<avg::Vector2f> gravity) :
             func_(std::move(func)),
-            sizeHint_(std::move(sizeHint)),
             buildParams_(std::move(params)),
             gravity_(std::move(gravity))
         {
@@ -147,31 +140,11 @@ namespace bqui::widget
                     std::move(size), std::move(solution));
         }
 
-        template <typename TSignalSizeHint>
-        auto setSizeHint(TSignalSizeHint sizeHint) &&
-        {
-            auto builder = makeBuilder(
-                    std::move(*func_),
-                    std::move(sizeHint),
-                    std::move(buildParams_),
-                    std::move(gravity_)
-                    );
-            builder.setBoxVariables(box_);
-            builder.setPureLayout(pureLayout_);
-            builder.setGravityExplicit(gravityExplicit_);
-            return builder;
-        }
-
-        SizeHintType getSizeHint() const
-        {
-            return sizeHint_->clone();
-        }
-
         /**
          * @brief This widget's accumulated pure-solver constraints, composed up
          * from its children; empty on a builder minted without one. Preserved
-         * across a copy, a size-hint change and type erasure, exactly as the
-         * box variables are.
+         * across a copy and type erasure, exactly as the box variables
+         * are.
          */
         PureLayout const& getPureLayout() const
         {
@@ -190,7 +163,7 @@ namespace bqui::widget
         /**
          * @brief The four edge variables that name this widget's box to the
          * constraint solver. Stable for the builder's lifetime and preserved
-         * across a copy, a size-hint change and type erasure.
+         * across a copy and type erasure.
          */
         BoxVariables const& getBoxVariables() const
         {
@@ -216,7 +189,6 @@ namespace bqui::widget
                     return detail::invokeBuild(*func, params, std::move(size),
                             std::move(solution)).setParams(oldParams);
                 },
-                std::move(*sizeHint_),
                 std::move(params),
                 std::move(gravity_)
                 );
@@ -250,7 +222,7 @@ namespace bqui::widget
          *
          * A pure box places a child across its axis by gravity only when it is
          * stated, and otherwise keeps it at the leading edge. Preserved across a
-         * copy, a size-hint change and type erasure, exactly as the gravity is.
+         * copy and type erasure, exactly as the gravity is.
          */
         bool isGravityExplicit() const
         {
@@ -270,7 +242,6 @@ namespace bqui::widget
         {
             BuilderBase base(
                     detail::adaptBuild(std::move(*func_)),
-                    std::move(*sizeHint_),
                     std::move(buildParams_),
                     std::move(gravity_)
                     );
@@ -282,7 +253,6 @@ namespace bqui::widget
 
     protected:
         btl::CloneOnCopy<TFunc> func_;
-        btl::CloneOnCopy<TSizeHint> sizeHint_;
         BuildParams buildParams_;
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
@@ -293,28 +263,17 @@ namespace bqui::widget
 
     struct AnyBuilder : Builder<std::function<widget::AnyElement(
             BuildParams, bq::signal::AnySignal<avg::Vector2f>,
-            bq::signal::AnySignal<LayoutSolution>)>,
-            bq::signal::AnySignal<SizeHint>>
+            bq::signal::AnySignal<LayoutSolution>)>>
     {
-        template <typename TFunc, typename TSizeHint>
-        static auto castBuilder(Builder<TFunc, TSizeHint> base)
-        {
-            auto sizeHint = base.getSizeHint();
-
-            return std::move(base)
-                .setSizeHint(std::move(sizeHint).template cast<SizeHint>())
-                ;
-        }
-
         AnyBuilder(AnyBuilder const&) = default;
         AnyBuilder(AnyBuilder&&) noexcept = default;
 
         AnyBuilder& operator=(AnyBuilder const&) = default;
         AnyBuilder& operator=(AnyBuilder&&) noexcept = default;
 
-        template <typename TFunc, typename TSizeHint>
-        AnyBuilder(Builder<TFunc, TSizeHint> base) :
-            BuilderBase(castBuilder(std::move(base)))
+        template <typename TFunc>
+        AnyBuilder(Builder<TFunc> base) :
+            BuilderBase(std::move(base))
         {
         }
 
@@ -353,7 +312,6 @@ namespace bqui::widget
                         .setParams(std::move(params))
                         ;
                 },
-                bq::signal::constant(defaultSizeHint()),
                 BuildParams{},
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
@@ -371,10 +329,6 @@ namespace bqui::widget
                     return btl::clone(element)
                         .setParams(params);
                 },
-                size.clone().map([](auto size)
-                    {
-                        return simpleSizeHint(size[0], size[1]);
-                    }),
                 std::move(buildParams),
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );

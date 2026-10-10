@@ -209,8 +209,8 @@ namespace bqui::widget
         };
     } // namespace detail
 
-    template <typename T, typename U>
-    AnyWidget makeWidgetFromBuilder(Builder<T, U> builder)
+    template <typename T>
+    AnyWidget makeWidgetFromBuilder(Builder<T> builder)
     {
         return detail::makeWidgetUncheckedWithParams(
                 detail::MakeWidgetFromBuilder1(),
