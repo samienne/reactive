@@ -80,8 +80,8 @@ namespace bqui::modifier
 
     /**
      * @brief In a pure-solver region, give this widget the fixed natural @p size
-     * at content strength, for a leaf whose measured SizeHint is not a sensible
-     * pure natural (a bare shape). It settles at @p size unless a fixed size, a
+     * at content strength, for a leaf with no measured natural of its own (a bare
+     * shape). It settles at @p size unless a fixed size, a
      * bound or a filler/fill() overrides it.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);

@@ -29,7 +29,6 @@ libbquisrc = [
   'src/modifier/ontextevent.cpp',
   'src/modifier/setgravity.cpp',
   'src/modifier/setid.cpp',
-  'src/modifier/setsizehint.cpp',
   'src/modifier/setwidgetintrospection.cpp',
   'src/modifier/trackfocus.cpp',
   'src/modifier/transform.cpp',
