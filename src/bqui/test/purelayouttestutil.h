@@ -121,7 +121,8 @@ inline Geometry readProbe(Instance const& instance, btl::UniqueId id)
 // instance or the introspection off the returned element.
 inline auto buildInRegion(AnyWidget widget, AnySignal<avg::Vector2f> size)
 {
-    return pureSolverRoot(std::move(widget))(BuildParams())(std::move(size));
+    return bqui::widget::detail::buildRegionAtSize(std::move(widget),
+            std::move(size), BuildParams());
 }
 
 // A region owner's solve settles a pass behind the build, so a few update passes

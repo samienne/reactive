@@ -35,6 +35,15 @@ auto makeEmptyInstance()
     return makeInstance(bq::signal::constant(avg::Vector2f(0.0f, 0.0f)));
 }
 
+// These trees hold no container, so they read no region solution.
+template <typename T>
+auto buildLeaf(Builder<T> builder, avg::Vector2f size)
+{
+    return std::move(builder)(signal::constant(size),
+            signal::AnySignal<LayoutSolution>(
+                signal::constant(LayoutSolution())));
+}
+
 struct TestTag
 {
     using type = std::string;
@@ -97,7 +106,7 @@ TEST(Widget, widgetBuildParameters)
     BuildParams params;
     auto builder = std::move(widget)(std::move(params));
 
-    std::move(builder)(signal::constant(avg::Vector2f(400.0f, 300.0f)));
+    buildLeaf(std::move(builder), avg::Vector2f(400.0f, 300.0f));
 
     EXPECT_EQ("set value 1", tag1);
     EXPECT_EQ("set value 2", tag2);
@@ -113,9 +122,7 @@ TEST(Widget, differentModifiers)
     BuildParams params;
     auto builder = std::move(widget)(std::move(params));
 
-    auto instanceSignal = std::move(builder)(
-            signal::constant(avg::Vector2f(200.0f, 400.0f))
-            ).getInstance();
+    auto instanceSignal = buildLeaf(std::move(builder), avg::Vector2f(200.0f, 400.0f)).getInstance();
 
     auto context = makeSignalContext(instanceSignal);
     auto instance = context.evaluate<0>().get<0>();
@@ -137,7 +144,7 @@ TEST(Widget, withParams)
 
     auto builder = std::move(widget)(BuildParams());
 
-    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
+    buildLeaf(std::move(builder), avg::Vector2f(200.0f, 400.0f));
 
     EXPECT_EQ("default value", tag);
 }
@@ -159,7 +166,7 @@ TEST(Widget, setParams)
 
     auto builder = std::move(widget)(BuildParams());
 
-    std::move(builder)(signal::constant(avg::Vector2f(200.0f, 400.0f)));
+    buildLeaf(std::move(builder), avg::Vector2f(200.0f, 400.0f));
 
     EXPECT_EQ("set value", tag);
 }
@@ -198,7 +205,7 @@ TEST(Widget, builderModifierTags)
             }, provideParam<TestTag>())
         ;
 
-    std::move(widget)(BuildParams())(signal::constant(avg::Vector2f(100, 100)));
+    buildLeaf(std::move(widget)(BuildParams()), avg::Vector2f(100, 100));
 
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);
@@ -238,7 +245,7 @@ TEST(Widget, elementModifierParams)
             })
         ;
 
-    std::move(widget)(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+    buildLeaf(std::move(widget)(BuildParams()), avg::Vector2f(100.0f, 200.0f));
 
     EXPECT_EQ("set value 1", tag);
     EXPECT_EQ("set value 2", tag2);
@@ -249,8 +256,9 @@ TEST(Widget, setIdOnAWidgetThatDrawsNothing)
 {
     // Layouts give every child an id, including children that draw nothing;
     // an empty render tree must stay empty.
-    auto element = (makeWidget() | setId(signal::constant(avg::UniqueId())))
-        (BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+    auto element = buildLeaf(
+            (makeWidget() | setId(signal::constant(avg::UniqueId())))
+            (BuildParams()), avg::Vector2f(100.0f, 200.0f));
 
     auto context = signal::makeSignalContext(std::move(element).getInstance());
 
@@ -261,11 +269,11 @@ TEST(Widget, setIdDoesNotMoveWhatItNames)
 {
     // The wrapped node is already placed; if the IdNode added the transform
     // again, the child would be drawn at double the offset.
-    auto element = (makeWidget()
+    auto element = buildLeaf((makeWidget()
             | frame()
             | modifier::transform(signal::constant(avg::translate(10.0f, 20.0f)))
             | setId(signal::constant(avg::UniqueId()))
-            )(BuildParams())(signal::constant(avg::Vector2f(100.0f, 200.0f)));
+            )(BuildParams()), avg::Vector2f(100.0f, 200.0f));
 
     auto context = signal::makeSignalContext(std::move(element).getInstance());
 
