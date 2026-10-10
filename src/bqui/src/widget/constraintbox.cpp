@@ -285,8 +285,8 @@ std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
 {
     if (solution.find(container.left.id()) == solution.end())
         throw std::logic_error("bqui: a container was built outside a layout "
-                "region, so no solve places its children; wrap the tree in "
-                "pureSolverRoot().");
+                "region, so no solve places its children; build it inside a "
+                "window or a layout region.");
 
     avg::Obb containerObb = readObb(solution, container);
     avg::Vector2f containerTopLeft =
