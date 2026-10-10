@@ -23,3 +23,5 @@ arrange_dep = declare_dependency(
   link_with: arrange_lib,
   include_directories: arrange_inc,
 )
+
+subdir('test')
