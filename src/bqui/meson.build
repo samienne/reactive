@@ -124,6 +124,7 @@ bquitestsrc = [
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
+  'test/purelayoutcontainertest.cpp',
   'test/puresolverlayouttest.cpp',
   'test/rendertreetest.cpp',
   'test/sessiontest.cpp',
