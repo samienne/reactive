@@ -926,6 +926,40 @@ TEST(PureSolverLayout, singleMarginInsetsFixedSize)
     EXPECT_FLOAT_EQ(80.0f, g.size[1]);
 }
 
+// A margin around a pure CONTAINER insets it and still lets it lay out its own
+// children: the margin threads the region solution into the container's build
+// rather than building it against an empty one, which read every descendant
+// back as 0x0.
+TEST(PureSolverLayout, marginedContainerPlacesItsChildren)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    Band const content137 = { 137.0f, 137.0f, 137.0f };
+    Band const content63 = { 63.0f, 63.0f, 63.0f };
+    Band const content24 = { 24.0f, 24.0f, 24.0f };
+
+    btl::UniqueId const idWide = btl::makeUniqueId();
+    btl::UniqueId const idNarrow = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> children;
+    children.push_back(probe(idWide, content137, content24));
+    children.push_back(probe(idNarrow, content63, content24));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(children)))
+                | modifier::margin(10.0f)),
+            window);
+
+    Geometry wide = readProbe(instance, idWide);
+    Geometry narrow = readProbe(instance, idNarrow);
+
+    EXPECT_FLOAT_EQ(137.0f, wide.size[0]);
+    EXPECT_FLOAT_EQ(24.0f, wide.size[1]);
+    EXPECT_FLOAT_EQ(10.0f, wide.position[0]);
+    EXPECT_FLOAT_EQ(63.0f, narrow.size[0]);
+    EXPECT_FLOAT_EQ(147.0f, narrow.position[0]);
+}
+
 // The nested-margin worked example, on a single evaluate. Stacking
 // margin | size | margin | size subsumes the inner band at each wrapper: the
 // outer fixedSize(100) is the one band, and the two insets distribute it inward
