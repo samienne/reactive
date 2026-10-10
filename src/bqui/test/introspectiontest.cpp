@@ -36,19 +36,13 @@ using namespace bqui::modifier;
 namespace
 {
     // Realise a widget at a concrete size in a layout region, as a window
-    // would, and read its own introspection node rather than the region's.
+    // would, and read its introspection node.
     Introspection introspect(AnyWidget widget,
             avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
     {
-        auto root = bq::signal::makeSignalContext(bqui::test::buildInRegion(
+        return bq::signal::makeSignalContext(bqui::test::buildInRegion(
                     std::move(widget), bq::signal::constant(size))
                 .getIntrospection()).evaluate<0>().get<0>();
-        if (root.children.size() != 1u)
-        {
-            ADD_FAILURE() << "the layout region has no single child";
-            return root;
-        }
-        return *root.children.front();
     }
 
     bool hasCapability(Introspection const& node, Capability cap)

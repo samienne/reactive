@@ -127,6 +127,7 @@ bquitestsrc = [
   'test/rendertreetest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/sizeboundarytest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
