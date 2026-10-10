@@ -24,6 +24,9 @@ libfreetypedep = freetype.get_variable('freetype_dep').as_system()
 mapbox = subproject('mapbox', default_options: subproject_warnings)
 mapboxdep = mapbox.get_variable('mapbox_dep').as_system()
 
+# Vendored Cassowary constraint solver; nothing links it yet.
+arrange = subproject('arrange', default_options: subproject_warnings)
+
 gtest = subproject('gtest', default_options: subproject_warnings)
 gtestdep = gtest.get_variable('gtest_main_dep').as_system()
 
