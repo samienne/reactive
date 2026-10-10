@@ -193,11 +193,10 @@ the scroll view publish native bands, `makeBuilderFromElement` publishes its
 size as a native natural, so a classic tree under `pureSolverRoot` never
 reaches the bridge. The public SizeHint size words (`setSize`, `setSizeHint`,
 `setMinimumSize`, `setMaximumSize`, the size vocabulary) are gone; the pure
-words replace them, so only a widget that writes a SizeHint through the
-builder still reaches the bridge. The
-bare `makeBuilder()` default stays without a `PureLayout`: giving it an empty
-one would shadow every later SizeHint-only write, which is the bridge removal
-itself.
+words replace them, and the bare `makeBuilder()` (so `makeWidget()`) starts
+with an empty `PureLayout`, which a later SizeHint write carries over rather
+than bridging. Only a builder minted through the full `makeBuilder` overload
+without one still reaches the bridge.
 
 ### The load-bearing invariant
 
