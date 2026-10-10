@@ -5,9 +5,10 @@
 #include <bqui/widget/button.h>
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/hbox.h>
+#include <bqui/widget/puresolver.h>
 
 #include <bqui/modifier/setwidgetintrospection.h>
-#include <bqui/modifier/setsize.h>
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/setid.h>
 #include <bqui/modifier/onclick.h>
 
@@ -42,6 +43,20 @@ namespace
                 .getIntrospection();
         return bq::signal::makeSignalContext(std::move(sig))
             .evaluate<0>().get<0>();
+    }
+
+    // Lays the widget out under a pure-solver root and returns the widget's
+    // own node, not the root's.
+    Introspection introspectPure(AnyWidget widget,
+            avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
+    {
+        auto root = introspect(pureSolverRoot(std::move(widget)), size);
+        if (root.children.size() != 1u)
+        {
+            ADD_FAILURE() << "the pure-solver root has no single child";
+            return root;
+        }
+        return *root.children.front();
     }
 
     bool hasCapability(Introspection const& node, Capability cap)
@@ -152,19 +167,20 @@ TEST(introspection, childrenCarryOwnDivergentObb)
     // clickable. Models the CheckBoxLabel case: the clickable affordance is a
     // child node whose obb differs from its sibling and from the parent.
     auto small = filledRect()
-        | setSize(avg::Vector2f(20.0f, 20.0f))
+        | fixedSize(bq::signal::constant(avg::Vector2f(20.0f, 20.0f)))
         | onClick(1, [](ClickEvent const&){})
         | setRole("Box");
 
     auto wide = filledRect()
-        | setSize(avg::Vector2f(100.0f, 20.0f))
+        | fixedSize(bq::signal::constant(avg::Vector2f(100.0f, 20.0f)))
         | setRole("Filler");
 
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(std::move(small));
     children.push_back(std::move(wide));
 
-    auto node = introspect(hbox(std::move(children)) | setRole("CheckBoxLabel"));
+    auto node = introspectPure(
+            hbox(std::move(children)) | setRole("CheckBoxLabel"));
 
     EXPECT_EQ("CheckBoxLabel", node.role);
     ASSERT_EQ(2u, node.children.size());
@@ -229,12 +245,14 @@ TEST(introspection, childObbIsWindowSpace)
     // into window space by the first child's width (composed placement
     // transform), not sitting at the origin in its own local space.
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
-    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+    children.push_back(filledRect()
+            | fixedSize(bq::signal::constant(avg::Vector2f(80.0f, 40.0f)))
             | setRole("First"));
-    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+    children.push_back(filledRect()
+            | fixedSize(bq::signal::constant(avg::Vector2f(80.0f, 40.0f)))
             | setRole("Second"));
 
-    auto node = introspect(hbox(std::move(children)),
+    auto node = introspectPure(hbox(std::move(children)),
             avg::Vector2f(400.0f, 40.0f));
 
     ASSERT_EQ(2u, node.children.size());

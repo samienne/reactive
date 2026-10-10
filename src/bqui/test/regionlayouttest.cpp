@@ -2,7 +2,7 @@
 #include "widget/constraintlayout.h"
 
 #include <bqui/modifier/instancemodifier.h>
-#include <bqui/modifier/setsizehint.h>
+#include "modifier/setsizehint.h"
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/vbox.h>

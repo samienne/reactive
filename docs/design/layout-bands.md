@@ -181,18 +181,20 @@ strong `max`. The same rule holds in the pure box, stack and grid.
 A builder that reaches a pure container or the firewall with no `PureLayout`
 gets one synthesized from its final `SizeHint` (`pureLayoutFromSizeHint`): the
 width band from `getWidth()` and the height band from `getHeightForWidth()` at
-the resolved width, at content strength with the bounds bridged. So the legacy
-size vocabulary (`setSizeHint`, `setSize`, `setMinimumSize`) drives a pure band
-without a per-widget pure modifier. Reading the *final* SizeHint at consumption
+the resolved width, at content strength with the bounds bridged. So a widget
+whose only size is its SizeHint drives a pure band without a per-widget pure
+modifier. Reading the *final* SizeHint at consumption
 (not at build) captures every size word regardless of modifier order. A hint
 that states no size preference (the framework default) bridges to nothing, so a
 bare widget keeps the weak default.
 
 The shipped leaves no longer rely on it: `label`, `textEdit`, the scroll bars and
-the scroll view publish native bands, `setSize` and `makeBuilderFromElement`
-publish their size as a native natural, so a classic tree under
-`pureSolverRoot` never reaches the bridge. Only a leaf sized by a bare SizeHint
-write (`setSizeHint`, `setMinimumSize`, the size vocabulary) still does. The
+the scroll view publish native bands, `makeBuilderFromElement` publishes its
+size as a native natural, so a classic tree under `pureSolverRoot` never
+reaches the bridge. The public SizeHint size words (`setSize`, `setSizeHint`,
+`setMinimumSize`, `setMaximumSize`, the size vocabulary) are gone; the pure
+words replace them, so only a widget that writes a SizeHint through the
+builder still reaches the bridge. The
 bare `makeBuilder()` default stays without a `PureLayout`: giving it an empty
 one would shadow every later SizeHint-only write, which is the bridge removal
 itself.

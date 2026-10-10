@@ -8,7 +8,7 @@
 #include "bqui/modifier/onhover.h"
 #include "bqui/modifier/settheme.h"
 #include "bqui/modifier/instancemodifier.h"
-#include "bqui/modifier/setsizehint.h"
+#include "modifier/setsizehint.h"
 #include "bqui/modifier/constraintsize.h"
 
 #include "bqui/provider/providetheme.h"
