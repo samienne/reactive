@@ -393,16 +393,15 @@ void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
 // children are tiled edge to edge and the trailing slack rides @p gap
 // (pureMainConstraints), the container stating structure only while each leaf
 // or filler owns its own extent. On the cross axis each child's leading edge is
-// tied to the container's so its position is definite and its trailing edge is
-// pulled to the container's above the weak size default, so a child -- a nested
-// container above all -- fills the container's cross extent instead of
-// collapsing to that default; the default sits below the fill and only settles
-// a cross axis the fill cannot reach. The anchored outermost container also pins
-// the context frame on this axis. Splitting the fragment per axis here is what
-// lets E1 route the two into two disjoint solves; E0 concatenates them.
+// tied to the container's so its position is definite, and a child that does
+// not hold its own extent there (@p ownExtent, parallel to @p boxes) fills the
+// container's cross extent. The anchored outermost container also pins the
+// context frame on this axis. Splitting the fragment per axis here is what lets
+// E1 route the two into two disjoint solves; E0 concatenates them.
 std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
         Axis layoutAxis, bool anchor, BoxVariables const& container,
-        std::vector<BoxVariables> const& boxes, avg::Vector2f size,
+        std::vector<BoxVariables> const& boxes,
+        std::vector<bool> const& ownExtent, avg::Vector2f size,
         arrange::Variable const& gap)
 {
     std::vector<arrange::Constraint> out;
@@ -431,8 +430,9 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
     }
     else
     {
-        for (BoxVariables const& child : boxes)
+        for (std::size_t i = 0; i < boxes.size(); ++i)
         {
+            BoxVariables const& child = boxes[i];
             arrange::Variable const& lead =
                 boxAxis == Axis::x ? child.left : child.top;
             arrange::Variable const& trail =
@@ -445,18 +445,17 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
             out.push_back(arrange::Expression(lead)
                     == arrange::Expression(containerLead));
 
-            // The cross-fill: above the bare weak default, below the content
-            // natural, a fixed size and a required bound. So a child with no size
-            // of its own on this axis -- a flex-suppressed container -- stretches
-            // to its parent's cross extent, while a content-sized or explicitly
-            // sized child keeps its own extent and sits at the leading edge.
+            // A child holding its own extent keeps it at the leading edge and is
+            // not pulled: a pull it resisted would drag a flexible container
+            // down to it against the slack drive. Every other child -- a
+            // flexing one or one with no size of its own here -- fills the
+            // container's cross extent up to its own strong max.
+            if (i < ownExtent.size() && ownExtent[i])
+                continue;
+
             out.push_back((arrange::Expression(trail)
                         == arrange::Expression(containerTrail))
                     | arrange::Strength::weak(1.0));
-
-            out.push_back(boxAxis == Axis::x
-                    ? weakWidthDefault(child)
-                    : weakHeightDefault(child));
         }
     }
 
@@ -1101,6 +1100,23 @@ arrange::Strength strongerStrength(arrange::Strength a, arrange::Strength b)
     return a >= b ? a : b;
 }
 
+// Whether a band holds its widget at an extent of its own: a natural that is not
+// a flex-basis, which flattenConstraints() stamps onto the box. A container
+// fills a child without one to its slot and leaves one with one at its own size.
+bool holdsOwnExtent(Constraints const& band)
+{
+    return band.natural && !(band.flex && band.flex->coeff > 0.0f);
+}
+
+std::vector<bool> ownExtents(std::vector<Constraints> const& bands)
+{
+    std::vector<bool> result;
+    result.reserve(bands.size());
+    for (Constraints const& band : bands)
+        result.push_back(holdsOwnExtent(band));
+    return result;
+}
+
 // A container's aggregate natural on one axis. On the main axis children tile
 // end-to-end, so their naturals sum and the result is held at the firmest
 // contributing child's strength. On the cross axis they overlap, so the largest
@@ -1261,20 +1277,16 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         bool mainAxis = thisAxis == layoutAxis;
 
         std::optional<Flex> flex = aggregateFlex(childBands, mainAxis);
-        bool flexes = flex && flex->coeff > 0.0f;
-        // Flex couples only on the main axis: there the container is a filler to
-        // its parent, so it drops its natural (a flex-basis for the parent's slack
-        // to stretch) and rides its flex up. On the cross axis a flexing child is
-        // real content -- the container is as wide as its widest child -- so the
-        // container keeps its max-of-children natural and rides no flex up: a cross
-        // band that carried flex would be dropped by the stamp onto the parent's
-        // box (flattenConstraints), losing the extent its non-flexing siblings
-        // define and undersizing the container.
-        bool couples = mainAxis && flexes;
+        // A flexing child uses all the space its flex allows on either axis, so a
+        // container holding one is itself flexible there: it drops its natural (a
+        // flex-basis for the parent to stretch, which on the cross axis would
+        // otherwise let the flexing child's natural inflate the container past
+        // what its fixed siblings need) and rides its flex up. The floor below
+        // keeps the fixed siblings' extent.
+        bool couples = flex && flex->coeff > 0.0f;
 
         Constraints result;
-        if (mainAxis)
-            result.flex = flex;
+        result.flex = flex;
         // A flexing container drops its aggregate natural (a flex-basis for the
         // parent to stretch), so its min is what floors its fixed content: a fixed
         // child sets natural, not min, and aggregateFloor folds those naturals in
@@ -1295,7 +1307,8 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                         thisAxis));
 
         append(rel, pureAxisConstraints(thisAxis, layoutAxis, false, container,
-                    boxes, avg::Vector2f(0.0f, 0.0f), gap));
+                    boxes, ownExtents(childBands), avg::Vector2f(0.0f, 0.0f),
+                    gap));
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
@@ -1314,9 +1327,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // weight times the parent's shared flex variable, so the parent splits
         // slack between this container and its siblings in proportion to their
         // weights, exactly as it does between leaf fillers. Emitted only on the
-        // parent's axis and only where this container flexes there -- which, since
-        // flex couples on the main axis, means the container's main axis coincides
-        // with the parent's layout axis.
+        // parent's axis; off it the parent's cross-fill stretches the container.
         if (thisAxis == parentAxis && couples)
         {
             rel.constraints.push_back(
@@ -1458,14 +1469,36 @@ AnyWidget solverStackBuilders(bq::signal::ArraySignal<widget::AnyBuilder> array)
 // alone owns any genuine ceiling and the fill is left effectively uncapped.
 constexpr float noSlotCap = 1.0e6f;
 
-// The strength a stack overlays a child on its slot at. Below the slack drive
-// (gapDriveStrength) so a fixed-size child fills up to the slot without dragging
-// the slot down to its own extent, leaving the slot's size to the flex/slack
-// drive and any real cap; a filler, having no size of its own, still tracks the
-// slot here.
+// The strength a stack overlays a filling child on its slot at. Below the slack
+// drive (gapDriveStrength) so a child capped by its max fills up to the slot
+// without dragging the slot down to the cap, leaving the slot's size to the
+// flex/slack drive; a child with no cap still tracks the slot here.
 arrange::Strength overlayFillStrength()
 {
     return arrange::Strength::weak(0.0004);
+}
+
+// Places one child within a slot on one axis. A child holding its own extent
+// (holdsOwnExtent) keeps it and settles under its gravity within the slack;
+// any other child fills the slot at @p fillStrength up to its band's max (the
+// flattened band owns any real ceiling, so a child stating none is uncapped).
+// The vertical axis flips to y-up in the widget tree, so the child takes
+// 1 - gravity.y there to keep a leading gravity leading.
+void placeOnAxis(std::vector<arrange::Constraint>& out, Axis axis,
+        BoxVariables const& child, arrange::Variable const& slotLead,
+        arrange::Variable const& slotTrail, avg::Vector2f gravity,
+        Constraints const& band, arrange::Strength fillStrength)
+{
+    arrange::Variable const& lead = axis == Axis::x ? child.left : child.top;
+    arrange::Variable const& trail =
+        axis == Axis::x ? child.right : child.bottom;
+    float g = axis == Axis::x ? gravity.x() : 1.0f - gravity.y();
+
+    if (holdsOwnExtent(band))
+        placeAtGravity(out, lead, trail, slotLead, slotTrail, g);
+    else
+        placeInSlot(out, lead, trail, slotLead, slotTrail, g,
+                band.max ? *band.max : noSlotCap, fillStrength);
 }
 
 // Pure-solver counterpart of solverStackBuilders(). A stack mints no child flex
@@ -1516,18 +1549,15 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
                 arrange::Variable parentFlex, Axis parentAxis) -> Constraints
     {
         std::optional<Flex> flex = aggregateFlex(childBands, false);
-        bool flexes = flex && flex->coeff > 0.0f;
-        // A stack overlays on both axes, so it has no main axis of its own; it
-        // couples on the parent's layout axis and keeps its max-of-children
-        // natural on the other, as the pure box does across its two axes.
-        bool couples = thisAxis == parentAxis && flexes;
+        // As in the pure box, a flexing child makes the stack flexible on that
+        // axis, whichever axis it is.
+        bool couples = flex && flex->coeff > 0.0f;
 
         Constraints result;
-        if (thisAxis == parentAxis)
-            result.flex = flex;
+        result.flex = flex;
         if (!couples)
             result.natural = aggregateNatural(childBands, false);
-        // On the coupling axis the stack drops its natural, so its min floors the
+        // On a flexing axis the stack drops its natural, so its min floors the
         // overlaid content (cross-style, the largest child's floor wins).
         result.min = couples
             ? aggregateFloor(childBands, false)
@@ -1541,30 +1571,20 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
             appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
                         thisAxis));
 
-            // Overlay the child on the whole container slot: it fills the slot up
-            // to its own max and, where it is smaller, settles under its gravity
-            // within the slack. The band's max (flattened above) owns any real
-            // ceiling, so a child stating none is left uncapped. The vertical axis
-            // flips to y-up in the widget tree, so the child takes 1 - gravity.y
-            // there to keep a leading gravity leading.
-            float maxExtent = childBands[i].max
-                ? *childBands[i].max
-                : noSlotCap;
+            // Overlay the child on the whole container slot.
             if (thisAxis == Axis::x)
-                placeInSlot(rel.constraints, boxes[i].left, boxes[i].right,
-                        container.left, container.right,
-                        gravities[i].x(), maxExtent, overlayFillStrength());
+                placeOnAxis(rel.constraints, thisAxis, boxes[i],
+                        container.left, container.right, gravities[i],
+                        childBands[i], overlayFillStrength());
             else
-                placeInSlot(rel.constraints, boxes[i].top, boxes[i].bottom,
-                        container.top, container.bottom,
-                        1.0f - gravities[i].y(), maxExtent,
-                        overlayFillStrength());
+                placeOnAxis(rel.constraints, thisAxis, boxes[i],
+                        container.top, container.bottom, gravities[i],
+                        childBands[i], overlayFillStrength());
         }
 
         // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped only on the
-        // coupling axis where the stack flexes, as the pure box drops it on a
-        // flexing main axis.
+        // sizes nor fills still resolves to a definite extent. Dropped on a
+        // flexing axis, as the pure box drops it.
         if (!couples)
         {
             rel.constraints.push_back(thisAxis == Axis::x
@@ -1575,8 +1595,8 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         // The coupling that makes a flexing stack a filler in its parent: its
         // extent on the parent's layout axis equals its aggregated flex weight
         // times the parent's shared flex variable, the same coupling the pure box
-        // emits.
-        if (couples)
+        // emits on the parent's axis.
+        if (thisAxis == parentAxis && couples)
         {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x
@@ -1754,9 +1774,9 @@ std::vector<Constraints> perTrackBands(std::vector<Constraints> const& bands,
 // Pure-solver counterpart of solverGridBuilders(). Like the stack it mints no
 // child flex variable, so a filler in a cell fills via the weak slot pull and
 // inherits the enclosing flex axis. The grid lines are pinned required to equal
-// fractions of the container box (gridAxisConstraints), so a cell is
-// independently sized once the container box solves and placeInSlot()'s default
-// fill can never drag the cell -- unlike the overlay stack's free slot.
+// fractions of the container box (gridAxisConstraints), so a cell follows the
+// container box; a child holding its own extent is not pulled to its cell, so it
+// cannot drag a flexing grid down to it.
 AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         unsigned int columns, unsigned int rows, BuildParams const& params,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
@@ -1815,22 +1835,19 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
                 thisAxis);
 
         std::optional<Flex> flex = aggregateFlex(shares, false);
-        bool flexes = flex && flex->coeff > 0.0f;
-        // Like the stack, the grid couples on the parent's layout axis and keeps
-        // its max-of-children natural on the other (here scaled by the track
-        // count).
-        bool couples = thisAxis == parentAxis && flexes;
+        // Like the stack, a flexing cell child makes the grid flexible on that
+        // axis, whichever axis it is.
+        bool couples = flex && flex->coeff > 0.0f;
 
         Constraints result;
-        if (thisAxis == parentAxis)
-            result.flex = flex;
+        result.flex = flex;
         if (!couples)
         {
             result.natural = aggregateNatural(shares, false);
             if (result.natural)
                 result.natural->value *= factor;
         }
-        // On the coupling axis the grid drops its natural, so its min floors the
+        // On a flexing axis the grid drops its natural, so its min floors the
         // track content; scaled by the track count like the natural, so a
         // full-cell child's floor asks for the whole track.
         result.min = couples
@@ -1857,32 +1874,28 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
             gridAxisConstraints(rel.constraints, lines.ys,
                     container.bottom, container.top);
 
-        // Place each child within its cell box on this axis: it fills the cell
-        // up to its own max and, where it is smaller, settles under its gravity
-        // within the slack. The cell's solver-top edge is the higher-indexed y
-        // line (ys grow bottom to top while the solver runs top down), so
-        // ys[y+h] is the solver-top and ys[y] the solver-bottom. The vertical
-        // axis flips to y-up in the widget tree, so the child takes 1 - gravity.y
-        // there to keep a leading gravity leading.
-        for (std::size_t i = 0; i < boxes.size() && i < cells.size(); ++i)
+        // Place each child within its cell box on this axis. The cell's
+        // solver-top edge is the higher-indexed y line (ys grow bottom to top
+        // while the solver runs top down), so ys[y+h] is the solver-top and
+        // ys[y] the solver-bottom.
+        for (std::size_t i = 0;
+                i < boxes.size() && i < cells.size() && i < childBands.size();
+                ++i)
         {
             GridCell const& cell = cells[i];
-            float maxExtent = (i < childBands.size() && childBands[i].max)
-                ? *childBands[i].max
-                : noSlotCap;
             if (thisAxis == Axis::x)
-                placeInSlot(rel.constraints, boxes[i].left, boxes[i].right,
+                placeOnAxis(rel.constraints, thisAxis, boxes[i],
                         lines.xs[cell.x], lines.xs[cell.x + cell.w],
-                        gravities[i].x(), maxExtent);
+                        gravities[i], childBands[i], arrange::Strength::weak());
             else
-                placeInSlot(rel.constraints, boxes[i].top, boxes[i].bottom,
+                placeOnAxis(rel.constraints, thisAxis, boxes[i],
                         lines.ys[cell.y + cell.h], lines.ys[cell.y],
-                        1.0f - gravities[i].y(), maxExtent);
+                        gravities[i], childBands[i], arrange::Strength::weak());
         }
 
         // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped only on the
-        // coupling axis where the grid flexes, as the pure box and stack drop it.
+        // sizes nor fills still resolves to a definite extent. Dropped on a
+        // flexing axis, as the pure box and stack drop it.
         if (!couples)
         {
             rel.constraints.push_back(thisAxis == Axis::x
@@ -1893,8 +1906,8 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // The coupling that makes a flexing grid a filler in its parent: its
         // extent on the parent's layout axis equals its aggregated flex weight
         // times the parent's shared flex variable, the same coupling the pure box
-        // and stack emit.
-        if (couples)
+        // and stack emit on the parent's axis.
+        if (thisAxis == parentAxis && couples)
         {
             rel.constraints.push_back(
                     ((thisAxis == Axis::x

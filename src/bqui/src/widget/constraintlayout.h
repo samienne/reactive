@@ -455,6 +455,20 @@ namespace bqui::widget
             arrange::Strength fillStrength = arrange::Strength::weak());
 
     /**
+     * @brief Positions content of its own extent at the @p gravity fraction of
+     * the slack within a slot, without pulling its extent to the slot.
+     *
+     * The gravity half of placeInSlot(), for content that holds its own size: a
+     * fill it resisted would drag a slot that is free to follow its content.
+     */
+    BQUI_EXPORT void placeAtGravity(std::vector<arrange::Constraint>& out,
+            arrange::Variable const& contentLead,
+            arrange::Variable const& contentTrail,
+            arrange::Variable const& slotLead,
+            arrange::Variable const& slotTrail,
+            float gravity);
+
+    /**
      * @brief Lines each child edge named by a guide alignment up on a shared
      * per-guide line, pinning any guide an ancestor firewall already resolved.
      *
