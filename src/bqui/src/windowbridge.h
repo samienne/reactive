@@ -17,6 +17,7 @@
 
 #include "bqui/remote/remotedriver.h"
 
+#include <bq/signal/frameinfo.h>
 #include <bq/signal/input.h>
 #include <bq/signal/updateresult.h>
 #include <bq/signal/signalcontext.h>
@@ -88,11 +89,18 @@ public:
 
     /**
      * @brief The band the window's root region publishes: the content's width
-     * band, and its height band at the window's current width.
-     *
-     * Nothing sizes the OS window from it yet.
+     * band, and its height band at the width the root is laid out at.
      */
     widget::RegionBand const& getRootBand() const;
+
+    /** @brief The OS window's size. */
+    ase::Vector2f getWindowSize() const;
+
+    /**
+     * @brief The size the root is laid out at: the window's size limited to
+     * the root band's min and max, placed at the window's top-left corner.
+     */
+    ase::Vector2f getLayoutSize() const;
 
     /** @brief A resolved introspection snapshot of the current widget tree, in
      * window space, for a remote driver to read after a step. */
@@ -113,19 +121,28 @@ public:
     avg::Snapshot snapshot() const override;
 
 private:
+    ase::Vector2i openingSize();
+    bq::signal::UpdateResult updateRoot(bq::signal::FrameInfo const& frameInfo,
+            bool& instanceChanged);
+    bq::signal::UpdateResult fitLayoutToWindow(bool& instanceChanged);
+    ase::Vector2f clampToRootBand(ase::Vector2f size) const;
+
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;
     pmr::memory_resource* memory_;
-    ase::Window aseWindow;
 
+    // The root is built and solved before the OS window exists, so the window
+    // can open at the size the root asks for.
     std::shared_ptr<WindowData> windowData_;
-    avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
         bq::signal::SignalResult<ase::Vector2f>> size_;
     bq::signal::SignalContext<bq::signal::AnySignal<widget::Instance>,
         bq::signal::AnySignal<widget::RegionBand>> widgetInstanceSignal_;
-    widget::Instance widgetInstance_;
     widget::RegionBand rootBand_;
+    ase::Vector2f layoutSize_;
+    ase::Window aseWindow;
+    avg::Painter painter_;
+    widget::Instance widgetInstance_;
     bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,

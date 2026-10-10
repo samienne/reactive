@@ -65,6 +65,7 @@ libbquisrc = [
   'src/inputarea.cpp',
   'src/window.cpp',
   'src/windowbridge.cpp',
+  'src/windowsizing.cpp',
   'src/app.cpp',
   'src/connection.cpp',
   'src/annotation.cpp',
@@ -131,6 +132,7 @@ bquitestsrc = [
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',
+  'test/windowsizingtest.cpp',
   'test/windowtest.cpp',
   ]
 

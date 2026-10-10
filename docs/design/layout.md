@@ -55,12 +55,19 @@ explicit build argument. The solution is not a `BuildParams` value, because
 params are captured at widget-to-builder time, before the solve exists.
 
 - **Every window root is a region.** `WindowBridge` wraps its content in
-  `buildPureRegion`. The window opens at a hard-coded 800x600 and the region
-  re-solves at the new size when the OS window is resized.
-- **The root band is exposed but unused.** `buildPureRegion` also returns the
-  content's band (`RegionBand`: the phase-1 width band and the phase-2 height
-  band at the current width). `WindowBridge::getRootBand()` holds it, but nothing
-  sizes or limits the OS window from it yet.
+  `buildPureRegion`, which also returns the content's band (`RegionBand`: the
+  phase-1 width band and the phase-2 height band at the current width).
+- **A window opens at its root's natural size.** The root is built and solved
+  before the OS window exists: the width is the width band's natural, then the
+  height is the height band's natural read at that width. An axis with no
+  natural falls back to 800 (width) or 600 (height). `Window::initialSize`
+  replaces the natural. Either way the band's min and max win.
+- **After opening, the window does not follow its content.** A later change of
+  natural leaves the size alone. Only the band's min and max limit: the root is
+  laid out at the window's size clamped to them (the height limits read at the
+  clamped width), at the window's top-left corner, so it overflows a window
+  below its min and leaves a margin in one above its max. The clamp settles in
+  at most two re-solves, because height never feeds back into width.
 - **A container outside a region throws.** If a container's build gets a
   solution that does not contain its own box, it throws `std::logic_error` on
   first evaluate instead of laying its children out at 0x0. Tests build through
@@ -306,5 +313,6 @@ weigh any new weak constraint against it.
 
 - More anchors: a `vbox` publishing its first child's baseline, a last
   baseline, horizontal anchors, and aligning on them in a column.
-- Sizing and limiting the OS window from the root band (ase has no API to set a
-  window's size or limits yet).
+- Resizing and limiting the OS window itself from the root band, instead of
+  clamping only the layout inside it (ase has no API to set a window's size or
+  size limits yet).
