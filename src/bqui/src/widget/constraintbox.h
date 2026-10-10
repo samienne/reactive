@@ -3,7 +3,6 @@
 #include "constraintlayout.h"
 
 #include "bqui/widget/instance.h"
-#include "bqui/widget/puresolver.h"
 #include "bqui/widget/widget.h"
 
 #include "bqui/bquivisibility.h"
@@ -65,6 +64,16 @@ namespace bqui::widget
      * path stays the default.
      */
     BQUI_EXPORT AnyWidget regionRoot(AnyWidget content);
+
+    /**
+     * @brief Wraps a subtree in one pure-solver region anchored to its own
+     * size: the containers inside emit band-free constraints into a single
+     * shared solve, ignoring their SizeHint bands.
+     *
+     * Every window root is laid out through this, so applications never call
+     * it.
+     */
+    BQUI_EXPORT AnyWidget pureSolverRoot(AnyWidget content);
 
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 

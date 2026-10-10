@@ -27,7 +27,6 @@
 #include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/vbox.h>
-#include <bqui/widget/puresolver.h>
 
 #include <bqui/shape/rectangle.h>
 
@@ -260,7 +259,6 @@ int main(int argc, char** argv)
     return app()
         .addWindow(
                 window(bq::signal::constant<std::string>("testapp1")),
-                widget::pureSolverRoot(std::move(widgets))
-                    | modifier::focusGroup())
+                std::move(widgets) | modifier::focusGroup())
         .run();
 }

@@ -12,7 +12,6 @@
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
-#include <bqui/widget/puresolver.h>
 #include <bqui/widget/scrollview.h>
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/uniformgrid.h>
@@ -451,5 +450,5 @@ AnyWidget layoutPlayground()
                             avg::Vector2f(0.0f, 1.0f))));
     }
 
-    return widget::pureSolverRoot(std::move(grid));
+    return std::move(grid);
 }
