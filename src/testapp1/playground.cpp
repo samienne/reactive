@@ -524,6 +524,138 @@ AnyWidget formGuideScenario()
             std::move(c.button));
 }
 
+// Idiomatic layouts with no fillers whose bound widgets share one guide, to
+// show where each finds the slack to align; the second button drops the guide.
+AnyWidget guideSlackScenario()
+{
+    auto c = cycle({ "classic form", "nested rows", "no leftover",
+            "align fields", "y across columns", "grid cards", "fill field",
+            "baseline row tops" });
+    auto guide = cycle({ "guide", "no guide" });
+
+    auto mode = bq::signal::merge(std::move(c.mode), std::move(guide.mode))
+        .map([](int which, int off) { return which * 2 + off; });
+
+    auto controls = widget::hbox({ std::move(c.button),
+            std::move(guide.button) });
+
+    return scenario("Guide slack",
+            widget::vbox({
+                swapped(std::move(mode), [](int i) -> AnyWidget
+                    {
+                        int const which = i / 2;
+                        bool const on = i % 2 == 0;
+                        widget::XGuide x;
+                        widget::YGuide y;
+
+                        auto box = [](float w, float h)
+                        {
+                            return widget::makeWidget()
+                                | modifier::defaultSize(avg::Vector2f(w, h))
+                                | modifier::frame();
+                        };
+                        auto bindX = [on](AnyWidget w,
+                                std::function<modifier::AnyWidgetModifier()> m)
+                        {
+                            return on ? AnyWidget(std::move(w) | m())
+                                : std::move(w);
+                        };
+                        auto labelRight = [&](std::string text)
+                        {
+                            return bindX(widget::label(std::move(text))
+                                    | modifier::frame(),
+                                    [x] { return modifier::alignRight(x); });
+                        };
+                        auto row = [&](std::string text, float fieldWidth)
+                        {
+                            return widget::hbox({ labelRight(std::move(text)),
+                                    box(fieldWidth, 22.0f) });
+                        };
+
+                        switch (which)
+                        {
+                        case 0:
+                            return widget::vbox({ row("Name", 80.0f),
+                                    row("Email address", 80.0f) });
+                        case 1:
+                            return widget::vbox({
+                                    widget::hbox({ row("Name", 80.0f) }),
+                                    widget::vbox({ row("Email address",
+                                            80.0f) }) });
+                        case 2:
+                            return widget::hbox({
+                                    widget::vbox({ row("Name", 150.0f),
+                                        row("Email address", 80.0f) })
+                                        | modifier::frame(),
+                                    widget::label("next") | modifier::frame(),
+                                    });
+                        case 3:
+                        {
+                            auto fieldRow = [&](std::string text)
+                            {
+                                return widget::hbox({
+                                        widget::label(std::move(text))
+                                            | modifier::frame(),
+                                        bindX(box(80.0f, 22.0f), [x]
+                                            { return modifier::alignLeft(x); }),
+                                        });
+                            };
+                            return widget::vbox({ fieldRow("Name"),
+                                    fieldRow("Email address") });
+                        }
+                        case 4:
+                        {
+                            auto bindY = [&](AnyWidget w)
+                            {
+                                return on ? AnyWidget(std::move(w)
+                                        | modifier::alignTop(y))
+                                    : std::move(w);
+                            };
+                            return widget::hbox({
+                                    widget::vbox({ box(60.0f, 20.0f),
+                                        bindY(box(60.0f, 20.0f)) }),
+                                    widget::vbox({ box(60.0f, 50.0f),
+                                        bindY(box(60.0f, 20.0f)) }) });
+                        }
+                        case 5:
+                            return widget::uniformGrid(2, 1)
+                                .cell(0, 0, 1, 1, row("Name", 50.0f))
+                                .cell(1, 0, 1, 1, row("Email address", 50.0f));
+                        case 6:
+                        {
+                            auto fillRow = [&](std::string text)
+                            {
+                                return widget::hbox({
+                                        labelRight(std::move(text)),
+                                        box(80.0f, 22.0f) | modifier::fill() });
+                            };
+                            return widget::vbox({ fillRow("Name"),
+                                    fillRow("Email address") });
+                        }
+                        default:
+                        {
+                            Theme large;
+                            large.setTextHeight(28.0f);
+                            auto bindTop = [&](AnyWidget w)
+                            {
+                                return on ? AnyWidget(std::move(w)
+                                        | modifier::alignTop(y))
+                                    : std::move(w);
+                            };
+                            return widget::baselineHbox({
+                                    bindTop(widget::label("Small")
+                                        | modifier::frame()),
+                                    bindTop(widget::label("Large")
+                                        | modifier::setTheme(large)
+                                        | modifier::frame()) });
+                        }
+                        }
+                    }),
+                widget::vfiller(),
+            }),
+            std::move(controls));
+}
+
 } // anonymous namespace
 
 AnyWidget layoutPlayground()
@@ -543,6 +675,7 @@ AnyWidget layoutPlayground()
     scenarios.push_back(panelScenario());
     scenarios.push_back(baselineScenario());
     scenarios.push_back(formGuideScenario());
+    scenarios.push_back(guideSlackScenario());
 
     unsigned int const columns = 3;
     unsigned int const rows = static_cast<unsigned int>(
