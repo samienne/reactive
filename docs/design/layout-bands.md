@@ -166,6 +166,13 @@ flexible container down against the slack drive; every other child fills its
 slot (box cross extent, stack slot, grid cell) up to its strong `max`. The same
 rule holds in the pure box, stack and grid.
 
+**Cross placement in a box (decided).** A box child that does not take the
+whole cross extent (it holds its own, or its `max` stops its fill) sits at the
+cross-axis leading edge (the top of a row, the left of a column) unless it
+carries an explicit `setGravity`, which places it at that fraction of the cross
+slack, as a stack or grid places its children. The builder records whether the
+gravity was stated, since the default gravity is centred.
+
 ## Modifiers transform the `Constraints` - four patterns
 
 1. **Size-setters** (`fixedSize`/`min*`/`max*`): replace the one named field.
