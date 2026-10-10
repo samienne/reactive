@@ -112,6 +112,12 @@ namespace bqui::widget
             BoxVariables box);
 
     /**
+     * @brief The number of PureLayouts pureLayoutFromSizeHint() has synthesized
+     * in this process, so a test can assert a tree never reaches the bridge.
+     */
+    BQUI_EXPORT std::size_t pureLayoutBridgeCount();
+
+    /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
      * @p inset on every edge, the solver half of an inset wrapper (margin,
      * padding, border).

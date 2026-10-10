@@ -16,6 +16,7 @@
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
+#include <atomic>
 #include <map>
 #include <optional>
 #include <utility>
@@ -228,9 +229,21 @@ namespace
     }
 } // namespace
 
+namespace
+{
+    std::atomic<std::size_t> bridgeCount{ 0 };
+} // namespace
+
+std::size_t pureLayoutBridgeCount()
+{
+    return bridgeCount.load();
+}
+
 PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
         BoxVariables box)
 {
+    ++bridgeCount;
+
     auto shared = std::move(hint).share();
 
     auto width = shared.clone().map([](SizeHint const& h)

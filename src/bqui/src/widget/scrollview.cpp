@@ -125,10 +125,13 @@ AnyWidget scrollView(AnyWidget widget)
                 Band{100, 800, 10000, 1}
                 )))
             // The firewall stops the content's size propagating up, so the view
-            // publishes its own pure band -- the viewport's preferred size, from
-            // the SizeHint above -- and a pure-region parent sizes the scroll view
-            // to the viewport rather than the content.
-            | modifier::defaultSize()
+            // publishes its own pure band -- the viewport's preferred size,
+            // flexing on both axes -- and a pure-region parent sizes the scroll
+            // view to its slot rather than the content.
+            | modifier::defaultSize(avg::Vector2f(400.0f, 800.0f))
+            | modifier::minSize(avg::Vector2f(100.0f, 100.0f))
+            | modifier::growWidth()
+            | modifier::growHeight()
             | modifier::trackSize(viewSize.handle)
             | modifier::onPointerDown(merge(x.signal, y.signal).bindFirst(
                     [dragOffsetHandle=dragOffset.handle,
