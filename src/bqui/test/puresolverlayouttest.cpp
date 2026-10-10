@@ -30,7 +30,6 @@
 
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
-#include <bqui/sizehint.h>
 
 #include <avg/brush.h>
 #include <avg/color.h>
@@ -1147,10 +1146,9 @@ TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
     EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idThree).position[0]);
 }
 
-// A bare shape sizes to a modest pure default, not its banded fill-everything
-// hint: a plain filled rectangle in a wide window comes out 100x100 rather than
-// the absurd ~10000 its SizeHint natural would give. A fixedSize still overrides
-// it -- the swatch path is unbroken.
+// A bare shape sizes to a modest pure default: a plain filled rectangle in a
+// wide window comes out 100x100 rather than filling the window. A fixedSize
+// still overrides it -- the swatch path is unbroken.
 TEST(PureSolverLayout, bareShapeHasModestPureDefault)
 {
     avg::Vector2f const window(400.0f, 400.0f);
@@ -2190,8 +2188,7 @@ TEST(PureSolverLayout, gridSpanningCellCoversItsTracks)
     EXPECT_FLOAT_EQ(30.0f, cell.position[1]);
 }
 
-// A spanning cell's natural is shared across the tracks it covers, as the banded
-// gridSizeHint shares it. In a 2x2 grid a 120-wide leaf spanning both columns
+// A spanning cell's natural is shared across the tracks it covers. In a 2x2 grid a 120-wide leaf spanning both columns
 // asks 60 of each, so beside two 40 leaves the grid reports max(60, 40) * 2 =
 // 120, not 240. Beside a filler in a 400 row the filler takes 280; each column
 // is 60, so the spanning leaf fills the row and the 40 leaf centres at 60 + 10.
@@ -2612,9 +2609,9 @@ TEST(PureSolverLayout, binFirewallIsViewportSizedNotContentSized)
 // The motivating case end to end: a scrollView of a pure uniformGrid under
 // pureSolverRoot, mirroring testapp1. The grid is a firewall solved at its own
 // content size (2x2 of 100x100 cells, so 200x200), so its cells get real sizes
-// instead of collapsing against the size-only build's empty solution (0x0) or
-// blowing up to the SizeHint ceiling. The content fits within the viewport, so
-// every cell is readable at its full size.
+// instead of collapsing against the size-only build's empty solution (0x0).
+// The content fits within the viewport, so every cell is readable at its full
+// size.
 TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
 {
     avg::Vector2f const window(500.0f, 900.0f);

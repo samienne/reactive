@@ -32,7 +32,6 @@
 
 #include <bqui/modifier/setwidgetintrospection.h>
 
-#include <bqui/simplesizehint.h>
 #include <bqui/keyboardinput.h>
 #include <bqui/buildparams.h>
 #include <bqui/send.h>
