@@ -185,9 +185,11 @@ constructing a key, and copies name the same anchor.
   `foreground`, theme or role modifiers) leave the band alone. **`margin`**
   re-expresses each anchor against its outer box: the offset grows by
   `inset * (1 - 2 * fraction)`.
-- **Containers publish only anchors they define.** An `hbox`, `vbox`, stack or
-  grid drops its children's anchors, and a size boundary's content never
-  reaches its band.
+- **Containers publish only anchors they define.** An `hbox`, stack or grid
+  drops its children's anchors, and a size boundary's content never reaches
+  its band. A `vbox` publishes its first child's baseline, at that child's
+  natural height (the child sits at the column's top), when the child holds a
+  height of its own.
 
 **`baselineHbox`** is an `hbox` whose vertical axis aligns rather than places
 by gravity:

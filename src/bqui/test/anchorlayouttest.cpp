@@ -233,6 +233,31 @@ TEST(AnchorLayout, childWithoutBaselineAlignsItsBottom)
     EXPECT_NEAR(row.size[1], fill.size[1], 0.01f);
 }
 
+// A column passes its first child's baseline out, so it aligns in a row by
+// its first line.
+TEST(AnchorLayout, columnPublishesItsFirstChildsBaseline)
+{
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+    btl::UniqueId const idC = btl::makeUniqueId();
+
+    Instance instance = realiseConverged(atTop(idRow, baselineHbox(list({
+            vbox(list({
+                baselineProbe(idA, 30.0f, 40.0f, 30.0f),
+                baselineProbe(idC, 30.0f, 20.0f, 5.0f) })),
+            baselineProbe(idB, 30.0f, 20.0f, 10.0f) }))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // The column's ascent is a's 30 and its descent the remaining 30.
+    EXPECT_NEAR(60.0f, readProbe(instance, idRow).size[1], 0.01f);
+    EXPECT_NEAR(0.0f, top(a), 0.01f);
+    EXPECT_NEAR(30.0f, top(b) + 10.0f, 0.01f);
+}
+
 // A user-defined key published with setAnchor reaches alignAnchor: the two
 // anchor points meet on the guide, at the furthest of them.
 TEST(AnchorLayout, customAnchorKeyBindsToAGuide)
