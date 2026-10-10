@@ -22,6 +22,7 @@ namespace bqui::modifier
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
+            bool gravityExplicit = builder.isGravityExplicit();
             widget::PureLayout childPure = builder.getPureLayout();
             widget::BoxVariables childBox = builder.getBoxVariables();
 
@@ -60,6 +61,7 @@ namespace bqui::modifier
             // The overlay is layout-transparent: the wrapped child's band and box
             // forward unchanged for the enclosing region to solve it in place.
             composed.setPureLayout(std::move(childPure));
+            composed.setGravityExplicit(gravityExplicit);
             composed.setBoxVariables(std::move(childBox));
 
             return makeWidgetFromBuilder(std::move(composed));

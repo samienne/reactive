@@ -46,6 +46,7 @@ namespace bqui::modifier
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
+            bool gravityExplicit = builder.isGravityExplicit();
             widget::PureLayout childPure = builder.getPureLayout();
             widget::BoxVariables childBox = builder.getBoxVariables();
 
@@ -85,6 +86,7 @@ namespace bqui::modifier
             // shape, not the foreground child, so the child's band forwards
             // unchanged for the enclosing region to solve the child in place.
             framed.setPureLayout(std::move(childPure));
+            framed.setGravityExplicit(gravityExplicit);
             framed.setBoxVariables(std::move(childBox));
 
             return makeWidgetFromBuilder(std::move(framed));

@@ -51,6 +51,7 @@ namespace
     {
         auto sizeHint = builder.getSizeHint();
         auto gravity = builder.getGravity();
+        bool gravityExplicit = builder.isGravityExplicit();
         auto params = builder.getBuildParams();
         auto box = builder.getBoxVariables();
         auto pureLayout = builder.getPureLayout();
@@ -81,6 +82,7 @@ namespace
 
         result.setBoxVariables(std::move(box));
         result.setPureLayout(std::move(pureLayout));
+        result.setGravityExplicit(gravityExplicit);
         return result;
     }
 } // anonymous namespace

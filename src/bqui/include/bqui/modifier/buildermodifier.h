@@ -122,6 +122,7 @@ namespace bqui::modifier
             {
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
+                bool gravityExplicit = builder.isGravityExplicit();
                 auto params = builder.getBuildParams();
                 // Carry the solver box and pure-solver constraints onto the
                 // fresh builder, as the element-modifier junction does: they are
@@ -152,6 +153,7 @@ namespace bqui::modifier
 
                 result.setBoxVariables(std::move(box));
                 result.setPureLayout(std::move(pureLayout));
+                result.setGravityExplicit(gravityExplicit);
                 return result;
             },
             std::forward<TFunc>(func),
@@ -168,6 +170,7 @@ namespace bqui::modifier
             {
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
+                bool gravityExplicit = builder.isGravityExplicit();
                 auto params = builder.getBuildParams();
                 // The solver box and pure-solver constraints are the widget's
                 // stable identity, carried unchanged for its whole lifetime, so
@@ -196,6 +199,7 @@ namespace bqui::modifier
 
                 result.setBoxVariables(std::move(box));
                 result.setPureLayout(std::move(pureLayout));
+                result.setGravityExplicit(gravityExplicit);
                 return result;
             }
         };
