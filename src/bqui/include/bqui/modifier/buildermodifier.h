@@ -31,8 +31,8 @@ namespace bqui::modifier
         BuilderModifier& operator=(BuilderModifier const&) = default;
         BuilderModifier& operator=(BuilderModifier&&) noexcept = default;
 
-        template <typename T, typename U>
-        auto operator()(widget::Builder<T, U> builder) &&
+        template <typename T>
+        auto operator()(widget::Builder<T> builder) &&
         {
             return std::invoke(std::move(*func_), std::move(builder));
         }
@@ -120,7 +120,6 @@ namespace bqui::modifier
     {
         return makeBuilderModifier([](auto builder, auto func, auto&&... ts)
             {
-                auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 bool gravityExplicit = builder.isGravityExplicit();
                 auto params = builder.getBuildParams();
@@ -146,7 +145,6 @@ namespace bqui::modifier
                     std::move(builder),
                     std::forward<decltype(ts)>(ts)...
                     ),
-                    std::move(sizeHint),
                     std::move(params),
                     std::move(gravity)
                     );
@@ -168,7 +166,6 @@ namespace bqui::modifier
             template <typename T, typename U>
             auto operator()(T&& builder, U&& f) const
             {
-                auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 bool gravityExplicit = builder.isGravityExplicit();
                 auto params = builder.getBuildParams();
@@ -192,7 +189,6 @@ namespace bqui::modifier
 
                         return element;
                     },
-                    std::move(sizeHint),
                     std::move(params),
                     std::move(gravity)
                     );
