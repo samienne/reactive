@@ -34,8 +34,8 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 ## Layout, environment, animation
 
-- Layout: each builder carries a `PureLayout` (min/max/natural/flex bands per
-  axis) solved by `arrange`; the window root (`windowbridge.cpp`) solves its
+- Layout: each builder carries a `PureLayout` (min/max/natural/flex bands and
+  named anchors such as `baseline` per axis) solved by `arrange`; the window root (`windowbridge.cpp`) solves its
   content as one region (`buildPureRegion`, the core of the internal
   `pureSolverRoot`), so every app is a pure region and a container is only
   ever laid out by its region's solve; one built outside any region throws. `makeWidgetWithSize`, `bin` and

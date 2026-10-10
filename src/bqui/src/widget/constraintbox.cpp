@@ -197,6 +197,36 @@ void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
     }
 }
 
+// Places one child across a box on @p boxAxis. A child holding its own extent
+// keeps it and is not pulled: a pull it resisted would drag a flexible
+// container down to it against the slack drive. Every other child -- a flexing
+// one or one with no size of its own here -- fills the container's cross extent
+// up to its own strong max. Either way it settles under its gravity.
+void placeAcross(std::vector<arrange::Constraint>& out, Axis boxAxis,
+        BoxVariables const& container, BoxVariables const& child,
+        bool ownExtent, avg::Vector2f gravity)
+{
+    arrange::Variable const& lead =
+        boxAxis == Axis::x ? child.left : child.top;
+    arrange::Variable const& trail =
+        boxAxis == Axis::x ? child.right : child.bottom;
+    arrange::Variable const& containerLead =
+        boxAxis == Axis::x ? container.left : container.top;
+    arrange::Variable const& containerTrail =
+        boxAxis == Axis::x ? container.right : container.bottom;
+
+    if (!ownExtent)
+    {
+        out.push_back(((arrange::Expression(trail)
+                        - arrange::Expression(lead))
+                    == (arrange::Expression(containerTrail)
+                        - arrange::Expression(containerLead)))
+                | arrange::Strength::weak(1.0));
+    }
+    placeAtGravity(out, lead, trail, containerLead, containerTrail,
+            boxAxis == Axis::x ? gravity.x() : 1.0f - gravity.y());
+}
+
 // One axis's worth of a pure hbox/vbox fragment, band-free. @p boxAxis selects
 // the edge set this call constrains (x for left/right, y for top/bottom);
 // @p layoutAxis is the container's stacking axis. On the layout axis the
@@ -224,34 +254,8 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
     {
         for (std::size_t i = 0; i < boxes.size(); ++i)
         {
-            BoxVariables const& child = boxes[i];
-            arrange::Variable const& lead =
-                boxAxis == Axis::x ? child.left : child.top;
-            arrange::Variable const& trail =
-                boxAxis == Axis::x ? child.right : child.bottom;
-            arrange::Variable const& containerLead =
-                boxAxis == Axis::x ? container.left : container.top;
-            arrange::Variable const& containerTrail =
-                boxAxis == Axis::x ? container.right : container.bottom;
-
-            // A child holding its own extent keeps it and is not pulled: a pull
-            // it resisted would drag a flexible container down to it against
-            // the slack drive. Every other child -- a flexing one or one with no
-            // size of its own here -- fills the container's cross extent up to
-            // its own strong max.
-            bool fills = !(i < ownExtent.size() && ownExtent[i]);
-            avg::Vector2f gravity = gravities[i];
-
-            if (fills)
-            {
-                out.push_back(((arrange::Expression(trail)
-                                - arrange::Expression(lead))
-                            == (arrange::Expression(containerTrail)
-                                - arrange::Expression(containerLead)))
-                        | arrange::Strength::weak(1.0));
-            }
-            placeAtGravity(out, lead, trail, containerLead, containerTrail,
-                    boxAxis == Axis::x ? gravity.x() : 1.0f - gravity.y());
+            placeAcross(out, boxAxis, container, boxes[i],
+                    i < ownExtent.size() && ownExtent[i], gravities[i]);
         }
     }
 
@@ -535,15 +539,95 @@ std::optional<float> aggregateFloor(
     return value;
 }
 
+// The vertical axis of a baseline row, in place of the plain cross placement.
+// Each child that holds its own height is aligned on the row's shared @p line by
+// its baseline, or by its bottom edge when it publishes none (as CSS aligns an
+// inline block without a baseline); the rest fill the row as in a plain hbox.
+// The aligned block is as tall as its deepest ascent plus its deepest descent
+// at the children's naturals, sits centred in the row, and its line is
+// published as the row's own baseline so rows nest. Only a real baseline is
+// published: a row of bottom-aligned children has none to offer.
+void alignBaselines(Constraints& result,
+        std::vector<Constraints> const& childBands,
+        std::vector<BoxVariables> const& boxes,
+        std::vector<avg::Vector2f> const& gravities,
+        BoxVariables const& container, arrange::Variable const& line)
+{
+    std::vector<arrange::Constraint>& out = result.relations.constraints;
+
+    std::optional<float> ascent;
+    float descent = 0.0f;
+    std::optional<arrange::Strength> strength;
+    bool anyBaseline = false;
+
+    for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
+    {
+        Constraints const& band = childBands[i];
+        if (!holdsOwnExtent(band))
+        {
+            placeAcross(out, Axis::y, container, boxes[i], false,
+                    gravities[i]);
+            continue;
+        }
+
+        auto it = band.anchors.find(baselineAnchor);
+        Anchor anchor = it != band.anchors.end() ? it->second
+            : Anchor{ 1.0f, 0.0f };
+        anyBaseline = anyBaseline || it != band.anchors.end();
+
+        float natural = band.natural->value;
+        float childAscent = anchor.fraction * natural + anchor.offset;
+        float childDescent = natural - childAscent;
+        if (ascent)
+        {
+            ascent = std::max(*ascent, childAscent);
+            descent = std::max(descent, childDescent);
+            strength = strongerStrength(*strength, band.natural->strength);
+        }
+        else
+        {
+            ascent = childAscent;
+            descent = childDescent;
+            strength = band.natural->strength;
+        }
+
+        out.push_back((arrange::Expression(boxes[i].top)
+                    + static_cast<double>(anchor.fraction) * boxes[i].height()
+                    + arrange::Expression(static_cast<double>(anchor.offset))
+                    == arrange::Expression(line))
+                | alignStrength());
+    }
+
+    if (!ascent)
+        return;
+
+    float block = *ascent + descent;
+    Anchor rowAnchor{ 0.5f, *ascent - 0.5f * block };
+
+    // The line is free but for the alignments, so pinning it is structure.
+    out.push_back(arrange::Expression(line)
+            == arrange::Expression(container.top)
+                + static_cast<double>(rowAnchor.fraction) * container.height()
+                + arrange::Expression(static_cast<double>(rowAnchor.offset)));
+
+    if (!result.natural || result.natural->value < block)
+        result.natural = BandNatural{ block, *strength };
+    if (result.max && *result.max < block)
+        result.max = block;
+    if (anyBaseline)
+        result.anchors[baselineAnchor] = rowAnchor;
+}
+
 // Composes this container's fragment with its children's onto its builder for
 // the region to solve, then places its children from the solution handed to its
-// build.
-AnyWidget solverBoxBuilders(Axis axis,
+// build. A @p baseline row aligns its children vertically on their baselines.
+AnyWidget solverBoxBuilders(Axis axis, bool baseline,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
     arrange::Variable gap;
     arrange::Variable flexShare;
+    arrange::Variable line;
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -571,7 +655,8 @@ AnyWidget solverBoxBuilders(Axis axis,
     // the bounds aggregate main-axis SUM / cross-axis MAX, the main-axis flex
     // rides up, and a size word at this level overrides the republished band.
     auto buildAxis =
-        [container, gap, flexShare](Axis thisAxis, Axis layoutAxis,
+        [container, gap, flexShare, line, baseline](Axis thisAxis,
+                Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
                 std::vector<avg::Vector2f> const& gravities)
@@ -613,8 +698,16 @@ AnyWidget solverBoxBuilders(Axis axis,
                         flexShare);
         }
 
-        append(rel, pureAxisConstraints(thisAxis, layoutAxis, container,
-                    boxes, ownExtents(childBands), gravities, gap, flexes));
+        if (baseline && thisAxis == Axis::y && layoutAxis == Axis::x)
+        {
+            alignBaselines(result, childBands, boxes, gravities, container,
+                    line);
+        }
+        else
+        {
+            append(rel, pureAxisConstraints(thisAxis, layoutAxis, container,
+                        boxes, ownExtents(childBands), gravities, gap, flexes));
+        }
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
@@ -1184,12 +1277,14 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
         ;
 }
 
-AnyWidget solverBox(Axis axis, bq::signal::ArraySignal<AnyWidget> widgets)
+AnyWidget solverBox(Axis axis, bool baseline,
+        bq::signal::ArraySignal<AnyWidget> widgets)
 {
     return containerLayout(
-            [axis](bq::signal::ArraySignal<widget::AnyBuilder> builders)
+            [axis, baseline](
+                bq::signal::ArraySignal<widget::AnyBuilder> builders)
             {
-                return solverBoxBuilders(axis, std::move(builders));
+                return solverBoxBuilders(axis, baseline, std::move(builders));
             },
             axis,
             std::move(widgets));
@@ -1199,22 +1294,27 @@ AnyWidget solverBox(Axis axis, bq::signal::ArraySignal<AnyWidget> widgets)
 
 AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets)
 {
-    return solverBox(Axis::y, std::move(widgets));
+    return solverBox(Axis::y, false, std::move(widgets));
 }
 
 AnyWidget solverVbox(std::vector<AnyWidget> widgets)
 {
-    return solverBox(Axis::y, toArray(std::move(widgets)));
+    return solverBox(Axis::y, false, toArray(std::move(widgets)));
 }
 
 AnyWidget solverHbox(bq::signal::ArraySignal<AnyWidget> widgets)
 {
-    return solverBox(Axis::x, std::move(widgets));
+    return solverBox(Axis::x, false, std::move(widgets));
 }
 
 AnyWidget solverHbox(std::vector<AnyWidget> widgets)
 {
-    return solverBox(Axis::x, toArray(std::move(widgets)));
+    return solverBox(Axis::x, false, toArray(std::move(widgets)));
+}
+
+AnyWidget solverBaselineHbox(bq::signal::ArraySignal<AnyWidget> widgets)
+{
+    return solverBox(Axis::x, true, std::move(widgets));
 }
 
 Constraints fillerAxisBand(Axis thisAxis, std::optional<Axis> layoutAxis)

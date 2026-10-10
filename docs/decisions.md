@@ -548,11 +548,21 @@ solve per region and republishes an aggregate band. The rules that follow
   satisfiable by construction, so a solve always yields some layout; an
   infeasible required set left a region blank or frozen with no diagnostic.
   Unmet strong constraints are logged instead.
+- **Named anchors are affine values, keyed by name.** An anchor is
+  `leading + fraction * extent + offset` on one axis, carried in the band by a
+  string name so new anchors need no type change. A baseline row
+  (`baselineHbox`, its own container rather than an hbox option) aligns
+  children on one line, and a child without a baseline aligns its bottom edge
+  (as CSS does for an inline block).
 
 **Why:** the earlier `SizeHint` model computed sizes in closed form per container
 and could not express relations across container levels; a single solve per
 region can, and named band fields keep overrides cheap without a strength ladder.
 Throwing outside a region turns a silent 0x0 layout into an immediate error.
+An anchor carries a fraction as well as an offset because content placed
+relative to its box (a label centres its text) moves its baseline when the box
+is sized away from its natural; a value rather than a solver variable lets a
+wrapper re-express it by arithmetic, as it grows the band.
 
 ## Shape transforms are paint-time; layout size is separate
 
