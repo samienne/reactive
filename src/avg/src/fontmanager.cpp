@@ -224,28 +224,28 @@ std::shared_ptr<FontImpl> FontManager::getFontImpl(std::string const& file,
 {
     auto locked = lock();
 
-    auto i = d()->fonts_.find(FontDesc(file, face));
+    FontDesc desc(file, face);
+    auto i = d()->fonts_.find(desc);
     if (i != d()->fonts_.end())
     {
-        return i->second.lock();
+        if (auto existing = i->second.lock())
+            return existing;
     }
 
-    auto ptr = std::make_shared<FontImpl>(*this, file, face);
-
-    if (FT_New_Face(d()->freetypeLibrary_, file.c_str(),
-                face, &ptr->face_) != 0)
+    // ~FontImpl relocks the mutex, so no FontImpl may exist on a failure
+    // path while it is held.
+    FT_Face ftFace;
+    if (FT_New_Face(d()->freetypeLibrary_, file.c_str(), face, &ftFace) != 0)
     {
         throw std::runtime_error("Unable to create new face from file: "
                 + file);
     }
 
-    FT_Set_Char_Size(ptr->face_, 0, 6400, 0, 100);
+    FT_Set_Char_Size(ftFace, 0, 6400, 0, 100);
 
-    ptr->descend_ = (float)ptr->face_->descender / 6400.0f;
-    ptr->ascend_ = (float)ptr->face_->ascender / 6400.0f;
-    ptr->linegap_ = (float)ptr->face_->size->metrics.height / 6400.0f;
-
-    d()->fonts_.insert(std::make_pair(FontDesc(file, face), ptr));
+    auto& entry = d()->fonts_[desc];
+    auto ptr = std::make_shared<FontImpl>(*this, file, face, ftFace);
+    entry = ptr;
 
     return ptr;
 }
@@ -412,7 +412,7 @@ void FontManager::unloadFont(FontImpl const& fontImpl)
     auto locked = lock();
 
     auto i = d()->fonts_.find(FontDesc(fontImpl.file_, fontImpl.faceIndex_));
-    if (i == d()->fonts_.end())
+    if (i == d()->fonts_.end() || !i->second.expired())
         return;
 
     d()->fonts_.erase(i);
