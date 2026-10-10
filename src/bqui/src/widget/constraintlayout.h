@@ -232,20 +232,22 @@ namespace bqui::widget
 
     /**
      * @brief The layout (main) axis of the pure-solver container a filler is a
-     * direct child of, so the filler flexes on that axis.
+     * direct child of, so the filler flexes on that axis; empty for a container
+     * with no layout axis (a grid), where it flexes on both.
      *
      * A filler publishes its flex only on the axis its container stacks along,
      * where the container couples it to its slack; the cross axis falls to the
-     * container's own leading-edge pin and weak default. Defaults to Axis::x,
-     * read only when a filler actually sits inside a pure-solver box.
+     * container's own leading-edge pin and weak default. In a grid it fills its
+     * cell on both axes. Defaults to Axis::x, read only when a filler actually
+     * sits inside a pure-solver container.
      */
     struct FlexAxisTag
     {
-        using type = Axis;
+        using type = std::optional<Axis>;
 
-        static bq::signal::AnySignal<Axis> getDefaultValue()
+        static bq::signal::AnySignal<std::optional<Axis>> getDefaultValue()
         {
-            return bq::signal::constant(Axis::x);
+            return bq::signal::constant(std::optional<Axis>(Axis::x));
         }
     };
 
@@ -420,12 +422,13 @@ namespace bqui::widget
 
     /**
      * @brief One axis's filler band: a unit flex when @p thisAxis is the
-     * container's @p layoutAxis, an empty band otherwise.
+     * container's @p layoutAxis or the container has none, an empty band
+     * otherwise.
      *
      * So a filler fills the layout axis by flex, which its container couples to
      * its slack, and a cross axis by the container's cross-fill.
      */
-    Constraints fillerAxisBand(Axis thisAxis, Axis layoutAxis);
+    Constraints fillerAxisBand(Axis thisAxis, std::optional<Axis> layoutAxis);
 
     /**
      * @brief Sizes and positions one content edge-pair within a slot edge-pair

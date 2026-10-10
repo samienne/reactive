@@ -3544,3 +3544,38 @@ TEST(PureSolverLayout, filledRowWithMarginedFillerTakesColumn)
     EXPECT_FLOAT_EQ(360.0f, readProbe(instance, idMargined).size[0]);
     EXPECT_FLOAT_EQ(36.0f, readProbe(instance, idLeaf).size[1]);
 }
+
+// A grid has no layout axis, so fill() on a cell child flexes it on both axes and
+// it fills its cell -- or the tracks it spans -- across and down, rather than
+// only along the axis of the box the grid sits in.
+TEST(PureSolverLayout, fillInGridCellFillsBothAxes)
+{
+    avg::Vector2f const window(300.0f, 200.0f);
+
+    btl::UniqueId const idCell = btl::makeUniqueId();
+    btl::UniqueId const idSpan = btl::makeUniqueId();
+    btl::UniqueId const idPlain = btl::makeUniqueId();
+
+    AnyWidget grid = uniformGrid(3, 2)
+        .cell(0, 1, 2, 1, probe(idSpan, fixed40, fixed40) | modifier::fill())
+        .cell(0, 0, 1, 1, probe(idCell, fixed40, fixed40) | modifier::fill())
+        .cell(1, 0, 1, 1, probe(idPlain, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(std::move(grid) | modifier::fill());
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry cell = readProbe(instance, idCell);
+    Geometry span = readProbe(instance, idSpan);
+    Geometry plain = readProbe(instance, idPlain);
+
+    EXPECT_FLOAT_EQ(100.0f, cell.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, cell.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, span.size[0]);
+    EXPECT_FLOAT_EQ(100.0f, span.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, plain.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, plain.size[1]);
+}
