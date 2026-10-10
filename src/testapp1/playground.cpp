@@ -422,8 +422,9 @@ AnyWidget panelScenario()
 }
 
 // Text of three sizes, a margined label, a box without a baseline (its bottom
-// sits on the line) and a nested row, lined up on one baseline; the cycle
-// swaps in a plain hbox, which centres them instead.
+// sits on the line), a nested row and a two-line column (aligned by its first
+// line), lined up on one baseline; the cycle swaps in a plain hbox, which
+// centres them instead.
 AnyWidget baselineScenario()
 {
     auto c = cycle({ "baselineHbox", "plain hbox" });
@@ -466,6 +467,11 @@ AnyWidget baselineScenario()
                                     avg::Vector2f(24.0f, 24.0f))
                                 | modifier::frame());
                         items.push_back(row(std::move(inner))
+                                | modifier::frame());
+                        items.push_back(widget::vbox({
+                                    widget::label("first line"),
+                                    widget::label("second")
+                                        | modifier::setTheme(medium) })
                                 | modifier::frame());
 
                         return row(std::move(items)) | modifier::frame();
