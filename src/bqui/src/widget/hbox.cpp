@@ -10,4 +10,9 @@ AnyWidget hbox(bq::signal::ArraySignal<AnyWidget> widgets)
     return solverHbox(std::move(widgets));
 }
 
+AnyWidget baselineHbox(bq::signal::ArraySignal<AnyWidget> widgets)
+{
+    return solverBaselineHbox(std::move(widgets));
+}
+
 } // namespace bqui::widget

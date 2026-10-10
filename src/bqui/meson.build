@@ -111,6 +111,7 @@ libbquidep = declare_dependency(
   )
 
 bquitestsrc = [
+  'test/anchorlayouttest.cpp',
   'test/apptest.cpp',
   'test/conflictlayouttest.cpp',
   'test/headlessapptest.cpp',

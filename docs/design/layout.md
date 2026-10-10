@@ -167,6 +167,41 @@ distributes it inward (`image | margin(10) | fixedSize(100)` gives an 80 image).
 Keeping the inner band would contradict a later size word. A wrapper adds no
 default of its own.
 
+## Anchors
+
+`Constraints` also carries **named anchors**: points on the box beyond its
+edges, each `leading + fraction * extent + offset` along that axis (top down on
+y), keyed by name. The only name so far is `baseline` (the first baseline, on
+the vertical axis).
+
+- **Leaves publish them.** `label` publishes the baseline where it draws it:
+  the text is centred in its box, so the anchor is half the box height plus half
+  the text height less the font's descender. The fraction keeps it right when
+  a size word moves the label off its natural height.
+- **Size words keep anchors**, and pass-through wrappers (`background`,
+  `foreground`, theme or role modifiers) leave the band alone. **`margin`**
+  re-expresses each anchor against its outer box: the offset grows by
+  `inset * (1 - 2 * fraction)`.
+- **Containers publish only anchors they define.** An `hbox`, `vbox`, stack or
+  grid drops its children's anchors, and a size boundary's content never
+  reaches its band.
+
+**`baselineHbox`** is an `hbox` whose vertical axis aligns rather than places
+by gravity:
+
+- A child that holds its own height is placed so its baseline meets a shared
+  line, or its bottom edge when it publishes no baseline (CSS's rule for an
+  inline block). A child without a height of its own, or flexing on y, fills
+  the row as in an `hbox`.
+- The row's natural height is the deepest ascent plus the deepest descent of
+  the aligned children at their naturals, held at the firmest of their
+  strengths; a `max` below that is raised to it.
+- A row taller than that centres the aligned block. The line is published as the
+  row's own baseline, so rows nest and a margin around one keeps it; a row with
+  no real baseline among its children publishes none.
+- The line variable is free but for the alignments, so pinning it to the row is
+  required (structure), and each alignment is strong at `alignStrength`.
+
 ## Size boundaries
 
 `makeWidgetWithSize`, `bin` and `scrollView` are size boundaries: their outward
@@ -189,14 +224,15 @@ Strengths rank firmness for graceful degradation, not authority (authority is
 the band's last-writer-wins). From firmest:
 
 - **required**: structure only: tiling and the signed gap equation, inset edges,
-  grid lines. Each child edge is tied once and every container's slack rides a
+  grid lines, a baseline row's line. Each child edge is tied once and every container's slack rides a
   free gap variable, so these are jointly satisfiable whatever the sizes, and no
   stated value can make the solve infeasible. Lowering them buys nothing and
   would let a stated value tear a row apart instead of overflowing it.
 - **strong**, scaled to a fixed precedence, as CSS ranks `min-width` over
   `max-width` over `width`: the region anchor (10), then `min` and the `>= 0`
   extent floor (3), then `max` and a slot's fill cap (2), then a fixed size and
-  a widget's own pins (1). A losing value yields and overflows. The weights stay
+  a widget's own pins (1), with a row's baseline alignment (1.5) between a
+  fixed size and a `max`. A losing value yields and overflows. The weights stay
   small because the objective mixes them with the weak(1e-5) flex coupling,
   which a much heavier strong weight would lose to round-off.
 - **weak**, in order: content natural (2.0), cross-axis fill (1.0), the 100
@@ -222,8 +258,8 @@ weigh any new weak constraint against it.
 
 ## Future work
 
-- Baseline and other named anchors in `Constraints`, so a row can align
-  baselines and aggregate its cross extent from them.
+- More anchors: a `vbox` publishing its first child's baseline, a last
+  baseline, horizontal anchors, and aligning on them in a column.
 - Guides, re-added on the pure path and scoped to a region (resolved at the
   common ancestor of their participants).
 - Sizing and limiting the OS window from the root band (ase has no API to set a
