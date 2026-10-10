@@ -554,6 +554,12 @@ solve per region and republishes an aggregate band. The rules that follow
   (`baselineHbox`, its own container rather than an hbox option) aligns
   children on one line, and a child without a baseline aligns its bottom edge
   (as CSS does for an inline block).
+- **Guides are region-scoped and settle in a second step.** A guide is a token
+  (`XGuide`/`YGuide`) whose bindings ride the band like anchors and reach the
+  region's solve wherever they sit; a size boundary is a separate region, so a
+  guide never crosses one. The region solves without the guides, sets each
+  guide to the furthest of its points, then pulls the points onto it at the
+  weakest strong strength, below every stated size.
 
 **Why:** the earlier `SizeHint` model computed sizes in closed form per container
 and could not express relations across container levels; a single solve per
@@ -563,6 +569,12 @@ An anchor carries a fraction as well as an offset because content placed
 relative to its box (a label centres its text) moves its baseline when the box
 is sized away from its natural; a value rather than a solver variable lets a
 wrapper re-express it by arithmetic, as it grows the band.
+A guide resolved inside the one solve settles between its points, not at the
+furthest: every position it is measured from is a weak preference, so shrinking
+or shifting the furthest point costs no more than moving the others out to it.
+Measuring first makes "the widest label sets the column" exact. Scoping guides
+to a region keeps the boundary a firewall: content size never crosses one, and
+neither do guides.
 
 ## Shape transforms are paint-time; layout size is separate
 

@@ -74,7 +74,7 @@ params are captured at widget-to-builder time, before the solve exists.
   previous solution kept, so on a first solve the region collapses to zero.
 - **Conflicts are logged.** After each solve the strong constraints are checked
   against the solution, and any left unmet are logged to stderr as one line
-  naming their kind (`region`, `min`, `max`, `fixed`) and the solved value
+  naming their kind (`region`, `min`, `max`, `fixed`, `align`, `guide`) and the solved value
   against the stated one, only when that set changes.
 
 ## Sizing
@@ -202,6 +202,37 @@ by gravity:
 - The line variable is free but for the alignments, so pinning it to the row is
   required (structure), and each alignment is strong at `alignStrength`.
 
+## Guides
+
+A **guide** (`XGuide`, `YGuide` in `widget/guide.h`) is a line that widgets
+anywhere in one region align to, across sibling containers and at any depth:
+form labels in separate rows, say, whose fields should start in one column.
+The guide is a token the user creates and captures into the widgets; copies
+name the same line. The `align*` modifiers (`modifier/alignguide.h`) bind an
+edge, the centre, the baseline or any named anchor of a widget's box to it.
+
+- **Bindings ride the band.** A binding is an anchor-shaped point on the box,
+  kept in the band beside the anchors. Size words keep it, `margin`
+  re-expresses it against its outer box as it does an anchor, and
+  `alignBaseline`/`alignAnchor` read the anchor as it stands where the modifier
+  is applied (a widget without it is not bound). Stamping the band turns each
+  binding into a point expression in the region's spec, so a binding reaches
+  the solve from any depth.
+- **A guide settles at the furthest natural point.** The region first solves
+  without the guides, sets each guide to the largest of its points' positions
+  (rightmost on x, lowest on y), then pulls every point onto it at
+  `guideStrength`. A point reaches the guide by the cheapest move in the weak
+  lane: a placement by gravity yields before a content natural, so in a form of
+  left-placed rows the shorter labels' rows move out and the labels end flush
+  at the column.
+- **Nothing about a guide is required.** The pull is the weakest strong
+  strength, so a stated size beats it; a point that cannot reach the guide
+  stays put and the unmet pull is logged as `guide`. A guide bound once, or
+  never, changes nothing.
+- **A guide is scoped to a region.** It does not cross a size boundary: the
+  boundary's content is solved as its own region, where the guide settles
+  among that region's points only.
+
 ## Size boundaries
 
 `makeWidgetWithSize`, `bin` and `scrollView` are size boundaries: their outward
@@ -216,7 +247,8 @@ crosses into the parent's solve.
   content's band, else the viewport extent held within the band's `min`/`max`.
 
 A boundary that hugs its content (reads the content band outward) would be
-possible but is deliberately not offered.
+possible but is deliberately not offered. A guide does not cross a boundary
+either: the content's bindings join the content's own region.
 
 ## Strengths
 
@@ -232,7 +264,7 @@ the band's last-writer-wins). From firmest:
   `max-width` over `width`: the region anchor (10), then `min` and the `>= 0`
   extent floor (3), then `max` and a slot's fill cap (2), then a fixed size and
   a widget's own pins (1), with a row's baseline alignment (1.5) between a
-  fixed size and a `max`. A losing value yields and overflows. The weights stay
+  fixed size and a `max`, and the guide pull (0.5) below them all. A losing value yields and overflows. The weights stay
   small because the objective mixes them with the weak(1e-5) flex coupling,
   which a much heavier strong weight would lose to round-off.
 - **weak**, in order: content natural (2.0), cross-axis fill (1.0), the 100
@@ -260,7 +292,5 @@ weigh any new weak constraint against it.
 
 - More anchors: a `vbox` publishing its first child's baseline, a last
   baseline, horizontal anchors, and aligning on them in a column.
-- Guides, re-added on the pure path and scoped to a region (resolved at the
-  common ancestor of their participants).
 - Sizing and limiting the OS window from the root band (ase has no API to set a
   window's size or limits yet).

@@ -7,6 +7,7 @@
 #include <avg/vector.h>
 
 #include <arrange/constraint.h>
+#include <arrange/expression.h>
 #include <arrange/id.h>
 #include <arrange/strength.h>
 #include <arrange/variable.h>
@@ -30,12 +31,24 @@ namespace bqui::widget
      * and the variables whose solved values must be read back.
      *
      * The solver exposes no variable iteration, so the variables to read travel
-     * alongside the constraints that mention them.
+     * alongside the constraints that mention them. @c guides are not
+     * constraints yet: the solve places them once it knows where the points
+     * sit without them.
      */
+    /**
+     * @brief A point bound to a guide, as an expression over its box's edges.
+     */
+    struct GuidePoint
+    {
+        arrange::Variable guide;
+        arrange::Expression point;
+    };
+
     struct LayoutSpec
     {
         std::vector<arrange::Constraint> constraints;
         std::vector<arrange::Variable> variables;
+        std::vector<GuidePoint> guides; ///< aligned after the first solve
     };
 
     /**
@@ -89,6 +102,16 @@ namespace bqui::widget
     inline constexpr char const* baselineAnchor = "baseline";
 
     /**
+     * @brief A point on the box bound to a guide: the region's solve pulls the
+     * point @p at onto the shared variable @p guide.
+     */
+    struct GuideBinding
+    {
+        arrange::Variable guide;
+        Anchor at;
+    };
+
+    /**
      * @brief One axis's size band plus the untagged relations that ride with it.
      *
      * The band is the four named, overridable-by-replacement fields
@@ -106,6 +129,10 @@ namespace bqui::widget
      * @c anchors names points on the box beyond its edges (baselineAnchor).
      * Size words keep them, an inset wrapper offsets them onto its outer box,
      * and a container publishes only the anchors it defines itself.
+     *
+     * @c guides binds points on the box to guide variables. They travel like
+     * anchors until the box is stamped, where they become constraints in the
+     * region's solve.
      */
     struct Constraints
     {
@@ -114,6 +141,7 @@ namespace bqui::widget
         std::optional<BandNatural> natural;  ///< preferred extent, at a strength
         std::optional<Flex> flex;            ///< filler coefficient (aggregated)
         std::map<std::string, Anchor> anchors; ///< named anchors on this axis
+        std::vector<GuideBinding> guides;    ///< points bound to guides
         LayoutSpec relations;                ///< untagged relations + read-backs
     };
 

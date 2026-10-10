@@ -100,6 +100,27 @@ AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
             });
 }
 
+AnyWidgetModifier pureGuideModifier(PureAxis axis, arrange::Variable guide,
+        widget::Anchor at)
+{
+    return pureBuilderModifier(
+            [axis, guide = std::move(guide), at](widget::AnyBuilder& builder)
+            {
+                widget::setPureGuide(builder, toAxis(axis), guide, at);
+            });
+}
+
+AnyWidgetModifier pureGuideAnchorModifier(PureAxis axis,
+        arrange::Variable guide, std::string name)
+{
+    return pureBuilderModifier(
+            [axis, guide = std::move(guide), name = std::move(name)](
+                    widget::AnyBuilder& builder)
+            {
+                widget::setPureGuideAnchor(builder, toAxis(axis), guide, name);
+            });
+}
+
 AnyWidgetModifier pureFillModifier(float weight)
 {
     return pureBuilderModifier(

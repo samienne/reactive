@@ -14,10 +14,12 @@
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -53,7 +55,50 @@ namespace
             return "fixed";
         if (strength == alignStrength())
             return "align";
+        if (strength == guideStrength())
+            return "guide";
         return "strong";
+    }
+
+    double evaluate(arrange::Solver const& solver,
+            arrange::Expression const& e)
+    {
+        double value = e.constant();
+        for (std::size_t i = 0; i < e.termCount(); ++i)
+        {
+            auto term = e.term(i);
+            if (solver.contains(term.variable))
+                value += term.coefficient * solver.valueOf(term.variable);
+        }
+        return value;
+    }
+
+    // Each guide settles at the furthest of its points as the guide-free
+    // solve placed them, and the points are then pulled onto it. Folding the
+    // guide into a single solve would let it settle between the points,
+    // shrinking or shifting the furthest one, since every position it is
+    // measured from is itself a weak preference.
+    std::vector<arrange::Constraint> guideConstraints(
+            arrange::Solver const& solver, std::vector<GuidePoint> const& guides)
+    {
+        std::unordered_map<arrange::Id, double> furthest;
+        for (GuidePoint const& g : guides)
+        {
+            double value = evaluate(solver, g.point);
+            auto [it, inserted] = furthest.emplace(g.guide.id(), value);
+            if (!inserted)
+                it->second = std::max(it->second, value);
+        }
+
+        std::vector<arrange::Constraint> out;
+        out.reserve(guides.size());
+        for (GuidePoint const& g : guides)
+        {
+            out.push_back((g.point == arrange::Expression(
+                            furthest[g.guide.id()]))
+                    | guideStrength());
+        }
+        return out;
     }
 
     // Lists the strong constraints the solution leaves violated, by kind and
@@ -69,7 +114,7 @@ namespace
         for (auto const& c : constraints)
         {
             arrange::Strength strength = c.strength();
-            if (strength.isRequired() || strength < arrange::Strength::strong())
+            if (strength.isRequired() || strength < guideStrength())
                 continue;
 
             arrange::Expression const& e = c.expression();
@@ -254,6 +299,32 @@ void setPureAnchor(AnyBuilder& builder, Axis axis, std::string name,
     }
 }
 
+void setPureGuide(AnyBuilder& builder, Axis axis, arrange::Variable guide,
+        Anchor at)
+{
+    PureLayout layout = builder.getPureLayout();
+    updateBand(layout, axis, bq::signal::constant(0.0f),
+            [guide, at](Constraints& c, float)
+            {
+                c.guides.push_back(GuideBinding{ guide, at });
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
+void setPureGuideAnchor(AnyBuilder& builder, Axis axis,
+        arrange::Variable guide, std::string name)
+{
+    PureLayout layout = builder.getPureLayout();
+    updateBand(layout, axis, bq::signal::constant(0.0f),
+            [guide, name = std::move(name)](Constraints& c, float)
+            {
+                auto it = c.anchors.find(name);
+                if (it != c.anchors.end())
+                    c.guides.push_back(GuideBinding{ guide, it->second });
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
 void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
 {
     PureLayout layout = builder.getPureLayout();
@@ -278,6 +349,8 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
             *c.max += d;
         for (auto& [name, anchor] : c.anchors)
             anchor.offset += ins * (1.0f - 2.0f * anchor.fraction);
+        for (auto& binding : c.guides)
+            binding.at.offset += ins * (1.0f - 2.0f * binding.at.fraction);
     };
 
     PureLayout old = layout;
@@ -371,6 +444,16 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
     spec.constraints.push_back(
             (extent() >= arrange::Expression(0.0)) | minStrength());
 
+    arrange::Variable const& lead = axis == Axis::x ? box.left : box.top;
+    for (GuideBinding const& binding : constraints.guides)
+    {
+        spec.guides.push_back(GuidePoint{ binding.guide,
+                arrange::Expression(lead)
+                    + extent() * static_cast<double>(binding.at.fraction)
+                    + arrange::Expression(
+                        static_cast<double>(binding.at.offset)) });
+    }
+
     return spec;
 }
 
@@ -415,8 +498,32 @@ bq::signal::AnySignal<LayoutSolution> solveLayout(
                     return state;
                 }
 
-                std::string unmet = describeUnmet(state.solver,
-                        spec.constraints);
+                std::vector<arrange::Constraint> aligned;
+                for (auto const& c : guideConstraints(state.solver, spec.guides))
+                {
+                    try
+                    {
+                        state.solver.addConstraint(c);
+                        aligned.push_back(c);
+                    }
+                    catch (arrange::Error const& e)
+                    {
+                        logLayout(std::string("guide not applied: ")
+                                + e.what());
+                    }
+                }
+
+                std::string unmet;
+                if (aligned.empty())
+                {
+                    unmet = describeUnmet(state.solver, spec.constraints);
+                }
+                else
+                {
+                    aligned.insert(aligned.begin(), spec.constraints.begin(),
+                            spec.constraints.end());
+                    unmet = describeUnmet(state.solver, aligned);
+                }
                 if (!unmet.empty() && unmet != state.unmet)
                     logLayout(unmet);
                 state.unmet = std::move(unmet);
@@ -450,6 +557,8 @@ bq::signal::AnySignal<LayoutSolution> layoutRegion(
                             part.constraints.begin(), part.constraints.end());
                     merged.variables.insert(merged.variables.end(),
                             part.variables.begin(), part.variables.end());
+                    merged.guides.insert(merged.guides.end(),
+                            part.guides.begin(), part.guides.end());
                 }
                 return merged;
             });
@@ -525,6 +634,11 @@ arrange::Strength fixedStrength()
 arrange::Strength alignStrength()
 {
     return arrange::Strength::strong(1.5);
+}
+
+arrange::Strength guideStrength()
+{
+    return arrange::Strength::strong(0.5);
 }
 
 arrange::Strength weakestStrength()

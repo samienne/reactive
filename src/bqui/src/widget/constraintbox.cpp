@@ -101,6 +101,8 @@ void appendSpec(LayoutSpec& dst, LayoutSpec const& src)
             src.constraints.begin(), src.constraints.end());
     dst.variables.insert(dst.variables.end(),
             src.variables.begin(), src.variables.end());
+    dst.guides.insert(dst.guides.end(),
+            src.guides.begin(), src.guides.end());
 }
 
 // The x half of readBackBoxes(), for the pure two-phase solve where the x-edges

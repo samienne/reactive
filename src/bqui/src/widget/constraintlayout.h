@@ -90,6 +90,20 @@ namespace bqui::widget
             std::string name, bq::signal::AnySignal<Anchor> anchor);
 
     /**
+     * @brief Binds the point @p at on @p axis to @p guide, alongside any
+     * bindings already on the band.
+     */
+    void setPureGuide(AnyBuilder& builder, Axis axis, arrange::Variable guide,
+            Anchor at);
+
+    /**
+     * @brief Binds the anchor @p name on @p axis to @p guide, as it stands
+     * when this is applied; a band without that anchor gains no binding.
+     */
+    void setPureGuideAnchor(AnyBuilder& builder, Axis axis,
+            arrange::Variable guide, std::string name);
+
+    /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
      * @p inset on every edge, the solver half of an inset wrapper (margin,
      * padding, border).
@@ -278,6 +292,13 @@ namespace bqui::widget
      * free, so an alignment only yields when something else pins the child.
      */
     BQUI_EXPORT arrange::Strength alignStrength();
+
+    /**
+     * @brief The strength a point is pulled onto its guide at: the weakest
+     * strong pull, so any stated size beats it and it beats every content
+     * natural and placement.
+     */
+    BQUI_EXPORT arrange::Strength guideStrength();
 
     /**
      * @brief The strictly-weakest strength tier, below gravity and natural size,
