@@ -127,6 +127,30 @@ void setPureNatural(AnyBuilder& builder, Axis axis,
     builder.setPureLayout(std::move(layout));
 }
 
+void setPureFixed(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> value)
+{
+    // Strong: the same strength as the min/max bounds, so a fixed size ties
+    // rather than loses to one.
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(value),
+            [](Constraints& c, float v)
+            {
+                c.natural = BandNatural{ v, arrange::Strength::strong() };
+                c.flex.reset();
+            });
+    builder.setPureLayout(std::move(layout));
+}
+
+void setPureFlex(AnyBuilder& builder, Axis axis,
+        bq::signal::AnySignal<float> weight)
+{
+    PureLayout layout = pureLayoutOr(builder);
+    updateBand(layout, axis, std::move(weight),
+            [](Constraints& c, float w) { c.flex = Flex{ w }; });
+    builder.setPureLayout(std::move(layout));
+}
+
 void setPureMin(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value)
 {

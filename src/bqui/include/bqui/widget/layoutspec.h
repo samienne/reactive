@@ -41,10 +41,10 @@ namespace bqui::widget
     using LayoutSolution = std::unordered_map<arrange::Id, double>;
 
     /**
-     * @brief A widget's grow coefficient on one axis: its filler weight. A widget
-     * contributes @c extent==coeff*F against its container's shared flex variable,
-     * and the coefficient rides up in the band so a container holding a filler is
-     * itself a filler to its parent.
+     * @brief A widget's grow coefficient on one axis: its filler weight. The
+     * widget's container couples @c extent==coeff*F against its shared flex
+     * variable when it stamps the widget, and the coefficient rides up in the
+     * band so a container holding a filler is itself a filler to its parent.
      */
     struct Flex
     {
