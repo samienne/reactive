@@ -16,13 +16,11 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
-    // The root is the outermost LayoutFirewall: fed the window size and an
-    // empty resolved-guide map, from which guide resolutions accumulate
-    // down into every nested makeWidgetWithSize firewall. Its content is one
-    // pure-solver region.
+    // The root is the outermost LayoutFirewall, fed the window size. Its
+    // content is one pure-solver region.
     widgetInstanceSignal_((widget::pureSolverRoot(std::move(widget))
                 | modifier::background())(
-                widget::rootFirewallParams()
+                BuildParams()
                 )(std::move(size_.signal)).getInstance()),
     widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
     titleSignal_(windowData_->getTitle()),

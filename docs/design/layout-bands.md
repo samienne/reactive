@@ -236,6 +236,11 @@ is what its parent sees.
 
 ## Guides resolve at the common ancestor
 
+Not implemented: the earlier guide machinery (`XGuide`/`YGuide`, the
+`align*` guide modifiers, the builder's guide alignments and the resolved-guide
+param) served only the old banded containers and was deleted with them. Guides
+are to be re-implemented on the pure path along these lines.
+
 A guide resolves at the lowest common ancestor of its participants:
 - **Container-local** (all participants in one container): resolved there,
   folded into that container's alignment aggregation - bands stay exact.

@@ -54,19 +54,11 @@ namespace bqui::modifier
                         });
                 });
 
-            auto alignments = builder.getGuideAlignments();
-
             auto element = std::move(builder)(innerSize);
 
-            // The rebuilt builder mints a fresh box; carry the guide alignments
-            // onto it so the container resolves them against the same box it
-            // places, not the one gravity consumed.
-            auto placed = makeBuilderFromElement(std::move(element))
+            return makeBuilderFromElement(std::move(element))
                 | transformBuilder(offset)
                 ;
-            placed.setGuideAlignments(std::move(alignments));
-
-            return placed;
         }
     } // anonymous namespace
 

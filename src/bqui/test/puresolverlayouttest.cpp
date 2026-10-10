@@ -193,8 +193,8 @@ TEST(PureSolverLayout, unconstrainedBoxIsHundredSquare)
 // A size-dependent modifier must not orphan a pure-solver constraint. A
 // fixedWidth(80) leaf wrapped in onClick, which mints a fresh builder through
 // the with-size path, keeps its width at 80 rather than falling back to the
-// weak 100 default: the with-size path carries the builder's box, guide
-// alignments and pure-solver constraints onto the builder it mints.
+// weak 100 default: the with-size path carries the builder's box and
+// pure-solver constraints onto the builder it mints.
 TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
 {
     avg::Vector2f const window(400.0f, 100.0f);

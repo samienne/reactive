@@ -8,7 +8,6 @@
 #include "bqui/simplesizehint.h"
 #include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
-#include "bqui/widget/guide.h"
 #include "bqui/widget/layoutspec.h"
 
 #include <bq/signal/signal.h>
@@ -158,7 +157,6 @@ namespace bqui::widget
                     std::move(gravity_)
                     );
             builder.setBoxVariables(box_);
-            builder.setGuideAlignments(guideAlignments_);
             builder.setPureLayout(pureLayout_);
             return builder;
         }
@@ -207,35 +205,6 @@ namespace bqui::widget
             box_ = std::move(box);
         }
 
-        /**
-         * @brief The guide alignments this widget requests, for its container
-         * to resolve against a shared line. Preserved across a copy, a
-         * size-hint change and type erasure, exactly as the box variables are.
-         */
-        std::vector<GuideAlignment> const& getGuideAlignments() const
-        {
-            return guideAlignments_;
-        }
-
-        /**
-         * @brief Replaces this widget's guide alignments wholesale, used to
-         * carry them across a rebuild that mints a fresh builder.
-         */
-        void setGuideAlignments(std::vector<GuideAlignment> alignments)
-        {
-            guideAlignments_ = std::move(alignments);
-        }
-
-        /**
-         * @brief Records one more guide alignment on a copy of this builder.
-         */
-        auto addGuideAlignment(GuideAlignment alignment)
-        {
-            auto copy = clone();
-            copy.guideAlignments_.push_back(std::move(alignment));
-            return copy;
-        }
-
         auto setBuildParams(BuildParams params) &&
         {
             auto builder = makeBuilder([params=std::move(buildParams_),
@@ -251,7 +220,6 @@ namespace bqui::widget
                 std::move(gravity_)
                 );
             builder.setBoxVariables(box_);
-            builder.setGuideAlignments(guideAlignments_);
             builder.setPureLayout(pureLayout_);
             return builder;
         }
@@ -282,7 +250,6 @@ namespace bqui::widget
                     std::move(gravity_)
                     );
             base.setBoxVariables(box_);
-            base.setGuideAlignments(guideAlignments_);
             base.setPureLayout(pureLayout_);
             return base;
         }
@@ -294,7 +261,6 @@ namespace bqui::widget
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
         BoxVariables box_;
-        std::vector<GuideAlignment> guideAlignments_;
         PureLayout pureLayout_ = emptyPureLayout();
     };
 

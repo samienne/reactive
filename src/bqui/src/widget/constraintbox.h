@@ -11,7 +11,6 @@
 
 #include <avg/vector.h>
 
-#include <cstddef>
 #include <vector>
 
 namespace bqui::widget
@@ -98,16 +97,4 @@ namespace bqui::widget
             bq::signal::AnySignal<avg::Vector2f> size,
             BuildParams const& params);
 
-    /**
-     * @brief Diagnostic: the number of entries provideParam<ResolvedGuides>()
-     * reads from @p params when it is instantiated inside the bqui library.
-     *
-     * A container reads the inherited resolved-guide map with
-     * provideParam<ResolvedGuides>() compiled into this library, while a caller
-     * that injects the map with setParams<ResolvedGuides> compiles that in its
-     * own binary. Setting the param in one binary and reading the count here
-     * tells a map that crossed the library boundary intact apart from one the
-     * library-side BuildParams lookup missed and defaulted to empty.
-     */
-    BQUI_EXPORT std::size_t resolvedGuideParamCount(BuildParams const& params);
 } // namespace bqui::widget
