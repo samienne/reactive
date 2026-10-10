@@ -203,6 +203,12 @@ void Theme::setSecondary(avg::Color const& color)
     deferred_->secondary = color;
 }
 
+void Theme::setTextHeight(float height)
+{
+    deferred_ = std::make_shared<ThemeDeferred>(*deferred_);
+    deferred_->textHeight = height;
+}
+
 bool Theme::operator==(Theme const& rhs) const
 {
     if (deferred_ == rhs.deferred_)
