@@ -126,7 +126,7 @@ class LiveLayout
 {
 public:
     LiveLayout(AnyWidget widget, AnySignal<avg::Vector2f> size) :
-        context_(makeSignalContext(std::move(widget)(BuildParams())(
+        context_(makeSignalContext(buildInRegion(std::move(widget),
                         std::move(size)).getInstance())),
         instance_(context_.evaluate<0>().get<0>())
     {
@@ -175,7 +175,7 @@ TEST(PureSolverLayout, keyedRowPlacesChildrenInOrder)
 
     auto input = makeInput(std::vector<size_t>{ a, b });
 
-    LiveLayout live(pureSolverRoot(hbox(keyedChildren(probes, input.signal))),
+    LiveLayout live(hbox(keyedChildren(probes, input.signal)),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     expectAt(live.read(probes.id(a)), 0.0f, 0.0f);
@@ -193,7 +193,7 @@ TEST(PureSolverLayout, keyedRowPlacesAnAddedChild)
 
     auto input = makeInput(std::vector<size_t>{ a, b });
 
-    LiveLayout live(pureSolverRoot(hbox(keyedChildren(probes, input.signal))),
+    LiveLayout live(hbox(keyedChildren(probes, input.signal)),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     size_t const added = probes.add();
@@ -216,7 +216,7 @@ TEST(PureSolverLayout, keyedRowClosesTheGapOfARemovedChild)
 
     auto input = makeInput(std::vector<size_t>{ a, b, c });
 
-    LiveLayout live(pureSolverRoot(hbox(keyedChildren(probes, input.signal))),
+    LiveLayout live(hbox(keyedChildren(probes, input.signal)),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     input.handle.set(std::vector<size_t>{ a, c });
@@ -237,7 +237,7 @@ TEST(PureSolverLayout, keyedRowFollowsReorderedKeys)
 
     auto input = makeInput(std::vector<size_t>{ a, b, c });
 
-    LiveLayout live(pureSolverRoot(hbox(keyedChildren(probes, input.signal))),
+    LiveLayout live(hbox(keyedChildren(probes, input.signal)),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     input.handle.set(std::vector<size_t>{ c, a, b });
@@ -260,8 +260,8 @@ TEST(PureSolverLayout, keyedRowBuildsEachChildOncePerIdentity)
     auto builds = std::make_shared<int>(0);
     auto input = makeInput(std::vector<size_t>{ a, b });
 
-    LiveLayout live(pureSolverRoot(hbox(
-                    keyedChildren(probes, input.signal, builds))),
+    LiveLayout live(hbox(
+                    keyedChildren(probes, input.signal, builds)),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     ASSERT_GT(*builds, 0);
@@ -292,7 +292,7 @@ TEST(PureSolverLayout, keyedColumnStacksAnAddedChild)
 
     auto input = makeInput(std::vector<size_t>{ a });
 
-    LiveLayout live(pureSolverRoot(vbox(keyedChildren(probes, input.signal))),
+    LiveLayout live(vbox(keyedChildren(probes, input.signal)),
             constant(avg::Vector2f(40.0f, 200.0f)));
 
     expectAt(live.read(probes.id(a)), 0.0f, 160.0f);
@@ -319,12 +319,12 @@ TEST(PureSolverLayout, rowMixesConstantsAndCollections)
     auto as = makeIndices({ a0 });
     auto bs = makeIndices({ b0 });
 
-    LiveLayout live(pureSolverRoot(hbox({
+    LiveLayout live(hbox({
                     probes.fromSignal(constant(first)),
                     collectionChildren(probes, as),
                     probes.fromSignal(constant(middle)),
                     collectionChildren(probes, bs)
-                    })),
+                    }),
             constant(avg::Vector2f(400.0f, 40.0f)));
 
     expectAt(live.read(probes.id(first)), 0.0f, 0.0f);
@@ -351,11 +351,11 @@ TEST(PureSolverLayout, emptyCollectionKeepsItsPlace)
 
     auto items = makeIndices({});
 
-    LiveLayout live(pureSolverRoot(hbox({
+    LiveLayout live(hbox({
                     probes.fromSignal(constant(first)),
                     collectionChildren(probes, items),
                     probes.fromSignal(constant(last))
-                    })),
+                    }),
             constant(avg::Vector2f(300.0f, 40.0f)));
 
     expectAt(live.read(probes.id(first)), 0.0f, 0.0f);
@@ -380,7 +380,7 @@ TEST(PureSolverLayout, emptyRowTakesNoRoomInAColumn)
     column.push_back(probe(id, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
+            vbox(std::move(column)),
             avg::Vector2f(100.0f, 200.0f));
 
     expectAt(readProbe(instance, id), 0.0f, 160.0f);
@@ -402,7 +402,7 @@ TEST(PureSolverLayout, zeroSizedChildTakesNoRoom)
     row.push_back(probe(idB, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(std::move(row))),
+            hbox(std::move(row)),
             avg::Vector2f(300.0f, 40.0f));
 
     EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idZero).size[0]);
@@ -431,7 +431,7 @@ TEST(PureSolverLayout, nestedContainersComposeOffsets)
     outerRow.push_back(vbox(std::move(column)));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(std::move(outerRow))),
+            hbox(std::move(outerRow)),
             avg::Vector2f(300.0f, 80.0f));
 
     // The column is 80 tall and fills the window; B is its top half, the inner
@@ -456,7 +456,7 @@ TEST(PureSolverLayout, overfullColumnOverflowsFixedChildren)
     column.push_back(probe(idC, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
+            vbox(std::move(column)),
             avg::Vector2f(40.0f, 100.0f));
 
     for (btl::UniqueId id : { idA, idB, idC })
@@ -481,7 +481,7 @@ TEST(PureSolverLayout, gravityPlacesAChildAcrossARow)
             | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(std::move(row))),
+            hbox(std::move(row)),
             avg::Vector2f(200.0f, 100.0f));
 
     expectAt(readProbe(instance, idCentred), 0.0f, 30.0f);
@@ -499,7 +499,7 @@ TEST(PureSolverLayout, gravityPlacesAChildAcrossAColumn)
             | modifier::setGravity(constant(avg::Vector2f(1.0f, 0.5f))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
+            vbox(std::move(column)),
             avg::Vector2f(100.0f, 40.0f));
 
     expectAt(readProbe(instance, id), 60.0f, 0.0f);
@@ -525,7 +525,7 @@ TEST(PureSolverLayout, gravityPlacesACappedFillAndAMarginedChild)
     column.push_back(probe(idDefault, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
+            vbox(std::move(column)),
             avg::Vector2f(200.0f, 180.0f));
 
     Geometry capped = readProbe(instance, idCapped);
@@ -549,7 +549,7 @@ TEST(PureSolverLayout, rowRelaysOutOnWindowResize)
 
     auto size = makeInput(avg::Vector2f(200.0f, 40.0f));
 
-    LiveLayout live(pureSolverRoot(hbox(std::move(row))), size.signal);
+    LiveLayout live(hbox(std::move(row)), size.signal);
 
     EXPECT_FLOAT_EQ(160.0f, live.read(idFiller).size[0]);
     expectAt(live.read(idFiller), 40.0f, 0.0f);
@@ -574,7 +574,7 @@ TEST(PureSolverLayout, heightReflowsOnWindowResize)
 
     auto size = makeInput(avg::Vector2f(400.0f, 300.0f));
 
-    LiveLayout live(pureSolverRoot(hbox(std::move(row))), size.signal);
+    LiveLayout live(hbox(std::move(row)), size.signal);
 
     EXPECT_FLOAT_EQ(400.0f, live.read(id).size[0]);
     EXPECT_FLOAT_EQ(30.0f, live.read(id).size[1]);
@@ -599,7 +599,7 @@ TEST(PureSolverLayout, fillFlexesOnBothAxes)
     column.push_back(probe(idColumn, fixed40, fixed40) | modifier::fill());
 
     Instance columnInstance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
+            vbox(std::move(column)),
             avg::Vector2f(200.0f, 300.0f));
 
     std::vector<AnyWidget> row;
@@ -607,7 +607,7 @@ TEST(PureSolverLayout, fillFlexesOnBothAxes)
     row.push_back(probe(idRow, fixed40, fixed40) | modifier::fill());
 
     Instance rowInstance = realiseConverged(
-            pureSolverRoot(hbox(std::move(row))),
+            hbox(std::move(row)),
             avg::Vector2f(200.0f, 300.0f));
 
     Geometry inColumn = readProbe(columnInstance, idColumn);
@@ -633,7 +633,7 @@ TEST(PureSolverLayout, gridPlacesRowsFromTheBottom)
         .cell(0, 1, 2, 1, fillerProbe(idTop))
         ;
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)),
+    Instance instance = realiseConverged(std::move(grid),
             avg::Vector2f(200.0f, 100.0f));
 
     Geometry bottomLeft = readProbe(instance, idBottomLeft);
@@ -655,7 +655,7 @@ TEST(PureSolverLayout, singleCellGridFillsTheWindow)
 
     AnyWidget grid = uniformGrid(1, 1).cell(0, 0, 1, 1, fillerProbe(id));
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)),
+    Instance instance = realiseConverged(std::move(grid),
             avg::Vector2f(120.0f, 80.0f));
 
     Geometry g = readProbe(instance, id);
@@ -672,7 +672,7 @@ TEST(PureSolverLayout, gridKeepsTracksOfEmptyCells)
 
     AnyWidget grid = uniformGrid(3, 1).cell(2, 0, 1, 1, fillerProbe(id));
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)),
+    Instance instance = realiseConverged(std::move(grid),
             avg::Vector2f(300.0f, 50.0f));
 
     Geometry g = readProbe(instance, id);

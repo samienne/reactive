@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widget/constraintbox.h"
 #include "widget/constraintlayout.h"
 
 #include <bqui/modifier/buildermodifier.h>
@@ -106,14 +107,20 @@ inline Geometry readProbe(Instance const& instance, btl::UniqueId id)
     return {};
 }
 
+// The one way a test builds a tree outside a window: wrapped in a layout region,
+// as a window wraps its content, and built at @p size. The caller reads the
+// instance or the introspection off the returned element.
+inline auto buildInRegion(AnyWidget widget, AnySignal<avg::Vector2f> size)
+{
+    return pureSolverRoot(std::move(widget))(BuildParams())(std::move(size));
+}
+
 // A region owner's solve settles a pass behind the build, so a few update passes
 // are driven before the geometry is read.
 inline Instance realiseConverged(AnyWidget widget, avg::Vector2f size)
 {
-    auto instanceSignal = std::move(widget)(BuildParams())(constant(size))
-        .getInstance();
-
-    auto context = makeSignalContext(std::move(instanceSignal));
+    auto context = makeSignalContext(
+            buildInRegion(std::move(widget), constant(size)).getInstance());
     Instance instance = context.evaluate<0>().get<0>();
 
     for (uint64_t frame = 1; frame <= 5; ++frame)
@@ -132,10 +139,8 @@ inline Instance realiseConverged(AnyWidget widget, avg::Vector2f size)
 // chance to settle behind.
 inline Instance realiseOnce(AnyWidget widget, avg::Vector2f size)
 {
-    auto instanceSignal = std::move(widget)(BuildParams())(constant(size))
-        .getInstance();
-
-    auto context = makeSignalContext(std::move(instanceSignal));
+    auto context = makeSignalContext(
+            buildInRegion(std::move(widget), constant(size)).getInstance());
     return context.evaluate<0>().get<0>();
 }
 

@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -305,6 +306,11 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
 std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
         std::vector<BoxVariables> const& boxes, BoxVariables const& container)
 {
+    if (solution.find(container.left.id()) == solution.end())
+        throw std::logic_error("bqui: a container was built outside a layout "
+                "region, so no solve places its children; wrap the tree in "
+                "pureSolverRoot().");
+
     avg::Obb containerObb = readObb(solution, container);
     avg::Vector2f containerTopLeft =
         containerObb.getTransform().getTranslation();
