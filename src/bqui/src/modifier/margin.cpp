@@ -10,14 +10,10 @@
 #include "bqui/widget/builder.h"
 #include "bqui/widget/widget.h"
 
-#include <bqui/growsizehint.h>
-
 #include <bq/signal/signal.h>
 #include <bq/signal/merge.h>
 
 #include <avg/transform.h>
-
-#include <btl/fn.h>
 
 namespace bqui::modifier
 {
@@ -96,16 +92,6 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
                     return avg::translate(amount, amount);
                 });
 
-        auto builderGrowSizeHint = makeBuilderModifier([](auto builder, auto amount)
-                {
-                    auto hint = merge(builder.getSizeHint(), amount)
-                        .map(BTL_FN(growSizeHint));
-
-                    return std::move(builder)
-                        .setSizeHint(std::move(hint));
-                },
-                amount);
-
         auto shrinkModifier = makeBuilderModifier(
                 [](widget::AnyBuilder builder, auto amount)
                 {
@@ -120,7 +106,6 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
             | shrinkModifier
             | transform(std::move(t))
             | growSize(amount)
-            | std::move(builderGrowSizeHint)
             | detail::pureInsetModifier(amount)
             ;
     },

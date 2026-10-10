@@ -12,10 +12,8 @@
 #include "bqui/modifier/onpointerdown.h"
 #include "bqui/modifier/onpointerup.h"
 #include "bqui/modifier/onpointermove.h"
-#include "modifier/setsizehint.h"
 #include "bqui/modifier/transform.h"
 
-#include "bqui/simplesizehint.h"
 #include "bqui/widget/hbox.h"
 #include "bqui/widget/vbox.h"
 
@@ -114,10 +112,6 @@ AnyWidget scrollView(AnyWidget widget)
             ;
 
         auto view = bin(std::move(contentWidget), contentSize)
-            | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                Band{100, 400, 10000, 1},
-                Band{100, 800, 10000, 1}
-                )))
             // The firewall stops the content's size propagating up, so the view
             // publishes its own pure band -- the viewport's preferred size,
             // flexing on both axes -- and a pure-region parent sizes the scroll
@@ -174,18 +168,11 @@ AnyWidget scrollView(AnyWidget widget)
             | modifier::frame()
             ;
 
-        auto makeBox = []()
-        {
-            return bq::signal::constant(simpleSizeHint(25.0f, 25.0f));
-        };
-
         // The corner where the bars meet is a fixed vScrollBar-thickness square,
         // not a filler: a pure hScrollBar flexes along the row, so a competing
         // filler corner would split the row's slack with it. A fixed corner lets
-        // the bar take the whole width but the thickness. Banded, the same fixed
-        // 25x25 SizeHint holds, so the banded row is unchanged.
+        // the bar take the whole width but the thickness.
         auto corner = makeWidget()
-            | modifier::setSizeHint(makeBox())
             | modifier::fixedSize(bq::signal::constant(avg::Vector2f(25.0f, 25.0f)))
             ;
 
