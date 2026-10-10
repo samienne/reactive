@@ -144,8 +144,9 @@ Band const fixed40 = { 40.0f, 40.0f, 40.0f };
 
 // A content leaf whose natural height is inversely proportional to its resolved
 // width -- narrower means taller (height == area / width) -- so it reflows only
-// when phase 2 reads the resolved width rather than the natural width. It fills
-// its row so its resolved width tracks the window. Tagged for geometry read-back.
+// when phase 2 reads the resolved width rather than the natural width. It grows
+// along its width only so its resolved width tracks the window while its height
+// stays its own. Tagged for geometry read-back.
 inline AnyWidget reflowProbe(btl::UniqueId id, float area, float fallbackWidth)
 {
     auto natural = [](float value)
@@ -179,7 +180,7 @@ inline AnyWidget reflowProbe(btl::UniqueId id, float area, float fallbackWidth)
                             }));
                         return builder;
                     }))
-            | modifier::fill(),
+            | modifier::growWidth(),
             id);
 }
 

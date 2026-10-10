@@ -556,10 +556,10 @@ TEST(PureSolverLayout, heightReflowsOnWindowResize)
     EXPECT_FLOAT_EQ(60.0f, live.read(id).size[1]);
 }
 
-// fill() flexes along the container's stacking axis only: in a column a fill
-// leaf beside a fixed sibling takes the remaining height but keeps its natural
-// width, while in a row it takes the remaining width at its natural height.
-TEST(PureSolverLayout, fillFlexesAlongTheContainerAxis)
+// fill() flexes on both axes: in a column a fill leaf beside a fixed sibling
+// takes the remaining height and the column's whole width, while in a row it
+// takes the remaining width and the row's whole height.
+TEST(PureSolverLayout, fillFlexesOnBothAxes)
 {
     btl::UniqueId const idColumn = btl::makeUniqueId();
     btl::UniqueId const idRow = btl::makeUniqueId();
@@ -581,12 +581,12 @@ TEST(PureSolverLayout, fillFlexesAlongTheContainerAxis)
             avg::Vector2f(200.0f, 300.0f));
 
     Geometry inColumn = readProbe(columnInstance, idColumn);
-    EXPECT_FLOAT_EQ(40.0f, inColumn.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, inColumn.size[0]);
     EXPECT_FLOAT_EQ(260.0f, inColumn.size[1]);
 
     Geometry inRow = readProbe(rowInstance, idRow);
     EXPECT_FLOAT_EQ(160.0f, inRow.size[0]);
-    EXPECT_FLOAT_EQ(40.0f, inRow.size[1]);
+    EXPECT_FLOAT_EQ(300.0f, inRow.size[1]);
 }
 
 // A cell spanning a grid's whole top row covers both columns, and row 0 is the

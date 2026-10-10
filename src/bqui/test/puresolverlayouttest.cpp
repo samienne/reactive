@@ -1284,12 +1284,11 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
     EXPECT_FLOAT_EQ(150.0f, filler.position[0]);
 }
 
-// A flexing child uses all the space its flex allows on either axis, so a column
-// holding a row with an hfiller is itself horizontally flexible: beside a sibling
-// filler in an 800 row it starts from its widest child's 200 and takes an even
-// share of the 600 left (500) rather than settling at 200. Its fixed content
-// keeps its own size.
-TEST(PureSolverLayout, columnHoldingFlexingRowSharesCrossSlack)
+// A row's horizontal flex is cross-axis to the column holding it, so it does not
+// make the column horizontally flexible: beside a sibling filler in an 800 row
+// the column settles at its widest child's 200 and the sibling takes the 600
+// left. Its fixed content keeps its own size.
+TEST(PureSolverLayout, columnHoldingFlexingRowKeepsItsNaturalWidth)
 {
     avg::Vector2f const window(800.0f, 200.0f);
 
@@ -1323,19 +1322,19 @@ TEST(PureSolverLayout, columnHoldingFlexingRowSharesCrossSlack)
     Geometry wideFixed = readProbe(instance, idWideFixed);
     Geometry sibling = readProbe(instance, idSibling);
 
-    EXPECT_FLOAT_EQ(500.0f, sibling.position[0]);
-    EXPECT_FLOAT_EQ(300.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(600.0f, sibling.size[0]);
 
     EXPECT_FLOAT_EQ(60.0f, narrowFixed.size[0]);
     EXPECT_FLOAT_EQ(200.0f, wideFixed.size[0]);
 }
 
-// The negative-filler regression, downstream of the same undersizing. The column
-// is nested beside a filler, not anchored to the window, so it starts from its
-// widest child's 200 and takes half the 200 left: 300. The narrow flexing row is
-// then cross-filled to 300 and its hfiller takes 300 - 60 = 240 -- positive.
-// Before the fix the column collapsed to 60, the required edge-tiling held the
-// fixed 60 at full size, and the hfiller was driven negative to reconcile.
+// The negative-filler regression. The column is nested beside a filler, not
+// anchored to the window, so it settles at its widest child's 200. The narrow
+// flexing row is then cross-filled to 200 and its hfiller takes 200 - 60 = 140
+// -- positive. Before the fix the column collapsed to 60, the required
+// edge-tiling held the fixed 60 at full size, and the hfiller was driven
+// negative to reconcile.
 TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
 {
     avg::Vector2f const window(400.0f, 200.0f);
@@ -1369,15 +1368,17 @@ TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
     Geometry narrowFiller = readProbe(instance, idNarrowFiller);
 
     EXPECT_GE(narrowFiller.size[0], 0.0f);
-    EXPECT_FLOAT_EQ(240.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
     EXPECT_FLOAT_EQ(60.0f, narrowFiller.position[0]);
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idNarrowFixed).size[0]);
 }
 
 // Double nesting: the widest child sits behind an extra column.
 // vbox({ vbox({ hbox({fixed 60, hfiller}) }), hbox({fixed 200}) }) must still
-// encompass the 200 fixed row, and the doubly nested filler stays non-negative --
-// the cross natural rides up through the inner column whose only child flexes.
+// encompass the 200 fixed row, and the doubly nested filler stays non-negative.
+// The row's horizontal flex is cross-axis to the inner column, so the inner
+// column holds its natural 60 rather than stretching to 200, leaving the filler
+// nothing.
 TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
 {
     avg::Vector2f const window(400.0f, 200.0f);
@@ -1414,9 +1415,9 @@ TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
     Geometry sibling = readProbe(instance, idSibling);
     Geometry narrowFiller = readProbe(instance, idNarrowFiller);
 
-    EXPECT_FLOAT_EQ(300.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
     EXPECT_GE(narrowFiller.size[0], 0.0f);
-    EXPECT_FLOAT_EQ(240.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, narrowFiller.size[0]);
 }
 
 // A frame is layout-transparent in a pure region: its margin insets the
@@ -2626,12 +2627,11 @@ TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
     }
 }
 
-// A child flexible on its row's cross axis fills the height the row is given,
-// and its natural does not inflate the row: a flexible leaf with an 800 natural
-// height beside a fixed 40 leaf, in a row above a fixed 40 footer in a 300-tall
-// window, makes the row take the 260 the footer leaves and fills it, instead of
-// the row growing to 800 and overflowing. The fixed sibling keeps its 40 at the
-// row's top.
+// A child flexible on its row's cross axis fills the height the row takes from
+// its children's naturals, without making the row flexible: a flexible leaf with
+// a 20 natural height beside a fixed 40 leaf, in a row above a fixed 40 footer in
+// a 300-tall window, fills the row's 40 rather than the row taking the 260 the
+// footer leaves.
 TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -2641,7 +2641,7 @@ TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
     btl::UniqueId const idFooter = btl::makeUniqueId();
 
     Band const growX = { 20.0f, 60.0f, 10000.0f, 1.0f };
-    Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+    Band const growY = { 10.0f, 20.0f, 10000.0f, 1.0f };
 
     std::vector<ArraySignal<AnyWidget>> row;
     row.push_back(probe(idFixed, fixed40, fixed40));
@@ -2659,15 +2659,15 @@ TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
     Geometry flex = readProbe(instance, idFlex);
     Geometry footer = readProbe(instance, idFooter);
 
-    EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(40.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, flex.position[1]);
 
     EXPECT_FLOAT_EQ(40.0f, fixed.size[0]);
     EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
     EXPECT_FLOAT_EQ(260.0f, fixed.position[1]);
 
     EXPECT_FLOAT_EQ(40.0f, footer.size[1]);
-    EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
+    EXPECT_FLOAT_EQ(220.0f, footer.position[1]);
 }
 
 // A cross-flexible child fills its slot only up to its own max: in a 300-tall
@@ -2832,9 +2832,9 @@ TEST(PureSolverLayout, flexibleChildFillsStackSlot)
 namespace
 {
 
-// A column holding a row that carries an hfiller: flexible on its width (the
-// column's cross axis), so it fills its slot in a parent row unless a fixed
-// width says otherwise.
+// A column holding a row that carries an hfiller, made flexible on its width
+// (the column's cross axis, which the row's flex does not carry across), so it
+// fills its slot in a parent row unless a fixed width says otherwise.
 AnyWidget flexingColumn(btl::UniqueId leafId)
 {
     std::vector<ArraySignal<AnyWidget>> row;
@@ -2843,7 +2843,8 @@ AnyWidget flexingColumn(btl::UniqueId leafId)
 
     std::vector<ArraySignal<AnyWidget>> column;
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
-    return vbox(ArraySignal<AnyWidget>(std::move(column)));
+    return vbox(ArraySignal<AnyWidget>(std::move(column)))
+        | modifier::growWidth();
 }
 
 } // namespace
@@ -3344,6 +3345,166 @@ TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
 
     EXPECT_FLOAT_EQ(0.0f, readProbe(clamped, idEmptied).size[0]);
     EXPECT_FLOAT_EQ(60.0f, readProbe(clamped, idRest).size[0]);
+}
+
+// A row's flex along its own axis carries outward: a row holding a fill() leaf
+// beside a fixed 40 leaf, itself beside a fixed 40 leaf in a 300 row, takes the
+// 260 left and its fill leaf the 220 beyond its sibling. Across the outer row it
+// keeps its natural 40, which the fill leaf fills.
+TEST(PureSolverLayout, rowWithFillChildFillsAlongOuterRow)
+{
+    avg::Vector2f const window(300.0f, 100.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idOuterFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    inner.push_back(probe(idFill, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> outer;
+    outer.push_back(hbox(ArraySignal<AnyWidget>(std::move(inner))));
+    outer.push_back(probe(idOuterFixed, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outer)))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+
+    EXPECT_FLOAT_EQ(220.0f, fill.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, readProbe(instance, idOuterFixed).position[0]);
+}
+
+// A row holding a fill() leaf is horizontally flexible, so a column fills it
+// across its whole width, while a row of fixed content keeps its natural width.
+TEST(PureSolverLayout, rowWithFillChildFillsAcrossOuterColumn)
+{
+    avg::Vector2f const window(300.0f, 200.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idFixed = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> flexingRow;
+    flexingRow.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    flexingRow.push_back(probe(idFill, fixed40, fixed40) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> fixedRow;
+    fixedRow.push_back(probe(idFixed, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(flexingRow))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(fixedRow))));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+
+    EXPECT_FLOAT_EQ(260.0f, fill.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, fill.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idFixed).size[0]);
+}
+
+// A child flexing across a row does not make the row flexible on that axis: in a
+// column beside a vfiller, a row holding a fill() leaf of natural height 20 and a
+// fixed 40 leaf keeps its natural 40 height, the fill leaf fills those 40, and
+// the filler takes the 260 left.
+TEST(PureSolverLayout, rowWithCrossFillChildKeepsNaturalHeight)
+{
+    avg::Vector2f const window(200.0f, 300.0f);
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Band const short20 = { 0.0f, 20.0f, 10000.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    row.push_back(probe(idFill, fixed40, short20) | modifier::fill());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    column.push_back(withArea(vfiller(), idFiller));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    Geometry fill = readProbe(instance, idFill);
+    Geometry filler = readProbe(instance, idFiller);
+
+    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, fill.position[1]);
+    EXPECT_FLOAT_EQ(260.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(0.0f, filler.position[1]);
+}
+
+namespace
+{
+
+// A container holding one fill() leaf, laid out first beside a fixed 40 leaf in
+// a row and then in a column, so its flex is seen on each axis in turn: it takes
+// what the fixed leaf leaves along the box and fills the box across it.
+void expectFillableOnBothAxes(
+        std::function<AnyWidget(AnyWidget)> const& container)
+{
+    btl::UniqueId const idInRow = btl::makeUniqueId();
+    btl::UniqueId const idInColumn = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(container(probe(idInRow, fixed40, fixed40)
+                | modifier::fill()));
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    Instance rowInstance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            avg::Vector2f(300.0f, 200.0f));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(container(probe(idInColumn, fixed40, fixed40)
+                | modifier::fill()));
+    column.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    Instance columnInstance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            avg::Vector2f(200.0f, 300.0f));
+
+    Geometry inRow = readProbe(rowInstance, idInRow);
+    EXPECT_FLOAT_EQ(260.0f, inRow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, inRow.size[1]);
+
+    Geometry inColumn = readProbe(columnInstance, idInColumn);
+    EXPECT_FLOAT_EQ(200.0f, inColumn.size[0]);
+    EXPECT_FLOAT_EQ(260.0f, inColumn.size[1]);
+}
+
+} // namespace
+
+// A stack treats both axes as main axes: a fill() child makes it flexible on
+// either, and the child fills its slot.
+TEST(PureSolverLayout, stackWithFillChildIsFillableOnBothAxes)
+{
+    expectFillableOnBothAxes([](AnyWidget child)
+            {
+                std::vector<AnyWidget> children;
+                children.push_back(std::move(child));
+                return stack(std::move(children));
+            });
+}
+
+// A grid treats both axes as main axes: a fill() child makes it flexible on
+// either, and the child fills its cell.
+TEST(PureSolverLayout, gridWithFillChildIsFillableOnBothAxes)
+{
+    expectFillableOnBothAxes([](AnyWidget child)
+            {
+                return AnyWidget(uniformGrid(1, 1)
+                        .cell(0, 0, 1, 1, std::move(child)));
+            });
 }
 
 TEST(UniformGrid, rejectsAnEmptyDimension)

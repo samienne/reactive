@@ -455,11 +455,11 @@ std::optional<BandNatural> aggregateNatural(
     return result;
 }
 
-// A container's aggregate flex on one axis. Filler coefficients sum along the
-// main axis (fillers laid end-to-end each take a share) and take the max across
-// the cross axis (any one flexing child flexes the whole). Absent when no child
-// flexes. Its presence on an axis is what makes a container holding a filler
-// itself a filler to its parent there.
+// A container's aggregate flex on one axis. Filler coefficients sum along a
+// box's main axis (fillers laid end-to-end each take a share) and take the max
+// on a stack's or grid's overlaid axes (any one flexing child flexes the whole).
+// Absent when no child flexes. Its presence on an axis is what makes a container
+// holding a filler itself a filler to its parent there.
 std::optional<Flex> aggregateFlex(
         std::vector<Constraints> const& children, bool mainAxis)
 {
@@ -575,8 +575,8 @@ AnyWidget solverBoxBuilders(Axis axis,
     // One axis of the container's published band. Each child's band is baked onto
     // its box (flattenConstraints) as untagged relations, and the aggregate
     // natural/min/max/flex is republished as the container's own band: natural and
-    // the bounds aggregate main-axis SUM / cross-axis MAX, flex rides up, and a
-    // size word at this level overrides the republished band.
+    // the bounds aggregate main-axis SUM / cross-axis MAX, the main-axis flex
+    // rides up, and a size word at this level overrides the republished band.
     auto buildAxis =
         [container, gap, flexShare](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
@@ -584,9 +584,12 @@ AnyWidget solverBoxBuilders(Axis axis,
     {
         bool mainAxis = thisAxis == layoutAxis;
 
-        std::optional<Flex> flex = aggregateFlex(childBands, mainAxis);
-        // A flexing child uses all the space its flex allows on either axis, so a
-        // container holding one is itself flexible there and rides its flex up.
+        // A child flexing along the box makes the box flexible there too, so its
+        // flex rides up. Across the box a flexing child only fills the cross
+        // extent the box takes from its children's naturals, so the box stays
+        // rigid on that axis.
+        std::optional<Flex> flex = mainAxis
+            ? aggregateFlex(childBands, true) : std::nullopt;
         bool flexes = flex && flex->coeff > 0.0f;
 
         Constraints result;
@@ -800,8 +803,8 @@ AnyWidget solverStackBuilders(
                 std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
         std::optional<Flex> flex = aggregateFlex(childBands, false);
-        // As in the pure box, a flexing child makes the stack flexible on that
-        // axis, whichever axis it is.
+        // A stack treats both axes as a box treats its main axis: a flexing
+        // child makes the stack flexible on that axis, whichever axis it is.
         bool flexes = flex && flex->coeff > 0.0f;
 
         Constraints result;
