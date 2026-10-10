@@ -2,6 +2,8 @@
 
 #include "widget/constraintbox.h"
 
+#include <bqui/modifier/constraintsize.h>
+#include <bqui/modifier/margin.h>
 #include <bqui/modifier/setgravity.h>
 
 #include <bqui/widget/hbox.h>
@@ -467,9 +469,7 @@ TEST(PureSolverLayout, overfullColumnOverflowsFixedChildren)
 
 // A child smaller than its row's height settles under its gravity across the
 // row: centred by (0.5, 0.5), at the bottom by (0, 0).
-// DISABLED: a pure hbox/vbox pins every child to the cross-axis leading edge
-// and ignores setGravity (pureAxisConstraints has no gravity input).
-TEST(PureSolverLayout, DISABLED_gravityPlacesAChildAcrossARow)
+TEST(PureSolverLayout, gravityPlacesAChildAcrossARow)
 {
     btl::UniqueId const idCentred = btl::makeUniqueId();
     btl::UniqueId const idBottom = btl::makeUniqueId();
@@ -490,8 +490,7 @@ TEST(PureSolverLayout, DISABLED_gravityPlacesAChildAcrossARow)
 
 // A child narrower than its column settles under its gravity across the column:
 // at the right edge by (1, 0.5).
-// DISABLED: a pure hbox/vbox ignores setGravity on the cross axis.
-TEST(PureSolverLayout, DISABLED_gravityPlacesAChildAcrossAColumn)
+TEST(PureSolverLayout, gravityPlacesAChildAcrossAColumn)
 {
     btl::UniqueId const id = btl::makeUniqueId();
 
@@ -504,6 +503,37 @@ TEST(PureSolverLayout, DISABLED_gravityPlacesAChildAcrossAColumn)
             avg::Vector2f(100.0f, 40.0f));
 
     expectAt(readProbe(instance, id), 60.0f, 0.0f);
+}
+
+// A child filling a column's width up to its max settles under its gravity in
+// the width left over, and keeps its gravity through a margin wrapped around it.
+TEST(PureSolverLayout, gravityPlacesACappedFillAndAMarginedChild)
+{
+    btl::UniqueId const idCapped = btl::makeUniqueId();
+    btl::UniqueId const idMargined = btl::makeUniqueId();
+    btl::UniqueId const idDefault = btl::makeUniqueId();
+
+    std::vector<AnyWidget> column;
+    column.push_back(probe(idCapped, fixed40, fixed40)
+            | modifier::fill()
+            | modifier::maxWidth(50.0f)
+            | modifier::fixedHeight(40.0f)
+            | modifier::setGravity(constant(avg::Vector2f(0.5f, 0.5f))));
+    column.push_back(probe(idMargined, fixed40, fixed40)
+            | modifier::setGravity(constant(avg::Vector2f(1.0f, 0.5f)))
+            | modifier::margin(10.0f));
+    column.push_back(probe(idDefault, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(std::move(column))),
+            avg::Vector2f(200.0f, 180.0f));
+
+    Geometry capped = readProbe(instance, idCapped);
+    EXPECT_FLOAT_EQ(50.0f, capped.size[0]);
+    EXPECT_FLOAT_EQ(75.0f, capped.position[0]);
+
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idMargined).position[0]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idDefault).position[0]);
 }
 
 // A row re-lays out when its window resizes: the fixed leaf keeps its size and

@@ -158,6 +158,7 @@ namespace bqui::widget
                     );
             builder.setBoxVariables(box_);
             builder.setPureLayout(pureLayout_);
+            builder.setGravityExplicit(gravityExplicit_);
             return builder;
         }
 
@@ -221,6 +222,7 @@ namespace bqui::widget
                 );
             builder.setBoxVariables(box_);
             builder.setPureLayout(pureLayout_);
+            builder.setGravityExplicit(gravityExplicit_);
             return builder;
         }
 
@@ -233,12 +235,35 @@ namespace bqui::widget
         {
             auto copy = clone();
             copy.gravity_ = std::move(gravity);
+            copy.gravityExplicit_ = true;
             return copy;
         }
 
         bq::signal::AnySignal<avg::Vector2f> getGravity() const
         {
             return gravity_;
+        }
+
+        /**
+         * @brief Whether the gravity was stated by setGravity() rather than left
+         * at the default.
+         *
+         * A pure box places a child across its axis by gravity only when it is
+         * stated, and otherwise keeps it at the leading edge. Preserved across a
+         * copy, a size-hint change and type erasure, exactly as the gravity is.
+         */
+        bool isGravityExplicit() const
+        {
+            return gravityExplicit_;
+        }
+
+        /**
+         * @brief Carries isGravityExplicit() onto a builder minted afresh from
+         * this one's gravity.
+         */
+        void setGravityExplicit(bool value)
+        {
+            gravityExplicit_ = value;
         }
 
         operator BuilderBase() &&
@@ -251,6 +276,7 @@ namespace bqui::widget
                     );
             base.setBoxVariables(box_);
             base.setPureLayout(pureLayout_);
+            base.setGravityExplicit(gravityExplicit_);
             return base;
         }
 
@@ -260,6 +286,7 @@ namespace bqui::widget
         BuildParams buildParams_;
         bq::signal::AnySignal<avg::Vector2f> gravity_ =
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f));
+        bool gravityExplicit_ = false;
         BoxVariables box_;
         PureLayout pureLayout_ = emptyPureLayout();
     };
