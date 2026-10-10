@@ -543,6 +543,11 @@ solve per region and republishes an aggregate band. The rules that follow
   its own region at the size the boundary is assigned.
 - **A container outside a region throws** `std::logic_error` instead of laying
   out at 0x0. Every window root is a region, and tests build through one.
+- **Only structure is required.** Every stated value, the region anchor
+  included, is strong, ranked anchor > `min` > `max` > fixed. Structure is
+  satisfiable by construction, so a solve always yields some layout; an
+  infeasible required set left a region blank or frozen with no diagnostic.
+  Unmet strong constraints are logged instead.
 
 **Why:** the earlier `SizeHint` model computed sizes in closed form per container
 and could not express relations across container levels; a single solve per
