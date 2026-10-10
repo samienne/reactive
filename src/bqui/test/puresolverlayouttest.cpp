@@ -4,6 +4,7 @@
 #include "widget/constraintlayout.h"
 
 #include <bqui/modifier/buildermodifier.h>
+#include <bqui/modifier/clip.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/foreground.h>
 #include <bqui/modifier/frame.h>
@@ -11,6 +12,7 @@
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
+#include <bqui/modifier/transition.h>
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/bin.h>
@@ -224,6 +226,58 @@ TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
             window);
 
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
+}
+
+// A container under a modifier that rebuilds it from its assigned size is
+// still placed: the rebuilt copy is solved as its own region, so the row's
+// children land side by side instead of the build throwing.
+TEST(PureSolverLayout, clickableRowPlacesItsChildren)
+{
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40));
+    row.push_back(probe(idB, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row)))
+            | modifier::onClick(1, [](ClickEvent const&) {}));
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(400.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(readProbe(instance, idA).position[0] + 40.0f,
+            readProbe(instance, idB).position[0]);
+}
+
+// The transition's second copy of a container is built as its own region at
+// the active copy's size, as testapp1's adder rows are.
+TEST(PureSolverLayout, transitionedRowPlacesItsChildren)
+{
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idA, fixed40, fixed40));
+    row.push_back(probe(idB, fixed40, fixed40));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row)))
+            | modifier::transition(modifier::transitionLeft())
+            | modifier::clip());
+
+    Instance instance = realiseConverged(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(400.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idA).size[0]);
+    EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(readProbe(instance, idA).position[0] + 40.0f,
+            readProbe(instance, idB).position[0]);
 }
 
 // A real nested vbox behind pureSolverRoot lays its content leaves out at their
