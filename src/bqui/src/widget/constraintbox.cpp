@@ -622,6 +622,28 @@ void alignBaselines(Constraints& result,
             Anchor{ 0.0f, *ascent }, Anchor{ 1.0f, -block } };
 }
 
+// A column's first baseline is its first child's. That child sits at the
+// column's top, so at its natural height the anchor is a plain offset there; a
+// first child without a height of its own publishes none.
+void publishFirstBaseline(Constraints& result,
+        std::vector<Constraints> const& childBands,
+        std::vector<avg::Vector2f> const& gravities)
+{
+    if (childBands.empty() || gravities.empty())
+        return;
+
+    Constraints const& first = childBands.front();
+    auto it = first.anchors.find(baselineAnchor.id());
+    if (it == first.anchors.end() || !holdsOwnExtent(first))
+        return;
+
+    Anchor anchor = resolveAnchor(it->second,
+            leadingGravity(gravities.front(), Axis::y));
+    result.anchors[baselineAnchor.id()] = BandAnchor{
+        Anchor{ 0.0f, anchor.fraction * first.natural->value + anchor.offset },
+        Anchor{} };
+}
+
 // Composes this container's fragment with its children's onto its builder for
 // the region to solve, then places its children from the solution handed to its
 // build. A @p baseline row aligns its children vertically on their baselines.
@@ -712,6 +734,9 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
             append(rel, pureAxisConstraints(thisAxis, layoutAxis, container,
                         boxes, ownExtents(childBands), gravities, gap, flexes));
         }
+
+        if (thisAxis == Axis::y && layoutAxis == Axis::y)
+            publishFirstBaseline(result, childBands, gravities);
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
