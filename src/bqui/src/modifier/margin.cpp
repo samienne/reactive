@@ -3,9 +3,11 @@
 #include "pureconstraint.h"
 
 #include "bqui/modifier/transform.h"
+#include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/instancemodifier.h"
 
 #include "bqui/widget/instance.h"
+#include "bqui/widget/builder.h"
 #include "bqui/widget/widget.h"
 
 #include <bqui/growsizehint.h>
@@ -41,24 +43,47 @@ namespace
             );
     }
 
-    template <typename T, typename U, typename V>
-    auto marginWidgetModifier(T widget, U&& size, BuildParams const& params,
-            bq::signal::Signal<V, float> amount)
+    // Builds the wrapped widget at the size shrunk by the inset on every side,
+    // threading the region solution through so a pure container under a margin
+    // still reads it to place its own children.
+    widget::AnyBuilder shrinkBuilder(widget::AnyBuilder builder,
+            bq::signal::AnySignal<float> amount)
     {
-        auto builder = std::move(widget)(params);
+        auto sizeHint = builder.getSizeHint();
+        auto gravity = builder.getGravity();
+        auto params = builder.getBuildParams();
+        auto box = builder.getBoxVariables();
+        auto guideAlignments = builder.getGuideAlignments();
+        auto pureLayout = builder.getPureLayout();
 
-        auto adjustedSize = merge(size, amount).map(
-                [](avg::Vector2f size, float amount) -> avg::Vector2f
-                {
-                    return {
-                        std::max(0.0f, size.x() - 2.0f * amount),
-                        std::max(0.0f, size.y() - 2.0f * amount)
-                    };
-                });
+        auto result = widget::makeBuilder(
+            [builder = std::move(builder), amount = std::move(amount)](
+                    BuildParams const&,
+                    bq::signal::AnySignal<avg::Vector2f> size,
+                    bq::signal::AnySignal<widget::LayoutSolution> solution)
+                    -> widget::AnyElement
+            {
+                auto adjustedSize = merge(std::move(size), amount.clone()).map(
+                        [](avg::Vector2f size, float amount) -> avg::Vector2f
+                        {
+                            return {
+                                std::max(0.0f, size.x() - 2.0f * amount),
+                                std::max(0.0f, size.y() - 2.0f * amount)
+                            };
+                        });
 
-        auto element = std::move(builder)(std::move(adjustedSize));
+                return builder.clone()(std::move(adjustedSize),
+                        std::move(solution));
+            },
+            std::move(sizeHint),
+            std::move(params),
+            std::move(gravity)
+            );
 
-        return widget::makeWidgetFromElement(std::move(element));;
+        result.setBoxVariables(std::move(box));
+        result.setGuideAlignments(std::move(guideAlignments));
+        result.setPureLayout(std::move(pureLayout));
+        return result;
     }
 } // anonymous namespace
 
@@ -81,8 +106,11 @@ AnyWidgetModifier margin(bq::signal::AnySignal<float> amount)
                 },
                 amount);
 
-        auto shrinkModifier = makeWidgetModifierWithSize(
-                BTL_FN(marginWidgetModifier), provider::provideBuildParams(),
+        auto shrinkModifier = makeBuilderModifier(
+                [](widget::AnyBuilder builder, auto amount)
+                {
+                    return shrinkBuilder(std::move(builder), std::move(amount));
+                },
                 amount);
 
         // In a pure-solver region, pureInsetModifier wraps the descriptor's band
