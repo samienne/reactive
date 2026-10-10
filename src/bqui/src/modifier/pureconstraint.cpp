@@ -6,7 +6,6 @@
 
 #include "bqui/widget/builder.h"
 
-#include "bqui/sizehint.h"
 
 #include <bq/signal/constant.h>
 #include <bq/signal/signal.h>

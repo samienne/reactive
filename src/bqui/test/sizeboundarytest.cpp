@@ -11,7 +11,6 @@
 #include <bqui/widget/widget.h>
 
 #include <bqui/buildparams.h>
-#include <bqui/sizehint.h>
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>

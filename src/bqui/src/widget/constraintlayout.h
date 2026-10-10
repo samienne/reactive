@@ -2,7 +2,6 @@
 
 #include "bqui/bquivisibility.h"
 
-#include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
 #include "bqui/widget/layoutspec.h"
 
@@ -20,6 +19,15 @@
 #include <btl/function.h>
 
 #include <vector>
+
+namespace bqui
+{
+    enum class Axis
+    {
+        x,
+        y
+    };
+}
 
 namespace bqui::widget
 {
@@ -123,8 +131,7 @@ namespace bqui::widget
      * @brief A box's stable solver identity and the per-axis constraints it
      * contributes to its context's one solve.
      *
-     * The inverse of a SizeHint: a SizeHint is a size value aggregated up the
-     * tree, this is a stable identity (the box's edge variables) plus a stream of
+     * It is a stable identity (the box's edge variables) plus a stream of
      * constraints fed down into a shared solve. The identity is a plain value and
      * only the constraints are signals, so a constraint change re-solves without
      * re-minting the box and the solver's id-keyed diff stays stable.

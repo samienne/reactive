@@ -283,26 +283,6 @@ namespace bqui::widget
         }
     };
 
-    template <typename TFunc, typename T, typename... Ts, typename = std::enable_if_t<
-        std::is_invocable_r_v<AnyBuilder, TFunc, bq::signal::AnySignal<avg::Vector2f>,
-        provider::ParamProviderTypeT<Ts>...>
-    >>
-    auto makeBuilderWithSize(TFunc&& func, Ts&&... ts)
-    {
-        return makeBuilder(btl::bindArguments(
-            [func=std::forward<TFunc>(func)](BuildParams const& params,
-                bq::signal::Signal<T, avg::Vector2f> size, auto&&... ts)
-            {
-                auto sharedSize = size.share();
-                auto builder = func(sharedSize,
-                        provider::invokeParamProvider(ts, params)...);
-
-                return builder(sharedSize);
-            },
-            std::forward<Ts>(ts)...
-            ));
-    }
-
     inline auto makeBuilder()
     {
         return makeBuilder(

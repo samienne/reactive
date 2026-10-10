@@ -15,7 +15,6 @@
 
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
-#include <bqui/sizehint.h>
 
 #include <bq/signal/constant.h>
 #include <bq/signal/frameinfo.h>
@@ -38,6 +37,16 @@ namespace bqui::test
 
 using namespace bqui::widget;
 using namespace bq::signal;
+
+// One axis of a probe leaf: its min, natural and max size, and a positive grow
+// to make it flex.
+struct Band
+{
+    float min = 0.0f;
+    float natural = 0.0f;
+    float max = 0.0f;
+    float grow = 0.0f;
+};
 
 struct Geometry
 {
