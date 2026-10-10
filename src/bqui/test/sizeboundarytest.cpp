@@ -1,5 +1,7 @@
 #include "purelayouttestutil.h"
 
+#include "widget/constraintbox.h"
+
 #include <bqui/modifier/constraintsize.h>
 
 #include <bqui/widget/bin.h>
@@ -68,6 +70,12 @@ AnyWidget growingColumn(btl::UniqueId idA, btl::UniqueId idB)
     column.push_back(probe(idA, grows, grows));
     column.push_back(probe(idB, grows, grows));
     return vbox(ArraySignal<AnyWidget>(std::move(column)));
+}
+
+RegionBand regionBandOf(AnyWidget const& widget, avg::Vector2f size)
+{
+    PureRegion region = buildPureRegion(widget, constant(size), BuildParams());
+    return makeSignalContext(std::move(region.band)).evaluate<0>().get<0>();
 }
 
 } // namespace
@@ -188,4 +196,56 @@ TEST(SizeBoundary, scrollContentWithoutNaturalTakesViewport)
     Geometry t = readProbe(scrolled, idTall);
     EXPECT_FLOAT_EQ(window[0] - bar, t.size[0]);
     EXPECT_FLOAT_EQ(2000.0f, t.size[1]);
+}
+
+TEST(SizeBoundary, regionPublishesContentBand)
+{
+    Band const width = { 50.0f, 80.0f, 200.0f };
+    Band const height = { 20.0f, 30.0f, 60.0f };
+
+    RegionBand band = regionBandOf(probe(btl::makeUniqueId(), width, height),
+            avg::Vector2f(300.0f, 400.0f));
+
+    ASSERT_TRUE(band.width.min.has_value());
+    ASSERT_TRUE(band.width.max.has_value());
+    ASSERT_TRUE(band.width.natural.has_value());
+    EXPECT_FLOAT_EQ(50.0f, *band.width.min);
+    EXPECT_FLOAT_EQ(200.0f, *band.width.max);
+    EXPECT_FLOAT_EQ(80.0f, band.width.natural->value);
+    EXPECT_FALSE(band.width.flex.has_value());
+
+    ASSERT_TRUE(band.height.min.has_value());
+    ASSERT_TRUE(band.height.max.has_value());
+    ASSERT_TRUE(band.height.natural.has_value());
+    EXPECT_FLOAT_EQ(20.0f, *band.height.min);
+    EXPECT_FLOAT_EQ(60.0f, *band.height.max);
+    EXPECT_FLOAT_EQ(30.0f, band.height.natural->value);
+}
+
+TEST(SizeBoundary, regionBandAggregatesColumn)
+{
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    column.push_back(probe(btl::makeUniqueId(), fixed100, fixed40));
+
+    RegionBand band = regionBandOf(
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
+            avg::Vector2f(300.0f, 400.0f));
+
+    ASSERT_TRUE(band.width.natural.has_value());
+    ASSERT_TRUE(band.height.natural.has_value());
+    EXPECT_FLOAT_EQ(100.0f, band.width.natural->value);
+    EXPECT_FLOAT_EQ(80.0f, band.height.natural->value);
+}
+
+// The height band is read at the width the region is solved at: a leaf whose
+// natural height is area / width reports 6000 / 300 in a 300-wide region.
+TEST(SizeBoundary, regionHeightBandIsAtSolvedWidth)
+{
+    RegionBand band = regionBandOf(
+            reflowProbe(btl::makeUniqueId(), 6000.0f, 100.0f),
+            avg::Vector2f(300.0f, 400.0f));
+
+    ASSERT_TRUE(band.height.natural.has_value());
+    EXPECT_FLOAT_EQ(20.0f, band.height.natural->value);
 }

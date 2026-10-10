@@ -20,8 +20,8 @@ namespace bqui::widget
      * size: the containers inside compose their constraints into a single
      * shared solve.
      *
-     * Every window root is laid out through this, so applications never call
-     * it.
+     * A window root is solved through the same core (buildPureRegion()), so
+     * applications never call it.
      */
     BQUI_EXPORT AnyWidget pureSolverRoot(AnyWidget content);
 
@@ -80,6 +80,38 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             std::vector<GridCell> cells, unsigned int columns,
             unsigned int rows);
+
+    /**
+     * @brief The band a region publishes outward: its outermost box's width
+     * band (phase 1) and its height band at the width the region is solved at
+     * (phase 2).
+     */
+    struct RegionBand
+    {
+        Constraints width;
+        Constraints height;
+    };
+
+    /**
+     * @brief A region built at a size: its placed element and the band it
+     * publishes outward.
+     */
+    struct PureRegion
+    {
+        AnyElement element;
+        bq::signal::AnySignal<RegionBand> band;
+    };
+
+    /**
+     * @brief Solves @p content as a self-contained region anchored to @p size,
+     * returning the built element together with the content's band.
+     *
+     * The band is what the region's owner would size its boundary from; the
+     * solve inside does not depend on it beyond the content's own constraints.
+     */
+    BQUI_EXPORT PureRegion buildPureRegion(AnyWidget const& content,
+            bq::signal::AnySignal<avg::Vector2f> size,
+            BuildParams const& params);
 
     /**
      * @brief Solves @p content as a self-contained pure-solver region anchored to
