@@ -524,13 +524,38 @@ The one hard correctness constraint: `dataContext_.swapFrameData()` runs
 **exactly once per update pass, after every entry has updated** — never per
 entry, or one entry would rotate away frame data another still needs.
 
+## Layout is one constraint solve per region, with named size bands
+
+Each builder publishes a per-axis band (`min`, `max`, `natural`, `flex`) plus
+untagged relations; a container stamps its children's bands into one Cassowary
+solve per region and republishes an aggregate band. The rules that follow
+(model in `docs/design/layout.md`):
+
+- **Size words replace a band field; last writer wins.** There is no strength
+  contest for authority. A fixed size clears flex on its axis, and a later
+  `fill()`/`grow()` re-enables it; `min`/`max` bound flex without clearing it.
+- **The natural is the flex basis** (CSS `flex: auto`): slack and deficit are
+  shared by flex weight on top of each child's natural, not from zero.
+- **Fixed children overflow rather than being squeezed**; flex is the opt-in for
+  content that gives.
+- **Size boundaries take their band from outside.** `makeWidgetWithSize`, `bin`
+  and `scrollView` never publish their content's size; the content is solved as
+  its own region at the size the boundary is assigned.
+- **A container outside a region throws** `std::logic_error` instead of laying
+  out at 0x0. Every window root is a region, and tests build through one.
+
+**Why:** the earlier `SizeHint` model computed sizes in closed form per container
+and could not express relations across container levels; a single solve per
+region can, and named band fields keep overrides cheap without a strength ladder.
+Throwing outside a region turns a silent 0x0 layout into an immediate error.
+
 ## Shape transforms are paint-time; layout size is separate
 
 Transforms on a shape (`translate`/`rotate`/`scale`/`transform`) and the
 paint-time `.size(size, gravity)` change *what is drawn* and never affect the
 widget's layout size — translating a shape 50px does not move its neighbours.
-Layout size is a distinct axis, set at the widget level (size-hint modifiers)
-or, in future, a dedicated shape-level `.frame()`.
+Layout size is a distinct axis, set at the widget level (size words such as
+`fixedSize` and `fill`) or, in future, a dedicated shape-level `.frame()`.
 
 **Why:** the two axes are genuinely independent (how big the widget is vs. how
 the shape paints within it), and keeping transforms paint-only makes them

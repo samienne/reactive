@@ -1,314 +1,214 @@
-# Layout model (design proposal)
+# Layout: the pure-solver model
 
-Status: the add-only **model** below is implemented in #131 (add-only
-vocabulary, `Band`/`AxisHint`, `XGuide`/`YGuide` guides, the `ResolvedGuides`
-firewall down-channel). What is **not** yet as designed is the **solve
-granularity**: the shipped wiring makes every container its own firewall+solve
-(fine-grained), whereas this model wants firewalls introduced *sparingly*, with
-one solve spanning a whole region so constraints and guides couple across
-container levels. The rework to that region-solve is the plan in the
-[Rework](#rework-region-solve-2026-08-26) section at the end of this file; the
-model above is the target and stands. Dated 2026-08-12 (model), 2026-08-26
-(rework). No "verified against" stamp yet.
+*Last verified against `0ba669c4` (2026-10-10).*
 
-## Core principle
+How `bqui` sizes and places widgets. The code lives in
+`src/bqui/src/widget/constraintbox.*` (containers, fillers, the region solve),
+`constraintlayout.*` (bands, flattening, the solver wrapper, strengths),
+`src/bqui/src/modifier/constraintsize.cpp` and `pureconstraint.cpp` (size words),
+and `src/bqui/src/windowbridge.cpp` (the window root). The descriptor types are
+in `include/bqui/widget/layoutspec.h`. The solver is Cassowary, from the vendored
+`arrange` subproject.
 
-Constraints are **add-only**. A user only ever *adds* constraints; nothing
-loosens or overrides. A child owns its own minimums. This is what dissolves the
-override / priority-assignment / constraint-removal problems: there is no
-authority contest, so there is nothing to rank or remove.
+## The model in one paragraph
 
-Loosening is logically impossible while a constraint is present (a weaker
-competing bound never defeats a tighter one), so it is simply not offered.
+Every builder carries a `PureLayout`: per axis, a **band** (named `min`, `max`,
+`natural` and `flex` fields) plus a list of untagged solver relations. Size words
+replace a band field, so the last writer wins and nothing competes by strength.
+A container **stamps** each child's band into plain solver constraints on the
+child's box, adds its own structural relations, and publishes an aggregate band
+of its own, which the next size word can override again. A **region** reads the
+band off its top builder, anchors the outermost box to its assigned size, and
+solves the whole subtree once. The solution is handed down into the build, and
+each container reads its children's boxes out of it.
 
-## Sizing vocabulary
+## The descriptor
 
-Superseded: the pure-solver size words (`fixed*`, `min*`, `max*`,
-`defaultSize`, `fill`, `grow`) replaced this vocabulary, and it and the old
-`set*Size` modifiers were removed. The section is kept as the design record.
+`PureLayout` has three phase functions, each returning `AnySignal<Constraints>`:
+`getWidth`, `getHeightForWidth(widthSolution)` and
+`getWidthForHeight(heightSolution)`. Phases 2 and 3 receive the whole solution
+of the other axis, not a scalar, because a container cannot turn its own width
+into its children's widths without solving. It forwards the same solution to
+every child, and each leaf reads its own box from it. So a leaf's height can
+reflow with its resolved width at any depth.
 
-No `set*` names (they imply replacement, which no longer exists). Every modifier
-is additive and tightens the band.
+`Constraints` holds the band fields as *values* (`natural` paired with the
+strength it is held at), not as baked constraints. A value becomes a constraint
+only when it is flattened (`flattenConstraints`) against the box it ends up on.
+That is what lets a wrapper grow a band by arithmetic and re-tag it onto a new
+box. `relations` is additive: tiling, inset relations, flex couplings, and the
+read-back variables the solver API needs (it cannot enumerate variables).
 
-- Per axis: `widthAtLeast/atMost/exactly`, `heightAtLeast/atMost/exactly`.
-- Both axes: `sizeAtLeast`, `sizeAtMost`, `exactSize`.
-- Soft: `preferWidth`/`preferHeight` (the natural target), `growWeight` (filler
-  weight; two grow=1 children split leftover equally, grow=2 gets double).
-- Alignment: `alignLeading/Trailing/Center/Baseline`, `guide(g)`.
+A builder is minted with an empty `PureLayout`. Leaves publish their own:
+`label` publishes its measured text extents as a natural, `textEdit` and
+`scrollView` a default size, and `makeBuilderFromElement` its element size.
+`simplePureLayout` builds the common shape (a width band plus a height-for-width
+function; phase 3 returns the phase-1 width).
 
-Composition is monotonic and order-independent: `widthAtLeast(100)` then
-`widthAtLeast(150)` -> 150, either order.
+## Regions
 
-## Forcing something smaller than it needs is a strategy, not an override
+**One region is one solve.** `buildPureRegion` reads the top builder's
+`PureLayout`, flattens its band onto the outermost box, anchors that box to the
+assigned size, solves width, then solves height given the width solution, and
+combines the two. It builds the content with the combined solution as an
+explicit build argument. The solution is not a `BuildParams` value, because
+params are captured at widget-to-builder time, before the solve exists.
 
-- Default is **overflow**, not clip: the child keeps its size and draws past the
-  container. Visible-when-misplaced beats invisibly-clipped, and clip is costly.
-- `clip()` / `scroll()` add a render node (not a constraint), opt-in.
-- `scaleToFit()` is a transform.
-- Content degradation (truncate/wrap) = the child offering a smaller min about
-  itself. Still add-only, still the child's authority.
+- **Every window root is a region.** `WindowBridge` wraps its content in
+  `buildPureRegion`. The window opens at a hard-coded 800x600 and the region
+  re-solves at the new size when the OS window is resized.
+- **The root band is exposed but unused.** `buildPureRegion` also returns the
+  content's band (`RegionBand`: the phase-1 width band and the phase-2 height
+  band at the current width). `WindowBridge::getRootBand()` holds it, but nothing
+  sizes or limits the OS window from it yet.
+- **A container outside a region throws.** If a container's build gets a
+  solution that does not contain its own box, it throws `std::logic_error` on
+  first evaluate instead of laying its children out at 0x0. Tests build through
+  `buildInRegion()` (`src/bqui/test/purelayouttestutil.h`), which wraps the
+  widget in the same region core.
+- **Solves are change-gated and from scratch.** `solveLayout` re-solves when the
+  constraint signal changes, starting from a cleared solver each time. An
+  infeasible spec (`arrange::Error`) keeps the previous solution, so on a first
+  solve the whole region collapses to zero. This is why nearly everything that
+  can conflict is held `strong`, not `required` (see Strengths).
 
-Overflow default is the *same edit* as removing the forced squeeze: drop the
-required containment cap on a container's trailing edge.
+## Sizing
 
-## Strengths = firmness / degradation only, never authority
+Size words (`modifier/constraintsize.h`) each set one band field on one or both
+axes:
 
-No override => strengths never encode "who outranks whom". They only rank soft
-preferences for graceful degradation:
+- **`fixedWidth`/`fixedHeight`/`fixedSize`** set a strong `natural` and **clear
+  `flex`** on that axis, including a flex that aggregated up from a child. A
+  fixed size and a flex are one choice per axis, and the last writer wins: a
+  later `fill()`/`grow()` re-enables flex, and the fixed value then rides as the
+  flex basis.
+- **`minWidth`/`maxWidth`/...** set strong bounds and **leave `flex` alone**.
+  They bound a flexing widget's stretch rather than cancel it.
+- **`defaultSize`** sets a natural at content strength, for a leaf with no
+  measured size of its own.
+- **`fill()` and `grow(w)` flex on both axes.** `growWidth()`/`growHeight()` are
+  the single-axis forms. `filler()` flexes on the layout axis of the box it sits
+  in (both axes in a stack or grid); `hfiller`/`vfiller` are directional.
 
-`required` > `strong` (size bounds) > `medium` (guides) > `weak` (gravity,
-natural).
+**Natural is the flex basis** (CSS `flex: auto`). A flexing child starts at its
+natural (zero without one, as for a filler) and the slack left after every
+child's natural or fixed size is shared by flex weight. The parent emits the
+coupling `extent == natural + weight * F` from the flex the child *publishes*,
+so a size word that cleared the flex leaves no coupling behind. Short of space,
+`F` goes negative and the deficit is shared by weight too; each flexer stops at
+its `min` or at zero while the others take the rest. The coupling sits far below
+the gap drive, so a flexer clamped by its `max` leaves its coupling violated and
+the slack flows on to the flexers that can still take it.
 
-An unsatisfiable *required* conflict (e.g. `widthAtLeast(100)` and
-`widthAtMost(50)`) is the signal that a strategy is needed - surface it or apply
-a default (clip), never silently squeeze or throw into the void. Default to soft
-where a value is a preference so pressure degrades instead of failing.
+**Fixed children overflow; they are not squeezed.** Force-sizing a container
+smaller than its fixed content shrinks the container's box, and the tiling's
+signed trailing gap goes negative. Flexible children are the way to make content
+give. Every stamped extent also has a strong `>= 0` floor, so an over-full
+container overflows rather than handing a flexer a negative size.
 
-## Positioning: gravity and guides are constraints
+## Containers
 
-Placement is in the solve, not a post-pass (retires `handleGravity`):
+A container stamps each child's band (`flattenConstraints`), adds structural
+relations, and republishes an aggregate band:
 
-- Gravity = a **weak** positioning constraint (center: midpoints equal; leading:
-  edges equal). Constrains position, not size; only bites in surplus / decides
-  which way overflow spills.
-- Guides = **stronger** positioning constraints that beat default gravity by
-  strength (add-only: the stronger soft preference wins, no loosening).
+| Aggregate | Box main axis | Box cross axis; stack and grid, both axes |
+| --- | --- | --- |
+| `natural` | sum | largest |
+| `min` | sum | largest |
+| `max` | sum, only if every child has one | largest, only if every child has one |
+| `flex` | sum of weights | box: none; stack/grid: largest weight |
 
-So the solver uses placement as a degree of freedom to satisfy guides, falling
-back to gravity where a guide does not reach.
+- **On a flexing axis the natural is only a flex basis.** It is published for the
+  parent's aggregation but never stamped, so a flexible child cannot inflate the
+  container. Instead the container publishes as its `min` the floor of its
+  content: each child's `min`, else the natural of a child that does not flex
+  there, else zero.
+- **The `max` rule** exists because a single uncapped child leaves the container
+  free to grow, and a cap taken from the capped children alone would squeeze it.
+- **An empty container has natural 0**, so it takes no room.
+- **The weak 100 default.** A container adds a weak default of 100 on an axis
+  only when it does not flex there and no child states a natural, so an axis its
+  parent neither sizes nor fills still resolves. The default is a relation, not
+  a band field, which is why it is withheld where it would outlast a later
+  `fill()`.
+- **A box propagates child flex outward on its main axis only.** A `fill()` child
+  makes an `hbox` horizontally flexible, but not vertically: across, the box
+  takes its extent from its children's naturals (a cross-flexing child's natural
+  counts) or from its parent, and the flexing child fills that extent up to its
+  `max`. A widget that should flex across says so on the box itself.
+- **Stack and grid treat both axes as main** for flex: any flexing child makes
+  them flexible on that axis. They emit no coupling; a filling child fills its
+  slot or cell.
+- **Placement.** A child that holds its own extent (a natural that is not a flex
+  basis) keeps it and is not pulled; every other child fills its slot up to its
+  `max`. In a box, a child that does not span the cross extent sits at the
+  leading edge (top of a row, left of a column) unless it has an explicit
+  `setGravity`. Stack and grid always place by the child's gravity.
+- **The box gap is driven only when some child flexes on the main axis**, so a
+  container with nothing to stretch does not fight a parent stretching it.
 
-## Determinacy invariant: no free variables
+## Wrappers
 
-A pure constraint system is underdetermined without defaults. Every box edge
-must be reached by at least one weak constraint, or its value is undefined.
+`margin` (through `applyPureInset`) mints a new outer box,
+grows the band fields by twice the inset, re-tags the band onto the outer box,
+and adds required inner/outer edge relations. The inner box keeps no band. So
+there is always exactly **one band, on the outermost box**, plus a chain of
+inset relations; a later size word replaces that one band and the chain
+distributes it inward (`image | margin(10) | fixedSize(100)` gives an 80 image).
+Keeping the inner band would contradict a later size word. A wrapper adds no
+default of its own.
 
-- Every widget contributes a weak `natural`-size preference.
-- A container backstops any child with no intrinsic size (fill or zero) and pins
-  position (tiling + weak gravity).
-- **Container contract: leave no child under-constrained.**
+## Size boundaries
 
-## Two passes
+`makeWidgetWithSize`, `bin` and `scrollView` are size boundaries: their outward
+band comes from outside, never from their content, and the content gets its own
+region solved at the size the boundary is assigned. So content size never
+crosses into the parent's solve.
 
-- **Band up** - closed-form aggregation (`accumulateSizeHints`), a pure query,
-  no solver. Main axis = sum, cross = max; anchors split the band at the
-  baseline and max each half.
-- **Place down** - the solve, per firewall region. Constraints are regenerated
-  each frame from the bands, never edited. "Override" = remap the *reported band*
-  upstream of conversion; the constraints are never the target.
+- `makeWidgetWithSize` and `bin` publish no band unless size words are applied
+  to them.
+- `scrollView` publishes its own viewport band: natural 400x800, min 100x100,
+  flexing on both axes. Its content size on each axis is the natural of the
+  content's band, else the viewport extent held within the band's `min`/`max`.
 
-## SizeHint shape
+A boundary that hugs its content (reads the content band outward) would be
+possible but is deliberately not offered.
 
-Per axis: `AxisHint { Band extent; Anchors anchors; }`.
+## Strengths
 
-- `Band { float min, natural, max, grow; }` (add `shrink` later if compression
-  needs a second weight). Replaces the current `array<float,3>`.
-- `Anchors { optional<float> firstBaseline, lastBaseline; }` - sparse; a metric
-  (offset), a function of the main-axis size, never of cross-axis allocation.
-- Also carries exposed guides: `{ guideId -> pre-construction constraint }`.
+Strengths rank firmness for graceful degradation, not authority (authority is
+the band's last-writer-wins). From firmest:
 
-## Guides
+- **required**: structural relations (tiling, the signed gap equation, inset
+  edges, grid lines) and the region anchor.
+- **strong**: a fixed size, `min`/`max` bounds, the `>= 0` extent floor. A strong
+  bound that cannot be met yields and overflows rather than failing the solve,
+  and a fixed size ties with a bound rather than losing to it.
+- **weak**, in order: content natural (2.0), cross-axis fill (1.0), the 100
+  default (0.001), the gap drive (0.0008), stack slot fill (0.0004), flex
+  coupling (0.00001).
 
-`XGuide` / `YGuide` - **distinct concrete value types** (not a template alias),
-each wrapping a private `avg::UniqueId`. Copyable and `==`-comparable, no id
-getter (opaque token; layout internals reach the id via friend/internal access).
-Axis lives in the type (compile-time axis safety: an `XGuide` positions on X, a
-`YGuide` on Y). Minted when the user defines the widgets, so identity is stable
-and shareable exactly like widget/input identity; maps to a per-solve
-`arrange::Variable` internally.
+Content above cross-fill is the shrink-wrap default: a measured leaf keeps its
+size rather than stretching to fill. The weak lane is sensitive to ordering, so
+weigh any new weak constraint against it.
 
-`XGuide` = a guide at an X position (constrains horizontal placement); `YGuide`
-= a guide at a Y position (constrains vertical placement). (Note: this is the
-axis of the *position*, not a line orientation - avoids the "vertical line vs
-vertical axis" ambiguity.)
+## Known limitations
 
-## Firewall
+- **Large flex-weight ratios.** The flex coupling sits at weak(1e-5), below the
+  gap drive, so the slack split is exact only while the weight ratio stays
+  modest; beyond a ratio of about 80 the split degrades.
+- **Phase 3 is not run.** `getWidthForHeight` is part of the descriptor, but
+  regions run only the width and height-for-width solves.
+- **Infeasibility is silent.** An infeasible region keeps its previous solution
+  with no diagnostic.
 
-`LayoutFirewall` = the reusable solve boundary. The root is one (fed the window
-size, empty resolved-guide map). Introduce **sparingly** - root always,
-`makeWidgetWithSize` near leaves, deliberate scopes (scroll view, reusable
-component). Within a firewall, constraints and guides span freely across
-container levels.
+## Future work
 
-Interface (same at every level, so nesting composes with no special case):
-
-- **Down (build):** `{ size: Vector2f, resolvedGuides: Map<UniqueId,float>,
-  params: BuildParams }`.
-- **Up (pre-construction):** `SizeHint` (band + anchors + exposed guides).
-
-Resolution:
-
-- Flows down and accumulates: each firewall passes inward `received guides + its
-  own newly-resolved guides`, so a guide resolved at any ancestor is a constant
-  at any depth (a root guide threads all the way down).
-- Exposure chains up: a guide defined deep but referenced shallower is re-exposed
-  in each firewall's SizeHint on the way up.
-- Gated by **pre-construction expressibility**: the SizeHint can only express
-  guide constraints in pre-construction terms, so any guide it exposes is
-  outer-resolvable by construction, and any guide depending on inner content
-  cannot be exposed and is therefore necessarily an inner-only free variable.
-  No cross-firewall cycle is expressible.
-- A guide used only inside a firewall is a free variable the inner solve owns
-  (outer-free, inner-determined). Resolved guides are matched by `UniqueId` at
-  the builder->Element step.
-
-Implementation status (M6): the down-channel and root-as-firewall are in. The
-existing `makeWidgetWithSize` primitive *is* the firewall - no distinct
-`LayoutFirewall` type was added; it is formalised by the `ResolvedGuides`
-BuildParams entry (`src/bqui/include/bqui/widget/resolvedguides.h`, a
-`map<UniqueId,float>`) that every firewall reads, and by `rootFirewallParams()`
-seeding the window mount with an empty map. A firewall's solve pins any guide
-present in the inherited map to that constant (`guideConstraints` consults the
-map and pins strong; it also returns its per-guide line variables so a solve can
-read a locally resolved line back out). The map threads to descendants through
-ordinary BuildParams inheritance, so a guide an ancestor resolves reaches an
-inner firewall across the boundary as a constant (proven end to end by
-`Layout.resolvedGuideCrossesFirewallBoundary` and, at the solve layer, by
-`guideLayout.resolvedGuideValueCrossesBetweenFirewallSolves`). Because a nested
-firewall solves in its own local space, a crossing value only lands on the same
-window-space line where the boundary offset is zero on the guide's axis.
-
-Deferred: automatically folding a container's *own* solved guide lines into the
-map it hands descendants (the read-back primitive exists, but re-injecting a
-solve result into an already-built child firewall's params needs builder-param
-plumbing the current pipeline does not offer). The whole up-exposure channel
-(exposing a deep-defined guide through each firewall's SizeHint) is also not
-started. Both are safe to leave: the pass-through down-channel already carries
-every pre-construction-expressible guide, which is the gating rule.
-
-## What Cassowary is for
-
-The general engine where distribution / guides / alignment couple. Closed-form
-stays the fast path for plain boxes (and is mandatory for the band-up pass, which
-is a pure query with no solver in scope).
-
-## Relationship to current code (Stage-4b) and milestones
-
-Current (in this worktree): `src/bqui/src/widget/constraintbox.cpp` +
-`constraintlayout.cpp` + `include/bqui/widget/box.h` (`accumulateSizeHints`) +
-`include/bqui/sizehint.h`. Bands are `array<float,3>` read as {min, natural,
-max}; fillers are equal-split (`childExtent == stretch`); `boxConstraints` caps
-the trailing edge required (forces squeeze); gravity is a `handleGravity`
-post-pass.
-
-Suggested milestones (each verifiable on its own):
-
-1. **Overflow default** - drop the required trailing cap in `boxConstraints`,
-   keep the weak fill pull. Over-full boxes overflow; fillers still fill.
-2. **Add-only vocabulary** - `widthAtLeast/atMost/exactly` (+ height, + size*
-   both-axis, + `preferWidth/Height`) as additive modifiers over the size hint.
-3. **Band struct** - `array<float,3>` -> `Band{min,natural,max,grow}`; weighted
-   fillers (`childExtent == natural + grow*stretch`).
-4. **Anchors** - `AxisHint`/`Anchors`, baseline metric on text, split-and-max in
-   `accumulateSizeHints`, baseline constraints in the box solve.
-5. **Positioning as constraints** - gravity + `XGuide`/`YGuide` guides in the
-   solve; retire `handleGravity`.
-6. **LayoutFirewall** - the boundary primitive, root-as-firewall, multi-level
-   guide resolution. Landed: `makeWidgetWithSize` formalised as the firewall, the
-   `ResolvedGuides` down-channel, root-as-firewall, and cross-firewall constant
-   pinning. Deferred: auto-export of a container's own solved lines and the
-   up-exposure channel (see the Firewall section's implementation status).
-
-## Rework: region-solve (2026-08-26)
-
-The shipped wiring made every container its own `makeWidgetWithSize` firewall
-with its own solve; nesting is decoupled (band-up aggregation, guide-down
-constants). That fine-grained approach was exploratory. This rework replaces the
-**wiring** with one solve per firewall **region**, so containers within a region
-emit constraints into a shared tableau and constraints/guides couple across
-container levels - the model above, realised. Firewalls become **sparse** (root,
-`makeWidgetWithSize`/size-dependent construction, scroll views, deliberate
-scopes), not per-container.
-
-**Keep** (do not rewrite): the #130 core (`arrange`, `BoxVariables`,
-`LayoutSpec`/`LayoutSolution`, `solveLayout`, `readObb`, the constraint
-generators) and #131's model layer (`sizevocabulary`, `Band`/`AxisHint`,
-`XGuide`/`YGuide`). They already emit *relations*; they just target a shared
-solve now. **Rewrite**: `solverLayout` (the per-container firewall+solve) and the
-`ResolvedGuides` down-channel (subsumed within a region; it survives only for
-crossing a firewall boundary).
-
-### Architecture
-
-- **Region owner:** a `layoutRoot` at each firewall boundary (the window root is
-  one) owns the single `withPrevious` solve fold for its region.
-- **Up-channel (build):** `Builder::getSizeHint()` becomes `getConstraints() ->
-  AnySignal<LayoutSpec>`. Leaves emit band constraints on their own box;
-  containers emit parent<->child *relations* + fold children's contributions up;
-  a firewall boundary emits only a **band** and stops (interior opaque).
-- **Down-channel (placement):** the region's one `LayoutSolution` rides down via
-  a `BuildParams` tag (`LayoutSolutionTag`); each widget `readObb`s its own box.
-  The build-order forward reference (solution consumed during build, produced by
-  it) is broken with `makeInput` + a deferred `handle.set(solution)` - the trick
-  the window already uses for its size (`input.h`).
-- **Coordinate space:** solve in region-absolute space; convert to
-  parent-relative at placement (container does it, like `toObbs`).
-- **Firewall boundary (`makeWidgetWithSize`):** reports an honest min/ideal/max
-  **band** up, receives an assigned size, runs its own interior region solve.
-  Cross-region opacity is structural - a per-region id registry; a ref to an id
-  not in the region is a build error (fail loud).
-
-### The solve is change-gated, not per-frame
-
-The solve is a `withPrevious` fold in the signal graph, so it re-runs only when
-the constraints signal actually emits. `.check()` the constraints signal (so an
-identical spec does not re-fire) and the on-demand frame model does the rest: the
-solve fires on constraint *changes*, never per frame. So a full `reset()`+solve
-per change is acceptable, and **incremental `setConstraints` is a later
-optimisation** (for a large, partially-changing constraint set), not a
-prerequisite. The `.check()` on the constraints is the actual gate and must be
-kept. (If incremental is added later, mind `arrange`'s id-only diff: a constraint
-that keeps its id but changes coefficients is silently dropped, so a changed
-constraint must re-mint under a new id.)
-
-### Staged migration (each independently green; reversible until B)
-
-- **Stage A - plumbing, no-op (flagged).** Stand up the region owner +
-  `LayoutSolutionTag` down-channel + `getConstraints` up-channel, but containers
-  still emit their *current* fragments - now anchored into one shared region
-  solve instead of per-container solves. Keep the old per-container path behind a
-  flag as an **oracle**. Success = identical geometry through the new substrate.
-- **Stage B - the core switch (irreversible).** Containers emit *relations only*;
-  leaves emit their bands; delete the per-container `makeWidgetWithSize`+solve and
-  the SizeHint *aggregation* (SizeHint survives only as the firewall-boundary
-  band). Cross-container-level constraints/guides within a region now work.
-- **Stage C - honest, sparse firewalls.** `makeWidgetWithSize` becomes the real
-  firewall (band up / size down / interior solve), used sparingly; cross-region
-  opacity enforced via the per-region id registry.
-- **Stage D - the payoff.** The guide **up-exposure** channel (deep-defined guide
-  exposed shallower, solved on the outer firewall) + the cross-container reference
-  API (`layoutRef()`/`alignLeft(name)`/`matchWidth`/`baseline`, thin over the
-  shared tableau, default *strong* so a conflict yields rather than freezes) +
-  text reflow (two-phase, in-fold via `suggestValue`).
-
-### Cross-cutting
-
-- **Region-wide infeasibility:** one bad constraint now freezes the *whole
-  region* (vs a per-container solve catching its own). Mitigate: catch-and-hold at
-  the region root (degrade to stale geometry, never collapsed), `setConstraints`
-  rollback-on-throw, non-required author strengths by default.
-- **Reorder fragility:** the "unbounded objective on pure reorder" behaviour -
-  harden `arrange`'s reorder path; the reset()+full-solve oracle catches
-  regressions.
-- **Determinacy invariant** stays: every edge reached by at least one weak
-  constraint; a container backstops any sizeless child.
-
-### Verification
-
-Leverage the headless/remote system throughout: drive `inspectorapp` (or a
-solver-driven demo) over the inspector protocol and compare `window.renderTree`
-geometry from the old per-container path against the new region-solve path (they
-must match in Stage A), and assert cross-container guide/alignment behaviour in
-later stages the same way. This is the fast introspection loop the model was
-meant to be built against.
-
-### First step (Stage A)
-
-1. Add `LayoutSolutionTag` (a `BuildParams` entry) + a `layoutRoot` owning the
-   region `withPrevious` fold, mounted at the window and seeded like
-   `rootFirewallParams()`.
-2. Route existing container specs into that one anchored region solve, behind a
-   `regionSolve` flag; keep the per-container path as the oracle. Ensure the
-   constraints signal is `.check()`ed.
-3. Verify: `layouttest`/`guidelayouttest` reproduce identical geometry through
-   the region solve; add a deep-nesting scale case; confirm the same geometry
-   over `window.renderTree` via the remote.
+- Baseline and other named anchors in `Constraints`, so a row can align
+  baselines and aggregate its cross extent from them.
+- Guides, re-added on the pure path and scoped to a region (resolved at the
+  common ancestor of their participants).
+- Non-structural required constraints made strong, and an infeasible solve
+  logged.
+- Sizing and limiting the OS window from the root band (ase has no API to set a
+  window's size or limits yet).
