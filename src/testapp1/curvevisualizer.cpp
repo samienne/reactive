@@ -5,6 +5,7 @@
 #include <bqui/modifier/setanimation.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/setsizehint.h>
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/frame.h>
 
 #include <bqui/shapes.h>
@@ -69,6 +70,7 @@ widget::AnyWidget curveVisualizer(
         | modifier::margin(bq::signal::constant(7.0f))
         | modifier::frame()
         | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(300.0f, 300.0f)))
+        | modifier::defaultSize(avg::Vector2f{ 300.0f, 300.0f })
         ;
 }
 

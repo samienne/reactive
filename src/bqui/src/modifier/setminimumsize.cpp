@@ -8,31 +8,34 @@ namespace bqui::modifier
 {
 
 namespace {
-    SizeHintResult setMinimumSizeHintResult(SizeHintResult result, float minimum)
+    Band setMinimumBand(Band band, float minimum)
     {
-            float min = minimum;
-            float max = std::max(min, result[1]);
-            float fill = std::max(max, result[2]);
+        float min = minimum;
+        float natural = std::max(min, band.natural);
+        float max = std::max(natural, band.max);
 
-        return { min, max, fill };
+        return Band{ min, natural, max, band.grow };
+    }
+
+    AxisHint setMinimumAxis(AxisHint hint, float minimum)
+    {
+        return AxisHint{ setMinimumBand(hint.extent, minimum), hint.anchors };
     }
 
     auto setMinimumSizeImpl2(SizeHint sizeHint, avg::Vector2f minimumSize)
     {
         return mapSizeHint(std::move(sizeHint),
-                [minimumSize](SizeHintResult result) -> SizeHintResult
+                [minimumSize](AxisHint hint) -> AxisHint
                 {
-                    return setMinimumSizeHintResult(result, minimumSize.x());
+                    return setMinimumAxis(hint, minimumSize.x());
                 },
-                [minimumSize](SizeHintResult result, float)
-                    -> SizeHintResult
+                [minimumSize](AxisHint hint, float) -> AxisHint
                 {
-                    return setMinimumSizeHintResult(result, minimumSize.y());
+                    return setMinimumAxis(hint, minimumSize.y());
                 },
-                [minimumSize](SizeHintResult result, float)
-                    -> SizeHintResult
+                [minimumSize](AxisHint hint, float) -> AxisHint
                 {
-                    return setMinimumSizeHintResult(result, minimumSize.x());
+                    return setMinimumAxis(hint, minimumSize.x());
                 }
                 );
     }
@@ -46,27 +49,17 @@ namespace {
     auto setMinimumWidthImpl(SizeHint sizeHint, float minimumWidth)
     {
         return mapSizeHint(std::move(sizeHint),
-                [minimumWidth](SizeHintResult result) -> SizeHintResult
+                [minimumWidth](AxisHint hint) -> AxisHint
                 {
-                    float min = minimumWidth;
-                    float max = std::max(min, result[1]);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumAxis(hint, minimumWidth);
                 },
-                [](SizeHintResult result, float)
-                    -> SizeHintResult
+                [](AxisHint hint, float) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 },
-                [minimumWidth](SizeHintResult result, float)
-                    -> SizeHintResult
+                [minimumWidth](AxisHint hint, float) -> AxisHint
                 {
-                    float min = minimumWidth;
-                    float max = std::max(min, result[1]);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumAxis(hint, minimumWidth);
                 }
                 );
     }
@@ -74,23 +67,17 @@ namespace {
     auto setMinimumHeightImpl(SizeHint sizeHint, float minimumHeight)
     {
         return mapSizeHint(std::move(sizeHint),
-                [](SizeHintResult result) -> SizeHintResult
+                [](AxisHint hint) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 },
-                [minimumHeight](SizeHintResult result, float)
-                    -> SizeHintResult
+                [minimumHeight](AxisHint hint, float) -> AxisHint
                 {
-                    float min = minimumHeight;
-                    float max = std::max(min, result[1]);
-                    float fill = std::max(max, result[2]);
-
-                    return {{ min, max, fill }};
+                    return setMinimumAxis(hint, minimumHeight);
                 },
-                [](SizeHintResult result, float)
-                    -> SizeHintResult
+                [](AxisHint hint, float) -> AxisHint
                 {
-                    return result;
+                    return hint;
                 }
                 );
     }

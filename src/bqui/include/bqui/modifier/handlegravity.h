@@ -15,23 +15,26 @@ namespace bqui::modifier
             auto innerSize = merge(builder.getSizeHint(), outerSize).map(
                 [](SizeHint sizeHint, avg::Vector2f outerSize) -> avg::Vector2f
                 {
-                    SizeHintResult widthRequest = sizeHint.getWidth();
+                    AxisHint widthRequest = sizeHint.getWidth();
 
                     float width = std::clamp(outerSize.x(), 0.0f,
-                            std::max(widthRequest[1], widthRequest[2]));
+                            std::max(widthRequest.extent.natural,
+                                widthRequest.extent.max));
 
-                    SizeHintResult heightRequest = sizeHint.getHeightForWidth(
+                    AxisHint heightRequest = sizeHint.getHeightForWidth(
                             width);
 
                     float height = std::clamp(outerSize.y(), 0.0f,
-                            std::max(heightRequest[1], heightRequest[2]));
+                            std::max(heightRequest.extent.natural,
+                                heightRequest.extent.max));
 
-                    SizeHintResult finalWidthRequest =
+                    AxisHint finalWidthRequest =
                         sizeHint.getWidthForHeight(height);
 
                     float finalWidth = std::clamp(outerSize.x(),
                             0.0f,
-                            std::max(finalWidthRequest[1], finalWidthRequest[2]));
+                            std::max(finalWidthRequest.extent.natural,
+                                finalWidthRequest.extent.max));
 
                     return { finalWidth, height };
                 }).share();
@@ -51,11 +54,19 @@ namespace bqui::modifier
                         });
                 });
 
+            auto alignments = builder.getGuideAlignments();
+
             auto element = std::move(builder)(innerSize);
 
-            return makeBuilderFromElement(std::move(element))
+            // The rebuilt builder mints a fresh box; carry the guide alignments
+            // onto it so the container resolves them against the same box it
+            // places, not the one gravity consumed.
+            auto placed = makeBuilderFromElement(std::move(element))
                 | transformBuilder(offset)
                 ;
+            placed.setGuideAlignments(std::move(alignments));
+
+            return placed;
         }
     } // anonymous namespace
 
