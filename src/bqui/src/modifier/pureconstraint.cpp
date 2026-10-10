@@ -88,6 +88,18 @@ AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount)
             });
 }
 
+AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
+        bq::signal::AnySignal<widget::Anchor> anchor)
+{
+    return pureBuilderModifier(
+            [axis, name = std::move(name), anchor = std::move(anchor)](
+                    widget::AnyBuilder& builder)
+            {
+                widget::setPureAnchor(builder, toAxis(axis), name,
+                        anchor.clone());
+            });
+}
+
 AnyWidgetModifier pureFillModifier(float weight)
 {
     return pureBuilderModifier(
