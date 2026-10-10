@@ -256,12 +256,12 @@ TEST(PureSolverLayout, nestedColumnsSizeToContent)
     Geometry c = readProbe(instance, idC);
     Geometry d = readProbe(instance, idD);
 
-    // Every leaf sizes to its 40x40 content band, left-aligned in the column.
+    // Every leaf sizes to its 40x40 content band, centred in the column.
     for (Geometry const& g : { a, c, d })
     {
         EXPECT_FLOAT_EQ(40.0f, g.size[0]);
         EXPECT_FLOAT_EQ(40.0f, g.size[1]);
-        EXPECT_FLOAT_EQ(0.0f, g.position[0]);
+        EXPECT_FLOAT_EQ(30.0f, g.position[0]);
     }
 
     // Stacked from the top of the 300-tall window (y-up): A at 260..300, then C
@@ -527,7 +527,7 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 
     EXPECT_FLOAT_EQ(60.0f, g.size[0]);
     EXPECT_FLOAT_EQ(150.0f, g.size[1]);
-    EXPECT_FLOAT_EQ(0.0f, g.position[0]);
+    EXPECT_FLOAT_EQ(70.0f, g.position[0]);
 }
 
 // A shipped content leaf sizes to its own content with no defaultSize() at the
@@ -2682,7 +2682,7 @@ TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
 }
 
 // A cross-flexible child fills its slot only up to its own max: in a 300-tall
-// row a flexible leaf capped at 150 stops at 150, at the row's top.
+// row a flexible leaf capped at 150 stops at 150, centred in the row.
 TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -2703,7 +2703,7 @@ TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
     Geometry flex = readProbe(instance, idFlex);
 
     EXPECT_FLOAT_EQ(150.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(150.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(75.0f, flex.position[1]);
 }
 
 // Wrapping a flexible child in fillers is the way to keep it from filling: a
@@ -2948,8 +2948,8 @@ TEST(PureSolverLayout, fixedWidthHoldsOnMainAxisFlexingRow)
 }
 
 // A fixed height on a child flexing on its row's cross axis holds: in a
-// 300-tall row a height-growing leaf fixed at 100 takes 100 at the row's top
-// rather than filling the row.
+// 300-tall row a height-growing leaf fixed at 100 takes 100, centred in the
+// row, rather than filling it.
 TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -2970,7 +2970,7 @@ TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
     Geometry flex = readProbe(instance, idFlex);
 
     EXPECT_FLOAT_EQ(100.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(200.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(100.0f, flex.position[1]);
 }
 
 // Size words on one axis are last-writer-wins between a fixed size and a flex:

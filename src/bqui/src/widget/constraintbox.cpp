@@ -202,16 +202,15 @@ void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
 // (pureMainConstraints, driven when @p driveGap), the container stating
 // structure only while each leaf or filler owns its own extent. On the cross
 // axis a child that does not hold its own extent there (@p ownExtent, parallel
-// to @p boxes) fills the container's cross extent. A child with a stated gravity
-// (@p gravities, parallel to @p boxes) settles under it within the cross extent;
-// any other is tied to the container's leading edge. The anchored outermost
-// container also pins the context frame on this axis. Splitting the fragment per axis here is what lets
-// E1 route the two into two disjoint solves; E0 concatenates them.
+// to @p boxes) fills the container's cross extent, and every child settles
+// under its gravity (@p gravities, parallel to @p boxes) within the cross
+// extent. The anchored outermost container also pins the context frame on this
+// axis.
 std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
         Axis layoutAxis, bool anchor, BoxVariables const& container,
         std::vector<BoxVariables> const& boxes,
         std::vector<bool> const& ownExtent,
-        std::vector<std::optional<avg::Vector2f>> const& gravities,
+        std::vector<avg::Vector2f> const& gravities,
         avg::Vector2f size, arrange::Variable const& gap, bool driveGap)
 {
     std::vector<arrange::Constraint> out;
@@ -258,33 +257,18 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
             // size of its own here -- fills the container's cross extent up to
             // its own strong max.
             bool fills = !(i < ownExtent.size() && ownExtent[i]);
-            std::optional<avg::Vector2f> gravity = i < gravities.size()
-                ? gravities[i] : std::nullopt;
-
-            if (gravity)
-            {
-                if (fills)
-                {
-                    out.push_back(((arrange::Expression(trail)
-                                    - arrange::Expression(lead))
-                                == (arrange::Expression(containerTrail)
-                                    - arrange::Expression(containerLead)))
-                            | arrange::Strength::weak(1.0));
-                }
-                placeAtGravity(out, lead, trail, containerLead, containerTrail,
-                        boxAxis == Axis::x ? gravity->x() : 1.0f - gravity->y());
-                continue;
-            }
-
-            out.push_back(arrange::Expression(lead)
-                    == arrange::Expression(containerLead));
+            avg::Vector2f gravity = gravities[i];
 
             if (fills)
             {
-                out.push_back((arrange::Expression(trail)
-                            == arrange::Expression(containerTrail))
+                out.push_back(((arrange::Expression(trail)
+                                - arrange::Expression(lead))
+                            == (arrange::Expression(containerTrail)
+                                - arrange::Expression(containerLead)))
                         | arrange::Strength::weak(1.0));
             }
+            placeAtGravity(out, lead, trail, containerLead, containerTrail,
+                    boxAxis == Axis::x ? gravity.x() : 1.0f - gravity.y());
         }
     }
 
@@ -585,21 +569,10 @@ AnyWidget solverBoxBuilders(Axis axis,
                             bq::signal::constant(builder.getBoxVariables()));
                 })).share();
 
-    // Each child's gravity where it states one, which places it across the box.
     auto gravities = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
                 {
-                    using Gravity = std::optional<avg::Vector2f>;
-                    if (!builder.isGravityExplicit())
-                    {
-                        return bq::signal::AnySignal<Gravity>(
-                                bq::signal::constant(Gravity()));
-                    }
-                    return bq::signal::AnySignal<Gravity>(
-                            builder.getGravity().map([](avg::Vector2f g)
-                                {
-                                    return Gravity(g);
-                                }));
+                    return builder.getGravity();
                 })).share();
 
     // Each child's width band, read off its builder.
@@ -618,7 +591,7 @@ AnyWidget solverBoxBuilders(Axis axis,
         [container, gap, flexShare](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
-                std::vector<std::optional<avg::Vector2f>> const& gravities)
+                std::vector<avg::Vector2f> const& gravities)
             -> Constraints
     {
         bool mainAxis = thisAxis == layoutAxis;
@@ -695,7 +668,7 @@ AnyWidget solverBoxBuilders(Axis axis,
             gravities.clone()).map(
             [buildAxis, axis](std::vector<Constraints> const& bands,
                     std::vector<BoxVariables> const& boxes,
-                    std::vector<std::optional<avg::Vector2f>> const& gravities)
+                    std::vector<avg::Vector2f> const& gravities)
             {
                 return buildAxis(Axis::x, axis, bands, boxes, gravities);
             });
@@ -717,8 +690,7 @@ AnyWidget solverBoxBuilders(Axis axis,
             .map(
                 [buildAxis, axis](std::vector<Constraints> const& bands,
                         std::vector<BoxVariables> const& boxes,
-                        std::vector<std::optional<avg::Vector2f>> const&
-                            gravities)
+                        std::vector<avg::Vector2f> const& gravities)
                 {
                     return buildAxis(Axis::y, axis, bands, boxes, gravities);
                 });
