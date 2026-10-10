@@ -129,21 +129,33 @@ namespace bqui::modifier
                 auto box = builder.getBoxVariables();
                 auto pureLayout = builder.getPureLayout();
 
-                auto result = makeBuilder(btl::bindArguments(
-                    [](BuildParams const&, auto size, auto func,
-                        auto builder, auto&&... ts)
+                auto bound = btl::bindArguments(
+                    [](BuildParams const&,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution,
+                        auto func, auto builder, auto&&... ts)
                     {
                         auto sharedSize = std::move(size).share();
                         auto modifiedBuilder = func(builder, sharedSize,
                                 std::forward<decltype(ts)>(ts)...
                                 );
 
-                        return std::move(modifiedBuilder)(sharedSize);
+                        return std::move(modifiedBuilder)(sharedSize,
+                                std::move(solution));
                     },
                     std::move(func),
                     std::move(builder),
                     std::forward<decltype(ts)>(ts)...
-                    ),
+                    );
+
+                auto result = widget::makeBuilder(
+                    [bound=std::move(bound)](BuildParams const& params,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
+                    {
+                        return bound(params, std::move(size),
+                                std::move(solution));
+                    },
                     std::move(params),
                     std::move(gravity)
                     );
