@@ -32,6 +32,14 @@ namespace bqui::modifier::detail
             arrange::Strength strength, bq::signal::AnySignal<float> value);
 
     /**
+     * @brief A widget modifier that, inside a pure-solver region, fixes the
+     * extent on @p axis at @p value, replacing the natural and clearing any flex
+     * there (widget::setPureFixed()). A no-op outside one.
+     */
+    AnyWidgetModifier pureFixedModifier(PureAxis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
      * @brief A widget modifier that, inside a pure-solver region, replaces the
      * strong lower-bound band on @p axis with @p value. A no-op outside one.
      */
@@ -58,7 +66,7 @@ namespace bqui::modifier::detail
      * widget flexible on its container's layout axis with grow weight @p weight.
      *
      * The general form of filler() for a content widget: it sets the pure flex
-     * band and couples the widget's extent to the container's shared flex
+     * band on the layout axis, which the container couples to its shared flex
      * variable at @c extent==weight*F, so fillers and fill() widgets split the
      * container's slack in proportion to their weights. A no-op outside a
      * pure-solver region.
@@ -70,10 +78,10 @@ namespace bqui::modifier::detail
      * widget fill along @p axis specifically, whichever axis its container
      * stacks along.
      *
-     * Emits the filler band on @p axis -- flex-coupling to the container's slack
-     * when @p axis is its layout axis, else left free for the container's
-     * cross-fill -- while leaving the other axis's band untouched, so a fixed
-     * thickness there stands. Adds no natural on @p axis, so a length natural
+     * Sets a unit flex on @p axis -- which the container couples to its slack
+     * when @p axis is its layout axis, and stretches by its cross-fill otherwise
+     * -- while leaving the other axis's band untouched, so a fixed thickness
+     * there stands. Adds no natural on @p axis, so a length natural
      * cannot beat the cross-fill. Unlike pureFillModifier(), which fills the
      * container's layout axis, this fills a named axis for a widget (a scroll
      * bar) whose fill direction is its own. A no-op outside a pure-solver region.

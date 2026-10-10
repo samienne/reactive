@@ -18,13 +18,6 @@ namespace
 {
     using detail::PureAxis;
 
-    // A fixed size is a strong preference: above the weakest default, and at the
-    // same strength as the min/max bounds, so it ties rather than loses to one.
-    arrange::Strength fixedStrength()
-    {
-        return arrange::Strength::strong();
-    }
-
     // The both-axes counterpart of a single-axis band word: apply @p make on
     // each axis, splitting @p size's two components.
     template <typename Make>
@@ -45,24 +38,17 @@ namespace
 
 AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width)
 {
-    return detail::pureNaturalModifier(PureAxis::horizontal, fixedStrength(),
-            std::move(width));
+    return detail::pureFixedModifier(PureAxis::horizontal, std::move(width));
 }
 
 AnyWidgetModifier fixedHeight(bq::signal::AnySignal<float> height)
 {
-    return detail::pureNaturalModifier(PureAxis::vertical, fixedStrength(),
-            std::move(height));
+    return detail::pureFixedModifier(PureAxis::vertical, std::move(height));
 }
 
 AnyWidgetModifier fixedSize(bq::signal::AnySignal<avg::Vector2f> size)
 {
-    return bothAxes(std::move(size),
-            [](PureAxis axis, bq::signal::AnySignal<float> value)
-            {
-                return detail::pureNaturalModifier(axis, fixedStrength(),
-                        std::move(value));
-            });
+    return bothAxes(std::move(size), &detail::pureFixedModifier);
 }
 
 AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width)

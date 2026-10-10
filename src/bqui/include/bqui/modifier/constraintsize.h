@@ -12,8 +12,11 @@ namespace bqui::modifier
      * @brief Pin this widget's width to the given value in a pure-solver region.
      *
      * A strong equality above the weak 100 default, so the width settles at the
-     * value unless a min or max at the same strength overrides it. A no-op outside
-     * a pure-solver region.
+     * value unless a min or max at the same strength overrides it. It replaces
+     * any flex on the width, whether set by an earlier fill() or growWidth() or
+     * aggregated up from a flexing child, so the widget no longer stretches there;
+     * a later fill() or growWidth() makes it flexible again. A no-op outside a
+     * pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width);
 
@@ -36,7 +39,8 @@ namespace bqui::modifier
      *
      * A strong lower bound: it clamps content but yields to the window anchor or a
      * contradicting bound, so an unmeetable floor overflows rather than failing
-     * the solve. A no-op outside a pure-solver region.
+     * the solve. A flexible widget stays flexible, its stretch bounded by the
+     * floor. A no-op outside a pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width);
 
@@ -57,8 +61,9 @@ namespace bqui::modifier
      * @brief Hold this widget's width at or below the given value in a pure-solver
      * region.
      *
-     * A strong upper bound: the ceiling counterpart of minWidth(). A no-op outside
-     * a pure-solver region.
+     * A strong upper bound: the ceiling counterpart of minWidth(), which likewise
+     * bounds rather than cancels a flexible widget's stretch. A no-op outside a
+     * pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width);
 
@@ -111,9 +116,9 @@ namespace bqui::modifier
      * @brief In a pure-solver region, make this widget flexible on its
      * container's layout axis, growing to take a share of the container's
      * leftover space as a filler() does. The general form of filler() for a
-     * content widget. A later fixed size on the same axis overrides it; a no-op
-     * outside a pure-solver region. Fills only the layout axis; the cross axis
-     * keeps its content size.
+     * content widget. A later fixed size on the same axis overrides it, and it
+     * overrides an earlier one; a no-op outside a pure-solver region. Fills only
+     * the layout axis; the cross axis keeps its content size.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 
@@ -133,8 +138,9 @@ namespace bqui::modifier
      * where it is not, so a widget whose fill direction is its own (a horizontal
      * scroll bar) fills its length in any container. It is flexible on the
      * width either way, so its container is too, and adds no natural there; it
-     * leaves the height free, so a fixed height stands alongside. A no-op
-     * outside a pure-solver region.
+     * leaves the height free, so a fixed height stands alongside. A later fixed
+     * width overrides it, and it overrides an earlier one. A no-op outside a
+     * pure-solver region.
      */
     BQUI_EXPORT AnyWidgetModifier growWidth();
 
