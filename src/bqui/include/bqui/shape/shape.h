@@ -2,6 +2,7 @@
 
 #include <bqui/animate.h>
 
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/ondraw.h>
 
 #include <bqui/widget/widget.h>
@@ -79,6 +80,7 @@ namespace bqui::shape
                             {
                                 return std::make_optional(std::move(p));
                             }))
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 
@@ -99,6 +101,7 @@ namespace bqui::shape
                             }),
                         bq::signal::constant(std::optional<avg::Pen>())
                         )
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 
@@ -144,6 +147,7 @@ namespace bqui::shape
                         std::move(func_),
                         bq::signal::fromOptional(std::move(brush)),
                         bq::signal::fromOptional(std::move(pen)))
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f))
                 ;
         }
 

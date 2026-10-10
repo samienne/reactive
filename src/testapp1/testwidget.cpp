@@ -84,8 +84,8 @@ widget::AnyWidget makeTestWidget()
         | modifier::onClick(1, send(true, focus.handle))
         | modifier::onKeyEvent(sendKeysTo(p2.handle))
         | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
-                    {{200.0f, 400.0f, 10000.0f}},
-                    {{50.0f, 150.0f, 10000.0f}})))
+                    Band{200.0f, 400.0f, 10000.0f},
+                    Band{50.0f, 150.0f, 10000.0f})))
     ;
 }
 

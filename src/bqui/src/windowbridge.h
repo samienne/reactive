@@ -10,6 +10,7 @@
 #include "bqui/eventresult.h"
 #include "bqui/widget/instance.h"
 #include "bqui/widget/introspection.h"
+#include "bqui/widget/resolvedguides.h"
 #include "bqui/widget/widget.h"
 #include "bqui/modifier/background.h"
 

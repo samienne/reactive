@@ -123,8 +123,15 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                // Carry the solver box, guide alignments and pure-solver
+                // constraints onto the fresh builder, as the element-modifier
+                // junction does: they are the widget's stable identity and would
+                // otherwise be orphaned across this size-dependent rebuild.
+                auto box = builder.getBoxVariables();
+                auto guideAlignments = builder.getGuideAlignments();
+                auto pureLayout = builder.getPureLayout();
 
-                return makeBuilder(btl::bindArguments(
+                auto result = makeBuilder(btl::bindArguments(
                     [](BuildParams const&, auto size, auto func,
                         auto builder, auto&&... ts)
                     {
@@ -144,6 +151,10 @@ namespace bqui::modifier
                     std::move(gravity)
                     );
 
+                result.setBoxVariables(std::move(box));
+                result.setGuideAlignments(std::move(guideAlignments));
+                result.setPureLayout(std::move(pureLayout));
+                return result;
             },
             std::forward<TFunc>(func),
             std::forward<Ts>(ts)...
@@ -160,13 +171,23 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
+                // The solver box, guide alignments and pure-solver constraints
+                // are the widget's stable identity, carried unchanged for its
+                // whole lifetime, so they must survive the fresh builder this
+                // mints -- otherwise a box a constraint was keyed on before this
+                // modifier is orphaned from the one a container tiles after it.
+                auto box = builder.getBoxVariables();
+                auto guideAlignments = builder.getGuideAlignments();
+                auto pureLayout = builder.getPureLayout();
 
-                return widget::makeBuilder([builder=std::forward<T>(builder),
+                auto result = widget::makeBuilder([builder=std::forward<T>(builder),
                     modifier=std::forward<U>(f)]
-                    (BuildParams const& /*params*/, auto size)
+                    (BuildParams const& /*params*/,
+                        bq::signal::AnySignal<avg::Vector2f> size,
+                        bq::signal::AnySignal<widget::LayoutSolution> solution)
                     {
                         auto element = builder.clone()
-                            (std::move(size))
+                            (std::move(size), std::move(solution))
                             | modifier;
 
                         return element;
@@ -175,6 +196,11 @@ namespace bqui::modifier
                     std::move(params),
                     std::move(gravity)
                     );
+
+                result.setBoxVariables(std::move(box));
+                result.setGuideAlignments(std::move(guideAlignments));
+                result.setPureLayout(std::move(pureLayout));
+                return result;
             }
         };
     } // namespace detail

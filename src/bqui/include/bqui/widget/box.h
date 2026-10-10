@@ -1,54 +1,72 @@
 #pragma once
 
-#include "layout.h"
+#include "bqui/sizehint.h"
 
-#include <bq/signal/signal.h>
+#include <btl/fmap.h>
 
-#include <avg/drawing.h>
-
-#include <ase/vector.h>
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <vector>
 
 namespace bqui::widget
 {
-    inline auto accumulateSizeHintResults(std::vector<SizeHintResult> const& hints)
-        -> SizeHintResult
+    // The main-axis aggregate: the children's bands summed edge to edge. The
+    // grow weights sum too, so a container fills if any of its children does.
+    // The cross axis is aggregated with getLargestHint instead.
+    inline auto accumulateAxisHints(std::vector<AxisHint> const& hints)
+        -> AxisHint
     {
-        auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
+        Band band;
         for (auto const& hint : hints)
-            for (int i = 0; i < 3; ++i)
-                result[i] += hint[i];
+        {
+            band.min += hint.extent.min;
+            band.natural += hint.extent.natural;
+            band.max += hint.extent.max;
+            band.grow += hint.extent.grow;
+        }
 
-        return result;
+        return AxisHint{ band, Anchors{} };
     }
 
     /**
-     * @brief Makes the entries of each hint non-negative and non-decreasing.
+     * @brief Makes the extent of each hint non-negative and non-decreasing.
      *
      * A decreasing hint would otherwise take a negative share of an interval.
      */
-    inline auto normaliseSizeHintResults(std::vector<SizeHintResult> hints)
-        -> std::vector<SizeHintResult>
+    inline auto normaliseAxisHints(std::vector<AxisHint> hints)
+        -> std::vector<AxisHint>
     {
         for (auto& hint : hints)
         {
-            hint[0] = std::max(0.0f, hint[0]);
-            hint[1] = std::max(hint[0], hint[1]);
-            hint[2] = std::max(hint[1], hint[2]);
+            auto& band = hint.extent;
+            band.min = std::max(0.0f, band.min);
+            band.natural = std::max(band.min, band.natural);
+            band.max = std::max(band.natural, band.max);
         }
 
         return hints;
     }
 
-    inline auto getSizes(float size,
-            std::vector<std::array<float, 3>> const& hints)
+    inline auto getSizes(float size, std::vector<AxisHint> const& hints)
         -> std::vector<float>
     {
+        // The interval arithmetic works over each band's {min, natural, max}
+        // thresholds; grow does not enter this closed-form estimate.
+        std::vector<std::array<float, 3>> bands;
+        bands.reserve(hints.size());
+        for (auto const& hint : normaliseAxisHints(hints))
+            bands.push_back({{ hint.extent.min, hint.extent.natural,
+                    hint.extent.max }});
+
         std::vector<float> result;
-        result.reserve(hints.size());
+        result.reserve(bands.size());
 
-        auto monotonic = normaliseSizeHintResults(hints);
+        std::array<float, 3> combined{{ 0.0f, 0.0f, 0.0f }};
+        for (auto const& band : bands)
+            for (int i = 0; i < 3; ++i)
+                combined[i] += band[i];
 
-        auto combined = accumulateSizeHintResults(monotonic);
         std::array<float, 3> multiplier;
         for (size_t i = 0; i < multiplier.size(); ++i)
         {
@@ -64,13 +82,13 @@ namespace bqui::widget
             multiplier[i] = std::max(0.0f, std::min(1.0f, m));
         }
 
-        for (auto const& hint : monotonic)
+        for (auto const& band : bands)
         {
             float r = 0.0f;
-            for (size_t i = 0; i < hint.size(); ++i)
+            for (size_t i = 0; i < band.size(); ++i)
             {
-                float prev = (i ? hint[i-1] : 0.0f);
-                r += (hint[i] - prev) * multiplier[i];
+                float prev = (i ? band[i-1] : 0.0f);
+                r += (band[i] - prev) * multiplier[i];
             }
             result.push_back(r);
         }
@@ -81,20 +99,20 @@ namespace bqui::widget
     template <Axis dir, typename THints>
     struct AccumulateSizeHint
     {
-        SizeHintResult getWidth() const
+        AxisHint getWidth() const
         {
-            auto xHints = normaliseSizeHintResults(btl::fmap(hints_,
+            auto xHints = normaliseAxisHints(btl::fmap(hints_,
                     [](auto const& hint)
                     {
                         return hint.getWidth();
                     }));
 
             return dir == Axis::x
-                ? accumulateSizeHintResults(xHints)
+                ? accumulateAxisHints(xHints)
                 : getLargestHint(xHints);
         }
 
-        SizeHintResult getHeightForWidth(float x) const
+        AxisHint getHeightForWidth(float x) const
         {
             auto xHints = btl::fmap(hints_,
                     [](auto const& hint)
@@ -105,31 +123,39 @@ namespace bqui::widget
             auto xSizes = getSizes(x, xHints);
 
             size_t i = 0;
-            auto yHints = normaliseSizeHintResults(btl::fmap(xSizes,
+            auto yHints = normaliseAxisHints(btl::fmap(xSizes,
                     [this, &i](auto const& xSize)
                     {
                         return hints_[i++].getHeightForWidth(xSize);
                     }));
 
-            return dir == Axis::x
-                ? getLargestHint(yHints)
-                : accumulateSizeHintResults(yHints);
+            if (dir == Axis::x)
+                return baseline
+                    ? getBaselineHint(yHints)
+                    : getLargestHint(yHints);
+
+            return accumulateAxisHints(yHints);
         }
 
-        SizeHintResult getWidthForHeight(float height) const
+        AxisHint getWidthForHeight(float height) const
         {
-            auto xHints = normaliseSizeHintResults(btl::fmap(hints_,
+            auto xHints = normaliseAxisHints(btl::fmap(hints_,
                     [height](auto const& hint)
                     {
                         return hint.getWidthForHeight(height);
                     }));
 
             return dir == Axis::x
-                ? accumulateSizeHintResults(xHints)
+                ? accumulateAxisHints(xHints)
                 : getLargestHint(xHints);
         }
 
         THints const hints_;
+
+        // Only meaningful for a row (dir == Axis::x): aggregate the cross axis
+        // by splitting each child's band at its baseline rather than by a plain
+        // maximum, so the row reports a baseline of its own.
+        bool baseline = false;
     };
 
     template <Axis dir>
@@ -139,82 +165,12 @@ namespace bqui::widget
         return AccumulateSizeHint<dir, std::vector<SizeHint>>{std::move(hints)};
     }
 
-    template <Axis dir>
-    auto combineSizes(ase::Vector2f size,
-            std::vector<SizeHint> const& hints)
-        -> std::vector<ase::Vector2f>
+    // A row whose cross axis is aggregated by baseline (getBaselineHint) instead
+    // of by a plain maximum, so it reports its own firstBaseline upward.
+    inline auto accumulateBaselineRowHints(std::vector<SizeHint> hints)
+        -> AccumulateSizeHint<Axis::x, std::vector<SizeHint>>
     {
-        if (hints.empty())
-            return {};
-
-        std::vector<ase::Vector2f> result;
-        result.reserve(hints.size());
-
-        if constexpr(dir == Axis::x)
-        {
-            auto xHintResults = btl::fmap(hints,
-                    [&](auto const& hint)
-                    {
-                        return hint.getWidthForHeight(size[1]);
-                    });
-
-            auto xSizes = getSizes(size[0], xHintResults);
-
-            for (auto&& xSize : xSizes)
-                result.emplace_back(xSize, size[1]);
-        }
-        else
-        {
-            auto yHintResults = btl::fmap(hints,
-                    [&size](auto const& hint)
-                    {
-                        return hint.getHeightForWidth(size[0]);
-                    });
-
-            auto ySizes = getSizes(size[1], yHintResults);
-            for (auto&& ySize : ySizes)
-                result.emplace_back(size[0], ySize);
-        }
-
-        return result;
-    }
-
-    template <Axis dir>
-    auto mapObbs(ase::Vector2f size,
-            std::vector<SizeHint> const& hints)
-        -> std::vector<avg::Obb>
-    {
-        auto sizes = combineSizes<dir>(size, hints);
-
-        std::vector<avg::Obb> obbs;
-        obbs.reserve(hints.size());
-        float acc = dir == Axis::x ? 0.0f : size[1];
-        for (auto const& s : sizes)
-        {
-            ase::Vector2f offset;
-            if constexpr(dir == Axis::x)
-            {
-                offset = ase::Vector2f(acc, 0.0f);
-                acc += s[0];
-            }
-            else
-            {
-                acc -= s[1];
-                offset = ase::Vector2f(0.0f, acc);
-            }
-
-            obbs.push_back(avg::Transform().translate(offset) *
-                    avg::Obb(s));
-        }
-
-        return obbs;
-    }
-
-    template <Axis dir>
-    AnyWidget box(bq::signal::ArraySignal<AnyWidget> widgets)
-    {
-        return layout(accumulateSizeHints<dir>, &mapObbs<dir>,
-                std::move(widgets));
+        return AccumulateSizeHint<Axis::x, std::vector<SizeHint>>{
+            std::move(hints), true };
     }
 } // namespace bqui::widget
-
