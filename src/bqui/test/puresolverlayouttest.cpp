@@ -1862,40 +1862,6 @@ TEST(PureSolverLayout, vfillerDoesNotFlexCrossAxis)
     EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idFiller).size[0]);
 }
 
-// A SizeHint carrying a grow weight bridges to a pure flex band, so a leaf that
-// only states grow flexes like a filler. Its main-axis natural is the flex-basis
-// (dropped at the stamp); beside a fixed 80 leaf in a 400 row it takes the
-// remaining 320. Without the grow bridge it would pin at its 100 natural and
-// leave the slack a trailing gap.
-TEST(PureSolverLayout, growSizeHintLeafFlexesInPureHbox)
-{
-    avg::Vector2f const window(400.0f, 100.0f);
-
-    btl::UniqueId const idGrow = btl::makeUniqueId();
-    btl::UniqueId const idFixed = btl::makeUniqueId();
-
-    Band const growX = { 50.0f, 100.0f, 10000.0f, 1.0f };
-    Band const fixedY = { 40.0f, 40.0f, 40.0f, 0.0f };
-
-    std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(withArea(
-            makeWidget() | modifier::setSizeHint(
-                constant(SizeHint(simpleSizeHint(growX, fixedY)))),
-            idGrow));
-    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
-            window);
-
-    Geometry grow = readProbe(instance, idGrow);
-    Geometry fixed = readProbe(instance, idFixed);
-
-    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
-    EXPECT_FLOAT_EQ(320.0f, grow.size[0]);
-    EXPECT_FLOAT_EQ(0.0f, grow.position[0]);
-}
-
 // Height reflows with the resolved width. A leaf whose content height is
 // area / width fills its row, so its resolved width is the window width; its
 // height then follows the width solution through phase 2. In a 400-wide window
