@@ -266,7 +266,11 @@ at which a stamped size / `natural` and the `min`/`max` bounds sit.
 
 Because the bounds are strong, they aggregate up a container (main-axis **sum**,
 cross-axis **max**) and bake onto the container box without fighting the region
-anchor, and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuine
+anchor - a `max` only when **every** child carries one, since a single uncapped
+child leaves the container free to grow and a cap taken from the capped children
+alone would squeeze the rest. Every stamped extent is also floored strong at
+zero, so an over-full container overflows rather than handing a flexing child a
+negative share; and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuine
 floor below / cap above the natural — a bound equal to the natural is already the
 natural). Both were deferred while the bounds were required.
 

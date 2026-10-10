@@ -1178,28 +1178,43 @@ std::optional<Flex> aggregateFlex(
     return Flex{ *coeff };
 }
 
-// A container's aggregate min or max on one axis. Children tile end-to-end on
-// the main axis so their bounds sum; they overlap on the cross axis so the
-// largest wins (a container is at least as wide as its widest child, and at
-// least as tall as the sum of a column's children). Absent when no child
-// carries this bound. @p pick reads the child's min or max field.
-std::optional<float> aggregateBound(std::vector<Constraints> const& children,
-        bool mainAxis,
-        std::optional<float> const& (*pick)(Constraints const&))
+// A container's aggregate min on one axis. Children tile end-to-end on the main
+// axis so their mins sum; they overlap on the cross axis so the largest wins (a
+// container is at least as wide as its widest child, and at least as tall as the
+// sum of a column's children). Absent when no child carries a min.
+std::optional<float> aggregateMin(std::vector<Constraints> const& children,
+        bool mainAxis)
 {
     std::optional<float> value;
     for (Constraints const& child : children)
     {
-        std::optional<float> const& b = pick(child);
-        if (!b)
+        if (!child.min)
             continue;
-        value = value ? (mainAxis ? *value + *b : std::max(*value, *b)) : *b;
+        value = value ? (mainAxis ? *value + *child.min
+                                  : std::max(*value, *child.min))
+                      : *child.min;
     }
     return value;
 }
 
-std::optional<float> const& pickMin(Constraints const& c) { return c.min; }
-std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
+// A container's aggregate max on one axis: the sum of the children's maxes on the
+// main axis, the largest on the cross axis. Absent unless every child carries a
+// max, since a single uncapped child leaves the container free to grow; a cap
+// taken only from the capped children would squeeze the uncapped ones.
+std::optional<float> aggregateMax(std::vector<Constraints> const& children,
+        bool mainAxis)
+{
+    std::optional<float> value;
+    for (Constraints const& child : children)
+    {
+        if (!child.max)
+            return std::nullopt;
+        value = value ? (mainAxis ? *value + *child.max
+                                  : std::max(*value, *child.max))
+                      : *child.max;
+    }
+    return value;
+}
 
 // A container's aggregate min floor on one axis, published only when it flexes
 // and so drops its aggregate natural. Each child contributes the extent
@@ -1210,7 +1225,7 @@ std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
 // cross-axis MAX (children overlap) -- so a tight parent that force-sizes the
 // flexing container cannot squeeze it below what its fixed content needs. Absent
 // when no child floors above zero. Subsumes the explicit-min aggregate, so it
-// replaces (not supplements) aggregateBound(pickMin) on a flexing axis.
+// replaces (not supplements) aggregateMin() on a flexing axis.
 std::optional<float> aggregateFloor(
         std::vector<Constraints> const& children, bool mainAxis)
 {
@@ -1299,8 +1314,8 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis,
             result.natural = aggregateNatural(childBands, mainAxis);
         result.min = flexes
             ? aggregateFloor(childBands, mainAxis)
-            : aggregateBound(childBands, mainAxis, &pickMin);
-        result.max = aggregateBound(childBands, mainAxis, &pickMax);
+            : aggregateMin(childBands, mainAxis);
+        result.max = aggregateMax(childBands, mainAxis);
 
         LayoutSpec& rel = result.relations;
 
@@ -1542,8 +1557,8 @@ AnyWidget solverStackBuildersRegionPure(
         // overlaid content (cross-style, the largest child's floor wins).
         result.min = flexes
             ? aggregateFloor(childBands, false)
-            : aggregateBound(childBands, false, &pickMin);
-        result.max = aggregateBound(childBands, false, &pickMax);
+            : aggregateMin(childBands, false);
+        result.max = aggregateMax(childBands, false);
 
         LayoutSpec& rel = result.relations;
 
@@ -1809,10 +1824,10 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // full-cell child's floor asks for the whole track.
         result.min = flexes
             ? aggregateFloor(shares, false)
-            : aggregateBound(shares, false, &pickMin);
+            : aggregateMin(shares, false);
         if (result.min)
             *result.min *= factor;
-        result.max = aggregateBound(shares, false, &pickMax);
+        result.max = aggregateMax(shares, false);
         if (result.max)
             *result.max *= factor;
 

@@ -134,8 +134,9 @@ namespace bqui::widget
      * @brief Bakes one axis's @ref Constraints into a solver fragment on @p box.
      *
      * The band fields become constraints on the box's extent (@c natural at its
-     * strength, @c min / @c max strong) and ride alongside the untagged
-     * relations. @p axis selects the box's width or height as the extent.
+     * strength, @c min / @c max strong, and a strong floor at zero) and ride
+     * alongside the untagged relations. @p axis selects the box's width or
+     * height as the extent.
      */
     LayoutSpec flattenConstraints(Constraints const& constraints,
             BoxVariables const& box, Axis axis);
