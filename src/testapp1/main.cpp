@@ -1,6 +1,7 @@
 #include "adder.h"
 #include "spinner.h"
 #include "curvevisualizer.h"
+#include "playground.h"
 
 #include <bqui/modifier/drawkeyboardinputs.h>
 #include <bqui/modifier/settheme.h>
@@ -88,7 +89,14 @@ void openSecondWindow()
                 | modifier::focusGroup());
 }
 
-int main()
+void openPlayground()
+{
+    app().addWindow(
+            window(bq::signal::constant<std::string>("Layout playground")),
+            layoutPlayground() | modifier::focusGroup());
+}
+
+int main(int argc, char** argv)
 {
     auto textState = bq::signal::makeInput(widget::TextEditState{"Test123"});
 
@@ -164,6 +172,9 @@ int main()
 
     auto widgets = widget::hbox({
         widget::vbox({
+            widget::button("Open layout playground",
+                    []() { openPlayground(); })
+                | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             widget::button("Open another window",
                     []() { openSecondWindow(); })
                 | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
@@ -242,6 +253,9 @@ int main()
         , widget::vScrollBar(vScrollState.handle, vScrollState.signal,
                 bq::signal::constant(0.5f))
     });
+
+    if (argc > 1 && std::string(argv[1]) == "--playground")
+        openPlayground();
 
     return app()
         .addWindow(
