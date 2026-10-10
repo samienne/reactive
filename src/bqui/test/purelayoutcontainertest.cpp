@@ -370,7 +370,7 @@ TEST(PureSolverLayout, emptyCollectionKeepsItsPlace)
 }
 
 // A row with no children contributes no height to its column: the leaf after it
-// sits at the top of the window.
+// sits at the top of the window, centred across the column.
 TEST(PureSolverLayout, emptyRowTakesNoRoomInAColumn)
 {
     btl::UniqueId const id = btl::makeUniqueId();
@@ -383,7 +383,7 @@ TEST(PureSolverLayout, emptyRowTakesNoRoomInAColumn)
             vbox(std::move(column)),
             avg::Vector2f(100.0f, 200.0f));
 
-    expectAt(readProbe(instance, id), 0.0f, 160.0f);
+    expectAt(readProbe(instance, id), 30.0f, 160.0f);
 }
 
 // A child whose band is zero on the main axis takes no room: its neighbours sit
@@ -434,10 +434,11 @@ TEST(PureSolverLayout, nestedContainersComposeOffsets)
             hbox(std::move(outerRow)),
             avg::Vector2f(300.0f, 80.0f));
 
-    // The column is 80 tall and fills the window; B is its top half, the inner
-    // row its bottom half, both starting at the column's x = 40.
-    expectAt(readProbe(instance, idA), 0.0f, 40.0f);
-    expectAt(readProbe(instance, idB), 40.0f, 40.0f);
+    // The column is 80 by 80 and fills the window's height, so A is centred
+    // beside it. B is the column's top half, centred across its width; the inner
+    // row is its bottom half.
+    expectAt(readProbe(instance, idA), 0.0f, 20.0f);
+    expectAt(readProbe(instance, idB), 60.0f, 40.0f);
     expectAt(readProbe(instance, idC), 40.0f, 0.0f);
     expectAt(readProbe(instance, idD), 80.0f, 0.0f);
 }
@@ -488,6 +489,22 @@ TEST(PureSolverLayout, gravityPlacesAChildAcrossARow)
     expectAt(readProbe(instance, idBottom), 40.0f, 0.0f);
 }
 
+// A child shorter than its row with no gravity of its own is centred across the
+// row.
+TEST(PureSolverLayout, childWithoutGravityIsCentredAcrossARow)
+{
+    btl::UniqueId const id = btl::makeUniqueId();
+
+    std::vector<AnyWidget> row;
+    row.push_back(probe(id, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            hbox(std::move(row)),
+            avg::Vector2f(200.0f, 100.0f));
+
+    expectAt(readProbe(instance, id), 0.0f, 30.0f);
+}
+
 // A child narrower than its column settles under its gravity across the column:
 // at the right edge by (1, 0.5).
 TEST(PureSolverLayout, gravityPlacesAChildAcrossAColumn)
@@ -506,7 +523,8 @@ TEST(PureSolverLayout, gravityPlacesAChildAcrossAColumn)
 }
 
 // A child filling a column's width up to its max settles under its gravity in
-// the width left over, and keeps its gravity through a margin wrapped around it.
+// the width left over, and keeps its gravity through a margin wrapped around it;
+// a child with no gravity of its own is centred.
 TEST(PureSolverLayout, gravityPlacesACappedFillAndAMarginedChild)
 {
     btl::UniqueId const idCapped = btl::makeUniqueId();
@@ -533,7 +551,7 @@ TEST(PureSolverLayout, gravityPlacesACappedFillAndAMarginedChild)
     EXPECT_FLOAT_EQ(75.0f, capped.position[0]);
 
     EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idMargined).position[0]);
-    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idDefault).position[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idDefault).position[0]);
 }
 
 // A row re-lays out when its window resizes: the fixed leaf keeps its size and
