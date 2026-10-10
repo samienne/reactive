@@ -1334,10 +1334,12 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis,
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills (a row's height inside a column) still resolves to a
-        // definite extent. Dropped only on a flexing main axis: a definite default
-        // would beat the parent's gap drive and pin the extent, stopping the
-        // stretch, so that axis is left free just as a filler's is.
-        if (!flexes)
+        // definite extent. Only where no child states a natural either: a
+        // published natural already pins the axis, and unlike the natural (which
+        // a fill() on the container drops) a default baked into the relations
+        // would outlast that fill and beat the parent's gap drive, holding the
+        // container at 100. Dropped on a flexing axis for the same reason.
+        if (!flexes && !result.natural)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
@@ -1580,8 +1582,9 @@ AnyWidget solverStackBuildersRegionPure(
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills still resolves to a definite extent. Dropped on a
-        // flexing axis, as the pure box drops it.
-        if (!flexes)
+        // flexing axis and where a child states a natural, as the pure box drops
+        // it.
+        if (!flexes && !result.natural)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
@@ -1867,8 +1870,9 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
 
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills still resolves to a definite extent. Dropped on a
-        // flexing axis, as the pure box and stack drop it.
-        if (!flexes)
+        // flexing axis and where a child states a natural, as the pure box and
+        // stack drop it.
+        if (!flexes && !result.natural)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)

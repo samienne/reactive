@@ -3511,3 +3511,36 @@ TEST(PureSolverLayout, overfullRowFillerStopsAtZero)
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).position[0]);
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).size[0]);
 }
+
+// fill() on a container that does not flex by itself stretches it: the row's
+// weak 100 default is not baked under its children's natural, where it would
+// outlast the fill and hold the row at 100 against the column's gap drive. The
+// row fills the 300 column, and the margined filler beside a 36-high leaf fills
+// the row's height, its margin adding no size of its own.
+TEST(PureSolverLayout, filledRowWithMarginedFillerTakesColumn)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idMargined = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+
+    Band const fixed36 = { 36.0f, 36.0f, 36.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(filler() | modifier::margin(20.0f), idMargined));
+    row.push_back(probe(idLeaf, fixed40, fixed36));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(row)))
+                | modifier::fill(), idRow));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idRow).size[1]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idMargined).size[1]);
+    EXPECT_FLOAT_EQ(360.0f, readProbe(instance, idMargined).size[0]);
+    EXPECT_FLOAT_EQ(36.0f, readProbe(instance, idLeaf).size[1]);
+}
