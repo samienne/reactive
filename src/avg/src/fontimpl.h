@@ -12,8 +12,8 @@ namespace avg
     class FontImpl
     {
     public:
-        FontImpl(FontManager& manager, std::string const& file_,
-                unsigned long faceIndex);
+        FontImpl(FontManager& manager, std::string const& file,
+                unsigned long faceIndex, FT_Face face);
         ~FontImpl();
 
     private:
