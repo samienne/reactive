@@ -1,4 +1,4 @@
-#include "widget/constraintbox.h"
+#include "purelayouttestutil.h"
 
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
@@ -35,26 +35,17 @@ using namespace bqui::modifier;
 
 namespace
 {
-    // Build a widget, realise it at a concrete size, and read its introspection
-    // tree. The obbs are realised geometry, so a size must be driven.
+    // Realise a widget at a concrete size in a layout region, as a window
+    // would, and read its own introspection node rather than the region's.
     Introspection introspect(AnyWidget widget,
             avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
     {
-        auto sig = std::move(widget)(BuildParams{})(bq::signal::constant(size))
-                .getIntrospection();
-        return bq::signal::makeSignalContext(std::move(sig))
-            .evaluate<0>().get<0>();
-    }
-
-    // Lays the widget out under a pure-solver root and returns the widget's
-    // own node, not the root's.
-    Introspection introspectPure(AnyWidget widget,
-            avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
-    {
-        auto root = introspect(pureSolverRoot(std::move(widget)), size);
+        auto root = bq::signal::makeSignalContext(bqui::test::buildInRegion(
+                    std::move(widget), bq::signal::constant(size))
+                .getIntrospection()).evaluate<0>().get<0>();
         if (root.children.size() != 1u)
         {
-            ADD_FAILURE() << "the pure-solver root has no single child";
+            ADD_FAILURE() << "the layout region has no single child";
             return root;
         }
         return *root.children.front();
@@ -180,7 +171,7 @@ TEST(introspection, childrenCarryOwnDivergentObb)
     children.push_back(std::move(small));
     children.push_back(std::move(wide));
 
-    auto node = introspectPure(
+    auto node = introspect(
             hbox(std::move(children)) | setRole("CheckBoxLabel"));
 
     EXPECT_EQ("CheckBoxLabel", node.role);
@@ -232,7 +223,7 @@ TEST(introspection, stretchedChildObbExceedsNatural)
     children.push_back(filledRect() | growWidth() | growHeight()
             | setRole("Stretchy"));
 
-    auto node = introspectPure(hbox(std::move(children)),
+    auto node = introspect(hbox(std::move(children)),
             avg::Vector2f(600.0f, 400.0f));
 
     ASSERT_EQ(1u, node.children.size());
@@ -254,7 +245,7 @@ TEST(introspection, childObbIsWindowSpace)
             | fixedSize(bq::signal::constant(avg::Vector2f(80.0f, 40.0f)))
             | setRole("Second"));
 
-    auto node = introspectPure(hbox(std::move(children)),
+    auto node = introspect(hbox(std::move(children)),
             avg::Vector2f(400.0f, 40.0f));
 
     ASSERT_EQ(2u, node.children.size());

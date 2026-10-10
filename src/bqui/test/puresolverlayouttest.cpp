@@ -190,6 +190,20 @@ TEST(PureSolverLayout, unconstrainedBoxIsHundredSquare)
     EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[1]);
 }
 
+// A container built with no enclosing region has no solve to place its children,
+// which is a programming error, so it throws rather than laying them out at 0x0.
+TEST(PureSolverLayout, containerOutsideRegionThrows)
+{
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+    auto instance = hbox(ArraySignal<AnyWidget>(std::move(row)))(BuildParams())(
+            constant(avg::Vector2f(100.0f, 100.0f))).getInstance();
+
+    EXPECT_THROW(makeSignalContext(std::move(instance)).evaluate<0>(),
+            std::logic_error);
+}
+
 // A size-dependent modifier must not orphan a pure-solver constraint. A
 // fixedWidth(80) leaf wrapped in onClick, which mints a fresh builder through
 // the with-size path, keeps its width at 80 rather than falling back to the
@@ -207,7 +221,7 @@ TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
             | modifier::onClick(1, [](ClickEvent const&) {}));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
@@ -236,7 +250,7 @@ TEST(PureSolverLayout, nestedColumnsSizeToContent)
     outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(outer)))),
+            vbox(ArraySignal<AnyWidget>(std::move(outer))),
             window);
 
     Geometry a = readProbe(instance, idA);
@@ -339,7 +353,7 @@ TEST(PureSolverLayout, formRowFixedLabelAndFiller)
     row.push_back(fillerProbe(idField));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry label = readProbe(instance, idLabel);
@@ -371,7 +385,7 @@ TEST(PureSolverLayout, toolbarFixedItemsAndFiller)
     items.push_back(probe(idC, fixed40, fixed40) | modifier::fixedWidth(80.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(items)))),
+            hbox(ArraySignal<AnyWidget>(std::move(items))),
             window);
 
     Geometry a = readProbe(instance, idA);
@@ -407,7 +421,7 @@ TEST(PureSolverLayout, twoFillersSplitSlackEvenly)
     row.push_back(fillerProbe(idSecond));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
@@ -432,7 +446,7 @@ TEST(PureSolverLayout, plainLastChildIsNotStretched)
     row.push_back(probe(idPlain, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idA).size[0]);
@@ -458,7 +472,7 @@ TEST(PureSolverLayout, cappedFillerHandsSurplusToOthers)
     row.push_back(fillerProbe(idLast));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idCapped).size[0]);
@@ -481,7 +495,7 @@ TEST(PureSolverLayout, fixedChildrenOverflowRatherThanSqueeze)
     row.push_back(probe(idB, fixed40, fixed40) | modifier::fixedWidth(300.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idA).size[0]);
@@ -507,7 +521,7 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
             | modifier::maxWidth(60.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
             window);
 
     Geometry g = readProbe(instance, id);
@@ -535,7 +549,7 @@ TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry labelG = readProbe(instance, idLabel);
@@ -566,7 +580,7 @@ TEST(PureSolverLayout, textEditSizesToNativeBand)
                         state.signal.cast<TextEditState>())), id));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry g = readProbe(instance, id);
@@ -588,7 +602,7 @@ TEST(PureSolverLayout, labelSizesToNativeBand)
     row.push_back(withArea(label(std::string("Ping")), idShort));
     row.push_back(withArea(label(std::string("Ping Ping")), idLong));
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry shortLabel = readProbe(instance, idShort);
@@ -616,7 +630,7 @@ TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
     row.push_back(probe(id, fixed100, fixed100) | modifier::maxWidth(60.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, id).size[0]);
@@ -634,7 +648,7 @@ TEST(PureSolverLayout, minWidthAloneRaisesTheDefault)
     row.push_back(probe(id, fixed40, fixed40) | modifier::minWidth(200.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(200.0f, readProbe(instance, id).size[0]);
@@ -657,7 +671,7 @@ TEST(PureSolverLayout, minWidthLargerThanRow)
             | modifier::fixedWidth(50.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry big = readProbe(instance, idBig);
@@ -700,7 +714,7 @@ TEST(PureSolverLayout, nestedDemoCorrectOnSingleEvaluate)
     rows.push_back(hbox(ArraySignal<AnyWidget>(std::move(row2))));
 
     Instance instance = realiseOnce(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(rows)))),
+            vbox(ArraySignal<AnyWidget>(std::move(rows))),
             window);
 
     Geometry a = readProbe(instance, idA);
@@ -744,7 +758,7 @@ TEST(PureSolverLayout, singleMarginInsetsFixedSize)
             | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
 
     Instance instance = realiseOnce(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
             window);
 
     Geometry g = readProbe(instance, id);
@@ -772,8 +786,8 @@ TEST(PureSolverLayout, marginedContainerPlacesItsChildren)
     children.push_back(probe(idNarrow, content63, content24));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(children)))
-                | modifier::margin(10.0f)),
+            hbox(ArraySignal<AnyWidget>(std::move(children)))
+                | modifier::margin(10.0f),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -807,7 +821,7 @@ TEST(PureSolverLayout, nestedMarginsSubsumeInnerBands)
             | modifier::fixedSize(avg::Vector2f(100.0f, 100.0f)));
 
     Instance instance = realiseOnce(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(children)))),
+            vbox(ArraySignal<AnyWidget>(std::move(children))),
             window);
 
     Geometry g = readProbe(instance, id);
@@ -841,7 +855,7 @@ TEST(PureSolverLayout, fillerInHboxIsAFiller)
     outerRow.push_back(std::move(inner));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -888,7 +902,7 @@ TEST(PureSolverLayout, flexingContainerFloorsFixedContent)
             | modifier::fixedWidth(700.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry innerFixed = readProbe(instance, idInnerFixed);
@@ -925,7 +939,7 @@ TEST(PureSolverLayout, weightedContainerFlexSplitsByAggregatedWeight)
     outerRow.push_back(fillerProbe(idOuter));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry innerA = readProbe(instance, idInnerA);
@@ -962,7 +976,7 @@ TEST(PureSolverLayout, overflowVersusFlexResponse)
                 | modifier::fixedWidth(100.0f));
 
         Instance instance = realiseConverged(
-                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
                 window);
 
         Geometry a = readProbe(instance, idA);
@@ -986,7 +1000,7 @@ TEST(PureSolverLayout, overflowVersusFlexResponse)
         row.push_back(fillerProbe(idB));
 
         Instance instance = realiseConverged(
-                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
                 window);
 
         EXPECT_FLOAT_EQ(75.0f, readProbe(instance, idA).size[0]);
@@ -1011,7 +1025,7 @@ TEST(PureSolverLayout, leafSizesToContent)
     row.push_back(probe(id, content137, content24));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry g = readProbe(instance, id);
@@ -1040,7 +1054,7 @@ TEST(PureSolverLayout, contentLeavesShareRowWithFiller)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -1072,7 +1086,7 @@ TEST(PureSolverLayout, fillModifierActsAsFiller)
     row.push_back(probe(idFilled, fixed40, fixed40) | modifier::fill());
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -1101,7 +1115,7 @@ TEST(PureSolverLayout, twoFillModifiersShareSlackEvenly)
     row.push_back(probe(idSecond, fixed40, fixed40) | modifier::fill());
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idFixed).size[0]);
@@ -1124,7 +1138,7 @@ TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
     row.push_back(probe(idThree, fixed40, fixed40) | modifier::grow(3.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idOne).size[0]);
@@ -1152,7 +1166,7 @@ TEST(PureSolverLayout, bareShapeHasModestPureDefault)
                 | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f)), idSized));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry bare = readProbe(instance, idBare);
@@ -1185,7 +1199,7 @@ TEST(PureSolverLayout, contradictoryBoundsDoNotFreezeRegion)
             | modifier::maxWidth(60.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry sibling = readProbe(instance, idSibling);
@@ -1226,7 +1240,7 @@ TEST(PureSolverLayout, minAggregatesSumOnMainAxis)
     outerRow.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry a = readProbe(instance, idA);
@@ -1269,7 +1283,7 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
     outerRow.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -1315,7 +1329,7 @@ TEST(PureSolverLayout, columnHoldingFlexingRowKeepsItsNaturalWidth)
     outerRow.push_back(fillerProbe(idSibling));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry narrowFixed = readProbe(instance, idNarrowFixed);
@@ -1362,7 +1376,7 @@ TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
     outerRow.push_back(fillerProbe(idSibling));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry narrowFiller = readProbe(instance, idNarrowFiller);
@@ -1409,7 +1423,7 @@ TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
     outerRow.push_back(fillerProbe(idSibling));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry sibling = readProbe(instance, idSibling);
@@ -1442,9 +1456,9 @@ TEST(PureSolverLayout, frameIsLayoutTransparentInPureRegion)
     };
 
     Instance bare = realiseConverged(
-            pureSolverRoot(column(idBare, false)), window);
+            column(idBare, false), window);
     Instance framed = realiseConverged(
-            pureSolverRoot(column(idFramed, true)), window);
+            column(idFramed, true), window);
 
     Geometry b = readProbe(bare, idBare);
     Geometry f = readProbe(framed, idFramed);
@@ -1475,7 +1489,7 @@ TEST(PureSolverLayout, framedChildAggregatesRealBandInHbox)
     row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry framed = readProbe(instance, idFramed);
@@ -1515,9 +1529,9 @@ TEST(PureSolverLayout, framedContainerPlacesItsChildren)
     btl::UniqueId const idFramedNarrow = btl::makeUniqueId();
 
     Instance bare = realiseConverged(
-            pureSolverRoot(row(idBareWide, idBareNarrow, false)), window);
+            row(idBareWide, idBareNarrow, false), window);
     Instance framed = realiseConverged(
-            pureSolverRoot(row(idFramedWide, idFramedNarrow, true)), window);
+            row(idFramedWide, idFramedNarrow, true), window);
 
     Geometry bareWide = readProbe(bare, idBareWide);
     Geometry bareNarrow = readProbe(bare, idBareNarrow);
@@ -1561,9 +1575,9 @@ TEST(PureSolverLayout, framedNestedContainerPlacesGrandchildren)
     outer.push_back(vbox(ArraySignal<AnyWidget>(std::move(inner))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(
+            
                 hbox(ArraySignal<AnyWidget>(std::move(outer)))
-                | modifier::frame()),
+                | modifier::frame(),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -1602,9 +1616,9 @@ TEST(PureSolverLayout, foregroundedContainerPlacesItsChildren)
     children.push_back(probe(idNarrow, content63, content24));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(
+            
                 hbox(ArraySignal<AnyWidget>(std::move(children)))
-                | modifier::foreground(makeWidget())),
+                | modifier::foreground(makeWidget()),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -1631,7 +1645,7 @@ TEST(PureSolverLayout, vfillerFlexesInPureVbox)
     column.push_back(withArea(vfiller(), idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -1657,7 +1671,7 @@ TEST(PureSolverLayout, hfillerFlexesInPureHbox)
     row.push_back(withArea(hfiller(), idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -1684,7 +1698,7 @@ TEST(PureSolverLayout, vfillerDoesNotFlexCrossAxis)
     row.push_back(withArea(vfiller(), idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(80.0f, readProbe(instance, idFixed).size[0]);
@@ -1709,9 +1723,9 @@ TEST(PureSolverLayout, heightReflowsWithResolvedWidth)
         return hbox(ArraySignal<AnyWidget>(std::move(row)));
     };
 
-    Instance wide = realiseConverged(pureSolverRoot(makeTree()),
+    Instance wide = realiseConverged(makeTree(),
             avg::Vector2f(400.0f, 300.0f));
-    Instance narrow = realiseConverged(pureSolverRoot(makeTree()),
+    Instance narrow = realiseConverged(makeTree(),
             avg::Vector2f(200.0f, 300.0f));
 
     Geometry wideG = readProbe(wide, id);
@@ -1753,7 +1767,7 @@ TEST(PureSolverLayout, nestedFillerCouplesThroughFlexingContainers)
     outerRow.push_back(std::move(mid));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outerRow)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outerRow))),
             window);
 
     Geometry filler = readProbe(instance, idFiller);
@@ -1799,7 +1813,7 @@ TEST(PureSolverLayout, stackOverlaysChildrenInSameSlot)
     children.push_back(probe(idBig, content100, content100));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(stack(std::move(children))),
+            stack(std::move(children)),
             window);
 
     Geometry small = readProbe(instance, idSmall);
@@ -1836,7 +1850,7 @@ TEST(PureSolverLayout, stackHonoursChildGravity)
             | modifier::setGravity(constant(avg::Vector2f(1.0f, 1.0f))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(stack(std::move(children))),
+            stack(std::move(children)),
             window);
 
     Geometry bottomLeft = readProbe(instance, idBottomLeft);
@@ -1864,7 +1878,7 @@ TEST(PureSolverLayout, stackFillerStretchesToSlot)
     children.push_back(probe(idLeaf, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(stack(std::move(children))),
+            stack(std::move(children)),
             window);
 
     Geometry filler = readProbe(instance, idFiller);
@@ -1908,7 +1922,7 @@ TEST(PureSolverLayout, stackAggregatesMaxChildBandUpward)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -1946,7 +1960,7 @@ TEST(PureSolverLayout, stackFlexesAsFillerInParent)
     row.push_back(probe(idLeaf, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry innerFiller = readProbe(instance, idInnerFiller);
@@ -1980,7 +1994,7 @@ TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
     row.push_back(probe(idLeaf, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry innerFiller = readProbe(instance, idInnerFiller);
@@ -2024,7 +2038,7 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
     row.push_back(probe(idLeaf, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idInnerFiller).size[0]);
@@ -2050,7 +2064,7 @@ TEST(PureSolverLayout, gridPlacesChildrenInCells)
         .cell(0, 1, 1, 1, probe(id01, fixed40, fixed40))
         .cell(1, 1, 1, 1, probe(id11, fixed40, fixed40));
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+    Instance instance = realiseConverged(std::move(grid), window);
 
     Geometry g00 = readProbe(instance, id00);
     Geometry g10 = readProbe(instance, id10);
@@ -2089,7 +2103,7 @@ TEST(PureSolverLayout, gridCellGravityWithinTrack)
         .cell(0, 0, 1, 1, probe(id, fixed40, fixed40)
                 | modifier::setGravity(constant(avg::Vector2f(0.0f, 0.0f))));
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+    Instance instance = realiseConverged(std::move(grid), window);
 
     Geometry g = readProbe(instance, id);
 
@@ -2123,7 +2137,7 @@ TEST(PureSolverLayout, gridTrackSizedToLargestCell)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry wide = readProbe(instance, idWide);
@@ -2158,7 +2172,7 @@ TEST(PureSolverLayout, gridSpanningCellCoversItsTracks)
         .cell(0, 1, 2, 1, fillerProbe(idSpan))
         .cell(0, 0, 1, 1, probe(idCell, fixed40, fixed40));
 
-    Instance instance = realiseConverged(pureSolverRoot(std::move(grid)), window);
+    Instance instance = realiseConverged(std::move(grid), window);
 
     Geometry span = readProbe(instance, idSpan);
     Geometry cell = readProbe(instance, idCell);
@@ -2201,7 +2215,7 @@ TEST(PureSolverLayout, gridSpanningCellSharesNaturalAcrossTracks)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry span = readProbe(instance, idSpan);
@@ -2240,7 +2254,7 @@ TEST(PureSolverLayout, gridSpanningCellDoesNotInflateTrack)
     row.push_back(fillerProbe(idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry single = readProbe(instance, idSingle);
@@ -2275,7 +2289,7 @@ TEST(PureSolverLayout, gridSpanningCellSharesFloorAcrossTracks)
             | modifier::fixedWidth(700.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry span = readProbe(instance, idSpan);
@@ -2301,7 +2315,7 @@ TEST(PureSolverLayout, gridGrowableCellChildStaysAtNatural)
         .cell(0, 0, 1, 1, probe(idChild, growable, growable));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(std::move(grid)), window);
+            std::move(grid), window);
 
     Geometry child = readProbe(instance, idChild);
 
@@ -2330,7 +2344,7 @@ TEST(PureSolverLayout, gridFlexesAsFillerInParent)
     row.push_back(probe(idLeaf, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry filler = readProbe(instance, idFiller);
@@ -2407,7 +2421,7 @@ TEST(PureSolverLayout, overConstrainedFragmentDoesNotZeroSiblings)
     row.push_back(probe(idHealthy, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry healthy = readProbe(instance, idHealthy);
@@ -2440,7 +2454,7 @@ TEST(PureSolverLayout, hScrollBarFillsWidthAcrossAColumn)
             hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry bar = readProbe(instance, id);
@@ -2465,7 +2479,7 @@ TEST(PureSolverLayout, vScrollBarFillsHeightAcrossARow)
             vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry bar = readProbe(instance, id);
@@ -2489,7 +2503,7 @@ TEST(PureSolverLayout, hScrollBarFillsWidthAlongARow)
             hScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry bar = readProbe(instance, id);
@@ -2513,7 +2527,7 @@ TEST(PureSolverLayout, vScrollBarFillsHeightAlongAColumn)
             vScrollBar(scroll.handle, scroll.signal, constant(0.5f)), id));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry bar = readProbe(instance, id);
@@ -2543,7 +2557,7 @@ TEST(PureSolverLayout, binFirewallSolvesNestedContainer)
     AnyWidget content = vbox(ArraySignal<AnyWidget>(std::move(column)));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(bin(std::move(content), constant(contentSize))),
+            bin(std::move(content), constant(contentSize)),
             contentSize);
 
     Geometry a = readProbe(instance, idA);
@@ -2578,8 +2592,8 @@ TEST(PureSolverLayout, binFirewallIsViewportSizedNotContentSized)
         | modifier::fixedSize(constant(contentSize));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(withArea(
-                    bin(std::move(content), constant(contentSize)), idView)),
+            withArea(
+                    bin(std::move(content), constant(contentSize)), idView),
             viewport);
 
     Geometry view = readProbe(instance, idView);
@@ -2613,7 +2627,7 @@ TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
         .cell(1, 1, 1, 1, probe(idB, fixed100, fixed100));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(scrollView(std::move(content))), window);
+            scrollView(std::move(content)), window);
 
     Geometry a = readProbe(instance, idA);
     Geometry b = readProbe(instance, idB);
@@ -2652,7 +2666,7 @@ TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
     column.push_back(probe(idFooter, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -2686,7 +2700,7 @@ TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
     row.push_back(probe(idFlex, fixed40, cappedY));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry flex = readProbe(instance, idFlex);
@@ -2717,7 +2731,7 @@ TEST(PureSolverLayout, fillerWrappedFlexibleChildDoesNotFill)
     row.push_back(probe(idBare, fixed40, fixed40) | modifier::growHeight());
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry wrapped = readProbe(instance, idWrapped);
@@ -2745,7 +2759,7 @@ TEST(PureSolverLayout, scrollViewInRowFillsVertically)
                         fixed100)), idScroll));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry scroll = readProbe(instance, idScroll);
@@ -2781,7 +2795,7 @@ TEST(PureSolverLayout, flexibleChildFillsGridCell)
     column.push_back(probe(idFooter, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -2816,7 +2830,7 @@ TEST(PureSolverLayout, flexibleChildFillsStackSlot)
     column.push_back(probe(idFooter, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fixed = readProbe(instance, idFixed);
@@ -2867,7 +2881,7 @@ TEST(PureSolverLayout, fixedWidthHoldsOnFlexingColumn)
     row.push_back(probe(idSide, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry column = readProbe(instance, idColumn);
@@ -2895,7 +2909,7 @@ TEST(PureSolverLayout, fixedSidebarBesideFlexibleContent)
     row.push_back(withArea(flexingColumn(btl::makeUniqueId()), idContent));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry sidebar = readProbe(instance, idSidebar);
@@ -2926,7 +2940,7 @@ TEST(PureSolverLayout, fixedWidthHoldsOnMainAxisFlexingRow)
     row.push_back(probe(idSide, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry innerRow = readProbe(instance, idInner);
@@ -2953,7 +2967,7 @@ TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
             | modifier::fixedHeight(100.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     Geometry flex = readProbe(instance, idFlex);
@@ -2980,7 +2994,7 @@ TEST(PureSolverLayout, laterSizeWordWinsBetweenFixedAndFill)
         row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
 
         Instance instance = realiseConverged(
-                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
                 window);
         return readProbe(instance, id).size[0];
     };
@@ -3012,7 +3026,7 @@ TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
         row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
 
         Instance instance = realiseConverged(
-                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                hbox(ArraySignal<AnyWidget>(std::move(row))),
                 window);
         return readProbe(instance, id).size[0];
     };
@@ -3068,7 +3082,7 @@ TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(body))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry edit = readProbe(instance, idEdit);
@@ -3113,7 +3127,7 @@ TEST(PureSolverLayout, partlyCappedRowPublishesNoMax)
                 idRow));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     EXPECT_FLOAT_EQ(400.0f, readProbe(instance, idRow).size[0]);
@@ -3142,7 +3156,7 @@ TEST(PureSolverLayout, fullyCappedRowPublishesSummedMax)
                 idRow));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idRow).size[0]);
@@ -3166,7 +3180,7 @@ TEST(PureSolverLayout, overfullRowFillerStopsAtZero)
             | modifier::fixedWidth(300.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idFiller).position[0]);
@@ -3198,7 +3212,7 @@ TEST(PureSolverLayout, filledRowWithMarginedFillerTakesColumn)
                 | modifier::fill(), idRow));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idRow).size[1]);
@@ -3227,7 +3241,7 @@ TEST(PureSolverLayout, fillInGridCellFillsBothAxes)
     column.push_back(std::move(grid) | modifier::fill());
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry cell = readProbe(instance, idCell);
@@ -3262,7 +3276,7 @@ TEST(PureSolverLayout, flexersStartFromTheirNatural)
     row.push_back(probe(idGrow, fixed90, fixed40) | modifier::grow(2.0f));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
     EXPECT_FLOAT_EQ(90.0f, readProbe(instance, idNatural).size[0]);
@@ -3291,7 +3305,7 @@ TEST(PureSolverLayout, cappedFillBesideFillerHandsRestToFiller)
     btl::UniqueId const idCapped = btl::makeUniqueId();
     btl::UniqueId const idFiller = btl::makeUniqueId();
 
-    Instance flat = realiseConverged(pureSolverRoot(makeRow(idCapped, idFiller)),
+    Instance flat = realiseConverged(makeRow(idCapped, idFiller),
             window);
 
     EXPECT_FLOAT_EQ(150.0f, readProbe(flat, idCapped).size[0]);
@@ -3305,7 +3319,7 @@ TEST(PureSolverLayout, cappedFillBesideFillerHandsRestToFiller)
     column.push_back(makeRow(idNestedCapped, idNestedFiller));
 
     Instance nested = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     EXPECT_FLOAT_EQ(150.0f, readProbe(nested, idNestedCapped).size[0]);
@@ -3325,7 +3339,7 @@ TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
         std::vector<ArraySignal<AnyWidget>> row;
         row.push_back(probe(small, fixed40, fixed40) | modifier::fill());
         row.push_back(probe(large, fixed120, fixed40) | modifier::fill());
-        return pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row))));
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
     };
 
     btl::UniqueId const idSmall = btl::makeUniqueId();
@@ -3367,7 +3381,7 @@ TEST(PureSolverLayout, rowWithFillChildFillsAlongOuterRow)
     outer.push_back(probe(idOuterFixed, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(outer)))),
+            hbox(ArraySignal<AnyWidget>(std::move(outer))),
             window);
 
     Geometry fill = readProbe(instance, idFill);
@@ -3399,7 +3413,7 @@ TEST(PureSolverLayout, rowWithFillChildFillsAcrossOuterColumn)
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(fixedRow))));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fill = readProbe(instance, idFill);
@@ -3431,7 +3445,7 @@ TEST(PureSolverLayout, rowWithCrossFillChildKeepsNaturalHeight)
     column.push_back(withArea(vfiller(), idFiller));
 
     Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
     Geometry fill = readProbe(instance, idFill);
@@ -3461,7 +3475,7 @@ void expectFillableOnBothAxes(
     row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
 
     Instance rowInstance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            hbox(ArraySignal<AnyWidget>(std::move(row))),
             avg::Vector2f(300.0f, 200.0f));
 
     std::vector<ArraySignal<AnyWidget>> column;
@@ -3470,7 +3484,7 @@ void expectFillableOnBothAxes(
     column.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
 
     Instance columnInstance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            vbox(ArraySignal<AnyWidget>(std::move(column))),
             avg::Vector2f(200.0f, 300.0f));
 
     Geometry inRow = readProbe(rowInstance, idInRow);
