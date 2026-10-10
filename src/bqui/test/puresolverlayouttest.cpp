@@ -199,7 +199,8 @@ TEST(PureSolverLayout, containerOutsideRegionThrows)
     row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
 
     auto instance = hbox(ArraySignal<AnyWidget>(std::move(row)))(BuildParams())(
-            constant(avg::Vector2f(100.0f, 100.0f))).getInstance();
+            constant(avg::Vector2f(100.0f, 100.0f)),
+            AnySignal<LayoutSolution>(constant(LayoutSolution()))).getInstance();
 
     EXPECT_THROW(makeSignalContext(std::move(instance)).evaluate<0>(),
             std::logic_error);

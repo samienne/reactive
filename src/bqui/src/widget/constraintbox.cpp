@@ -79,8 +79,10 @@ AnyWidget makeSolutionWidget(F f)
                     -> widget::AnyElement
             {
                 auto sharedSize = std::move(size).share();
-                AnyWidget group = f(sharedSize.clone(), std::move(solution));
-                return std::move(group)(std::move(params))(sharedSize.clone());
+                auto sharedSolution = std::move(solution).share();
+                AnyWidget group = f(sharedSize.clone(), sharedSolution.clone());
+                return std::move(group)(std::move(params))(sharedSize.clone(),
+                        sharedSolution.clone());
             },
             BuildParams{},
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f))));
