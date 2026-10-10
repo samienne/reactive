@@ -5,6 +5,7 @@
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/ondraw.h>
+#include <bqui/modifier/setgravity.h>
 
 #include <bqui/widget/builder.h>
 #include <bqui/widget/button.h>
@@ -153,16 +154,21 @@ bq::signal::ArraySignal<AnyWidget> swapped(bq::signal::AnySignal<int> mode,
 AnyWidget scenario(std::string title, AnyWidget content,
         std::optional<AnyWidget> control = std::nullopt)
 {
-    std::vector<bq::signal::ArraySignal<AnyWidget>> header;
-    header.push_back(widget::label(std::move(title)));
-    header.push_back(widget::filler());
+    std::vector<bq::signal::ArraySignal<AnyWidget>> rows;
+    rows.push_back(widget::hbox({
+                widget::label(std::move(title)),
+                widget::filler(),
+            }));
     if (control)
-        header.push_back(std::move(*control));
+    {
+        rows.push_back(widget::hbox({
+                    std::move(*control),
+                    widget::filler(),
+                }));
+    }
+    rows.push_back(std::move(content) | modifier::fill());
 
-    return widget::vbox({
-            widget::hbox(bq::signal::ArraySignal<AnyWidget>(std::move(header))),
-            std::move(content) | modifier::fill(),
-        })
+    return widget::vbox(bq::signal::ArraySignal<AnyWidget>(std::move(rows)))
         | modifier::margin(4.0f)
         | modifier::frame();
 }
@@ -438,7 +444,11 @@ AnyWidget layoutPlayground()
         grid = std::move(grid).cell(x, y, 1, 1,
                 std::move(scenarios[i])
                     | modifier::growWidth()
-                    | modifier::growHeight());
+                    | modifier::growHeight()
+                    // Pinned top-left, so a scenario whose content overflows
+                    // grows away from its header rather than around its centre.
+                    | modifier::setGravity(bq::signal::constant(
+                            avg::Vector2f(0.0f, 1.0f))));
     }
 
     return widget::pureSolverRoot(std::move(grid));
