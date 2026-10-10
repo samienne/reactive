@@ -1,18 +1,12 @@
 #pragma once
 
+#include <arrange/constraint.h>
 #include <arrange/expression.h>
 #include <arrange/id.h>
 #include <arrange/strength.h>
 
 namespace arrange
 {
-
-enum class Relation
-{
-    eq,
-    le,
-    ge
-};
 
 class ConstraintImpl
 {
