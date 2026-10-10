@@ -704,7 +704,7 @@ bool regionAnchor(BuildParams const& params)
 // The layout axis the enclosing pure-solver container seeded for its fillers, as
 // a signal, so its value tracks the real context a filler evaluates in rather
 // than a parallel one that can diverge.
-bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
+bq::signal::AnySignal<std::optional<Axis>> flexAxis(BuildParams const& params)
 {
     return params.valueOrDefault<FlexAxisTag>();
 }
@@ -934,7 +934,7 @@ AnyWidget containerLayout(
             RegionContext)> buildRegion,
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>)>
             buildRegionPure,
-        std::optional<Axis> flexAxis,
+        std::optional<std::optional<Axis>> flexAxis,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
     return makeWidget([build = std::move(build),
@@ -951,7 +951,9 @@ AnyWidget containerLayout(
                 BuildParams childParams = params;
 
                 // A pure-solver stacking container seeds its layout axis, the
-                // axis its flexible children publish their flex on.
+                // axis its flexible children publish their flex on, and a grid
+                // seeds none so they flex on both; a stack seeds nothing and its
+                // children flex on the enclosing box's axis.
                 if (flexAxis)
                 {
                     childParams.set<FlexAxisTag>(
@@ -2027,9 +2029,9 @@ AnyWidget solverHbox(std::vector<AnyWidget> widgets)
     return solverBox(Axis::x, CrossAlign::fill, std::move(widgets));
 }
 
-Constraints fillerAxisBand(Axis thisAxis, Axis layoutAxis)
+Constraints fillerAxisBand(Axis thisAxis, std::optional<Axis> layoutAxis)
 {
-    if (thisAxis != layoutAxis)
+    if (layoutAxis && thisAxis != *layoutAxis)
         return Constraints();
 
     Constraints c;
@@ -2044,7 +2046,7 @@ namespace
     // no-extent child there; an axis it fills flexes like a plain filler when it
     // is the layout axis and is left free (cross-fill stretches it) otherwise.
     Constraints directionalFillerAxisBand(Axis thisAxis, bool fill,
-            Axis layoutAxis)
+            std::optional<Axis> layoutAxis)
     {
         if (!fill)
         {
@@ -2059,11 +2061,13 @@ namespace
     // produces one axis's Constraints from its current value, evaluated inside
     // the per-axis map so it tracks the real context.
     template <typename TBand>
-    PureLayout fillerPureLayout(TBand band, bq::signal::AnySignal<Axis> axisSig)
+    PureLayout fillerPureLayout(TBand band,
+            bq::signal::AnySignal<std::optional<Axis>> axisSig)
     {
         auto sharedAxis = std::move(axisSig).share();
 
-        auto width = sharedAxis.clone().map([band](Axis layoutAxis)
+        auto width = sharedAxis.clone().map(
+                [band](std::optional<Axis> layoutAxis)
                 {
                     return band(Axis::x, layoutAxis);
                 });
@@ -2072,7 +2076,8 @@ namespace
             [band, sharedAxis](bq::signal::AnySignal<LayoutSolution>)
                 -> bq::signal::AnySignal<Constraints>
             {
-                return sharedAxis.clone().map([band](Axis layoutAxis)
+                return sharedAxis.clone().map(
+                        [band](std::optional<Axis> layoutAxis)
                         {
                             return band(Axis::y, layoutAxis);
                         });
@@ -2095,7 +2100,7 @@ AnyWidget filler()
                         return builder;
 
                     builder.setPureLayout(fillerPureLayout(
-                            [](Axis thisAxis, Axis layoutAxis)
+                            [](Axis thisAxis, std::optional<Axis> layoutAxis)
                             {
                                 return fillerAxisBand(thisAxis, layoutAxis);
                             },
@@ -2120,7 +2125,8 @@ namespace
                             return builder;
 
                         builder.setPureLayout(fillerPureLayout(
-                                [fillX, fillY](Axis thisAxis, Axis layoutAxis)
+                                [fillX, fillY](Axis thisAxis,
+                                    std::optional<Axis> layoutAxis)
                                 {
                                     return directionalFillerAxisBand(thisAxis,
                                             thisAxis == Axis::x ? fillX : fillY,
@@ -2216,7 +2222,7 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
                 return solverGridBuildersRegionPure(cells, columns, rows,
                         std::move(builders));
             },
-            std::nullopt,
+            std::make_optional(std::optional<Axis>()),
             toArray(std::move(widgets)));
 }
 

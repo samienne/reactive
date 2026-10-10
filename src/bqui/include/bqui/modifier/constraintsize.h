@@ -118,7 +118,8 @@ namespace bqui::modifier
      * leftover space as a filler() does. The general form of filler() for a
      * content widget. A later fixed size on the same axis overrides it, and it
      * overrides an earlier one; a no-op outside a pure-solver region. Fills only
-     * the layout axis; the cross axis keeps its content size.
+     * the layout axis; the cross axis keeps its content size. A grid has no
+     * layout axis, so there it fills its cell (or span) on both axes.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 

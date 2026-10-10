@@ -40,7 +40,8 @@ namespace
     // its value tracks the real context the band is built in rather than a
     // parallel one that can diverge. A fill() widget flexes on the same axis a
     // filler() child of that container does.
-    bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
+    bq::signal::AnySignal<std::optional<Axis>> flexAxis(
+            BuildParams const& params)
     {
         return params.valueOrDefault<widget::FlexAxisTag>();
     }
@@ -124,10 +125,10 @@ AnyWidgetModifier pureFillModifier(float weight)
                 // threaded in as a signal.
                 auto axisSig = flexAxis(builder.getBuildParams()).share();
                 auto flexOn = [weight](widget::Constraints const& c,
-                        Axis thisAxis, Axis layoutAxis)
+                        Axis thisAxis, std::optional<Axis> layoutAxis)
                 {
                     widget::Constraints out = c;
-                    if (thisAxis == layoutAxis)
+                    if (!layoutAxis || thisAxis == *layoutAxis)
                         out.flex = widget::Flex{ weight };
                     return out;
                 };
@@ -144,7 +145,8 @@ AnyWidgetModifier pureFillModifier(float weight)
                         });
 
                 auto width = merge(old.getWidth(), axisSig.clone()).map(
-                        [flexOn](widget::Constraints const& c, Axis layoutAxis)
+                        [flexOn](widget::Constraints const& c,
+                                std::optional<Axis> layoutAxis)
                         {
                             return flexOn(c, Axis::x, layoutAxis);
                         });
@@ -158,7 +160,7 @@ AnyWidgetModifier pureFillModifier(float weight)
                         return merge(old.getHeightForWidth(std::move(ws)),
                                 axisSig.clone()).map(
                                 [flexOn](widget::Constraints const& c,
-                                        Axis layoutAxis)
+                                        std::optional<Axis> layoutAxis)
                                 {
                                     return flexOn(c, Axis::y, layoutAxis);
                                 });
