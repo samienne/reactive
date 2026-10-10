@@ -9,6 +9,7 @@
 #include "bqui/modifier/settheme.h"
 #include "bqui/modifier/instancemodifier.h"
 #include "bqui/modifier/setsizehint.h"
+#include "bqui/modifier/constraintsize.h"
 
 #include "bqui/provider/providetheme.h"
 
@@ -23,6 +24,12 @@ namespace bqui::widget
 
 namespace
 {
+    // The bar's fixed extent across its length, its usability floor along it, and
+    // its preferred length in the banded path.
+    constexpr float scrollBarThickness = 25.0f;
+    constexpr float scrollBarMinExtent = 50.0f;
+    constexpr float scrollBarNaturalExtent = 100.0f;
+
     template <bool IsHorizontal>
     avg::Rect getSliderRect(avg::Vector2f size, float amount,
             float handleSize)
@@ -143,8 +150,8 @@ namespace
     template <bool IsHorizontal>
     auto getScrollBarSizeHint()
     {
-        std::array<float, 3> main{{50, 100, 10000}};
-        std::array<float, 3> aux{{25, 25, 25}};
+        Band main{scrollBarMinExtent, scrollBarNaturalExtent, 10000, 1};
+        Band aux{scrollBarThickness, scrollBarThickness, scrollBarThickness};
 
         if (IsHorizontal)
             return bq::signal::constant(simpleSizeHint(main, aux));
@@ -233,10 +240,30 @@ AnyWidget scrollBar(
         bq::signal::AnySignal<float> amount,
         bq::signal::AnySignal<float> handleSize)
 {
-    return makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
+    auto bar = makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
         | modifier::margin(bq::signal::constant(5.0f))
-        | modifier::setSizeHint(getScrollBarSizeHint<IsHorizontal>())
-        ;
+        | modifier::setSizeHint(getScrollBarSizeHint<IsHorizontal>());
+
+    // Alongside the banded SizeHint, a native pure band: the bar fills along its
+    // own length (by flex where that is the container's layout axis, else the
+    // container's cross-fill) and holds the fixed thickness across it, so it
+    // sizes correctly whichever container it sits in. The length axis carries no
+    // natural, so the weak cross-fill still stretches it perpendicular to its
+    // container. A no-op outside a pure-solver region, where the SizeHint drives.
+    if constexpr (IsHorizontal)
+    {
+        return std::move(bar)
+            | modifier::growWidth()
+            | modifier::fixedHeight(scrollBarThickness)
+            | modifier::minWidth(scrollBarMinExtent);
+    }
+    else
+    {
+        return std::move(bar)
+            | modifier::growHeight()
+            | modifier::fixedWidth(scrollBarThickness)
+            | modifier::minHeight(scrollBarMinExtent);
+    }
 }
 
 AnyWidget hScrollBar(

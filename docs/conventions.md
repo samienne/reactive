@@ -134,16 +134,18 @@ Reading a value out of a signal by spinning up a private
 `makeSignalContext(sig).evaluate<0>().get<0>()` snapshots it in a context
 parallel to the real one. Two `SignalContext`s over one description are
 independent and can diverge (see `docs/design/arraysignal.md`), so the snapshot
-is only ever right by accident - for a value that happens to be constant today.
+is only ever right by accident — for a value that happens to be constant today.
 It rots the moment the source becomes dynamic (a parent re-seeds a different
 value), and nothing catches it: the throwaway context compiles and returns a
 plausible number.
 
 Wire the signal through instead. Build-time descriptors are evaluated once per
-widget and hand back signals, so a seeded parameter on `BuildParams` belongs
-`merge()`d into the signal graph that consumes it, not read out of band. A
-genuinely structural build-time flag that selects *which* builder to emit is a
-different case - it chooses code, not a value - and may still be read directly.
+widget and hand back signals, so a seeded parameter (e.g. a container's flex
+variable / layout axis on `BuildParams`) belongs `merge()`d into the signal
+graph that consumes it, not read out of band. A genuinely structural build-time
+flag that selects *which* builder to emit (e.g. `PureSolverTag`) is a different
+case — it chooses code, not a value that feeds the tableau — and may still be
+read directly.
 
 ## `merge()` has no zero-argument form
 

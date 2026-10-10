@@ -1,5 +1,6 @@
 #include "bqui/widget/label.h"
 
+#include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
 #include "bqui/modifier/setsizehint.h"
@@ -9,6 +10,7 @@
 
 #include "bqui/provider/providetheme.h"
 
+#include "bqui/mapsizehint.h"
 #include "bqui/simplesizehint.h"
 #include "bqui/theme.h"
 
@@ -46,12 +48,33 @@ auto drawLabel(avg::DrawContext const& drawContext, avg::Vector2f size,
     return drawContext.drawing(std::move(textEntry));
 }
 
-SizeHint makeLabelSizeHint(std::string const& text, Theme const& theme)
+avg::TextExtents measureLabel(std::string const& text, Theme const& theme)
 {
-    auto extents = theme.getFont().getTextExtents(
+    return theme.getFont().getTextExtents(
             utf8::asUtf8(text), theme.getTextHeight());
+}
 
-    return simpleSizeHint(extents.size[0], extents.size[1]);
+SizeHint makeLabelSizeHint(avg::TextExtents const& extents)
+{
+    // The glyph box's top sits bearing.y above the baseline, so the baseline is
+    // that far below the box's top edge: the label's first baseline as a metric.
+    float firstBaseline = extents.bearing[1];
+
+    return mapSizeHint(
+            simpleSizeHint(extents.size[0], extents.size[1]),
+            [](AxisHint hint)
+            {
+                return hint;
+            },
+            [firstBaseline](AxisHint hint, float)
+            {
+                hint.anchors.firstBaseline = firstBaseline;
+                return hint;
+            },
+            [](AxisHint hint, float)
+            {
+                return hint;
+            });
 }
 
 auto makeLabel(bq::signal::AnySignal<Theme> theme,
@@ -62,9 +85,13 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
                 return DataValue(std::move(text));
             });
 
+    auto extents = merge(text, std::move(theme)).map(measureLabel).share();
+
     return makeWidget()
         | modifier::onDraw(drawLabel, text)
-        | modifier::setSizeHint(merge(text, std::move(theme)).map(makeLabelSizeHint))
+        | modifier::setSizeHint(extents.clone().map(makeLabelSizeHint))
+        | modifier::defaultSize(extents.clone().map(
+                    [](avg::TextExtents const& e) { return e.size; }))
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")
         | modifier::setData("text", std::move(textData))

@@ -1,45 +1,85 @@
 #include "bqui/sizehint.h"
 
+#include <algorithm>
+#include <ostream>
+
 namespace bqui
 {
 
 static_assert(IsSizeHint<SizeHint>::value, "");
 
-SizeHintResult SizeHint::getWidth() const
+AxisHint SizeHint::getWidth() const
 {
     return hint_->getWidth();
 }
 
-SizeHintResult SizeHint::getHeightForWidth(float width) const
+AxisHint SizeHint::getHeightForWidth(float width) const
 {
     return hint_->getHeightForWidth(width);
 }
 
-SizeHintResult SizeHint::getWidthForHeight(float height) const
+AxisHint SizeHint::getWidthForHeight(float height) const
 {
     return hint_->getWidthForHeight(height);
 }
 
-SizeHintResult getLargestHint(std::vector<SizeHintResult> const& hints)
+AxisHint getLargestHint(std::vector<AxisHint> const& hints)
 {
-    auto result = SizeHintResult{{0.0f, 0.0f, 0.0f}};
+    Band band;
     for (auto const& hint : hints)
-        for (int i = 0; i < 3; ++i)
-            result[i] = std::max(result[i], hint[i]);
+    {
+        band.min = std::max(band.min, hint.extent.min);
+        band.natural = std::max(band.natural, hint.extent.natural);
+        band.max = std::max(band.max, hint.extent.max);
+        band.grow = std::max(band.grow, hint.extent.grow);
+    }
 
-    return result;
+    return AxisHint{ band, Anchors{} };
 }
 
-std::ostream& operator<<(std::ostream& stream,
-        SizeHintResult const& h)
+AxisHint getBaselineHint(std::vector<AxisHint> const& hints)
 {
-    stream << "SizeHintResult{"
-        << "h:{";
+    float ascent = 0.0f;
+    float descentMin = 0.0f;
+    float descentNatural = 0.0f;
+    float descentMax = 0.0f;
+    float grow = 0.0f;
+    bool anyBaseline = false;
 
-    for (int i = 0; i < 3; ++i)
-        stream << h[i] << (i < 2 ? "," :"");
+    for (auto const& hint : hints)
+    {
+        float a = hint.anchors.firstBaseline.value_or(0.0f);
+        if (hint.anchors.firstBaseline)
+            anyBaseline = true;
 
-    return stream << "}";
+        ascent = std::max(ascent, a);
+        descentMin = std::max(descentMin, hint.extent.min - a);
+        descentNatural = std::max(descentNatural, hint.extent.natural - a);
+        descentMax = std::max(descentMax, hint.extent.max - a);
+        grow = std::max(grow, hint.extent.grow);
+    }
+
+    Anchors anchors;
+    if (anyBaseline)
+        anchors.firstBaseline = ascent;
+
+    return AxisHint{
+        Band{
+            ascent + descentMin,
+            ascent + descentNatural,
+            ascent + descentMax,
+            grow
+        },
+        anchors
+    };
+}
+
+std::ostream& operator<<(std::ostream& stream, Band const& band)
+{
+    return stream << "Band{"
+        << band.min << ','
+        << band.natural << ','
+        << band.max << ",grow:"
+        << band.grow << '}';
 }
 } // namespace bqui
-

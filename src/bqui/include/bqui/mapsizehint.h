@@ -9,17 +9,17 @@ namespace bqui
              typename TFunc2, typename TFunc3>
     struct MapSizeHint
     {
-        SizeHintResult getWidth() const
+        AxisHint getWidth() const
         {
             return func1(hint.getWidth());
         }
 
-        SizeHintResult getHeightForWidth(float width) const
+        AxisHint getHeightForWidth(float width) const
         {
             return func2(hint.getHeightForWidth(width), width);
         }
 
-        SizeHintResult getWidthForHeight(float height) const
+        AxisHint getWidthForHeight(float height) const
         {
             return func3(hint.getWidthForHeight(height), height);
         }
@@ -35,14 +35,14 @@ namespace bqui
              typename =
         std::enable_if_t<
             IsSizeHint<THint>::value
-            && std::is_same<SizeHintResult,
-                std::invoke_result_t<TFunc1, SizeHintResult>
+            && std::is_same<AxisHint,
+                std::invoke_result_t<TFunc1, AxisHint>
                 >::value
-            && std::is_same<SizeHintResult,
-                std::invoke_result_t<TFunc2, SizeHintResult, float>
+            && std::is_same<AxisHint,
+                std::invoke_result_t<TFunc2, AxisHint, float>
                 >::value
-            && std::is_same<SizeHintResult,
-                std::invoke_result_t<TFunc3, SizeHintResult, float>
+            && std::is_same<AxisHint,
+                std::invoke_result_t<TFunc3, AxisHint, float>
                 >::value
             >
         >

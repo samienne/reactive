@@ -7,7 +7,7 @@
 #include <btl/shared.h>
 #include <btl/fmap.h>
 
-#include <array>
+#include <optional>
 #include <vector>
 
 #include <type_traits>
@@ -20,7 +20,51 @@ namespace bqui
         y
     };
 
-    using SizeHintResult = std::array<float, 3>;
+    /**
+     * @brief One axis's size band: the range a widget may take on that axis.
+     *
+     * @c min is the size below which the widget must not be squeezed, @c natural
+     * the size it settles at when nothing pushes on it, and @c max the size it
+     * can grow to. They are kept ordered min <= natural <= max.
+     *
+     * @c grow is the widget's filler weight: the share of a container's leftover
+     * space it pulls in. Zero means the widget is not a filler and sits at its
+     * natural size; a positive weight makes it a filler that grows past its
+     * natural size, splitting the surplus with its siblings in proportion to the
+     * weight (two grow=1 children split it equally, a grow=2 child takes twice
+     * the surplus of a grow=1 one).
+     */
+    struct Band
+    {
+        float min = 0.0f;
+        float natural = 0.0f;
+        float max = 0.0f;
+        float grow = 0.0f;
+    };
+
+    /**
+     * @brief Placement anchors a widget exposes on one axis.
+     *
+     * A baseline is a metric measured from the axis origin (a function of the
+     * widget's own size, never of the space a container allocates it). Both are
+     * sparse: absent unless the widget defines them. A label reports its first
+     * baseline on its vertical axis; a baseline-aligned row uses it to line its
+     * children up (see baselineHbox).
+     */
+    struct Anchors
+    {
+        std::optional<float> firstBaseline;
+        std::optional<float> lastBaseline;
+    };
+
+    /**
+     * @brief A widget's hint for one axis: its size band and its anchors.
+     */
+    struct AxisHint
+    {
+        Band extent;
+        Anchors anchors;
+    };
 
     template <typename T, typename = void>
     struct IsSizeHint : std::false_type {};
@@ -29,13 +73,13 @@ namespace bqui
     >
     struct IsSizeHint<T, std::enable_if_t<
             btl::All<
-                std::is_same<SizeHintResult,
+                std::is_same<AxisHint,
                     decltype(std::declval<T>().getWidth())
                 >,
-                std::is_same<SizeHintResult,
+                std::is_same<AxisHint,
                     decltype(std::declval<T>().getHeightForWidth(100.0f))
                 >,
-                std::is_same<SizeHintResult,
+                std::is_same<AxisHint,
                     decltype(std::declval<T>().getWidthForHeight(100.0f))
                 >
             >::value
@@ -47,9 +91,9 @@ namespace bqui
         struct SizeHintBase
         {
             virtual ~SizeHintBase() = default;
-            virtual SizeHintResult getWidth() const = 0;
-            virtual SizeHintResult getHeightForWidth(float width) const = 0;
-            virtual SizeHintResult getWidthForHeight(float height) const = 0;
+            virtual AxisHint getWidth() const = 0;
+            virtual AxisHint getHeightForWidth(float width) const = 0;
+            virtual AxisHint getWidthForHeight(float height) const = 0;
         };
 
         template <typename THint>
@@ -60,17 +104,17 @@ namespace bqui
             {
             }
 
-            SizeHintResult getWidth() const override
+            AxisHint getWidth() const override
             {
                 return hint_.getWidth();
             }
 
-            SizeHintResult getHeightForWidth(float width) const override
+            AxisHint getHeightForWidth(float width) const override
             {
                 return hint_.getHeightForWidth(width);
             }
 
-            SizeHintResult getWidthForHeight(float height) const override
+            AxisHint getWidthForHeight(float height) const override
             {
                 return hint_.getWidthForHeight(height);
             }
@@ -81,27 +125,21 @@ namespace bqui
 
 
     /**
-     * @brief Provides the preferred size for widget.
+     * @brief Provides the preferred size for a widget.
      *
-     * SizeHint is a function that returns the size hints for the X-axis
-     * and a function to retrieve the hints for the Y-axis. This is mainly
-     * used by the layout system to determine how to allocate the window
-     * real estate to specific widgets.
+     * SizeHint answers three queries the layout system uses to allocate window
+     * real estate: the width band, the height band for a chosen width, and the
+     * width band for a chosen height. Each returns an AxisHint carrying that
+     * axis's size Band ({min, natural, max, grow}) and its Anchors.
      *
-     * The first part of the returned pair is an std::array<float, 3> where
-     * the first element of the array is the minimum size for the widget,
-     * the second part is the maximum size the widget may benefit from, and
-     * the last part is the filler size.
+     * Within a Band the layout satisfies the sizes in order: never below @c min,
+     * settling at @c natural, and growing towards @c max only for a filler (one
+     * with a positive @c grow). Fillers share a container's leftover space in
+     * proportion to their @c grow weight.
      *
-     * The requested sizes should be satisfied in increasing order. First the
-     * minimum (first element), then maximum (the second element, and then the
-     * filler (the third element).
-     *
-     * After determining the size for the X-axis the second part of the
-     * returned pair can be used to retrieve the hints for the Y-axis by
-     * giving the X-size to the function. The result of that function is used
-     * the same way as the hints for the X-axis to determine the size for the
-     * Y-axis.
+     * The two-step handshake sizes one axis and then the other: allocate a width
+     * from getWidth(), feed it to getHeightForWidth() to size the height, or the
+     * mirror through getWidthForHeight().
      *
      * The simpleSizeHint function is the easiest way to create a size hint.
      */
@@ -138,18 +176,32 @@ namespace bqui
             return *this;
         }
 
-        SizeHintResult getWidth() const;
-        SizeHintResult getHeightForWidth(float width) const;
-        SizeHintResult getWidthForHeight(float height) const;
+        AxisHint getWidth() const;
+        AxisHint getHeightForWidth(float width) const;
+        AxisHint getWidthForHeight(float height) const;
 
     private:
         btl::shared<detail::SizeHintBase> hint_;
     };
 
-    BQUI_EXPORT SizeHintResult getLargestHint(
-            std::vector<SizeHintResult> const& hints);
+    BQUI_EXPORT AxisHint getLargestHint(
+            std::vector<AxisHint> const& hints);
+
+    /**
+     * @brief Aggregates a row of cross-axis hints split at their baselines.
+     *
+     * Each hint's band is divided at its firstBaseline into an ascent (the
+     * offset to the baseline) and a descent (the rest), the two halves are
+     * maxed across the row, and the results are recombined: the natural cross
+     * size is @c maxAscent + @c maxDescent, and the aggregate reports its own
+     * firstBaseline at @c maxAscent so an enclosing baseline row can align on
+     * it in turn. A hint with no baseline contributes a zero ascent, so with
+     * no baselines at all this reduces to getLargestHint and the aggregate
+     * carries no baseline of its own.
+     */
+    BQUI_EXPORT AxisHint getBaselineHint(
+            std::vector<AxisHint> const& hints);
 
     BQUI_EXPORT std::ostream& operator<<(std::ostream& stream,
-            SizeHintResult const& h);
+            Band const& band);
 }
-

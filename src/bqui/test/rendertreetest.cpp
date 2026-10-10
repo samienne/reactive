@@ -64,9 +64,9 @@ avg::Color const red(1.0f, 0.0f, 0.0f, 1.0f);
 avg::Color const green(0.0f, 1.0f, 0.0f, 1.0f);
 avg::Color const blue(0.0f, 0.0f, 1.0f, 1.0f);
 
-SizeHintResult const fixed50 = {{ 50.0f, 50.0f, 50.0f }};
-SizeHintResult const fixed100 = {{ 100.0f, 100.0f, 100.0f }};
-SizeHintResult const fixed150 = {{ 150.0f, 150.0f, 150.0f }};
+Band const fixed50 = { 50.0f, 50.0f, 50.0f };
+Band const fixed100 = { 100.0f, 100.0f, 100.0f };
+Band const fixed150 = { 150.0f, 150.0f, 150.0f };
 
 avg::Color colorOf(size_t index)
 {
