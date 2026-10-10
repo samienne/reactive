@@ -1,4 +1,4 @@
-#include "bqui/modifier/setsizehint.h"
+#include "setsizehint.h"
 
 #include "bqui/modifier/buildermodifier.h"
 

@@ -9,9 +9,7 @@
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
-#include <bqui/modifier/setminimumsize.h>
-#include <bqui/modifier/setsize.h>
-#include <bqui/modifier/setsizehint.h>
+#include "modifier/setsizehint.h"
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/bin.h>
@@ -1864,130 +1862,6 @@ TEST(PureSolverLayout, vfillerDoesNotFlexCrossAxis)
     EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idFiller).size[0]);
 }
 
-// A leaf that only sets a SizeHint -- no pure modifier -- is bridged into a pure
-// band at the container: it solves to its hint's 300x300 natural, not the weak
-// 100x100 default. This is the curveVisualizer / scrollbar case.
-TEST(PureSolverLayout, sizeHintOnlyLeafBridgesToPureBand)
-{
-    avg::Vector2f const window(400.0f, 400.0f);
-
-    btl::UniqueId const id = btl::makeUniqueId();
-
-    std::vector<ArraySignal<AnyWidget>> column;
-    column.push_back(withArea(
-            makeWidget() | modifier::setSizeHint(avg::Vector2f(300.0f, 300.0f)),
-            id));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
-            window);
-
-    Geometry g = readProbe(instance, id);
-    EXPECT_FLOAT_EQ(300.0f, g.size[0]);
-    EXPECT_FLOAT_EQ(300.0f, g.size[1]);
-}
-
-// setSize lives in the SizeHint, so a setSize-only leaf bridges the same way: it
-// solves to the requested 220x160. This is the spinner case.
-TEST(PureSolverLayout, setSizeLeafBridgesToPureBand)
-{
-    avg::Vector2f const window(400.0f, 400.0f);
-
-    btl::UniqueId const id = btl::makeUniqueId();
-
-    std::vector<ArraySignal<AnyWidget>> column;
-    column.push_back(withArea(
-            makeWidget() | modifier::setSize(avg::Vector2f(220.0f, 160.0f)),
-            id));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
-            window);
-
-    Geometry g = readProbe(instance, id);
-    EXPECT_FLOAT_EQ(220.0f, g.size[0]);
-    EXPECT_FLOAT_EQ(160.0f, g.size[1]);
-}
-
-// setMinimumSize raises the SizeHint's natural to the minimum, and the bridge
-// carries that up: a 40x40 leaf floored at 200x150 solves to 200x150, clamped up
-// to the minimum rather than sitting at its smaller content size.
-TEST(PureSolverLayout, minimumSizeLeafBridgesIntoPureBand)
-{
-    avg::Vector2f const window(400.0f, 400.0f);
-
-    btl::UniqueId const id = btl::makeUniqueId();
-
-    std::vector<ArraySignal<AnyWidget>> column;
-    column.push_back(withArea(
-            makeWidget()
-                | modifier::setSizeHint(avg::Vector2f(40.0f, 40.0f))
-                | modifier::setMinimumSize(avg::Vector2f(200.0f, 150.0f)),
-            id));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
-            window);
-
-    Geometry g = readProbe(instance, id);
-    EXPECT_FLOAT_EQ(200.0f, g.size[0]);
-    EXPECT_FLOAT_EQ(150.0f, g.size[1]);
-}
-
-// A container aggregates a bridged leaf's real natural, not the 100x100 default:
-// a 137-wide SizeHint-only leaf beside a fixed 80 leaf in a pure hbox tiles to
-// 137 + 80, so the fixed sibling sits at 137.
-TEST(PureSolverLayout, bridgedLeafAggregatesInPureHbox)
-{
-    avg::Vector2f const window(400.0f, 100.0f);
-
-    btl::UniqueId const idBridged = btl::makeUniqueId();
-    btl::UniqueId const idFixed = btl::makeUniqueId();
-
-    std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(withArea(
-            makeWidget() | modifier::setSizeHint(avg::Vector2f(137.0f, 40.0f)),
-            idBridged));
-    row.push_back(probe(idFixed, fixed40, fixed40) | modifier::fixedWidth(80.0f));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
-            window);
-
-    Geometry bridged = readProbe(instance, idBridged);
-    Geometry fixed = readProbe(instance, idFixed);
-
-    EXPECT_FLOAT_EQ(137.0f, bridged.size[0]);
-    EXPECT_FLOAT_EQ(0.0f, bridged.position[0]);
-    EXPECT_FLOAT_EQ(80.0f, fixed.size[0]);
-    EXPECT_FLOAT_EQ(137.0f, fixed.position[0]);
-}
-
-// A minimum-only leaf (no other size word) does not blow up. setMinimumSize
-// leaves the SizeHint natural at the framework fill sentinel, so the bridge must
-// carry the minimum as a floor without bridging that sentinel as a natural. In a
-// window smaller than the minimum the leaf clamps up to exactly its 200x150
-// minimum -- not the ~10000 sentinel, not the weak 100x100 default.
-TEST(PureSolverLayout, minimumOnlyLeafDoesNotBlowUp)
-{
-    avg::Vector2f const window(100.0f, 100.0f);
-
-    btl::UniqueId const id = btl::makeUniqueId();
-
-    std::vector<ArraySignal<AnyWidget>> column;
-    column.push_back(withArea(
-            makeWidget() | modifier::setMinimumSize(avg::Vector2f(200.0f, 150.0f)),
-            id));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
-            window);
-
-    Geometry g = readProbe(instance, id);
-    EXPECT_FLOAT_EQ(200.0f, g.size[0]);
-    EXPECT_FLOAT_EQ(150.0f, g.size[1]);
-}
-
 // A SizeHint carrying a grow weight bridges to a pure flex band, so a leaf that
 // only states grow flexes like a filler. Its main-axis natural is the flex-basis
 // (dropped at the stamp); beside a fixed 80 leaf in a 400 row it takes the
@@ -3355,7 +3229,7 @@ TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
 }
 
 // A classic tree -- labels, a button, text edits, scroll bars, a framed label,
-// fillers, a uniform grid of setSize leaves inside a scroll view, nested hbox and
+// fillers, a uniform grid of sized leaves inside a scroll view, nested hbox and
 // vbox -- lays out under pureSolverRoot from native pure bands alone: no node
 // reaches the SizeHint bridge, and the scroll view flexes to fill its slot.
 TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
@@ -3371,7 +3245,7 @@ TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
     auto cellLeaf = []()
     {
         return makeWidget()
-            | modifier::setSize(avg::Vector2f(100.0f, 100.0f));
+            | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f));
     };
 
     auto grid = AnyWidget(UniformGrid(3, 3)

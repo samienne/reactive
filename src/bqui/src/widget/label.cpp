@@ -3,7 +3,7 @@
 #include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
-#include "bqui/modifier/setsizehint.h"
+#include "modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/widget/datavalue.h"

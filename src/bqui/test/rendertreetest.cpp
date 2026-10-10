@@ -1,5 +1,5 @@
 #include <bqui/modifier/ondraw.h>
-#include <bqui/modifier/setsizehint.h>
+#include "modifier/setsizehint.h"
 
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/widget.h>

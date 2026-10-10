@@ -23,6 +23,10 @@ competing bound never defeats a tighter one), so it is simply not offered.
 
 ## Sizing vocabulary
 
+Superseded: the pure-solver size words (`fixed*`, `min*`, `max*`,
+`defaultSize`, `fill`, `grow`) replaced this vocabulary, and it and the old
+`set*Size` modifiers were removed. The section is kept as the design record.
+
 No `set*` names (they imply replacement, which no longer exists). Every modifier
 is additive and tightens the band.
 

@@ -10,7 +10,7 @@
 #include "bqui/modifier/onkeyevent.h"
 #include "bqui/modifier/ontextevent.h"
 #include "bqui/modifier/onclick.h"
-#include "bqui/modifier/setsizehint.h"
+#include "modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/widget/introspection.h"

@@ -11,7 +11,7 @@
 #include "bqui/modifier/addwidgets.h"
 #include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/setid.h"
-#include "bqui/modifier/setsizehint.h"
+#include "modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 #include "bqui/modifier/transform.h"
 #include "bqui/modifier/widgetmodifier.h"

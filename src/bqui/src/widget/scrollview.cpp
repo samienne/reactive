@@ -12,7 +12,7 @@
 #include "bqui/modifier/onpointerdown.h"
 #include "bqui/modifier/onpointerup.h"
 #include "bqui/modifier/onpointermove.h"
-#include "bqui/modifier/setsizehint.h"
+#include "modifier/setsizehint.h"
 #include "bqui/modifier/transform.h"
 
 #include "bqui/simplesizehint.h"
