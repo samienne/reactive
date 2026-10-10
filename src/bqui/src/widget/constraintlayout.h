@@ -83,6 +83,13 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value);
 
     /**
+     * @brief Publishes the anchor @p name on @p axis, replacing one of the
+     * same name.
+     */
+    BQUI_EXPORT void setPureAnchor(AnyBuilder& builder, Axis axis,
+            std::string name, bq::signal::AnySignal<Anchor> anchor);
+
+    /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
      * @p inset on every edge, the solver half of an inset wrapper (margin,
      * padding, border).
@@ -262,6 +269,15 @@ namespace bqui::widget
      * contradicts wins and the fixed size yields.
      */
     BQUI_EXPORT arrange::Strength fixedStrength();
+
+    /**
+     * @brief The strength a row aligns its children's anchors at: above a
+     * fixed size, below the bounds.
+     *
+     * The shared line and each aligned child's cross position are otherwise
+     * free, so an alignment only yields when something else pins the child.
+     */
+    BQUI_EXPORT arrange::Strength alignStrength();
 
     /**
      * @brief The strictly-weakest strength tier, below gravity and natural size,

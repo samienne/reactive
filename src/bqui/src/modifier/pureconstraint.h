@@ -1,10 +1,13 @@
 #pragma once
 
 #include "bqui/modifier/widgetmodifier.h"
+#include "bqui/widget/layoutspec.h"
 
 #include <bq/signal/signal.h>
 
 #include <arrange/strength.h>
+
+#include <string>
 
 namespace bqui::modifier::detail
 {
@@ -57,6 +60,13 @@ namespace bqui::modifier::detail
      * the build-time inset placement is the wrapper's other half.
      */
     AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount);
+
+    /**
+     * @brief A widget modifier that publishes the anchor @p name on @p axis
+     * (widget::setPureAnchor()).
+     */
+    AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
+            bq::signal::AnySignal<widget::Anchor> anchor);
 
     /**
      * @brief A widget modifier that makes the widget flexible on both axes with

@@ -51,6 +51,8 @@ namespace
             return "max";
         if (strength == fixedStrength())
             return "fixed";
+        if (strength == alignStrength())
+            return "align";
         return "strong";
     }
 
@@ -217,6 +219,41 @@ void setPureMax(AnyBuilder& builder, Axis axis,
     builder.setPureLayout(std::move(layout));
 }
 
+void setPureAnchor(AnyBuilder& builder, Axis axis, std::string name,
+        bq::signal::AnySignal<Anchor> anchor)
+{
+    PureLayout old = builder.getPureLayout();
+    auto shared = std::move(anchor).share();
+    auto apply = [name = std::move(name)](Constraints const& c, Anchor a)
+    {
+        Constraints out = c;
+        out.anchors[name] = a;
+        return out;
+    };
+
+    if (axis == Axis::x)
+    {
+        builder.setPureLayout(simplePureLayout(
+                bq::signal::AnySignal<Constraints>(
+                    merge(old.getWidth(), shared.clone()).map(apply)),
+                [old](bq::signal::AnySignal<LayoutSolution> ws)
+                {
+                    return old.getHeightForWidth(std::move(ws));
+                }));
+    }
+    else
+    {
+        builder.setPureLayout(simplePureLayout(old.getWidth(),
+                [old, shared, apply](
+                        bq::signal::AnySignal<LayoutSolution> ws)
+                    -> bq::signal::AnySignal<Constraints>
+                {
+                    return merge(old.getHeightForWidth(std::move(ws)),
+                            shared.clone()).map(apply);
+                }));
+    }
+}
+
 void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
 {
     PureLayout layout = builder.getPureLayout();
@@ -228,6 +265,8 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
     // The band grows by the inset on both edges and re-tags onto the outer box
     // (which the builder adopts below, so a later flatten emits the grown band
     // there); the old box keeps only the required inner/outer edge relations.
+    // An anchor at inner + f * (outer extent - 2 * inset) + o is re-expressed
+    // against the outer box, whose leading edge sits one inset further out.
     auto grow = [](Constraints& c, float ins)
     {
         float d = 2.0f * ins;
@@ -237,6 +276,8 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
             *c.min += d;
         if (c.max)
             *c.max += d;
+        for (auto& [name, anchor] : c.anchors)
+            anchor.offset += ins * (1.0f - 2.0f * anchor.fraction);
     };
 
     PureLayout old = layout;
@@ -479,6 +520,11 @@ arrange::Strength maxStrength()
 arrange::Strength fixedStrength()
 {
     return arrange::Strength::strong(1.0);
+}
+
+arrange::Strength alignStrength()
+{
+    return arrange::Strength::strong(1.5);
 }
 
 arrange::Strength weakestStrength()
