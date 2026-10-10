@@ -3,15 +3,12 @@
 #include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
-#include "modifier/setsizehint.h"
 #include "bqui/modifier/setwidgetintrospection.h"
 
 #include "bqui/widget/datavalue.h"
 
 #include "bqui/provider/providetheme.h"
 
-#include "bqui/mapsizehint.h"
-#include "bqui/simplesizehint.h"
 #include "bqui/theme.h"
 
 #include <avg/textextents.h>
@@ -54,29 +51,6 @@ avg::TextExtents measureLabel(std::string const& text, Theme const& theme)
             utf8::asUtf8(text), theme.getTextHeight());
 }
 
-SizeHint makeLabelSizeHint(avg::TextExtents const& extents)
-{
-    // The glyph box's top sits bearing.y above the baseline, so the baseline is
-    // that far below the box's top edge: the label's first baseline as a metric.
-    float firstBaseline = extents.bearing[1];
-
-    return mapSizeHint(
-            simpleSizeHint(extents.size[0], extents.size[1]),
-            [](AxisHint hint)
-            {
-                return hint;
-            },
-            [firstBaseline](AxisHint hint, float)
-            {
-                hint.anchors.firstBaseline = firstBaseline;
-                return hint;
-            },
-            [](AxisHint hint, float)
-            {
-                return hint;
-            });
-}
-
 auto makeLabel(bq::signal::AnySignal<Theme> theme,
         bq::signal::AnySignal<std::string> text)
 {
@@ -89,7 +63,6 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
 
     return makeWidget()
         | modifier::onDraw(drawLabel, text)
-        | modifier::setSizeHint(extents.clone().map(makeLabelSizeHint))
         | modifier::defaultSize(extents.clone().map(
                     [](avg::TextExtents const& e) { return e.size; }))
         | modifier::margin(bq::signal::constant(5.0f))

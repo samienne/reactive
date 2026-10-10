@@ -11,7 +11,6 @@
 #include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/setid.h"
 #include "bqui/modifier/setwidgetintrospection.h"
-#include "modifier/setsizehint.h"
 #include "bqui/modifier/transform.h"
 #include "bqui/modifier/widgetmodifier.h"
 
@@ -761,7 +760,6 @@ AnyWidget solverBoxBuilders(Axis axis,
             });
 
     return std::move(widget)
-        | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
         | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
                 [container, horizontal, verticalGiven](widget::AnyBuilder builder)
                 {
@@ -975,7 +973,6 @@ AnyWidget solverStackBuilders(
             });
 
     return std::move(widget)
-        | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
         | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
                 [container, horizontal, verticalGiven](widget::AnyBuilder builder)
                 {
@@ -1223,7 +1220,6 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
             });
 
     return std::move(widget)
-        | modifier::setSizeHint(bq::signal::constant(SizeHint(defaultSizeHint())))
         | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
                 [container, horizontal, verticalGiven](widget::AnyBuilder builder)
                 {
@@ -1352,11 +1348,9 @@ AnyWidget filler()
 
 namespace
 {
-    AnyWidget directionalFiller(bool fillX, bool fillY, Band xBand, Band yBand)
+    AnyWidget directionalFiller(bool fillX, bool fillY)
     {
         return makeWidget()
-            | modifier::setSizeHint(bq::signal::constant(
-                        simpleSizeHint(xBand, yBand)))
             | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
                     [fillX, fillY](widget::AnyBuilder builder)
                         -> widget::AnyBuilder
@@ -1378,20 +1372,17 @@ namespace
 
 AnyWidget hfiller()
 {
-    return directionalFiller(true, false,
-            Band{ 0, 0, 100000, 1 }, Band{ 0, 0, 0, 0 });
+    return directionalFiller(true, false);
 }
 
 AnyWidget vfiller()
 {
-    return directionalFiller(false, true,
-            Band{ 0, 0, 0, 0 }, Band{ 0, 0, 100000, 1 });
+    return directionalFiller(false, true);
 }
 
 AnyWidget hwfiller()
 {
-    return directionalFiller(true, true,
-            Band{ 0, 0, 100000, 1 }, Band{ 0, 0, 100000, 1 });
+    return directionalFiller(true, true);
 }
 
 AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)

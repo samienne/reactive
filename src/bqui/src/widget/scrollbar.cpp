@@ -8,13 +8,11 @@
 #include "bqui/modifier/onhover.h"
 #include "bqui/modifier/settheme.h"
 #include "bqui/modifier/instancemodifier.h"
-#include "modifier/setsizehint.h"
 #include "bqui/modifier/constraintsize.h"
 
 #include "bqui/provider/providetheme.h"
 
 #include "bqui/shapes.h"
-#include "bqui/simplesizehint.h"
 #include "bqui/send.h"
 
 #include <avg/pathbuilder.h>
@@ -24,11 +22,9 @@ namespace bqui::widget
 
 namespace
 {
-    // The bar's fixed extent across its length, its usability floor along it, and
-    // its preferred length in the banded path.
+    // The bar's fixed extent across its length and its usability floor along it.
     constexpr float scrollBarThickness = 25.0f;
     constexpr float scrollBarMinExtent = 50.0f;
-    constexpr float scrollBarNaturalExtent = 100.0f;
 
     template <bool IsHorizontal>
     avg::Rect getSliderRect(avg::Vector2f size, float amount,
@@ -148,18 +144,6 @@ namespace
     }
 
     template <bool IsHorizontal>
-    auto getScrollBarSizeHint()
-    {
-        Band main{scrollBarMinExtent, scrollBarNaturalExtent, 10000, 1};
-        Band aux{scrollBarThickness, scrollBarThickness, scrollBarThickness};
-
-        if (IsHorizontal)
-            return bq::signal::constant(simpleSizeHint(main, aux));
-        else
-            return bq::signal::constant(simpleSizeHint(aux, main));
-    }
-
-    template <bool IsHorizontal>
     auto makeScrollBar(
         bq::signal::InputHandle<float> scrollHandle,
         bq::signal::AnySignal<float> amount,
@@ -241,15 +225,13 @@ AnyWidget scrollBar(
         bq::signal::AnySignal<float> handleSize)
 {
     auto bar = makeScrollBar<IsHorizontal>(scrollHandle, amount, handleSize)
-        | modifier::margin(bq::signal::constant(5.0f))
-        | modifier::setSizeHint(getScrollBarSizeHint<IsHorizontal>());
+        | modifier::margin(bq::signal::constant(5.0f));
 
-    // Alongside the banded SizeHint, a native pure band: the bar fills along its
-    // own length (by flex where that is the container's layout axis, else the
-    // container's cross-fill) and holds the fixed thickness across it, so it
-    // sizes correctly whichever container it sits in. The length axis carries no
-    // natural, so the weak cross-fill still stretches it perpendicular to its
-    // container.
+    // The bar fills along its own length (by flex where that is the container's
+    // layout axis, else the container's cross-fill) and holds the fixed
+    // thickness across it, so it sizes correctly whichever container it sits
+    // in. The length axis carries no natural, so the weak cross-fill still
+    // stretches it perpendicular to its container.
     if constexpr (IsHorizontal)
     {
         return std::move(bar)
