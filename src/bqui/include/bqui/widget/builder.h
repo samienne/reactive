@@ -125,14 +125,6 @@ namespace bqui::widget
         Builder& operator=(Builder&&) noexcept = default;
 
         template <typename T>
-        auto operator()(bq::signal::Signal<T, avg::Vector2f> size) &&
-        {
-            return std::move(*this)(std::move(size),
-                    bq::signal::AnySignal<LayoutSolution>(
-                        bq::signal::constant(LayoutSolution())));
-        }
-
-        template <typename T>
         auto operator()(bq::signal::Signal<T, avg::Vector2f> size,
                 bq::signal::AnySignal<LayoutSolution> solution) &&
         {

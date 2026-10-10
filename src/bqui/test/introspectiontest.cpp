@@ -304,8 +304,9 @@ TEST(introspection, elementIdJoinsRenderAndIntrospection)
     // key an out-of-process client uses to correlate the two trees.
     avg::UniqueId const id;
 
-    auto element = (filledRect() | setId(bq::signal::constant(id)))
-        (BuildParams{})(bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
+    auto element = bqui::test::buildInRegion(
+            filledRect() | setId(bq::signal::constant(id)),
+            bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
 
     auto introspection =
         bq::signal::makeSignalContext(element.getIntrospection())

@@ -5,6 +5,7 @@
 #include "bqui/widget/boxvariables.h"
 #include "bqui/widget/builder.h"
 #include "bqui/widget/layoutspec.h"
+#include "bqui/widget/widget.h"
 
 #include <bq/signal/signal.h>
 
@@ -35,10 +36,11 @@ namespace bqui::modifier
                     // The wrapped child is built through the solution-carrying
                     // interface, so a pure container under a foreground reads the
                     // one region solution to place its own children; the overlay
-                    // is a leaf and takes only the size.
+                    // is outside that solve and is laid out as its own region.
                     auto bgElement = builder.clone()(s.clone(),
                             std::move(solution));
-                    auto fgElement = fgWidget.clone()(params)(s.clone());
+                    auto fgElement = widget::detail::buildRegionAtSize(
+                            fgWidget, s.clone(), params);
 
                     auto newInstance = merge(
                             std::move(fgElement).getInstance(),

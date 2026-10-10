@@ -9,6 +9,7 @@
 #include "bqui/widget/boxvariables.h"
 #include "bqui/widget/builder.h"
 #include "bqui/widget/layoutspec.h"
+#include "bqui/widget/widget.h"
 
 #include <bq/signal/signal.h>
 
@@ -58,11 +59,12 @@ namespace bqui::modifier
                     auto s = std::move(size).share();
                     // The foreground child is built through the solution-carrying
                     // interface, so a framed pure container reads the one region
-                    // solution to place its own children; the background shape is
-                    // a leaf and takes only the size.
+                    // solution to place its own children; the background is outside
+                    // that solve and is laid out as its own region.
                     auto fgElement = builder.clone()(s.clone(),
                             std::move(solution));
-                    auto bgElement = bgWidget.clone()(params)(s.clone());
+                    auto bgElement = widget::detail::buildRegionAtSize(
+                            bgWidget, s.clone(), params);
 
                     auto newInstance = merge(
                             std::move(fgElement).getInstance(),
