@@ -119,6 +119,7 @@ bquitestsrc = [
   'test/apptest.cpp',
   'test/conflictlayouttest.cpp',
   'test/guidelayouttest.cpp',
+  'test/guideslacktest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
