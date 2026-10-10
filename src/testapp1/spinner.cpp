@@ -1,6 +1,5 @@
 #include "spinner.h"
 
-#include <bqui/modifier/setsize.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/elementmodifier.h>
@@ -59,7 +58,6 @@ widget::AnyWidget spinner()
 
     return widget::makeWidget()
         | modifier::onDraw(drawSpinner, provider::provideTheme(), std::move(state))
-        | modifier::setSize(avg::Vector2f{ 100.0f, 100.0f })
         | modifier::fixedSize(avg::Vector2f{ 100.0f, 100.0f })
         ;
 }

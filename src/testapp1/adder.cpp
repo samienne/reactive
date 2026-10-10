@@ -7,7 +7,6 @@
 #include <bqui/modifier/frame.h>
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/setgravity.h>
-#include <bqui/modifier/setminimumsize.h>
 #include <bqui/modifier/constraintsize.h>
 
 #include <bqui/widget/textedit.h>
@@ -196,7 +195,6 @@ bqui::widget::AnyWidget adder()
                             auto a = withAnimation(0.3f, avg::curve::linear);
                             handle.set(!fancy);
                         }))
-                        | modifier::setMinimumWidth(250.0f)
                         | modifier::minWidth(250.0f)
                     })
             }
