@@ -25,6 +25,7 @@
 
 #include <bq/signal/constant.h>
 
+#include <algorithm>
 #include <optional>
 
 namespace bqui::widget
@@ -40,42 +41,41 @@ AnyWidget scrollView(AnyWidget widget)
         auto x = bq::signal::makeInput(0.5f);
         auto y = bq::signal::makeInput(0.5f);
 
-        auto hintSize = builder.getSizeHint().map([](auto hint)
-                {
-                    float w = hint.getWidth().extent.natural;
-                    float h = hint.getHeightForWidth(w).extent.natural;
-
-                    return avg::Vector2f(w, h);
-                }).share();
-
         // The content is clipped to the viewport, so its size is intrinsic to the
         // content: its extent is the natural of its own pure band (the grid
-        // solved at its own size); an axis whose band states no natural falls
-        // back to the SizeHint. The height reads the band at an empty width
-        // solution, so this is exact only where the height is width-independent;
-        // a genuinely reflowing content would measure at width zero -- a known
-        // limitation, not yet handled.
+        // solved at its own size). An axis whose band states no natural takes
+        // the viewport's extent, held within the band's min and max, so content
+        // that only fills scrolls no further than its bounds demand. The height
+        // reads the band at an empty width solution, so this is exact only where
+        // the height is width-independent; a genuinely reflowing content would
+        // measure at width zero -- a known limitation, not yet handled.
         PureLayout const layout = builder.getPureLayout();
 
-        auto naturalOf = [](Constraints const& c) -> std::optional<float>
+        auto extentOf = [](Constraints const& c, float viewport)
         {
             if (c.natural)
                 return c.natural->value;
 
-            return std::nullopt;
+            float extent = viewport;
+            if (c.max)
+                extent = std::min(extent, *c.max);
+            if (c.min)
+                extent = std::max(extent, *c.min);
+
+            return extent;
         };
 
-        auto width = layout.getWidth().map(naturalOf);
+        auto width = layout.getWidth();
         auto height = layout.getHeightForWidth(
-                bq::signal::constant(LayoutSolution())).map(naturalOf);
+                bq::signal::constant(LayoutSolution()));
 
         bq::signal::AnySignal<avg::Vector2f> contentSizeSignal = merge(
-                std::move(width), std::move(height), hintSize.clone()).map(
-                [](std::optional<float> w, std::optional<float> h,
-                    avg::Vector2f hint)
+                std::move(width), std::move(height), viewSize.signal).map(
+                [extentOf](Constraints const& w, Constraints const& h,
+                    avg::Vector2f viewport)
                 {
-                    return avg::Vector2f(w.value_or(hint[0]),
-                            h.value_or(hint[1]));
+                    return avg::Vector2f(extentOf(w, viewport[0]),
+                            extentOf(h, viewport[1]));
                 });
 
         auto contentSize = std::move(contentSizeSignal).share();

@@ -159,3 +159,33 @@ TEST(SizeBoundary, scrollViewBandIgnoresContent)
         EXPECT_FLOAT_EQ(emptyHeight.natural->value, height.natural->value);
     }
 }
+
+// Content whose band states no natural is sized to the viewport, held within
+// the band's bounds: a leaf that only grows fills the viewport exactly, while a
+// leaf with a min taller than the viewport takes that min and scrolls.
+TEST(SizeBoundary, scrollContentWithoutNaturalTakesViewport)
+{
+    avg::Vector2f const window(500.0f, 900.0f);
+    float const bar = 25.0f;
+
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    AnyWidget fills = withArea(makeWidget()
+            | modifier::growWidth()
+            | modifier::growHeight(), idFill);
+
+    Instance filled = realiseConverged(scrollView(std::move(fills)), window);
+    Geometry fill = readProbe(filled, idFill);
+    EXPECT_FLOAT_EQ(window[0] - bar, fill.size[0]);
+    EXPECT_FLOAT_EQ(window[1] - bar, fill.size[1]);
+
+    btl::UniqueId const idTall = btl::makeUniqueId();
+    AnyWidget tall = withArea(makeWidget()
+            | modifier::minHeight(2000.0f)
+            | modifier::growWidth()
+            | modifier::growHeight(), idTall);
+
+    Instance scrolled = realiseConverged(scrollView(std::move(tall)), window);
+    Geometry t = readProbe(scrolled, idTall);
+    EXPECT_FLOAT_EQ(window[0] - bar, t.size[0]);
+    EXPECT_FLOAT_EQ(2000.0f, t.size[1]);
+}

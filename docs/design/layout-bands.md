@@ -258,7 +258,9 @@ size words are applied to them, and `scrollView` publishes its own viewport
 defaults (natural 400x800, min 100x100, flexing on both axes). Inside, the
 content is solved as its own region - `makeWidgetWithSize` at the size it is
 assigned, `bin` at the content size it is given - so a container inside any of
-them is laid out. Reading the content band outward (a boundary that hugs its
+them is laid out. The scroll view's content size is the natural of the content's
+band per axis; an axis with no natural takes the viewport extent held within the
+band's min and max. Reading the content band outward (a boundary that hugs its
 content) is possible in principle but deliberately left out.
 
 Every container must sit inside a region: a window wraps its content in one, and
