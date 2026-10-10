@@ -90,7 +90,9 @@ void openSecondWindow()
 void openPlayground()
 {
     app().addWindow(
-            window(bq::signal::constant<std::string>("Layout playground")),
+            // The scenarios stack far taller than a screen.
+            window(bq::signal::constant<std::string>("Layout playground"))
+                .initialSize(avg::Vector2f(1280.0f, 800.0f)),
             layoutPlayground() | modifier::focusGroup());
 }
 
