@@ -171,8 +171,9 @@ namespace bqui::widget
 
         /**
          * @brief This widget's accumulated pure-solver constraints, composed up
-         * from its children. Absent outside a pure-solver region. Preserved
-         * across a copy, a size-hint change and type erasure, exactly as the box
+         * from its children. Absent on a builder minted without one, which a
+         * pure-solver region bridges from its SizeHint. Preserved across a
+         * copy, a size-hint change and type erasure, exactly as the box
          * variables are.
          */
         std::optional<PureLayout> const& getPureLayout() const
@@ -354,7 +355,7 @@ namespace bqui::widget
 
     inline auto makeBuilder()
     {
-        return makeBuilder(
+        auto builder = makeBuilder(
                 [](BuildParams params, auto size)
                 {
                     return makeElement(size)
@@ -365,6 +366,15 @@ namespace bqui::widget
                 BuildParams{},
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
+
+        builder.setPureLayout(simplePureLayout(
+                    bq::signal::constant(Constraints()),
+                    [](bq::signal::AnySignal<LayoutSolution>)
+                    {
+                        return bq::signal::AnySignal<Constraints>(
+                                bq::signal::constant(Constraints()));
+                    }));
+        return builder;
     }
 
     template <typename T>
