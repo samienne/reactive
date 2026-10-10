@@ -81,20 +81,6 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier maxSize(bq::signal::AnySignal<avg::Vector2f> size);
 
     /**
-     * @brief In a pure-solver region, size this widget to its own SizeHint's
-     * natural width and height (and its SizeHint bounds), so a leaf carries its
-     * content size where its container no longer sizes it. A fixed size, a bound,
-     * a filler or a cross-fill all override it; a no-op outside a pure-solver
-     * region.
-     *
-     * The shipped content leaves (label, text edit, filled/stroked shapes) apply
-     * this themselves, so an ordinary layout needs no call. A widget built
-     * directly from makeWidget() (a custom leaf) adds it by hand; a filler() must
-     * not, being deliberately free on the layout axis.
-     */
-    BQUI_EXPORT AnyWidgetModifier defaultSize();
-
-    /**
      * @brief In a pure-solver region, give this widget the fixed natural @p size
      * at content strength, for a leaf whose measured SizeHint is not a sensible
      * pure natural (a bare shape). It settles at @p size unless a fixed size, a

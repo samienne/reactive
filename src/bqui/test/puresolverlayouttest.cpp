@@ -88,16 +88,31 @@ AnyWidget withArea(AnyWidget widget, btl::UniqueId id)
                     }, constant(id)));
 }
 
-// A content leaf: its SizeHint band is bridged into the pure natural by
-// defaultSize(), so a probe sizes to its SizeHint's natural on each axis unless
-// an explicit size word overrides it. Tagged for geometry read-back.
+// A content leaf sized by native size words read off one Band per axis: the
+// natural at content strength, a min below or a max above it, and a flex where it
+// grows. A max at the 10000 ceiling states no cap. An explicit size word applied
+// after overrides it. Tagged for geometry read-back.
 AnyWidget probe(btl::UniqueId id, Band width, Band height)
 {
-    return withArea(makeWidget()
-            | modifier::setSizeHint(
-                constant(SizeHint(simpleSizeHint(width, height))))
-            | modifier::defaultSize(),
-            id);
+    float const uncapped = 10000.0f;
+
+    AnyWidget widget = makeWidget()
+        | modifier::defaultSize(avg::Vector2f(width.natural, height.natural));
+
+    if (width.min < width.natural)
+        widget = AnyWidget(std::move(widget) | modifier::minWidth(width.min));
+    if (height.min < height.natural)
+        widget = AnyWidget(std::move(widget) | modifier::minHeight(height.min));
+    if (width.max > width.natural && width.max < uncapped)
+        widget = AnyWidget(std::move(widget) | modifier::maxWidth(width.max));
+    if (height.max > height.natural && height.max < uncapped)
+        widget = AnyWidget(std::move(widget) | modifier::maxHeight(height.max));
+    if (width.grow > 0.0f)
+        widget = AnyWidget(std::move(widget) | modifier::growWidth());
+    if (height.grow > 0.0f)
+        widget = AnyWidget(std::move(widget) | modifier::growHeight());
+
+    return withArea(std::move(widget), id);
 }
 
 // A pure-solver filler tagged for geometry read-back.
@@ -106,40 +121,43 @@ AnyWidget fillerProbe(btl::UniqueId id)
     return withArea(filler(), id);
 }
 
-// A SizeHint whose natural height is inversely proportional to width -- narrower
-// means taller (height == area / width) -- so it reflows only when phase 2 reads
-// the resolved width rather than the natural width.
-struct ReflowHint
-{
-    float area;
-    float fallbackWidth;
-
-    AxisHint getWidth() const
-    {
-        return AxisHint{ Band{ fallbackWidth, fallbackWidth, fallbackWidth },
-                Anchors() };
-    }
-
-    AxisHint getHeightForWidth(float width) const
-    {
-        float height = area / width;
-        return AxisHint{ Band{ height, height, height }, Anchors() };
-    }
-
-    AxisHint getWidthForHeight(float) const
-    {
-        return getWidth();
-    }
-};
-
-// A content leaf carrying a width-dependent height, filling its row so its
-// resolved width tracks the window. Tagged for geometry read-back.
+// A content leaf whose natural height is inversely proportional to its resolved
+// width -- narrower means taller (height == area / width) -- so it reflows only
+// when phase 2 reads the resolved width rather than the natural width. It fills
+// its row so its resolved width tracks the window. Tagged for geometry read-back.
 AnyWidget reflowProbe(btl::UniqueId id, float area, float fallbackWidth)
 {
+    auto natural = [](float value)
+    {
+        Constraints c;
+        c.natural = BandNatural{ value, contentStrength() };
+        return c;
+    };
+
     return withArea(makeWidget()
-            | modifier::setSizeHint(
-                constant(SizeHint(ReflowHint{ area, fallbackWidth })))
-            | modifier::defaultSize()
+            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
+                    [area, fallbackWidth, natural](widget::AnyBuilder builder)
+                        -> widget::AnyBuilder
+                    {
+                        widget::BoxVariables box = builder.getBoxVariables();
+                        builder.setPureLayout(widget::simplePureLayout(
+                            constant(natural(fallbackWidth)),
+                            [box, area, fallbackWidth, natural](
+                                bq::signal::AnySignal<LayoutSolution> ws)
+                            {
+                                return bq::signal::AnySignal<Constraints>(
+                                    std::move(ws).map(
+                                    [box, area, fallbackWidth, natural](
+                                            LayoutSolution const& sol)
+                                    {
+                                        float w = readObb(sol, box)
+                                            .getSize()[0];
+                                        return natural(area
+                                                / (w > 0.0f ? w : fallbackWidth));
+                                    }));
+                            }));
+                        return builder;
+                    }))
             | modifier::fill(),
             id);
 }
@@ -339,7 +357,7 @@ TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
 }
 
 // A real nested vbox behind pureSolverRoot lays its content leaves out at their
-// SizeHint natural: every leaf carries a 40x40 band and comes out 40x40, stacked
+// natural: every leaf carries a 40x40 band and comes out 40x40, stacked
 // edge to edge. The outer column holds a leaf and the inner column; the inner
 // holds two leaves. Nothing forces the leaves wider, so they size to content on
 // both axes (a leaf fills only when a container has slack to give -- here it
@@ -386,7 +404,9 @@ TEST(PureSolverLayout, nestedColumnsSizeToContent)
 // Where a band-free column should match the banded one, it does. Two leaves
 // whose band is exactly the weak default (100x100) in a window that fits them
 // both: the pure path (ON, pureSolverRoot) places them identically to the
-// shipped per-container banded path (OFF, a plain vbox).
+// shipped per-container banded path (OFF, a plain vbox). Each leaf states its
+// size to both paths, a SizeHint for the banded one and a pure natural for the
+// solver.
 TEST(PureSolverLayout, matchesBandedWhereLayoutIsBandFree)
 {
     avg::Vector2f const window(100.0f, 200.0f);
@@ -394,11 +414,20 @@ TEST(PureSolverLayout, matchesBandedWhereLayoutIsBandFree)
     btl::UniqueId const idTop = btl::makeUniqueId();
     btl::UniqueId const idBottom = btl::makeUniqueId();
 
+    auto leaf = [](btl::UniqueId id)
+    {
+        return withArea(makeWidget()
+                | modifier::setSizeHint(
+                    constant(SizeHint(simpleSizeHint(fixed100, fixed100))))
+                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f)),
+                id);
+    };
+
     auto makeTree = [&]() -> AnyWidget
     {
         std::vector<ArraySignal<AnyWidget>> children;
-        children.push_back(probe(idTop, fixed100, fixed100));
-        children.push_back(probe(idBottom, fixed100, fixed100));
+        children.push_back(leaf(idTop));
+        children.push_back(leaf(idBottom));
         return vbox(ArraySignal<AnyWidget>(std::move(children)));
     };
 
@@ -687,8 +716,8 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 
 // A shipped content leaf sizes to its own content with no defaultSize() at the
 // call site: a plain label() beside a filler settles at its measured content
-// width and the filler takes the rest of the row, so the SizeHint bridge reaches
-// the shipped leaf factories. The exact width is font-dependent, so this asserts
+// width and the filler takes the rest of the row, so the shipped leaf factories
+// carry their own pure band. The exact width is font-dependent, so this asserts
 // the invariant -- the label is content-sized (positive, well under the full
 // row) and the filler absorbs the remainder -- not a pixel count.
 TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
@@ -717,10 +746,10 @@ TEST(PureSolverLayout, shippedLeafCarriesItsOwnDefault)
     EXPECT_FLOAT_EQ(labelG.size[0], fillerG.position[0]);
 }
 
-// A text edit emits a native pure band from its own fixed content size, no
-// SizeHint bridge in the loop: a lone textEdit under pureSolverRoot settles at
-// its declared 250x40 on both axes -- the width held at content strength (a
-// content leaf is not stretched to the row) and the height at its content value.
+// A text edit emits a native pure band from its own fixed content size: a lone
+// textEdit under pureSolverRoot settles at its declared 250x40 on both axes --
+// the width held at content strength (a content leaf is not stretched to the
+// row) and the height at its content value.
 TEST(PureSolverLayout, textEditSizesToNativeBand)
 {
     avg::Vector2f const window(400.0f, 200.0f);
@@ -742,10 +771,10 @@ TEST(PureSolverLayout, textEditSizesToNativeBand)
     EXPECT_FLOAT_EQ(40.0f, g.size[1]);
 }
 
-// A label emits a native pure band from its own measured text extents, no
-// SizeHint bridge in the loop, and reproduces the banded footprint: the label's
-// margin is applied before the size word on both paths, so the same label sizes
-// identically laid out in a pure region and in the banded default. This pins the
+// A label emits a native pure band from its own measured text extents and
+// reproduces the banded footprint: the label's margin is applied before the size
+// word on both paths, so the same label sizes identically laid out in a pure
+// region and in the banded default. This pins the
 // margin ordering -- a pure size word landing after the margin would inset the
 // text instead of padding it, shrinking the box.
 TEST(PureSolverLayout, labelSizesToNativeBand)
@@ -1166,10 +1195,10 @@ TEST(PureSolverLayout, overflowVersusFlexResponse)
     }
 }
 
-// A content leaf sizes to its SizeHint natural, not a flat default. A probe whose
-// natural is a distinct 137x24 comes out exactly 137x24 -- not the old flat 100,
-// not the 40 the other probes carry -- proving the SizeHint's natural now drives
-// the pure band on both axes.
+// A content leaf sizes to its natural, not a flat default. A probe whose natural
+// is a distinct 137x24 comes out exactly 137x24 -- not the old flat 100, not the
+// 40 the other probes carry -- proving the natural drives the pure band on both
+// axes.
 TEST(PureSolverLayout, leafSizesToContent)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -2526,16 +2555,14 @@ namespace
 AnyWidget xAnchoredLeaf(btl::UniqueId id, float left, float right)
 {
     return withArea(makeWidget()
-            | modifier::setSizeHint(
-                constant(SizeHint(simpleSizeHint(fixed40, fixed40))))
-            | modifier::defaultSize()
+            | modifier::defaultSize(avg::Vector2f(40.0f, 40.0f))
             | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
                     [left, right](widget::AnyBuilder builder)
                         -> widget::AnyBuilder
                     {
                         widget::BoxVariables box = builder.getBoxVariables();
                         // defaultSize() above set the pure layout this extends.
-                        widget::PureLayout old = *builder.getPureLayout();
+                        widget::PureLayout old = builder.getPureLayout();
 
                         auto width = old.getWidth().map(
                                 [box, left, right](widget::Constraints const& c)
@@ -3196,9 +3223,9 @@ TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
 
 // A classic tree -- labels, a button, text edits, scroll bars, a framed label,
 // fillers, a uniform grid of sized leaves inside a scroll view, nested hbox and
-// vbox -- lays out under pureSolverRoot from native pure bands alone: no node
-// reaches the SizeHint bridge, and the scroll view flexes to fill its slot.
-TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
+// vbox -- lays out under pureSolverRoot from native pure bands alone, and the
+// scroll view flexes to fill its slot.
+TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
 {
     avg::Vector2f const window(800.0f, 1200.0f);
 
@@ -3240,13 +3267,9 @@ TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(toolbar))));
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(body))));
 
-    std::size_t const before = pureLayoutBridgeCount();
-
     Instance instance = realiseConverged(
             pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
             window);
-
-    EXPECT_EQ(before, pureLayoutBridgeCount());
 
     Geometry edit = readProbe(instance, idEdit);
     Geometry view = readProbe(instance, idScroll);
@@ -3262,13 +3285,6 @@ TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
     EXPECT_GT(view.size[0], 400.0f);
     EXPECT_GT(view.size[1], 800.0f);
 
-    // The counter is live: a SizeHint-only leaf does reach the bridge.
-    std::vector<ArraySignal<AnyWidget>> legacy;
-    legacy.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
-    realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(legacy)))),
-            window);
-    EXPECT_LT(before, pureLayoutBridgeCount());
 }
 
 // A container publishes a max only when every child carries one. A row holding

@@ -46,8 +46,7 @@ namespace bqui::modifier
             auto builder = std::move(widget)(params);
             auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
-            std::optional<widget::PureLayout> childPure =
-                builder.getPureLayout();
+            widget::PureLayout childPure = builder.getPureLayout();
             widget::BoxVariables childBox = builder.getBoxVariables();
 
             auto framed = widget::makeBuilder(
@@ -85,11 +84,8 @@ namespace bqui::modifier
             // The frame is layout-transparent: its margin insets the background
             // shape, not the foreground child, so the child's band forwards
             // unchanged for the enclosing region to solve the child in place.
-            if (childPure)
-            {
-                framed.setPureLayout(std::move(childPure));
-                framed.setBoxVariables(std::move(childBox));
-            }
+            framed.setPureLayout(std::move(childPure));
+            framed.setBoxVariables(std::move(childBox));
 
             return makeWidgetFromBuilder(std::move(framed));
         },

@@ -81,11 +81,6 @@ AnyWidgetModifier maxSize(bq::signal::AnySignal<avg::Vector2f> size)
     return bothAxes(std::move(size), &detail::pureMaxModifier);
 }
 
-AnyWidgetModifier defaultSize()
-{
-    return detail::pureContentDefaultModifier();
-}
-
 AnyWidgetModifier defaultSize(avg::Vector2f size)
 {
     return defaultSize(bq::signal::AnySignal<avg::Vector2f>(

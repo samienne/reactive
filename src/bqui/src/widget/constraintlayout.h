@@ -82,42 +82,6 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Sets the pure band's @c min on @p axis to @p value only where it is
-     * a genuine floor below the band's current natural, for bridging a leaf's
-     * SizeHint lower bound. A bound equal to the natural is left off. Apply after
-     * setPureNatural(); setPureMin() is the unconditional form.
-     */
-    void bridgePureMin(AnyBuilder& builder, Axis axis,
-            bq::signal::AnySignal<float> value);
-
-    /**
-     * @brief Sets the pure band's @c max on @p axis to @p value only where it is
-     * a genuine cap above the band's current natural. The ceiling counterpart of
-     * bridgePureMin().
-     */
-    void bridgePureMax(AnyBuilder& builder, Axis axis,
-            bq::signal::AnySignal<float> value);
-
-    /**
-     * @brief Synthesizes a PureLayout from @p hint on @p box, the universal
-     * bridge for a builder that reaches a pure container without one.
-     *
-     * The width band comes from the hint's width and the height band from the
-     * hint's height at @p box's resolved width, both held at content strength
-     * with the min/max bounds bridged in where they widen the natural. A hint
-     * that states no size preference (the framework default) bridges to an empty
-     * band, so the container's weak default still sizes the box.
-     */
-    PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
-            BoxVariables box);
-
-    /**
-     * @brief The number of PureLayouts pureLayoutFromSizeHint() has synthesized
-     * in this process, so a test can assert a tree never reaches the bridge.
-     */
-    BQUI_EXPORT std::size_t pureLayoutBridgeCount();
-
-    /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
      * @p inset on every edge, the solver half of an inset wrapper (margin,
      * padding, border).
@@ -407,7 +371,7 @@ namespace bqui::widget
      * @brief The weak per-axis default @c width==100 on @p box.
      *
      * A leaf contributes this on each axis it does not otherwise size
-     * (modifier::defaultSize()), and a stacking container adds it on its cross
+     * (modifier::defaultSize(size)), and a stacking container adds it on its cross
      * axis; either way a box nothing else constrains resolves to a definite
      * width rather than leaving a free degree of freedom the solve is ill-posed
      * on. Add-only: minted with the box and never removed.

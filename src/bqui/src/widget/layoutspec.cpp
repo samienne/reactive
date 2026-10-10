@@ -33,6 +33,17 @@ PureLayout simplePureLayout(bq::signal::AnySignal<Constraints> width,
             std::move(width), std::move(heightForWidth) });
 }
 
+PureLayout emptyPureLayout()
+{
+    return simplePureLayout(
+            bq::signal::constant(Constraints()),
+            [](bq::signal::AnySignal<LayoutSolution>)
+            {
+                return bq::signal::AnySignal<Constraints>(
+                        bq::signal::constant(Constraints()));
+            });
+}
+
 PureLayout pureLayoutFromSize(bq::signal::AnySignal<avg::Vector2f> size)
 {
     auto shared = std::move(size).share();

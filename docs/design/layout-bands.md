@@ -176,27 +176,15 @@ strong `max`. The same rule holds in the pure box, stack and grid.
 3. **Content leaves** (`label`, `image`): set `natural` from the measurement.
 4. **Relational** (align/gravity, guides): append to `constraints`, pick an anchor.
 
-## SizeHint bridges universally at consumption
+## Every builder carries a PureLayout
 
-A builder that reaches a pure container or the firewall with no `PureLayout`
-gets one synthesized from its final `SizeHint` (`pureLayoutFromSizeHint`): the
-width band from `getWidth()` and the height band from `getHeightForWidth()` at
-the resolved width, at content strength with the bounds bridged. So a widget
-whose only size is its SizeHint drives a pure band without a per-widget pure
-modifier. Reading the *final* SizeHint at consumption
-(not at build) captures every size word regardless of modifier order. A hint
-that states no size preference (the framework default) bridges to nothing, so a
-bare widget keeps the weak default.
-
-The shipped leaves no longer rely on it: `label`, `textEdit`, the scroll bars and
-the scroll view publish native bands, `makeBuilderFromElement` publishes its
-size as a native natural, so a classic tree under `pureSolverRoot` never
-reaches the bridge. The public SizeHint size words (`setSize`, `setSizeHint`,
-`setMinimumSize`, `setMaximumSize`, the size vocabulary) are gone; the pure
-words replace them, and the bare `makeBuilder()` (so `makeWidget()`) starts
-with an empty `PureLayout`, which a later SizeHint write carries over rather
-than bridging. Only a builder minted through the full `makeBuilder` overload
-without one still reaches the bridge.
+A builder is minted with an empty `PureLayout` (no band on either axis) and
+every size word, wrapper and container composes onto it, so a pure container or
+the firewall reads `getPureLayout()` directly; nothing is synthesized from the
+`SizeHint` at consumption. A bare widget keeps the weak default. The shipped
+leaves publish native bands (`label`, `textEdit`, the scroll bars and the scroll
+view), and `makeBuilderFromElement` publishes its size as a native natural. The
+`SizeHint` -> `PureLayout` bridge that once covered builders without one is gone.
 
 ### The load-bearing invariant
 
@@ -297,9 +285,7 @@ anchor - a `max` only when **every** child carries one, since a single uncapped
 child leaves the container free to grow and a cap taken from the capped children
 alone would squeeze the rest. Every stamped extent is also floored strong at
 zero, so an over-full container overflows rather than handing a flexing child a
-negative share; and a leaf's SizeHint `min`/`max` bridge into the pure band (as a genuine
-floor below / cap above the natural — a bound equal to the natural is already the
-natural). Both were deferred while the bounds were required.
+negative share. Both were deferred while the bounds were required.
 
 **Why content strength sits above the cross-fill.** (Since fill-to-slot, a
 child holding its own extent is no longer pulled at all; the ordering still

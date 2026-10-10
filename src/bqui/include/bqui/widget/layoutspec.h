@@ -248,6 +248,12 @@ namespace bqui::widget
             WidthToConstraints heightForWidth);
 
     /**
+     * @brief A PureLayout stating no band on either axis, the descriptor of a
+     * builder minted without one.
+     */
+    BQUI_EXPORT PureLayout emptyPureLayout();
+
+    /**
      * @brief A PureLayout holding @p size as the natural on both axes, at
      * content strength.
      */

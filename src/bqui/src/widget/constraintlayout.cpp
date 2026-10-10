@@ -2,7 +2,6 @@
 
 #include "bqui/widget/builder.h"
 
-#include "bqui/simplesizehint.h"
 
 #include <avg/rendertree/uniqueid.h>
 #include <avg/transform.h>
@@ -16,9 +15,7 @@
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
-#include <atomic>
 #include <map>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -50,25 +47,6 @@ namespace
 
 namespace
 {
-    // An empty descriptor: no bands and no relations on either axis. The height
-    // phase ignores the width solution it is handed.
-    PureLayout emptyPureLayout()
-    {
-        return simplePureLayout(
-            bq::signal::constant(Constraints()),
-            [](bq::signal::AnySignal<LayoutSolution>)
-            {
-                return bq::signal::AnySignal<Constraints>(
-                        bq::signal::constant(Constraints()));
-            });
-    }
-
-    PureLayout pureLayoutOr(AnyBuilder const& builder)
-    {
-        std::optional<PureLayout> current = builder.getPureLayout();
-        return current ? *current : emptyPureLayout();
-    }
-
     // Maps the axis's Constraints band through @p apply, threading the value the
     // field is set from alongside as a second signal. Reads and rebuilds through
     // the PureLayout interface so the untouched axis passes through unchanged.
@@ -119,7 +97,7 @@ namespace
 void setPureNatural(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value, arrange::Strength strength)
 {
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
             [strength](Constraints& c, float v)
             {
@@ -133,7 +111,7 @@ void setPureFixed(AnyBuilder& builder, Axis axis,
 {
     // Strong: the same strength as the min/max bounds, so a fixed size ties
     // rather than loses to one.
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
             [](Constraints& c, float v)
             {
@@ -146,7 +124,7 @@ void setPureFixed(AnyBuilder& builder, Axis axis,
 void setPureFlex(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> weight)
 {
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(weight),
             [](Constraints& c, float w) { c.flex = Flex{ w }; });
     builder.setPureLayout(std::move(layout));
@@ -155,7 +133,7 @@ void setPureFlex(AnyBuilder& builder, Axis axis,
 void setPureMin(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value)
 {
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
             [](Constraints& c, float v) { c.min = v; });
     builder.setPureLayout(std::move(layout));
@@ -164,117 +142,15 @@ void setPureMin(AnyBuilder& builder, Axis axis,
 void setPureMax(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value)
 {
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
             [](Constraints& c, float v) { c.max = v; });
     builder.setPureLayout(std::move(layout));
 }
 
-void bridgePureMin(AnyBuilder& builder, Axis axis,
-        bq::signal::AnySignal<float> value)
-{
-    PureLayout layout = pureLayoutOr(builder);
-    updateBand(layout, axis, std::move(value),
-            [](Constraints& c, float v)
-            {
-                // Bridged only as a genuine floor below the natural: a floor
-                // equal to (or above) the natural is already carried by the
-                // natural, and a redundant strong bound would tie a later size
-                // override. setPureMin() is the unconditional, explicit form.
-                if (!c.natural || v < c.natural->value)
-                    c.min = v;
-            });
-    builder.setPureLayout(std::move(layout));
-}
-
-void bridgePureMax(AnyBuilder& builder, Axis axis,
-        bq::signal::AnySignal<float> value)
-{
-    PureLayout layout = pureLayoutOr(builder);
-    updateBand(layout, axis, std::move(value),
-            [](Constraints& c, float v)
-            {
-                // The ceiling counterpart of bridgePureMin(): bridged only as a
-                // genuine cap above the natural.
-                if (!c.natural || v > c.natural->value)
-                    c.max = v;
-            });
-    builder.setPureLayout(std::move(layout));
-}
-
-namespace
-{
-    // Bridges one axis's SizeHint band into a pure band, per field. A bound equal
-    // to the natural is already expressed by it, so only a genuinely widening
-    // bound bridges; the SizeHint fill sentinel (a max/natural at the default's
-    // ceiling, a min at its floor) means "no preference" on that field and
-    // bridges to nothing, so a bare or bound-only hint keeps the weak default. A
-    // positive grow becomes a flex band, its natural kept as the flex-basis.
-    Constraints bandToConstraints(Band const& band)
-    {
-        Band const def = defaultSizeHint().getWidth().extent;
-        float const noPreference = def.natural;
-        float const noFloor = def.min;
-
-        Constraints c;
-        if (band.natural != noPreference)
-            c.natural = BandNatural{ band.natural, contentStrength() };
-        if (band.min > noFloor && band.min < band.natural)
-            c.min = band.min;
-        if (band.max != noPreference && band.max > band.natural)
-            c.max = band.max;
-        if (band.grow > 0.0f)
-            c.flex = Flex{ band.grow };
-        return c;
-    }
-} // namespace
-
-namespace
-{
-    std::atomic<std::size_t> bridgeCount{ 0 };
-} // namespace
-
-std::size_t pureLayoutBridgeCount()
-{
-    return bridgeCount.load();
-}
-
-PureLayout pureLayoutFromSizeHint(bq::signal::AnySignal<SizeHint> hint,
-        BoxVariables box)
-{
-    ++bridgeCount;
-
-    auto shared = std::move(hint).share();
-
-    auto width = shared.clone().map([](SizeHint const& h)
-            {
-                return bandToConstraints(h.getWidth().extent);
-            });
-
-    WidthToConstraints heightForWidth =
-        [shared, box](bq::signal::AnySignal<LayoutSolution> ws)
-            -> bq::signal::AnySignal<Constraints>
-        {
-            auto solution = std::move(ws).share();
-            return merge(shared.clone(), solution.clone()).map(
-                    [box](SizeHint const& h, LayoutSolution const& sol)
-                    {
-                        float natural = h.getWidth().extent.natural;
-                        float w = readObb(sol, box).getSize()[0];
-                        return bandToConstraints(
-                                h.getHeightForWidth(w > 0.0f ? w : natural)
-                                    .extent);
-                    });
-        };
-
-    return simplePureLayout(
-            bq::signal::AnySignal<Constraints>(std::move(width)),
-            std::move(heightForWidth));
-}
-
 void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
 {
-    PureLayout layout = pureLayoutOr(builder);
+    PureLayout layout = builder.getPureLayout();
     BoxVariables inner = builder.getBoxVariables();
     BoxVariables outer;
 
