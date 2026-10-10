@@ -370,22 +370,26 @@ namespace bqui::widget
     template <typename T>
     auto makeBuilderFromElement(Element<T> element)
     {
-        auto size = element.getSize().clone();
+        auto size = element.getSize().clone().share();
         auto buildParams = element.getParams();
 
-        return makeBuilder(
+        auto builder = makeBuilder(
                 [element](BuildParams params, auto const& /*size*/)
                 {
                     return btl::clone(element)
                         .setParams(params);
                 },
-                std::move(size).map([](auto size)
+                size.clone().map([](auto size)
                     {
                         return simpleSizeHint(size[0], size[1]);
                     }),
                 std::move(buildParams),
                 bq::signal::constant(avg::Vector2f(0.5f, 0.5f))
                 );
+
+        builder.setPureLayout(pureLayoutFromSize(
+                    bq::signal::AnySignal<avg::Vector2f>(std::move(size))));
+        return builder;
     }
 
     template <typename TBuilder, typename = typename std::enable_if

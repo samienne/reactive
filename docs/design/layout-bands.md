@@ -168,9 +168,16 @@ size vocabulary (`setSizeHint`, `setSize`, `setMinimumSize`) drives a pure band
 without a per-widget pure modifier. Reading the *final* SizeHint at consumption
 (not at build) captures every size word regardless of modifier order. A hint
 that states no size preference (the framework default) bridges to nothing, so a
-bare widget keeps the weak default. The explicit `defaultSize()` on the shipped
-leaves is now redundant with this fallback and calls the same helper; it stays
-for now.
+bare widget keeps the weak default.
+
+The shipped leaves no longer rely on it: `label`, `textEdit`, the scroll bars and
+the scroll view publish native bands, `setSize` and `makeBuilderFromElement`
+publish their size as a native natural, so a classic tree under
+`pureSolverRoot` never reaches the bridge. Only a leaf sized by a bare SizeHint
+write (`setSizeHint`, `setMinimumSize`, the size vocabulary) still does. The
+bare `makeBuilder()` default stays without a `PureLayout`: giving it an empty
+one would shadow every later SizeHint-only write, which is the bridge removal
+itself.
 
 ### The load-bearing invariant
 

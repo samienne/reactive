@@ -15,6 +15,7 @@
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/bin.h>
+#include <bqui/widget/button.h>
 #include <bqui/widget/filler.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
@@ -55,7 +56,9 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <functional>
 #include <cmath>
+#include <string>
 #include <vector>
 
 using namespace bqui;
@@ -3310,4 +3313,78 @@ TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
 
     EXPECT_FLOAT_EQ(150.0f, layout(modifier::maxWidth(150.0f)));
     EXPECT_FLOAT_EQ(360.0f, layout(modifier::minWidth(100.0f)));
+}
+
+// A classic tree -- labels, a button, text edits, scroll bars, a framed label,
+// fillers, a uniform grid of setSize leaves inside a scroll view, nested hbox and
+// vbox -- lays out under pureSolverRoot from native pure bands alone: no node
+// reaches the SizeHint bridge, and the scroll view flexes to fill its slot.
+TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
+{
+    avg::Vector2f const window(800.0f, 1200.0f);
+
+    btl::UniqueId const idScroll = btl::makeUniqueId();
+    btl::UniqueId const idEdit = btl::makeUniqueId();
+
+    auto text = makeInput(TextEditState{ "Text" });
+    auto scroll = makeInput(0.5f);
+
+    auto cellLeaf = []()
+    {
+        return makeWidget()
+            | modifier::setSize(avg::Vector2f(100.0f, 100.0f));
+    };
+
+    auto grid = AnyWidget(UniformGrid(3, 3)
+            .cell(0, 0, 1, 1, cellLeaf())
+            .cell(1, 1, 1, 1, cellLeaf())
+            .cell(2, 2, 1, 1, cellLeaf()));
+
+    std::vector<ArraySignal<AnyWidget>> toolbar;
+    toolbar.push_back(label(std::string("Title")) | modifier::frame());
+    toolbar.push_back(button(constant<std::string>("Go"),
+                constant(std::function<void()>([]() {}))));
+    toolbar.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> side;
+    side.push_back(label(std::string("Side")));
+    side.push_back(withArea(AnyWidget(textEdit(text.handle,
+                        text.signal.cast<TextEditState>())), idEdit));
+    side.push_back(hScrollBar(scroll.handle, scroll.signal, constant(0.0f)));
+    side.push_back(vfiller());
+
+    std::vector<ArraySignal<AnyWidget>> body;
+    body.push_back(withArea(scrollView(std::move(grid)), idScroll));
+    body.push_back(vbox(ArraySignal<AnyWidget>(std::move(side))));
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(toolbar))));
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(body))));
+
+    std::size_t const before = pureLayoutBridgeCount();
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    EXPECT_EQ(before, pureLayoutBridgeCount());
+
+    Geometry edit = readProbe(instance, idEdit);
+    Geometry view = readProbe(instance, idScroll);
+
+    EXPECT_FLOAT_EQ(250.0f, edit.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, edit.size[1]);
+
+    // The side column flexes across through its scroll bar, so the two split
+    // the row; down, the view grows past its 800 natural to fill the body.
+    EXPECT_FLOAT_EQ(400.0f, view.size[0]);
+    EXPECT_GT(view.size[1], 800.0f);
+
+    // The counter is live: a SizeHint-only leaf does reach the bridge.
+    std::vector<ArraySignal<AnyWidget>> legacy;
+    legacy.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(legacy)))),
+            window);
+    EXPECT_LT(before, pureLayoutBridgeCount());
 }
