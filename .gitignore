@@ -47,3 +47,6 @@ tags
 compile_commands.json
 
 junit*.xml
+
+# loomworks: pinned lw binaries + provisioned bundle (machine-local)
+.nvim/cache/
