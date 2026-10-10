@@ -53,7 +53,6 @@ namespace
         auto gravity = builder.getGravity();
         auto params = builder.getBuildParams();
         auto box = builder.getBoxVariables();
-        auto guideAlignments = builder.getGuideAlignments();
         auto pureLayout = builder.getPureLayout();
 
         auto result = widget::makeBuilder(
@@ -81,7 +80,6 @@ namespace
             );
 
         result.setBoxVariables(std::move(box));
-        result.setGuideAlignments(std::move(guideAlignments));
         result.setPureLayout(std::move(pureLayout));
         return result;
     }

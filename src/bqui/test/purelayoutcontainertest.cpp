@@ -2,10 +2,8 @@
 
 #include "widget/constraintbox.h"
 
-#include <bqui/modifier/alignguide.h>
 #include <bqui/modifier/setgravity.h>
 
-#include <bqui/widget/guide.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/vbox.h>
@@ -506,35 +504,6 @@ TEST(PureSolverLayout, DISABLED_gravityPlacesAChildAcrossAColumn)
             avg::Vector2f(100.0f, 40.0f));
 
     expectAt(readProbe(instance, id), 60.0f, 0.0f);
-}
-
-// Two children of different widths in one column, both aligned to one XGuide by
-// their centre, share the centre line.
-// DISABLED: a pure hbox/vbox does not emit guide constraints; alignments are
-// read only by the old banded containers.
-TEST(PureSolverLayout, DISABLED_guideAlignsChildrenInAColumn)
-{
-    btl::UniqueId const idNarrow = btl::makeUniqueId();
-    btl::UniqueId const idWide = btl::makeUniqueId();
-
-    XGuide g;
-
-    Band const wide = { 80.0f, 80.0f, 80.0f };
-
-    std::vector<AnyWidget> column;
-    column.push_back(probe(idNarrow, fixed40, fixed40)
-            | modifier::alignCenterX(g));
-    column.push_back(probe(idWide, wide, fixed40)
-            | modifier::alignCenterX(g));
-
-    Instance instance = realiseConverged(
-            pureSolverRoot(vbox(std::move(column))),
-            avg::Vector2f(200.0f, 80.0f));
-
-    Geometry narrow = readProbe(instance, idNarrow);
-    Geometry wideG = readProbe(instance, idWide);
-
-    EXPECT_FLOAT_EQ(narrow.position[0] + 20.0f, wideG.position[0] + 40.0f);
 }
 
 // A row re-lays out when its window resizes: the fixed leaf keeps its size and

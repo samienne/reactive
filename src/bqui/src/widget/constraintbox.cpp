@@ -5,7 +5,6 @@
 #include "bqui/widget/box.h"
 #include "bqui/widget/filler.h"
 #include "bqui/widget/layout.h"
-#include "bqui/widget/resolvedguides.h"
 #include "bqui/widget/widget.h"
 
 #include "bqui/modifier/addwidgets.h"
@@ -1339,15 +1338,6 @@ AnyWidget hwfiller()
 {
     return directionalFiller(true, true,
             Band{ 0, 0, 100000, 1 }, Band{ 0, 0, 100000, 1 });
-}
-
-std::size_t resolvedGuideParamCount(BuildParams const& params)
-{
-    auto signal = provider::provideParam<ResolvedGuides>()(params);
-
-    auto context = bq::signal::makeSignalContext(std::move(signal));
-
-    return context.evaluate<0>().get<0>().size();
 }
 
 AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)

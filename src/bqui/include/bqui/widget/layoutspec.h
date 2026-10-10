@@ -76,7 +76,7 @@ namespace bqui::widget
      * flatten time, against the box it is emitted on.
      *
      * @c relations is everything else — tiling, wrapper inner/outer relations,
-     * guide alignments, a filler's flex coupling — and is additive. It is a
+     * a filler's flex coupling — and is additive. It is a
      * LayoutSpec rather than a bare constraint list so the read-back variables
      * the solver API needs travel with the constraints that name them.
      */
