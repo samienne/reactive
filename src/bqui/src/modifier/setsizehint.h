@@ -1,6 +1,8 @@
 #pragma once
 
-#include "widgetmodifier.h"
+#include "bqui/modifier/widgetmodifier.h"
+
+#include "bqui/bquivisibility.h"
 
 #include "bqui/sizehint.h"
 
