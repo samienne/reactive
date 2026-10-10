@@ -199,11 +199,20 @@ by gravity:
 - The row's natural height is the deepest ascent plus the deepest descent of
   the aligned children at their naturals, held at the firmest of their
   strengths; a `max` below that is raised to it.
-- A row taller than that centres the aligned block. The line is published as the
-  row's own baseline, so rows nest and a margin around one keeps it; a row with
-  no real baseline among its children publishes none.
-- The line variable is free but for the alignments, so pinning it to the row is
-  required (structure), and each alignment is strong at `alignStrength`.
+- A row taller than that places the aligned block by the row's own gravity
+  (centred by default, `setGravity`'s y running bottom up as everywhere), as if
+  the row held the block's height and settled in its slot. The line is
+  published as the row's own baseline, so rows nest and a margin around one
+  keeps it; a row with no real baseline among its children publishes none.
+- The row's gravity is set after the row is built, so the row cannot read it.
+  It leaves the gravity-dependent parts in its band instead: the block's
+  placement (a `GravityPlacement`) and the gravity part of its baseline (a
+  `BandAnchor`'s `perGravity`). Whoever stamps the row's band (its container,
+  or the region root) knows its gravity and resolves both; a margin
+  re-expresses the gravity part as it does the rest of the anchor.
+- The line variable is free but for the alignments, so the placement that pins
+  it to the row is required (structure), and each alignment is strong at
+  `alignStrength`.
 
 ## Guides
 

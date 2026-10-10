@@ -226,7 +226,7 @@ void placeAcross(std::vector<arrange::Constraint>& out, Axis boxAxis,
                 | arrange::Strength::weak(1.0));
     }
     placeAtGravity(out, lead, trail, containerLead, containerTrail,
-            boxAxis == Axis::x ? gravity.x() : 1.0f - gravity.y());
+            leadingGravity(gravity, boxAxis));
 }
 
 // One axis's worth of a pure hbox/vbox fragment, band-free. @p boxAxis selects
@@ -546,9 +546,10 @@ std::optional<float> aggregateFloor(
 // its baseline, or by its bottom edge when it publishes none (as CSS aligns an
 // inline block without a baseline); the rest fill the row as in a plain hbox.
 // The aligned block is as tall as its deepest ascent plus its deepest descent
-// at the children's naturals, sits centred in the row, and its line is
-// published as the row's own baseline so rows nest. Only a real baseline is
-// published: a row of bottom-aligned children has none to offer.
+// at the children's naturals, is placed in the row by the row's own gravity
+// where the row is stamped, and its line is published as the row's own
+// baseline so rows nest. Only a real baseline is published: a row of
+// bottom-aligned children has none to offer.
 void alignBaselines(Constraints& result,
         std::vector<Constraints> const& childBands,
         std::vector<BoxVariables> const& boxes,
@@ -573,7 +574,8 @@ void alignBaselines(Constraints& result,
         }
 
         auto it = band.anchors.find(baselineAnchor.id());
-        Anchor anchor = it != band.anchors.end() ? it->second
+        Anchor anchor = it != band.anchors.end()
+            ? resolveAnchor(it->second, leadingGravity(gravities[i], Axis::y))
             : Anchor{ 1.0f, 0.0f };
         anyBaseline = anyBaseline || it != band.anchors.end();
 
@@ -604,20 +606,20 @@ void alignBaselines(Constraints& result,
         return;
 
     float block = *ascent + descent;
-    Anchor rowAnchor{ 0.5f, *ascent - 0.5f * block };
 
-    // The line is free but for the alignments, so pinning it is structure.
-    out.push_back(arrange::Expression(line)
-            == arrange::Expression(container.top)
-                + static_cast<double>(rowAnchor.fraction) * container.height()
-                + arrange::Expression(static_cast<double>(rowAnchor.offset)));
+    // The line is free but for the alignments, so the placement pins it.
+    result.placements.push_back(GravityPlacement{
+            arrange::Expression(line)
+                - arrange::Expression(static_cast<double>(*ascent)),
+            block, container.top, container.bottom });
 
     if (!result.natural || result.natural->value < block)
         result.natural = BandNatural{ block, *strength };
     if (result.max && *result.max < block)
         result.max = block;
     if (anyBaseline)
-        result.anchors[baselineAnchor.id()] = rowAnchor;
+        result.anchors[baselineAnchor.id()] = BandAnchor{
+            Anchor{ 0.0f, *ascent }, Anchor{ 1.0f, -block } };
 }
 
 // Composes this container's fragment with its children's onto its builder for
@@ -694,7 +696,7 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
         for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
         {
             appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
-                        thisAxis));
+                        thisAxis, gravities[i]));
             if (mainAxis)
                 appendFlexCoupling(rel, childBands[i], boxes[i], thisAxis,
                         flexShare);
@@ -847,7 +849,7 @@ void placeOnAxis(std::vector<arrange::Constraint>& out, Axis axis,
     arrange::Variable const& lead = axis == Axis::x ? child.left : child.top;
     arrange::Variable const& trail =
         axis == Axis::x ? child.right : child.bottom;
-    float g = axis == Axis::x ? gravity.x() : 1.0f - gravity.y();
+    float g = leadingGravity(gravity, axis);
 
     if (holdsOwnExtent(band))
         placeAtGravity(out, lead, trail, slotLead, slotTrail, g);
@@ -914,7 +916,7 @@ AnyWidget solverStackBuilders(
         for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
         {
             appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
-                        thisAxis));
+                        thisAxis, gravities[i]));
 
             // Overlay the child on the whole container slot.
             if (thisAxis == Axis::x)
@@ -1144,7 +1146,7 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
 
         for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
             appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
-                        thisAxis));
+                        thisAxis, gravities[i]));
 
         // Partition this axis into the grid's tracks. The x lines run
         // left..right, the y lines bottom..top in the solver's top-down space.
@@ -1475,21 +1477,23 @@ PureRegion buildPureRegion(AnyWidget const& content,
     auto width = pure.getWidth().share();
 
     auto sharedSize = std::move(size).share();
+    auto gravity = builder.getGravity().share();
 
     // The region owner alone anchors the outermost box to the assigned
     // rectangle; every container inside states only relative structure. The
     // root is built at the assigned size whatever the solve says, so only the
-    // top descriptor's relations are flattened: its band would only lose to the
-    // anchor.
+    // top descriptor's relations and own placements are flattened: its band
+    // would only lose to the anchor.
     auto anchored = [root](Axis axis)
     {
         return [root, axis](Constraints const& constraints,
-                avg::Vector2f size)
+                avg::Vector2f size, avg::Vector2f gravity)
         {
             Constraints content;
             content.relations = constraints.relations;
+            content.placements = constraints.placements;
             std::vector<LayoutSpec> all;
-            all.push_back(flattenConstraints(content, root, axis));
+            all.push_back(flattenConstraints(content, root, axis, gravity));
             LayoutSpec anchor;
             arrange::Variable const& lead =
                 axis == Axis::x ? root.left : root.top;
@@ -1512,7 +1516,7 @@ PureRegion buildPureRegion(AnyWidget const& content,
 
     // The width solve runs first; its solution feeds phase 2.
     auto horizontalFragments =
-        merge(width.clone(), sharedSize.clone())
+        merge(width.clone(), sharedSize.clone(), gravity.clone())
         .map(anchored(Axis::x));
     auto widthSolution = layoutRegion(bq::signal::AnySignal<
             std::vector<LayoutSpec>>(
@@ -1520,7 +1524,7 @@ PureRegion buildPureRegion(AnyWidget const& content,
 
     auto heightBands = pure.getHeightForWidth(widthSolution.clone()).share();
     auto verticalFragments =
-        merge(heightBands.clone(), sharedSize.clone())
+        merge(heightBands.clone(), sharedSize.clone(), gravity.clone())
         .map(anchored(Axis::y));
     auto heightSolution = layoutRegion(bq::signal::AnySignal<
             std::vector<LayoutSpec>>(
