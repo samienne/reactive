@@ -1,5 +1,6 @@
 #include "testwidget.h"
 
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/onkeyevent.h>
@@ -86,6 +87,8 @@ widget::AnyWidget makeTestWidget()
         | modifier::setSizeHint(bq::signal::constant(simpleSizeHint(
                     Band{200.0f, 400.0f, 10000.0f},
                     Band{50.0f, 150.0f, 10000.0f})))
+        | modifier::defaultSize(avg::Vector2f(400.0f, 150.0f))
+        | modifier::minSize(avg::Vector2f(200.0f, 50.0f))
     ;
 }
 

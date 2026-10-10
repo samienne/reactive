@@ -1,5 +1,7 @@
 #include "bqui/widget/layoutspec.h"
 
+#include "constraintlayout.h"
+
 #include <utility>
 
 namespace bqui::widget
@@ -29,6 +31,34 @@ PureLayout simplePureLayout(bq::signal::AnySignal<Constraints> width,
 {
     return PureLayout(SimplePureLayout{
             std::move(width), std::move(heightForWidth) });
+}
+
+PureLayout pureLayoutFromSize(bq::signal::AnySignal<avg::Vector2f> size)
+{
+    auto shared = std::move(size).share();
+
+    auto natural = [](float value)
+    {
+        Constraints c;
+        c.natural = BandNatural{ value, contentStrength() };
+        return c;
+    };
+
+    auto width = shared.clone().map([natural](avg::Vector2f s)
+            {
+                return natural(s[0]);
+            });
+
+    return simplePureLayout(
+            bq::signal::AnySignal<Constraints>(std::move(width)),
+            [shared, natural](bq::signal::AnySignal<LayoutSolution>)
+                -> bq::signal::AnySignal<Constraints>
+            {
+                return shared.clone().map([natural](avg::Vector2f s)
+                        {
+                            return natural(s[1]);
+                        });
+            });
 }
 
 } // namespace bqui::widget

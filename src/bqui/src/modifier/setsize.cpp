@@ -1,5 +1,6 @@
 #include "bqui/modifier/setsize.h"
 
+#include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/setsizehint.h"
 #include "bqui/modifier/buildermodifier.h"
 #include "bqui/modifier/transform.h"
@@ -37,7 +38,8 @@ namespace bqui::modifier
             //AnySignal<avg::Vector2f> outerSize,
             AnySignal<avg::Vector2f> innerSize) // -> Widget
     {
-        auto sizeHint = innerSize.map([](avg::Vector2f innerSize)
+        auto shared = std::move(innerSize).share();
+        auto sizeHint = shared.clone().map([](avg::Vector2f innerSize)
             {
                 return simpleSizeHint(innerSize.x(), innerSize.y());
             });
@@ -47,7 +49,8 @@ namespace bqui::modifier
                     std::move(outerSize),
                     std::move(innerSize))*/
             | handleGravity()
-            | setSizeHint(std::move(sizeHint));
+            | setSizeHint(std::move(sizeHint))
+            | defaultSize(AnySignal<avg::Vector2f>(std::move(shared)));
     }
 
     AnyWidgetModifier setSize(AnySignal<avg::Vector2f> size)

@@ -4,6 +4,8 @@
 
 #include <bq/signal/signal.h>
 
+#include <avg/vector.h>
+
 #include <arrange/constraint.h>
 #include <arrange/id.h>
 #include <arrange/strength.h>
@@ -244,4 +246,11 @@ namespace bqui::widget
     BQUI_EXPORT PureLayout simplePureLayout(
             bq::signal::AnySignal<Constraints> width,
             WidthToConstraints heightForWidth);
+
+    /**
+     * @brief A PureLayout holding @p size as the natural on both axes, at
+     * content strength.
+     */
+    BQUI_EXPORT PureLayout pureLayoutFromSize(
+            bq::signal::AnySignal<avg::Vector2f> size);
 } // namespace bqui::widget
