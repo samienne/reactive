@@ -251,6 +251,16 @@ as an explicit build argument** (the forward-only mechanism from
 gets a size, solves its interior, and its own band (computed size-independently)
 is what its parent sees.
 
+**Size boundaries are separated from their content.** `makeWidgetWithSize`,
+`bin` and `scrollView` are firewalls whose outward band is set from outside, never
+derived from the content: `makeWidgetWithSize` and `bin` publish no band unless
+size words are applied to them, and `scrollView` publishes its own viewport
+defaults (natural 400x800, min 100x100, flexing on both axes). Inside, the
+content is solved as its own region - `makeWidgetWithSize` at the size it is
+assigned, `bin` at the content size it is given - so a container inside any of
+them is laid out. Reading the content band outward (a boundary that hugs its
+content) is possible in principle but deliberately left out.
+
 Every container must sit inside a region: a window wraps its content in one, and
 a test builds through the same wrapper. A container whose build receives no
 solution (no region above it) throws `std::logic_error` on its first evaluate
