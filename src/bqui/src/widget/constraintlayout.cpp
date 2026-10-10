@@ -107,13 +107,11 @@ void setPureNatural(AnyBuilder& builder, Axis axis,
 void setPureFixed(AnyBuilder& builder, Axis axis,
         bq::signal::AnySignal<float> value)
 {
-    // Strong: the same strength as the min/max bounds, so a fixed size ties
-    // rather than loses to one.
     PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
             [](Constraints& c, float v)
             {
-                c.natural = BandNatural{ v, arrange::Strength::strong() };
+                c.natural = BandNatural{ v, fixedStrength() };
                 c.flex.reset();
             });
     builder.setPureLayout(std::move(layout));
@@ -239,32 +237,25 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
                         static_cast<double>(constraints.natural->value)))
                 | constraints.natural->strength);
     }
-    // The bounds are strong: they outrank the weak content/natural pull and so
-    // clamp content, but yield to a required anchor or a contradicting bound of
-    // equal strength, so an unmeetable bound overflows rather than failing the
-    // solve.
     if (constraints.min)
     {
         spec.constraints.push_back(
                 (extent() >= arrange::Expression(
                         static_cast<double>(*constraints.min)))
-                | arrange::Strength::strong());
+                | minStrength());
     }
     if (constraints.max)
     {
         spec.constraints.push_back(
                 (extent() <= arrange::Expression(
                         static_cast<double>(*constraints.max)))
-                | arrange::Strength::strong());
+                | maxStrength());
     }
 
     // An over-full container hands a flexing child a negative share of the
-    // slack; the extent stops at zero and the deficit overflows instead. Strong,
-    // not required, so a contradicting required relation degrades rather than
-    // failing the solve.
+    // slack; the extent stops at zero and the deficit overflows instead.
     spec.constraints.push_back(
-            (extent() >= arrange::Expression(0.0))
-            | arrange::Strength::strong());
+            (extent() >= arrange::Expression(0.0)) | minStrength());
 
     return spec;
 }
@@ -379,23 +370,41 @@ avg::Obb readObb(LayoutSolution const& solution, BoxVariables const& box)
 std::vector<arrange::Constraint> anchorConstraints(BoxVariables const& box,
         float left, float top, float right, float bottom)
 {
-    // Strong, not required: an anchor pins the box to its assigned rectangle and
-    // wins outright against the weak defaults and content pulls, but yields to a
-    // required relation. So a box that is both anchored here and tiled by a
-    // parent (two opinions on its position) overflows against the tiling rather
-    // than making the whole region's solve infeasible, which would zero every
-    // box on that axis. Unopposed, the strong anchor still resolves the box to
-    // the exact rectangle.
     return {
         (arrange::Expression(box.left) == arrange::Expression(left))
-            | arrange::Strength::strong(),
+            | fixedStrength(),
         (arrange::Expression(box.top) == arrange::Expression(top))
-            | arrange::Strength::strong(),
+            | fixedStrength(),
         (arrange::Expression(box.right) == arrange::Expression(right))
-            | arrange::Strength::strong(),
+            | fixedStrength(),
         (arrange::Expression(box.bottom) == arrange::Expression(bottom))
-            | arrange::Strength::strong(),
+            | fixedStrength(),
     };
+}
+
+// The stated sizes rank min > max > fixed (as CSS ranks min-width over
+// max-width over width) by scaling the strong lane, with the region anchor
+// above them all. The weights stay small: the objective mixes them with the
+// weak(1e-5) flex coupling, which a much heavier strong weight would lose to
+// round-off.
+arrange::Strength regionAnchorStrength()
+{
+    return arrange::Strength::strong(10.0);
+}
+
+arrange::Strength minStrength()
+{
+    return arrange::Strength::strong(3.0);
+}
+
+arrange::Strength maxStrength()
+{
+    return arrange::Strength::strong(2.0);
+}
+
+arrange::Strength fixedStrength()
+{
+    return arrange::Strength::strong(1.0);
 }
 
 arrange::Strength weakestStrength()
@@ -448,7 +457,7 @@ void placeInSlot(std::vector<arrange::Constraint>& out,
     out.push_back((contentExtent() == slotExtent()) | fillStrength);
     out.push_back(
             (contentExtent() <= arrange::Expression(maxExtent))
-            | arrange::Strength::strong());
+            | maxStrength());
 
     // The fill fixes the extent while the gravity pull fixes the leading
     // offset, independent degrees of freedom, so the two weak pulls do not
