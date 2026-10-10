@@ -1,5 +1,6 @@
 #include "playground.h"
 
+#include <bqui/modifier/alignguide.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/foreground.h>
 #include <bqui/modifier/frame.h>
@@ -11,6 +12,7 @@
 #include <bqui/widget/builder.h>
 #include <bqui/widget/button.h>
 #include <bqui/widget/filler.h>
+#include <bqui/widget/guide.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/label.h>
 #include <bqui/widget/scrollview.h>
@@ -473,6 +475,49 @@ AnyWidget baselineScenario()
             std::move(c.button));
 }
 
+// Form rows whose labels share one x guide, so the fields start in one column
+// at the widest label; the cycle drops the guide and the fields follow their
+// own labels.
+AnyWidget formGuideScenario()
+{
+    auto c = cycle({ "guide", "no guide" });
+
+    return scenario("Form guide",
+            widget::vbox({
+                swapped(c.mode, [](int i) -> AnyWidget
+                    {
+                        widget::XGuide fields;
+
+                        auto row = [i, fields](std::string text)
+                        {
+                            AnyWidget label = widget::label(std::move(text))
+                                | modifier::frame();
+                            if (i == 0)
+                                label = AnyWidget(std::move(label)
+                                    | modifier::alignRight(fields));
+
+                            return widget::hbox({
+                                    std::move(label),
+                                    widget::makeWidget()
+                                        | modifier::defaultSize(
+                                            avg::Vector2f(80.0f, 22.0f))
+                                        | modifier::frame(),
+                                })
+                                | modifier::setGravity(bq::signal::constant(
+                                    avg::Vector2f(0.0f, 0.5f)));
+                        };
+
+                        return widget::vbox({
+                                row("Name"),
+                                row("Email address"),
+                                widget::vbox({ row("Age") }),
+                            });
+                    }),
+                widget::vfiller(),
+            }),
+            std::move(c.button));
+}
+
 } // anonymous namespace
 
 AnyWidget layoutPlayground()
@@ -491,6 +536,7 @@ AnyWidget layoutPlayground()
     scenarios.push_back(crossFillScenario());
     scenarios.push_back(panelScenario());
     scenarios.push_back(baselineScenario());
+    scenarios.push_back(formGuideScenario());
 
     unsigned int const columns = 3;
     unsigned int const rows = static_cast<unsigned int>(
