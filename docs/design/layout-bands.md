@@ -106,30 +106,41 @@ is never pre-baked into the child's own `constraints`. So the outermost band
 decides: a size word that clears `flex` (below) leaves no coupling behind, and
 one that sets it makes the child flex wherever it ends up. Only a stacking box
 has a layout axis and emits the coupling; a stack or grid fills a flexing child
-to its slot instead. `fill()`/`grow()`/`filler()` flex on the layout axis of the
-box they sit in; a grid has none, so in a grid cell they flex on both axes and
-fill the cell (or span) across and down. A stack seeds no axis of its own: its
-children flex on the axis of the box enclosing the stack.
+to its slot instead.
+
+**Which axes a word flexes (decided).** `fill()` and `grow(w)` flex on **both**
+axes: the widget takes all the space its slot offers in every direction.
+`growWidth()`/`growHeight()` are the one-axis words. `filler()` (and
+`hfiller()`/`vfiller()`) keep their per-axis meaning: a `filler` flexes on the
+layout axis of the box it sits in, in a grid cell on both axes, and a stack seeds
+no axis of its own, so its fillers flex on the axis of the box enclosing it.
 
 **Aggregation is per-axis and per-alignment:**
 - Main axis (an `hbox`'s width): children lay end-to-end, so `min`/`natural`/`max`
   and `flex` all **sum**.
 - Cross axis (an `hbox`'s height): children overlap, so `min`/`natural`/`max`
-  take the **max** and `flex` is "any child flexes". Baseline alignment computes
-  the cross extent from the children's baseline anchors
-  (`max(baseline-top) + max(bottom-baseline)`), not a raw max.
+  take the **max** - a flexing child's natural counts too - and **no `flex` is
+  published**. Baseline alignment computes the cross extent from the children's
+  baseline anchors (`max(baseline-top) + max(bottom-baseline)`), not a raw max.
+- A stack or grid treats both axes like a main axis for flex: `flex` is "any
+  child flexes" on either axis, while `min`/`natural`/`max` take the **max**
+  (per track in a grid).
 
 Each container+alignment carries its own aggregation formula; it reads children's
 bands *and* anchors to produce the parent band. Still closed-form, just richer
 than sum/max.
 
-> **Callout - greedy cross-axis flex.** The cross-axis "any child flexes" rule
-> means a `vbox` whose *cross* axis is width, holding a row (`hbox`) that contains
-> a horizontal `filler`, aggregates a width `flex` and so **becomes a horizontal
-> filler in its parent**. A vertical stack thus greedily takes horizontal slack
-> because something deep inside it can stretch horizontally. This is intended
-> (decided): a flexible child uses all the space its flex allows on both axes.
-> A user who does not want that wraps the widget in fillers.
+**Box flex propagates along the box only (decided).** A child's flex on a box's
+main axis makes the box flexible there (an `hbox` holding a `fill()` child is
+horizontally fillable in its parent). A child's flex on the box's *cross* axis
+does not: the box takes its cross extent from its children's naturals and mins,
+or from what its parent gives it, and the flexing child fills that extent up to
+its own `max`. So a `vbox` holding a row with a horizontal `filler` does not
+become a horizontal filler in its parent; it settles at its widest child's
+natural, and the row is filled across it. A widget that should carry a cross flex
+outward says so on the box itself (`fill()`/`growWidth()` on the `vbox`), as
+`scrollView` does for its rows and column. This replaces an earlier "a box
+flexes on any axis a child flexes on" rule.
 
 **Flex basis is the natural (decided, CSS `flex: auto`).** A flexing child
 starts from its natural - its flex basis, zero without one (a `filler`) - and
@@ -144,17 +155,16 @@ a `filler` in 400 stops at 150, the filler takes 250). A container drives its
 gap only when a child flexes on its main axis, so a container with nothing to
 stretch does not fight a parent stretching it.
 
-**Fill-to-slot (decided).** A flexing container flexes on every axis a child
-flexes on, not only its main axis. There its aggregate natural is only its flex
+**Fill-to-slot (decided).** On an axis where a container flexes (a box's main
+axis, either axis of a stack or grid) its aggregate natural is only its flex
 basis - `flattenConstraints` never stamps a flexing band's natural - and it
-publishes its `aggregateFloor` as its `min`, so a cross-flexible child's natural
-(a scroll view's preferred height) never inflates the container past what its
-fixed siblings need. Placement
-matches: a child that holds an extent of its own (a natural that is not a
-flex-basis) keeps it and sits per gravity/alignment, *unpulled*, since a pull it
-resisted would drag a flexible container down against the slack drive; every
-other child fills its slot (box cross extent, stack slot, grid cell) up to its
-strong `max`. The same rule holds in the pure box, stack and grid.
+publishes its `aggregateFloor` as its `min`, so a flexible child's natural never
+inflates the container past what its fixed siblings need. Placement matches: a
+child that holds an extent of its own (a natural that is not a flex-basis) keeps
+it and sits per its gravity, *unpulled*, since a pull it resisted would drag a
+flexible container down against the slack drive; every other child fills its
+slot (box cross extent, stack slot, grid cell) up to its strong `max`. The same
+rule holds in the pure box, stack and grid.
 
 ## Modifiers transform the `Constraints` - four patterns
 
@@ -328,4 +338,5 @@ and zeroing the region.
   gap; the same with `filler` children -> they shrink to fit.
 - Baseline row aggregates cross extent from baseline anchors.
 - Aggregated `flex`: a `filler` in an `hbox` makes the `hbox` act as a filler in
-  its parent.
+  its parent along its width, but a cross-flexing child leaves the `hbox` rigid
+  across.
