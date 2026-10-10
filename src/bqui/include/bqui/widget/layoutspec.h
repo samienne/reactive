@@ -170,7 +170,7 @@ namespace bqui::widget
      * The inverse of a SizeHint. Where a SizeHint is a size value aggregated up
      * the tree, this is a stable identity (the box's edge variables, carried on
      * the builder) plus a stream of banded constraints a firewall reads off the
-     * builder and solves. Absent outside a pure-solver region.
+     * builder and solves.
      *
      * A type-erased holder over any type implementing the three phase functions,
      * so a widget can supply its own (a genuine width-for-height for aspect-locked

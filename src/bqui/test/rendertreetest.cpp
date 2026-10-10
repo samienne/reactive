@@ -1,12 +1,12 @@
+#include "widget/constraintbox.h"
+
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/ondraw.h>
-#include "modifier/setsizehint.h"
 
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/widget.h>
 
 #include <bqui/buildparams.h>
-#include <bqui/simplesizehint.h>
-#include <bqui/sizehint.h>
 
 #include <bq/signal/arraysignal.h>
 #include <bq/signal/constant.h>
@@ -64,10 +64,6 @@ avg::Color const red(1.0f, 0.0f, 0.0f, 1.0f);
 avg::Color const green(0.0f, 1.0f, 0.0f, 1.0f);
 avg::Color const blue(0.0f, 0.0f, 1.0f, 1.0f);
 
-Band const fixed50 = { 50.0f, 50.0f, 50.0f };
-Band const fixed100 = { 100.0f, 100.0f, 100.0f };
-Band const fixed150 = { 150.0f, 150.0f, 150.0f };
-
 avg::Color colorOf(size_t index)
 {
     switch (index)
@@ -81,16 +77,16 @@ avg::Color colorOf(size_t index)
     }
 }
 
-SizeHint hintOf(size_t index)
+avg::Vector2f sizeOf(size_t index)
 {
     switch (index)
     {
     case 0:
-        return simpleSizeHint(fixed100, fixed50);
+        return avg::Vector2f(100.0f, 50.0f);
     case 1:
-        return simpleSizeHint(fixed50, fixed50);
+        return avg::Vector2f(50.0f, 50.0f);
     default:
-        return simpleSizeHint(fixed150, fixed50);
+        return avg::Vector2f(150.0f, 50.0f);
     }
 }
 
@@ -120,7 +116,7 @@ AnyWidget drawProbe(bq::signal::AnySignal<size_t> index)
     auto shared = index.share();
 
     return makeWidget()
-        | modifier::setSizeHint(shared.map(&hintOf))
+        | modifier::fixedSize(shared.map(&sizeOf))
         | modifier::onDraw(&fillSlot, shared.map(&colorOf))
         ;
 }
@@ -139,7 +135,7 @@ AnyWidget drawProbe(size_t index)
 AnyWidget blankProbe(size_t index)
 {
     return makeWidget()
-        | modifier::setSizeHint(hintOf(index))
+        | modifier::fixedSize(bq::signal::constant(sizeOf(index)))
         ;
 }
 
@@ -286,7 +282,7 @@ TEST(RenderTree, everyChildDrawsInTheSlotTheLayoutGaveIt)
     children.push_back(drawProbe(2));
 
     auto context = bq::signal::makeSignalContext(
-            hbox(std::move(children))(BuildParams())(
+            pureSolverRoot(hbox(std::move(children)))(BuildParams())(
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -310,7 +306,7 @@ TEST(RenderTree, aChildThatDrawsNothingContributesNothing)
     children.push_back(drawProbe(2));
 
     auto context = bq::signal::makeSignalContext(
-            hbox(std::move(children))(BuildParams())(
+            pureSolverRoot(hbox(std::move(children)))(BuildParams())(
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -331,7 +327,7 @@ TEST(RenderTree, removingAMiddleChildLeavesItsNeighboursNodes)
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
-            dynamicRow(input.signal)(BuildParams())(
+            pureSolverRoot(dynamicRow(input.signal))(BuildParams())(
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);
@@ -370,7 +366,7 @@ TEST(RenderTree, reorderingMovesNodesRatherThanRebuildingThem)
     auto input = bq::signal::makeInput(std::vector<size_t>{ 0, 1, 2 });
 
     auto context = bq::signal::makeSignalContext(
-            dynamicRow(input.signal)(BuildParams())(
+            pureSolverRoot(dynamicRow(input.signal))(BuildParams())(
                 bq::signal::constant(row)).getInstance());
 
     TreeDriver driver(row, duration);

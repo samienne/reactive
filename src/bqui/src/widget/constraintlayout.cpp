@@ -426,55 +426,6 @@ arrange::Constraint weakHeightDefault(BoxVariables const& box)
     return (box.height() == arrange::Expression(100.0)) | weakestStrength();
 }
 
-std::vector<arrange::Constraint> boxConstraints(BoxVariables const& container,
-        std::vector<BoxVariables> const& children, Axis axis)
-{
-    std::vector<arrange::Constraint> out;
-
-    // The trailing edge is pulled to the container's end only weakly, with no
-    // required cap holding it there. A child free to grow — a filler — settles
-    // against that weak pull and fills the container, while content held at a
-    // firmer size stays put, leaving the slack as a gap rather than being
-    // stretched to fill it. When the content is larger than the container the
-    // weak pull simply loses to the children's own sizes, so the last child
-    // overflows past the container's end instead of being squeezed to fit.
-    auto fill = [&out](arrange::Variable const& childEnd,
-            arrange::Variable const& containerEnd)
-    {
-        out.push_back(
-                (arrange::Expression(childEnd) == arrange::Expression(containerEnd))
-                | arrange::Strength::weak());
-    };
-
-    // Only the main axis is tiled here: consecutive children meet, the first
-    // touches the container's leading end, and the last is pulled weakly to its
-    // trailing end. The cross axis is left free for placeInSlot() to size and
-    // position each child within the container's extent.
-    for (std::size_t i = 0; i < children.size(); ++i)
-    {
-        BoxVariables const& child = children[i];
-        bool first = i == 0;
-        bool last = i + 1 == children.size();
-
-        if (axis == Axis::y)
-        {
-            out.push_back(first ? pin(child.top, container.top)
-                                : pin(child.top, children[i - 1].bottom));
-            if (last)
-                fill(child.bottom, container.bottom);
-        }
-        else
-        {
-            out.push_back(first ? pin(child.left, container.left)
-                                : pin(child.left, children[i - 1].right));
-            if (last)
-                fill(child.right, container.right);
-        }
-    }
-
-    return out;
-}
-
 void placeInSlot(std::vector<arrange::Constraint>& out,
         arrange::Variable const& contentLead,
         arrange::Variable const& contentTrail,

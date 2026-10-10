@@ -143,9 +143,8 @@ Wire the signal through instead. Build-time descriptors are evaluated once per
 widget and hand back signals, so a seeded parameter (e.g. a container's flex
 variable / layout axis on `BuildParams`) belongs `merge()`d into the signal
 graph that consumes it, not read out of band. A genuinely structural build-time
-flag that selects *which* builder to emit (e.g. `PureSolverTag`) is a different
-case — it chooses code, not a value that feeds the tableau — and may still be
-read directly.
+flag that selects *which* builder to emit is a different case — it chooses
+code, not a value that feeds the tableau — and may still be read directly.
 
 ## `merge()` has no zero-argument form
 

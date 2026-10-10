@@ -11,7 +11,6 @@
 
 #include <bq/signal/constant.h>
 #include <bq/signal/signal.h>
-#include <bq/signal/signalcontext.h>
 
 #include <optional>
 #include <utility>
@@ -21,16 +20,6 @@ namespace bqui::modifier::detail
 
 namespace
 {
-    // The region-membership param is a constant the region owner seeded, so
-    // evaluating it in a throwaway context is safe -- a constant does not
-    // diverge between contexts.
-    bool inPureRegion(BuildParams const& params)
-    {
-        auto context = bq::signal::makeSignalContext(
-                params.valueOrDefault<widget::PureSolverTag>());
-        return context.evaluate<0>().get<0>();
-    }
-
     Axis toAxis(PureAxis axis)
     {
         return axis == PureAxis::horizontal ? Axis::x : Axis::y;
@@ -46,8 +35,8 @@ namespace
         return params.valueOrDefault<widget::FlexAxisTag>();
     }
 
-    // The shared shell of every pure-solver band modifier: a no-op outside a
-    // pure-solver region, and @p set applied to the builder inside one.
+    // The shared shell of every pure-solver band modifier: @p set applied to the
+    // builder.
     template <typename Set>
     AnyWidgetModifier pureBuilderModifier(Set set)
     {
@@ -55,9 +44,6 @@ namespace
                 [set = std::move(set)](widget::AnyBuilder builder)
                     -> widget::AnyBuilder
                 {
-                    if (!inPureRegion(builder.getBuildParams()))
-                        return builder;
-
                     set(builder);
                     return builder;
                 }));

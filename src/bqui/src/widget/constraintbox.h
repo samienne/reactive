@@ -17,64 +17,26 @@
 namespace bqui::widget
 {
     /**
-     * @brief How a row aligns its children across its cross (vertical) axis.
-     *
-     * @c fill is the default: each child spans the row's height and settles
-     * under its own gravity. @c baseline instead keeps each child at its
-     * natural height and lines the children up on a shared baseline, so text of
-     * different sizes sits on one line.
-     */
-    enum class CrossAlign
-    {
-        fill,
-        baseline
-    };
-
-    /**
-     * @brief Lays a column of children out through the arrange solver.
-     *
-     * The container and every child carry a set of BoxVariables. The container
-     * is anchored to the window-space rectangle it is realised at, the children
-     * are stacked edge-to-edge along the vertical axis (boxConstraints()), and
-     * each child's height is bounded to its SizeHint's [min, max] band. A child
-     * settles at its natural size unless it is a filler (a positive grow
-     * weight), in which case it shares the container's one stretch variable so
-     * fillers split the leftover space in proportion to their weights. One
-     * arrange::Solver folds over
-     * the whole spec (solveLayout()), and each child is placed at its solved
-     * rectangle, flipped from the solver's top-down window space into the widget
-     * tree's y-up coordinates. Across the cross axis each child is sized and
-     * positioned within the container by placeInSlot(), so one that cannot use
-     * its whole slot settles under its gravity within it — all in the one solve.
-     *
-     * The array form follows a membership that changes; the vector form is the
-     * fixed-list convenience over it.
-     */
-    /**
-     * @brief Wraps a subtree in one firewall region: the containers inside emit
-     * their constraints into a single shared solve instead of each folding its
-     * own.
-     *
-     * The wrapper owns the region's makeInput/solve cycle. It seeds the
-     * down-channel (LayoutSolutionTag) and the up-channel (RegionCollectorTag)
-     * its participating containers read, folds the fragments they contribute into
-     * one solveLayout (layoutRegion), and ties the result back to the solution
-     * every box reads its geometry from. A container that finds no region around
-     * it runs the per-container path unchanged, so this is the opt-in and the old
-     * path stays the default.
-     */
-    BQUI_EXPORT AnyWidget regionRoot(AnyWidget content);
-
-    /**
      * @brief Wraps a subtree in one pure-solver region anchored to its own
-     * size: the containers inside emit band-free constraints into a single
-     * shared solve, ignoring their SizeHint bands.
+     * size: the containers inside compose their constraints into a single
+     * shared solve.
      *
      * Every window root is laid out through this, so applications never call
      * it.
      */
     BQUI_EXPORT AnyWidget pureSolverRoot(AnyWidget content);
 
+    /**
+     * @brief Lays a column of children out in the enclosing region's solve.
+     *
+     * The children are stacked edge-to-edge along the vertical axis, each
+     * settling within its own band; flexible children share the leftover space
+     * in proportion to their flex. The container publishes the aggregate of its
+     * children's bands as its own.
+     *
+     * The array form follows a membership that changes; the vector form is the
+     * fixed-list convenience over it.
+     */
     BQUI_EXPORT AnyWidget solverVbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
     /**
@@ -83,12 +45,9 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverVbox(std::vector<AnyWidget> widgets);
 
     /**
-     * @brief Lays a row of children out through the arrange solver.
+     * @brief Lays a row of children out in the enclosing region's solve.
      *
-     * The horizontal counterpart of solverVbox(): the same spec and the same
-     * solve, with the children stacked edge-to-edge along the horizontal axis
-     * and each child's width, rather than its height, bounded to its SizeHint's
-     * band.
+     * The horizontal counterpart of solverVbox().
      */
     BQUI_EXPORT AnyWidget solverHbox(bq::signal::ArraySignal<AnyWidget> widgets);
 
@@ -98,31 +57,11 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverHbox(std::vector<AnyWidget> widgets);
 
     /**
-     * @brief Lays a row out through the arrange solver, its children aligned on
-     * a shared baseline.
+     * @brief Overlays children in the enclosing region's solve.
      *
-     * Like solverHbox() along the main axis, but across the cross axis each
-     * child that reports a firstBaseline keeps its natural height and is placed
-     * so its baseline meets the row's shared baseline line; a child without a
-     * baseline falls back to spanning the row as in a plain hbox. The row
-     * reports its own firstBaseline upward (accumulateBaselineRowHints()), so
-     * nesting baseline rows compose.
-     */
-    BQUI_EXPORT AnyWidget baselineHbox(bq::signal::ArraySignal<AnyWidget> widgets);
-
-    /**
-     * @overload
-     */
-    BQUI_EXPORT AnyWidget baselineHbox(std::vector<AnyWidget> widgets);
-
-    /**
-     * @brief Overlays children through the arrange solver.
-     *
-     * Every child is placed within the container's whole box by placeInSlot()
-     * on both axes, so a child that cannot use the whole box settles at its
-     * natural size under its own gravity while a filler grows to cover the
-     * container. The container reports the per-axis maximum of its children's
-     * size hints upward, the overlay's own size band.
+     * Every child is placed within the container's whole box on both axes, so
+     * a child that cannot use the whole box settles at its natural size under
+     * its own gravity while a filler grows to cover the container.
      */
     BQUI_EXPORT AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets);
 
@@ -132,40 +71,27 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverStack(std::vector<AnyWidget> widgets);
 
     /**
-     * @brief Lays a uniform grid out through the arrange solver.
+     * @brief Lays a uniform grid out in the enclosing region's solve.
      *
      * The container is split into @p columns equal-width columns and @p rows
      * equal-height rows (gridLines()); each child is placed within the box of
-     * the cell @p cells names for it by placeInSlot(), so it settles under its
-     * gravity where it cannot use the whole cell. @p cells is parallel to
-     * @p widgets.
+     * the cell @p cells names for it, so it settles under its gravity where it
+     * cannot use the whole cell. @p cells is parallel to @p widgets.
      */
     BQUI_EXPORT AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             std::vector<GridCell> cells, unsigned int columns,
             unsigned int rows);
 
     /**
-     * @brief Whether the region the widget reading @p params builds into is a
-     * pure-solver context: its members emit band-free constraints plus the
-     * universal weak defaults rather than reading a SizeHint band.
-     *
-     * A constant the region owner seeded, so evaluating it in its own context is
-     * safe. Shared across the library so a firewall (bin()) branches on the same
-     * flag its containers do.
-     */
-    bool pureSolver(BuildParams const& params);
-
-    /**
      * @brief Solves @p content as a self-contained pure-solver region anchored to
      * @p size and returns its built, placed instance.
      *
-     * The reusable core of a pure firewall. It seeds the pure-solver flag, reads
-     * @p content's composed pure descriptor (bridging its SizeHint where it has
-     * none), anchors its outermost box to @p size, runs the two disjoint per-axis
-     * region solves, and threads the combined solution into the build so every
-     * container inside places its children against a real solution on the first
-     * evaluate. pureSolverRoot() anchors to the window; bin() anchors to the
-     * clipped content size, so content size dies at the boundary.
+     * The reusable core of a firewall. It reads @p content's composed pure
+     * descriptor, anchors its outermost box to @p size, runs the two disjoint
+     * per-axis region solves, and threads the combined solution into the build
+     * so every container inside places its children against a real solution on
+     * the first evaluate. pureSolverRoot() anchors to the window; bin() anchors
+     * to the clipped content size, so content size dies at the boundary.
      */
     bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
             AnyWidget const& content,
