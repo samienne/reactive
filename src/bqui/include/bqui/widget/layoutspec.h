@@ -97,13 +97,40 @@ namespace bqui::widget
     };
 
     /**
+     * @brief An anchor as a band carries it: @c at, plus @c perGravity times the
+     * box's own gravity on that axis, as a leading fraction.
+     *
+     * The gravity part follows content the box places in itself by its own
+     * gravity (a baseline row taller than its children). It is resolved where
+     * the box is stamped, the first place its gravity is known.
+     */
+    struct BandAnchor
+    {
+        Anchor at;
+        Anchor perGravity;
+    };
+
+    /**
      * @brief A point on the box bound to a guide: the region's solve pulls the
      * point @p at onto the shared variable @p guide.
      */
     struct GuideBinding
     {
         arrange::Variable guide;
-        Anchor at;
+        BandAnchor at;
+    };
+
+    /**
+     * @brief Content a box places in itself by its own gravity: the span from
+     * @c lead, @c extent long, is pinned at the gravity's fraction of the slack
+     * between @c slotLead and @c slotTrail where the box is stamped.
+     */
+    struct GravityPlacement
+    {
+        arrange::Expression lead;
+        float extent = 0.0f;
+        arrange::Variable slotLead;
+        arrange::Variable slotTrail;
     };
 
     /**
@@ -128,6 +155,9 @@ namespace bqui::widget
      * @c guides binds points on the box to guide variables. They travel like
      * anchors until the box is stamped, where they become constraints in the
      * region's solve.
+     *
+     * @c placements are the box's own content placed by its gravity, emitted
+     * where the box is stamped.
      */
     struct Constraints
     {
@@ -135,8 +165,9 @@ namespace bqui::widget
         std::optional<float> max;            ///< strong upper bound on extent
         std::optional<BandNatural> natural;  ///< preferred extent, at a strength
         std::optional<Flex> flex;            ///< filler coefficient (aggregated)
-        std::map<AnchorId, Anchor> anchors;  ///< keyed anchors on this axis
+        std::map<AnchorId, BandAnchor> anchors; ///< keyed anchors on this axis
         std::vector<GuideBinding> guides;    ///< points bound to guides
+        std::vector<GravityPlacement> placements; ///< placed by own gravity
         LayoutSpec relations;                ///< untagged relations + read-backs
     };
 

@@ -312,4 +312,56 @@ TEST(AnchorLayout, tallerRowCentresTheAlignedBlock)
     EXPECT_NEAR(170.0f, top(a) + 30.0f, 0.01f);
 }
 
+// A taller row places its aligned block by its own gravity, y running bottom
+// up as everywhere else.
+TEST(AnchorLayout, tallerRowPlacesTheBlockByItsGravity)
+{
+    auto blockTop = [](float gravityY)
+    {
+        btl::UniqueId const idA = btl::makeUniqueId();
+        btl::UniqueId const idB = btl::makeUniqueId();
+
+        Instance instance = realiseConverged(baselineHbox(list({
+                baselineProbe(idA, 30.0f, 40.0f, 30.0f),
+                baselineProbe(idB, 30.0f, 60.0f, 50.0f) }))
+            | modifier::setGravity(constant(avg::Vector2f(0.5f, gravityY))),
+                window);
+
+        Geometry a = readProbe(instance, idA);
+        Geometry b = readProbe(instance, idB);
+        EXPECT_NEAR(top(b) + 50.0f, top(a) + 30.0f, 0.01f);
+        return top(b);
+    };
+
+    EXPECT_NEAR(0.0f, blockTop(1.0f), 0.01f);
+    EXPECT_NEAR(120.0f, blockTop(0.5f), 0.01f);
+    EXPECT_NEAR(240.0f, blockTop(0.0f), 0.01f);
+}
+
+// The row's published baseline follows its placed block, through a margin
+// applied after the gravity is set.
+TEST(AnchorLayout, placedBlockPublishesItsBaseline)
+{
+    btl::UniqueId const idRow = btl::makeUniqueId();
+    btl::UniqueId const idA = btl::makeUniqueId();
+    btl::UniqueId const idB = btl::makeUniqueId();
+
+    Instance instance = realiseConverged(atTop(idRow, baselineHbox(list({
+            baselineHbox(list({ baselineProbe(idA, 30.0f, 40.0f, 30.0f) }))
+                | modifier::fixedHeight(constant(100.0f))
+                | modifier::setGravity(constant(avg::Vector2f(0.5f, 0.0f)))
+                | modifier::margin(constant(5.0f)),
+            baselineProbe(idB, 30.0f, 20.0f, 10.0f) }))),
+            window);
+
+    Geometry a = readProbe(instance, idA);
+    Geometry b = readProbe(instance, idB);
+
+    // The inner row is 100 tall inside a 5 margin, its block at the bottom:
+    // its baseline is 5 + 60 + 30 = 95 down, and b's 10 of descent fits.
+    EXPECT_NEAR(65.0f, top(a), 0.01f);
+    EXPECT_NEAR(95.0f, top(b) + 10.0f, 0.01f);
+    EXPECT_NEAR(110.0f, readProbe(instance, idRow).size[1], 0.01f);
+}
+
 } // namespace

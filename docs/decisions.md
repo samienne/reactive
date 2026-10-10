@@ -558,7 +558,11 @@ solve per region and republishes an aggregate band. The rules that follow
   baseline row
   (`baselineHbox`, its own container rather than an hbox option) aligns
   children on one line, and a child without a baseline aligns its bottom edge
-  (as CSS does for an inline block).
+  (as CSS does for an inline block). A taller row places its aligned block
+  by its own gravity, which is only known where the row is stamped, so the
+  row's band carries the placement and its baseline's gravity part unresolved
+  (rather than reading the gravity off the builder, which a later
+  `setGravity` would bypass).
 - **Guides are region-scoped and settle in a second step.** A guide is a token
   (`XGuide`/`YGuide`) whose bindings ride the band like anchors and reach the
   region's solve wherever they sit; a size boundary is a separate region, so a

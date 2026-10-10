@@ -272,7 +272,7 @@ void setPureAnchor(AnyBuilder& builder, Axis axis, AnchorId id,
     auto apply = [id](Constraints const& c, Anchor a)
     {
         Constraints out = c;
-        out.anchors[id] = a;
+        out.anchors[id] = BandAnchor{ a, {} };
         return out;
     };
 
@@ -306,7 +306,7 @@ void setPureGuide(AnyBuilder& builder, Axis axis, arrange::Variable guide,
     updateBand(layout, axis, bq::signal::constant(0.0f),
             [guide, at](Constraints& c, float)
             {
-                c.guides.push_back(GuideBinding{ guide, at });
+                c.guides.push_back(GuideBinding{ guide, BandAnchor{ at, {} } });
             });
     builder.setPureLayout(std::move(layout));
 }
@@ -347,10 +347,15 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
             *c.min += d;
         if (c.max)
             *c.max += d;
+        auto insetAnchor = [ins](BandAnchor& a)
+        {
+            a.at.offset += ins * (1.0f - 2.0f * a.at.fraction);
+            a.perGravity.offset -= 2.0f * ins * a.perGravity.fraction;
+        };
         for (auto& [id, anchor] : c.anchors)
-            anchor.offset += ins * (1.0f - 2.0f * anchor.fraction);
+            insetAnchor(anchor);
         for (auto& binding : c.guides)
-            binding.at.offset += ins * (1.0f - 2.0f * binding.at.fraction);
+            insetAnchor(binding.at);
     };
 
     PureLayout old = layout;
@@ -401,8 +406,20 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
     builder.setBoxVariables(outer);
 }
 
+float leadingGravity(avg::Vector2f gravity, Axis axis)
+{
+    return axis == Axis::x ? gravity.x() : 1.0f - gravity.y();
+}
+
+Anchor resolveAnchor(BandAnchor const& anchor, float gravity)
+{
+    return Anchor{
+        anchor.at.fraction + gravity * anchor.perGravity.fraction,
+        anchor.at.offset + gravity * anchor.perGravity.offset };
+}
+
 LayoutSpec flattenConstraints(Constraints const& constraints,
-        BoxVariables const& box, Axis axis)
+        BoxVariables const& box, Axis axis, avg::Vector2f gravity)
 {
     LayoutSpec spec = constraints.relations;
 
@@ -444,14 +461,25 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
     spec.constraints.push_back(
             (extent() >= arrange::Expression(0.0)) | minStrength());
 
+    float g = leadingGravity(gravity, axis);
+
     arrange::Variable const& lead = axis == Axis::x ? box.left : box.top;
     for (GuideBinding const& binding : constraints.guides)
     {
+        Anchor at = resolveAnchor(binding.at, g);
         spec.guides.push_back(GuidePoint{ binding.guide,
                 arrange::Expression(lead)
-                    + extent() * static_cast<double>(binding.at.fraction)
-                    + arrange::Expression(
-                        static_cast<double>(binding.at.offset)) });
+                    + extent() * static_cast<double>(at.fraction)
+                    + arrange::Expression(static_cast<double>(at.offset)) });
+    }
+
+    for (GravityPlacement const& p : constraints.placements)
+    {
+        arrange::Expression slot = arrange::Expression(p.slotTrail)
+            - arrange::Expression(p.slotLead);
+        spec.constraints.push_back(p.lead - arrange::Expression(p.slotLead)
+                == static_cast<double>(g) * slot
+                    - arrange::Expression(static_cast<double>(g * p.extent)));
     }
 
     return spec;

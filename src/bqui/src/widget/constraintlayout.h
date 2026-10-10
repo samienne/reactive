@@ -123,10 +123,23 @@ namespace bqui::widget
      * strength, @c min and a floor at zero at minStrength(), @c max at
      * maxStrength()) and ride
      * alongside the untagged relations. @p axis selects the box's width or
-     * height as the extent.
+     * height as the extent. Guide bindings and gravity placements resolve
+     * against the box's @p gravity.
      */
     LayoutSpec flattenConstraints(Constraints const& constraints,
-            BoxVariables const& box, Axis axis);
+            BoxVariables const& box, Axis axis, avg::Vector2f gravity);
+
+    /**
+     * @brief The leading fraction of @p gravity on @p axis: left to right on
+     * x, top down on y, where gravity's y runs bottom up.
+     */
+    float leadingGravity(avg::Vector2f gravity, Axis axis);
+
+    /**
+     * @brief @p anchor with its gravity part resolved at the leading
+     * fraction @p gravity.
+     */
+    Anchor resolveAnchor(BandAnchor const& anchor, float gravity);
 
     /**
      * @brief The layout (main) axis of the pure-solver container a filler is a
