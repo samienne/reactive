@@ -106,7 +106,10 @@ is never pre-baked into the child's own `constraints`. So the outermost band
 decides: a size word that clears `flex` (below) leaves no coupling behind, and
 one that sets it makes the child flex wherever it ends up. Only a stacking box
 has a layout axis and emits the coupling; a stack or grid fills a flexing child
-to its slot instead.
+to its slot instead. `fill()`/`grow()`/`filler()` flex on the layout axis of the
+box they sit in; a grid has none, so in a grid cell they flex on both axes and
+fill the cell (or span) across and down. A stack seeds no axis of its own: its
+children flex on the axis of the box enclosing the stack.
 
 **Aggregation is per-axis and per-alignment:**
 - Main axis (an `hbox`'s width): children lay end-to-end, so `min`/`natural`/`max`
