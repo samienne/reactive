@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrange/export.h>
+
 #include <arrange/constraint.h>
 #include <arrange/diff.h>
 #include <arrange/strength.h>
@@ -13,7 +15,7 @@ namespace arrange
 
 class SolverImpl;
 
-class Solver
+class ARRANGE_API Solver
 {
 public:
     Solver();

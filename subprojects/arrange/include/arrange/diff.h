@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrange/export.h>
+
 #include <arrange/constraint.h>
 
 #include <vector>
@@ -13,7 +15,7 @@ struct ConstraintDiff
     std::vector<Constraint> removed;
 };
 
-ConstraintDiff diffConstraints(
+ARRANGE_API ConstraintDiff diffConstraints(
     const std::vector<Constraint>& before, const std::vector<Constraint>& after);
 
 }  // namespace arrange

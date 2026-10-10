@@ -1,9 +1,11 @@
 #pragma once
 
+#include <arrange/export.h>
+
 namespace arrange
 {
 
-class Strength
+class ARRANGE_API Strength
 {
 public:
     static Strength required();
