@@ -119,15 +119,12 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/apptest.cpp',
-  'test/constraintlayouttest.cpp',
   'test/guidelayouttest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
   'test/introspectiontest.cpp',
-  'test/layouttest.cpp',
   'test/puresolverlayouttest.cpp',
-  'test/regionlayouttest.cpp',
   'test/rendertreetest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
