@@ -143,6 +143,14 @@ namespace bqui::widget
 
     namespace detail
     {
+        /**
+         * @brief Builds @p content as its own layout region anchored to
+         * @p size, so the containers inside it are placed by that solve.
+         */
+        BQUI_EXPORT AnyElement buildRegionAtSize(AnyWidget const& content,
+                bq::signal::AnySignal<avg::Vector2f> size,
+                BuildParams const& params);
+
         struct MakeWidgetWithSize1
         {
             template <typename T, typename TFunc, typename... Ts>
@@ -158,11 +166,21 @@ namespace bqui::widget
                         std::forward<decltype(ts)>(ts)...
                         );
 
-                return std::move(widget)(params)(size.clone());
+                return buildRegionAtSize(AnyWidget(std::move(widget)),
+                        bq::signal::AnySignal<avg::Vector2f>(size.clone()),
+                        params);
             }
         };
     } // namespace detail
 
+    /**
+     * @brief A widget whose content is built from the size it is assigned.
+     *
+     * The size is a boundary: the band the enclosing solve sees is this
+     * widget's own, set by size modifiers applied to it (none by default), and
+     * never derived from the content. The content is solved as its own layout
+     * region at the assigned size, so a container inside it is laid out there.
+     */
     template <typename TFunc, typename... Ts, typename = std::enable_if_t<
         std::is_invocable_r_v<AnyWidget, TFunc, bq::signal::AnySignal<avg::Vector2f>,
         provider::ParamProviderTypeT<Ts>...>

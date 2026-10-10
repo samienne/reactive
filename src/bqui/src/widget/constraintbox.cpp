@@ -1424,32 +1424,7 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             toArray(std::move(widgets)));
 }
 
-namespace
-{
-
-// The pure-solver region owner. Anchors the content to the window and adds its
-// solved instance; the region solve itself is the reusable solvePureRegionAtSize
-// core, which a nested firewall (bin()) shares.
-AnyWidget pureRegionRootImpl(AnyWidget content)
-{
-    return makeWidgetWithSize(
-            [content](auto size, BuildParams const& params)
-            {
-                auto instance = solvePureRegionAtSize(content,
-                        bq::signal::AnySignal<avg::Vector2f>(std::move(size)),
-                        params);
-
-                return widget::makeWidget()
-                    | modifier::addWidget(std::move(instance));
-            },
-            provider::provideBuildParams()
-            );
-}
-
-} // namespace
-
-bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
-        AnyWidget const& content,
+AnyElement detail::buildRegionAtSize(AnyWidget const& content,
         bq::signal::AnySignal<avg::Vector2f> size,
         BuildParams const& params)
 {
@@ -1506,13 +1481,25 @@ bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
     auto solution = combineSolutions(widthSolution.clone(),
             std::move(heightSolution)).share();
 
-    return std::move(builder)(sharedSize.clone(), solution.clone())
+    return std::move(builder)(sharedSize.clone(), solution.clone());
+}
+
+bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
+        AnyWidget const& content,
+        bq::signal::AnySignal<avg::Vector2f> size,
+        BuildParams const& params)
+{
+    return detail::buildRegionAtSize(content, std::move(size), params)
         .getInstance();
 }
 
 AnyWidget pureSolverRoot(AnyWidget content)
 {
-    return pureRegionRootImpl(std::move(content));
+    return makeWidgetWithSize(
+            [content](bq::signal::AnySignal<avg::Vector2f> /*size*/)
+            {
+                return content;
+            });
 }
 
 } // namespace bqui::widget

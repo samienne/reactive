@@ -35,10 +35,12 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 
 - Layout: each builder carries a `PureLayout` (min/max/natural/flex bands per
   axis) solved by `arrange`; the window root (`windowbridge.cpp`) wraps its
-  content in the internal `pureSolverRoot`, so every app is a pure region and
-  a container is only ever laid out by its region's solve; one built outside
-  any region gets an empty solution. `SizeHint` still rides the builder (a few
-  modifiers and `scrollView` read it) but no container lays out from it.
+  content in the internal `pureSolverRoot`, so every app is a pure region and a container is only
+  ever laid out by its region's solve; one built outside any region throws. `makeWidgetWithSize`, `bin` and
+  `scrollView` are size boundaries: their outward band is their own, never the
+  content's, and the content is solved as its own region inside. `SizeHint`
+  still rides the builder (a few modifiers read it, `scrollView` still sets
+  one) but no container lays out from it.
   `gravity` aligns within allocated space.
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.
