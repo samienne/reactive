@@ -100,8 +100,13 @@ composition falls out - an `hbox` with a `filler` inside has `flex > 0` and **is
 itself a filler** to its parent (the inner content can stretch, so the whole can
 stretch). The band's `flex` is the *summary* that rides up; the actual slack
 *distribution* is still the container's solve (the shared-`F` / weighted-share
-constraint). A filler contributes `extent == coeff * F`, tagged `flex`, with
-`coeff` readable for aggregation.
+constraint). A flexing child's `extent == coeff * F` is emitted by the
+**container** when it stamps the child, from the `flex` the child publishes - it
+is never pre-baked into the child's own `constraints`. So the outermost band
+decides: a size word that clears `flex` (below) leaves no coupling behind, and
+one that sets it makes the child flex wherever it ends up. Only a stacking box
+has a layout axis and emits the coupling; a stack or grid fills a flexing child
+to its slot instead.
 
 **Aggregation is per-axis and per-alignment:**
 - Main axis (an `hbox`'s width): children lay end-to-end, so `min`/`natural`/`max`
@@ -136,6 +141,12 @@ strong `max`. The same rule holds in the pure box, stack and grid.
 ## Modifiers transform the `Constraints` - four patterns
 
 1. **Size-setters** (`fixedSize`/`min*`/`max*`): replace the one named field.
+   Per axis, a fixed size and a flex are one choice, last writer wins: `fixed*`
+   sets a strong `natural` **and clears `flex`** (a fixed size on a flexing
+   widget - including one whose flex aggregated up from a child - holds), and a
+   later `fill()`/`grow()`/`growWidth()`/`growHeight()` sets `flex` again, the
+   fixed natural then riding as its flex-basis. `min*`/`max*` leave `flex`
+   alone: they bound a flexing widget's stretch rather than cancel it.
 2. **Wrappers / insets** (`margin`, `padding`, `border`, `frame`): the one
    non-trivial pattern - a reusable `insetWrapper(inset)` helper that
    - mints a new outer box,
@@ -266,13 +277,13 @@ the weak lane against this ordering.
 **A flexing container floors its fixed content at its `min`.**
 `fixedWidth`/`fixedSize` set `natural` (strong), not `min`. A container that
 flexes drops its aggregate `natural`, so its `min` is what keeps a force-sizing
-parent from squeezing it below its fixed content. On a coupling axis the container
+parent from squeezing it below its fixed content. On a flexing axis the container
 publishes `min = aggregateFloor(children)`: each child floors at its explicit
 `min` if set, else its `natural` if it does *not* flex on that axis (a fixed
 child's natural is a hard floor; a `fill()` child's is a soft flex-basis and
 floors at zero). The floors aggregate as extents do - main-axis **sum**,
 cross-axis **max** - and `aggregateFloor` subsumes the explicit-`min` aggregate,
-so it *replaces* it on a coupling axis. Only there: a non-coupling container still
+so it *replaces* it on a flexing axis. Only there: a non-flexing container still
 publishes its `natural`, which already floors it, so it keeps the plain
 explicit-`min` aggregate and is not double-constrained. The floor is `strong`, not
 `required`, so an over-subscribed parent overflows gracefully rather than throwing

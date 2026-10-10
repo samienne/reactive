@@ -15,8 +15,8 @@ namespace bqui::widget
      * than a banded one. The container states only structure -- children tiled
      * edge to edge with the trailing slack on a signed gap variable, and a
      * leading-edge pin plus weak default on the cross axis -- while each leaf
-     * owns its own weak width==100 / height==100 default and each filler()
-     * couples to the container's shared flex variable, so the fillers split the
+     * owns its own weak width==100 / height==100 default and the container
+     * couples each filler() to its shared flex variable, so the fillers split the
      * leftover space and reflow live as the window resizes. The pure size
      * vocabulary in bqui/modifier/constraintsize.h (fixedWidth, minWidth,
      * maxWidth and their height/size forms) firms up individual children.

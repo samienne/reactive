@@ -13,9 +13,6 @@
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
-#include <arrange/expression.h>
-#include <arrange/variable.h>
-
 #include <optional>
 #include <utility>
 
@@ -39,20 +36,13 @@ namespace
         return axis == PureAxis::horizontal ? Axis::x : Axis::y;
     }
 
-    // The layout axis and shared flex variable the enclosing pure-solver
-    // container seeded for its fillers, as signals. They stay signals so their
-    // values track the real context the band is built in rather than a parallel
-    // one that can diverge. A fill() widget couples to the same pair a filler()
-    // child of that container does.
+    // The layout axis the enclosing pure-solver container seeded, as a signal so
+    // its value tracks the real context the band is built in rather than a
+    // parallel one that can diverge. A fill() widget flexes on the same axis a
+    // filler() child of that container does.
     bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
     {
         return params.valueOrDefault<widget::FlexAxisTag>();
-    }
-
-    bq::signal::AnySignal<arrange::Variable> flexVariable(
-            BuildParams const& params)
-    {
-        return params.valueOrDefault<widget::FlexVariableTag>();
     }
 
     // The shared shell of every pure-solver band modifier: a no-op outside a
@@ -82,6 +72,16 @@ AnyWidgetModifier pureNaturalModifier(PureAxis axis,
             {
                 widget::setPureNatural(builder, toAxis(axis), value.clone(),
                         strength);
+            });
+}
+
+AnyWidgetModifier pureFixedModifier(PureAxis axis,
+        bq::signal::AnySignal<float> value)
+{
+    return pureBuilderModifier(
+            [axis, value = std::move(value)](widget::AnyBuilder& builder)
+            {
+                widget::setPureFixed(builder, toAxis(axis), value.clone());
             });
 }
 
@@ -119,32 +119,16 @@ AnyWidgetModifier pureFillModifier(float weight)
     return pureBuilderModifier(
             [weight](widget::AnyBuilder& builder)
             {
-                BuildParams const& params = builder.getBuildParams();
-                auto axisSig = flexAxis(params).share();
-                auto flexSig = flexVariable(params).share();
-                widget::BoxVariables box = builder.getBoxVariables();
-
-                // The same coupling a filler emits, weighted: on the container's
-                // layout axis the widget's extent equals weight times the shared
-                // flex variable, at the weakest tier, so the slack splits between
-                // every filler and fill() sibling in proportion to their weights.
-                // The content natural rides up as a flex-basis and is dropped when
-                // the container stamps it (flattenConstraints). Composed onto the
-                // existing band per axis, so the layout axis and flex variable
-                // thread in as the seeded signals.
-                auto couple = [box, weight](widget::Constraints const& c,
-                        Axis thisAxis, Axis layoutAxis, arrange::Variable flex)
+                // The flex lands on whichever axis the container stacks along, so
+                // each axis's band is rebuilt with the seeded layout axis
+                // threaded in as a signal.
+                auto axisSig = flexAxis(builder.getBuildParams()).share();
+                auto flexOn = [weight](widget::Constraints const& c,
+                        Axis thisAxis, Axis layoutAxis)
                 {
-                    if (thisAxis != layoutAxis)
-                        return c;
-
                     widget::Constraints out = c;
-                    out.flex = widget::Flex{ weight };
-                    out.relations.constraints.push_back(
-                            ((thisAxis == Axis::x ? box.width() : box.height())
-                                == static_cast<double>(weight)
-                                    * arrange::Expression(flex))
-                            | widget::weakestStrength());
+                    if (thisAxis == layoutAxis)
+                        out.flex = widget::Flex{ weight };
                     return out;
                 };
 
@@ -159,26 +143,24 @@ AnyWidgetModifier pureFillModifier(float weight)
                                     bq::signal::constant(widget::Constraints()));
                         });
 
-                auto width = merge(old.getWidth(), axisSig.clone(),
-                        flexSig.clone()).map(
-                        [couple](widget::Constraints const& c, Axis layoutAxis,
-                                arrange::Variable flex)
+                auto width = merge(old.getWidth(), axisSig.clone()).map(
+                        [flexOn](widget::Constraints const& c, Axis layoutAxis)
                         {
-                            return couple(c, Axis::x, layoutAxis, flex);
+                            return flexOn(c, Axis::x, layoutAxis);
                         });
 
                 builder.setPureLayout(widget::simplePureLayout(
                     bq::signal::AnySignal<widget::Constraints>(std::move(width)),
-                    [old, couple, axisSig, flexSig](
+                    [old, flexOn, axisSig](
                             bq::signal::AnySignal<widget::LayoutSolution> ws)
                         -> bq::signal::AnySignal<widget::Constraints>
                     {
                         return merge(old.getHeightForWidth(std::move(ws)),
-                                axisSig.clone(), flexSig.clone()).map(
-                                [couple](widget::Constraints const& c,
-                                        Axis layoutAxis, arrange::Variable flex)
+                                axisSig.clone()).map(
+                                [flexOn](widget::Constraints const& c,
+                                        Axis layoutAxis)
                                 {
-                                    return couple(c, Axis::y, layoutAxis, flex);
+                                    return flexOn(c, Axis::y, layoutAxis);
                                 });
                     }));
             });
@@ -189,77 +171,8 @@ AnyWidgetModifier pureGrowAxisModifier(PureAxis axis)
     return pureBuilderModifier(
             [axis](widget::AnyBuilder& builder)
             {
-                BuildParams const& params = builder.getBuildParams();
-                auto axisSig = flexAxis(params).share();
-                auto flexSig = flexVariable(params).share();
-                widget::BoxVariables box = builder.getBoxVariables();
-                Axis fillAxis = toAxis(axis);
-
-                // The filler's per-axis band, composed onto the existing band on
-                // the fill axis only: on the container's layout axis it adds the
-                // flex coupling, off it only the flex, so the container's
-                // cross-fill stretches the widget. Either way the widget flexes
-                // there, its natural a flex-basis. The other axis is left as it
-                // was, so a fixed thickness there stands.
-                auto couple = [box, fillAxis](widget::Constraints const& c,
-                        Axis layoutAxis, arrange::Variable flex)
-                {
-                    widget::Constraints band = widget::fillerAxisBand(fillAxis,
-                            box, layoutAxis, flex);
-                    widget::Constraints out = c;
-                    out.flex = band.flex.value_or(widget::Flex{ 1.0f });
-                    for (auto const& relation : band.relations.constraints)
-                        out.relations.constraints.push_back(relation);
-                    return out;
-                };
-
-                std::optional<widget::PureLayout> current =
-                    builder.getPureLayout();
-                widget::PureLayout old = current ? *current
-                    : widget::simplePureLayout(
-                        bq::signal::constant(widget::Constraints()),
-                        [](bq::signal::AnySignal<widget::LayoutSolution>)
-                        {
-                            return bq::signal::AnySignal<widget::Constraints>(
-                                    bq::signal::constant(widget::Constraints()));
-                        });
-
-                if (fillAxis == Axis::x)
-                {
-                    auto width = merge(old.getWidth(), axisSig.clone(),
-                            flexSig.clone()).map(
-                            [couple](widget::Constraints const& c,
-                                    Axis layoutAxis, arrange::Variable flex)
-                            {
-                                return couple(c, layoutAxis, flex);
-                            });
-
-                    builder.setPureLayout(widget::simplePureLayout(
-                        bq::signal::AnySignal<widget::Constraints>(
-                            std::move(width)),
-                        [old](bq::signal::AnySignal<widget::LayoutSolution> ws)
-                        {
-                            return old.getHeightForWidth(std::move(ws));
-                        }));
-                }
-                else
-                {
-                    builder.setPureLayout(widget::simplePureLayout(
-                        old.getWidth(),
-                        [old, couple, axisSig, flexSig](
-                                bq::signal::AnySignal<widget::LayoutSolution> ws)
-                            -> bq::signal::AnySignal<widget::Constraints>
-                        {
-                            return merge(old.getHeightForWidth(std::move(ws)),
-                                    axisSig.clone(), flexSig.clone()).map(
-                                    [couple](widget::Constraints const& c,
-                                            Axis layoutAxis,
-                                            arrange::Variable flex)
-                                    {
-                                        return couple(c, layoutAxis, flex);
-                                    });
-                        }));
-                }
+                widget::setPureFlex(builder, toAxis(axis),
+                        bq::signal::constant(1.0f));
             });
 }
 

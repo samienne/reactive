@@ -345,7 +345,8 @@ arrange::Strength gapDriveStrength()
 // through the signed gap variable @p gap -- last.trailing + gap ==
 // container.trailing, required -- which gapDriveStrength() then pulls to zero.
 // No child carries a size default here; a leaf contributes its own on this axis
-// and a filler its flex coupling, so the container states only the structure.
+// and a filler its flex, so the container states only the structure (and, in
+// the pure box, the flex coupling it emits per child).
 void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
         BoxVariables const& container,
         std::vector<BoxVariables> const& boxes, arrange::Variable const& gap)
@@ -700,14 +701,9 @@ bool regionAnchor(BuildParams const& params)
     return context.evaluate<0>().get<0>();
 }
 
-// The flex variable and layout axis the enclosing pure-solver container seeded
-// for its fillers, as signals. They stay signals so their values track the real
-// context a filler evaluates in rather than a parallel one that can diverge.
-bq::signal::AnySignal<arrange::Variable> flexVariable(BuildParams const& params)
-{
-    return params.valueOrDefault<FlexVariableTag>();
-}
-
+// The layout axis the enclosing pure-solver container seeded for its fillers, as
+// a signal, so its value tracks the real context a filler evaluates in rather
+// than a parallel one that can diverge.
 bq::signal::AnySignal<Axis> flexAxis(BuildParams const& params)
 {
     return params.valueOrDefault<FlexAxisTag>();
@@ -936,8 +932,8 @@ AnyWidget containerLayout(
             build,
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>,
             RegionContext)> buildRegion,
-        btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>,
-            BuildParams const&)> buildRegionPure,
+        btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>)>
+            buildRegionPure,
         std::optional<Axis> flexAxis,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
@@ -954,13 +950,10 @@ AnyWidget containerLayout(
             {
                 BuildParams childParams = params;
 
-                // A pure-solver stacking container mints one flex variable for
-                // its layout axis and seeds it, with the axis, for the fillers
-                // among its children to couple to.
+                // A pure-solver stacking container seeds its layout axis, the
+                // axis its flexible children publish their flex on.
                 if (flexAxis)
                 {
-                    childParams.set<FlexVariableTag>(
-                            bq::signal::constant(arrange::Variable()));
                     childParams.set<FlexAxisTag>(
                             bq::signal::constant(*flexAxis));
                 }
@@ -972,7 +965,7 @@ AnyWidget containerLayout(
                             return widget.clone()(childParams);
                         });
 
-                return buildRegionPure(std::move(builders), params);
+                return buildRegionPure(std::move(builders));
             }
 
             auto collector = regionCollector(params);
@@ -1108,6 +1101,25 @@ bool holdsOwnExtent(Constraints const& band)
     return band.natural && !(band.flex && band.flex->coeff > 0.0f);
 }
 
+// The coupling that makes a flexing child a filler: its extent on the
+// container's layout axis equals its flex weight times the container's shared
+// flex variable, at the weakest tier, so the gap drive splits the slack between
+// the flexing children in proportion to their weights. Emitted by the container
+// from the band the child publishes, so a fixed size that cleared the flex
+// leaves no coupling behind.
+void appendFlexCoupling(LayoutSpec& spec, Constraints const& band,
+        BoxVariables const& box, Axis axis, arrange::Variable const& flexShare)
+{
+    if (!band.flex || band.flex->coeff <= 0.0f)
+        return;
+
+    spec.constraints.push_back(
+            ((axis == Axis::x ? box.width() : box.height())
+                == static_cast<double>(band.flex->coeff)
+                    * arrange::Expression(flexShare))
+            | weakestStrength());
+}
+
 std::vector<bool> ownExtents(std::vector<Constraints> const& bands)
 {
     std::vector<bool> result;
@@ -1148,9 +1160,8 @@ std::optional<BandNatural> aggregateNatural(
 // A container's aggregate flex on one axis. Filler coefficients sum along the
 // main axis (fillers laid end-to-end each take a share) and take the max across
 // the cross axis (any one flexing child flexes the whole). Absent when no child
-// flexes. The caller decides which axis this couples on: its presence there is
-// what makes a container holding a filler itself a filler to its parent, and a
-// container rides flex up only on that coupling axis.
+// flexes. Its presence on an axis is what makes a container holding a filler
+// itself a filler to its parent there.
 std::optional<Flex> aggregateFlex(
         std::vector<Constraints> const& children, bool mainAxis)
 {
@@ -1191,7 +1202,7 @@ std::optional<float> const& pickMin(Constraints const& c) { return c.min; }
 std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
 
 // A container's aggregate min floor on one axis, published only when it flexes
-// (couples) and so drops its aggregate natural. Each child contributes the extent
+// and so drops its aggregate natural. Each child contributes the extent
 // below which it cannot shrink: its explicit @c min if set; otherwise, for a
 // child that does not flex on this axis, its @c natural (a fixed child's natural
 // is a hard floor); a flexing child can shrink to nothing and contributes zero.
@@ -1199,7 +1210,7 @@ std::optional<float> const& pickMax(Constraints const& c) { return c.max; }
 // cross-axis MAX (children overlap) -- so a tight parent that force-sizes the
 // flexing container cannot squeeze it below what its fixed content needs. Absent
 // when no child floors above zero. Subsumes the explicit-min aggregate, so it
-// replaces (not supplements) aggregateBound(pickMin) on a coupling axis.
+// replaces (not supplements) aggregateBound(pickMin) on a flexing axis.
 std::optional<float> aggregateFloor(
         std::vector<Constraints> const& children, bool mainAxis)
 {
@@ -1227,20 +1238,12 @@ std::optional<float> aggregateFloor(
 // The pure-solver counterpart of solverBoxBuildersRegion(): composes this
 // container's fragment with its children's onto its builder for the region to
 // solve, then places its children from the solution handed to its build.
-// @p params is this container's own build params, carrying the parent
-// container's shared flex variable and layout axis so a flexible container can
-// couple to it (see the coupling below).
-AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
+AnyWidget solverBoxBuildersRegionPure(Axis axis,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
     arrange::Variable gap;
-
-    // The parent container's shared flex variable and layout axis, read off this
-    // container's own params exactly as a filler reads them and threaded into the
-    // per-axis Constraints graph as signals.
-    auto parentFlexSig = flexVariable(params).share();
-    auto parentAxisSig = flexAxis(params).share();
+    arrange::Variable flexShare;
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -1269,10 +1272,9 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
     // the bounds aggregate main-axis SUM / cross-axis MAX, flex rides up, and a
     // size word at this level overrides the republished band.
     auto buildAxis =
-        [container, gap](Axis thisAxis, Axis layoutAxis,
+        [container, gap, flexShare](Axis thisAxis, Axis layoutAxis,
                 std::vector<Constraints> const& childBands,
-                std::vector<BoxVariables> const& boxes,
-                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
+                std::vector<BoxVariables> const& boxes) -> Constraints
     {
         bool mainAxis = thisAxis == layoutAxis;
 
@@ -1283,7 +1285,7 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // otherwise let the flexing child's natural inflate the container past
         // what its fixed siblings need) and rides its flex up. The floor below
         // keeps the fixed siblings' extent.
-        bool couples = flex && flex->coeff > 0.0f;
+        bool flexes = flex && flex->coeff > 0.0f;
 
         Constraints result;
         result.flex = flex;
@@ -1291,11 +1293,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // parent to stretch), so its min is what floors its fixed content: a fixed
         // child sets natural, not min, and aggregateFloor folds those naturals in
         // so a tight parent cannot under-allocate the container. When it does not
-        // couple the published natural already floors it, so keep the plain
+        // flex the published natural already floors it, so keep the plain
         // explicit-min aggregate there and do not double-constrain.
-        if (!couples)
+        if (!flexes)
             result.natural = aggregateNatural(childBands, mainAxis);
-        result.min = couples
+        result.min = flexes
             ? aggregateFloor(childBands, mainAxis)
             : aggregateBound(childBands, mainAxis, &pickMin);
         result.max = aggregateBound(childBands, mainAxis, &pickMax);
@@ -1303,8 +1305,13 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         LayoutSpec& rel = result.relations;
 
         for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
+        {
             appendSpec(rel, flattenConstraints(childBands[i], boxes[i],
                         thisAxis));
+            if (mainAxis)
+                appendFlexCoupling(rel, childBands[i], boxes[i], thisAxis,
+                        flexShare);
+        }
 
         append(rel, pureAxisConstraints(thisAxis, layoutAxis, false, container,
                     boxes, ownExtents(childBands), avg::Vector2f(0.0f, 0.0f),
@@ -1315,28 +1322,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         // definite extent. Dropped only on a flexing main axis: a definite default
         // would beat the parent's gap drive and pin the extent, stopping the
         // stretch, so that axis is left free just as a filler's is.
-        if (!couples)
+        if (!flexes)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
                     : weakHeightDefault(container));
-        }
-
-        // The coupling that makes a flexible container a filler in its parent:
-        // its extent on the parent's layout axis equals its own aggregated flex
-        // weight times the parent's shared flex variable, so the parent splits
-        // slack between this container and its siblings in proportion to their
-        // weights, exactly as it does between leaf fillers. Emitted only on the
-        // parent's axis; off it the parent's cross-fill stretches the container.
-        if (thisAxis == parentAxis && couples)
-        {
-            rel.constraints.push_back(
-                    ((thisAxis == Axis::x
-                        ? container.width()
-                        : container.height())
-                        == static_cast<double>(flex->coeff)
-                            * arrange::Expression(parentFlex))
-                    | weakestStrength());
         }
 
         if (thisAxis == Axis::x)
@@ -1355,19 +1345,16 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
         return result;
     };
 
-    auto horizontal = merge(std::move(childWidth), boxes.clone(),
-            parentFlexSig.clone(), parentAxisSig.clone()).map(
+    auto horizontal = merge(std::move(childWidth), boxes.clone()).map(
             [buildAxis, axis](std::vector<Constraints> const& bands,
-                    std::vector<BoxVariables> const& boxes,
-                    arrange::Variable parentFlex, Axis parentAxis)
+                    std::vector<BoxVariables> const& boxes)
             {
-                return buildAxis(Axis::x, axis, bands, boxes, parentFlex,
-                        parentAxis);
+                return buildAxis(Axis::x, axis, bands, boxes);
             });
 
     // The container's height band, as a function of the region's width solution.
     auto verticalGiven =
-        [buildAxis, boxes, array, axis, parentFlexSig, parentAxisSig](
+        [buildAxis, boxes, array, axis](
                 bq::signal::AnySignal<LayoutSolution> widthSolution)
             -> bq::signal::AnySignal<Constraints>
     {
@@ -1382,14 +1369,11 @@ AnyWidget solverBoxBuildersRegionPure(Axis axis, BuildParams const& params,
                         return effective.getHeightForWidth(widthSolution.clone());
                     }));
 
-        return merge(std::move(childHeight), boxes.clone(),
-                parentFlexSig.clone(), parentAxisSig.clone()).map(
+        return merge(std::move(childHeight), boxes.clone()).map(
                 [buildAxis, axis](std::vector<Constraints> const& bands,
-                        std::vector<BoxVariables> const& boxes,
-                        arrange::Variable parentFlex, Axis parentAxis)
+                        std::vector<BoxVariables> const& boxes)
                 {
-                    return buildAxis(Axis::y, axis, bands, boxes, parentFlex,
-                            parentAxis);
+                    return buildAxis(Axis::y, axis, bands, boxes);
                 });
     };
 
@@ -1501,16 +1485,14 @@ void placeOnAxis(std::vector<arrange::Constraint>& out, Axis axis,
                 band.max ? *band.max : noSlotCap, fillStrength);
 }
 
-// Pure-solver counterpart of solverStackBuilders(). A stack mints no child flex
-// variable, so an inner filler fills via the weak slot pull and inherits the
-// enclosing flex axis -- the one real divergence from the pure box.
-AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
+// Pure-solver counterpart of solverStackBuilders(). A stack has no layout axis
+// and so emits no flex coupling: an inner filler flexes on the enclosing box's
+// axis and fills via the weak slot pull -- the one real divergence from the pure
+// box.
+AnyWidget solverStackBuildersRegionPure(
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
-
-    auto parentFlexSig = flexVariable(params).share();
-    auto parentAxisSig = flexAxis(params).share();
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -1545,21 +1527,20 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
     auto buildAxis =
         [container](Axis thisAxis, std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
-                std::vector<avg::Vector2f> const& gravities,
-                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
+                std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
         std::optional<Flex> flex = aggregateFlex(childBands, false);
         // As in the pure box, a flexing child makes the stack flexible on that
         // axis, whichever axis it is.
-        bool couples = flex && flex->coeff > 0.0f;
+        bool flexes = flex && flex->coeff > 0.0f;
 
         Constraints result;
         result.flex = flex;
-        if (!couples)
+        if (!flexes)
             result.natural = aggregateNatural(childBands, false);
         // On a flexing axis the stack drops its natural, so its min floors the
         // overlaid content (cross-style, the largest child's floor wins).
-        result.min = couples
+        result.min = flexes
             ? aggregateFloor(childBands, false)
             : aggregateBound(childBands, false, &pickMin);
         result.max = aggregateBound(childBands, false, &pickMax);
@@ -1585,26 +1566,11 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills still resolves to a definite extent. Dropped on a
         // flexing axis, as the pure box drops it.
-        if (!couples)
+        if (!flexes)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
                     : weakHeightDefault(container));
-        }
-
-        // The coupling that makes a flexing stack a filler in its parent: its
-        // extent on the parent's layout axis equals its aggregated flex weight
-        // times the parent's shared flex variable, the same coupling the pure box
-        // emits on the parent's axis.
-        if (thisAxis == parentAxis && couples)
-        {
-            rel.constraints.push_back(
-                    ((thisAxis == Axis::x
-                        ? container.width()
-                        : container.height())
-                        == static_cast<double>(flex->coeff)
-                            * arrange::Expression(parentFlex))
-                    | weakestStrength());
         }
 
         if (thisAxis == Axis::x)
@@ -1624,19 +1590,17 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
     };
 
     auto horizontal = merge(std::move(childWidth), boxes.clone(),
-            gravities.clone(), parentFlexSig.clone(), parentAxisSig.clone()).map(
+            gravities.clone()).map(
             [buildAxis](std::vector<Constraints> const& bands,
                     std::vector<BoxVariables> const& boxes,
-                    std::vector<avg::Vector2f> const& gravities,
-                    arrange::Variable parentFlex, Axis parentAxis)
+                    std::vector<avg::Vector2f> const& gravities)
             {
-                return buildAxis(Axis::x, bands, boxes, gravities, parentFlex,
-                        parentAxis);
+                return buildAxis(Axis::x, bands, boxes, gravities);
             });
 
     // The container's height band, as a function of the region's width solution.
     auto verticalGiven =
-        [buildAxis, boxes, gravities, array, parentFlexSig, parentAxisSig](
+        [buildAxis, boxes, gravities, array](
                 bq::signal::AnySignal<LayoutSolution> widthSolution)
             -> bq::signal::AnySignal<Constraints>
     {
@@ -1651,15 +1615,13 @@ AnyWidget solverStackBuildersRegionPure(BuildParams const& params,
                         return effective.getHeightForWidth(widthSolution.clone());
                     }));
 
-        return merge(std::move(childHeight), boxes.clone(), gravities.clone(),
-                parentFlexSig.clone(), parentAxisSig.clone()).map(
+        return merge(std::move(childHeight), boxes.clone(), gravities.clone())
+            .map(
                 [buildAxis](std::vector<Constraints> const& bands,
                         std::vector<BoxVariables> const& boxes,
-                        std::vector<avg::Vector2f> const& gravities,
-                        arrange::Variable parentFlex, Axis parentAxis)
+                        std::vector<avg::Vector2f> const& gravities)
                 {
-                    return buildAxis(Axis::y, bands, boxes, gravities, parentFlex,
-                            parentAxis);
+                    return buildAxis(Axis::y, bands, boxes, gravities);
                 });
     };
 
@@ -1771,14 +1733,13 @@ std::vector<Constraints> perTrackBands(std::vector<Constraints> const& bands,
     return result;
 }
 
-// Pure-solver counterpart of solverGridBuilders(). Like the stack it mints no
-// child flex variable, so a filler in a cell fills via the weak slot pull and
-// inherits the enclosing flex axis. The grid lines are pinned required to equal
-// fractions of the container box (gridAxisConstraints), so a cell follows the
-// container box; a child holding its own extent is not pulled to its cell, so it
+// Pure-solver counterpart of solverGridBuilders(). Like the stack it emits no
+// flex coupling, so a filler in a cell fills via the weak slot pull. The grid
+// lines are pinned required to equal fractions of the container box
+// (gridAxisConstraints), so a cell follows the container box; a child holding its own extent is not pulled to its cell, so it
 // cannot drag a flexing grid down to it.
 AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
-        unsigned int columns, unsigned int rows, BuildParams const& params,
+        unsigned int columns, unsigned int rows,
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
     BoxVariables container;
@@ -1787,9 +1748,6 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
     GridLines lines;
     lines.xs.resize(columns + 1);
     lines.ys.resize(rows + 1);
-
-    auto parentFlexSig = flexVariable(params).share();
-    auto parentAxisSig = flexAxis(params).share();
 
     auto boxes = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -1826,8 +1784,7 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         [container, lines, cells, columns, rows](Axis thisAxis,
                 std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
-                std::vector<avg::Vector2f> const& gravities,
-                arrange::Variable parentFlex, Axis parentAxis) -> Constraints
+                std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
         float factor = static_cast<float>(
                 thisAxis == Axis::x ? columns : rows);
@@ -1837,11 +1794,11 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         std::optional<Flex> flex = aggregateFlex(shares, false);
         // Like the stack, a flexing cell child makes the grid flexible on that
         // axis, whichever axis it is.
-        bool couples = flex && flex->coeff > 0.0f;
+        bool flexes = flex && flex->coeff > 0.0f;
 
         Constraints result;
         result.flex = flex;
-        if (!couples)
+        if (!flexes)
         {
             result.natural = aggregateNatural(shares, false);
             if (result.natural)
@@ -1850,7 +1807,7 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // On a flexing axis the grid drops its natural, so its min floors the
         // track content; scaled by the track count like the natural, so a
         // full-cell child's floor asks for the whole track.
-        result.min = couples
+        result.min = flexes
             ? aggregateFloor(shares, false)
             : aggregateBound(shares, false, &pickMin);
         if (result.min)
@@ -1896,26 +1853,11 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // The container's own weak size default, so an axis its parent neither
         // sizes nor fills still resolves to a definite extent. Dropped on a
         // flexing axis, as the pure box and stack drop it.
-        if (!couples)
+        if (!flexes)
         {
             rel.constraints.push_back(thisAxis == Axis::x
                     ? weakWidthDefault(container)
                     : weakHeightDefault(container));
-        }
-
-        // The coupling that makes a flexing grid a filler in its parent: its
-        // extent on the parent's layout axis equals its aggregated flex weight
-        // times the parent's shared flex variable, the same coupling the pure box
-        // and stack emit on the parent's axis.
-        if (thisAxis == parentAxis && couples)
-        {
-            rel.constraints.push_back(
-                    ((thisAxis == Axis::x
-                        ? container.width()
-                        : container.height())
-                        == static_cast<double>(flex->coeff)
-                            * arrange::Expression(parentFlex))
-                    | weakestStrength());
         }
 
         if (thisAxis == Axis::x)
@@ -1935,19 +1877,17 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
     };
 
     auto horizontal = merge(std::move(childWidth), boxes.clone(),
-            gravities.clone(), parentFlexSig.clone(), parentAxisSig.clone()).map(
+            gravities.clone()).map(
             [buildAxis](std::vector<Constraints> const& bands,
                     std::vector<BoxVariables> const& boxes,
-                    std::vector<avg::Vector2f> const& gravities,
-                    arrange::Variable parentFlex, Axis parentAxis)
+                    std::vector<avg::Vector2f> const& gravities)
             {
-                return buildAxis(Axis::x, bands, boxes, gravities, parentFlex,
-                        parentAxis);
+                return buildAxis(Axis::x, bands, boxes, gravities);
             });
 
     // The container's height band, as a function of the region's width solution.
     auto verticalGiven =
-        [buildAxis, boxes, gravities, array, parentFlexSig, parentAxisSig](
+        [buildAxis, boxes, gravities, array](
                 bq::signal::AnySignal<LayoutSolution> widthSolution)
             -> bq::signal::AnySignal<Constraints>
     {
@@ -1962,15 +1902,13 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
                         return effective.getHeightForWidth(widthSolution.clone());
                     }));
 
-        return merge(std::move(childHeight), boxes.clone(), gravities.clone(),
-                parentFlexSig.clone(), parentAxisSig.clone()).map(
+        return merge(std::move(childHeight), boxes.clone(), gravities.clone())
+            .map(
                 [buildAxis](std::vector<Constraints> const& bands,
                         std::vector<BoxVariables> const& boxes,
-                        std::vector<avg::Vector2f> const& gravities,
-                        arrange::Variable parentFlex, Axis parentAxis)
+                        std::vector<avg::Vector2f> const& gravities)
                 {
-                    return buildAxis(Axis::y, bands, boxes, gravities, parentFlex,
-                            parentAxis);
+                    return buildAxis(Axis::y, bands, boxes, gravities);
                 });
     };
 
@@ -2035,11 +1973,9 @@ AnyWidget solverBox(Axis axis, CrossAlign align,
                 return solverBoxBuildersRegion(axis, align, std::move(region),
                         std::move(builders));
             },
-            [axis](bq::signal::ArraySignal<widget::AnyBuilder> builders,
-                BuildParams const& params)
+            [axis](bq::signal::ArraySignal<widget::AnyBuilder> builders)
             {
-                return solverBoxBuildersRegionPure(axis, params,
-                        std::move(builders));
+                return solverBoxBuildersRegionPure(axis, std::move(builders));
             },
             axis,
             std::move(widgets));
@@ -2072,25 +2008,13 @@ AnyWidget solverHbox(std::vector<AnyWidget> widgets)
     return solverBox(Axis::x, CrossAlign::fill, std::move(widgets));
 }
 
-// The one relation a filler states on the container's layout axis: its extent
-// there equals the shared flex variable, at the weakest tier, so the gap
-// drive pulls it out to fill the slack; the flex band rides up so a container
-// holding a filler is itself a filler to its parent. Off the layout axis it
-// contributes nothing, so the cross axis falls to the container's
-// leading-edge pin, cross-fill and weak default. The layout axis and flex
-// variable arrive as the seeded values threaded through the band map.
-Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
-        Axis layoutAxis, arrange::Variable const& flex)
+Constraints fillerAxisBand(Axis thisAxis, Axis layoutAxis)
 {
     if (thisAxis != layoutAxis)
         return Constraints();
 
     Constraints c;
     c.flex = Flex{ 1.0f };
-    c.relations.constraints.push_back(
-            ((thisAxis == Axis::x ? box.width() : box.height())
-                == arrange::Expression(flex))
-            | weakestStrength());
     return c;
 }
 
@@ -2098,11 +2022,10 @@ namespace
 {
     // The band a directional filler contributes on one axis. An axis it does not
     // fill is pinned to zero, or the gap drive / cross-fill would stretch a
-    // no-extent child there; an axis it fills couples like a plain filler when it
+    // no-extent child there; an axis it fills flexes like a plain filler when it
     // is the layout axis and is left free (cross-fill stretches it) otherwise.
     Constraints directionalFillerAxisBand(Axis thisAxis, bool fill,
-            BoxVariables const& box, Axis layoutAxis,
-            arrange::Variable const& flex)
+            Axis layoutAxis)
     {
         if (!fill)
         {
@@ -2110,35 +2033,29 @@ namespace
             c.natural = BandNatural{ 0.0f, contentStrength() };
             return c;
         }
-        return fillerAxisBand(thisAxis, box, layoutAxis, flex);
+        return fillerAxisBand(thisAxis, layoutAxis);
     }
 
-    // Builds a filler's PureLayout from the seeded layout-axis and flex-variable
-    // signals: band produces one axis's Constraints from the current values,
-    // evaluated inside the per-axis map so it tracks the real context.
+    // Builds a filler's PureLayout from the seeded layout-axis signal: band
+    // produces one axis's Constraints from its current value, evaluated inside
+    // the per-axis map so it tracks the real context.
     template <typename TBand>
-    PureLayout fillerPureLayout(TBand band,
-            bq::signal::AnySignal<Axis> axisSig,
-            bq::signal::AnySignal<arrange::Variable> flexSig)
+    PureLayout fillerPureLayout(TBand band, bq::signal::AnySignal<Axis> axisSig)
     {
         auto sharedAxis = std::move(axisSig).share();
-        auto sharedFlex = std::move(flexSig).share();
 
-        auto width = merge(sharedAxis.clone(), sharedFlex.clone()).map(
-                [band](Axis layoutAxis, arrange::Variable flex)
+        auto width = sharedAxis.clone().map([band](Axis layoutAxis)
                 {
-                    return band(Axis::x, layoutAxis, flex);
+                    return band(Axis::x, layoutAxis);
                 });
 
         WidthToConstraints heightForWidth =
-            [band, sharedAxis, sharedFlex](
-                    bq::signal::AnySignal<LayoutSolution>)
+            [band, sharedAxis](bq::signal::AnySignal<LayoutSolution>)
                 -> bq::signal::AnySignal<Constraints>
             {
-                return merge(sharedAxis.clone(), sharedFlex.clone()).map(
-                        [band](Axis layoutAxis, arrange::Variable flex)
+                return sharedAxis.clone().map([band](Axis layoutAxis)
                         {
-                            return band(Axis::y, layoutAxis, flex);
+                            return band(Axis::y, layoutAxis);
                         });
             };
 
@@ -2158,15 +2075,12 @@ AnyWidget filler()
                     if (!pureSolver(params))
                         return builder;
 
-                    BoxVariables box = builder.getBoxVariables();
                     builder.setPureLayout(fillerPureLayout(
-                            [box](Axis thisAxis, Axis layoutAxis,
-                                    arrange::Variable flex)
+                            [](Axis thisAxis, Axis layoutAxis)
                             {
-                                return fillerAxisBand(thisAxis, box, layoutAxis,
-                                        flex);
+                                return fillerAxisBand(thisAxis, layoutAxis);
                             },
-                            flexAxis(params), flexVariable(params)));
+                            flexAxis(params)));
                     return builder;
                 }));
 }
@@ -2186,16 +2100,14 @@ namespace
                         if (!pureSolver(params))
                             return builder;
 
-                        BoxVariables box = builder.getBoxVariables();
                         builder.setPureLayout(fillerPureLayout(
-                                [box, fillX, fillY](Axis thisAxis,
-                                        Axis layoutAxis, arrange::Variable flex)
+                                [fillX, fillY](Axis thisAxis, Axis layoutAxis)
                                 {
                                     return directionalFillerAxisBand(thisAxis,
                                             thisAxis == Axis::x ? fillX : fillY,
-                                            box, layoutAxis, flex);
+                                            layoutAxis);
                                 },
-                                flexAxis(params), flexVariable(params)));
+                                flexAxis(params)));
                         return builder;
                     }));
     }
@@ -2250,11 +2162,9 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
             {
                 return solverStackBuilders(std::move(builders));
             },
-            [](bq::signal::ArraySignal<widget::AnyBuilder> builders,
-                BuildParams const& params)
+            [](bq::signal::ArraySignal<widget::AnyBuilder> builders)
             {
-                return solverStackBuildersRegionPure(params,
-                        std::move(builders));
+                return solverStackBuildersRegionPure(std::move(builders));
             },
             std::nullopt,
             std::move(widgets));
@@ -2282,10 +2192,9 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
                 return build(std::move(builders));
             },
             [cells, columns, rows](
-                bq::signal::ArraySignal<widget::AnyBuilder> builders,
-                BuildParams const& params)
+                bq::signal::ArraySignal<widget::AnyBuilder> builders)
             {
-                return solverGridBuildersRegionPure(cells, columns, rows, params,
+                return solverGridBuildersRegionPure(cells, columns, rows,
                         std::move(builders));
             },
             std::nullopt,

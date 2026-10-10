@@ -45,6 +45,28 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value, arrange::Strength strength);
 
     /**
+     * @brief Fixes the extent on @p axis at @p value: a strong natural that also
+     * clears the band's flex there.
+     *
+     * A fixed size replaces a flex set before it (a fill() or one aggregated up
+     * from a flexing child), so the widget's container stamps the natural and
+     * couples nothing. A later setPureFlex() re-enables the flex, the natural
+     * then riding as its flex-basis. The bounds are left alone.
+     */
+    void setPureFixed(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> value);
+
+    /**
+     * @brief Replaces the flex band on @p axis with @p weight, making the widget
+     * flexible there.
+     *
+     * The band's natural stays as a flex-basis, which the container drops when it
+     * stamps the widget; the bounds still clamp the flexed extent.
+     */
+    void setPureFlex(AnyBuilder& builder, Axis axis,
+            bq::signal::AnySignal<float> weight);
+
+    /**
      * @brief Replaces the lower-bound band on @p axis with @p value, held
      * strong so an unmeetable floor overflows rather than freezing the region.
      */
@@ -202,35 +224,13 @@ namespace bqui::widget
     };
 
     /**
-     * @brief The shared flex variable a pure-solver container mints for its
-     * layout axis, seeded down for the fillers it holds to couple to.
-     *
-     * Every filler that is a direct child of the container adds
-     * @c extent==F at the weakest tier against this one variable, so the
-     * fillers all take the same extent and split the container's slack evenly;
-     * the container's gap drive then pulls that shared extent up to absorb the
-     * leftover. The value is a plain arrange variable (an id plus a name), not a
-     * handle into the builder graph, so carrying it down forms no retain cycle.
-     * Absent outside a pure-solver box, where a filler is inert.
-     */
-    struct FlexVariableTag
-    {
-        using type = arrange::Variable;
-
-        static bq::signal::AnySignal<arrange::Variable> getDefaultValue()
-        {
-            return bq::signal::constant(arrange::Variable());
-        }
-    };
-
-    /**
      * @brief The layout (main) axis of the pure-solver container a filler is a
-     * direct child of, so the filler couples its extent on that axis.
+     * direct child of, so the filler flexes on that axis.
      *
-     * A filler constrains only the axis its container stacks along; the cross
-     * axis falls to the container's own leading-edge pin and weak default. The
-     * container seeds this alongside FlexVariableTag. Defaults to Axis::x, read
-     * only when a filler actually sits inside a pure-solver box.
+     * A filler publishes its flex only on the axis its container stacks along,
+     * where the container couples it to its slack; the cross axis falls to the
+     * container's own leading-edge pin and weak default. Defaults to Axis::x,
+     * read only when a filler actually sits inside a pure-solver box.
      */
     struct FlexAxisTag
     {
@@ -412,16 +412,13 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Constraint weakHeightDefault(BoxVariables const& box);
 
     /**
-     * @brief One axis's filler band: an @c extent==F coupling to the container's
-     * shared flex variable @p flex at the weakest tier when @p thisAxis is the
+     * @brief One axis's filler band: a unit flex when @p thisAxis is the
      * container's @p layoutAxis, an empty band otherwise.
      *
-     * So a filler fills the layout axis by flex and a cross axis by the
-     * container's cross-fill. Shared by filler(), the directional fillers and the
-     * axis-specific grow size words; @p box supplies the coupled extent variable.
+     * So a filler fills the layout axis by flex, which its container couples to
+     * its slack, and a cross axis by the container's cross-fill.
      */
-    Constraints fillerAxisBand(Axis thisAxis, BoxVariables const& box,
-            Axis layoutAxis, arrange::Variable const& flex);
+    Constraints fillerAxisBand(Axis thisAxis, Axis layoutAxis);
 
     /**
      * @brief Sizes and positions one content edge-pair within a slot edge-pair

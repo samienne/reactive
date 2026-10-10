@@ -11,8 +11,8 @@ namespace bqui::widget
      * leftover space along the container's layout axis.
      *
      * Inside a pure-solver hbox or vbox it takes no size of its own on the
-     * layout axis and instead couples to the container's shared flex variable,
-     * so every filler in one container splits the slack evenly while the fixed
+     * layout axis and instead the container couples it to its shared flex
+     * variable, so every filler in one container splits the slack evenly while the fixed
      * and default-sized siblings hold their sizes. With two fillers each takes
      * half the remaining room; capping one (maxWidth / maxHeight) hands its
      * surplus to the others. Outside a pure-solver region it is inert.

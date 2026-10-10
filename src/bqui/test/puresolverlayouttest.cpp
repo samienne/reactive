@@ -3120,3 +3120,194 @@ TEST(PureSolverLayout, flexibleChildFillsStackSlot)
     EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
     EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
 }
+
+namespace
+{
+
+// A column holding a row that carries an hfiller: flexible on its width (the
+// column's cross axis), so it fills its slot in a parent row unless a fixed
+// width says otherwise.
+AnyWidget flexingColumn(btl::UniqueId leafId)
+{
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(leafId, fixed40, fixed40));
+    row.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    return vbox(ArraySignal<AnyWidget>(std::move(column)));
+}
+
+} // namespace
+
+// A fixed width on a widget that flexes holds: a column flexing on its width
+// through an inner hfiller, fixed at 200 in a 400-wide row beside a fixed 40
+// leaf, takes 200 rather than filling the row's slack. The fixed width clears the
+// column's flex, so the row couples nothing to it.
+TEST(PureSolverLayout, fixedWidthHoldsOnFlexingColumn)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idColumn = btl::makeUniqueId();
+    btl::UniqueId const idLeaf = btl::makeUniqueId();
+    btl::UniqueId const idSide = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(flexingColumn(idLeaf)
+                | modifier::fixedWidth(200.0f), idColumn));
+    row.push_back(probe(idSide, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry column = readProbe(instance, idColumn);
+    Geometry side = readProbe(instance, idSide);
+
+    EXPECT_FLOAT_EQ(200.0f, column.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, column.position[0]);
+    EXPECT_FLOAT_EQ(200.0f, side.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, side.size[0]);
+}
+
+// A fixed sidebar beside flexible content: both are columns that flex on their
+// width, the sidebar fixed at 120. In a 400-wide row the sidebar holds 120 and
+// the content takes the remaining 280.
+TEST(PureSolverLayout, fixedSidebarBesideFlexibleContent)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idSidebar = btl::makeUniqueId();
+    btl::UniqueId const idContent = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(flexingColumn(btl::makeUniqueId())
+                | modifier::fixedWidth(120.0f), idSidebar));
+    row.push_back(withArea(flexingColumn(btl::makeUniqueId()), idContent));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry sidebar = readProbe(instance, idSidebar);
+    Geometry content = readProbe(instance, idContent);
+
+    EXPECT_FLOAT_EQ(120.0f, sidebar.size[0]);
+    EXPECT_FLOAT_EQ(0.0f, sidebar.position[0]);
+    EXPECT_FLOAT_EQ(280.0f, content.size[0]);
+    EXPECT_FLOAT_EQ(120.0f, content.position[0]);
+}
+
+// The main-axis form of the same bug: a row flexing on its width through an
+// hfiller, fixed at 200 inside a 400-wide row beside a fixed 40 leaf, holds 200.
+TEST(PureSolverLayout, fixedWidthHoldsOnMainAxisFlexingRow)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idInner = btl::makeUniqueId();
+    btl::UniqueId const idSide = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> inner;
+    inner.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    inner.push_back(hfiller());
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(hbox(ArraySignal<AnyWidget>(std::move(inner)))
+                | modifier::fixedWidth(200.0f), idInner));
+    row.push_back(probe(idSide, fixed40, fixed40));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry innerRow = readProbe(instance, idInner);
+    Geometry side = readProbe(instance, idSide);
+
+    EXPECT_FLOAT_EQ(200.0f, innerRow.size[0]);
+    EXPECT_FLOAT_EQ(200.0f, side.position[0]);
+}
+
+// A fixed height on a child flexing on its row's cross axis holds: in a
+// 300-tall row a height-growing leaf fixed at 100 takes 100 at the row's top
+// rather than filling the row.
+TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
+{
+    avg::Vector2f const window(400.0f, 300.0f);
+
+    btl::UniqueId const idFlex = btl::makeUniqueId();
+
+    Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+    row.push_back(probe(idFlex, fixed40, growY)
+            | modifier::fixedHeight(100.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    Geometry flex = readProbe(instance, idFlex);
+
+    EXPECT_FLOAT_EQ(100.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, flex.position[1]);
+}
+
+// Size words on one axis are last-writer-wins between a fixed size and a flex:
+// fixedWidth(80) then fill() flexes and takes the 360 a fixed 40 sibling leaves
+// in a 400-wide row, while fill() then fixedWidth(80) holds 80.
+TEST(PureSolverLayout, laterSizeWordWinsBetweenFixedAndFill)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto layout = [&](modifier::AnyWidgetModifier first,
+            modifier::AnyWidgetModifier second)
+    {
+        btl::UniqueId const id = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(id, fixed40, fixed40) | std::move(first)
+                | std::move(second));
+        row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+        Instance instance = realiseConverged(
+                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                window);
+        return readProbe(instance, id).size[0];
+    };
+
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+                modifier::fill()));
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::fill(),
+                modifier::fixedWidth(80.0f)));
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+                modifier::growWidth()));
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::growWidth(),
+                modifier::fixedWidth(80.0f)));
+}
+
+// A min or max bounds a flexing widget without cancelling its flex: in a
+// 400-wide row a fill() leaf beside a fixed 40 leaf takes the 360 left; capped
+// at 150 it stops there, and floored at 100 it still flexes to 360.
+TEST(PureSolverLayout, minAndMaxBoundAFlexingWidget)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto layout = [&](modifier::AnyWidgetModifier bound)
+    {
+        btl::UniqueId const id = btl::makeUniqueId();
+
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(id, fixed40, fixed40) | modifier::fill()
+                | std::move(bound));
+        row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40));
+
+        Instance instance = realiseConverged(
+                pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+                window);
+        return readProbe(instance, id).size[0];
+    };
+
+    EXPECT_FLOAT_EQ(150.0f, layout(modifier::maxWidth(150.0f)));
+    EXPECT_FLOAT_EQ(360.0f, layout(modifier::minWidth(100.0f)));
+}
