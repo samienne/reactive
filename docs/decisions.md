@@ -6,6 +6,17 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## A window sizes to its content once, at opening
+
+A window opens at its root's natural size (height read at the natural width),
+or at `Window::initialSize`; the root band's min and max always win. After
+that the window keeps its size when the content's natural changes, like a
+window the user has sized, rather than tracking content (WPF's
+`SizeToContent`). Only a stated min or max limits it; a root that does not flex
+is not locked to its natural. Since ase cannot resize a window, a size outside
+the limits is clamped in bqui: the root is laid out at the clamped size from
+the window's top-left corner.
+
 ## The compiler floor is GCC 12, Clang 15 and MSVC 2022
 
 The oldest supported compilers are GCC 12, Clang 15, and MSVC 2022 or
