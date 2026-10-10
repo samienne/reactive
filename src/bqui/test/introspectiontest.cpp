@@ -1,3 +1,5 @@
+#include "widget/constraintbox.h"
+
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
 #include <bqui/widget/widget.h>
@@ -5,7 +7,6 @@
 #include <bqui/widget/button.h>
 #include <bqui/widget/textedit.h>
 #include <bqui/widget/hbox.h>
-#include <bqui/widget/puresolver.h>
 
 #include <bqui/modifier/setwidgetintrospection.h>
 #include <bqui/modifier/constraintsize.h>

@@ -1,5 +1,7 @@
 #include "windowbridge.h"
 
+#include "widget/constraintbox.h"
+
 #include <tracy/Tracy.hpp>
 
 #include <algorithm>
@@ -34,8 +36,9 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
                 ase::Vector2f(aseWindow.getSize().cast<float>()))),
     // The root is the outermost LayoutFirewall: fed the window size and an
     // empty resolved-guide map, from which guide resolutions accumulate
-    // down into every nested makeWidgetWithSize firewall.
-    widgetInstanceSignal_((std::move(widget)
+    // down into every nested makeWidgetWithSize firewall. Its content is one
+    // pure-solver region.
+    widgetInstanceSignal_((widget::pureSolverRoot(std::move(widget))
                 | modifier::background())(
                 widget::rootFirewallParams()
                 )(std::move(size_.signal)).getInstance()),
