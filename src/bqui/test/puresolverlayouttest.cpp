@@ -1284,7 +1284,8 @@ TEST(PureSolverLayout, twoFillModifiersShareSlackEvenly)
 }
 
 // grow(weight) splits the slack in proportion to the weights: a grow(1) and a
-// grow(3) probe in a 400-wide row take 100 and 300 (a 1:3 share).
+// grow(3) probe in a 400-wide row each start from their 40 natural and share the
+// 320 left 1:3, taking 120 and 280.
 TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -1300,10 +1301,10 @@ TEST(PureSolverLayout, growWeightsSplitSlackByRatio)
             pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
             window);
 
-    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idOne).size[0]);
-    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idThree).size[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idOne).size[0]);
+    EXPECT_FLOAT_EQ(280.0f, readProbe(instance, idThree).size[0]);
     EXPECT_FLOAT_EQ(0.0f, readProbe(instance, idOne).position[0]);
-    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idThree).position[0]);
+    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idThree).position[0]);
 }
 
 // A bare shape sizes to a modest pure default, not its banded fill-everything
@@ -1459,8 +1460,9 @@ TEST(PureSolverLayout, minAggregatesMaxOnCrossAxis)
 
 // A flexing child uses all the space its flex allows on either axis, so a column
 // holding a row with an hfiller is itself horizontally flexible: beside a sibling
-// filler in an 800 row it takes an even share of the slack (400) rather than
-// settling at its widest child's 200. Its fixed content keeps its own size.
+// filler in an 800 row it starts from its widest child's 200 and takes an even
+// share of the 600 left (500) rather than settling at 200. Its fixed content
+// keeps its own size.
 TEST(PureSolverLayout, columnHoldingFlexingRowSharesCrossSlack)
 {
     avg::Vector2f const window(800.0f, 200.0f);
@@ -1495,19 +1497,19 @@ TEST(PureSolverLayout, columnHoldingFlexingRowSharesCrossSlack)
     Geometry wideFixed = readProbe(instance, idWideFixed);
     Geometry sibling = readProbe(instance, idSibling);
 
-    EXPECT_FLOAT_EQ(400.0f, sibling.position[0]);
-    EXPECT_FLOAT_EQ(400.0f, sibling.size[0]);
+    EXPECT_FLOAT_EQ(500.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(300.0f, sibling.size[0]);
 
     EXPECT_FLOAT_EQ(60.0f, narrowFixed.size[0]);
     EXPECT_FLOAT_EQ(200.0f, wideFixed.size[0]);
 }
 
 // The negative-filler regression, downstream of the same undersizing. The column
-// is content-sized (nested beside a filler, not anchored to the window) so it
-// encompasses its widest child at 200; the narrow flexing row is then cross-filled
-// to 200 and its hfiller takes 200 - 60 = 140 -- positive. Before the fix the
-// column collapsed to 60, the required edge-tiling held the fixed 60 at full size,
-// and the hfiller was driven negative to reconcile.
+// is nested beside a filler, not anchored to the window, so it starts from its
+// widest child's 200 and takes half the 200 left: 300. The narrow flexing row is
+// then cross-filled to 300 and its hfiller takes 300 - 60 = 240 -- positive.
+// Before the fix the column collapsed to 60, the required edge-tiling held the
+// fixed 60 at full size, and the hfiller was driven negative to reconcile.
 TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
 {
     avg::Vector2f const window(400.0f, 200.0f);
@@ -1541,7 +1543,7 @@ TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
     Geometry narrowFiller = readProbe(instance, idNarrowFiller);
 
     EXPECT_GE(narrowFiller.size[0], 0.0f);
-    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(240.0f, narrowFiller.size[0]);
     EXPECT_FLOAT_EQ(60.0f, narrowFiller.position[0]);
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idNarrowFixed).size[0]);
 }
@@ -1586,9 +1588,9 @@ TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
     Geometry sibling = readProbe(instance, idSibling);
     Geometry narrowFiller = readProbe(instance, idNarrowFiller);
 
-    EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
+    EXPECT_FLOAT_EQ(300.0f, sibling.position[0]);
     EXPECT_GE(narrowFiller.size[0], 0.0f);
-    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(240.0f, narrowFiller.size[0]);
 }
 
 // A frame is layout-transparent in a pure region: its margin insets the
@@ -3028,8 +3030,9 @@ TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
 }
 
 // Wrapping a flexible child in fillers is the way to keep it from filling: a
-// height-growing leaf between two vfillers in a 300-tall row takes only its
-// even share (100), centred, while the same leaf unwrapped fills the row.
+// height-growing leaf between two vfillers in a 300-tall row takes only its 40
+// natural plus an even share of the 260 left, centred, while the same leaf
+// unwrapped fills the row.
 TEST(PureSolverLayout, fillerWrappedFlexibleChildDoesNotFill)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -3054,8 +3057,8 @@ TEST(PureSolverLayout, fillerWrappedFlexibleChildDoesNotFill)
     Geometry wrapped = readProbe(instance, idWrapped);
     Geometry bare = readProbe(instance, idBare);
 
-    EXPECT_FLOAT_EQ(100.0f, wrapped.size[1]);
-    EXPECT_FLOAT_EQ(100.0f, wrapped.position[1]);
+    EXPECT_NEAR(40.0f + 260.0f / 3.0f, wrapped.size[1], 1e-3f);
+    EXPECT_NEAR(260.0f / 3.0f, wrapped.position[1], 1e-3f);
 
     EXPECT_FLOAT_EQ(300.0f, bare.size[1]);
 }
@@ -3411,9 +3414,12 @@ TEST(PureSolverLayout, classicTreeNeverReachesTheBridge)
     EXPECT_FLOAT_EQ(250.0f, edit.size[0]);
     EXPECT_FLOAT_EQ(40.0f, edit.size[1]);
 
-    // The side column flexes across through its scroll bar, so the two split
-    // the row; down, the view grows past its 800 natural to fill the body.
-    EXPECT_FLOAT_EQ(400.0f, view.size[0]);
+    // The side column flexes across through its scroll bar, so the two each
+    // start from their natural and split the rest of the row evenly, the view
+    // ending where the side column begins; down, the view grows past its 800
+    // natural to fill the body.
+    EXPECT_FLOAT_EQ(edit.position[0], view.size[0]);
+    EXPECT_GT(view.size[0], 400.0f);
     EXPECT_GT(view.size[1], 800.0f);
 
     // The counter is live: a SizeHint-only leaf does reach the bridge.
@@ -3578,4 +3584,109 @@ TEST(PureSolverLayout, fillInGridCellFillsBothAxes)
     EXPECT_FLOAT_EQ(100.0f, span.size[1]);
     EXPECT_FLOAT_EQ(40.0f, plain.size[0]);
     EXPECT_FLOAT_EQ(40.0f, plain.size[1]);
+}
+
+// Flex basis is the natural (CSS flex: auto): each flexing child starts from its
+// natural and the slack is shared by weight. A natural, a fill() and a grow(2)
+// probe, all 90 wide, in a 400 row: the natural holds 90 and the 130 left goes
+// 1:2 to the other two.
+TEST(PureSolverLayout, flexersStartFromTheirNatural)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    btl::UniqueId const idNatural = btl::makeUniqueId();
+    btl::UniqueId const idFill = btl::makeUniqueId();
+    btl::UniqueId const idGrow = btl::makeUniqueId();
+
+    Band const fixed90 = { 90.0f, 90.0f, 90.0f };
+
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(probe(idNatural, fixed90, fixed40));
+    row.push_back(probe(idFill, fixed90, fixed40) | modifier::fill());
+    row.push_back(probe(idGrow, fixed90, fixed40) | modifier::grow(2.0f));
+
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
+            window);
+
+    EXPECT_FLOAT_EQ(90.0f, readProbe(instance, idNatural).size[0]);
+    EXPECT_NEAR(90.0f + 130.0f / 3.0f, readProbe(instance, idFill).size[0],
+            1e-3f);
+    EXPECT_NEAR(90.0f + 260.0f / 3.0f, readProbe(instance, idGrow).size[0],
+            1e-3f);
+}
+
+// A flexing child capped by its max stops there and its sibling filler takes the
+// rest, rather than the cap holding the shared flex back and leaving a trailing
+// gap. The same holds with the row nested in a column, which no longer caps it.
+TEST(PureSolverLayout, cappedFillBesideFillerHandsRestToFiller)
+{
+    avg::Vector2f const window(400.0f, 100.0f);
+
+    auto makeRow = [](btl::UniqueId capped, btl::UniqueId filler)
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(capped, fixed40, fixed40) | modifier::fill()
+                | modifier::maxWidth(150.0f));
+        row.push_back(fillerProbe(filler));
+        return hbox(ArraySignal<AnyWidget>(std::move(row)));
+    };
+
+    btl::UniqueId const idCapped = btl::makeUniqueId();
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+
+    Instance flat = realiseConverged(pureSolverRoot(makeRow(idCapped, idFiller)),
+            window);
+
+    EXPECT_FLOAT_EQ(150.0f, readProbe(flat, idCapped).size[0]);
+    EXPECT_FLOAT_EQ(250.0f, readProbe(flat, idFiller).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(flat, idFiller).position[0]);
+
+    btl::UniqueId const idNestedCapped = btl::makeUniqueId();
+    btl::UniqueId const idNestedFiller = btl::makeUniqueId();
+
+    std::vector<ArraySignal<AnyWidget>> column;
+    column.push_back(makeRow(idNestedCapped, idNestedFiller));
+
+    Instance nested = realiseConverged(
+            pureSolverRoot(vbox(ArraySignal<AnyWidget>(std::move(column)))),
+            window);
+
+    EXPECT_FLOAT_EQ(150.0f, readProbe(nested, idNestedCapped).size[0]);
+    EXPECT_FLOAT_EQ(250.0f, readProbe(nested, idNestedFiller).size[0]);
+}
+
+// Short of space the deficit is shared by weight, each flexer shrinking from its
+// natural: fill()s of natural 40 and 120 in a 100 row both give up 30. In a 60
+// row their 50 shares would take the 40 one below zero, so it stops at zero and
+// the other takes the rest of the deficit.
+TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
+{
+    Band const fixed120 = { 120.0f, 120.0f, 120.0f };
+
+    auto makeRow = [&](btl::UniqueId small, btl::UniqueId large)
+    {
+        std::vector<ArraySignal<AnyWidget>> row;
+        row.push_back(probe(small, fixed40, fixed40) | modifier::fill());
+        row.push_back(probe(large, fixed120, fixed40) | modifier::fill());
+        return pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row))));
+    };
+
+    btl::UniqueId const idSmall = btl::makeUniqueId();
+    btl::UniqueId const idLarge = btl::makeUniqueId();
+
+    Instance shared = realiseConverged(makeRow(idSmall, idLarge),
+            avg::Vector2f(100.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(10.0f, readProbe(shared, idSmall).size[0]);
+    EXPECT_FLOAT_EQ(90.0f, readProbe(shared, idLarge).size[0]);
+
+    btl::UniqueId const idEmptied = btl::makeUniqueId();
+    btl::UniqueId const idRest = btl::makeUniqueId();
+
+    Instance clamped = realiseConverged(makeRow(idEmptied, idRest),
+            avg::Vector2f(60.0f, 100.0f));
+
+    EXPECT_FLOAT_EQ(0.0f, readProbe(clamped, idEmptied).size[0]);
+    EXPECT_FLOAT_EQ(60.0f, readProbe(clamped, idRest).size[0]);
 }

@@ -120,13 +120,20 @@ namespace bqui::modifier
      * overrides an earlier one; a no-op outside a pure-solver region. Fills only
      * the layout axis; the cross axis keeps its content size. A grid has no
      * layout axis, so there it fills its cell (or span) on both axes.
+     *
+     * The widget starts from its natural size (its flex basis; a filler has
+     * none) and takes a share of the slack left after every sibling's natural
+     * or fixed size, by weight; a max stops it and the others take the rest.
+     * Short of space it gives up a share of the deficit by the same weight,
+     * stopping at its min or at zero.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 
     /**
      * @brief fill() with an explicit grow weight: the widget takes a share of the
-     * container's slack in proportion to @p weight, so a grow(2) child grows
-     * twice as fast as a grow(1) (or filler) sibling. @c fill() is @c grow(1).
+     * container's slack in proportion to @p weight on top of its natural size,
+     * so a grow(2) child grows twice as fast as a grow(1) (or filler) sibling,
+     * and shrinks twice as fast when space is short. @c fill() is @c grow(1).
      */
     BQUI_EXPORT AnyWidgetModifier grow(float weight);
 

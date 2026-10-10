@@ -29,7 +29,7 @@ Constraints {
     optional<Constraint> min;      // named / overridable-by-replacement
     optional<Constraint> max;
     optional<Constraint> natural;
-    optional<Flex>       flex;      // extent == coeff * F ; coeff readable
+    optional<Flex>       flex;      // extent == natural + coeff * F
     vector<Constraint>   constraints;  // untagged, additive relations
     // named anchors beyond the four edges (baseline, ...) live here too
 }
@@ -100,7 +100,7 @@ composition falls out - an `hbox` with a `filler` inside has `flex > 0` and **is
 itself a filler** to its parent (the inner content can stretch, so the whole can
 stretch). The band's `flex` is the *summary* that rides up; the actual slack
 *distribution* is still the container's solve (the shared-`F` / weighted-share
-constraint). A flexing child's `extent == coeff * F` is emitted by the
+constraint). A flexing child's `extent == natural + coeff * F` is emitted by the
 **container** when it stamps the child, from the `flex` the child publishes - it
 is never pre-baked into the child's own `constraints`. So the outermost band
 decides: a size word that clears `flex` (below) leaves no coupling behind, and
@@ -131,10 +131,25 @@ than sum/max.
 > (decided): a flexible child uses all the space its flex allows on both axes.
 > A user who does not want that wraps the widget in fillers.
 
-**Fill-to-slot (decided).** A flexing container drops its natural on every axis
-it flexes on, not only its main axis, and publishes its `aggregateFloor` as its
-`min`, so a cross-flexible child's natural (a scroll view's preferred height)
-never inflates the container past what its fixed siblings need. Placement
+**Flex basis is the natural (decided, CSS `flex: auto`).** A flexing child
+starts from its natural - its flex basis, zero without one (a `filler`) - and
+the slack left after every child's natural or fixed size is shared by flex
+weight: `extent == natural + coeff * F`. Short of space `F` goes negative and
+the deficit is taken in the same proportion to weight (not to the natural), each
+flexer stopping at its `min`, or at zero, while the others take the rest; fixed
+children never shrink. The coupling sits far below the slack (gap) drive, so a
+flexer clamped at a bound leaves its coupling violated and the slack keeps
+flowing to the flexers that can still take it (a `fill() | maxWidth(150)` beside
+a `filler` in 400 stops at 150, the filler takes 250). A container drives its
+gap only when a child flexes on its main axis, so a container with nothing to
+stretch does not fight a parent stretching it.
+
+**Fill-to-slot (decided).** A flexing container flexes on every axis a child
+flexes on, not only its main axis. There its aggregate natural is only its flex
+basis - `flattenConstraints` never stamps a flexing band's natural - and it
+publishes its `aggregateFloor` as its `min`, so a cross-flexible child's natural
+(a scroll view's preferred height) never inflates the container past what its
+fixed siblings need. Placement
 matches: a child that holds an extent of its own (a natural that is not a
 flex-basis) keeps it and sits per gravity/alignment, *unpulled*, since a pull it
 resisted would drag a flexible container down against the slack drive; every
@@ -298,7 +313,8 @@ the weak lane against this ordering.
 
 **A flexing container floors its fixed content at its `min`.**
 `fixedWidth`/`fixedSize` set `natural` (strong), not `min`. A container that
-flexes drops its aggregate `natural`, so its `min` is what keeps a force-sizing
+flexes never has its aggregate `natural` stamped, so its `min` is what keeps a
+force-sizing
 parent from squeezing it below its fixed content. On a flexing axis the container
 publishes `min = aggregateFloor(children)`: each child floors at its explicit
 `min` if set, else its `natural` if it does *not* flex on that axis (a fixed
@@ -306,7 +322,7 @@ child's natural is a hard floor; a `fill()` child's is a soft flex-basis and
 floors at zero). The floors aggregate as extents do - main-axis **sum**,
 cross-axis **max** - and `aggregateFloor` subsumes the explicit-`min` aggregate,
 so it *replaces* it on a flexing axis. Only there: a non-flexing container still
-publishes its `natural`, which already floors it, so it keeps the plain
+has its `natural` stamped, which already floors it, so it keeps the plain
 explicit-`min` aggregate and is not double-constrained. The floor is `strong`, not
 `required`, so an over-subscribed parent overflows gracefully rather than throwing
 and zeroing the region.
