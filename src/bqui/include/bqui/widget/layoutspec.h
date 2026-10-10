@@ -15,8 +15,10 @@
 #include <btl/fmap.h>
 #include <btl/shared.h>
 
+#include <map>
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
@@ -66,6 +68,27 @@ namespace bqui::widget
     };
 
     /**
+     * @brief Where a named anchor sits on a box along one axis: at
+     * @c leading + @c fraction * extent + @c offset, measured top down on the
+     * vertical axis.
+     *
+     * The fraction keeps the anchor right when the box is sized away from its
+     * natural extent, for content placed relative to its box (a label centres
+     * its text, so its baseline rides at half the height plus a constant).
+     */
+    struct Anchor
+    {
+        float fraction = 0.0f;
+        float offset = 0.0f;
+    };
+
+    /**
+     * @brief The first-baseline anchor, published on the vertical axis by
+     * text leaves and by rows that align their children on it.
+     */
+    inline constexpr char const* baselineAnchor = "baseline";
+
+    /**
      * @brief One axis's size band plus the untagged relations that ride with it.
      *
      * The band is the four named, overridable-by-replacement fields
@@ -79,6 +102,10 @@ namespace bqui::widget
      * a filler's flex coupling — and is additive. It is a
      * LayoutSpec rather than a bare constraint list so the read-back variables
      * the solver API needs travel with the constraints that name them.
+     *
+     * @c anchors names points on the box beyond its edges (baselineAnchor).
+     * Size words keep them, an inset wrapper offsets them onto its outer box,
+     * and a container publishes only the anchors it defines itself.
      */
     struct Constraints
     {
@@ -86,6 +113,7 @@ namespace bqui::widget
         std::optional<float> max;            ///< strong upper bound on extent
         std::optional<BandNatural> natural;  ///< preferred extent, at a strength
         std::optional<Flex> flex;            ///< filler coefficient (aggregated)
+        std::map<std::string, Anchor> anchors; ///< named anchors on this axis
         LayoutSpec relations;                ///< untagged relations + read-backs
     };
 
