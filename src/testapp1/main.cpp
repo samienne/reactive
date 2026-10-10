@@ -2,10 +2,7 @@
 #include "spinner.h"
 #include "curvevisualizer.h"
 
-#include <bqui/modifier/setsize.h>
-#include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/drawkeyboardinputs.h>
-#include <bqui/modifier/setminimumsize.h>
 #include <bqui/modifier/settheme.h>
 #include <bqui/modifier/focusgroup.h>
 #include <bqui/modifier/frame.h>
@@ -169,7 +166,6 @@ int main()
         widget::vbox({
             widget::button("Open another window",
                     []() { openSecondWindow(); })
-                | modifier::setSizeHint({ 250, 50 })
                 | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             widget::button(
                     showTracked.signal.map([](bool b) -> std::string
@@ -185,7 +181,6 @@ int main()
                             else
                                 openTracked();
                         }))
-                | modifier::setSizeHint({ 250, 50 })
                 | modifier::fixedSize(avg::Vector2f{ 250, 50 }),
             shape::rectangle()
                 //.size(bq::signal::constant(avg::Vector2f(100, 100)))
@@ -203,8 +198,6 @@ int main()
                         auto a = withAnimation(1.3f, avg::curve::easeOutBounce);
                         h.set(!b);
                     }))
-                //| modifier::setSizeHint( {100.0f, 200.0} ),
-                | modifier::setMinimumSize(avg::Vector2f{ 100.0f, 200.0f })
                 | modifier::minSize(avg::Vector2f{ 100.0f, 200.0f }),
             widget::label("Curves")
                 | modifier::frame()
@@ -216,8 +209,6 @@ int main()
                             handle.set(static_cast<int>((i+1) % curves.size()));
                         }))
                 | modifier::setGravity(avg::Vector2f{ 0.5f, 1.0f })
-                | modifier::setSize(avg::Vector2f{ 150, 50 })
-                | modifier::setSizeHint({ 300, 300 })
                 | modifier::fixedSize(avg::Vector2f{ 150, 50 })
                 | modifier::setName("nextCurveButton")
                 | modifier::setRole("Button"),
@@ -252,74 +243,10 @@ int main()
                 bq::signal::constant(0.5f))
     });
 
-    // A real content-sized scene behind the pure solver, built from ordinary
-    // widgets. Every leaf sizes to its own content; the fillers take the slack,
-    // so the toolbar's right-aligned button, the form field's trailing space and
-    // each row's tail reflow as the window resizes, while the panel frame and the
-    // margins hold. Restore the original UI by swapping std::move(panel) below for
-    // std::move(widgets) | modifier::focusGroup().
-    auto formState = bq::signal::makeInput(widget::TextEditState{"Ada Lovelace"});
-
-    Theme theme;
-
-    auto barButton = [](std::string text) -> widget::AnyWidget
-    {
-        return widget::button(text,
-                        [text]() { std::cout << text << " clicked\n"; })
-            | modifier::margin(4.0f);
-    };
-
-    auto swatch = [](avg::Color color) -> widget::AnyWidget
-    {
-        return shape::rectangle().fill(color)
-            | modifier::fixedSize(avg::Vector2f(48.0f, 48.0f))
-            | modifier::margin(6.0f);
-    };
-
-    auto panel = widget::pureSolverRoot(widget::vbox({
-        // Toolbar: content-sized buttons, a filler, then a right-aligned button.
-        widget::hbox({
-            barButton("New"),
-            barButton("Open"),
-            barButton("Save"),
-            widget::filler(),
-            barButton("Help"),
-        }),
-
-        // Form row: a content-sized label and a text field that fills the rest of
-        // the row -- fill() makes the field flexible like a filler while keeping
-        // its content as a flex-basis.
-        widget::hbox({
-            widget::label("Name:") | modifier::margin(6.0f),
-            widget::AnyWidget(widget::textEdit(formState.handle,
-                        formState.signal.cast<widget::TextEditState>()))
-                | modifier::margin(6.0f)
-                | modifier::fill(),
-        }),
-
-        // Content row: a label, three fixed-size colored swatches, and a filler.
-        widget::hbox({
-            widget::label("Palette:") | modifier::margin(6.0f),
-            swatch(theme.getOrange()),
-            swatch(theme.getBlue()),
-            swatch(theme.getGreen()),
-            widget::filler(),
-        }),
-
-        // Absorb the remaining vertical space so the rows stay at the top.
-        widget::filler(),
-    }))
-        | modifier::margin(10.0f)
-        | modifier::frame()
-        | modifier::focusGroup();
-
     return app()
         .addWindow(
-                window(bq::signal::constant<std::string>(
-                        "Pure-solver content layout")),
-                std::move(panel)
-                // Restore the original demo UI by swapping the line above for:
-                // std::move(widgets) | modifier::focusGroup()
-                )
+                window(bq::signal::constant<std::string>("testapp1")),
+                widget::pureSolverRoot(std::move(widgets))
+                    | modifier::focusGroup())
         .run();
 }
