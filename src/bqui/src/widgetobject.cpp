@@ -24,18 +24,10 @@ namespace
             bq::signal::Signal<U, avg::Transform> t,
             avg::UniqueId id)
     {
-        auto builder = (std::move(widget)
+        return (std::move(widget)
             | modifier::setId(bq::signal::constant(id))
             | modifier::transform(std::move(t))
-            )(params)
-            ;
-
-        auto sizeHint = builder.getSizeHint();
-
-        return std::make_pair(
-                std::move(builder)(std::move(size)).getInstance(),
-                std::move(sizeHint)
-                );
+            )(params)(std::move(size)).getInstance();
     }
 
 
@@ -77,17 +69,12 @@ void WidgetObject::setTransform(avg::Transform t)
 
 bq::signal::AnySignal<widget::Instance> const& WidgetObject::getWidget()
 {
-    return impl_->widget_.first;
+    return impl_->widget_;
 }
 
 avg::UniqueId const& WidgetObject::getId() const
 {
     return impl_->id_;
-}
-
-bq::signal::AnySignal<SizeHint> const& WidgetObject::getSizeHint() const
-{
-    return *impl_->widget_.second;
 }
 
 }

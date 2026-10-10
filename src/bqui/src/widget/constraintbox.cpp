@@ -17,9 +17,6 @@
 #include "bqui/provider/providebuildparams.h"
 #include "bqui/provider/provideparam.h"
 
-#include "bqui/simplesizehint.h"
-#include "bqui/sizehint.h"
-
 #include <btl/function.h>
 
 #include <bq/signal/arraysignal.h>
@@ -87,7 +84,6 @@ AnyWidget makeSolutionWidget(F f)
                 AnyWidget group = f(sharedSize.clone(), std::move(solution));
                 return std::move(group)(std::move(params))(sharedSize.clone());
             },
-            bq::signal::constant(SizeHint(defaultSizeHint())),
             BuildParams{},
             bq::signal::constant(avg::Vector2f(0.5f, 0.5f))));
 }

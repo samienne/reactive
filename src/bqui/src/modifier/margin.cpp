@@ -45,7 +45,6 @@ namespace
     widget::AnyBuilder shrinkBuilder(widget::AnyBuilder builder,
             bq::signal::AnySignal<float> amount)
     {
-        auto sizeHint = builder.getSizeHint();
         auto gravity = builder.getGravity();
         bool gravityExplicit = builder.isGravityExplicit();
         auto params = builder.getBuildParams();
@@ -71,7 +70,6 @@ namespace
                 return builder.clone()(std::move(adjustedSize),
                         std::move(solution));
             },
-            std::move(sizeHint),
             std::move(params),
             std::move(gravity)
             );

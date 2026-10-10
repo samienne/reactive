@@ -14,7 +14,8 @@ toward drawable state (`widget/`):
 
 - `AnyWidget = Widget<std::function<AnyBuilder(BuildParams)>>` — the user-facing,
   type-erased description.
-- `Builder` receives `BuildParams` (theme, environment) and produces size hints.
+- `Builder` receives `BuildParams` (theme, environment) and carries the
+  widget's `PureLayout` band and solver box up to its region.
 - `Element` (`AnyElement = Element<AnySignal<Instance>>`) wires up signals and
   receives the resolved size.
 - `Instance` is the realised widget: its render tree, input areas, hit regions.
@@ -39,9 +40,7 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
   `pureSolverRoot`), so every app is a pure region and a container is only
   ever laid out by its region's solve; one built outside any region throws. `makeWidgetWithSize`, `bin` and
   `scrollView` are size boundaries: their outward band is their own, never the
-  content's, and the content is solved as its own region inside. `SizeHint`
-  still rides the builder (a few modifiers read it, `scrollView` still sets
-  one) but no container lays out from it.
+  content's, and the content is solved as its own region inside.
   `gravity` aligns within allocated space.
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.
@@ -197,14 +196,6 @@ owning `Window`.
   constant (the `if constexpr (sizeof...(Ts) == 0)` branch in `shape/shape.h`).
 - Builder-style template APIs are guarded by an instantiation smoke test
   (`test/shapetest.cpp`) — extend it when adding builder methods.
-- **Watch for a child's size hint being instantiated more than once under a
-  container.** Each `getSizeHint()` call hands out a fresh hint signal rather
-  than a shared one, so every reader re-evaluates the chain. The container's
-  hint fan-in is one reader; positioning used to add another
-  (`handleGravity` re-read the hint when the child's element was built), now
-  removed by folding placement into the solve (`placeInSlot`). The real fix is
-  builder plumbing — the builder handing out one shared hint signal — not
-  layout, which is why it is recorded here rather than patched at the call site.
 - Geometry recovered from input areas (`test/puresolverlayouttest.cpp`) says nothing about
   the render tree: a node placed wrongly, one that cannot be drawn at all, or
   one paired with the wrong sibling across an update all leave the input areas

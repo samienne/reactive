@@ -20,7 +20,6 @@ namespace bqui::modifier
                     BuildParams const& params) -> widget::AnyWidget
         {
             auto builder = std::move(widget)(params);
-            auto sizeHint = builder.getSizeHint();
             auto gravity = builder.getGravity();
             bool gravityExplicit = builder.isGravityExplicit();
             widget::PureLayout childPure = builder.getPureLayout();
@@ -53,7 +52,6 @@ namespace bqui::modifier
 
                     return makeElement(std::move(newInstance), params);
                 },
-                std::move(sizeHint),
                 params,
                 std::move(gravity)
                 );

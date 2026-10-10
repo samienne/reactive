@@ -197,8 +197,8 @@ gravity was stated, since the default gravity is centred.
 
 A builder is minted with an empty `PureLayout` (no band on either axis) and
 every size word, wrapper and container composes onto it, so a pure container or
-the firewall reads `getPureLayout()` directly; nothing is synthesized from the
-`SizeHint` at consumption. A bare widget keeps the weak default. The shipped
+the firewall reads `getPureLayout()` directly; the builder carries no other
+layout state. A bare widget keeps the weak default. The shipped
 leaves publish native bands (`label`, `textEdit`, the scroll bars and the scroll
 view), and `makeBuilderFromElement` publishes its size as a native natural. The
 `SizeHint` -> `PureLayout` bridge that once covered builders without one is gone.
