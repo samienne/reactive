@@ -88,14 +88,13 @@ AnyWidgetModifier pureInsetModifier(bq::signal::AnySignal<float> amount)
             });
 }
 
-AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
+AnyWidgetModifier pureAnchorModifier(PureAxis axis, widget::AnchorId id,
         bq::signal::AnySignal<widget::Anchor> anchor)
 {
     return pureBuilderModifier(
-            [axis, name = std::move(name), anchor = std::move(anchor)](
-                    widget::AnyBuilder& builder)
+            [axis, id, anchor = std::move(anchor)](widget::AnyBuilder& builder)
             {
-                widget::setPureAnchor(builder, toAxis(axis), name,
+                widget::setPureAnchor(builder, toAxis(axis), id,
                         anchor.clone());
             });
 }
@@ -111,13 +110,12 @@ AnyWidgetModifier pureGuideModifier(PureAxis axis, arrange::Variable guide,
 }
 
 AnyWidgetModifier pureGuideAnchorModifier(PureAxis axis,
-        arrange::Variable guide, std::string name)
+        arrange::Variable guide, widget::AnchorId id)
 {
     return pureBuilderModifier(
-            [axis, guide = std::move(guide), name = std::move(name)](
-                    widget::AnyBuilder& builder)
+            [axis, guide = std::move(guide), id](widget::AnyBuilder& builder)
             {
-                widget::setPureGuideAnchor(builder, toAxis(axis), guide, name);
+                widget::setPureGuideAnchor(builder, toAxis(axis), guide, id);
             });
 }
 

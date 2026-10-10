@@ -2,11 +2,10 @@
 
 #include "widgetmodifier.h"
 
+#include "bqui/widget/anchorkey.h"
 #include "bqui/widget/guide.h"
 
 #include "bqui/bquivisibility.h"
-
-#include <string>
 
 namespace bqui::modifier
 {
@@ -54,17 +53,17 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier alignBaseline(widget::YGuide guide);
 
     /**
-     * @brief Aligns this widget's horizontal anchor @p name to @p guide.
+     * @brief Aligns this widget's horizontal anchor @p key to @p guide.
      *
      * The anchor is read as it stands where the modifier is applied; a widget
      * without it is not bound.
      */
     BQUI_EXPORT AnyWidgetModifier alignAnchor(widget::XGuide guide,
-            std::string name);
+            widget::XAnchorKey key);
 
     /**
-     * @brief Aligns this widget's vertical anchor @p name to @p guide.
+     * @brief Aligns this widget's vertical anchor @p key to @p guide.
      */
     BQUI_EXPORT AnyWidgetModifier alignAnchor(widget::YGuide guide,
-            std::string name);
+            widget::YAnchorKey key);
 } // namespace bqui::modifier

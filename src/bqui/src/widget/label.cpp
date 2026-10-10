@@ -3,8 +3,8 @@
 #include "bqui/modifier/constraintsize.h"
 #include "bqui/modifier/ondraw.h"
 #include "bqui/modifier/margin.h"
+#include "bqui/modifier/setanchor.h"
 #include "bqui/modifier/setwidgetintrospection.h"
-#include "modifier/pureconstraint.h"
 
 #include "bqui/widget/datavalue.h"
 
@@ -84,8 +84,7 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
         | modifier::onDraw(drawLabel, text, sharedTheme.clone())
         | modifier::defaultSize(extents.clone().map(
                     [](avg::TextExtents const& e) { return e.size; }))
-        | modifier::detail::pureAnchorModifier(
-                modifier::detail::PureAxis::vertical, baselineAnchor,
+        | modifier::setAnchor(baselineAnchor,
                 sharedTheme.clone().map(labelBaseline))
         | modifier::margin(bq::signal::constant(5.0f))
         | modifier::setRole("Label")

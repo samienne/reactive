@@ -3,6 +3,7 @@
 #include <bqui/modifier/alignguide.h>
 #include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/margin.h>
+#include <bqui/modifier/setanchor.h>
 #include <bqui/modifier/setgravity.h>
 
 #include <bqui/widget/filler.h>
@@ -59,13 +60,8 @@ AnyWidget baselineLeaf(btl::UniqueId id, float height, float baseline)
 {
     return withArea(makeWidget()
             | modifier::defaultSize(avg::Vector2f(30.0f, height))
-            | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                    [baseline](AnyBuilder builder) -> AnyBuilder
-                    {
-                        setPureAnchor(builder, Axis::y, baselineAnchor,
-                                constant(Anchor{ 0.0f, baseline }));
-                        return builder;
-                    })),
+            | modifier::setAnchor(baselineAnchor,
+                constant(Anchor{ 0.0f, baseline })),
             id);
 }
 

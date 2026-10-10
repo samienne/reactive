@@ -65,16 +65,16 @@ AnyWidgetModifier alignBaseline(widget::YGuide guide)
     return alignAnchor(std::move(guide), widget::baselineAnchor);
 }
 
-AnyWidgetModifier alignAnchor(widget::XGuide guide, std::string name)
+AnyWidgetModifier alignAnchor(widget::XGuide guide, widget::XAnchorKey key)
 {
     return detail::pureGuideAnchorModifier(PureAxis::horizontal,
-            widget::GuideAccess::variable(guide), std::move(name));
+            widget::GuideAccess::variable(guide), key.id());
 }
 
-AnyWidgetModifier alignAnchor(widget::YGuide guide, std::string name)
+AnyWidgetModifier alignAnchor(widget::YGuide guide, widget::YAnchorKey key)
 {
     return detail::pureGuideAnchorModifier(PureAxis::vertical,
-            widget::GuideAccess::variable(guide), std::move(name));
+            widget::GuideAccess::variable(guide), key.id());
 }
 
 } // namespace bqui::modifier
