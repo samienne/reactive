@@ -200,7 +200,7 @@ owning `Window`.
   removed by folding placement into the solve (`placeInSlot`). The real fix is
   builder plumbing — the builder handing out one shared hint signal — not
   layout, which is why it is recorded here rather than patched at the call site.
-- Geometry recovered from input areas (`test/layouttest.cpp`) says nothing about
+- Geometry recovered from input areas (`test/puresolverlayouttest.cpp`) says nothing about
   the render tree: a node placed wrongly, one that cannot be drawn at all, or
   one paired with the wrong sibling across an update all leave the input areas
   intact. Anything that only manifests when drawing belongs in

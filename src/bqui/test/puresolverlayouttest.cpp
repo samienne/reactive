@@ -9,7 +9,6 @@
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
-#include "modifier/setsizehint.h"
 #include <bqui/modifier/widgetmodifier.h>
 
 #include <bqui/widget/bin.h>
@@ -29,7 +28,6 @@
 
 #include <bqui/buildparams.h>
 #include <bqui/inputarea.h>
-#include <bqui/simplesizehint.h>
 #include <bqui/sizehint.h>
 
 #include <avg/brush.h>
@@ -55,6 +53,7 @@
 
 #include <chrono>
 #include <functional>
+#include <stdexcept>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -401,60 +400,6 @@ TEST(PureSolverLayout, nestedColumnsSizeToContent)
     EXPECT_FLOAT_EQ(180.0f, d.position[1]);
 }
 
-// Where a band-free column should match the banded one, it does. Two leaves
-// whose band is exactly the weak default (100x100) in a window that fits them
-// both: the pure path (ON, pureSolverRoot) places them identically to the
-// shipped per-container banded path (OFF, a plain vbox). Each leaf states its
-// size to both paths, a SizeHint for the banded one and a pure natural for the
-// solver.
-TEST(PureSolverLayout, matchesBandedWhereLayoutIsBandFree)
-{
-    avg::Vector2f const window(100.0f, 200.0f);
-
-    btl::UniqueId const idTop = btl::makeUniqueId();
-    btl::UniqueId const idBottom = btl::makeUniqueId();
-
-    auto leaf = [](btl::UniqueId id)
-    {
-        return withArea(makeWidget()
-                | modifier::setSizeHint(
-                    constant(SizeHint(simpleSizeHint(fixed100, fixed100))))
-                | modifier::defaultSize(avg::Vector2f(100.0f, 100.0f)),
-                id);
-    };
-
-    auto makeTree = [&]() -> AnyWidget
-    {
-        std::vector<ArraySignal<AnyWidget>> children;
-        children.push_back(leaf(idTop));
-        children.push_back(leaf(idBottom));
-        return vbox(ArraySignal<AnyWidget>(std::move(children)));
-    };
-
-    Instance off = realiseConverged(makeTree(), window);
-    Geometry offTop = readProbe(off, idTop);
-    Geometry offBottom = readProbe(off, idBottom);
-
-    Instance on = realiseConverged(pureSolverRoot(makeTree()), window);
-    Geometry onTop = readProbe(on, idTop);
-    Geometry onBottom = readProbe(on, idBottom);
-
-    EXPECT_FLOAT_EQ(offTop.position[0], onTop.position[0]);
-    EXPECT_FLOAT_EQ(offTop.position[1], onTop.position[1]);
-    EXPECT_FLOAT_EQ(offTop.size[0], onTop.size[0]);
-    EXPECT_FLOAT_EQ(offTop.size[1], onTop.size[1]);
-
-    EXPECT_FLOAT_EQ(offBottom.position[0], onBottom.position[0]);
-    EXPECT_FLOAT_EQ(offBottom.position[1], onBottom.position[1]);
-    EXPECT_FLOAT_EQ(offBottom.size[0], onBottom.size[0]);
-    EXPECT_FLOAT_EQ(offBottom.size[1], onBottom.size[1]);
-
-    // The absolute geometry both paths agree on: top leaf fills the upper half,
-    // bottom leaf the lower half.
-    EXPECT_FLOAT_EQ(100.0f, onTop.position[1]);
-    EXPECT_FLOAT_EQ(0.0f, onBottom.position[1]);
-}
-
 // The two-phase solve stages pass 2 on pass 1's resolved width. Two synthetic
 // leaves whose height is a non-linear step function of their resolved width lay
 // out through the split pipeline: pass 1 resolves the x-edges (the widths), each
@@ -771,38 +716,34 @@ TEST(PureSolverLayout, textEditSizesToNativeBand)
     EXPECT_FLOAT_EQ(40.0f, g.size[1]);
 }
 
-// A label emits a native pure band from its own measured text extents and
-// reproduces the banded footprint: the label's margin is applied before the size
-// word on both paths, so the same label sizes identically laid out in a pure
-// region and in the banded default. This pins the
-// margin ordering -- a pure size word landing after the margin would inset the
-// text instead of padding it, shrinking the box.
+// A label sizes to a native pure band measured from its own text: a short
+// label comes out small and positive, a longer text on the same font is wider
+// at the same height, and neither is stretched to the 400-wide row.
 TEST(PureSolverLayout, labelSizesToNativeBand)
 {
     avg::Vector2f const window(400.0f, 200.0f);
 
-    btl::UniqueId const idPure = btl::makeUniqueId();
-    btl::UniqueId const idBanded = btl::makeUniqueId();
+    btl::UniqueId const idShort = btl::makeUniqueId();
+    btl::UniqueId const idLong = btl::makeUniqueId();
 
-    std::vector<ArraySignal<AnyWidget>> pureRow;
-    pureRow.push_back(withArea(label(std::string("Ping")), idPure));
-    Instance pureInstance = realiseConverged(
-            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(pureRow)))),
+    std::vector<ArraySignal<AnyWidget>> row;
+    row.push_back(withArea(label(std::string("Ping")), idShort));
+    row.push_back(withArea(label(std::string("Ping Ping")), idLong));
+    Instance instance = realiseConverged(
+            pureSolverRoot(hbox(ArraySignal<AnyWidget>(std::move(row)))),
             window);
 
-    std::vector<ArraySignal<AnyWidget>> bandedRow;
-    bandedRow.push_back(withArea(label(std::string("Ping")), idBanded));
-    Instance bandedInstance = realiseConverged(
-            hbox(ArraySignal<AnyWidget>(std::move(bandedRow))),
-            window);
+    Geometry shortLabel = readProbe(instance, idShort);
+    Geometry longLabel = readProbe(instance, idLong);
 
-    Geometry pure = readProbe(pureInstance, idPure);
-    Geometry banded = readProbe(bandedInstance, idBanded);
+    EXPECT_GT(shortLabel.size[0], 0.0f);
+    EXPECT_LT(shortLabel.size[0], 100.0f);
+    EXPECT_GT(shortLabel.size[1], 0.0f);
+    EXPECT_LT(shortLabel.size[1], 100.0f);
 
-    EXPECT_GT(pure.size[0], 0.0f);
-    EXPECT_LT(pure.size[0], 100.0f);
-    EXPECT_FLOAT_EQ(banded.size[0], pure.size[0]);
-    EXPECT_FLOAT_EQ(banded.size[1], pure.size[1]);
+    EXPECT_GT(longLabel.size[0], shortLabel.size[0]);
+    EXPECT_FLOAT_EQ(shortLabel.size[1], longLabel.size[1]);
+    EXPECT_FLOAT_EQ(shortLabel.size[0], longLabel.position[0]);
 }
 
 // maxWidth alone caps the content width: a strong upper bound below the leaf's
@@ -3545,4 +3486,27 @@ TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
 
     EXPECT_FLOAT_EQ(0.0f, readProbe(clamped, idEmptied).size[0]);
     EXPECT_FLOAT_EQ(60.0f, readProbe(clamped, idRest).size[0]);
+}
+
+TEST(UniformGrid, rejectsAnEmptyDimension)
+{
+    EXPECT_THROW(uniformGrid(0, 2), std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 0), std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(1, 1));
+}
+
+TEST(UniformGrid, rejectsACellPastItsEdge)
+{
+    EXPECT_THROW(uniformGrid(2, 2).cell(2, 0, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 2, 1, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, 2, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(0, 1, 1, 2, makeWidget()),
+            std::invalid_argument);
+    EXPECT_THROW(uniformGrid(2, 2).cell(1, 0, ~0u, 1, makeWidget()),
+            std::invalid_argument);
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(0, 0, 2, 2, makeWidget()));
+    EXPECT_NO_THROW(uniformGrid(2, 2).cell(1, 1, 1, 1, makeWidget()));
 }

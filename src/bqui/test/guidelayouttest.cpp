@@ -1,3 +1,4 @@
+#include "widget/constraintbox.h"
 #include "widget/constraintlayout.h"
 #include "widget/guideaccess.h"
 
@@ -356,4 +357,43 @@ TEST(guideLayout, singleParticipantResolves)
     // The width band is untouched by the lone guide, so the box keeps its 40.
     EXPECT_DOUBLE_EQ(40.0,
             solution.at(a.right.id()) - solution.at(a.left.id()));
+}
+
+// Diagnostic added to localize a macOS-only failure of
+// resolvedGuideCrossesFirewallBoundary, where both probes fall back to x = 0:
+// the injected ResolvedGuides map never reaches the container's solve. setParams
+// stores the map keyed by typeid(ResolvedGuides) in this test executable, while
+// the container reads it back with provideParam<ResolvedGuides>() instantiated
+// inside the bqui library. The whole project builds with hidden symbol
+// visibility, under which a type's RTTI is emitted per binary, so the two
+// typeid(ResolvedGuides) keys can differ across that boundary and the
+// library-side BuildParams lookup then misses and defaults to an empty map. This
+// reads the map size on both sides so the JUnit shows whether the map crosses
+// the library boundary intact (both 1) or is dropped at the boundary (the
+// library side 0), separating the plumbing from the solve.
+TEST(guideLayout, resolvedGuidesCrossLibraryBoundary)
+{
+    XGuide g;
+
+    ResolvedGuideMap injected{ { GuideAccess::id(g), 25.0f } };
+
+    BuildParams params;
+    params.set<widget::ResolvedGuides>(bq::signal::constant(injected));
+
+    // Read in this executable, where the param was set: a same-binary round
+    // trip that must always see the one entry.
+    auto localContext = bq::signal::makeSignalContext(
+            params.valueOrDefault<widget::ResolvedGuides>());
+    std::size_t localCount = localContext.evaluate<0>().get<0>().size();
+
+    // Read inside the bqui library, exactly as a container's solve does.
+    std::size_t libraryCount = widget::resolvedGuideParamCount(params);
+
+    EXPECT_EQ(1u, localCount)
+        << "BuildParams set/get within the test executable dropped the "
+           "injected ResolvedGuides map";
+    EXPECT_EQ(1u, libraryCount)
+        << "provideParam<ResolvedGuides>() inside the bqui library read "
+        << libraryCount << " entries from a ResolvedGuides map this executable "
+           "set to hold 1: the param did not survive the library boundary";
 }
