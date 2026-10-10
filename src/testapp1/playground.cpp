@@ -345,7 +345,7 @@ AnyWidget weightedScenario()
 AnyWidget crossFillScenario()
 {
     auto c = cycle({ "right: growHeight", "right: fill", "right: natural",
-            "right: natural, centred" });
+            "right: natural, top" });
 
     return scenario("Cross-axis fill",
             widget::hbox({
@@ -363,9 +363,9 @@ AnyWidget crossFillScenario()
                             return probe("fill", 2) | modifier::fill();
                         if (i == 2)
                             return probe("natural", 2);
-                        return probe("natural | gravity centre", 2)
+                        return probe("natural | gravity top", 2)
                             | modifier::setGravity(bq::signal::constant(
-                                    avg::Vector2f(0.5f, 0.5f)));
+                                    avg::Vector2f(0.5f, 1.0f)));
                     }),
             }),
             std::move(c.button));

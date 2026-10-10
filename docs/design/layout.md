@@ -133,17 +133,19 @@ relations, and republishes an aggregate band:
   `fill()`.
 - **A box propagates child flex outward on its main axis only.** A `fill()` child
   makes an `hbox` horizontally flexible, but not vertically: across, the box
-  takes its extent from its children's naturals (a cross-flexing child's natural
-  counts) or from its parent, and the flexing child fills that extent up to its
-  `max`. A widget that should flex across says so on the box itself.
+  takes its extent from its children's naturals or from its parent, and the
+  flexing child fills that extent up to its `max`. A cross-flexing child's
+  natural still counts toward the box's cross natural, so a box of only filling
+  children is as tall (or wide) as their naturals. A widget that should flex
+  across says so on the box itself.
 - **Stack and grid treat both axes as main** for flex: any flexing child makes
   them flexible on that axis. They emit no coupling; a filling child fills its
   slot or cell.
 - **Placement.** A child that holds its own extent (a natural that is not a flex
   basis) keeps it and is not pulled; every other child fills its slot up to its
-  `max`. In a box, a child that does not span the cross extent sits at the
-  leading edge (top of a row, left of a column) unless it has an explicit
-  `setGravity`. Stack and grid always place by the child's gravity.
+  `max`. Every container places a child by its gravity: across the axis in a
+  box, on both axes in a stack or grid. The default gravity is centre, so a
+  short child in an `hbox` sits vertically centred; `setGravity` moves it.
 - **The box gap is driven only when some child flexes on the main axis**, so a
   container with nothing to stretch does not fight a parent stretching it.
 
