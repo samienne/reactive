@@ -96,41 +96,44 @@ namespace bqui::modifier
             bq::signal::AnySignal<avg::Vector2f> size);
 
     /**
-     * @brief In a pure-solver region, make this widget flexible on its
-     * container's layout axis, growing to take a share of the container's
-     * leftover space as a filler() does. The general form of filler() for a
-     * content widget. A later fixed size on the same axis overrides it, and it
-     * overrides an earlier one. Fills only
-     * the layout axis; the cross axis keeps its content size. A grid has no
-     * layout axis, so there it fills its cell (or span) on both axes.
+     * @brief In a pure-solver region, make this widget flexible on both axes, so
+     * it takes all the space its slot offers in every direction. The general form
+     * of filler() for a content widget. A later fixed size on an axis overrides
+     * it there, and it overrides an earlier one.
      *
-     * The widget starts from its natural size (its flex basis; a filler has
-     * none) and takes a share of the slack left after every sibling's natural
-     * or fixed size, by weight; a max stops it and the others take the rest.
-     * Short of space it gives up a share of the deficit by the same weight,
-     * stopping at its min or at zero.
+     * Along a box's layout axis the widget starts from its natural size (its
+     * flex basis; a filler has none) and takes a share of the slack left after
+     * every sibling's natural or fixed size, by weight; a max stops it and the
+     * others take the rest. Short of space it gives up a share of the deficit by
+     * the same weight, stopping at its min or at zero. The flex carries outward
+     * there, so the box is flexible along its axis too. Across a box the widget
+     * fills the box's cross extent up to its max, but the box takes that extent
+     * from its children's naturals and does not become flexible across. In a
+     * stack or grid it fills its slot or cell on both axes and makes the stack
+     * or grid flexible on both.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 
     /**
-     * @brief fill() with an explicit grow weight: the widget takes a share of the
-     * container's slack in proportion to @p weight on top of its natural size,
-     * so a grow(2) child grows twice as fast as a grow(1) (or filler) sibling,
-     * and shrinks twice as fast when space is short. @c fill() is @c grow(1).
+     * @brief fill() with an explicit grow weight on both axes: the widget takes a
+     * share of the container's slack in proportion to @p weight on top of its
+     * natural size, so a grow(2) child grows twice as fast as a grow(1) (or
+     * filler) sibling, and shrinks twice as fast when space is short. @c fill()
+     * is @c grow(1).
      */
     BQUI_EXPORT AnyWidgetModifier grow(float weight);
 
     /**
-     * @brief In a pure-solver region, make this widget fill along its own width,
-     * whichever axis its container stacks along.
+     * @brief In a pure-solver region, make this widget flexible on its width
+     * only, the one-axis form of fill().
      *
-     * On the width axis it takes a filler's share of the container's slack where
-     * that is the layout axis, and is stretched by the container's cross-fill
-     * where it is not, so a widget whose fill direction is its own (a horizontal
-     * scroll bar) fills its length in any container. It is flexible on the
-     * width either way, so its container is too, and adds no natural there; it
-     * leaves the height free, so a fixed height stands alongside. A later fixed
-     * width overrides it, and it overrides an earlier one.
+     * Where the width is the container's layout axis it takes a filler's share
+     * of the slack and makes the container flexible there; across a box it fills
+     * the box's width without making the box flexible. So a widget whose fill
+     * direction is its own (a horizontal scroll bar) fills its length in any
+     * container. It adds no natural on the width and leaves the height free, so
+     * a fixed height stands alongside. A later fixed width overrides it, and it
+     * overrides an earlier one.
      */
     BQUI_EXPORT AnyWidgetModifier growWidth();
 

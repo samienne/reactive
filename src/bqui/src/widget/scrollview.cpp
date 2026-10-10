@@ -189,13 +189,17 @@ AnyWidget scrollView(AnyWidget widget)
             | modifier::fixedSize(bq::signal::constant(avg::Vector2f(25.0f, 25.0f)))
             ;
 
+        // A box carries a child's flex outward only along its own axis, so the
+        // view's fill is restated on the rows and the column across them.
         return vbox({
                 hbox({ std::move(view), widget::vScrollBar(
-                            y.handle, y.signal, std::move(vHandleSize))}),
+                            y.handle, y.signal, std::move(vHandleSize))})
+                    | modifier::fill(),
                 hbox({ hScrollBar(x.handle, x.signal, std::move(hHandleSize)),
                         std::move(corner)
                         })
-                });
+                })
+            | modifier::fill();
     },
     provider::provideBuildParams(),
     std::move(widget)
