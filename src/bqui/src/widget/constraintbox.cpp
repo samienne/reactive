@@ -572,7 +572,7 @@ void alignBaselines(Constraints& result,
             continue;
         }
 
-        auto it = band.anchors.find(baselineAnchor);
+        auto it = band.anchors.find(baselineAnchor.id());
         Anchor anchor = it != band.anchors.end() ? it->second
             : Anchor{ 1.0f, 0.0f };
         anyBaseline = anyBaseline || it != band.anchors.end();
@@ -617,7 +617,7 @@ void alignBaselines(Constraints& result,
     if (result.max && *result.max < block)
         result.max = block;
     if (anyBaseline)
-        result.anchors[baselineAnchor] = rowAnchor;
+        result.anchors[baselineAnchor.id()] = rowAnchor;
 }
 
 // Composes this container's fragment with its children's onto its builder for

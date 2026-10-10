@@ -83,11 +83,11 @@ namespace bqui::widget
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Publishes the anchor @p name on @p axis, replacing one of the
-     * same name.
+     * @brief Publishes the anchor @p id on @p axis, replacing one with the
+     * same id.
      */
-    BQUI_EXPORT void setPureAnchor(AnyBuilder& builder, Axis axis,
-            std::string name, bq::signal::AnySignal<Anchor> anchor);
+    void setPureAnchor(AnyBuilder& builder, Axis axis, AnchorId id,
+            bq::signal::AnySignal<Anchor> anchor);
 
     /**
      * @brief Binds the point @p at on @p axis to @p guide, alongside any
@@ -97,11 +97,11 @@ namespace bqui::widget
             Anchor at);
 
     /**
-     * @brief Binds the anchor @p name on @p axis to @p guide, as it stands
+     * @brief Binds the anchor @p id on @p axis to @p guide, as it stands
      * when this is applied; a band without that anchor gains no binding.
      */
     void setPureGuideAnchor(AnyBuilder& builder, Axis axis,
-            arrange::Variable guide, std::string name);
+            arrange::Variable guide, AnchorId id);
 
     /**
      * @brief Wraps @p builder's descriptor in a fresh outer box inset by
