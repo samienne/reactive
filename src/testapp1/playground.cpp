@@ -6,6 +6,7 @@
 #include <bqui/modifier/margin.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/setgravity.h>
+#include <bqui/modifier/settheme.h>
 
 #include <bqui/widget/builder.h>
 #include <bqui/widget/button.h>
@@ -418,6 +419,60 @@ AnyWidget panelScenario()
             }));
 }
 
+// Text of three sizes, a margined label, a box without a baseline (its bottom
+// sits on the line) and a nested row, lined up on one baseline; the cycle
+// swaps in a plain hbox, which centres them instead.
+AnyWidget baselineScenario()
+{
+    auto c = cycle({ "baselineHbox", "plain hbox" });
+
+    return scenario("Baseline row",
+            widget::vbox({
+                swapped(c.mode, [](int i) -> AnyWidget
+                    {
+                        Theme large;
+                        large.setTextHeight(28.0f);
+                        Theme medium;
+                        medium.setTextHeight(18.0f);
+
+                        auto row = [i](
+                                std::vector<bq::signal::ArraySignal<AnyWidget>>
+                                    items)
+                        {
+                            bq::signal::ArraySignal<AnyWidget> array(
+                                    std::move(items));
+                            return i == 0
+                                ? widget::baselineHbox(std::move(array))
+                                : widget::hbox(std::move(array));
+                        };
+
+                        std::vector<bq::signal::ArraySignal<AnyWidget>> inner;
+                        inner.push_back(widget::label("nested"));
+                        inner.push_back(widget::label("Big")
+                                | modifier::setTheme(large));
+
+                        std::vector<bq::signal::ArraySignal<AnyWidget>> items;
+                        items.push_back(widget::label("Small"));
+                        items.push_back(widget::label("Large")
+                                | modifier::setTheme(large));
+                        items.push_back(widget::label("margin")
+                                | modifier::setTheme(medium)
+                                | modifier::margin(8.0f)
+                                | modifier::frame());
+                        items.push_back(widget::makeWidget()
+                                | modifier::defaultSize(
+                                    avg::Vector2f(24.0f, 24.0f))
+                                | modifier::frame());
+                        items.push_back(row(std::move(inner))
+                                | modifier::frame());
+
+                        return row(std::move(items)) | modifier::frame();
+                    }),
+                widget::vfiller(),
+            }),
+            std::move(c.button));
+}
+
 } // anonymous namespace
 
 AnyWidget layoutPlayground()
@@ -435,6 +490,7 @@ AnyWidget layoutPlayground()
     scenarios.push_back(weightedScenario());
     scenarios.push_back(crossFillScenario());
     scenarios.push_back(panelScenario());
+    scenarios.push_back(baselineScenario());
 
     unsigned int const columns = 3;
     unsigned int const rows = static_cast<unsigned int>(
