@@ -123,12 +123,11 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
-                // Carry the solver box, guide alignments and pure-solver
-                // constraints onto the fresh builder, as the element-modifier
-                // junction does: they are the widget's stable identity and would
-                // otherwise be orphaned across this size-dependent rebuild.
+                // Carry the solver box and pure-solver constraints onto the
+                // fresh builder, as the element-modifier junction does: they are
+                // the widget's stable identity and would otherwise be orphaned
+                // across this size-dependent rebuild.
                 auto box = builder.getBoxVariables();
-                auto guideAlignments = builder.getGuideAlignments();
                 auto pureLayout = builder.getPureLayout();
 
                 auto result = makeBuilder(btl::bindArguments(
@@ -152,7 +151,6 @@ namespace bqui::modifier
                     );
 
                 result.setBoxVariables(std::move(box));
-                result.setGuideAlignments(std::move(guideAlignments));
                 result.setPureLayout(std::move(pureLayout));
                 return result;
             },
@@ -171,13 +169,12 @@ namespace bqui::modifier
                 auto sizeHint = builder.getSizeHint();
                 auto gravity = builder.getGravity();
                 auto params = builder.getBuildParams();
-                // The solver box, guide alignments and pure-solver constraints
-                // are the widget's stable identity, carried unchanged for its
-                // whole lifetime, so they must survive the fresh builder this
-                // mints -- otherwise a box a constraint was keyed on before this
-                // modifier is orphaned from the one a container tiles after it.
+                // The solver box and pure-solver constraints are the widget's
+                // stable identity, carried unchanged for its whole lifetime, so
+                // they must survive the fresh builder this mints -- otherwise a
+                // box a constraint was keyed on before this modifier is orphaned
+                // from the one a container tiles after it.
                 auto box = builder.getBoxVariables();
-                auto guideAlignments = builder.getGuideAlignments();
                 auto pureLayout = builder.getPureLayout();
 
                 auto result = widget::makeBuilder([builder=std::forward<T>(builder),
@@ -198,7 +195,6 @@ namespace bqui::modifier
                     );
 
                 result.setBoxVariables(std::move(box));
-                result.setGuideAlignments(std::move(guideAlignments));
                 result.setPureLayout(std::move(pureLayout));
                 return result;
             }

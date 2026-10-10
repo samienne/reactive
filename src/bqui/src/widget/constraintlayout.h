@@ -4,9 +4,7 @@
 
 #include "bqui/sizehint.h"
 #include "bqui/widget/boxvariables.h"
-#include "bqui/widget/guide.h"
 #include "bqui/widget/layoutspec.h"
-#include "bqui/widget/resolvedguides.h"
 
 #include <bq/signal/constant.h>
 #include <bq/signal/signal.h>
@@ -21,10 +19,6 @@
 
 #include <btl/function.h>
 
-#include <cstddef>
-#include <map>
-#include <memory>
-#include <unordered_map>
 #include <vector>
 
 namespace bqui::widget
@@ -248,7 +242,7 @@ namespace bqui::widget
      * @brief The strength a content leaf holds its content-measured natural at:
      * the top of the weak lane, above every other weak-lane pull yet a whole lane
      * below medium. Content sizes to its measurement by default; stretching (a
-     * filler, a fixed size, a bound, a guide) is opt-in.
+     * filler, a fixed size, a bound) is opt-in.
      */
     BQUI_EXPORT arrange::Strength contentStrength();
 
@@ -287,8 +281,8 @@ namespace bqui::widget
      * never grows past @p maxExtent, a strong cap, so it settles at the smaller
      * of the slot and its own maximum. Where it is smaller than the slot it sits
      * at @p gravity of the slack: 0 against the leading edge, 1 against the
-     * trailing, 0.5 centred. That placement is a weak pull, so a medium guide
-     * alignment on the same edge overrides it. This is what
+     * trailing, 0.5 centred. That placement is a weak pull, so a medium
+     * constraint on the same edge overrides it. This is what
      * modifier::handleGravity() did as a post-pass, folded into the solve.
      *
      * @p gravity is the coefficient in the solver's top-down space; a caller
@@ -323,41 +317,6 @@ namespace bqui::widget
             arrange::Variable const& slotLead,
             arrange::Variable const& slotTrail,
             float gravity);
-
-    /**
-     * @brief Lines each child edge named by a guide alignment up on a shared
-     * per-guide line, pinning any guide an ancestor firewall already resolved.
-     *
-     * @p alignments is parallel to @p children: entry @e i lists the guides the
-     * @e i-th child aligns to. Every alignment naming the same guide id, across
-     * all children, is tied to one arrange::Variable minted for that id within
-     * this call, so two children aligned to one guide meet on the edge they
-     * name. The pull is medium strength — firmer than gravity, softer than a
-     * size bound.
-     *
-     * A guide whose id is in @p resolved is pinned strong to that inherited
-     * position, so it is a constant this solve lines its children up on rather
-     * than a free variable it resolves itself — the constant half of the
-     * firewall down-channel. A guide absent from @p resolved stays a free
-     * coupling variable resolved locally as before.
-     *
-     * The per-guide line variables are appended to @p out and also returned
-     * keyed by guide id, so a firewall can read a locally resolved line back out
-     * of its solution and hand it to its descendants.
-     */
-    BQUI_EXPORT std::map<avg::UniqueId, arrange::Variable> guideConstraints(
-            std::vector<arrange::Constraint>& out,
-            std::vector<BoxVariables> const& children,
-            std::vector<std::vector<GuideAlignment>> const& alignments,
-            ResolvedGuideMap const& resolved);
-
-    /**
-     * @brief guideConstraints() with no inherited resolutions, returning just
-     * the constraints. The single-firewall form.
-     */
-    BQUI_EXPORT std::vector<arrange::Constraint> guideConstraints(
-            std::vector<BoxVariables> const& children,
-            std::vector<std::vector<GuideAlignment>> const& alignments);
 
     /**
      * @brief One cell of a uniform grid: its lower-left corner (@p x, @p y) in

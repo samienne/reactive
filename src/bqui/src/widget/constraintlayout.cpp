@@ -3,7 +3,6 @@
 #include "bqui/widget/builder.h"
 
 
-#include <avg/rendertree/uniqueid.h>
 #include <avg/transform.h>
 #include <avg/vector.h>
 
@@ -15,7 +14,6 @@
 #include <bq/signal/merge.h>
 #include <bq/signal/signal.h>
 
-#include <map>
 #include <utility>
 #include <vector>
 
@@ -476,112 +474,12 @@ void placeAtGravity(std::vector<arrange::Constraint>& out,
         return arrange::Expression(slotTrail) - arrange::Expression(slotLead);
     };
 
-    // A weak pull a medium guide alignment overrides.
+    // A weak pull any medium constraint overrides.
     out.push_back(
             (arrange::Expression(contentLead) - arrange::Expression(slotLead)
                 == static_cast<double>(gravity) * slotExtent()
                     - static_cast<double>(gravity) * contentExtent())
             | arrange::Strength::weak());
-}
-
-std::map<avg::UniqueId, arrange::Variable> guideConstraints(
-        std::vector<arrange::Constraint>& out,
-        std::vector<BoxVariables> const& children,
-        std::vector<std::vector<GuideAlignment>> const& alignments,
-        ResolvedGuideMap const& resolved)
-{
-    // One variable per distinct guide id, minted the first time the id is seen
-    // and reused for every later alignment to it, so all children sharing a
-    // guide meet on the one line. std::map orders by UniqueId, which the id
-    // already compares.
-    std::map<avg::UniqueId, arrange::Variable> lines;
-
-    auto pinEdge = [&out, &lines](arrange::Expression edge,
-            avg::UniqueId const& guide)
-    {
-        out.push_back(
-                (std::move(edge) == arrange::Expression(lines[guide]))
-                | arrange::Strength::medium());
-    };
-
-    for (std::size_t i = 0; i < children.size() && i < alignments.size(); ++i)
-    {
-        BoxVariables const& child = children[i];
-
-        for (GuideAlignment const& alignment : alignments[i])
-        {
-            switch (alignment.edge)
-            {
-            case GuideEdge::left:
-                pinEdge(arrange::Expression(child.left), alignment.guide);
-                break;
-            case GuideEdge::right:
-                pinEdge(arrange::Expression(child.right), alignment.guide);
-                break;
-            case GuideEdge::centerX:
-                pinEdge(arrange::Expression(child.left)
-                        + arrange::Expression(child.right)
-                        - arrange::Expression(lines[alignment.guide]),
-                        alignment.guide);
-                break;
-            case GuideEdge::top:
-                pinEdge(arrange::Expression(child.top), alignment.guide);
-                break;
-            case GuideEdge::bottom:
-                pinEdge(arrange::Expression(child.bottom), alignment.guide);
-                break;
-            case GuideEdge::centerY:
-                pinEdge(arrange::Expression(child.top)
-                        + arrange::Expression(child.bottom)
-                        - arrange::Expression(lines[alignment.guide]),
-                        alignment.guide);
-                break;
-            }
-        }
-    }
-
-    // The line carries no size or position of its own — only the medium pulls of
-    // the edges it gathers reach it — so on its own it is a free variable the
-    // solver may leave undefined, pivoting the aligned edges to that undefined
-    // value differently by variable-id order. Every line is therefore anchored to
-    // a definite position, and each line gets exactly one anchor so no two
-    // competing soft pulls on the same variable can pivot apart by platform.
-    //
-    // A line an ancestor firewall already resolved is fixed to that inherited
-    // constant by a required equality: an absolute constraint the solver enforces
-    // structurally rather than as a soft error term, so no pivot order can move it
-    // and the aligned edges follow it across the boundary. The line is coupled to
-    // the edges only at medium, so this required pin can never make the solve
-    // infeasible. A resolved guide no child here names is simply absent from
-    // lines and pins nothing.
-    //
-    // A line no ancestor resolved is genuinely free, so it gets a weak stay at
-    // zero. The stay is weaker than an edge's gravity default, so it never
-    // displaces where the edges settle; it only breaks the pivot's freedom,
-    // resolving the line to the position its edges already agree on.
-    for (auto const& line : lines)
-    {
-        auto it = resolved.find(line.first);
-        if (it != resolved.end())
-            out.push_back(
-                    arrange::Expression(line.second)
-                        == arrange::Expression(it->second));
-        else
-            out.push_back(
-                    (arrange::Expression(line.second) == arrange::Expression(0.0))
-                    | arrange::Strength::weak(0.01));
-    }
-
-    return lines;
-}
-
-std::vector<arrange::Constraint> guideConstraints(
-        std::vector<BoxVariables> const& children,
-        std::vector<std::vector<GuideAlignment>> const& alignments)
-{
-    std::vector<arrange::Constraint> out;
-    guideConstraints(out, children, alignments, ResolvedGuideMap());
-    return out;
 }
 
 void gridAxisConstraints(std::vector<arrange::Constraint>& out,

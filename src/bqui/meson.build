@@ -10,7 +10,6 @@ libbquisrc = [
   'src/remote/tcplistener.cpp',
   'src/remote/transportdispatch.cpp',
   'src/modifier/addwidgets.cpp',
-  'src/modifier/alignguide.cpp',
   'src/modifier/background.cpp',
   'src/modifier/clip.cpp',
   'src/modifier/constraintsize.cpp',
@@ -119,7 +118,6 @@ libbquidep = declare_dependency(
 
 bquitestsrc = [
   'test/apptest.cpp',
-  'test/guidelayouttest.cpp',
   'test/headlessapptest.cpp',
   'test/inputreentrancytest.cpp',
   'test/introspectionjsontest.cpp',
