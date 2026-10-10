@@ -249,7 +249,7 @@ AnyWidget scrollBar(
     // container's cross-fill) and holds the fixed thickness across it, so it
     // sizes correctly whichever container it sits in. The length axis carries no
     // natural, so the weak cross-fill still stretches it perpendicular to its
-    // container. A no-op outside a pure-solver region, where the SizeHint drives.
+    // container.
     if constexpr (IsHorizontal)
     {
         return std::move(bar)

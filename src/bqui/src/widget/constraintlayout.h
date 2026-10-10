@@ -9,7 +9,6 @@
 #include "bqui/widget/resolvedguides.h"
 
 #include <bq/signal/constant.h>
-#include <bq/signal/sharedvector.h>
 #include <bq/signal/signal.h>
 
 #include <avg/obb.h>
@@ -106,95 +105,6 @@ namespace bqui::widget
             BoxVariables const& box, Axis axis);
 
     /**
-     * @brief The up-channel a region owner threads down for its participating
-     * containers to append their per-container spec fragments to.
-     *
-     * The presence of this entry is what marks a subtree as inside a banded
-     * region: a container that finds it appends its own fragment and reads its
-     * geometry from the shared LayoutSolutionTag rather than running its own
-     * solve. The region owner (regionRoot) holds the sole owning reference to
-     * the collector and folds its contents into the one region solve; this
-     * down-channel carries only a non-owning handle. That is deliberate: the
-     * collector owns the fragment signals, and a fragment reaches this params
-     * entry through the child builders it is built from, so an owning handle
-     * here would close a retain cycle collector -> fragment -> builder -> params
-     * -> collector. The weak handle breaks it, exactly as the solution
-     * down-channel's own back reference is weak. Fragments are appended as the
-     * subtree builds, so the collection settles a pass behind the build, like
-     * any change-driven input.
-     */
-    struct RegionCollectorTag
-    {
-        using type = std::weak_ptr<bq::signal::SharedVector<
-            bq::signal::AnySignal<LayoutSpec>>>;
-
-        static bq::signal::AnySignal<type> getDefaultValue()
-        {
-            return bq::signal::constant(type());
-        }
-    };
-
-    /**
-     * @brief The down-channel entry a widget in a banded firewall region reads
-     * to learn the region's solved geometry.
-     *
-     * A region owner runs one solve spanning every container in the region and
-     * provides the shared solution here, so each participating box reads its own
-     * obb out of the one solution (readObb) instead of running a per-container
-     * solve. This is the region counterpart of ResolvedGuides: the guide map
-     * carries resolved positions down, this carries the whole solved tableau
-     * down. The default is empty, which is what a box outside any region reads
-     * and reads back as a zero obb.
-     */
-    struct LayoutSolutionTag
-    {
-        using type = LayoutSolution;
-
-        static bq::signal::AnySignal<LayoutSolution> getDefaultValue()
-        {
-            return bq::signal::constant(LayoutSolution());
-        }
-    };
-
-    /**
-     * @brief Whether the container reading it is the outermost in its region and
-     * so must anchor the region's coordinate origin.
-     *
-     * The region owner seeds this true; the outermost participating container
-     * anchors its box to its assigned rectangle and seeds this false for its
-     * descendants, which are placed by their parents' tiling and must not anchor
-     * a second origin into the shared tableau.
-     */
-    struct RegionAnchorTag
-    {
-        using type = bool;
-
-        static bq::signal::AnySignal<bool> getDefaultValue()
-        {
-            return bq::signal::constant(true);
-        }
-    };
-
-    /**
-     * @brief Whether the region a container builds into is a pure-solver context:
-     * its members emit band-free constraints plus the universal weak defaults
-     * rather than reading a SizeHint band.
-     *
-     * The default is false, so a region is the banded one unless a pure-solver
-     * root seeds this true; the flag rides down alongside the region collector so
-     * a container joining the region picks the matching fragment shape.
-     */
-    struct PureSolverTag
-    {
-        using type = bool;
-
-        static bq::signal::AnySignal<bool> getDefaultValue()
-        {
-            return bq::signal::constant(false);
-        }
-    };
-
-    /**
      * @brief The layout (main) axis of the pure-solver container a filler is a
      * direct child of, so the filler flexes on that axis; empty for a container
      * with no layout axis (a grid), where it flexes on both.
@@ -282,17 +192,12 @@ namespace bqui::widget
 
     /**
      * @brief The single solve owning a firewall region: concatenates the
-     * region's collected per-container spec fragments into one tableau and
-     * solves them together, yielding the shared solution every participating box
-     * reads its obb from.
+     * region's spec fragments into one tableau and solves them together,
+     * yielding the shared solution every participating box reads its obb from.
      *
-     * Where solveLayout() folds one container's spec, this is the region owner:
-     * it gathers the fragments a nested set of containers contribute — each
-     * container's own constraints, anchored into the one shared coordinate space
-     * rather than a per-container local one — and runs a single solve across the
-     * whole region, so constraints couple across container levels. The fragment
-     * list is the up-channel a region collects; the returned solution is the
-     * down-channel it provides through LayoutSolutionTag.
+     * The fragments are every container's own constraints in the one shared
+     * coordinate space, so constraints couple across container levels. The
+     * solution is handed down to the region's builds as a build argument.
      */
     BQUI_EXPORT bq::signal::AnySignal<LayoutSolution> layoutRegion(
             bq::signal::AnySignal<std::vector<LayoutSpec>> fragments);
@@ -328,26 +233,6 @@ namespace bqui::widget
     BQUI_EXPORT std::vector<arrange::Constraint> anchorConstraints(
             BoxVariables const& box,
             float left, float top, float right, float bottom);
-
-    /**
-     * @brief Tiles @p children edge-to-edge inside @p container along @p axis.
-     *
-     * Consecutive children meet, the first touches the container's leading end,
-     * and the trailing end is pulled to the container's end only weakly, so a
-     * child free to grow fills the container while firmer content packs against
-     * the leading end and leaves the slack as a gap. Nothing caps the trailing
-     * end, so an over-full box overflows rather than squeezing. The extent along
-     * @p axis is otherwise left to each child's own size contribution. @p axis
-     * is the shared bqui::Axis: Axis::y stacks top to bottom, Axis::x left to
-     * right.
-     *
-     * Only the main axis is constrained. The cross axis is left free for
-     * placeInSlot() (or a baseline pass) to size and position each child within
-     * the container's cross extent.
-     */
-    BQUI_EXPORT std::vector<arrange::Constraint> boxConstraints(
-            BoxVariables const& container,
-            std::vector<BoxVariables> const& children, Axis axis);
 
     /**
      * @brief The strictly-weakest strength tier, below gravity and natural size,
