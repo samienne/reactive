@@ -41,7 +41,9 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
   ever laid out by its region's solve; one built outside any region throws. `makeWidgetWithSize`, `bin` and
   `scrollView` are size boundaries: their outward band is their own, never the
   content's, and the content is solved as its own region inside.
-  `gravity` aligns within allocated space. The model is in
+  `gravity` aligns within allocated space. Guides (`XGuide`/`YGuide`, the
+  `align*` modifiers) line points up across one region; their bindings ride
+  the band and the solve places them in a second step (`guideConstraints`). The model is in
   `docs/design/layout.md`.
 - Environment: a typed, scoped store threaded through the tree (`provider/`,
   `modifier/setparams.h`); `Theme` is the common parameter.

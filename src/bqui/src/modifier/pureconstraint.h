@@ -6,6 +6,7 @@
 #include <bq/signal/signal.h>
 
 #include <arrange/strength.h>
+#include <arrange/variable.h>
 
 #include <string>
 
@@ -67,6 +68,20 @@ namespace bqui::modifier::detail
      */
     AnyWidgetModifier pureAnchorModifier(PureAxis axis, std::string name,
             bq::signal::AnySignal<widget::Anchor> anchor);
+
+    /**
+     * @brief A widget modifier that binds the point @p at on @p axis to
+     * @p guide (widget::setPureGuide()).
+     */
+    AnyWidgetModifier pureGuideModifier(PureAxis axis,
+            arrange::Variable guide, widget::Anchor at);
+
+    /**
+     * @brief A widget modifier that binds the anchor @p name on @p axis to
+     * @p guide (widget::setPureGuideAnchor()).
+     */
+    AnyWidgetModifier pureGuideAnchorModifier(PureAxis axis,
+            arrange::Variable guide, std::string name);
 
     /**
      * @brief A widget modifier that makes the widget flexible on both axes with
