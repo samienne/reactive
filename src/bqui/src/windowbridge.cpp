@@ -1,11 +1,27 @@
 #include "windowbridge.h"
 
-#include "widget/constraintbox.h"
-
 #include <tracy/Tracy.hpp>
 
 namespace bqui
 {
+
+namespace
+{
+
+// The root is the outermost region, fed the window size.
+auto makeRootContext(widget::AnyWidget widget,
+        bq::signal::AnySignal<avg::Vector2f> size)
+{
+    widget::PureRegion region = widget::buildPureRegion(
+            widget::AnyWidget(std::move(widget) | modifier::background()),
+            std::move(size), BuildParams());
+
+    return bq::signal::makeSignalContext(
+            std::move(region.element).getInstance(),
+            std::move(region.band));
+}
+
+} // namespace
 
 WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
         Window window, widget::AnyWidget widget, bool headless)
@@ -16,13 +32,10 @@ WindowBridge::WindowBridge(ase::Platform &platform, ase::RenderContext& context,
     windowData_(window.data()),
     painter_(memory_, aseWindow.getRenderContext()),
     size_(bq::signal::makeInput(ase::Vector2f(800, 600))),
-    // The root is the outermost LayoutFirewall, fed the window size. Its
-    // content is one pure-solver region.
-    widgetInstanceSignal_((widget::pureSolverRoot(std::move(widget))
-                | modifier::background())(
-                BuildParams()
-                )(std::move(size_.signal)).getInstance()),
+    widgetInstanceSignal_(makeRootContext(std::move(widget),
+                bq::signal::AnySignal<avg::Vector2f>(std::move(size_.signal)))),
     widgetInstance_(widgetInstanceSignal_.evaluate<0>().get<0>()),
+    rootBand_(widgetInstanceSignal_.evaluate<1>().get<0>()),
     titleSignal_(windowData_->getTitle()),
     drawing_(memory_)
 {
@@ -239,6 +252,9 @@ void WindowBridge::makeTransaction(
     if (titleSignal_.didChange<0>())
         aseWindow.setTitle(titleSignal_.evaluate<0>().get<0>());
 
+    if (widgetInstanceSignal_.didChange<1>())
+        rootBand_ = widgetInstanceSignal_.evaluate<1>().get<0>();
+
     if (widgetInstanceSignal_.didChange<0>())
     {
         ZoneScopedN("Widget instance signal evaluation");
@@ -397,6 +413,11 @@ std::string WindowBridge::getTitle() const
 widget::Instance const& WindowBridge::getWidgetInstance() const
 {
     return widgetInstance_;
+}
+
+widget::RegionBand const& WindowBridge::getRootBand() const
+{
+    return rootBand_;
 }
 
 widget::Introspection WindowBridge::getResolvedIntrospection() const

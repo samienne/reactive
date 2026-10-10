@@ -2,6 +2,8 @@
 
 #include "windowdata.h"
 
+#include "widget/constraintbox.h"
+
 #include "bqui/window.h"
 #include "bqui/buildparams.h"
 #include "bqui/inputarea.h"
@@ -84,6 +86,14 @@ public:
 
     widget::Instance const& getWidgetInstance() const;
 
+    /**
+     * @brief The band the window's root region publishes: the content's width
+     * band, and its height band at the window's current width.
+     *
+     * Nothing sizes the OS window from it yet.
+     */
+    widget::RegionBand const& getRootBand() const;
+
     /** @brief A resolved introspection snapshot of the current widget tree, in
      * window space, for a remote driver to read after a step. */
     widget::Introspection getResolvedIntrospection() const;
@@ -112,9 +122,10 @@ private:
     avg::Painter painter_;
     bq::signal::Input<bq::signal::SignalResult<ase::Vector2f>,
         bq::signal::SignalResult<ase::Vector2f>> size_;
-    bq::signal::SignalContext<bq::signal::AnySignal<widget::Instance>>
-        widgetInstanceSignal_;
+    bq::signal::SignalContext<bq::signal::AnySignal<widget::Instance>,
+        bq::signal::AnySignal<widget::RegionBand>> widgetInstanceSignal_;
     widget::Instance widgetInstance_;
+    widget::RegionBand rootBand_;
     bq::signal::SignalContext<bq::signal::AnySignal<std::string>> titleSignal_;
     std::unordered_map<unsigned int, std::vector<InputArea>> areas_;
     std::unordered_map<ase::KeyCode,

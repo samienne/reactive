@@ -1424,14 +1424,14 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
             toArray(std::move(widgets)));
 }
 
-AnyElement detail::buildRegionAtSize(AnyWidget const& content,
+PureRegion buildPureRegion(AnyWidget const& content,
         bq::signal::AnySignal<avg::Vector2f> size,
         BuildParams const& params)
 {
     auto builder = content.clone()(params);
     PureLayout pure = builder.getPureLayout();
     BoxVariables root = builder.getBoxVariables();
-    auto width = pure.getWidth();
+    auto width = pure.getWidth().share();
 
     auto sharedSize = std::move(size).share();
 
@@ -1464,15 +1464,15 @@ AnyElement detail::buildRegionAtSize(AnyWidget const& content,
 
     // The width solve runs first; its solution feeds phase 2.
     auto horizontalFragments =
-        merge(std::move(width), sharedSize.clone())
+        merge(width.clone(), sharedSize.clone())
         .map(anchored(Axis::x));
     auto widthSolution = layoutRegion(bq::signal::AnySignal<
             std::vector<LayoutSpec>>(
             std::move(horizontalFragments))).share();
 
-    auto heightBands = pure.getHeightForWidth(widthSolution.clone());
+    auto heightBands = pure.getHeightForWidth(widthSolution.clone()).share();
     auto verticalFragments =
-        merge(std::move(heightBands), sharedSize.clone())
+        merge(heightBands.clone(), sharedSize.clone())
         .map(anchored(Axis::y));
     auto heightSolution = layoutRegion(bq::signal::AnySignal<
             std::vector<LayoutSpec>>(
@@ -1481,7 +1481,16 @@ AnyElement detail::buildRegionAtSize(AnyWidget const& content,
     auto solution = combineSolutions(widthSolution.clone(),
             std::move(heightSolution)).share();
 
-    return std::move(builder)(sharedSize.clone(), solution.clone());
+    auto band = merge(std::move(width), std::move(heightBands)).map(
+            [](Constraints width, Constraints height)
+            {
+                return RegionBand{ std::move(width), std::move(height) };
+            });
+
+    return PureRegion{
+        std::move(builder)(sharedSize.clone(), solution.clone()),
+        bq::signal::AnySignal<RegionBand>(std::move(band))
+    };
 }
 
 bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
@@ -1489,8 +1498,15 @@ bq::signal::AnySignal<widget::Instance> solvePureRegionAtSize(
         bq::signal::AnySignal<avg::Vector2f> size,
         BuildParams const& params)
 {
-    return detail::buildRegionAtSize(content, std::move(size), params)
+    return buildPureRegion(content, std::move(size), params).element
         .getInstance();
+}
+
+AnyElement detail::buildRegionAtSize(AnyWidget const& content,
+        bq::signal::AnySignal<avg::Vector2f> size,
+        BuildParams const& params)
+{
+    return buildPureRegion(content, std::move(size), params).element;
 }
 
 AnyWidget pureSolverRoot(AnyWidget content)
