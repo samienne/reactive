@@ -58,18 +58,22 @@ auto transition(Transition<T> transition)
     return makeWidgetModifier([](auto widget, BuildParams const& params,
                 Transition<T> transition)
     {
-        auto transitionedBuilder = std::move(transition.transitioned)(
-                btl::clone(widget)
-                )(params);
+        widget::AnyWidget transitionedWidget =
+            std::move(transition.transitioned)(btl::clone(widget));
 
         return std::move(widget)
             | std::move(transition.active)
             | makeSharedInstanceSignalModifier(
-                [](auto instance, auto transitionedBuilder)
+                [](auto instance, widget::AnyWidget const& transitionedWidget,
+                    BuildParams const& params)
                 {
+                    // The copy is not part of the enclosing solve, so it is
+                    // laid out as its own region at the active copy's size.
                     auto size = instance.map(&widget::Instance::getSize).share();
-                    auto transitionedInstance = std::move(transitionedBuilder)
-                        (size)
+                    auto transitionedInstance = widget::detail::buildRegionAtSize(
+                            transitionedWidget,
+                            bq::signal::AnySignal<avg::Vector2f>(size),
+                            params)
                         .getInstance()
                         ;
 
@@ -91,7 +95,8 @@ auto transition(Transition<T> transition)
                         | setRenderTree(std::move(newRenderTree))
                         ;
                 },
-                std::move(transitionedBuilder)
+                std::move(transitionedWidget),
+                params
                 )
             ;
     },

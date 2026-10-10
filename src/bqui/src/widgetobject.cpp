@@ -24,10 +24,12 @@ namespace
             bq::signal::Signal<U, avg::Transform> t,
             avg::UniqueId id)
     {
-        return (std::move(widget)
-            | modifier::setId(bq::signal::constant(id))
-            | modifier::transform(std::move(t))
-            )(params)(std::move(size)).getInstance();
+        return widget::detail::buildRegionAtSize(
+                std::move(widget)
+                    | modifier::setId(bq::signal::constant(id))
+                    | modifier::transform(std::move(t)),
+                bq::signal::AnySignal<avg::Vector2f>(std::move(size)),
+                params).getInstance();
     }
 
 
