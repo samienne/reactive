@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arrange/export.h>
+
 #include <arrange/variable.h>
 
 #include <cstddef>
@@ -10,7 +12,7 @@ namespace arrange
 
 class ExpressionImpl;
 
-class Expression
+class ARRANGE_API Expression
 {
 public:
     Expression();
@@ -32,21 +34,21 @@ public:
 private:
     explicit Expression(std::shared_ptr<const ExpressionImpl> impl) noexcept;
 
-    friend Expression operator+(Expression lhs, Expression rhs);
-    friend Expression operator-(Expression lhs, Expression rhs);
-    friend Expression operator-(Expression expr);
-    friend Expression operator*(Expression expr, double scalar);
-    friend Expression operator*(double scalar, Expression expr);
-    friend Expression operator/(Expression expr, double divisor);
+    friend ARRANGE_API Expression operator+(Expression lhs, Expression rhs);
+    friend ARRANGE_API Expression operator-(Expression lhs, Expression rhs);
+    friend ARRANGE_API Expression operator-(Expression expr);
+    friend ARRANGE_API Expression operator*(Expression expr, double scalar);
+    friend ARRANGE_API Expression operator*(double scalar, Expression expr);
+    friend ARRANGE_API Expression operator/(Expression expr, double divisor);
 
     std::shared_ptr<const ExpressionImpl> impl_{};
 };
 
-Expression operator+(Expression lhs, Expression rhs);
-Expression operator-(Expression lhs, Expression rhs);
-Expression operator-(Expression expr);
-Expression operator*(Expression expr, double scalar);
-Expression operator*(double scalar, Expression expr);
-Expression operator/(Expression expr, double divisor);
+ARRANGE_API Expression operator+(Expression lhs, Expression rhs);
+ARRANGE_API Expression operator-(Expression lhs, Expression rhs);
+ARRANGE_API Expression operator-(Expression expr);
+ARRANGE_API Expression operator*(Expression expr, double scalar);
+ARRANGE_API Expression operator*(double scalar, Expression expr);
+ARRANGE_API Expression operator/(Expression expr, double divisor);
 
 }  // namespace arrange
