@@ -56,6 +56,13 @@ namespace bqui::widget
     BQUI_EXPORT AnyWidget solverHbox(std::vector<AnyWidget> widgets);
 
     /**
+     * @brief A solverHbox() that aligns its children vertically on their
+     * baselines and publishes the shared baseline as its own.
+     */
+    BQUI_EXPORT AnyWidget solverBaselineHbox(
+            bq::signal::ArraySignal<AnyWidget> widgets);
+
+    /**
      * @brief Overlays children in the enclosing region's solve.
      *
      * Every child is placed within the container's whole box on both axes, so
