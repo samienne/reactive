@@ -1717,6 +1717,40 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
             std::move(array));
 }
 
+// Each child's band on one axis spread evenly over the tracks its cell spans,
+// as the banded gridSizeHint spreads a hint: extents divide by the span and the
+// flex coefficient, a weight rather than an extent, is kept whole. A child
+// spanning no tracks asks nothing of the grid and is left out.
+std::vector<Constraints> perTrackBands(std::vector<Constraints> const& bands,
+        std::vector<GridCell> const& cells, Axis axis)
+{
+    std::vector<Constraints> result;
+    result.reserve(bands.size());
+
+    for (std::size_t i = 0; i < bands.size() && i < cells.size(); ++i)
+    {
+        GridCell const& cell = cells[i];
+        if (cell.w == 0 || cell.h == 0)
+            continue;
+
+        float span = static_cast<float>(axis == Axis::x ? cell.w : cell.h);
+        Constraints const& band = bands[i];
+
+        Constraints share;
+        share.flex = band.flex;
+        if (band.min)
+            share.min = *band.min / span;
+        if (band.max)
+            share.max = *band.max / span;
+        if (band.natural)
+            share.natural = BandNatural{ band.natural->value / span,
+                band.natural->strength };
+        result.push_back(std::move(share));
+    }
+
+    return result;
+}
+
 // Pure-solver counterpart of solverGridBuilders(). Like the stack it mints no
 // child flex variable, so a filler in a cell fills via the weak slot pull and
 // inherits the enclosing flex axis. The grid lines are pinned required to equal
@@ -1764,10 +1798,10 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
     // One axis of the container's published band. Every child's band is baked
     // onto its cell box (flattenConstraints) and the child is placed within its
     // cell, bounded by the grid lines; the aggregate natural/min/max is the
-    // cross-axis maximum of the children's, scaled by the grid's dimension on
-    // this axis so a full-cell child asks the container for the whole track --
-    // matching the banded gridSizeHint. Flex rides up cross-style, so a grid
-    // holding a filler is itself a filler to its parent.
+    // largest per-track share (perTrackBands) of the children's, scaled by the
+    // grid's dimension on this axis so a full-cell child asks the container for
+    // the whole track -- matching the banded gridSizeHint. Flex rides up
+    // cross-style, so a grid holding a filler is itself a filler to its parent.
     auto buildAxis =
         [container, lines, cells, columns, rows](Axis thisAxis,
                 std::vector<Constraints> const& childBands,
@@ -1777,8 +1811,10 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
     {
         float factor = static_cast<float>(
                 thisAxis == Axis::x ? columns : rows);
+        std::vector<Constraints> shares = perTrackBands(childBands, cells,
+                thisAxis);
 
-        std::optional<Flex> flex = aggregateFlex(childBands, false);
+        std::optional<Flex> flex = aggregateFlex(shares, false);
         bool flexes = flex && flex->coeff > 0.0f;
         // Like the stack, the grid couples on the parent's layout axis and keeps
         // its max-of-children natural on the other (here scaled by the track
@@ -1790,7 +1826,7 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
             result.flex = flex;
         if (!couples)
         {
-            result.natural = aggregateNatural(childBands, false);
+            result.natural = aggregateNatural(shares, false);
             if (result.natural)
                 result.natural->value *= factor;
         }
@@ -1798,11 +1834,11 @@ AnyWidget solverGridBuildersRegionPure(std::vector<GridCell> cells,
         // track content; scaled by the track count like the natural, so a
         // full-cell child's floor asks for the whole track.
         result.min = couples
-            ? aggregateFloor(childBands, false)
-            : aggregateBound(childBands, false, &pickMin);
+            ? aggregateFloor(shares, false)
+            : aggregateBound(shares, false, &pickMin);
         if (result.min)
             *result.min *= factor;
-        result.max = aggregateBound(childBands, false, &pickMax);
+        result.max = aggregateBound(shares, false, &pickMax);
         if (result.max)
             *result.max *= factor;
 
