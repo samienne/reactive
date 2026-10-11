@@ -253,7 +253,6 @@ void WindowBridge::makeTransaction(
 
     bool instanceChanged = false;
     auto updateResult = updateRoot(frameInfo, instanceChanged);
-    updateResult = updateResult + fitLayoutToWindow(instanceChanged);
     updateResult = updateResult + titleSignal_.update(frameInfo);
 
     if (titleSignal_.didChange<0>())
@@ -365,9 +364,7 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
 
     if (resized_)
     {
-        // A first guess: the height band is still the one at the old width,
-        // so makeTransaction() refits once the root has re-solved.
-        layoutSize_ = clampToRootBand(getWindowSize());
+        layoutSize_ = getWindowSize();
         size_.handle.set(layoutSize_);
         painter_.setSize(aseWindow.getSize());
         resized_ = false;
@@ -471,34 +468,6 @@ bq::signal::UpdateResult WindowBridge::updateRoot(
     if (widgetInstanceSignal_.didChange<1>())
         rootBand_ = widgetInstanceSignal_.evaluate<1>().get<0>();
     return result;
-}
-
-bq::signal::UpdateResult WindowBridge::fitLayoutToWindow(bool& instanceChanged)
-{
-    bq::signal::UpdateResult result;
-
-    // The width band does not depend on the layout size, and the height band
-    // depends only on the width, so this settles within two re-solves: one
-    // for the width, one for the height band read at it.
-    for (int i = 0; i < 2; ++i)
-    {
-        ase::Vector2f target = clampToRootBand(getWindowSize());
-        if (target == layoutSize_)
-            break;
-
-        layoutSize_ = target;
-        size_.handle.set(target);
-        result = result + updateRoot(
-                bq::signal::FrameInfo(getNextFrameId(), {}), instanceChanged);
-    }
-
-    return result;
-}
-
-ase::Vector2f WindowBridge::clampToRootBand(ase::Vector2f size) const
-{
-    return ase::Vector2f(clampToBand(size[0], rootBand_.width),
-            clampToBand(size[1], rootBand_.height));
 }
 
 widget::Introspection WindowBridge::getResolvedIntrospection() const

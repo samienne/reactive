@@ -133,7 +133,7 @@ struct CustomPureLayout
     AnySignal<Constraints> phase(float natural) const
     {
         Constraints c;
-        c.natural = BandNatural{ natural, contentStrength() };
+        c.natural = natural;
         return constant(c);
     }
 
@@ -154,42 +154,10 @@ float naturalOf(AnySignal<Constraints> band)
 {
     auto context = makeSignalContext(std::move(band));
     Constraints c = context.evaluate<0>().get<0>();
-    return c.natural ? c.natural->value : -1.0f;
+    return c.natural ? *c.natural : -1.0f;
 }
 
 } // namespace
-
-// A box with no constraint but the universal weak defaults resolves to 100x100.
-// The defaults sit at the strictly-weakest tier, so on an axis nothing else
-// pins they are the only pull and settle the extent at 100 exactly, keeping the
-// solve well-posed rather than leaving a free degree of freedom.
-TEST(PureSolverLayout, unconstrainedBoxIsHundredSquare)
-{
-    BoxVariables box;
-
-    LayoutSpec spec;
-    // Pin the origin so the position is definite; the size is left entirely to
-    // the weak defaults.
-    spec.constraints.push_back(
-            arrange::Expression(box.left) == arrange::Expression(0.0));
-    spec.constraints.push_back(
-            arrange::Expression(box.top) == arrange::Expression(0.0));
-    spec.constraints.push_back(weakWidthDefault(box));
-    spec.constraints.push_back(weakHeightDefault(box));
-    spec.variables = { box.left, box.top, box.right, box.bottom };
-
-    std::vector<LayoutSpec> fragments{ std::move(spec) };
-    auto solutionSignal = layoutRegion(
-            AnySignal<std::vector<LayoutSpec>>(constant(std::move(fragments))));
-    auto context = makeSignalContext(std::move(solutionSignal));
-    LayoutSolution solution = context.evaluate<0>().get<0>();
-
-    avg::Obb obb = readObb(solution, box);
-    EXPECT_FLOAT_EQ(100.0f, obb.getSize()[0]);
-    EXPECT_FLOAT_EQ(100.0f, obb.getSize()[1]);
-    EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[0]);
-    EXPECT_FLOAT_EQ(0.0f, obb.getTransform().getTranslation()[1]);
-}
 
 // A container built with no enclosing region has no solve to place its children,
 // which is a programming error, so it throws rather than laying them out at 0x0.
@@ -208,8 +176,8 @@ TEST(PureSolverLayout, containerOutsideRegionThrows)
 
 // A size-dependent modifier must not orphan a pure-solver constraint. A
 // fixedWidth(80) leaf wrapped in onClick, which mints a fresh builder through
-// the with-size path, keeps its width at 80 rather than falling back to the
-// weak 100 default: the with-size path carries the builder's box and
+// the with-size path, keeps its width at 80 rather than losing its band: the
+// with-size path carries the builder's box and
 // pure-solver constraints onto the builder it mints.
 TEST(PureSolverLayout, withSizeModifierPreservesConstraint)
 {
@@ -582,7 +550,7 @@ TEST(PureSolverLayout, exactAndBoundedLeafOverridesDefaults)
 
     EXPECT_FLOAT_EQ(60.0f, g.size[0]);
     EXPECT_FLOAT_EQ(150.0f, g.size[1]);
-    EXPECT_FLOAT_EQ(70.0f, g.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, g.position[0]);
 }
 
 // A shipped content leaf sizes to its own content with no defaultSize() at the
@@ -690,9 +658,9 @@ TEST(PureSolverLayout, maxWidthAloneCapsTheDefault)
     EXPECT_FLOAT_EQ(60.0f, readProbe(instance, id).size[0]);
 }
 
-// minWidth alone raises the weak 100 default: a required lower bound above the
-// default lifts the width to 200 in a row with room to spare.
-TEST(PureSolverLayout, minWidthAloneRaisesTheDefault)
+// minWidth alone raises the natural: a strong lower bound above the natural
+// lifts the width to 200 in a row with room to spare.
+TEST(PureSolverLayout, minWidthAloneRaisesTheNatural)
 {
     avg::Vector2f const window(400.0f, 100.0f);
 
@@ -970,7 +938,7 @@ TEST(PureSolverLayout, flexingContainerFloorsFixedContent)
 }
 
 // A flexing container couples to its parent by its aggregated flex weight, not a
-// flat 1. An inner hbox of two fillers aggregates flex coeff 2, so beside a plain
+// flat 1. An inner hbox of two fill() leaves aggregates flex coeff 2, so beside a plain
 // filler (coeff 1) in a 300-wide row the parent splits the slack 2:1 -- the inner
 // gets 200, the outer filler 100. Weight propagation makes the nesting behave as
 // three leaf fillers sharing evenly: all three end at 100. A coeff-1 coupling (the
@@ -984,8 +952,8 @@ TEST(PureSolverLayout, weightedContainerFlexSplitsByAggregatedWeight)
     btl::UniqueId const idOuter = btl::makeUniqueId();
 
     std::vector<ArraySignal<AnyWidget>> innerRow;
-    innerRow.push_back(fillerProbe(idInnerA));
-    innerRow.push_back(fillerProbe(idInnerB));
+    innerRow.push_back(fillerProbe(idInnerA) | modifier::fill());
+    innerRow.push_back(fillerProbe(idInnerB) | modifier::fill());
     AnyWidget inner = hbox(ArraySignal<AnyWidget>(std::move(innerRow)));
 
     std::vector<ArraySignal<AnyWidget>> outerRow;
@@ -1490,7 +1458,7 @@ TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
 // A frame is layout-transparent in a pure region: its margin insets the
 // background shape, not the foreground child, so a framed leaf solves to the
 // exact box a bare one does. Before the passthrough fix the framed child lost
-// its band and collapsed to the weak 100x100 default at the wrong position.
+// its band and collapsed to a 100x100 default at the wrong position.
 TEST(PureSolverLayout, frameIsLayoutTransparentInPureRegion)
 {
     avg::Vector2f const window(300.0f, 300.0f);
@@ -2352,7 +2320,8 @@ TEST(PureSolverLayout, gridSpanningCellSharesFloorAcrossTracks)
 // A growable cell child that is not a filler settles at its own natural inside a
 // larger cell, gravity-positioned; it does not fill the cell up to its max. A
 // content natural (content strength) outranks the weak cell fill -- the pure
-// model, a deliberate divergence from the banded grid's fill-to-max.
+// model, a deliberate divergence from the banded grid's fill-to-max. The grid
+// takes the child's max of 100 and sits at the region's top-left.
 TEST(PureSolverLayout, gridGrowableCellChildStaysAtNatural)
 {
     avg::Vector2f const window(200.0f, 200.0f);
@@ -2368,11 +2337,12 @@ TEST(PureSolverLayout, gridGrowableCellChildStaysAtNatural)
 
     Geometry child = readProbe(instance, idChild);
 
-    // Natural 40, not its max 100 nor the 200 cell, centred at (200 - 40) / 2.
+    // Natural 40, not its max 100 nor the 100 cell, centred at (100 - 40) / 2
+    // in the grid at the top of the 200 window.
     EXPECT_FLOAT_EQ(40.0f, child.size[0]);
     EXPECT_FLOAT_EQ(40.0f, child.size[1]);
-    EXPECT_FLOAT_EQ(80.0f, child.position[0]);
-    EXPECT_FLOAT_EQ(80.0f, child.position[1]);
+    EXPECT_FLOAT_EQ(30.0f, child.position[0]);
+    EXPECT_FLOAT_EQ(130.0f, child.position[1]);
 }
 
 // A grid holding a filler flexes, so nested in a row it rides up as a filler and
@@ -2690,12 +2660,11 @@ TEST(PureSolverLayout, scrollViewOfPureGridSolvesCells)
     }
 }
 
-// A child flexible on its row's cross axis fills the height the row takes from
-// its children's naturals, without making the row flexible: a flexible leaf with
-// a 20 natural height beside a fixed 40 leaf, in a row above a fixed 40 footer in
-// a 300-tall window, fills the row's 40 rather than the row taking the 260 the
-// footer leaves.
-TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
+// A child flexible on its row's cross axis makes the row flexible there: a
+// flexible leaf with a 20 natural height beside a fixed 40 leaf, in a row above
+// a fixed 40 footer in a 300-tall window, fills the 260 the row takes from the
+// footer, and the fixed leaf is centred in it.
+TEST(PureSolverLayout, crossFlexibleChildStretchesItsRow)
 {
     avg::Vector2f const window(400.0f, 300.0f);
 
@@ -2722,19 +2691,20 @@ TEST(PureSolverLayout, crossFlexibleChildFillsRowHeight)
     Geometry flex = readProbe(instance, idFlex);
     Geometry footer = readProbe(instance, idFooter);
 
-    EXPECT_FLOAT_EQ(40.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(260.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
+    EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
 
     EXPECT_FLOAT_EQ(40.0f, fixed.size[0]);
     EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
-    EXPECT_FLOAT_EQ(260.0f, fixed.position[1]);
+    EXPECT_FLOAT_EQ(150.0f, fixed.position[1]);
 
     EXPECT_FLOAT_EQ(40.0f, footer.size[1]);
-    EXPECT_FLOAT_EQ(220.0f, footer.position[1]);
+    EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
 }
 
 // A cross-flexible child fills its slot only up to its own max: in a 300-tall
-// row a flexible leaf capped at 150 stops at 150, centred in the row.
+// window a flexible leaf capped at 150 caps its row at 150, which sits at the
+// top of the region.
 TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -2755,7 +2725,7 @@ TEST(PureSolverLayout, crossFlexibleChildStopsAtItsMax)
     Geometry flex = readProbe(instance, idFlex);
 
     EXPECT_FLOAT_EQ(150.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(75.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(150.0f, flex.position[1]);
 }
 
 // Wrapping a flexible child in fillers is the way to keep it from filling: a
@@ -3002,8 +2972,8 @@ TEST(PureSolverLayout, fixedWidthHoldsOnMainAxisFlexingRow)
 }
 
 // A fixed height on a child flexing on its row's cross axis holds: in a
-// 300-tall row a height-growing leaf fixed at 100 takes 100, centred in the
-// row, rather than filling it.
+// 300-tall window a height-growing leaf fixed at 100 takes 100 rather than
+// filling, and caps its row there, at the top of the region.
 TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
 {
     avg::Vector2f const window(400.0f, 300.0f);
@@ -3024,13 +2994,12 @@ TEST(PureSolverLayout, fixedHeightHoldsOnCrossFlexingChild)
     Geometry flex = readProbe(instance, idFlex);
 
     EXPECT_FLOAT_EQ(100.0f, flex.size[1]);
-    EXPECT_FLOAT_EQ(100.0f, flex.position[1]);
+    EXPECT_FLOAT_EQ(200.0f, flex.position[1]);
 }
 
-// Size words on one axis are last-writer-wins between a fixed size and a flex:
-// fixedWidth(80) then fill() flexes and takes the 360 a fixed 40 sibling leaves
-// in a 400-wide row, while fill() then fixedWidth(80) holds 80.
-TEST(PureSolverLayout, laterSizeWordWinsBetweenFixedAndFill)
+// A fixed size writes the bounds, so a flex written before or after it cannot
+// stretch the widget: it holds 80 in a 400-wide row either way.
+TEST(PureSolverLayout, fixedSizeHoldsWhicheverOrderFillIsWritten)
 {
     avg::Vector2f const window(400.0f, 100.0f);
 
@@ -3050,11 +3019,11 @@ TEST(PureSolverLayout, laterSizeWordWinsBetweenFixedAndFill)
         return readProbe(instance, id).size[0];
     };
 
-    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::fixedWidth(80.0f),
                 modifier::fill()));
     EXPECT_FLOAT_EQ(80.0f, layout(modifier::fill(),
                 modifier::fixedWidth(80.0f)));
-    EXPECT_FLOAT_EQ(360.0f, layout(modifier::fixedWidth(80.0f),
+    EXPECT_FLOAT_EQ(80.0f, layout(modifier::fixedWidth(80.0f),
                 modifier::growWidth()));
     EXPECT_FLOAT_EQ(80.0f, layout(modifier::growWidth(),
                 modifier::fixedWidth(80.0f)));
@@ -3096,6 +3065,7 @@ TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
 
     btl::UniqueId const idScroll = btl::makeUniqueId();
     btl::UniqueId const idEdit = btl::makeUniqueId();
+    btl::UniqueId const idSide = btl::makeUniqueId();
 
     auto text = makeInput(TextEditState{ "Text" });
     auto scroll = makeInput(0.5f);
@@ -3126,7 +3096,8 @@ TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
 
     std::vector<ArraySignal<AnyWidget>> body;
     body.push_back(withArea(scrollView(std::move(grid)), idScroll));
-    body.push_back(vbox(ArraySignal<AnyWidget>(std::move(side))));
+    body.push_back(withArea(vbox(ArraySignal<AnyWidget>(std::move(side))),
+                idSide));
 
     std::vector<ArraySignal<AnyWidget>> column;
     column.push_back(hbox(ArraySignal<AnyWidget>(std::move(toolbar))));
@@ -3138,16 +3109,20 @@ TEST(PureSolverLayout, classicTreeLaysOutFromPureBands)
 
     Geometry edit = readProbe(instance, idEdit);
     Geometry view = readProbe(instance, idScroll);
+    Geometry sideColumn = readProbe(instance, idSide);
 
     EXPECT_FLOAT_EQ(250.0f, edit.size[0]);
     EXPECT_FLOAT_EQ(40.0f, edit.size[1]);
 
-    // The side column flexes across through its scroll bar, so the two each
-    // start from their natural and split the rest of the row evenly, the view
-    // ending where the side column begins; down, the view grows past its 800
-    // natural to fill the body.
-    EXPECT_FLOAT_EQ(edit.position[0], view.size[0]);
-    EXPECT_GT(view.size[0], 400.0f);
+    // The side column flexes across through its scroll bar but is capped by
+    // its rigid label, so the view takes the rest of the row and the edit is
+    // centred on the column; down, the view grows past its 800 natural to fill
+    // the body.
+    EXPECT_FLOAT_EQ(sideColumn.position[0], view.size[0]);
+    EXPECT_FLOAT_EQ(800.0f, view.size[0] + sideColumn.size[0]);
+    EXPECT_FLOAT_EQ(edit.position[0] + 125.0f,
+            sideColumn.position[0] + sideColumn.size[0] / 2.0f);
+    EXPECT_LT(sideColumn.size[0], 250.0f);
     EXPECT_GT(view.size[1], 800.0f);
 
 }
@@ -3239,10 +3214,8 @@ TEST(PureSolverLayout, overfullRowFillerStopsAtZero)
     EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idLast).size[0]);
 }
 
-// fill() on a container that does not flex by itself stretches it: the row's
-// weak 100 default is not baked under its children's natural, where it would
-// outlast the fill and hold the row at 100 against the column's gap drive. The
-// row fills the 300 column, and the margined filler beside a 36-high leaf fills
+// fill() on a container that does not flex by itself stretches it. The row
+// fills the 300 column, and the margined filler beside a 36-high leaf fills
 // the row's height, its margin adding no size of its own.
 TEST(PureSolverLayout, filledRowWithMarginedFillerTakesColumn)
 {
@@ -3414,8 +3387,8 @@ TEST(PureSolverLayout, flexersShrinkByWeightAndStopAtZero)
 
 // A row's flex along its own axis carries outward: a row holding a fill() leaf
 // beside a fixed 40 leaf, itself beside a fixed 40 leaf in a 300 row, takes the
-// 260 left and its fill leaf the 220 beyond its sibling. Across the outer row it
-// keeps its natural 40, which the fill leaf fills.
+// 260 left and its fill leaf the 220 beyond its sibling. Across, the fill leaf
+// makes the row stretch to the outer row's 100.
 TEST(PureSolverLayout, rowWithFillChildFillsAlongOuterRow)
 {
     avg::Vector2f const window(300.0f, 100.0f);
@@ -3439,7 +3412,7 @@ TEST(PureSolverLayout, rowWithFillChildFillsAlongOuterRow)
 
     EXPECT_FLOAT_EQ(220.0f, fill.size[0]);
     EXPECT_FLOAT_EQ(40.0f, fill.position[0]);
-    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(100.0f, fill.size[1]);
     EXPECT_FLOAT_EQ(260.0f, readProbe(instance, idOuterFixed).position[0]);
 }
 
@@ -3474,11 +3447,11 @@ TEST(PureSolverLayout, rowWithFillChildFillsAcrossOuterColumn)
     EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idFixed).size[0]);
 }
 
-// A child flexing across a row does not make the row flexible on that axis: in a
+// A child flexing across a row makes the row flexible on that axis: in a
 // column beside a vfiller, a row holding a fill() leaf of natural height 20 and a
-// fixed 40 leaf keeps its natural 40 height, the fill leaf fills those 40, and
-// the filler takes the 260 left.
-TEST(PureSolverLayout, rowWithCrossFillChildKeepsNaturalHeight)
+// fixed 40 leaf grows from its natural 40 height, sharing the 260 left equally
+// with the filler, and the fill leaf fills the row.
+TEST(PureSolverLayout, rowWithCrossFillChildStretchesAcross)
 {
     avg::Vector2f const window(200.0f, 300.0f);
 
@@ -3502,9 +3475,9 @@ TEST(PureSolverLayout, rowWithCrossFillChildKeepsNaturalHeight)
     Geometry fill = readProbe(instance, idFill);
     Geometry filler = readProbe(instance, idFiller);
 
-    EXPECT_FLOAT_EQ(40.0f, fill.size[1]);
-    EXPECT_FLOAT_EQ(260.0f, fill.position[1]);
-    EXPECT_FLOAT_EQ(260.0f, filler.size[1]);
+    EXPECT_FLOAT_EQ(170.0f, fill.size[1]);
+    EXPECT_FLOAT_EQ(130.0f, fill.position[1]);
+    EXPECT_FLOAT_EQ(130.0f, filler.size[1]);
     EXPECT_FLOAT_EQ(0.0f, filler.position[1]);
 }
 

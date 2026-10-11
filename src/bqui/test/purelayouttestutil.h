@@ -167,7 +167,7 @@ inline AnyWidget reflowProbe(btl::UniqueId id, float area, float fallbackWidth)
     auto natural = [](float value)
     {
         Constraints c;
-        c.natural = BandNatural{ value, contentStrength() };
+        c.natural = value;
         return c;
     };
 

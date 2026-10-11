@@ -92,8 +92,7 @@ AnyWidgetModifier defaultSize(bq::signal::AnySignal<avg::Vector2f> size)
     return bothAxes(std::move(size),
             [](PureAxis axis, bq::signal::AnySignal<float> value)
             {
-                return detail::pureNaturalModifier(axis,
-                        widget::contentStrength(), std::move(value));
+                return detail::pureNaturalModifier(axis, std::move(value));
             });
 }
 

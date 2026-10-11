@@ -32,7 +32,7 @@ Constraints band(std::optional<float> min, std::optional<float> natural,
     c.min = min;
     c.max = max;
     if (natural)
-        c.natural = BandNatural{ *natural, contentStrength() };
+        c.natural = *natural;
     return c;
 }
 
@@ -128,7 +128,6 @@ TEST(WindowSizing, minWinsOverMax)
             heightBand(band({}, 100.0f, {})), std::nullopt, fallback);
 
     EXPECT_EQ(300, size[0]);
-    EXPECT_FLOAT_EQ(300.0f, clampToBand(250.0f, band(300.0f, {}, 200.0f)));
 }
 
 TEST(WindowSizing, heightIsReadAtTheChosenWidth)
@@ -144,14 +143,6 @@ TEST(WindowSizing, heightIsReadAtTheChosenWidth)
 
     EXPECT_FLOAT_EQ(250.0f, seenWidth);
     EXPECT_EQ(avg::Vector2i(250, 24), size);
-}
-
-TEST(WindowSizing, clampLeavesASizeInsideTheBand)
-{
-    EXPECT_FLOAT_EQ(120.0f, clampToBand(120.0f, band(100.0f, 50.0f, 200.0f)));
-    EXPECT_FLOAT_EQ(100.0f, clampToBand(20.0f, band(100.0f, 50.0f, 200.0f)));
-    EXPECT_FLOAT_EQ(200.0f, clampToBand(900.0f, band(100.0f, 50.0f, 200.0f)));
-    EXPECT_FLOAT_EQ(900.0f, clampToBand(900.0f, band({}, 50.0f, {})));
 }
 
 TEST(WindowSizing, windowOpensAtRootNatural)
@@ -209,9 +200,10 @@ TEST(WindowSizing, initialSizeIsLimitedByTheRoot)
     EXPECT_EQ(avg::Vector2f(400.0f, 150.0f), size);
 }
 
-// The OS window cannot be resized from bqui, so a min that outgrows it lays the
-// root out at the min and lets it overflow the window.
-TEST(WindowSizing, growingMinClampsTheLayoutSize)
+// The OS window cannot be resized from bqui, so a min that outgrows it keeps
+// the layout at the window's size, and the solve lays the root out at the min,
+// overflowing the window.
+TEST(WindowSizing, growingMinOverflowsTheWindow)
 {
     auto minWidth = makeInput(0.0f);
     auto minHeight = makeInput(0.0f);
@@ -235,7 +227,14 @@ TEST(WindowSizing, growingMinClampsTheLayoutSize)
             });
 
     EXPECT_EQ(avg::Vector2f(100.0f, 50.0f), size);
-    EXPECT_EQ(avg::Vector2f(300.0f, 120.0f), layout);
+    EXPECT_EQ(size, layout);
+
+    btl::UniqueId const id = btl::makeUniqueId();
+    Instance instance = realiseConverged(withArea(makeWidget()
+                | modifier::defaultSize(avg::Vector2f(100.0f, 50.0f))
+                | modifier::minSize(avg::Vector2f(300.0f, 120.0f)), id),
+            avg::Vector2f(100.0f, 50.0f));
+    EXPECT_EQ(avg::Vector2f(300.0f, 120.0f), readProbe(instance, id).size);
 }
 
 TEST(WindowSizing, laterNaturalChangeKeepsTheSize)

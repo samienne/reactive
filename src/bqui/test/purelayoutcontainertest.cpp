@@ -543,7 +543,7 @@ TEST(PureSolverLayout, gravityPlacesACappedFillAndAMarginedChild)
     column.push_back(probe(idDefault, fixed40, fixed40));
 
     Instance instance = realiseConverged(
-            vbox(std::move(column)),
+            vbox(std::move(column)) | modifier::fixedWidth(200.0f),
             avg::Vector2f(200.0f, 180.0f));
 
     Geometry capped = readProbe(instance, idCapped);

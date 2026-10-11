@@ -71,8 +71,9 @@ AnyWidget requiredLeftLeaf(btl::UniqueId id, float left)
 
 } // namespace
 
-// A max beats a fixed size, whichever is written last.
-TEST(ConflictLayout, maxBeatsFixedSize)
+// A fixed size and a max clamp each other as they are written, so the last
+// writer wins.
+TEST(ConflictLayout, lastWriterWinsBetweenFixedSizeAndMax)
 {
     btl::UniqueId const idA = btl::makeUniqueId();
     btl::UniqueId const idB = btl::makeUniqueId();
@@ -86,13 +87,13 @@ TEST(ConflictLayout, maxBeatsFixedSize)
     Instance instance = realiseRow(std::move(row), { 800.0f, 100.0f });
 
     EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idA).size[0]);
-    EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idB).size[0]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, idB).size[0]);
     EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idB).position[0]);
     EXPECT_FLOAT_EQ(40.0f, readProbe(instance, idA).size[1]);
 }
 
-// A min beats a fixed size.
-TEST(ConflictLayout, minBeatsFixedSize)
+// A fixed size written after a min replaces it.
+TEST(ConflictLayout, fixedSizeAfterMinReplacesIt)
 {
     btl::UniqueId const id = btl::makeUniqueId();
 
@@ -102,11 +103,11 @@ TEST(ConflictLayout, minBeatsFixedSize)
 
     Instance instance = realiseRow(std::move(row), { 400.0f, 100.0f });
 
-    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).size[0]);
+    EXPECT_FLOAT_EQ(50.0f, readProbe(instance, id).size[0]);
 }
 
-// A min beats a contradicting max, on a fixed leaf and on a flexing one.
-TEST(ConflictLayout, minBeatsMax)
+// A max written after a min lowers it, on a fixed leaf and on a filler.
+TEST(ConflictLayout, maxAfterMinLowersIt)
 {
     btl::UniqueId const idFixed = btl::makeUniqueId();
     btl::UniqueId const idFlex = btl::makeUniqueId();
@@ -119,9 +120,9 @@ TEST(ConflictLayout, minBeatsMax)
 
     Instance instance = realiseRow(std::move(row), { 800.0f, 100.0f });
 
-    EXPECT_FLOAT_EQ(250.0f, readProbe(instance, idFixed).size[0]);
-    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idFlex).size[0]);
-    EXPECT_FLOAT_EQ(250.0f, readProbe(instance, idFlex).position[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFixed).size[0]);
+    EXPECT_FLOAT_EQ(60.0f, readProbe(instance, idFlex).size[0]);
+    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idFlex).position[0]);
 }
 
 // Fixed children wider than their fixed parent keep their sizes and overflow
@@ -151,8 +152,9 @@ TEST(ConflictLayout, fixedChildrenOverflowFixedParent)
     EXPECT_FLOAT_EQ(200.0f, readProbe(instance, idAfter).position[0]);
 }
 
-// The region anchor beats the root's own stated size.
-TEST(ConflictLayout, regionAnchorBeatsRootSize)
+// The region fills its root only within the root's own min and max, from the
+// top-left corner.
+TEST(ConflictLayout, regionRootKeepsItsBounds)
 {
     btl::UniqueId const id = btl::makeUniqueId();
 
@@ -160,8 +162,10 @@ TEST(ConflictLayout, regionAnchorBeatsRootSize)
             | modifier::fixedWidth(300.0f) | modifier::maxHeight(20.0f),
             { 400.0f, 100.0f });
 
-    EXPECT_FLOAT_EQ(400.0f, readProbe(instance, id).size[0]);
-    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, id).size[1]);
+    EXPECT_FLOAT_EQ(300.0f, readProbe(instance, id).size[0]);
+    EXPECT_FLOAT_EQ(20.0f, readProbe(instance, id).size[1]);
+    EXPECT_FLOAT_EQ(0.0f, readProbe(instance, id).position[0]);
+    EXPECT_FLOAT_EQ(80.0f, readProbe(instance, id).position[1]);
 }
 
 // A required relation contradicting the region anchor made the solve
@@ -188,14 +192,13 @@ TEST(ConflictLayout, requiredRelationAgainstAnchorKeepsRegion)
 TEST(ConflictLayout, unmetConstraintIsLogged)
 {
     std::vector<ArraySignal<AnyWidget>> row;
-    row.push_back(probe(btl::makeUniqueId(), fixed40, fixed40)
-            | modifier::fixedWidth(300.0f) | modifier::maxWidth(200.0f));
+    row.push_back(requiredLeftLeaf(btl::makeUniqueId(), 30.0f));
 
     testing::internal::CaptureStderr();
     realiseRow(std::move(row), { 800.0f, 100.0f });
     std::string log = testing::internal::GetCapturedStderr();
 
-    EXPECT_NE(std::string::npos, log.find("unmet: fixed (200 == 300)"))
+    EXPECT_NE(std::string::npos, log.find("unmet: region (30 == 0)"))
         << log;
 }
 
@@ -214,10 +217,10 @@ TEST(ConflictLayout, consistentLayoutLogsNothing)
     EXPECT_TRUE(log.empty()) << log;
 }
 
-// A flexing container's floor is an aggregated min, so it beats a fixed size
-// on the container: fixed below its fixed content, the container takes the
-// content's floor.
-TEST(ConflictLayout, containerFloorBeatsFixedSize)
+// A fixed size on a container replaces its aggregated bounds, so fixed below
+// its fixed content the container keeps the fixed size and the content
+// overflows it.
+TEST(ConflictLayout, fixedSizeOnContainerBeatsItsContent)
 {
     btl::UniqueId const idParent = btl::makeUniqueId();
 
@@ -234,5 +237,5 @@ TEST(ConflictLayout, containerFloorBeatsFixedSize)
 
     Instance instance = realiseRow(std::move(row), { 800.0f, 100.0f });
 
-    EXPECT_FLOAT_EQ(160.0f, readProbe(instance, idParent).size[0]);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idParent).size[0]);
 }

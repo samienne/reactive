@@ -11,13 +11,6 @@
 namespace bqui
 {
     /**
-     * @brief @p value limited to the band's min and max; min wins over a max
-     * below it.
-     */
-    BQUI_EXPORT float clampToBand(float value,
-            widget::Constraints const& band);
-
-    /**
      * @brief The size a window opens at: per axis the explicit size, else the
      * band's natural, else the fallback, limited to the band's min and max.
      *

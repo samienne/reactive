@@ -52,7 +52,7 @@ AnyWidget scrollView(AnyWidget widget)
         auto extentOf = [](Constraints const& c, float viewport)
         {
             if (c.natural)
-                return c.natural->value;
+                return *c.natural;
 
             float extent = viewport;
             if (c.max)

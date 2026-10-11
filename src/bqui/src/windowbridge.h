@@ -97,8 +97,8 @@ public:
     ase::Vector2f getWindowSize() const;
 
     /**
-     * @brief The size the root is laid out at: the window's size limited to
-     * the root band's min and max, placed at the window's top-left corner.
+     * @brief The size the root region is laid out at: the window's size. The
+     * root fills it within its own min and max, from the top-left corner.
      */
     ase::Vector2f getLayoutSize() const;
 
@@ -124,8 +124,6 @@ private:
     ase::Vector2i openingSize();
     bq::signal::UpdateResult updateRoot(bq::signal::FrameInfo const& frameInfo,
             bool& instanceChanged);
-    bq::signal::UpdateResult fitLayoutToWindow(bool& instanceChanged);
-    ase::Vector2f clampToRootBand(ase::Vector2f size) const;
 
     pmr::unsynchronized_pool_resource memoryPool_;
     pmr::statistics_resource memoryStatistics_;

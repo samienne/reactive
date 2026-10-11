@@ -128,16 +128,11 @@ void readBackBoxesY(LayoutSpec& spec, std::vector<BoxVariables> const& boxes)
     }
 }
 
-// The signed trailing gap G is pulled to zero a shade below the weak size
-// default, so a filler (which carries no default) is dragged out to close the
-// gap and fill the container, while a plain child holds its default and leaves
-// the gap open rather than stretching. The pull is strictly weaker than the
-// default so it never overrides one; it only decides the free extent a filler
-// leaves. The gap is unbounded on both sides, so an over-full row drives it
-// negative and overflows past the container's end instead of squeezing. It is
-// far stronger than the flex coupling (flexCouplingStrength), so the slack keeps
-// flowing to the flexing children that can still take it once others clamp at
-// a bound.
+// The signed trailing gap is pulled to zero, so the slack goes to the children
+// that take it: a child free within its bounds first, then the growers, whose
+// pull to their basis (growBasisStrength) is weaker. The gap is unbounded on both
+// sides, so an over-full row drives it negative and overflows past the
+// container's end instead of squeezing.
 arrange::Strength gapDriveStrength()
 {
     return arrange::Strength::weak(0.0008);
@@ -146,13 +141,10 @@ arrange::Strength gapDriveStrength()
 // The pure main-axis tiling: consecutive children meet, the first touches the
 // container's leading end, and the last is tied to the container's trailing end
 // through the signed gap variable @p gap -- last.trailing + gap ==
-// container.trailing, required -- which gapDriveStrength() then pulls to zero.
-// No child carries a size default here; a leaf contributes its own on this axis
-// and a filler its flex, so the container states only the structure (and, in
-// the pure box, the flex coupling it emits per child). The gap is driven only
-// when @p drive (some child flexes): with nothing to stretch the slack is left
-// to the container's own size, and a drive there would only fight the parent
-// stretching a filled container.
+// container.trailing, required -- which gapDriveStrength() pulls to zero when
+// @p drive. The drive is left out when every child holds its own extent: no
+// child would take the slack, and a drive would only tie with the parent's own
+// gap over a container stretched by fill().
 void pureMainConstraints(std::vector<arrange::Constraint>& out, Axis axis,
         BoxVariables const& container,
         std::vector<BoxVariables> const& boxes, arrange::Variable const& gap,
@@ -233,7 +225,7 @@ void placeAcross(std::vector<arrange::Constraint>& out, Axis boxAxis,
 // the edge set this call constrains (x for left/right, y for top/bottom);
 // @p layoutAxis is the container's stacking axis. On the layout axis the
 // children are tiled edge to edge and the trailing slack rides @p gap
-// (pureMainConstraints, driven when @p driveGap), the container stating
+// (pureMainConstraints), the container stating
 // structure only while each leaf or filler owns its own extent. On the cross
 // axis a child that does not hold its own extent there (@p ownExtent, parallel
 // to @p boxes) fills the container's cross extent, and every child settles
@@ -244,13 +236,15 @@ std::vector<arrange::Constraint> pureAxisConstraints(Axis boxAxis,
         std::vector<BoxVariables> const& boxes,
         std::vector<bool> const& ownExtent,
         std::vector<avg::Vector2f> const& gravities,
-        arrange::Variable const& gap, bool driveGap)
+        arrange::Variable const& gap)
 {
     std::vector<arrange::Constraint> out;
 
     if (boxAxis == layoutAxis)
     {
-        pureMainConstraints(out, layoutAxis, container, boxes, gap, driveGap);
+        bool drive = std::find(ownExtent.begin(), ownExtent.end(), false)
+            != ownExtent.end();
+        pureMainConstraints(out, layoutAxis, container, boxes, gap, drive);
     }
     else
     {
@@ -302,41 +296,23 @@ std::vector<avg::Obb> regionToObbs(LayoutSolution const& solution,
 }
 
 
-// The layout axis the enclosing pure-solver container seeded for its fillers, as
-// a signal, so its value tracks the real context a filler evaluates in rather
-// than a parallel one that can diverge.
-bq::signal::AnySignal<std::optional<Axis>> flexAxis(BuildParams const& params)
-{
-    return params.valueOrDefault<FlexAxisTag>();
-}
-
 // Builds each incoming widget once and hands the resulting builders to build.
 // The builders compose their constraints for the enclosing region's solve, and
 // the solution arrives as a build argument, so nothing is threaded down through
-// the params but the layout axis.
+// the params.
 AnyWidget containerLayout(
         btl::Function<AnyWidget(bq::signal::ArraySignal<widget::AnyBuilder>)>
             build,
-        std::optional<std::optional<Axis>> flexAxis,
         bq::signal::ArraySignal<AnyWidget> widgets)
 {
-    return makeWidget([build = std::move(build), flexAxis](
+    return makeWidget([build = std::move(build)](
                 BuildParams const& params, auto widgets)
         {
-            BuildParams childParams = params;
-
-            // A stacking container seeds its layout axis, the axis its flexible
-            // children publish their flex on, and a grid seeds none so they flex
-            // on both; a stack seeds nothing and its children flex on the
-            // enclosing box's axis.
-            if (flexAxis)
-                childParams.set<FlexAxisTag>(bq::signal::constant(*flexAxis));
-
             auto builders = widgets.map(
-                    [childParams](widget::AnyWidget const& widget)
+                    [params](widget::AnyWidget const& widget)
                     -> widget::AnyBuilder
                     {
-                        return widget.clone()(childParams);
+                        return widget.clone()(params);
                     });
 
             return build(std::move(builders));
@@ -358,53 +334,82 @@ bq::signal::ArraySignal<widget::AnyWidget> toArray(
     return bq::signal::ArraySignal<widget::AnyWidget>(std::move(children));
 }
 
-// The stronger of two strengths, used to hold a container's aggregate natural
-// at the firmness of its firmest contributing child.
-arrange::Strength strongerStrength(arrange::Strength a, arrange::Strength b)
-{
-    return a >= b ? a : b;
-}
-
 // Whether a band holds its widget at an extent of its own: a natural that is not
-// a flex-basis, which flattenConstraints() stamps onto the box. A container
+// a flex basis, which flattenConstraints() stamps onto the box. A container
 // fills a child without one to its slot and leaves one with one at its own size.
 bool holdsOwnExtent(Constraints const& band)
 {
     return band.natural && !(band.flex && band.flex->coeff > 0.0f);
 }
 
-// The strength of the flex coupling: far below the gap drive, so a flexing child
-// clamped at a bound leaves its coupling violated rather than holding the shared
-// flex variable back, and the slack keeps flowing to the children that can still
-// take it.
+// Whether a band states nothing at all on its axis: no bounds, natural or flex.
+bool isNeutral(Constraints const& band)
+{
+    return !band.min && !band.max && !band.natural && !band.flex;
+}
+
+// The weight a child grows by along a box: its explicit flex, else 1 when its
+// band is neutral (a filler), else none. A child with only bounds is not a
+// grower; it is free within them and so takes slack before any grower.
+std::optional<float> growWeight(Constraints const& band)
+{
+    if (band.flex)
+    {
+        if (band.flex->coeff > 0.0f)
+            return band.flex->coeff;
+        return std::nullopt;
+    }
+    if (isNeutral(band))
+        return 1.0f;
+    return std::nullopt;
+}
+
+// The strength of the flex coupling: the weakest pull, so a grower clamped at
+// a bound leaves its coupling violated rather than holding the shared flex
+// variable back, and the slack keeps flowing to the growers that can still take
+// it.
 arrange::Strength flexCouplingStrength()
 {
     return arrange::Strength::weak(0.00001);
 }
 
-// The coupling that makes a flexing child a filler: its extent on the
-// container's layout axis is its natural (its flex basis, zero without one) plus
-// its flex weight times the container's shared flex variable, so the gap drive
-// shares the slack left after every natural in proportion to the weights. Short
-// of space the shared variable goes negative and the deficit is taken in the same
-// proportion, each child stopping at its min (or zero) and the rest taking what
-// it cannot. Emitted by the container from the band the child publishes, so a
-// fixed size that cleared the flex leaves no coupling behind.
+// The strength a grower is pulled to its basis at: above the coupling, so it
+// does not decide the sharing, and below the gap drive, so the growers still
+// take the slack. A child free within its bounds pays nothing for slack, so it
+// takes the slack before any grower does.
+arrange::Strength growBasisStrength()
+{
+    return arrange::Strength::weak(0.0001);
+}
+
+// The coupling that makes a child a grower along a box: its extent is its basis
+// (its natural, zero without one) plus its weight times the container's shared
+// flex variable, so the slack is shared by weight. Short of space the shared
+// variable goes negative and the deficit is taken in the same proportion, each
+// child stopping at its min (or zero). The basis pull makes the growers the
+// last to take slack and the first to give it up. A box's growth along its own
+// axis is already priced inside it, by its children and gap, so it gets none
+// there and a grower costs the same however deeply it is nested.
 void appendFlexCoupling(LayoutSpec& spec, Constraints const& band,
         BoxVariables const& box, Axis axis, arrange::Variable const& flexShare)
 {
-    if (!band.flex || band.flex->coeff <= 0.0f)
+    std::optional<float> weight = growWeight(band);
+    if (!weight)
         return;
 
-    double basis = band.natural
-        ? static_cast<double>(band.natural->value) : 0.0;
+    double basis = band.natural ? static_cast<double>(*band.natural) : 0.0;
+    arrange::Expression extent = axis == Axis::x ? box.width() : box.height();
 
-    spec.constraints.push_back(
-            ((axis == Axis::x ? box.width() : box.height())
+    spec.constraints.push_back((extent
                 == arrange::Expression(basis)
-                    + static_cast<double>(band.flex->coeff)
+                    + static_cast<double>(*weight)
                     * arrange::Expression(flexShare))
             | flexCouplingStrength());
+    if (!band.aggregate)
+    {
+        spec.constraints.push_back(
+                (extent == arrange::Expression(basis)) | growBasisStrength());
+    }
 }
 
 std::vector<bool> ownExtents(std::vector<Constraints> const& bands)
@@ -416,56 +421,72 @@ std::vector<bool> ownExtents(std::vector<Constraints> const& bands)
     return result;
 }
 
-// A container's aggregate natural on one axis. On the main axis children tile
-// end-to-end, so their naturals sum and the result is held at the firmest
-// contributing child's strength. On the cross axis they overlap, so the largest
-// wins and carries its own strength -- an unrelated smaller child's firmness
-// does not rigidify the container's cross natural. Absent when no child carries
-// a natural, except that a container with no children is empty content of zero
-// natural rather than an unconstrained box left to the weak 100 default.
-std::optional<BandNatural> aggregateNatural(
+// The extent a child pulls toward: its natural held within its bounds, else its
+// min. Absent for a child with neither.
+std::optional<float> pullExtent(Constraints const& child)
+{
+    if (!child.natural)
+        return child.min;
+    float value = *child.natural;
+    if (child.max)
+        value = std::min(value, *child.max);
+    if (child.min)
+        value = std::max(value, *child.min);
+    return value;
+}
+
+// A container's aggregate natural on one axis, absent when no child states one.
+// Along the axis the children tile, so their pulls sum, a child without a
+// natural adding its min. Across they overlap, so the largest natural wins. An
+// empty container is empty content of zero natural.
+std::optional<float> aggregateNatural(
         std::vector<Constraints> const& children, bool mainAxis)
 {
     if (children.empty())
-        return BandNatural{ 0.0f, contentStrength() };
+        return 0.0f;
 
-    std::optional<BandNatural> result;
+    bool any = std::any_of(children.begin(), children.end(),
+            [](Constraints const& child) { return child.natural.has_value(); });
+    if (!any)
+        return std::nullopt;
+
+    std::optional<float> result;
     for (Constraints const& child : children)
     {
+        if (mainAxis)
+        {
+            result = result.value_or(0.0f) + pullExtent(child).value_or(0.0f);
+            continue;
+        }
         if (!child.natural)
             continue;
-        BandNatural const& n = *child.natural;
-        if (!result)
-            result = n;
-        else if (mainAxis)
-        {
-            result = BandNatural{ result->value + n.value,
-                    strongerStrength(result->strength, n.strength) };
-        }
-        else if (n.value > result->value)
-            result = n;
+        float value = *pullExtent(child);
+        result = result ? std::max(*result, value) : value;
     }
     return result;
 }
 
-// A container's aggregate flex on one axis. Along the axis children tile, so
-// any flexing child makes the container flexible and the weights sum. Across it
-// they overlap, so the container stretches only if no child holds an extent of
-// its own there and at least one flexes, at the smallest flexing weight; a child
-// with neither a natural nor a flex fills whatever extent it is given and does
-// not hold the container back. Absent when the container does not flex.
+// A container's aggregate flex on one axis. Along the axis the children tile,
+// so the grow weights sum (growWeight) and any grower makes the container one;
+// a container of only neutral children is itself neutral and states no flex.
+// Across they overlap, so any child with a flex makes the container stretch, at
+// the smallest weight, bounded by the smallest max; a neutral child fills
+// whatever it is given and adds nothing.
 std::optional<Flex> aggregateFlex(
         std::vector<Constraints> const& children, bool mainAxis)
 {
+    if (mainAxis && std::all_of(children.begin(), children.end(), isNeutral))
+        return std::nullopt;
+
     std::optional<float> coeff;
     for (Constraints const& child : children)
     {
-        if (!mainAxis && holdsOwnExtent(child))
-            return std::nullopt;
-        if (!child.flex || child.flex->coeff <= 0.0f)
+        std::optional<float> c = mainAxis ? growWeight(child)
+            : (child.flex && child.flex->coeff > 0.0f
+                    ? std::make_optional(child.flex->coeff) : std::nullopt);
+        if (!c)
             continue;
-        float c = child.flex->coeff;
-        coeff = coeff ? (mainAxis ? *coeff + c : std::min(*coeff, c)) : c;
+        coeff = coeff ? (mainAxis ? *coeff + *c : std::min(*coeff, *c)) : *c;
     }
     if (!coeff)
         return std::nullopt;
@@ -514,55 +535,18 @@ std::optional<float> aggregateMax(std::vector<Constraints> const& children,
     return value;
 }
 
-// A container's aggregate min floor on one axis, published only when it flexes
-// and so drops its aggregate natural. Each child contributes the extent
-// below which it cannot shrink: its explicit @c min if set; otherwise, for a
-// child that does not flex on this axis, its @c natural (a fixed child's natural
-// is a hard floor); a flexing child can shrink to nothing and contributes zero.
-// The floors aggregate as extents do -- main-axis SUM (children tile end to end),
-// cross-axis MAX (children overlap) -- so a tight parent that force-sizes the
-// flexing container cannot squeeze it below what its fixed content needs. Absent
-// when no child floors above zero. Subsumes the explicit-min aggregate, so it
-// replaces (not supplements) aggregateMin() on a flexing axis.
-std::optional<float> aggregateFloor(
-        std::vector<Constraints> const& children, bool mainAxis)
-{
-    std::optional<float> value;
-    for (Constraints const& child : children)
-    {
-        float floor = 0.0f;
-        if (child.min)
-            floor = *child.min;
-        else if (child.flex && child.flex->coeff > 0.0f)
-            floor = 0.0f;
-        else if (child.natural)
-            floor = child.natural->value;
-        else
-            floor = 0.0f;
-
-        if (floor <= 0.0f)
-            continue;
-        value = value ? (mainAxis ? *value + floor : std::max(*value, floor))
-                      : floor;
-    }
-    return value;
-}
-
 // A container's aggregate band on one axis, without its relations: flex,
 // natural, min and max by the along rule on the main axis and the across rule
-// otherwise. On a flexing axis the natural is only a flex basis and the min is
-// the floor of the content (aggregateFloor). Across, a min above the smallest
-// cap wins the cap, and the natural is clamped into the bounds.
+// otherwise. Across, a min above the smallest cap wins the cap, and the natural
+// is clamped into the bounds.
 Constraints aggregateBand(std::vector<Constraints> const& children,
         bool mainAxis)
 {
     Constraints result;
+    result.aggregate = mainAxis;
     result.flex = aggregateFlex(children, mainAxis);
-    bool flexes = result.flex && result.flex->coeff > 0.0f;
     result.natural = aggregateNatural(children, mainAxis);
-    result.min = flexes
-        ? aggregateFloor(children, mainAxis)
-        : aggregateMin(children, mainAxis);
+    result.min = aggregateMin(children, mainAxis);
     result.max = aggregateMax(children, mainAxis);
 
     if (!mainAxis)
@@ -570,11 +554,9 @@ Constraints aggregateBand(std::vector<Constraints> const& children,
         if (result.min && result.max && *result.min > *result.max)
             result.max = result.min;
         if (result.natural && result.min)
-            result.natural->value = std::max(result.natural->value,
-                    *result.min);
+            result.natural = std::max(*result.natural, *result.min);
         if (result.natural && result.max)
-            result.natural->value = std::min(result.natural->value,
-                    *result.max);
+            result.natural = std::min(*result.natural, *result.max);
     }
 
     return result;
@@ -599,7 +581,6 @@ void alignBaselines(Constraints& result,
 
     std::optional<float> ascent;
     float descent = 0.0f;
-    std::optional<arrange::Strength> strength;
     bool anyBaseline = false;
 
     for (std::size_t i = 0; i < boxes.size() && i < childBands.size(); ++i)
@@ -618,20 +599,18 @@ void alignBaselines(Constraints& result,
             : Anchor{ 1.0f, 0.0f };
         anyBaseline = anyBaseline || it != band.anchors.end();
 
-        float natural = band.natural->value;
+        float natural = *band.natural;
         float childAscent = anchor.fraction * natural + anchor.offset;
         float childDescent = natural - childAscent;
         if (ascent)
         {
             ascent = std::max(*ascent, childAscent);
             descent = std::max(descent, childDescent);
-            strength = strongerStrength(*strength, band.natural->strength);
         }
         else
         {
             ascent = childAscent;
             descent = childDescent;
-            strength = band.natural->strength;
         }
 
         out.push_back((arrange::Expression(boxes[i].top)
@@ -652,8 +631,8 @@ void alignBaselines(Constraints& result,
                 - arrange::Expression(static_cast<double>(*ascent)),
             block, container.top, container.bottom });
 
-    if (!result.natural || result.natural->value < block)
-        result.natural = BandNatural{ block, *strength };
+    if (!result.natural || *result.natural < block)
+        result.natural = block;
     if (result.max && *result.max < block)
         result.max = block;
     if (anyBaseline)
@@ -679,7 +658,7 @@ void publishFirstBaseline(Constraints& result,
     Anchor anchor = resolveAnchor(it->second,
             leadingGravity(gravities.front(), Axis::y));
     result.anchors[baselineAnchor.id()] = BandAnchor{
-        Anchor{ 0.0f, anchor.fraction * first.natural->value + anchor.offset },
+        Anchor{ 0.0f, anchor.fraction * *first.natural + anchor.offset },
         Anchor{} };
 }
 
@@ -729,10 +708,7 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
     {
         bool mainAxis = thisAxis == layoutAxis;
 
-        // Along the box any flexing child makes it flexible; across it, only
-        // children that all stretch do, and then each fills the box's extent.
         Constraints result = aggregateBand(childBands, mainAxis);
-        bool flexes = result.flex && result.flex->coeff > 0.0f;
 
         LayoutSpec& rel = result.relations;
 
@@ -753,25 +729,11 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
         else
         {
             append(rel, pureAxisConstraints(thisAxis, layoutAxis, container,
-                        boxes, ownExtents(childBands), gravities, gap, flexes));
+                        boxes, ownExtents(childBands), gravities, gap));
         }
 
         if (thisAxis == Axis::y && layoutAxis == Axis::y)
             publishFirstBaseline(result, childBands, gravities);
-
-        // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills (a row's height inside a column) still resolves to a
-        // definite extent. Only where no child states a natural either: a
-        // published natural already pins the axis, and unlike the natural (which
-        // a fill() on the container drops) a default baked into the relations
-        // would outlast that fill and beat the parent's gap drive, holding the
-        // container at 100. Dropped on a flexing axis for the same reason.
-        if (!flexes && !result.natural)
-        {
-            rel.constraints.push_back(thisAxis == Axis::x
-                    ? weakWidthDefault(container)
-                    : weakHeightDefault(container));
-        }
 
         if (thisAxis == Axis::x)
         {
@@ -904,9 +866,8 @@ void placeOnAxis(std::vector<arrange::Constraint>& out, Axis axis,
                 band.max ? *band.max : noSlotCap, fillStrength);
 }
 
-// A stack has no layout axis and so emits no flex coupling: an inner filler
-// flexes on the enclosing box's axis and fills via the weak slot pull -- the one
-// real divergence from the box.
+// A stack has no layout axis and so emits no flex coupling: a grower fills its
+// slot via the weak slot pull, as a free or neutral child does.
 AnyWidget solverStackBuilders(
         bq::signal::ArraySignal<widget::AnyBuilder> array)
 {
@@ -943,7 +904,6 @@ AnyWidget solverStackBuilders(
     {
         // The children overlap on both axes, so both take the across rule.
         Constraints result = aggregateBand(childBands, false);
-        bool flexes = result.flex && result.flex->coeff > 0.0f;
 
         LayoutSpec& rel = result.relations;
 
@@ -961,17 +921,6 @@ AnyWidget solverStackBuilders(
                 placeOnAxis(rel.constraints, thisAxis, boxes[i],
                         container.top, container.bottom, gravities[i],
                         childBands[i], overlayFillStrength());
-        }
-
-        // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped on a
-        // flexing axis and where a child states a natural, as the pure box drops
-        // it.
-        if (!flexes && !result.natural)
-        {
-            rel.constraints.push_back(thisAxis == Axis::x
-                    ? weakWidthDefault(container)
-                    : weakHeightDefault(container));
         }
 
         if (thisAxis == Axis::x)
@@ -1071,7 +1020,8 @@ AnyWidget solverStackBuilders(
 // The band of each track on one axis: the across rule over the cells in that
 // track. A child spanning several tracks is spread evenly over them -- extents
 // divide by the span and the flex weight is kept whole -- and its share joins
-// every track it spans. A child spanning no tracks asks nothing of the grid.
+// every track it spans. A child spanning no tracks asks nothing of the grid,
+// and a track no child spans is left out.
 std::vector<Constraints> trackBands(std::vector<Constraints> const& bands,
         std::vector<GridCell> const& cells, Axis axis, unsigned int count)
 {
@@ -1095,50 +1045,52 @@ std::vector<Constraints> trackBands(std::vector<Constraints> const& bands,
         if (band.max)
             share.max = *band.max / divisor;
         if (band.natural)
-            share.natural = BandNatural{ band.natural->value / divisor,
-                band.natural->strength };
+            share.natural = *band.natural / divisor;
 
         for (unsigned int t = first; t < first + span && t < count; ++t)
             tracks[t].push_back(share);
     }
 
     std::vector<Constraints> result;
-    result.reserve(count);
     for (std::vector<Constraints> const& track : tracks)
-        result.push_back(track.empty() ? Constraints()
-                : aggregateBand(track, false));
+    {
+        if (!track.empty())
+            result.push_back(aggregateBand(track, false));
+    }
     return result;
 }
 
-// A grid's band on one axis: the along rule over its tracks. The grid lines
-// hold every track to the same extent, so the natural and the floor are the
-// largest track's times the track count, while the maxes and the flex weights
-// sum as along any axis. An empty track holds nothing and caps nothing; a grid
-// without @p hasCells is empty content of zero natural.
+// A grid's band on one axis: the along rule over its occupied @p tracks, of
+// @p count in all. The grid lines hold every track to the same extent, so the
+// natural and the min are the largest track's times the track count, the max
+// the smallest track's times the count, and the flex weights sum as along any
+// axis. An empty track holds nothing and caps nothing; a grid with no occupied
+// track is empty content of zero natural.
 Constraints gridAxisBand(std::vector<Constraints> const& tracks,
-        bool hasCells)
+        unsigned int count)
 {
-    float count = static_cast<float>(tracks.size());
+    float n = static_cast<float>(count);
 
     Constraints result;
+    if (tracks.empty())
+    {
+        result.natural = 0.0f;
+        return result;
+    }
+
     result.flex = aggregateFlex(tracks, true);
-    bool flexes = result.flex && result.flex->coeff > 0.0f;
     result.natural = aggregateNatural(tracks, false);
-    result.min = flexes
-        ? aggregateFloor(tracks, false)
-        : aggregateMin(tracks, false);
+    result.min = aggregateMin(tracks, false);
     result.max = aggregateMax(tracks, true);
 
-    if (!hasCells)
-        result.natural = BandNatural{ 0.0f, contentStrength() };
-    else if (result.natural)
-        result.natural->value *= count;
+    if (result.natural)
+        *result.natural *= n;
     if (result.min)
-        *result.min *= count;
+        *result.min *= n;
     if (result.min && result.max && *result.min > *result.max)
         result.max = result.min;
     if (result.natural && result.max)
-        result.natural->value = std::min(result.natural->value, *result.max);
+        result.natural = std::min(*result.natural, *result.max);
 
     return result;
 }
@@ -1189,13 +1141,9 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
                 std::vector<BoxVariables> const& boxes,
                 std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
-        bool hasCells = std::any_of(cells.begin(),
-                cells.begin() + static_cast<std::ptrdiff_t>(
-                    std::min(cells.size(), childBands.size())),
-                [](GridCell const& cell) { return cell.w > 0 && cell.h > 0; });
+        unsigned int count = thisAxis == Axis::x ? columns : rows;
         Constraints result = gridAxisBand(trackBands(childBands, cells,
-                    thisAxis, thisAxis == Axis::x ? columns : rows), hasCells);
-        bool flexes = result.flex && result.flex->coeff > 0.0f;
+                    thisAxis, count), count);
 
         LayoutSpec& rel = result.relations;
 
@@ -1229,17 +1177,6 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
                 placeOnAxis(rel.constraints, thisAxis, boxes[i],
                         lines.ys[cell.y + cell.h], lines.ys[cell.y],
                         gravities[i], childBands[i], arrange::Strength::weak());
-        }
-
-        // The container's own weak size default, so an axis its parent neither
-        // sizes nor fills still resolves to a definite extent. Dropped on a
-        // flexing axis and where a child states a natural, as the pure box and
-        // stack drop it.
-        if (!flexes && !result.natural)
-        {
-            rel.constraints.push_back(thisAxis == Axis::x
-                    ? weakWidthDefault(container)
-                    : weakHeightDefault(container));
         }
 
         if (thisAxis == Axis::x)
@@ -1345,7 +1282,6 @@ AnyWidget solverBox(Axis axis, bool baseline,
             {
                 return solverBoxBuilders(axis, baseline, std::move(builders));
             },
-            axis,
             std::move(widgets));
 }
 
@@ -1376,102 +1312,34 @@ AnyWidget solverBaselineHbox(bq::signal::ArraySignal<AnyWidget> widgets)
     return solverBox(Axis::x, true, std::move(widgets));
 }
 
-Constraints fillerAxisBand(Axis thisAxis, std::optional<Axis> layoutAxis)
-{
-    if (layoutAxis && thisAxis != *layoutAxis)
-        return Constraints();
-
-    Constraints c;
-    c.flex = Flex{ 1.0f };
-    return c;
-}
-
-namespace
-{
-    // The band a directional filler contributes on one axis. An axis it does not
-    // fill is pinned to zero, or the gap drive / cross-fill would stretch a
-    // no-extent child there; an axis it fills flexes like a plain filler when it
-    // is the layout axis and is left free (cross-fill stretches it) otherwise.
-    Constraints directionalFillerAxisBand(Axis thisAxis, bool fill,
-            std::optional<Axis> layoutAxis)
-    {
-        if (!fill)
-        {
-            Constraints c;
-            c.natural = BandNatural{ 0.0f, contentStrength() };
-            return c;
-        }
-        return fillerAxisBand(thisAxis, layoutAxis);
-    }
-
-    // Builds a filler's PureLayout from the seeded layout-axis signal: band
-    // produces one axis's Constraints from its current value, evaluated inside
-    // the per-axis map so it tracks the real context.
-    template <typename TBand>
-    PureLayout fillerPureLayout(TBand band,
-            bq::signal::AnySignal<std::optional<Axis>> axisSig)
-    {
-        auto sharedAxis = std::move(axisSig).share();
-
-        auto width = sharedAxis.clone().map(
-                [band](std::optional<Axis> layoutAxis)
-                {
-                    return band(Axis::x, layoutAxis);
-                });
-
-        WidthToConstraints heightForWidth =
-            [band, sharedAxis](bq::signal::AnySignal<LayoutSolution>)
-                -> bq::signal::AnySignal<Constraints>
-            {
-                return sharedAxis.clone().map(
-                        [band](std::optional<Axis> layoutAxis)
-                        {
-                            return band(Axis::y, layoutAxis);
-                        });
-            };
-
-        return simplePureLayout(
-                bq::signal::AnySignal<Constraints>(std::move(width)),
-                std::move(heightForWidth));
-    }
-} // namespace
-
 AnyWidget filler()
 {
-    return makeWidget()
-        | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                [](widget::AnyBuilder builder) -> widget::AnyBuilder
-                {
-                    BuildParams const& params = builder.getBuildParams();
-                    builder.setPureLayout(fillerPureLayout(
-                            [](Axis thisAxis, std::optional<Axis> layoutAxis)
-                            {
-                                return fillerAxisBand(thisAxis, layoutAxis);
-                            },
-                            flexAxis(params)));
-                    return builder;
-                }));
+    return makeWidget();
 }
 
 namespace
 {
-    AnyWidget directionalFiller(bool fillX, bool fillY)
+    // An empty widget that grows on one axis and is pulled to zero on the
+    // other.
+    AnyWidget directionalFiller(Axis grows)
     {
         return makeWidget()
             | modifier::makeWidgetModifier(modifier::makeBuilderModifier(
-                    [fillX, fillY](widget::AnyBuilder builder)
-                        -> widget::AnyBuilder
+                    [grows](widget::AnyBuilder builder) -> widget::AnyBuilder
                     {
-                        BuildParams const& params = builder.getBuildParams();
-                        builder.setPureLayout(fillerPureLayout(
-                                [fillX, fillY](Axis thisAxis,
-                                    std::optional<Axis> layoutAxis)
+                        Constraints zero;
+                        zero.natural = 0.0f;
+                        Constraints width = grows == Axis::x
+                            ? Constraints() : zero;
+                        Constraints height = grows == Axis::y
+                            ? Constraints() : zero;
+                        builder.setPureLayout(simplePureLayout(
+                                bq::signal::constant(std::move(width)),
+                                [height](bq::signal::AnySignal<LayoutSolution>)
+                                    -> bq::signal::AnySignal<Constraints>
                                 {
-                                    return directionalFillerAxisBand(thisAxis,
-                                            thisAxis == Axis::x ? fillX : fillY,
-                                            layoutAxis);
-                                },
-                                flexAxis(params)));
+                                    return bq::signal::constant(height);
+                                }));
                         return builder;
                     }));
     }
@@ -1479,17 +1347,17 @@ namespace
 
 AnyWidget hfiller()
 {
-    return directionalFiller(true, false);
+    return directionalFiller(Axis::x);
 }
 
 AnyWidget vfiller()
 {
-    return directionalFiller(false, true);
+    return directionalFiller(Axis::y);
 }
 
 AnyWidget hwfiller()
 {
-    return directionalFiller(true, true);
+    return filler();
 }
 
 AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
@@ -1499,7 +1367,6 @@ AnyWidget solverStack(bq::signal::ArraySignal<AnyWidget> widgets)
             {
                 return solverStackBuilders(std::move(builders));
             },
-            std::nullopt,
             std::move(widgets));
 }
 
@@ -1518,7 +1385,6 @@ AnyWidget solverUniformGrid(std::vector<AnyWidget> widgets,
                 return solverGridBuilders(cells, columns, rows,
                         std::move(builders));
             },
-            std::make_optional(std::optional<Axis>()),
             toArray(std::move(widgets)));
 }
 
@@ -1534,17 +1400,18 @@ PureRegion buildPureRegion(AnyWidget const& content,
     auto sharedSize = std::move(size).share();
     auto gravity = builder.getGravity().share();
 
-    // The region owner alone anchors the outermost box to the assigned
-    // rectangle; every container inside states only relative structure. The
-    // root is built at the assigned size whatever the solve says, so only the
-    // top descriptor's relations and own placements are flattened: its band
-    // would only lose to the anchor.
+    // The region owner alone places the outermost box, at the top-left of the
+    // assigned rectangle, filling it within the box's own min and max; every
+    // container inside states only relative structure. The root's natural is
+    // left out, so the fill decides its extent.
     auto anchored = [root](Axis axis)
     {
         return [root, axis](Constraints const& constraints,
                 avg::Vector2f size, avg::Vector2f gravity)
         {
             Constraints content;
+            content.min = constraints.min;
+            content.max = constraints.max;
             content.relations = constraints.relations;
             content.placements = constraints.placements;
             std::vector<LayoutSpec> all;
@@ -1561,7 +1428,7 @@ PureRegion buildPureRegion(AnyWidget const& content,
             anchor.constraints.push_back(
                     (arrange::Expression(trail)
                         == arrange::Expression(static_cast<double>(extent)))
-                    | regionAnchorStrength());
+                    | regionFillStrength());
             anchor.variables.push_back(lead);
             anchor.variables.push_back(trail);
             all.push_back(std::move(anchor));
@@ -1588,14 +1455,44 @@ PureRegion buildPureRegion(AnyWidget const& content,
     auto solution = combineSolutions(widthSolution.clone(),
             std::move(heightSolution)).share();
 
-    auto band = merge(std::move(width), std::move(heightBands)).map(
+    auto band = merge(width.clone(), heightBands.clone()).map(
             [](Constraints width, Constraints height)
             {
                 return RegionBand{ std::move(width), std::move(height) };
             });
 
+    // The root is built at the size the solve gives it, the assigned size held
+    // within its own bounds, with its top edge at the top of the region in the
+    // widget tree's y-up space.
+    auto clamp = [](float value, Constraints const& band)
+    {
+        if (band.max)
+            value = std::min(value, *band.max);
+        if (band.min)
+            value = std::max(value, *band.min);
+        return value;
+    };
+    auto rootSize = merge(sharedSize.clone(), width.clone(), heightBands.clone())
+        .map([clamp](avg::Vector2f size, Constraints const& width,
+                    Constraints const& height)
+            {
+                return avg::Vector2f(clamp(size[0], width),
+                        clamp(size[1], height));
+            }).share();
+    auto rootTransform = merge(rootSize.clone(), sharedSize.clone()).map(
+            [](avg::Vector2f rootSize, avg::Vector2f size)
+            {
+                return avg::Transform().translate(
+                        avg::Vector2f(0.0f, size[1] - rootSize[1]));
+            });
+
+    auto placed = std::move(builder)
+        | modifier::transformBuilder(bq::signal::AnySignal<avg::Transform>(
+                    std::move(rootTransform)));
+
     return PureRegion{
-        std::move(builder)(sharedSize.clone(), solution.clone()),
+        std::move(placed)(bq::signal::AnySignal<avg::Vector2f>(
+                    std::move(rootSize)), solution.clone()),
         bq::signal::AnySignal<RegionBand>(std::move(band))
     };
 }

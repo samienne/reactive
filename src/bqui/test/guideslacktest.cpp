@@ -301,8 +301,8 @@ TEST(GuideSlack, fixedSizeRowsStillAlignByMovingTheRow)
     };
     Solved s = solve(vbox(list({ row(r1, 50.0f), row(r2, 80.0f) })));
 
-    EXPECT_NEAR(190.0f, left(s[r1.field]), 0.01f);
-    EXPECT_NEAR(190.0f, left(s[r2.field]), 0.01f);
+    EXPECT_NEAR(80.0f, left(s[r1.field]), 0.01f);
+    EXPECT_NEAR(80.0f, left(s[r2.field]), 0.01f);
     EXPECT_NEAR(50.0f, width(s[r1.label]), 0.01f);
     EXPECT_FALSE(s.guideUnmet()) << s.log;
 }

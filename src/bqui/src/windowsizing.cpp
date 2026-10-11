@@ -17,7 +17,7 @@ int64_t initialExtent(widget::Constraints const& band,
     if (explicitValue)
         value = *explicitValue;
     else if (band.natural)
-        value = band.natural->value;
+        value = *band.natural;
 
     auto extent = static_cast<int64_t>(std::ceil(value));
     if (band.max)
@@ -29,15 +29,6 @@ int64_t initialExtent(widget::Constraints const& band,
 }
 
 } // namespace
-
-float clampToBand(float value, widget::Constraints const& band)
-{
-    if (band.max)
-        value = std::min(value, *band.max);
-    if (band.min)
-        value = std::max(value, *band.min);
-    return value;
-}
 
 avg::Vector2i initialWindowSize(
         widget::Constraints const& width,
