@@ -82,7 +82,7 @@ auto makeLabel(bq::signal::AnySignal<Theme> theme,
 
     return makeWidget()
         | modifier::onDraw(drawLabel, text, sharedTheme.clone())
-        | modifier::defaultSize(extents.clone().map(
+        | modifier::fixedSize(extents.clone().map(
                     [](avg::TextExtents const& e) { return e.size; }))
         | modifier::setAnchor(baselineAnchor,
                 sharedTheme.clone().map(labelBaseline))

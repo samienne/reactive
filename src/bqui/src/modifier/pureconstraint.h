@@ -22,19 +22,20 @@ namespace bqui::modifier::detail
     };
 
     /**
-     * @brief A widget modifier that replaces the natural (preferred) extent band
-     * on @p axis with @p value at @p strength.
+     * @brief A widget modifier that replaces the natural (preferred) extent
+     * on @p axis with @p value.
      *
      * The band lives by name on the builder's descriptor, so a later natural
      * write on the same axis overrides this one outright rather than competing
      * with it.
      */
     AnyWidgetModifier pureNaturalModifier(PureAxis axis,
-            arrange::Strength strength, bq::signal::AnySignal<float> value);
+            bq::signal::AnySignal<float> value);
 
     /**
      * @brief A widget modifier that fixes the extent on @p axis at @p value,
-     * replacing the natural and clearing any flex there (widget::setPureFixed()).
+     * setting min, max and natural and clearing any flex there
+     * (widget::setPureFixed()).
      */
     AnyWidgetModifier pureFixedModifier(PureAxis axis,
             bq::signal::AnySignal<float> value);

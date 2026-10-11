@@ -130,8 +130,8 @@ TEST(SizeBoundary, makeWidgetWithSizeBandIgnoresContent)
     Constraints height = heightBandOf(sized);
     ASSERT_TRUE(width.natural.has_value());
     ASSERT_TRUE(height.natural.has_value());
-    EXPECT_FLOAT_EQ(30.0f, width.natural->value);
-    EXPECT_FLOAT_EQ(20.0f, height.natural->value);
+    EXPECT_FLOAT_EQ(30.0f, *width.natural);
+    EXPECT_FLOAT_EQ(20.0f, *height.natural);
 }
 
 TEST(SizeBoundary, binBandIgnoresContent)
@@ -157,13 +157,13 @@ TEST(SizeBoundary, scrollViewBandIgnoresContent)
         Constraints emptyWidth = widthBandOf(empty);
         ASSERT_TRUE(width.natural.has_value());
         ASSERT_TRUE(emptyWidth.natural.has_value());
-        EXPECT_FLOAT_EQ(emptyWidth.natural->value, width.natural->value);
+        EXPECT_FLOAT_EQ(*emptyWidth.natural, *width.natural);
 
         Constraints height = heightBandOf(view);
         Constraints emptyHeight = heightBandOf(empty);
         ASSERT_TRUE(height.natural.has_value());
         ASSERT_TRUE(emptyHeight.natural.has_value());
-        EXPECT_FLOAT_EQ(emptyHeight.natural->value, height.natural->value);
+        EXPECT_FLOAT_EQ(*emptyHeight.natural, *height.natural);
     }
 }
 
@@ -210,7 +210,7 @@ TEST(SizeBoundary, regionPublishesContentBand)
     ASSERT_TRUE(band.width.natural.has_value());
     EXPECT_FLOAT_EQ(50.0f, *band.width.min);
     EXPECT_FLOAT_EQ(200.0f, *band.width.max);
-    EXPECT_FLOAT_EQ(80.0f, band.width.natural->value);
+    EXPECT_FLOAT_EQ(80.0f, *band.width.natural);
     EXPECT_FALSE(band.width.flex.has_value());
 
     ASSERT_TRUE(band.height.min.has_value());
@@ -218,7 +218,7 @@ TEST(SizeBoundary, regionPublishesContentBand)
     ASSERT_TRUE(band.height.natural.has_value());
     EXPECT_FLOAT_EQ(20.0f, *band.height.min);
     EXPECT_FLOAT_EQ(60.0f, *band.height.max);
-    EXPECT_FLOAT_EQ(30.0f, band.height.natural->value);
+    EXPECT_FLOAT_EQ(30.0f, *band.height.natural);
 }
 
 TEST(SizeBoundary, regionBandAggregatesColumn)
@@ -233,8 +233,8 @@ TEST(SizeBoundary, regionBandAggregatesColumn)
 
     ASSERT_TRUE(band.width.natural.has_value());
     ASSERT_TRUE(band.height.natural.has_value());
-    EXPECT_FLOAT_EQ(100.0f, band.width.natural->value);
-    EXPECT_FLOAT_EQ(80.0f, band.height.natural->value);
+    EXPECT_FLOAT_EQ(100.0f, *band.width.natural);
+    EXPECT_FLOAT_EQ(80.0f, *band.height.natural);
 }
 
 // The height band is read at the width the region is solved at: a leaf whose
@@ -246,5 +246,5 @@ TEST(SizeBoundary, regionHeightBandIsAtSolvedWidth)
             avg::Vector2f(300.0f, 400.0f));
 
     ASSERT_TRUE(band.height.natural.has_value());
-    EXPECT_FLOAT_EQ(20.0f, band.height.natural->value);
+    EXPECT_FLOAT_EQ(20.0f, *band.height.natural);
 }

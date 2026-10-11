@@ -59,26 +59,15 @@ namespace bqui::widget
     using LayoutSolution = std::unordered_map<arrange::Id, double>;
 
     /**
-     * @brief A widget's grow coefficient on one axis: its filler weight. The
-     * widget's container couples @c extent==coeff*F against its shared flex
-     * variable when it stamps the widget, and the coefficient rides up in the
-     * band so a container holding a filler is itself a filler to its parent.
+     * @brief A widget's grow weight on one axis.
+     *
+     * Along a box the container couples the widget's extent to its shared flex
+     * variable by this weight, so growers share the slack by weight. The weight
+     * rides up in the band, so a container holding a grower grows too.
      */
     struct Flex
     {
         float coeff;
-    };
-
-    /**
-     * @brief The preferred (natural) extent of a box on one axis, with the
-     * strength it is held at (weakest for a default, strong for a fixed size).
-     * Distinct from the min/max bounds: the natural is the size the box settles
-     * at inside them.
-     */
-    struct BandNatural
-    {
-        float value;
-        arrange::Strength strength;
     };
 
     /**
@@ -144,9 +133,13 @@ namespace bqui::widget
      * flatten time, against the box it is emitted on.
      *
      * @c relations is everything else — tiling, wrapper inner/outer relations,
-     * a filler's flex coupling — and is additive. It is a
+     * a grower's flex coupling — and is additive. It is a
      * LayoutSpec rather than a bare constraint list so the read-back variables
      * the solver API needs travel with the constraints that name them.
+     *
+     * @c aggregate marks a box's band along its own layout axis. The box prices
+     * its growth there through its children and its gap, so its parent adds
+     * no pull of its own to the band's basis.
      *
      * @c anchors keys points on the box beyond its edges (baselineAnchor).
      * Size words keep them, an inset wrapper offsets them onto its outer box,
@@ -163,8 +156,9 @@ namespace bqui::widget
     {
         std::optional<float> min;            ///< strong lower bound on extent
         std::optional<float> max;            ///< strong upper bound on extent
-        std::optional<BandNatural> natural;  ///< preferred extent, at a strength
-        std::optional<Flex> flex;            ///< filler coefficient (aggregated)
+        std::optional<float> natural;        ///< preferred extent, a weak pull
+        std::optional<Flex> flex;            ///< grow weight (aggregated)
+        bool aggregate = false;              ///< a box's band along its axis
         std::map<AnchorId, BandAnchor> anchors; ///< keyed anchors on this axis
         std::vector<GuideBinding> guides;    ///< points bound to guides
         std::vector<GravityPlacement> placements; ///< placed by own gravity
@@ -335,8 +329,7 @@ namespace bqui::widget
     BQUI_EXPORT PureLayout emptyPureLayout();
 
     /**
-     * @brief A PureLayout holding @p size as the natural on both axes, at
-     * content strength.
+     * @brief A PureLayout holding @p size as the natural on both axes.
      */
     BQUI_EXPORT PureLayout pureLayoutFromSize(
             bq::signal::AnySignal<avg::Vector2f> size);

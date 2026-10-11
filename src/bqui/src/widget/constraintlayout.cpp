@@ -52,7 +52,7 @@ namespace
         if (strength == maxStrength())
             return "max";
         if (strength == fixedStrength())
-            return "fixed";
+            return "pin";
         if (strength == alignStrength())
             return "align";
         if (strength == guideStrength())
@@ -213,14 +213,11 @@ namespace
 } // namespace
 
 void setPureNatural(AnyBuilder& builder, Axis axis,
-        bq::signal::AnySignal<float> value, arrange::Strength strength)
+        bq::signal::AnySignal<float> value)
 {
     PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
-            [strength](Constraints& c, float v)
-            {
-                c.natural = BandNatural{ v, strength };
-            });
+            [](Constraints& c, float v) { c.natural = v; });
     builder.setPureLayout(std::move(layout));
 }
 
@@ -231,7 +228,9 @@ void setPureFixed(AnyBuilder& builder, Axis axis,
     updateBand(layout, axis, std::move(value),
             [](Constraints& c, float v)
             {
-                c.natural = BandNatural{ v, fixedStrength() };
+                c.min = v;
+                c.max = v;
+                c.natural = v;
                 c.flex.reset();
             });
     builder.setPureLayout(std::move(layout));
@@ -251,7 +250,12 @@ void setPureMin(AnyBuilder& builder, Axis axis,
 {
     PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
-            [](Constraints& c, float v) { c.min = v; });
+            [](Constraints& c, float v)
+            {
+                c.min = v;
+                if (c.max && *c.max < v)
+                    c.max = v;
+            });
     builder.setPureLayout(std::move(layout));
 }
 
@@ -260,7 +264,12 @@ void setPureMax(AnyBuilder& builder, Axis axis,
 {
     PureLayout layout = builder.getPureLayout();
     updateBand(layout, axis, std::move(value),
-            [](Constraints& c, float v) { c.max = v; });
+            [](Constraints& c, float v)
+            {
+                c.max = v;
+                if (c.min && *c.min > v)
+                    c.min = v;
+            });
     builder.setPureLayout(std::move(layout));
 }
 
@@ -342,7 +351,7 @@ void applyPureInset(AnyBuilder& builder, bq::signal::AnySignal<float> inset)
     {
         float d = 2.0f * ins;
         if (c.natural)
-            c.natural->value += d;
+            *c.natural += d;
         if (c.min)
             *c.min += d;
         if (c.max)
@@ -428,18 +437,15 @@ LayoutSpec flattenConstraints(Constraints const& constraints,
         return axis == Axis::x ? box.width() : box.height();
     };
 
-    // A flexing widget's natural is a flex-basis: dropped here so the container's
-    // slack distribution (the flex coupling plus the gap drive) is free to
-    // stretch it, exactly as a filler carries no natural on its flex axis. It
-    // stays in the band for the parent's aggregation; only the stamp onto the box
-    // drops it. Without a flex it is baked as the widget's content/natural size.
+    // A grower's natural is its flex basis, which the container pulls it to
+    // instead, so the slack can stretch it.
     bool flexes = constraints.flex && constraints.flex->coeff > 0.0f;
     if (constraints.natural && !flexes)
     {
         spec.constraints.push_back(
                 (extent() == arrange::Expression(
-                        static_cast<double>(constraints.natural->value)))
-                | constraints.natural->strength);
+                        static_cast<double>(*constraints.natural)))
+                | contentStrength());
     }
     if (constraints.min)
     {
@@ -634,11 +640,10 @@ std::vector<arrange::Constraint> anchorConstraints(BoxVariables const& box,
     };
 }
 
-// The stated sizes rank min > max > fixed (as CSS ranks min-width over
-// max-width over width) by scaling the strong lane, with the region anchor
-// above them all. The weights stay small: the objective mixes them with the
-// weak(1e-5) flex coupling, which a much heavier strong weight would lose to
-// round-off.
+// The bounds rank min over max by scaling the strong lane, with the region's
+// leading pin above them all. The weights stay small: the objective mixes them
+// with the weak(1e-5) flex coupling, which a much heavier strong weight would
+// lose to round-off.
 arrange::Strength regionAnchorStrength()
 {
     return arrange::Strength::strong(10.0);
@@ -669,30 +674,14 @@ arrange::Strength guideStrength()
     return arrange::Strength::strong(0.5);
 }
 
-arrange::Strength weakestStrength()
+arrange::Strength regionFillStrength()
 {
-    // One weak lane holds gravity and natural at weight 1; the default rides the
-    // same lane a thousand times lighter, so any of them dominates it and it
-    // never ties one to be averaged, yet it is heavy enough to pin an otherwise
-    // free axis to a definite value.
-    return arrange::Strength::weak(0.001);
+    return arrange::Strength::medium();
 }
 
 arrange::Strength contentStrength()
 {
-    // Top of the weak lane: above the fallback default (0.001), the gap drive
-    // (0.0008) and the weak(1.0) cross-fill, but a whole lane below medium.
     return arrange::Strength::weak(2.0);
-}
-
-arrange::Constraint weakWidthDefault(BoxVariables const& box)
-{
-    return (box.width() == arrange::Expression(100.0)) | weakestStrength();
-}
-
-arrange::Constraint weakHeightDefault(BoxVariables const& box)
-{
-    return (box.height() == arrange::Expression(100.0)) | weakestStrength();
 }
 
 void placeInSlot(std::vector<arrange::Constraint>& out,

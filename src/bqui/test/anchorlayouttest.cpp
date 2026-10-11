@@ -215,7 +215,7 @@ TEST(AnchorLayout, childWithoutBaselineAlignsItsBottom)
     Instance instance = realiseConverged(atTop(idRow, baselineHbox(list({
             baselineProbe(idText, 30.0f, 40.0f, 30.0f),
             plainProbe(idBox, 30.0f, 50.0f),
-            withArea(makeWidget() | modifier::growHeight(), idFill) }))),
+            withArea(makeWidget(), idFill) }))),
             window);
 
     Geometry row = readProbe(instance, idRow);

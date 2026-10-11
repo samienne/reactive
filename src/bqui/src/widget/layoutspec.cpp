@@ -51,7 +51,7 @@ PureLayout pureLayoutFromSize(bq::signal::AnySignal<avg::Vector2f> size)
     auto natural = [](float value)
     {
         Constraints c;
-        c.natural = BandNatural{ value, contentStrength() };
+        c.natural = value;
         return c;
     };
 
