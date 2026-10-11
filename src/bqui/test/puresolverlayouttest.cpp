@@ -1443,9 +1443,9 @@ TEST(PureSolverLayout, flexingRowFillerStaysNonNegative)
 // Double nesting: the widest child sits behind an extra column.
 // vbox({ vbox({ hbox({fixed 60, hfiller}) }), hbox({fixed 200}) }) must still
 // encompass the 200 fixed row, and the doubly nested filler stays non-negative.
-// The row's horizontal flex is cross-axis to the inner column, so the inner
-// column holds its natural 60 rather than stretching to 200, leaving the filler
-// nothing.
+// The inner column's only child stretches across it, so the inner column
+// stretches too and fills the 200 the outer column takes from the fixed row,
+// handing the filler 140.
 TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
 {
     avg::Vector2f const window(400.0f, 200.0f);
@@ -1484,7 +1484,7 @@ TEST(PureSolverLayout, nestedColumnEncompassesWidestChild)
 
     EXPECT_FLOAT_EQ(200.0f, sibling.position[0]);
     EXPECT_GE(narrowFiller.size[0], 0.0f);
-    EXPECT_FLOAT_EQ(0.0f, narrowFiller.size[0]);
+    EXPECT_FLOAT_EQ(140.0f, narrowFiller.size[0]);
 }
 
 // A frame is layout-transparent in a pure region: its margin insets the
@@ -2025,11 +2025,10 @@ TEST(PureSolverLayout, stackFlexesAsFillerInParent)
     EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
 }
 
-// Content children in a flexing stack settle at their own natural inside the
-// filled slot; they do not size the slot. A stack{filler, two 40-natural leaves}
-// beside a fixed 40 leaf in a 400 row still fills the remaining 360 -- the fill
-// lifts the content to the slot without the content dragging the slot down.
-TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
+// A stack stretches only when every child does, so a rigid child holds it at
+// its natural: a stack{filler, fixed 40 leaf} beside a fixed 40 leaf in a 400
+// row is 40 wide, the filler fills those 40 and the leaf after it starts at 40.
+TEST(PureSolverLayout, stackWithRigidChildHoldsItsNatural)
 {
     avg::Vector2f const window(400.0f, 100.0f);
 
@@ -2054,19 +2053,17 @@ TEST(PureSolverLayout, stackContentDoesNotShrinkFlexingSlot)
     Geometry contentA = readProbe(instance, idContentA);
     Geometry leaf = readProbe(instance, idLeaf);
 
-    EXPECT_FLOAT_EQ(360.0f, innerFiller.size[0]);
+    EXPECT_FLOAT_EQ(40.0f, innerFiller.size[0]);
     EXPECT_FLOAT_EQ(40.0f, contentA.size[0]);
-    EXPECT_FLOAT_EQ(160.0f, contentA.position[0]);
-    EXPECT_FLOAT_EQ(360.0f, leaf.position[0]);
+    EXPECT_FLOAT_EQ(0.0f, contentA.position[0]);
+    EXPECT_FLOAT_EQ(40.0f, leaf.position[0]);
 }
 
 // A flexing stack fills its parent's slack only up to its aggregate max bound,
-// the cross-axis maximum of its children's maxes, published since every child
-// is capped. A stack{filler capped at 120, leaf capped at 100, leaf capped at
-// 150} offered 360 of slack in a row holds at max(120,100,150) = 150, so the
-// leaf after it starts at 150; a bug that let content drag the slot to its
-// natural (40) or that summed the caps (370) both fail this. A single uncapped
-// child would leave the stack uncapped.
+// the smallest of its children's maxes. A stack{filler capped at 120, growing
+// leaf capped at 100, growing leaf capped at 150} offered 360 of slack in a row
+// holds at min(120,100,150) = 100, so the leaf after it starts at 100; taking
+// the largest cap (150) or summing the caps (370) both fail this.
 TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
 {
     avg::Vector2f const window(400.0f, 100.0f);
@@ -2076,8 +2073,8 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
     btl::UniqueId const idCap150 = btl::makeUniqueId();
     btl::UniqueId const idLeaf = btl::makeUniqueId();
 
-    Band const cap100 = { 40.0f, 40.0f, 100.0f };
-    Band const cap150 = { 40.0f, 40.0f, 150.0f };
+    Band const cap100 = { 40.0f, 40.0f, 100.0f, 1.0f };
+    Band const cap150 = { 40.0f, 40.0f, 150.0f, 1.0f };
 
     std::vector<AnyWidget> stackChildren;
     stackChildren.push_back(withArea(filler() | modifier::maxWidth(120.0f),
@@ -2094,8 +2091,8 @@ TEST(PureSolverLayout, stackFlexFillsToAggregateMaxCap)
             hbox(ArraySignal<AnyWidget>(std::move(row))),
             window);
 
-    EXPECT_FLOAT_EQ(120.0f, readProbe(instance, idInnerFiller).size[0]);
-    EXPECT_FLOAT_EQ(150.0f, readProbe(instance, idLeaf).position[0]);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idInnerFiller).size[0]);
+    EXPECT_FLOAT_EQ(100.0f, readProbe(instance, idLeaf).position[0]);
 }
 
 // A pure grid partitions the container into uniform tracks and places each child
@@ -2824,22 +2821,23 @@ TEST(PureSolverLayout, scrollViewInRowFillsVertically)
     EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
 }
 
-// A flexible child fills its grid cell, and its natural does not inflate the
-// grid: a 2x1 grid holding a fixed 40 leaf and a flexible leaf with an 800
-// natural height, above a fixed 40 footer in a 300-tall window, takes the 260
-// left over and the flexible leaf fills its cell's height.
+// A flexible child fills its grid cell, and its natural does not inflate a
+// flexing grid: a 2x1 grid holding a leaf growing from 40 and a flexible leaf
+// with an 800 natural height, above a fixed 40 footer in a 300-tall window,
+// takes the 260 left over and both leaves fill their cells' height.
 TEST(PureSolverLayout, flexibleChildFillsGridCell)
 {
     avg::Vector2f const window(400.0f, 300.0f);
 
-    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idGrow = btl::makeUniqueId();
     btl::UniqueId const idFlex = btl::makeUniqueId();
     btl::UniqueId const idFooter = btl::makeUniqueId();
 
     Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+    Band const grow40 = { 40.0f, 40.0f, 10000.0f, 1.0f };
 
     AnyWidget grid = uniformGrid(2, 1)
-        .cell(0, 0, 1, 1, probe(idFixed, fixed40, fixed40))
+        .cell(0, 0, 1, 1, probe(idGrow, fixed40, grow40))
         .cell(1, 0, 1, 1, probe(idFlex, fixed40, growY));
 
     std::vector<ArraySignal<AnyWidget>> column;
@@ -2850,31 +2848,32 @@ TEST(PureSolverLayout, flexibleChildFillsGridCell)
             vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
-    Geometry fixed = readProbe(instance, idFixed);
+    Geometry grow = readProbe(instance, idGrow);
     Geometry flex = readProbe(instance, idFlex);
     Geometry footer = readProbe(instance, idFooter);
 
     EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
     EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
-    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, grow.size[1]);
     EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
 }
 
-// A flexible child fills its stack slot, and its natural does not inflate the
-// stack: the layout of flexibleChildFillsGridCell with the two leaves overlaid
-// in a stack.
+// A flexible child fills its stack slot, and its natural does not inflate a
+// flexing stack: the layout of flexibleChildFillsGridCell with the two leaves
+// overlaid in a stack.
 TEST(PureSolverLayout, flexibleChildFillsStackSlot)
 {
     avg::Vector2f const window(400.0f, 300.0f);
 
-    btl::UniqueId const idFixed = btl::makeUniqueId();
+    btl::UniqueId const idGrow = btl::makeUniqueId();
     btl::UniqueId const idFlex = btl::makeUniqueId();
     btl::UniqueId const idFooter = btl::makeUniqueId();
 
     Band const growY = { 20.0f, 800.0f, 10000.0f, 1.0f };
+    Band const grow40 = { 40.0f, 40.0f, 10000.0f, 1.0f };
 
     std::vector<AnyWidget> layers;
-    layers.push_back(probe(idFixed, fixed40, fixed40));
+    layers.push_back(probe(idGrow, fixed40, grow40));
     layers.push_back(probe(idFlex, fixed40, growY));
 
     std::vector<ArraySignal<AnyWidget>> column;
@@ -2885,13 +2884,13 @@ TEST(PureSolverLayout, flexibleChildFillsStackSlot)
             vbox(ArraySignal<AnyWidget>(std::move(column))),
             window);
 
-    Geometry fixed = readProbe(instance, idFixed);
+    Geometry grow = readProbe(instance, idGrow);
     Geometry flex = readProbe(instance, idFlex);
     Geometry footer = readProbe(instance, idFooter);
 
     EXPECT_FLOAT_EQ(260.0f, flex.size[1]);
     EXPECT_FLOAT_EQ(40.0f, flex.position[1]);
-    EXPECT_FLOAT_EQ(40.0f, fixed.size[1]);
+    EXPECT_FLOAT_EQ(260.0f, grow.size[1]);
     EXPECT_FLOAT_EQ(0.0f, footer.position[1]);
 }
 

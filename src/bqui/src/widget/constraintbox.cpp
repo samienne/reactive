@@ -448,21 +448,24 @@ std::optional<BandNatural> aggregateNatural(
     return result;
 }
 
-// A container's aggregate flex on one axis. Filler coefficients sum along a
-// box's main axis (fillers laid end-to-end each take a share) and take the max
-// on a stack's or grid's overlaid axes (any one flexing child flexes the whole).
-// Absent when no child flexes. Its presence on an axis is what makes a container
-// holding a filler itself a filler to its parent there.
+// A container's aggregate flex on one axis. Along the axis children tile, so
+// any flexing child makes the container flexible and the weights sum. Across it
+// they overlap, so the container stretches only if no child holds an extent of
+// its own there and at least one flexes, at the smallest flexing weight; a child
+// with neither a natural nor a flex fills whatever extent it is given and does
+// not hold the container back. Absent when the container does not flex.
 std::optional<Flex> aggregateFlex(
         std::vector<Constraints> const& children, bool mainAxis)
 {
     std::optional<float> coeff;
     for (Constraints const& child : children)
     {
-        if (!child.flex)
+        if (!mainAxis && holdsOwnExtent(child))
+            return std::nullopt;
+        if (!child.flex || child.flex->coeff <= 0.0f)
             continue;
         float c = child.flex->coeff;
-        coeff = coeff ? (mainAxis ? *coeff + c : std::max(*coeff, c)) : c;
+        coeff = coeff ? (mainAxis ? *coeff + c : std::min(*coeff, c)) : c;
     }
     if (!coeff)
         return std::nullopt;
@@ -488,10 +491,10 @@ std::optional<float> aggregateMin(std::vector<Constraints> const& children,
     return value;
 }
 
-// A container's aggregate max on one axis: the sum of the children's maxes on the
-// main axis, the largest on the cross axis. Absent unless every child carries a
-// max, since a single uncapped child leaves the container free to grow; a cap
-// taken only from the capped children would squeeze the uncapped ones.
+// A container's aggregate max on one axis. Along the axis the maxes sum, and a
+// single uncapped child leaves the container uncapped. Across it the smallest
+// cap wins, so a capped child bounds the container; uncapped children do not
+// lift it, and the container is uncapped only when no child is capped.
 std::optional<float> aggregateMax(std::vector<Constraints> const& children,
         bool mainAxis)
 {
@@ -499,9 +502,13 @@ std::optional<float> aggregateMax(std::vector<Constraints> const& children,
     for (Constraints const& child : children)
     {
         if (!child.max)
-            return std::nullopt;
+        {
+            if (mainAxis)
+                return std::nullopt;
+            continue;
+        }
         value = value ? (mainAxis ? *value + *child.max
-                                  : std::max(*value, *child.max))
+                                  : std::min(*value, *child.max))
                       : *child.max;
     }
     return value;
@@ -539,6 +546,38 @@ std::optional<float> aggregateFloor(
                       : floor;
     }
     return value;
+}
+
+// A container's aggregate band on one axis, without its relations: flex,
+// natural, min and max by the along rule on the main axis and the across rule
+// otherwise. On a flexing axis the natural is only a flex basis and the min is
+// the floor of the content (aggregateFloor). Across, a min above the smallest
+// cap wins the cap, and the natural is clamped into the bounds.
+Constraints aggregateBand(std::vector<Constraints> const& children,
+        bool mainAxis)
+{
+    Constraints result;
+    result.flex = aggregateFlex(children, mainAxis);
+    bool flexes = result.flex && result.flex->coeff > 0.0f;
+    result.natural = aggregateNatural(children, mainAxis);
+    result.min = flexes
+        ? aggregateFloor(children, mainAxis)
+        : aggregateMin(children, mainAxis);
+    result.max = aggregateMax(children, mainAxis);
+
+    if (!mainAxis)
+    {
+        if (result.min && result.max && *result.min > *result.max)
+            result.max = result.min;
+        if (result.natural && result.min)
+            result.natural->value = std::max(result.natural->value,
+                    *result.min);
+        if (result.natural && result.max)
+            result.natural->value = std::min(result.natural->value,
+                    *result.max);
+    }
+
+    return result;
 }
 
 // The vertical axis of a baseline row, in place of the plain cross placement.
@@ -677,9 +716,9 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
 
     // One axis of the container's published band. Each child's band is baked onto
     // its box (flattenConstraints) as untagged relations, and the aggregate
-    // natural/min/max/flex is republished as the container's own band: natural and
-    // the bounds aggregate main-axis SUM / cross-axis MAX, the main-axis flex
-    // rides up, and a size word at this level overrides the republished band.
+    // natural/min/max/flex is republished as the container's own band
+    // (aggregateBand: the along rule on the main axis, the across rule on the
+    // cross axis); a size word at this level overrides the republished band.
     auto buildAxis =
         [container, gap, flexShare, line, baseline](Axis thisAxis,
                 Axis layoutAxis,
@@ -690,28 +729,10 @@ AnyWidget solverBoxBuilders(Axis axis, bool baseline,
     {
         bool mainAxis = thisAxis == layoutAxis;
 
-        // A child flexing along the box makes the box flexible there too, so its
-        // flex rides up. Across the box a flexing child only fills the cross
-        // extent the box takes from its children's naturals, so the box stays
-        // rigid on that axis.
-        std::optional<Flex> flex = mainAxis
-            ? aggregateFlex(childBands, true) : std::nullopt;
-        bool flexes = flex && flex->coeff > 0.0f;
-
-        Constraints result;
-        result.flex = flex;
-        // On a flexing axis the aggregate natural is only the container's flex
-        // basis: flattenConstraints() never stamps it, so it cannot inflate the
-        // container, and the min is what floors its fixed content -- a fixed
-        // child sets natural, not min, and aggregateFloor folds those naturals in
-        // so a tight parent cannot under-allocate the container. When it does not
-        // flex the stamped natural already floors it, so keep the plain
-        // explicit-min aggregate there and do not double-constrain.
-        result.natural = aggregateNatural(childBands, mainAxis);
-        result.min = flexes
-            ? aggregateFloor(childBands, mainAxis)
-            : aggregateMin(childBands, mainAxis);
-        result.max = aggregateMax(childBands, mainAxis);
+        // Along the box any flexing child makes it flexible; across it, only
+        // children that all stretch do, and then each fills the box's extent.
+        Constraints result = aggregateBand(childBands, mainAxis);
+        bool flexes = result.flex && result.flex->coeff > 0.0f;
 
         LayoutSpec& rel = result.relations;
 
@@ -913,28 +934,16 @@ AnyWidget solverStackBuilders(
     // One axis of the container's published band. Every child's band is baked
     // onto its box (flattenConstraints) and the child is overlaid on the whole
     // container slot; the aggregate natural/min/max/flex is republished as the
-    // container's own band. A stack overlays on both axes, so every field
-    // aggregates cross-style -- the largest child wins -- and the flex rides up
-    // so a stack holding a filler is itself a filler to its parent.
+    // container's own band. A stack overlays on both axes, so both aggregate by
+    // the across rule.
     auto buildAxis =
         [container](Axis thisAxis, std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
                 std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
-        std::optional<Flex> flex = aggregateFlex(childBands, false);
-        // A stack treats both axes as a box treats its main axis: a flexing
-        // child makes the stack flexible on that axis, whichever axis it is.
-        bool flexes = flex && flex->coeff > 0.0f;
-
-        Constraints result;
-        result.flex = flex;
-        // On a flexing axis the natural is only a flex basis and the min floors
-        // the overlaid content (cross-style, the largest child's floor wins).
-        result.natural = aggregateNatural(childBands, false);
-        result.min = flexes
-            ? aggregateFloor(childBands, false)
-            : aggregateMin(childBands, false);
-        result.max = aggregateMax(childBands, false);
+        // The children overlap on both axes, so both take the across rule.
+        Constraints result = aggregateBand(childBands, false);
+        bool flexes = result.flex && result.flex->coeff > 0.0f;
 
         LayoutSpec& rel = result.relations;
 
@@ -1059,14 +1068,14 @@ AnyWidget solverStackBuilders(
         ;
 }
 
-// Each child's band on one axis spread evenly over the tracks its cell spans:
-// extents divide by the span and the flex coefficient, a weight rather than an extent, is kept whole. A child
-// spanning no tracks asks nothing of the grid and is left out.
-std::vector<Constraints> perTrackBands(std::vector<Constraints> const& bands,
-        std::vector<GridCell> const& cells, Axis axis)
+// The band of each track on one axis: the across rule over the cells in that
+// track. A child spanning several tracks is spread evenly over them -- extents
+// divide by the span and the flex weight is kept whole -- and its share joins
+// every track it spans. A child spanning no tracks asks nothing of the grid.
+std::vector<Constraints> trackBands(std::vector<Constraints> const& bands,
+        std::vector<GridCell> const& cells, Axis axis, unsigned int count)
 {
-    std::vector<Constraints> result;
-    result.reserve(bands.size());
+    std::vector<std::vector<Constraints>> tracks(count);
 
     for (std::size_t i = 0; i < bands.size() && i < cells.size(); ++i)
     {
@@ -1074,20 +1083,62 @@ std::vector<Constraints> perTrackBands(std::vector<Constraints> const& bands,
         if (cell.w == 0 || cell.h == 0)
             continue;
 
-        float span = static_cast<float>(axis == Axis::x ? cell.w : cell.h);
+        unsigned int first = axis == Axis::x ? cell.x : cell.y;
+        unsigned int span = axis == Axis::x ? cell.w : cell.h;
+        float divisor = static_cast<float>(span);
         Constraints const& band = bands[i];
 
         Constraints share;
         share.flex = band.flex;
         if (band.min)
-            share.min = *band.min / span;
+            share.min = *band.min / divisor;
         if (band.max)
-            share.max = *band.max / span;
+            share.max = *band.max / divisor;
         if (band.natural)
-            share.natural = BandNatural{ band.natural->value / span,
+            share.natural = BandNatural{ band.natural->value / divisor,
                 band.natural->strength };
-        result.push_back(std::move(share));
+
+        for (unsigned int t = first; t < first + span && t < count; ++t)
+            tracks[t].push_back(share);
     }
+
+    std::vector<Constraints> result;
+    result.reserve(count);
+    for (std::vector<Constraints> const& track : tracks)
+        result.push_back(track.empty() ? Constraints()
+                : aggregateBand(track, false));
+    return result;
+}
+
+// A grid's band on one axis: the along rule over its tracks. The grid lines
+// hold every track to the same extent, so the natural and the floor are the
+// largest track's times the track count, while the maxes and the flex weights
+// sum as along any axis. An empty track holds nothing and caps nothing; a grid
+// without @p hasCells is empty content of zero natural.
+Constraints gridAxisBand(std::vector<Constraints> const& tracks,
+        bool hasCells)
+{
+    float count = static_cast<float>(tracks.size());
+
+    Constraints result;
+    result.flex = aggregateFlex(tracks, true);
+    bool flexes = result.flex && result.flex->coeff > 0.0f;
+    result.natural = aggregateNatural(tracks, false);
+    result.min = flexes
+        ? aggregateFloor(tracks, false)
+        : aggregateMin(tracks, false);
+    result.max = aggregateMax(tracks, true);
+
+    if (!hasCells)
+        result.natural = BandNatural{ 0.0f, contentStrength() };
+    else if (result.natural)
+        result.natural->value *= count;
+    if (result.min)
+        *result.min *= count;
+    if (result.min && result.max && *result.min > *result.max)
+        result.max = result.min;
+    if (result.natural && result.max)
+        result.natural->value = std::min(result.natural->value, *result.max);
 
     return result;
 }
@@ -1129,43 +1180,22 @@ AnyWidget solverGridBuilders(std::vector<GridCell> cells,
 
     // One axis of the container's published band. Every child's band is baked
     // onto its cell box (flattenConstraints) and the child is placed within its
-    // cell, bounded by the grid lines; the aggregate natural/min/max is the
-    // largest per-track share (perTrackBands) of the children's, scaled by the
-    // grid's dimension on this axis so a full-cell child asks the container for
-    // the whole track. Flex rides up cross-style, so a grid holding a filler is
-    // itself a filler to its parent.
+    // cell, bounded by the grid lines; each track takes the across rule over
+    // its cells (trackBands) and the grid the along rule over its tracks
+    // (gridAxisBand).
     auto buildAxis =
         [container, lines, cells, columns, rows](Axis thisAxis,
                 std::vector<Constraints> const& childBands,
                 std::vector<BoxVariables> const& boxes,
                 std::vector<avg::Vector2f> const& gravities) -> Constraints
     {
-        float factor = static_cast<float>(
-                thisAxis == Axis::x ? columns : rows);
-        std::vector<Constraints> shares = perTrackBands(childBands, cells,
-                thisAxis);
-
-        std::optional<Flex> flex = aggregateFlex(shares, false);
-        // Like the stack, a flexing cell child makes the grid flexible on that
-        // axis, whichever axis it is.
-        bool flexes = flex && flex->coeff > 0.0f;
-
-        Constraints result;
-        result.flex = flex;
-        result.natural = aggregateNatural(shares, false);
-        if (result.natural)
-            result.natural->value *= factor;
-        // On a flexing axis the natural is only a flex basis and the min floors
-        // the track content; scaled by the track count like the natural, so a
-        // full-cell child's floor asks for the whole track.
-        result.min = flexes
-            ? aggregateFloor(shares, false)
-            : aggregateMin(shares, false);
-        if (result.min)
-            *result.min *= factor;
-        result.max = aggregateMax(shares, false);
-        if (result.max)
-            *result.max *= factor;
+        bool hasCells = std::any_of(cells.begin(),
+                cells.begin() + static_cast<std::ptrdiff_t>(
+                    std::min(cells.size(), childBands.size())),
+                [](GridCell const& cell) { return cell.w > 0 && cell.h > 0; });
+        Constraints result = gridAxisBand(trackBands(childBands, cells,
+                    thisAxis, thisAxis == Axis::x ? columns : rows), hasCells);
+        bool flexes = result.flex && result.flex->coeff > 0.0f;
 
         LayoutSpec& rel = result.relations;
 
