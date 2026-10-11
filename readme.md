@@ -208,7 +208,7 @@ auto boxed = widget::label("Click me")
 ```
 
 A few of the modifiers available: `frame`, `background`, `margin`, `clip`,
-`transform`, `setSize`, `setSizeHint`, `setMinimumSize`, `setGravity`,
+`transform`, `fixedSize`, `minSize`, `defaultSize`, `fill`, `setGravity`,
 `onClick`, `onHover`, the `onPointer*` handlers, and `setTheme`. Because
 modifiers are just functions joined with `|`, you can write your own without
 changing the widget types they apply to.

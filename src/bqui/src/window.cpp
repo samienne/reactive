@@ -19,6 +19,12 @@ Window Window::onClose(std::function<void()> const& cb) &&
     return std::move(*this);
 }
 
+Window Window::initialSize(avg::Vector2f size) &&
+{
+    data_->setInitialSize(size);
+    return std::move(*this);
+}
+
 bq::signal::AnySignal<std::string> const& Window::getTitle() const
 {
     return data_->getTitle();

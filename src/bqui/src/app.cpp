@@ -546,6 +546,18 @@ void test::WindowInput::injectClick(App& app, std::size_t index, float x,
     impl->injectPointerButton(0, 1, pos, ase::ButtonState::up);
 }
 
+avg::Vector2f test::WindowInput::windowSize(App const& app,
+        std::size_t index)
+{
+    return app.d()->windowBridges_.at(index)->getWindowSize();
+}
+
+avg::Vector2f test::WindowInput::layoutSize(App const& app,
+        std::size_t index)
+{
+    return app.d()->windowBridges_.at(index)->getLayoutSize();
+}
+
 int test::FrameDriver::run(App& app, btl::RunLoop& loop, std::size_t frames,
         std::chrono::microseconds dt)
 {

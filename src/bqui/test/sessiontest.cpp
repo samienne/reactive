@@ -857,7 +857,8 @@ TEST(session, describeListIntrospectDriveARealApp)
             .platform(ase::makeDummyPlatform(loop))
             .setRemoteEndpoint(endpoint)
             .addWindow(
-                    window(bq::signal::constant<std::string>("Agent")),
+                    window(bq::signal::constant<std::string>("Agent"))
+                        .initialSize(avg::Vector2f(800.0f, 600.0f)),
                     counterWidget(count.handle, count.signal, state))
             .run();
     });
@@ -933,7 +934,9 @@ TEST(session, dynamicWindowsOpenAndCloseById)
     // so the handler reads it through a slot filled after construction.
     auto childId = std::make_shared<std::optional<btl::UniqueId>>();
     App childApp = app;
-    Window child = window(bq::signal::constant<std::string>("child"));
+    // The clicks below aim at the centre of an 800x600 window.
+    Window child = window(bq::signal::constant<std::string>("child"))
+        .initialSize(avg::Vector2f(800.0f, 600.0f));
     auto childWidget =
             shape::rectangle().fill(avg::Color(0.2f, 0.2f, 0.2f, 1.0f))
                 | modifier::onClick(1,
@@ -948,7 +951,8 @@ TEST(session, dynamicWindowsOpenAndCloseById)
     // The main window opens the child on a click, once.
     App mainApp = app;
     auto opened = std::make_shared<bool>(false);
-    Window main = window(bq::signal::constant<std::string>("main"));
+    Window main = window(bq::signal::constant<std::string>("main"))
+        .initialSize(avg::Vector2f(800.0f, 600.0f));
     auto mainWidget =
             shape::rectangle().fill(avg::Color(0.0f, 0.0f, 0.0f, 1.0f))
                 | modifier::onClick(1,

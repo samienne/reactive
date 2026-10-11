@@ -60,8 +60,9 @@ TEST(headlessApp, introspectionResolvesWithNoWindow)
     // no platform or window involved at all.
     auto widget = label("Snapshot");
 
-    auto sig = std::move(widget)(BuildParams{})(
-                bq::signal::constant(avg::Vector2f(200.0f, 100.0f)))
+    auto sig = bqui::widget::detail::buildRegionAtSize(std::move(widget),
+                bq::signal::constant(avg::Vector2f(200.0f, 100.0f)),
+                BuildParams{})
             .getIntrospection();
 
     auto node = bq::signal::makeSignalContext(std::move(sig))

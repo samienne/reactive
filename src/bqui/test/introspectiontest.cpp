@@ -1,3 +1,5 @@
+#include "purelayouttestutil.h"
+
 #include <bqui/widget/introspection.h>
 #include <bqui/widget/datavalue.h>
 #include <bqui/widget/widget.h>
@@ -7,7 +9,7 @@
 #include <bqui/widget/hbox.h>
 
 #include <bqui/modifier/setwidgetintrospection.h>
-#include <bqui/modifier/setsize.h>
+#include <bqui/modifier/constraintsize.h>
 #include <bqui/modifier/setid.h>
 #include <bqui/modifier/onclick.h>
 
@@ -33,15 +35,14 @@ using namespace bqui::modifier;
 
 namespace
 {
-    // Build a widget, realise it at a concrete size, and read its introspection
-    // tree. The obbs are realised geometry, so a size must be driven.
+    // Realise a widget at a concrete size in a layout region, as a window
+    // would, and read its introspection node.
     Introspection introspect(AnyWidget widget,
             avg::Vector2f size = avg::Vector2f(200.0f, 100.0f))
     {
-        auto sig = std::move(widget)(BuildParams{})(bq::signal::constant(size))
-                .getIntrospection();
-        return bq::signal::makeSignalContext(std::move(sig))
-            .evaluate<0>().get<0>();
+        return bq::signal::makeSignalContext(bqui::test::buildInRegion(
+                    std::move(widget), bq::signal::constant(size))
+                .getIntrospection()).evaluate<0>().get<0>();
     }
 
     bool hasCapability(Introspection const& node, Capability cap)
@@ -152,19 +153,20 @@ TEST(introspection, childrenCarryOwnDivergentObb)
     // clickable. Models the CheckBoxLabel case: the clickable affordance is a
     // child node whose obb differs from its sibling and from the parent.
     auto small = filledRect()
-        | setSize(avg::Vector2f(20.0f, 20.0f))
+        | fixedSize(bq::signal::constant(avg::Vector2f(20.0f, 20.0f)))
         | onClick(1, [](ClickEvent const&){})
         | setRole("Box");
 
     auto wide = filledRect()
-        | setSize(avg::Vector2f(100.0f, 20.0f))
+        | fixedSize(bq::signal::constant(avg::Vector2f(100.0f, 20.0f)))
         | setRole("Filler");
 
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
     children.push_back(std::move(small));
     children.push_back(std::move(wide));
 
-    auto node = introspect(hbox(std::move(children)) | setRole("CheckBoxLabel"));
+    auto node = introspect(
+            hbox(std::move(children)) | setRole("CheckBoxLabel"));
 
     EXPECT_EQ("CheckBoxLabel", node.role);
     ASSERT_EQ(2u, node.children.size());
@@ -208,11 +210,12 @@ TEST(introspection, obbTracksRealisedSizeNotNatural)
 
 TEST(introspection, stretchedChildObbExceedsNatural)
 {
-    // A stretchy child (filled rect, ~zero natural size) placed in an hbox that
-    // is realised much larger than natural: its child obb must reflect the
-    // stretched bounds, not the small natural size.
+    // A child growing on both axes placed in an hbox that is realised much
+    // larger than its natural: its child obb must reflect the stretched bounds,
+    // not the natural size.
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
-    children.push_back(filledRect() | setRole("Stretchy"));
+    children.push_back(filledRect() | growWidth() | growHeight()
+            | setRole("Stretchy"));
 
     auto node = introspect(hbox(std::move(children)),
             avg::Vector2f(600.0f, 400.0f));
@@ -229,9 +232,11 @@ TEST(introspection, childObbIsWindowSpace)
     // into window space by the first child's width (composed placement
     // transform), not sitting at the origin in its own local space.
     std::vector<bq::signal::ArraySignal<AnyWidget>> children;
-    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+    children.push_back(filledRect()
+            | fixedSize(bq::signal::constant(avg::Vector2f(80.0f, 40.0f)))
             | setRole("First"));
-    children.push_back(filledRect() | setSize(avg::Vector2f(80.0f, 40.0f))
+    children.push_back(filledRect()
+            | fixedSize(bq::signal::constant(avg::Vector2f(80.0f, 40.0f)))
             | setRole("Second"));
 
     auto node = introspect(hbox(std::move(children)),
@@ -299,8 +304,9 @@ TEST(introspection, elementIdJoinsRenderAndIntrospection)
     // key an out-of-process client uses to correlate the two trees.
     avg::UniqueId const id;
 
-    auto element = (filledRect() | setId(bq::signal::constant(id)))
-        (BuildParams{})(bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
+    auto element = bqui::test::buildInRegion(
+            filledRect() | setId(bq::signal::constant(id)),
+            bq::signal::constant(avg::Vector2f(200.0f, 100.0f)));
 
     auto introspection =
         bq::signal::makeSignalContext(element.getIntrospection())

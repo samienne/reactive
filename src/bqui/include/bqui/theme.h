@@ -36,6 +36,12 @@ namespace bqui
 
         void setSecondary(avg::Color const& color);
 
+        /**
+         * @brief Sets the height text is drawn and measured at, without
+         * changing other copies of this theme.
+         */
+        void setTextHeight(float height);
+
         bool operator==(Theme const& rhs) const;
         bool operator!=(Theme const& rhs) const;
 

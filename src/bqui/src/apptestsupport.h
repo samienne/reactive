@@ -3,6 +3,8 @@
 #include "bqui/app.h"
 #include "bqui/bquivisibility.h"
 
+#include <avg/vector.h>
+
 #include <chrono>
 #include <cstddef>
 #include <string>
@@ -46,6 +48,12 @@ namespace bqui::test
          * input path.
          */
         static void injectClick(App& app, std::size_t index, float x, float y);
+
+        /** @brief The OS size of window @p index. */
+        static avg::Vector2f windowSize(App const& app, std::size_t index);
+
+        /** @brief The size window @p index lays its root out at. */
+        static avg::Vector2f layoutSize(App const& app, std::size_t index);
     };
 
     /**

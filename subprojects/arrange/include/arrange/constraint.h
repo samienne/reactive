@@ -14,6 +14,13 @@ namespace arrange
 class ConstraintImpl;
 class SolverImpl;
 
+enum class Relation
+{
+    eq,
+    le,
+    ge
+};
+
 class ARRANGE_API Constraint
 {
 public:
@@ -25,6 +32,7 @@ public:
     Id id() const noexcept;
     const Expression& expression() const noexcept;
     Strength strength() const noexcept;
+    Relation relation() const noexcept;
 
     Constraint withId(Id id) const;
     Constraint withStrength(Strength strength) const;
