@@ -21,6 +21,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include <cmath>
 #include <memory>
 #include <iostream>
 #include <string>
@@ -36,6 +37,20 @@ namespace
         int dpi = GetDpiForWindow(hwnd);
         float scale = static_cast<float>(dpi) / 96.0f;
         return scale;
+    }
+
+    void syncClientArea(HWND hwnd, GenericWindow& window)
+    {
+        RECT rect;
+        if (!GetClientRect(hwnd, &rect))
+            return;
+
+        float const scale = getWindowScalingFactor(hwnd);
+        window.setScalingFactor(scale);
+        window.resize(Vector2i(
+                    std::lround(static_cast<float>(rect.right) / scale),
+                    std::lround(static_cast<float>(rect.bottom) / scale)
+                    ));
     }
 
     std::string convertFromUtf16(wchar_t c)
@@ -404,25 +419,26 @@ WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
     int n = ChoosePixelFormat(hdc_, &pfd);
     SetPixelFormat(hdc_, n, &pfd);
 
-    scalingFactor = getWindowScalingFactor(hwnd_);
-    int dpi = GetDpiForWindow(hwnd_);
+    UINT const dpi = GetDpiForWindow(hwnd_);
+    float const scale = static_cast<float>(dpi) / 96.0f;
 
     RECT rect;
     GetWindowRect(hwnd_, &rect);
+    rect.right = rect.left
+        + static_cast<int>(static_cast<float>(size[0]) * scale);
+    rect.bottom = rect.top
+        + static_cast<int>(static_cast<float>(size[1]) * scale);
 
-    rect.right = rect.left + (int)((float)size[0] * scalingFactor);
-    rect.bottom = rect.top + (int)((float)size[1] * scalingFactor);
+    AdjustWindowRectExForDpi(&rect,
+            static_cast<DWORD>(GetWindowLongPtr(hwnd_, GWL_STYLE)), FALSE,
+            static_cast<DWORD>(GetWindowLongPtr(hwnd_, GWL_EXSTYLE)), dpi);
 
-    AdjustWindowRectExForDpi(&rect, GetWindowLong(hwnd_, GWL_STYLE),
-            false, WS_EX_APPWINDOW, dpi);
+    SetWindowPos(hwnd_, NULL, 0, 0, rect.right - rect.left,
+            rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 
-    MoveWindow(hwnd_, rect.left, rect.top,
-            (int)((float)size[0] * scalingFactor),
-            (int)((float)size[1] * scalingFactor),
-            true
-            );
-
-    genericWindow_.setScalingFactor(scalingFactor);
+    // The HWND is not yet routed to this window, so the WM_SIZE above went
+    // unseen.
+    syncClientArea(hwnd_, genericWindow_);
 }
 
 WglWindow::~WglWindow()
@@ -605,32 +621,20 @@ LRESULT WglWindow::handleWindowsEvent(HWND hwnd, UINT uMsg, WPARAM wParam,
             break;
         }
 
-        case WM_WINDOWPOSCHANGED:
-            genericWindow_.setScalingFactor(getWindowScalingFactor(hwnd_));
-            break;
-
         case WM_DPICHANGED:
         {
-            RECT* r = reinterpret_cast<RECT*>(lParam);
-            float scale = getWindowScalingFactor(hwnd_);
-
-            genericWindow_.setScalingFactor(scale);
-            genericWindow_.resize(Vector2i(
-                        r->right - r->left / scale,
-                        r->bottom - r->top / scale
-                    ));
-
+            RECT const* r = reinterpret_cast<RECT const*>(lParam);
             SetWindowPos(hwnd_, NULL, r->left, r->top, r->right - r->left,
                     r->bottom - r->top, SWP_NOZORDER | SWP_NOACTIVATE);
 
-            break;
+            // SetWindowPos skips WM_SIZE if the suggested rect keeps the
+            // client size.
+            syncClientArea(hwnd_, genericWindow_);
+            return 0;
         }
 
         case WM_SIZE:
-            genericWindow_.resize(Vector2i(
-                        LOWORD(lParam) / genericWindow_.getScalingFactor(),
-                        HIWORD(lParam) / genericWindow_.getScalingFactor()
-                        ));
+            syncClientArea(hwnd_, genericWindow_);
             break;
     }
 
