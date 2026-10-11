@@ -7,41 +7,34 @@
 namespace bqui::widget
 {
     /**
-     * @brief An empty widget that expands to fill its pure-solver container's
-     * leftover space along the container's layout axis.
+     * @brief An empty widget, stating no size on either axis.
      *
-     * Inside a pure-solver hbox or vbox it takes no size of its own on the
-     * layout axis and instead the container couples it to its shared flex
-     * variable, so every filler in one container splits the slack evenly while the fixed
-     * and default-sized siblings hold their sizes. With two fillers each takes
-     * half the remaining room; capping one (maxWidth / maxHeight) hands its
-     * surplus to the others.
+     * Along a pure-solver box it grows from zero and shares the slack with the
+     * other growers by weight, after any sibling free within its bounds has
+     * taken what it can. Across a box, and in a stack or grid slot, it fills
+     * the slot. Bounding it (maxWidth / maxHeight) makes it a free widget that
+     * takes slack before the growers.
      */
     BQUI_EXPORT AnyWidget filler();
 
     /**
-     * @brief An empty widget that fills horizontally.
+     * @brief An empty widget that grows horizontally and is pulled to zero
+     * height.
      *
-     * In a pure-solver hbox it splits the row's leftover space like filler(); in
-     * a pure-solver vbox it takes no vertical space and stretches to the column's
-     * width.
+     * The zero height is only a pull: in a row it neither caps the row's height
+     * nor takes any of it, and in a column it stays at zero height while it
+     * spans the column's width.
      */
     BQUI_EXPORT AnyWidget hfiller();
 
     /**
-     * @brief An empty widget that fills vertically.
-     *
-     * In a pure-solver vbox it splits the column's leftover space like filler();
-     * in a pure-solver hbox it takes no horizontal space and stretches to the
-     * row's height.
+     * @brief An empty widget that grows vertically and is pulled to zero
+     * width; the mirror of hfiller().
      */
     BQUI_EXPORT AnyWidget vfiller();
 
     /**
-     * @brief An empty widget that fills both axes.
-     *
-     * In a pure-solver hbox or vbox it behaves as filler() on the layout axis and
-     * stretches to fill the cross axis.
+     * @brief The same as filler(): an empty widget growing on both axes.
      */
     BQUI_EXPORT AnyWidget hwfiller();
 } // namespace bqui::widget

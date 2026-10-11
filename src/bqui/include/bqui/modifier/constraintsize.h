@@ -11,11 +11,10 @@ namespace bqui::modifier
     /**
      * @brief Pin this widget's width to the given value in a pure-solver region.
      *
-     * A strong equality above the weak 100 default, so the width settles at the
-     * value unless a min or max at the same strength overrides it. It replaces
-     * any flex on the width, whether set by an earlier fill() or growWidth() or
-     * aggregated up from a flexing child, so the widget no longer stretches there;
-     * a later fill() or growWidth() makes it flexible again.
+     * Sets the min, the max and the natural to the value and clears any flex,
+     * so the widget is rigid there; a fill() or growWidth() cannot stretch it
+     * past its bounds. A later minWidth() or maxWidth() moves its bound and
+     * drags the other along, so the last writer wins.
      */
     BQUI_EXPORT AnyWidgetModifier fixedWidth(bq::signal::AnySignal<float> width);
 
@@ -36,10 +35,9 @@ namespace bqui::modifier
      * @brief Hold this widget's width at or above the given value in a pure-solver
      * region.
      *
-     * A strong lower bound: it clamps content but yields to the window anchor or a
-     * contradicting bound, so an unmeetable floor overflows rather than failing
-     * the solve. A flexible widget stays flexible, its stretch bounded by the
-     * floor.
+     * A strong lower bound: an unmeetable floor overflows rather than failing
+     * the solve. A max below the value is raised to it. A flexible widget stays
+     * flexible, its stretch bounded by the floor.
      */
     BQUI_EXPORT AnyWidgetModifier minWidth(bq::signal::AnySignal<float> width);
 
@@ -61,7 +59,8 @@ namespace bqui::modifier
      * region.
      *
      * A strong upper bound: the ceiling counterpart of minWidth(), which likewise
-     * bounds rather than cancels a flexible widget's stretch.
+     * bounds rather than cancels a flexible widget's stretch. A min above the
+     * value is lowered to it.
      */
     BQUI_EXPORT AnyWidgetModifier maxWidth(bq::signal::AnySignal<float> width);
 
@@ -79,18 +78,17 @@ namespace bqui::modifier
     BQUI_EXPORT AnyWidgetModifier maxSize(bq::signal::AnySignal<avg::Vector2f> size);
 
     /**
-     * @brief In a pure-solver region, give this widget the fixed natural @p size
-     * at content strength, for a leaf with no measured natural of its own (a bare
-     * shape). It settles at @p size unless a fixed size, a
-     * bound or a filler/fill() overrides it.
+     * @brief In a pure-solver region, give this widget the natural @p size, for a
+     * leaf with no measured natural of its own (a bare shape).
+     *
+     * The natural is only a pull, felt when there is slack: the widget settles
+     * at @p size within its bounds, and a fill() grows it from there.
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(avg::Vector2f size);
 
     /**
-     * @brief In a pure-solver region, give this widget the natural @p size at
-     * content strength, tracking the signal, for a leaf whose measured content
-     * size is its own pure natural (a label from its text extents). It settles at
-     * @p size unless a fixed size, a bound or a filler/fill() overrides it.
+     * @brief In a pure-solver region, give this widget the natural @p size,
+     * tracking the signal: the signal form of defaultSize().
      */
     BQUI_EXPORT AnyWidgetModifier defaultSize(
             bq::signal::AnySignal<avg::Vector2f> size);
@@ -103,14 +101,12 @@ namespace bqui::modifier
      *
      * Along a box's layout axis the widget starts from its natural size (its
      * flex basis; a filler has none) and takes a share of the slack left after
-     * every sibling's natural or fixed size, by weight; a max stops it and the
+     * any sibling free within its bounds, by weight; a max stops it and the
      * others take the rest. Short of space it gives up a share of the deficit by
-     * the same weight, stopping at its min or at zero. The flex carries outward
-     * there, so the box is flexible along its axis too. Across a box the widget
-     * fills the box's cross extent up to its max, but the box takes that extent
-     * from its children's naturals and does not become flexible across. In a
-     * stack or grid it fills its slot or cell on both axes and makes the stack
-     * or grid flexible on both.
+     * the same weight, stopping at its min or at zero. The flex carries outward,
+     * so the box is flexible along its axis, and across it too, bounded by its
+     * children's smallest max. In a stack or grid it fills its slot or cell on
+     * both axes.
      */
     BQUI_EXPORT AnyWidgetModifier fill();
 
@@ -128,10 +124,9 @@ namespace bqui::modifier
      * only, the one-axis form of fill().
      *
      * Where the width is the container's layout axis it takes a filler's share
-     * of the slack and makes the container flexible there; across a box it fills
-     * the box's width without making the box flexible. So a widget whose fill
-     * direction is its own (a horizontal scroll bar) fills its length in any
-     * container. It adds no natural on the width and leaves the height free, so
+     * of the slack; across a box it fills the box's width. Either way the
+     * container becomes flexible on the width. So a widget whose fill direction
+     * is its own (a horizontal scroll bar) fills its length in any container. It adds no natural on the width and leaves the height free, so
      * a fixed height stands alongside. A later fixed width overrides it, and it
      * overrides an earlier one.
      */

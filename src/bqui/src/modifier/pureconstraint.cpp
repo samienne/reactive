@@ -38,14 +38,12 @@ namespace
 } // namespace
 
 AnyWidgetModifier pureNaturalModifier(PureAxis axis,
-        arrange::Strength strength, bq::signal::AnySignal<float> value)
+        bq::signal::AnySignal<float> value)
 {
     return pureBuilderModifier(
-            [axis, strength, value = std::move(value)](
-                    widget::AnyBuilder& builder)
+            [axis, value = std::move(value)](widget::AnyBuilder& builder)
             {
-                widget::setPureNatural(builder, toAxis(axis), value.clone(),
-                        strength);
+                widget::setPureNatural(builder, toAxis(axis), value.clone());
             });
 }
 

@@ -30,7 +30,7 @@
 
 // A container aggregates its children's bands along its axis (sums, and it
 // stretches if any child does) and across it (largest min, smallest max,
-// largest natural clamped into them, and it stretches only if every child does).
+// largest natural clamped into them, and it stretches if any child does).
 
 using namespace bqui;
 using namespace bqui::widget;
@@ -61,8 +61,7 @@ void expectSameBand(Constraints const& expected, Constraints const& actual)
     ASSERT_EQ(expected.natural.has_value(), actual.natural.has_value());
     if (expected.natural)
     {
-        EXPECT_FLOAT_EQ(expected.natural->value, actual.natural->value);
-        EXPECT_EQ(expected.natural->strength, actual.natural->strength);
+        EXPECT_FLOAT_EQ(*expected.natural, *actual.natural);
     }
     ASSERT_EQ(expected.flex.has_value(), actual.flex.has_value());
     if (expected.flex)
@@ -77,9 +76,9 @@ AnyWidget grower(avg::Vector2f natural, float weight = 1.0f)
         | modifier::grow(weight);
 }
 
-AnyWidget rigid(avg::Vector2f natural)
+AnyWidget rigid(avg::Vector2f size)
 {
-    return makeWidget() | modifier::defaultSize(natural);
+    return makeWidget() | modifier::fixedSize(size);
 }
 
 std::vector<ArraySignal<AnyWidget>> arrays(std::vector<AnyWidget> widgets)
@@ -144,9 +143,88 @@ TEST(BandRules, gridOfOneCellPublishesTheChildsBand)
     expectIdentity(uniformGrid(1, 1).cell(0, 0, 1, 1, boundedChild()));
 }
 
-// A column of filler rows stretches across at the smallest row weight; one rigid
-// row keeps it from stretching, and its natural is then the widest row's.
-TEST(BandRules, columnStretchesAcrossOnlyWhenEveryRowDoes)
+// A container adds nothing of its own, so one child free within its bounds or
+// one filler passes through unchanged too.
+TEST(BandRules, oneChildContainersAddNoDefault)
+{
+    auto freeChild = []()
+    {
+        return makeWidget()
+            | modifier::minSize(avg::Vector2f(50.0f, 10.0f))
+            | modifier::maxSize(avg::Vector2f(200.0f, 60.0f));
+    };
+
+    for (auto const& child : { freeChild(), filler() })
+    {
+        auto check = [&child](AnyWidget const& container)
+        {
+            expectSameBand(widthBandOf(child), widthBandOf(container));
+            expectSameBand(heightBandOf(child), heightBandOf(container));
+        };
+        check(row({ child }));
+        check(column({ child }));
+        std::vector<AnyWidget> layers;
+        layers.push_back(child);
+        check(stack(std::move(layers)));
+    }
+}
+
+// A label is rigid at its measured content: min, max and natural agree on both
+// axes, so a fill() cannot stretch it.
+TEST(BandRules, labelIsRigid)
+{
+    AnyWidget text = label(constant(std::string("rigid")));
+    for (Constraints const& band : { widthBandOf(text), heightBandOf(text) })
+    {
+        ASSERT_TRUE(band.min && band.max && band.natural);
+        EXPECT_GT(*band.natural, 0.0f);
+        EXPECT_FLOAT_EQ(*band.natural, *band.min);
+        EXPECT_FLOAT_EQ(*band.natural, *band.max);
+    }
+
+    btl::UniqueId const id = btl::makeUniqueId();
+    Instance instance = realiseConverged(
+            row({ withArea(label(constant(std::string("rigid")))
+                    | modifier::fill(), id), filler() }),
+            avg::Vector2f(400.0f, 100.0f));
+    EXPECT_FLOAT_EQ(*widthBandOf(text).natural,
+            readProbe(instance, id).size[0]);
+    EXPECT_FLOAT_EQ(*heightBandOf(text).natural,
+            readProbe(instance, id).size[1]);
+}
+
+// An hfiller's zero height is only a pull: in a row it neither caps the row's
+// height nor holds a growing sibling back, and in a column it stays at zero
+// height while it spans the column's width.
+TEST(BandRules, hfillerPullsItsHeightToZero)
+{
+    btl::UniqueId const idTall = btl::makeUniqueId();
+    AnyWidget tallRow = row({
+            withArea(makeWidget()
+                | modifier::defaultSize(avg::Vector2f(40.0f, 40.0f))
+                | modifier::growHeight(), idTall),
+            hfiller() });
+    EXPECT_FALSE(heightBandOf(tallRow).max.has_value());
+
+    Instance inRow = realiseConverged(std::move(tallRow),
+            avg::Vector2f(200.0f, 300.0f));
+    EXPECT_FLOAT_EQ(300.0f, readProbe(inRow, idTall).size[1]);
+
+    btl::UniqueId const idFiller = btl::makeUniqueId();
+    Instance inColumn = realiseConverged(
+            column({ makeWidget() | modifier::defaultSize(
+                        avg::Vector2f(40.0f, 40.0f)),
+                withArea(hfiller(), idFiller),
+                filler() }),
+            avg::Vector2f(200.0f, 300.0f));
+    Geometry spanned = readProbe(inColumn, idFiller);
+    EXPECT_FLOAT_EQ(0.0f, spanned.size[1]);
+    EXPECT_FLOAT_EQ(200.0f, spanned.size[0]);
+}
+
+// A column stretches across at the smallest weight of the rows that grow, and
+// a rigid row caps it; its natural is the widest row's.
+TEST(BandRules, columnStretchesAcrossWhenAnyRowDoes)
 {
     AnyWidget stretching = column({
             row({ rigid({ 30.0f, 20.0f }), grower({ 0.0f, 20.0f }, 2.0f) }),
@@ -161,9 +239,12 @@ TEST(BandRules, columnStretchesAcrossOnlyWhenEveryRowDoes)
             rigid({ 70.0f, 20.0f }),
             });
     Constraints heldWidth = widthBandOf(held);
-    EXPECT_FALSE(heldWidth.flex.has_value());
+    ASSERT_TRUE(heldWidth.flex.has_value());
+    EXPECT_FLOAT_EQ(1.0f, heldWidth.flex->coeff);
+    ASSERT_TRUE(heldWidth.max.has_value());
+    EXPECT_FLOAT_EQ(70.0f, *heldWidth.max);
     ASSERT_TRUE(heldWidth.natural.has_value());
-    EXPECT_FLOAT_EQ(70.0f, heldWidth.natural->value);
+    EXPECT_FLOAT_EQ(70.0f, *heldWidth.natural);
 }
 
 // Across, the largest min beats the smallest max: the container's max is lifted
@@ -184,7 +265,7 @@ TEST(BandRules, largestMinBeatsSmallestMaxAcross)
     ASSERT_TRUE(width.natural.has_value());
     EXPECT_FLOAT_EQ(100.0f, *width.min);
     EXPECT_FLOAT_EQ(100.0f, *width.max);
-    EXPECT_FLOAT_EQ(100.0f, width.natural->value);
+    EXPECT_FLOAT_EQ(100.0f, *width.natural);
 
     Instance instance = realiseConverged(
             row({ std::move(content), filler() }),
@@ -196,8 +277,8 @@ TEST(BandRules, largestMinBeatsSmallestMaxAcross)
 }
 
 // A stack overlaps its children on both axes, so it takes the across rule on
-// both: it stretches only where every layer does, at the smallest weight, and
-// is capped by its smallest max.
+// both: it stretches where any layer does, at the smallest weight, and is
+// capped by its smallest max.
 TEST(BandRules, stackTakesTheAcrossRuleOnBothAxes)
 {
     std::vector<AnyWidget> growing;
@@ -217,20 +298,26 @@ TEST(BandRules, stackTakesTheAcrossRuleOnBothAxes)
     EXPECT_FLOAT_EQ(120.0f, *width.max);
     EXPECT_FALSE(height.max.has_value());
     ASSERT_TRUE(width.natural.has_value());
-    EXPECT_FLOAT_EQ(80.0f, width.natural->value);
+    EXPECT_FLOAT_EQ(80.0f, *width.natural);
 
     std::vector<AnyWidget> mixed;
     mixed.push_back(grower({ 50.0f, 30.0f }));
     mixed.push_back(rigid({ 80.0f, 20.0f }));
     AnyWidget held = stack(std::move(mixed));
 
-    EXPECT_FALSE(widthBandOf(held).flex.has_value());
-    EXPECT_FALSE(heightBandOf(held).flex.has_value());
+    Constraints heldWidth = widthBandOf(held);
+    ASSERT_TRUE(heldWidth.flex.has_value());
+    ASSERT_TRUE(heldWidth.max.has_value());
+    EXPECT_FLOAT_EQ(80.0f, *heldWidth.max);
+    Constraints heldHeight = heightBandOf(held);
+    ASSERT_TRUE(heldHeight.flex.has_value());
+    ASSERT_TRUE(heldHeight.max.has_value());
+    EXPECT_FLOAT_EQ(20.0f, *heldHeight.max);
 }
 
 // Each grid column takes the across rule over its cells and the grid the along
-// rule over its columns: a column with a rigid cell does not stretch, and the
-// grid stretches while any column does.
+// rule over its columns: a column stretches if any of its cells does, and the
+// grid's weight is the sum of its columns'.
 TEST(BandRules, gridStretchesByItsColumnsIntersection)
 {
     AnyWidget crossed = uniformGrid(2, 2)
@@ -240,10 +327,11 @@ TEST(BandRules, gridStretchesByItsColumnsIntersection)
         .cell(1, 1, 1, 1, grower({ 20.0f, 20.0f }));
 
     Constraints crossedWidth = widthBandOf(crossed);
-    EXPECT_FALSE(crossedWidth.flex.has_value());
-    EXPECT_FALSE(heightBandOf(crossed).flex.has_value());
+    ASSERT_TRUE(crossedWidth.flex.has_value());
+    EXPECT_FLOAT_EQ(2.0f, crossedWidth.flex->coeff);
+    ASSERT_TRUE(heightBandOf(crossed).flex.has_value());
     ASSERT_TRUE(crossedWidth.natural.has_value());
-    EXPECT_FLOAT_EQ(140.0f, crossedWidth.natural->value);
+    EXPECT_FLOAT_EQ(140.0f, *crossedWidth.natural);
 
     AnyWidget oneColumn = uniformGrid(2, 2)
         .cell(0, 0, 1, 1, grower({ 30.0f, 20.0f }))
@@ -254,12 +342,14 @@ TEST(BandRules, gridStretchesByItsColumnsIntersection)
     Constraints width = widthBandOf(oneColumn);
     ASSERT_TRUE(width.flex.has_value());
     EXPECT_FLOAT_EQ(1.0f, width.flex->coeff);
-    EXPECT_FALSE(heightBandOf(oneColumn).flex.has_value());
+    Constraints height = heightBandOf(oneColumn);
+    ASSERT_TRUE(height.flex.has_value());
+    EXPECT_FLOAT_EQ(2.0f, height.flex->coeff);
 }
 
 // The adder shape: a column of {label, hfiller} rows. Beside a rigid leaf in a
 // 400-wide row every ancestor stretches across, so the rows span the 300 the
-// leaf leaves; a column holding a rigid 200 sibling stops the stretch, and the
+// leaf leaves; a column holding a rigid 200 sibling is capped by it, and the
 // rows span its 200.
 TEST(BandRules, filledRowsSpanUpToTheFirstRigidSibling)
 {

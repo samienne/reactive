@@ -34,25 +34,20 @@ namespace bqui::widget
     struct AnyBuilder;
 
     /**
-     * @brief Replaces the natural (preferred) extent band on @p axis with
-     * @p value held at @p strength.
+     * @brief Replaces the natural (preferred) extent on @p axis with @p value.
      *
-     * The named-field write that makes a size word an override: a later
-     * setPureNatural() on the same axis wins outright, with no competing
-     * constraint left behind. A weakest strength is the leaf/container default; a
-     * strong one is a fixed size.
+     * The natural is only a weak pull, felt when there is slack; a later write
+     * on the same axis replaces it.
      */
     void setPureNatural(AnyBuilder& builder, Axis axis,
-            bq::signal::AnySignal<float> value, arrange::Strength strength);
+            bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Fixes the extent on @p axis at @p value: a strong natural that also
-     * clears the band's flex there.
+     * @brief Fixes the extent on @p axis at @p value: min, max and natural all
+     * become @p value, and the flex is cleared.
      *
-     * A fixed size replaces a flex set before it (a fill() or one aggregated up
-     * from a flexing child), so the widget's container stamps the natural and
-     * couples nothing. A later setPureFlex() re-enables the flex, the natural
-     * then riding as its flex-basis. The bounds are left alone.
+     * A later setPureMin() or setPureMax() moves the bound it writes and drags
+     * the other along, so the last writer wins.
      */
     void setPureFixed(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
@@ -68,16 +63,21 @@ namespace bqui::widget
             bq::signal::AnySignal<float> weight);
 
     /**
-     * @brief Replaces the lower-bound band on @p axis with @p value, held at
-     * minStrength() so an unmeetable floor overflows rather than freezing the
-     * region.
+     * @brief Replaces the lower bound on @p axis with @p value, raising a max
+     * below it to @p value.
+     *
+     * Held at minStrength(), so an unmeetable floor overflows rather than
+     * freezing the region.
      */
     void setPureMin(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
 
     /**
-     * @brief Replaces the upper-bound band on @p axis with @p value, held at
-     * maxStrength(): it caps a fixed size but yields to a contradicting min.
+     * @brief Replaces the upper bound on @p axis with @p value, lowering a min
+     * above it to @p value.
+     *
+     * Held at maxStrength(), which yields to a contradicting min that
+     * aggregation put there.
      */
     void setPureMax(AnyBuilder& builder, Axis axis,
             bq::signal::AnySignal<float> value);
@@ -140,27 +140,6 @@ namespace bqui::widget
      * fraction @p gravity.
      */
     Anchor resolveAnchor(BandAnchor const& anchor, float gravity);
-
-    /**
-     * @brief The layout (main) axis of the pure-solver container a filler is a
-     * direct child of, so the filler flexes on that axis; empty for a container
-     * with no layout axis (a grid), where it flexes on both.
-     *
-     * A filler publishes its flex only on the axis its container stacks along,
-     * where the container couples it to its slack; the cross axis falls to the
-     * container's own leading-edge pin and weak default. In a grid it fills its
-     * cell on both axes. Defaults to Axis::x, read only when a filler actually
-     * sits inside a pure-solver container.
-     */
-    struct FlexAxisTag
-    {
-        using type = std::optional<Axis>;
-
-        static bq::signal::AnySignal<std::optional<Axis>> getDefaultValue()
-        {
-            return bq::signal::constant(std::optional<Axis>(Axis::x));
-        }
-    };
 
     /**
      * @brief A box's stable solver identity and the per-axis constraints it
@@ -264,36 +243,42 @@ namespace bqui::widget
      *
      * Not required, so a box that is both anchored and tiled by a parent
      * overflows against the tiling instead of making the region solve
-     * infeasible, and below the region's own anchor; unopposed, the anchor
-     * resolves the box to the exact rectangle.
+     * infeasible; unopposed, the pins resolve the box to the exact rectangle.
      */
     BQUI_EXPORT std::vector<arrange::Constraint> anchorConstraints(
             BoxVariables const& box,
             float left, float top, float right, float bottom);
 
     /**
-     * @brief The strength a region holds its outermost box at the assigned
-     * size: above every stated size so the region always takes its size, yet
-     * not required, so nothing a widget states can make the solve infeasible.
+     * @brief The strength a region pins its root box's leading edges to the
+     * assigned rectangle's at: above every stated size, yet not required, so
+     * nothing a widget states can make the solve infeasible.
      */
     BQUI_EXPORT arrange::Strength regionAnchorStrength();
 
     /**
+     * @brief The strength a region fills its root box to the assigned size
+     * at: above every weak pull, below the root's own min and max.
+     *
+     * Medium rather than strong, so a root held off the window by its bounds
+     * is not reported as an unmet constraint.
+     */
+    BQUI_EXPORT arrange::Strength regionFillStrength();
+
+    /**
      * @brief The strength of a @c min bound and of the @c >=0 extent floor,
-     * the firmest stated size: a minimum beats a contradicting maximum and a
-     * fixed size.
+     * the firmest stated size: a minimum beats a contradicting maximum.
      */
     BQUI_EXPORT arrange::Strength minStrength();
 
     /**
-     * @brief The strength of a @c max bound: below a minimum, above a fixed
-     * size.
+     * @brief The strength of a @c max bound: below a minimum.
      */
     BQUI_EXPORT arrange::Strength maxStrength();
 
     /**
-     * @brief The strength of a fixed size, the weakest strong pull: a bound it
-     * contradicts wins and the fixed size yields.
+     * @brief The strength of a pin (anchorConstraints()): below the bounds,
+     * so a bound it contradicts wins.
      */
     BQUI_EXPORT arrange::Strength fixedStrength();
 
@@ -314,49 +299,10 @@ namespace bqui::widget
     BQUI_EXPORT arrange::Strength guideStrength();
 
     /**
-     * @brief The strictly-weakest strength tier, below gravity and natural size,
-     * that the universal per-axis defaults sit at.
-     *
-     * Any real constraint dominates it, so a default only decides an axis nothing
-     * else pinned. It is a distinct, far smaller weight than any other pull so it
-     * never ties one and averages.
-     */
-    BQUI_EXPORT arrange::Strength weakestStrength();
-
-    /**
-     * @brief The strength a content leaf holds its content-measured natural at:
-     * the top of the weak lane, above every other weak-lane pull yet a whole lane
-     * below medium. Content sizes to its measurement by default; stretching (a
-     * filler, a fixed size, a bound) is opt-in.
+     * @brief The strength a box is pulled to its natural at: the top of the
+     * weak lane, above every other weak pull and below the region fill.
      */
     BQUI_EXPORT arrange::Strength contentStrength();
-
-    /**
-     * @brief The weak per-axis default @c width==100 on @p box.
-     *
-     * A leaf contributes this on each axis it does not otherwise size
-     * (modifier::defaultSize(size)), and a stacking container adds it on its cross
-     * axis; either way a box nothing else constrains resolves to a definite
-     * width rather than leaving a free degree of freedom the solve is ill-posed
-     * on. Add-only: minted with the box and never removed.
-     */
-    BQUI_EXPORT arrange::Constraint weakWidthDefault(BoxVariables const& box);
-
-    /**
-     * @brief The weak per-axis default @c height==100 on @p box, the vertical
-     * counterpart of weakWidthDefault().
-     */
-    BQUI_EXPORT arrange::Constraint weakHeightDefault(BoxVariables const& box);
-
-    /**
-     * @brief One axis's filler band: a unit flex when @p thisAxis is the
-     * container's @p layoutAxis or the container has none, an empty band
-     * otherwise.
-     *
-     * So a filler fills the layout axis by flex, which its container couples to
-     * its slack, and a cross axis by the container's cross-fill.
-     */
-    Constraints fillerAxisBand(Axis thisAxis, std::optional<Axis> layoutAxis);
 
     /**
      * @brief Sizes and positions one content edge-pair within a slot edge-pair
