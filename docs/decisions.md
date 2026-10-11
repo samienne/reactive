@@ -6,6 +6,23 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Containers aggregate bands along and across
+
+Every container aggregates its children's bands by two rules. Along the
+direction its children tile, mins, maxes and naturals sum and any stretching
+child makes it stretch. Across the direction they overlap, the largest min and
+the smallest cap bound it, the largest natural is clamped into them, and it
+stretches only when every child does; a min above the cap wins. A box takes
+both, a stack takes the across rule on both axes, and a grid takes it per track.
+
+**Why:** a box used to propagate flex on its main axis only, so a column of
+filling rows held its natural width and a filler in it got nothing unless each
+level said `fill()` again. "Every child stretches" lets a stretch rise as far as
+it can without stretching a rigid sibling, and stops at the first container
+that holds one. The smallest cap across keeps a stretching container no wider
+than every child that fills it can follow. The rules need no per-widget opt-in
+such as `hug()`.
+
 ## A window sizes to its content once, at opening
 
 A window opens at its root's natural size (height read at the natural width),

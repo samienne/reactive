@@ -123,38 +123,50 @@ container overflows rather than handing a flexer a negative size.
 ## Containers
 
 A container stamps each child's band (`flattenConstraints`), adds structural
-relations, and republishes an aggregate band:
+relations, and republishes an aggregate band by two rules, one for each
+direction relative to how its children are arranged:
 
-| Aggregate | Box main axis | Box cross axis; stack and grid, both axes |
+| | Along (children tile) | Across (children overlap) |
 | --- | --- | --- |
-| `natural` | sum | largest |
 | `min` | sum | largest |
-| `max` | sum, only if every child has one | largest, only if every child has one |
-| `flex` | sum of weights | box: none; stack/grid: largest weight |
+| `max` | sum; uncapped if any child is | smallest cap; uncapped only if no child is capped |
+| `flex` | if any child stretches; weights sum | only if every child stretches; smallest weight |
+| `natural` | sum | largest, clamped into `[min, max]` |
 
+- **A box** takes the along rule on its main axis and the across rule on its
+  cross axis. **A stack** overlaps its children on both axes, so it takes the
+  across rule on both. **A grid** takes the across rule over the cells in each
+  column (row), and the along rule over its columns (rows); its tracks are held
+  equal, so its natural and min are the largest track's times the track count,
+  while maxes and weights sum. A cell spanning several tracks is spread evenly
+  over them (extents divide by the span, the weight is kept whole). An empty
+  track caps nothing.
+- **Stretching across.** A child stretches when it flexes; a child that holds
+  an extent of its own (a natural without a flex) is rigid; a child with
+  neither fills whatever it is given and does not hold the container back. A
+  container that stretches across is filled by its parent, and its stretching
+  children fill its actual extent. A single rigid child keeps it at its
+  natural, so a stretch reaches up the tree only as far as the first container
+  with a rigid child.
+- **The min beats the max.** When the largest min exceeds the smallest cap, the
+  container's max is lifted to the min. A child capped below the container's
+  extent keeps its size and is placed by its gravity, as a rigid child is.
+- **One child, one band.** A container of a single child publishes exactly the
+  child's band; the rules reduce to identity.
 - **On a flexing axis the natural is only a flex basis.** It is published for the
   parent's aggregation but never stamped, so a flexible child cannot inflate the
   container. Instead the container publishes as its `min` the floor of its
   content: each child's `min`, else the natural of a child that does not flex
   there, else zero.
-- **The `max` rule** exists because a single uncapped child leaves the container
-  free to grow, and a cap taken from the capped children alone would squeeze it.
 - **An empty container has natural 0**, so it takes no room.
 - **The weak 100 default.** A container adds a weak default of 100 on an axis
   only when it does not flex there and no child states a natural, so an axis its
   parent neither sizes nor fills still resolves. The default is a relation, not
   a band field, which is why it is withheld where it would outlast a later
   `fill()`.
-- **A box propagates child flex outward on its main axis only.** A `fill()` child
-  makes an `hbox` horizontally flexible, but not vertically: across, the box
-  takes its extent from its children's naturals or from its parent, and the
-  flexing child fills that extent up to its `max`. A cross-flexing child's
-  natural still counts toward the box's cross natural, so a box of only filling
-  children is as tall (or wide) as their naturals. A widget that should flex
-  across says so on the box itself.
-- **Stack and grid treat both axes as main** for flex: any flexing child makes
-  them flexible on that axis. They emit no coupling; a filling child fills its
-  slot or cell.
+- **Couplings.** A box emits the flex coupling on its main axis only; across,
+  a stretching child fills the cross extent. Stack and grid emit no coupling; a
+  filling child fills its slot or cell.
 - **Placement.** A child that holds its own extent (a natural that is not a flex
   basis) keeps it and is not pulled; every other child fills its slot up to its
   `max`. Every container places a child by its gravity: across the axis in a
