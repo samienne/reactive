@@ -6,7 +6,29 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Only min and max are rigid
+
+A fixed size writes `min = max = natural`, and min and max clamp each other as
+they are written, so the last writer wins. A natural is a weak pull, felt only
+where there is slack; an unset natural states nothing. Along a box, slack goes
+to a child free within its bounds first, then to the growers (an explicit flex,
+or an empty band such as `filler()`) by weight, and the rest to the trailing
+gap. Labels are rigid. Containers add no default of their own, stretch across
+when any child grows, and a region fills its root within the root's bounds
+from the top-left, inside the solve.
+
+**Why:** the old model ranked a fixed size, a natural and a weak 100 default by
+strength, and stamped "every child stretches" vetoes, filler axis tags and a
+window clamp around them to keep the results sane. With rigidity in the bounds
+alone, one ladder of weak pulls (free, grower basis, gap, natural) orders the
+slack, so the same rules answer every case and most of the special machinery
+goes. "Free first" comes from the growers having a small cost rather than from
+a second slack lane, which keeps it to one extra constraint per grower.
+
 ## Containers aggregate bands along and across
+
+*Superseded in part by "Only min and max are rigid": a container now
+stretches across if any child grows.*
 
 Every container aggregates its children's bands by two rules. Along the
 direction its children tile, mins, maxes and naturals sum and any stretching
