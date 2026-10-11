@@ -21,7 +21,7 @@ Vector2i GenericWindow::getScaledSize() const
 {
     return Vector2i(
             getWidth() * getScalingFactor(),
-            getWidth() * getScalingFactor()
+            getHeight() * getScalingFactor()
             );
 }
 
