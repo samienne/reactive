@@ -109,6 +109,10 @@ GlRenderState::GlRenderState(GlDispatchedContext& dispatcher) :
     {
         glEnable(GL_DEPTH_TEST);
 
+        // Texture rows are uploaded tightly packed; the GL default of 4
+        // would pad rows of 1- and 3-byte pixels.
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
         GLint srgbEnabled = 0;
 #ifdef GL_EXT_framebuffer_sRGB
         if (hasGlExtensions(gl, "GL_ARB_framebuffer_sRGB"))

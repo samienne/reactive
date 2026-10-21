@@ -14,6 +14,8 @@ namespace ase
                 return GL_RGB;
             case FORMAT_SRGBA:
                 return GL_RGBA;
+            case FORMAT_R8:
+                return GL_RED;
             default:
                 return 0;
         }
@@ -27,6 +29,8 @@ namespace ase
                 return GL_SRGB;
             case FORMAT_SRGBA:
                 return GL_SRGB_ALPHA;
+            case FORMAT_R8:
+                return GL_R8;
             default:
                 return 0;
         }
