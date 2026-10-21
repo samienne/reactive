@@ -162,14 +162,14 @@ pmr::memory_resource* Painter::getResource() const
     return memory_;
 }
 
-void Painter::setSize(ase::Vector2i size)
+void Painter::setSize(ase::Vector2i pixelSize, float scalingFactor)
 {
     buffer_.resize(16*sizeof(float));
     char* data = buffer_.mapWrite<char>();
 
     ase::Matrix4f m = ase::Matrix4f::Identity();
-    m(0,0) = 2.0f/(float)size[0];
-    m(1,1) = 2.0f/(float)size[1];
+    m(0,0) = 2.0f * scalingFactor / (float)pixelSize[0];
+    m(1,1) = 2.0f * scalingFactor / (float)pixelSize[1];
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 

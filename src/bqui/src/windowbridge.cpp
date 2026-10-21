@@ -342,7 +342,8 @@ std::optional<std::chrono::microseconds> WindowBridge::onFrame(
     if (resized_)
     {
         size_.handle.set(aseWindow.getSize().cast<float>());
-        painter_.setSize(aseWindow.getSize());
+        painter_.setSize(aseWindow.getScaledSize(),
+                aseWindow.getScalingFactor());
         resized_ = false;
     }
 

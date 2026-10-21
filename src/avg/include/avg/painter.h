@@ -37,7 +37,14 @@ namespace avg
         Painter& operator=(Painter const&) = delete;
         Painter& operator=(Painter&&) = delete;
 
-        void setSize(ase::Vector2i size);
+        /**
+         * @brief Fit the projection to a framebuffer.
+         *
+         * Vertices are device pixels over the scaling factor, so one logical
+         * unit maps to scalingFactor pixels of a pixelSize framebuffer,
+         * whatever the rounded logical size is.
+         */
+        void setSize(ase::Vector2i pixelSize, float scalingFactor);
 
         ase::UniformSet const& getUniformSet() const;
 
