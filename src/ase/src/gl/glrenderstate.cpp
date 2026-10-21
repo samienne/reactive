@@ -56,9 +56,9 @@ namespace
 
         if (pipeline1.isBlendEnabled())
         {
-            // Sort by Z
+            // Back to front: a later-painted draw has the lower z.
             if (d1.getZ() != d2.getZ())
-                return d1.getZ() < d2.getZ();
+                return d1.getZ() > d2.getZ();
         }
 
         // Sort by textures
