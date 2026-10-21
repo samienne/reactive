@@ -350,6 +350,26 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             continue;
         }
+        else if (std::holds_alternative<TextureSubUploadCommand>(renderCommand))
+        {
+            ZoneScopedN("Texture sub upload command");
+            auto&& uploadCommand =
+                std::get<TextureSubUploadCommand>(renderCommand);
+            auto&& glTexture = uploadCommand.target.getImpl<GlTexture>();
+
+            glTexture.setSubData(
+                    d,
+                    gl,
+                    uploadCommand.offset,
+                    uploadCommand.size,
+                    uploadCommand.data
+                    );
+
+            if (!activeTextures_.empty())
+                activeTextures_[0] = glTexture.getGlObject();
+
+            continue;
+        }
 
         {
         ZoneScopedN("Draw command");

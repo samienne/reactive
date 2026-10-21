@@ -41,12 +41,21 @@ namespace ase
         Format format;
     };
 
+    struct TextureSubUploadCommand
+    {
+        Texture target;
+        Buffer data;
+        Vector2i offset;
+        Vector2i size;
+    };
+
     using RenderCommand = std::variant<
         DrawCommand,
         ClearCommand,
         FenceCommand,
         BufferUploadCommand,
-        TextureUploadCommand
+        TextureUploadCommand,
+        TextureSubUploadCommand
         >;
 
 } // namespace ase

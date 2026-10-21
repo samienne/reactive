@@ -138,3 +138,12 @@ libasedep = declare_dependency(
   include_directories: include_directories('include')
   )
 
+asetest = executable('asetest',
+  'test/texturetest.cpp',
+  dependencies: [gtestdep, libasedep],
+  )
+
+test('ase', asetest, timeout: 1200,
+  args: ['--gtest_output=xml:' + meson.current_build_dir() / 'test_detail.xml'],
+  workdir: meson.project_source_root())
+

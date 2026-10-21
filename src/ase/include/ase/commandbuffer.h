@@ -46,6 +46,16 @@ namespace ase
 
         void pushUpload(Texture target, Buffer data, Vector2i size, Format format);
 
+        /**
+         * @brief Upload `data` into the `size` region of `target` at `offset`.
+         *
+         * `data` holds `size` tightly packed pixels in the texture's format.
+         * The region must lie inside the texture; its size and format do not
+         * change, so a texture may be filled piecewise after `makeTexture`.
+         */
+        void pushSubUpload(Texture target, Buffer data, Vector2i offset,
+                Vector2i size);
+
         size_t size() const;
         Iterator begin();
         Iterator end();

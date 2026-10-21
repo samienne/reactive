@@ -71,6 +71,25 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
     DBG("Loaded texture data %1", texture_);
 }
 
+void GlTexture::setSubData(Dispatched d, GlFunctions const& gl,
+        Vector2i const& offset, Vector2i const& size, Buffer const& buffer)
+{
+    if (size[0] * size[1] * getBytes(format_) > (long)buffer.getSize())
+        throw std::runtime_error("GlTexture buffer size is too small.");
+
+    assert(offset[0] >= 0 && offset[1] >= 0);
+    assert(offset[0] + size[0] <= size_[0]);
+    assert(offset[1] + size[1] <= size_[1]);
+
+    allocate(d, gl);
+
+    glBindTexture(GL_TEXTURE_2D, texture_);
+    glTexSubImage2D(GL_TEXTURE_2D, 0,
+            static_cast<GLint>(offset[0]), static_cast<GLint>(offset[1]),
+            static_cast<GLsizei>(size[0]), static_cast<GLsizei>(size[1]),
+            formatToGl(format_), GL_UNSIGNED_BYTE, buffer.data());
+}
+
 GLuint GlTexture::getGlObject() const
 {
     return texture_;

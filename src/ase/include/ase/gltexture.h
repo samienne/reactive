@@ -31,6 +31,11 @@ namespace ase
                 Format format,
                 Buffer const& buffer);
 
+        void setSubData(Dispatched, GlFunctions const& gl,
+                Vector2i const& offset,
+                Vector2i const& size,
+                Buffer const& buffer);
+
         /** @brief Give the texture empty storage of its size and format, so it
          * can back a framebuffer attachment without a data upload. Idempotent. */
         void allocate(Dispatched, GlFunctions const& gl);

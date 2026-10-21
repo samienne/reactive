@@ -3,6 +3,7 @@
 #include "rendercommand.h"
 #include "textureimpl.h"
 
+#include <cassert>
 #include <iostream>
 
 namespace ase
@@ -83,6 +84,23 @@ void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Forma
                 std::move(data),
                 size,
                 format
+            });
+}
+
+void CommandBuffer::pushSubUpload(Texture target, Buffer data,
+        Vector2i offset, Vector2i size)
+{
+    assert(offset[0] >= 0 && offset[1] >= 0);
+    assert(size[0] >= 0 && size[1] >= 0);
+    assert(offset[0] + size[0] <= target.getSize()[0]);
+    assert(offset[1] + size[1] <= target.getSize()[1]);
+
+    commands_.push_back(TextureSubUploadCommand
+            {
+                std::move(target),
+                std::move(data),
+                offset,
+                size
             });
 }
 
