@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <memory>
+#include <vector>
 
 namespace avg
 {
@@ -16,6 +17,7 @@ namespace avg
     class Font;
     class Path;
     struct TextExtents;
+    struct PositionedGlyph;
     class FontManagerDeferred;
 
     class AVG_EXPORT FontManager
@@ -43,6 +45,8 @@ namespace avg
                 Vector2f pos) const;
         TextExtents getTextExtents(Lock&, Font const& font,
                 utf8::Utf8View text, float height);
+        std::vector<PositionedGlyph> getGlyphs(Lock&, Font const& font,
+                utf8::Utf8View text, float height) const;
 
         friend class FontImpl;
         void unloadFont(FontImpl const& fontImpl);

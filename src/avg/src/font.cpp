@@ -4,6 +4,7 @@
 #include "fontmanager.h"
 
 #include "textextents.h"
+#include "positionedglyph.h"
 #include "path.h"
 
 #include "transform.h"
@@ -54,6 +55,13 @@ size_t Font::getCharacterIndex(utf8::Utf8View text, float fontHeight,
 {
     FontManager::Lock lock(manager.lock());
     return d()->manager_.getCharacterIndex(lock, *this, text, fontHeight, pos);
+}
+
+std::vector<PositionedGlyph> Font::getGlyphs(utf8::Utf8View text,
+        float height) const
+{
+    FontManager::Lock lock(manager.lock());
+    return d()->manager_.getGlyphs(lock, *this, text, height);
 }
 
 float Font::getDescender(float height) const

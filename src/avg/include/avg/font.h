@@ -10,13 +10,16 @@
 
 #include <utf8/utf8.h>
 
+#include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace avg
 {
     class FontImpl;
     struct TextExtents;
+    struct PositionedGlyph;
     class Path;
     class FontManager;
 
@@ -44,6 +47,18 @@ namespace avg
                 Hinting hinting = HINT_NONE) const;
         size_t getCharacterIndex(utf8::Utf8View, float fontHeight,
                 ase::Vector2f pos) const;
+
+        /**
+         * @brief The glyphs that drawing the text places, with their pen
+         * origins.
+         *
+         * Lays out the text exactly as textToPath does, scaled by height
+         * and starting from the origin, but returns one entry per glyph
+         * instead of the outlines. A newline moves the pen to the start of
+         * the next line; it produces no glyph of its own.
+         */
+        std::vector<PositionedGlyph> getGlyphs(utf8::Utf8View text,
+                float height) const;
 
         float getDescender(float height) const;
         float getAscender(float height) const;

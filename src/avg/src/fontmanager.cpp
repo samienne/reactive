@@ -1,6 +1,7 @@
 #include "fontmanager.h"
 
 #include "textextents.h"
+#include "positionedglyph.h"
 #include "font.h"
 #include "fontimpl.h"
 #include "path.h"
@@ -22,6 +23,7 @@
 #include <map>
 #include <list>
 #include <mutex>
+#include <vector>
 
 namespace avg
 {
@@ -83,10 +85,27 @@ namespace
         }
 
         Path path;
-        unsigned int loadedGlyph = 0;
         float advanceX = 0.0f;
         Vector2f bearing;
         Vector2f size;
+    };
+
+    // One glyph as the walk over a text visits it: its pen origin and line
+    // in unscaled font units, y up
+    struct PenGlyph
+    {
+        unsigned int glyphIndex;
+        Glyph const& glyph;
+        Vector2f pen;
+        size_t line;
+    };
+
+    // Where a walk ended: the pen after the last glyph or newline, and the
+    // number of lines the text spans
+    struct GlyphWalk
+    {
+        Vector2f pen;
+        size_t lines;
     };
 
     struct GlyphOutline
@@ -113,8 +132,12 @@ public:
     ~FontManagerDeferred();
 
     Glyph& getGlyph(Lock& lock, Font const& font, unsigned int glyph) const;
-    Glyph& getGlyphWithOutline(Lock& lock, Font const& font,
-            unsigned int glyph) const;
+
+    // Visits every glyph of the text in pen order, calling
+    // onGlyph(PenGlyph const&) -> bool; false stops the walk.
+    template <class TOnGlyph>
+    GlyphWalk walkGlyphs(Lock& lock, Font const& font, utf8::Utf8View text,
+            TOnGlyph&& onGlyph) const;
 
     pmr::memory_resource* memory_;
 
@@ -143,40 +166,18 @@ Glyph& FontManagerDeferred::getGlyph(Lock& /*lock*/, Font const& font,
     if (i != cache_.end())
         return i->second;
 
+    FT_GlyphSlot slot = font.d()->face_->glyph;
+    FT_Error error = FT_Load_Glyph(font.d()->face_, glyphIndex,
+            FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP);
+    if (error)
+        throw std::runtime_error("Unable to load glyph");
+
     Glyph glyph(memory_);
-
-    // Todo: fill glyph data
-    FT_Load_Glyph(font.d()->face_, glyphIndex, FT_LOAD_NO_HINTING |
-            FT_LOAD_NO_BITMAP);
-
-    glyph.advanceX = (float)font.d()->face_->glyph->advance.x / 6400.0f;
-    glyph.loadedGlyph = glyphIndex;
-    glyph.bearing[0] = (float)font.d()->face_->glyph->metrics.horiBearingX
-        / 6400.0f;
-    glyph.bearing[1] = (float)font.d()->face_->glyph->metrics.horiBearingY
-        / 6400.0f;
-    glyph.size[0] = (float)font.d()->face_->glyph->metrics.width / 6400.0f;
-    glyph.size[1] = (float)font.d()->face_->glyph->metrics.height / 6400.0f;
-
-    auto j = cache_.insert(std::make_pair(desc, glyph));
-
-    return j->second;
-}
-
-Glyph& FontManagerDeferred::getGlyphWithOutline(Lock& lock, Font const& font,
-        unsigned int glyphIndex) const
-{
-    Glyph& glyph = getGlyph(lock, font, glyphIndex);
-    if (!glyph.path.isEmpty())
-        return glyph;
-
-    if (glyph.loadedGlyph != glyphIndex)
-    {
-        FT_Error error = FT_Load_Glyph(font.d()->face_, glyphIndex,
-                FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP);
-        if (error)
-            throw std::runtime_error("Unable to load glyph");
-    }
+    glyph.advanceX = (float)slot->advance.x / 6400.0f;
+    glyph.bearing[0] = (float)slot->metrics.horiBearingX / 6400.0f;
+    glyph.bearing[1] = (float)slot->metrics.horiBearingY / 6400.0f;
+    glyph.size[0] = (float)slot->metrics.width / 6400.0f;
+    glyph.size[1] = (float)slot->metrics.height / 6400.0f;
 
     GlyphOutline outline { memory_ };
     FT_Outline_Funcs funcs;
@@ -187,16 +188,46 @@ Glyph& FontManagerDeferred::getGlyphWithOutline(Lock& lock, Font const& font,
     funcs.shift = 0;
     funcs.delta = 0;
 
-    FT_Error error = FT_Outline_Decompose(&font.d()->face_->glyph->outline,
-            &funcs, static_cast<void*>(&outline));
+    error = FT_Outline_Decompose(&slot->outline, &funcs,
+            static_cast<void*>(&outline));
     if (error)
         throw std::runtime_error("Unable to decompose glyph outline");
 
-    /*DBG("%1 %2", glyphIndex, font.d()->face_->glyph->outline.flags
-            & (FT_OUTLINE_EVEN_ODD_FILL | FT_OUTLINE_REVERSE_FILL));*/
-
     glyph.path = std::move(outline.pathSpec).build();
-    return glyph;
+
+    auto j = cache_.insert(std::make_pair(desc, std::move(glyph)));
+
+    return j->second;
+}
+
+template <class TOnGlyph>
+GlyphWalk FontManagerDeferred::walkGlyphs(Lock& lock, Font const& font,
+        utf8::Utf8View text, TOnGlyph&& onGlyph) const
+{
+    float const lineHeight =
+        (float)font.d()->face_->size->metrics.height / 6400.0f;
+
+    GlyphWalk walk { Vector2f(0.0f, 0.0f), 1 };
+
+    for (auto c : text)
+    {
+        if (c == '\n')
+        {
+            walk.pen = Vector2f(0.0f, walk.pen[1] - lineHeight);
+            ++walk.lines;
+            continue;
+        }
+
+        unsigned int glyphIndex = FT_Get_Char_Index(font.d()->face_, c);
+        Glyph const& glyph = getGlyph(lock, font, glyphIndex);
+
+        if (!onGlyph(PenGlyph { glyphIndex, glyph, walk.pen, walk.lines - 1 }))
+            break;
+
+        walk.pen[0] += glyph.advanceX;
+    }
+
+    return walk;
 }
 
 FontManager::FontManager() :
@@ -254,26 +285,12 @@ Path FontManager::textToPath(Lock& lock, pmr::memory_resource* memory,
         Font const& font, utf8::Utf8View text)
 {
     Path result(memory);
-    Transform transform;
-    float x = 0.0;
-    float y = 0.0;
 
-    for (auto c : text)
+    d()->walkGlyphs(lock, font, text, [&](PenGlyph const& g)
     {
-        if (c == '\n')
-        {
-            y -= (float)font.d()->face_->size->metrics.height / 6400.0f;
-            transform = std::move(transform).setTranslation(x, y);
-            continue;
-        }
-
-        unsigned int glyphIndex = FT_Get_Char_Index(font.d()->face_, c);
-        Glyph& glyph = d()->getGlyphWithOutline(lock, font, glyphIndex);
-
-        result += transform * glyph.path;
-        transform = std::move(transform)
-            .translate(Vector2f(glyph.advanceX, 0.0f));
-    }
+        result += Transform().setTranslation(g.pen) * g.glyph.path;
+        return true;
+    });
 
     return result;
 }
@@ -282,67 +299,25 @@ size_t FontManager::getCharacterIndex(Lock& lock, Font const& font,
         utf8::Utf8View text, float fontHeight, ase::Vector2f pos) const
 {
     size_t result = 0;
+    float const lineHeight =
+        (float)font.d()->face_->size->metrics.height / 6400.0f;
 
-    float x = 0.0f;
-    float y = 0.0f;
-    float w = 0.0f;
-    float h = 0.0f;
-    float xBearing = 0.0f;
-    float yBearing = 0.0f;
-
-    float yStep = (float)font.d()->face_->size->metrics.height / 6400.0f;
-    bool first = true;
-
-    //for (auto i = text.begin(); i != text.end(); ++i)
-    for (auto c : text)
+    d()->walkGlyphs(lock, font, text, [&](PenGlyph const& g)
     {
-        if (c == '\n' || first)
+        float left = g.pen[0] * fontHeight;
+        float right = (g.pen[0] + g.glyph.advanceX) * fontHeight;
+        float bottom = g.pen[1] * fontHeight;
+        float top = (g.pen[1] + lineHeight) * fontHeight;
+
+        if (bottom <= pos[1] && pos[1] < top && left <= pos[0]
+                && pos[0] < right)
         {
-            h += yStep;
-            x = 0.0f;
-
-            if (!first)
-            {
-                y -= yStep;
-                continue;
-            }
-        }
-
-        unsigned int glyphIndex = FT_Get_Char_Index(font.d()->face_, c);
-        Glyph& glyph = d()->getGlyphWithOutline(lock, font, glyphIndex);
-
-        auto oldX = x;
-        x += glyph.advanceX;
-
-        auto nextY = y + yStep;
-
-        if ((y * fontHeight) <= pos[1] && pos[1] < (nextY * fontHeight) &&
-                (oldX * fontHeight) <= pos[0] && pos[0] < (x * fontHeight))
-        {
-            return result;
+            return false;
         }
 
         ++result;
-
-        if (first)
-        {
-            xBearing = glyph.bearing[0];
-            yBearing = glyph.bearing[1];
-        }
-        else
-        {
-            if (x == 0.0f)
-                xBearing = std::min(xBearing, glyph.bearing[0]);
-
-            if (y == 0.0f)
-                yBearing = std::max(yBearing, glyph.bearing[1]);
-        }
-
-        w = std::max(w, -xBearing + x + glyph.size[0] + glyph.bearing[0]);
-        h = std::max(h, -yBearing + y + glyph.size[1] + glyph.bearing[1]);
-
-        first = false;
-    }
+        return true;
+    });
 
     return result;
 }
@@ -350,61 +325,68 @@ size_t FontManager::getCharacterIndex(Lock& lock, Font const& font,
 TextExtents FontManager::getTextExtents(Lock& lock, Font const& font,
         utf8::Utf8View text, float fontHeight)
 {
-    float x = 0.0f;
-    float y = 0.0f;
+    float const lineHeight =
+        (float)font.d()->face_->size->metrics.height / 6400.0f;
+
     float w = 0.0f;
-    float h = 0.0f;
+    float h = lineHeight;
     float xBearing = 0.0f;
     float yBearing = 0.0f;
-
-    float yStep = (float)font.d()->face_->size->metrics.height / 6400.0f;
     bool first = true;
+    size_t line = 0;
 
-    //for (auto i = text.begin(); i != text.end(); ++i)
-    for (auto c : text)
+    GlyphWalk walk = d()->walkGlyphs(lock, font, text,
+            [&](PenGlyph const& g)
     {
-        if (c == '\n' || first)
-        {
-            h += yStep;
-            x = 0.0f;
+        for (; line < g.line; ++line)
+            h += lineHeight;
 
-            if (!first)
-            {
-                y -= yStep;
-                continue;
-            }
-        }
-
-        unsigned int glyphIndex = FT_Get_Char_Index(font.d()->face_, c);
-        Glyph& glyph = d()->getGlyphWithOutline(lock, font, glyphIndex);
-
-        x += glyph.advanceX;
+        float x = g.pen[0] + g.glyph.advanceX;
+        float y = g.pen[1];
 
         if (first)
         {
-            xBearing = glyph.bearing[0];
-            yBearing = glyph.bearing[1];
+            xBearing = g.glyph.bearing[0];
+            yBearing = g.glyph.bearing[1];
         }
         else
         {
             if (x == 0.0f)
-                xBearing = std::min(xBearing, glyph.bearing[0]);
+                xBearing = std::min(xBearing, g.glyph.bearing[0]);
 
             if (y == 0.0f)
-                yBearing = std::max(yBearing, glyph.bearing[1]);
+                yBearing = std::max(yBearing, g.glyph.bearing[1]);
         }
 
-        w = std::max(w, -xBearing + x + glyph.size[0] + glyph.bearing[0]);
-        h = std::max(h, -yBearing + y + glyph.size[1] + glyph.bearing[1]);
+        w = std::max(w, -xBearing + x + g.glyph.size[0] + g.glyph.bearing[0]);
+        h = std::max(h, -yBearing + y + g.glyph.size[1] + g.glyph.bearing[1]);
 
         first = false;
-    }
+        return true;
+    });
+
+    for (; line + 1 < walk.lines; ++line)
+        h += lineHeight;
 
     return TextExtents{
         Vector2f(xBearing * fontHeight, yBearing * fontHeight),
         Vector2f(w * fontHeight, h * fontHeight),
-        Vector2f(x * fontHeight, y * fontHeight)
+        Vector2f(walk.pen[0] * fontHeight, walk.pen[1] * fontHeight)
     };
+}
+
+std::vector<PositionedGlyph> FontManager::getGlyphs(Lock& lock,
+        Font const& font, utf8::Utf8View text, float height) const
+{
+    std::vector<PositionedGlyph> result;
+
+    d()->walkGlyphs(lock, font, text, [&](PenGlyph const& g)
+    {
+        result.push_back(PositionedGlyph { g.glyphIndex, g.pen * height });
+        return true;
+    });
+
+    return result;
 }
 
 void FontManager::unloadFont(FontImpl const& fontImpl)
@@ -421,8 +403,7 @@ void FontManager::unloadFont(FontImpl const& fontImpl)
 Path const& FontManager::getGlyphPath(Lock& lock, Font const& font,
         unsigned int glyphIndex) const
 {
-    Glyph& glyph = d()->getGlyphWithOutline(lock, font, glyphIndex);
-    return glyph.path;
+    return d()->getGlyph(lock, font, glyphIndex).path;
 }
 
 
