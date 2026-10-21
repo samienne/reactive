@@ -337,6 +337,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             auto&& uploadCommand = std::get<TextureUploadCommand>(renderCommand);
             auto&& glTexture = uploadCommand.target.getImpl<GlTexture>();
 
+            gl.glActiveTexture(GL_TEXTURE0);
             glTexture.setData(
                     d,
                     gl,
@@ -357,6 +358,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 std::get<TextureSubUploadCommand>(renderCommand);
             auto&& glTexture = uploadCommand.target.getImpl<GlTexture>();
 
+            gl.glActiveTexture(GL_TEXTURE0);
             glTexture.setSubData(
                     d,
                     gl,
@@ -448,32 +450,27 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         }
 
         // Set Textures
-        int index = 0;
         activeTextures_.reserve(textures.size());
-        auto k = activeTextures_.begin();
-        for (auto j = textures.begin(); j != textures.end(); ++j)
+        for (size_t index = 0; index < textures.size(); ++index)
         {
-            GLuint tex = j->getImpl<GlTexture>().getGlObject();
+            GLuint tex = textures[index].getImpl<GlTexture>().getGlObject();
+            bool const tracked = index < activeTextures_.size();
 
-            if (k == activeTextures_.end() || *k != tex)
+            if (tracked && activeTextures_[index] == tex)
+                continue;
+
+            if (tracked || tex)
             {
-                if (k != activeTextures_.end() || tex)
-                {
-                    gl.glActiveTexture(GL_TEXTURE0 + index);
+                gl.glActiveTexture(
+                        static_cast<GLenum>(GL_TEXTURE0 + index));
 
-                    glBindTexture(GL_TEXTURE_2D, tex);
-                }
-
-                if (k == activeTextures_.end())
-                    activeTextures_.push_back(tex);
-                else
-                {
-                    *k = tex;
-                    ++k;
-                }
+                glBindTexture(GL_TEXTURE_2D, tex);
             }
 
-            ++index;
+            if (tracked)
+                activeTextures_[index] = tex;
+            else
+                activeTextures_.push_back(tex);
         }
 
         if (boundProgram_ != glProgram.getGlObject())
