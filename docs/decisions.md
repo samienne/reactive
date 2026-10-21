@@ -1,10 +1,80 @@
 # Decisions
 
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
-entries against `3ba9415` (2026-09-28).*
+entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
+(2026-10-22).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## Text is drawn from a glyph atlas, not tessellated every frame
+
+`avg` rasterises each glyph once, at its device pixel size, into a single
+coverage texture per `Painter`, which is one per window (`GlyphAtlas` over a
+pure `AtlasAllocator`), and draws text as textured quads. The atlas grows on
+demand to a fixed maximum and evicts least-recently-used glyphs, never one
+drawn in the current frame.
+
+**Why:** tessellating outlines every frame cost a polygon pipeline per glyph
+and gave no anti-aliasing. A coverage bitmap is cheap to draw and already
+anti-aliased by FreeType. LRU with per-frame pinning keeps a working set of
+glyphs resident without a size policy to tune; the allocator is separate from
+the GPU so its packing and eviction are unit-testable.
+
+## Glyphs are not hinted; the atlas key is a struct
+
+Metrics, outlines and bitmaps are all loaded with `FT_LOAD_NO_HINTING`, and
+layout metrics stay fractional. The atlas is keyed by a `GlyphKey` struct
+rather than a packed integer.
+
+**Why:** hinting changes advances, so hinted drawing would need hinted layout
+to match, and `bqui` lays out in unhinted fractional units; with no hinting
+the atlas path and the outline fallback measure identically. The struct key
+leaves room to add a hinting mode as one more field later, without reworking
+the allocator or the atlas.
+
+## Four subpixel bins in x, none in y
+
+A glyph is rasterised at one of four fractional x offsets, chosen from the
+pen position; the pen's y is rounded to the device pixel.
+
+**Why:** unhinted text has fractional advances, and snapping every glyph to
+whole pixels makes spacing visibly uneven; four x bins hide that for a
+four-fold atlas cost per glyph. Rows of text share a baseline, so snapping y
+costs nothing visible and keeps every glyph on a line crisp.
+
+## Text the atlas does not serve falls back to outlines
+
+Stroked text, text under a rotation (its own or an enclosing transform's),
+text whose device pixel size is outside 1..128, and glyphs the atlas cannot
+place in the current frame are drawn through the outline path, like a shape.
+
+**Why:** a bitmap rasterised through a rotation or at an arbitrary size would
+need its own key space and would blur under resampling; the outline path
+already handles every transform exactly, so it is the fallback rather than a
+second rasteriser. Keeping the atlas to upright, filled, moderate text keeps
+its working set small.
+
+## Glyph uploads ride the draw command buffer
+
+The atlas pushes its sub-image uploads into the same `CommandBuffer` as the
+frame's draws, immediately before them, instead of a separate upload pass.
+
+**Why:** several `render()` calls accumulate into one buffer before it is
+submitted, and the GL queue leaves non-draw commands in place (sorting only
+the draws between them), so an in-line upload is an ordering fence: a later
+render cannot overwrite texels an earlier render's draws still sample. A
+separate upload buffer would have to reproduce that ordering by hand.
+
+## The text shader applies a gamma term of 1.45
+
+The text pipeline raises sampled coverage to `1 / 1.45` before it scales the
+colour.
+
+**Why:** when the framebuffer is sRGB (the usual case), linear coverage
+blends in linear light, which leaves light-on-dark text visibly thinner than
+the outline fill it replaced. The exponent is tuned by eye against that fill
+and approved on screen; it is a constant in `painter.cpp`, not a knob.
 
 ## The compiler floor is GCC 12, Clang 15 and MSVC 2022
 

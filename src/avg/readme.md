@@ -19,7 +19,15 @@ rasterised — by styling it:
 - a **`Brush`** (from a `Color`) fills a shape,
 - a **`Pen`** strokes its outline.
 
-Text is drawn through a `Font` (`Drawing` also carries text entries).
+Text is drawn through a `Font` (`Drawing` also carries text entries). Layout
+— extents, hit-testing — reads the font's unhinted, fractional metrics, so
+text measures the same at every size and scale. Drawing it is separate:
+ordinary filled, unrotated text is rasterised glyph by glyph into a
+**glyph atlas** (one anti-aliased coverage texture per painter, so per window,
+filled on demand and recycled least-recently-used) and drawn as textured
+quads snapped to device pixels. Anything the atlas does not serve — stroked or
+rotated text, very large sizes, a frame that overflows the atlas — falls back
+to the glyph outlines, filled like any other shape.
 
 ## Animation
 

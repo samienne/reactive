@@ -1,6 +1,7 @@
 # ase — agent notes
 
-*Last verified against `6b21821` (2026-08-18).*
+*Last verified against `6b21821` (2026-08-18); the texture note against
+`f3ed6e5` (2026-10-22).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -127,6 +128,17 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
+- **Textures and uploads.** `FORMAT_R8` is a linear single-channel 8-bit
+  format (avg's glyph coverage); the GL context sets `GL_UNPACK_ALIGNMENT` to 1
+  once at setup so its odd-width rows upload tightly packed.
+  `CommandBuffer::pushSubUpload` replaces a rectangle of an existing texture
+  (`glTexSubImage2D`). Both uploads are non-draw
+  commands, and the GL queue (`src/gl/glrenderstate.cpp`) sorts only the runs
+  of draw commands between non-draw commands, so an upload keeps its place
+  relative to the draws around it. Uploads bind on texture unit 0 and record
+  the binding there, because the draw path compares each texture against its
+  own unit's recorded binding; an upload on another unit leaves that record
+  stale and a later draw skips a bind it needed.
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
