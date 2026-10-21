@@ -16,6 +16,7 @@ libavgsrc = [
   'src/fontmanager.cpp',
   'src/fontimpl.cpp',
   'src/font.cpp',
+  'src/atlasallocator.cpp',
   'src/region.cpp',
   'src/rect.cpp',
   'src/polyline.cpp',
@@ -69,8 +70,10 @@ libavgdep = declare_dependency(
   include_directories: include_directories('include')
   )
 
+# tests see the private headers under src
 avgtest =  executable('avgtest',
   'test/animatedtest.cpp',
+  'test/atlasallocatortest.cpp',
   'test/avgtransformtest.cpp',
   'test/brushtest.cpp',
   'test/colortest.cpp',
@@ -83,6 +86,7 @@ avgtest =  executable('avgtest',
   'test/snapshottest.cpp',
   'test/transitionnodetest.cpp',
   dependencies: [gtestdep, libavgdep],
+  include_directories: include_directories('src'),
   )
 
 test('avg', avgtest, timeout: 1200,
