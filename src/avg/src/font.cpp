@@ -98,6 +98,11 @@ bool Font::operator==(Font const& rhs) const
     return deferred_ == rhs.deferred_;
 }
 
+void const* Font::getIdentity() const
+{
+    return deferred_.get();
+}
+
 bool Font::operator!=(Font const& rhs) const
 {
     return deferred_ != rhs.deferred_;

@@ -124,6 +124,11 @@ namespace avg
         std::optional<AtlasRect> find(GlyphKey const& key);
 
         /**
+         * @brief Whether a glyph is in the atlas, without pinning it.
+         */
+        bool contains(GlyphKey const& key) const;
+
+        /**
          * @brief Allocates room for a glyph of the given size, pinning it for
          * this frame.
          *

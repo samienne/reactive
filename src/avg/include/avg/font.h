@@ -92,6 +92,14 @@ namespace avg
 
         bool isEmpty() const;
 
+        /**
+         * @brief An address that identifies the font behind this handle.
+         *
+         * Fonts that compare equal share it, and it stays unique while a
+         * Font of that font exists. An empty font yields nullptr.
+         */
+        void const* getIdentity() const;
+
         AVG_EXPORT friend std::ostream& operator<<(std::ostream& stream,
                 Font const& f);
 

@@ -33,6 +33,11 @@ void AtlasAllocator::beginFrame()
     ++frame_;
 }
 
+bool AtlasAllocator::contains(GlyphKey const& key) const
+{
+    return map_.find(key) != map_.end();
+}
+
 std::optional<AtlasRect> AtlasAllocator::find(GlyphKey const& key)
 {
     auto i = map_.find(key);
