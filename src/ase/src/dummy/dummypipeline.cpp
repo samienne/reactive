@@ -5,9 +5,15 @@
 namespace ase
 {
 
-DummyPipeline::DummyPipeline(Program program) :
-    program_(std::move(program))
+DummyPipeline::DummyPipeline(Program program, bool blendEnabled) :
+    program_(std::move(program)),
+    blendEnabled_(blendEnabled)
 {
+}
+
+bool DummyPipeline::isBlendEnabled() const
+{
+    return blendEnabled_;
 }
 
 Program const& DummyPipeline::getProgram() const

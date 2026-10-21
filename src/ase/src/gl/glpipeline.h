@@ -39,7 +39,7 @@ namespace ase
 
         virtual Program const& getProgram() const override;
         VertexSpec const& getVertexSpec() const;
-        bool isBlendEnabled() const;
+        bool isBlendEnabled() const override;
         BlendMode getSrcFactor() const;
         BlendMode getDstFactor() const;
 

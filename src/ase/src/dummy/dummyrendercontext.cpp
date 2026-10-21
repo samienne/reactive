@@ -93,7 +93,7 @@ std::shared_ptr<PipelineImpl> DummyRenderContext::makePipeline(
         Program program,
         VertexSpec /*spec*/)
 {
-    return std::make_shared<DummyPipeline>(std::move(program));
+    return std::make_shared<DummyPipeline>(std::move(program), false);
 }
 
 std::shared_ptr<PipelineImpl> DummyRenderContext::makePipelineWithBlend(
@@ -102,7 +102,7 @@ std::shared_ptr<PipelineImpl> DummyRenderContext::makePipelineWithBlend(
         BlendMode /*srcFactor*/,
         BlendMode /*dstFactor*/)
 {
-    return std::make_shared<DummyPipeline>(std::move(program));
+    return std::make_shared<DummyPipeline>(std::move(program), true);
 }
 
 std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()

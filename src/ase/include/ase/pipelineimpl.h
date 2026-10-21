@@ -15,6 +15,7 @@ namespace ase
     public:
         virtual ~PipelineImpl() = default;
         virtual Program const& getProgram() const = 0;
+        virtual bool isBlendEnabled() const = 0;
     };
 } // namespace ase
 

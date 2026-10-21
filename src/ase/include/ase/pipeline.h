@@ -31,10 +31,10 @@ namespace ase
         bool operator<(Pipeline const& rhs) const;
 
         Program const& getProgram() const;
+        bool isBlendEnabled() const;
 
         /*
         VertexSpec const& getSpec() const;
-        bool isBlendEnabled() const;
         BlendMode getSrcFactor() const;
         BlendMode getDstFactor() const;
         */

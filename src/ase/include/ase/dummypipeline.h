@@ -7,11 +7,13 @@ namespace ase
     class DummyPipeline : public PipelineImpl
     {
     public:
-        explicit DummyPipeline(Program program);
+        DummyPipeline(Program program, bool blendEnabled);
         Program const& getProgram() const override;
+        bool isBlendEnabled() const override;
 
     private:
         Program program_;
+        bool blendEnabled_;
     };
 } // namespace ase
 

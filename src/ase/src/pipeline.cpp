@@ -31,5 +31,10 @@ Program const& Pipeline::getProgram() const
     return d()->getProgram();
 }
 
+bool Pipeline::isBlendEnabled() const
+{
+    return d()->isBlendEnabled();
+}
+
 } // namespace ase
 
