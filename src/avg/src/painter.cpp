@@ -3,6 +3,7 @@
 #include "rendering.h"
 #include "brush.h"
 #include "pen.h"
+#include "glyphatlas.h"
 
 #include <ase/window.h>
 #include <ase/uniformbufferrange.h>
@@ -15,6 +16,8 @@
 #include <ase/renderqueue.h>
 
 #include <tracy/Tracy.hpp>
+
+#include <string>
 
 static char const* simpleVsSource =
 "#version 330\n"
@@ -46,6 +49,53 @@ static char const* simpleFsSource =
 "   result = vColor;\n"
 "}\n";
 
+static char const* textVsSource =
+"#version 330\n"
+"#extension GL_ARB_shading_language_420pack : require\n"
+"\n"
+"layout(std140, binding = 0) uniform MatrixBlock\n"
+"{\n"
+"   mat4 worldViewProj;\n"
+"} matrices;\n"
+"\n"
+"in vec4 color;\n"
+"in vec3 pos;\n"
+"in vec2 uv;\n"
+"\n"
+"out vec4 vColor;\n"
+"out vec2 vUv;\n"
+"\n"
+"void main()\n"
+"{\n"
+"   vColor = color;\n"
+"   vUv = uv;\n"
+"   gl_Position = matrices.worldViewProj * vec4(pos, 1.0);\n"
+"}\n";
+
+// Coverage is raised to 1/textGamma before it scales the premultiplied
+// colour, which thickens light-on-dark text that linear coverage leaves thin.
+static char const* textGamma = "1.45";
+
+static std::string textFsSource()
+{
+    return std::string()
+        + "#version 330\n"
+        + "#extension GL_ARB_shading_language_420pack : require\n"
+        + "\n"
+        + "layout(binding = 0) uniform sampler2D atlas;\n"
+        + "\n"
+        + "in vec4 vColor;\n"
+        + "in vec2 vUv;\n"
+        + "out vec4 result;\n"
+        + "\n"
+        + "const float gamma = " + textGamma + ";\n"
+        + "\n"
+        + "void main()\n"
+        + "{\n"
+        + "   result = vColor * pow(texture(atlas, vUv).r, 1.0 / gamma);\n"
+        + "}\n";
+}
+
 namespace avg
 {
 
@@ -69,6 +119,21 @@ namespace
                     ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
         }
     }
+
+    ase::Pipeline makeTextPipeline(ase::RenderContext& context)
+    {
+        ase::NamedVertexSpec namedSpec;
+        namedSpec.add("color", 4, ase::TypeFloat, false)
+            .add("pos", 3, ase::TypeFloat, false)
+            .add("uv", 2, ase::TypeFloat, false);
+        auto vs = context.makeVertexShader(textVsSource);
+        auto fs = context.makeFragmentShader(textFsSource());
+        auto program = context.makeProgram(std::move(vs), std::move(fs));
+        ase::VertexSpec spec(program, std::move(namedSpec));
+
+        return context.makePipelineWithBlend(program, spec,
+                ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
+    }
 } // anonymous namespace
 
 Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
@@ -76,6 +141,8 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     renderContext_(context),
     solidPipeline_(makePipeline(context, true)),
     transparentPipeline_(makePipeline(context, false)),
+    textPipeline_(makeTextPipeline(context)),
+    glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
     buffer_(),
     uniformSet_(context.makeUniformSet()),
     uniformBuffer_(context.makeUniformBuffer())
@@ -87,6 +154,8 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
 Painter::~Painter()
 {
 }
+
+Painter::Painter(Painter&&) noexcept = default;
 
 pmr::memory_resource* Painter::getResource() const
 {
@@ -131,6 +200,16 @@ ase::Pipeline const& Painter::getPipeline(Pen const& pen) const
         return solidPipeline_;
     else
         return transparentPipeline_;
+}
+
+ase::Pipeline const& Painter::getTextPipeline() const
+{
+    return textPipeline_;
+}
+
+GlyphAtlas& Painter::getGlyphAtlas()
+{
+    return *glyphAtlas_;
 }
 
 void Painter::clearImage(TargetImage& target)

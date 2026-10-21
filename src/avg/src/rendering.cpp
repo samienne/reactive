@@ -2,6 +2,7 @@
 
 #include "traceresource.h"
 #include "debug.h"
+#include "glyphatlas.h"
 
 #include <avg/softmesh.h>
 #include <avg/region.h>
@@ -409,10 +410,13 @@ void render(pmr::memory_resource* memory,
         ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
         ase::Framebuffer& framebuffer, ase::Vector2i size,
         float scalingFactor,
-        avg::Painter const& painter,
+        avg::Painter& painter,
         avg::Drawing const& drawing)
 {
     ZoneScoped;
+
+    GlyphAtlas& atlas = painter.getGlyphAtlas();
+    atlas.beginFrame();
 
     auto const pixelSize = ase::Vector2f{1.0f, 1.0f};
     float const resPerPixel = std::max(2.0f, 4.0f / scalingFactor);
@@ -423,6 +427,11 @@ void render(pmr::memory_resource* memory,
 
     pmr::vector<SoftMesh> meshes = generateMeshesForElements(memory, painter,
             Transform(), drawing.getElements(), pointSize, rect, false);
+
+    // The glyph uploads precede this frame's draws in the one buffer, so a
+    // later render() into the same buffer cannot overwrite texels these
+    // draws still sample.
+    atlas.endFrame(commandBuffer);
 
     pmr::vector<Element> elements = generateElements(memory, painter, meshes);
 

@@ -22,7 +22,7 @@ namespace avg
             ase::Framebuffer& framebuffer,
             ase::Vector2i size,
             float scalingFactor,
-            avg::Painter const& painter,
+            avg::Painter& painter,
             avg::Drawing const& drawing);
 }
 
