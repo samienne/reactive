@@ -54,13 +54,7 @@ Vector2i Window::getSize() const
 
 Vector2i Window::getScaledSize() const
 {
-    auto size = getSize();
-    float scalingFactor = getScalingFactor();
-
-    return Vector2i(
-            size[0] * scalingFactor,
-            size[1] * scalingFactor
-            );
+    return d()->getScaledSize();
 }
 
 float Window::getScalingFactor() const

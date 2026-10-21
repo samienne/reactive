@@ -139,6 +139,7 @@ libasedep = declare_dependency(
   )
 
 asetest = executable('asetest',
+  'test/genericwindowtest.cpp',
   'test/texturetest.cpp',
   dependencies: [gtestdep, libasedep],
   )

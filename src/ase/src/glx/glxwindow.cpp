@@ -234,11 +234,8 @@ void GlxWindow::handleEvent(_XEvent const& e)
         }
         break;
     case ConfigureNotify:
-        genericWindow_.resize(
-                Vector2i(
-                    (float)event.xconfigure.width / genericWindow_.getScalingFactor(),
-                    (float)event.xconfigure.height / genericWindow_.getScalingFactor())
-                );
+        genericWindow_.resize(Vector2i(event.xconfigure.width,
+                    event.xconfigure.height));
         break;
 
     case ClientMessage:

@@ -16,13 +16,21 @@
 
 namespace ase
 {
-    class GenericWindow
+    class ASE_EXPORT GenericWindow
     {
     public:
+        /** @brief A window of a logical size at a scaling factor; its
+         * client area is the size rounded to device pixels. */
         GenericWindow(Vector2i size, float scalingFactor);
 
+        /** @brief The logical size: the client area in device pixels divided
+         * by the scaling factor, rounded. */
         Vector2i getSize() const;
+
+        /** @brief The client area in device pixels, as the platform reported
+         * it. */
         Vector2i getScaledSize() const;
+
         void setScalingFactor(float factor);
         float getScalingFactor() const;
         float getWidth() const;
@@ -32,7 +40,9 @@ namespace ase
         void setTitle(std::string title);
 
         void notifyClose();
-        void resize(Vector2i size);
+
+        /** @brief Set the client area in device pixels. */
+        void resize(Vector2i pixelSize);
 
         /**
          * @brief The frame time this window next wants to render at, or nullopt
@@ -92,6 +102,7 @@ namespace ase
         std::function<void(TextEvent const& e)> textCallback_;
 
         Vector2i size_;
+        Vector2i pixelSize_;
         float scalingFactor_;
 
         std::optional<Vector2f> pointerPos_;

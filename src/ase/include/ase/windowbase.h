@@ -61,6 +61,7 @@ namespace ase
         void injectTextEvent(std::string text) override;
 
         Vector2i getSize() const override;
+        Vector2i getScaledSize() const override;
         float getScalingFactor() const override;
 
     protected:

@@ -1,13 +1,28 @@
 #include "genericwindow.h"
 
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 
 namespace ase
 {
 
+namespace
+{
+    Vector2i scaled(Vector2i size, float factor)
+    {
+        return Vector2i(
+                static_cast<int>(std::lround(
+                        static_cast<float>(size[0]) * factor)),
+                static_cast<int>(std::lround(
+                        static_cast<float>(size[1]) * factor))
+                );
+    }
+} // anonymous namespace
+
 GenericWindow::GenericWindow(Vector2i size, float scalingFactor) :
     size_(size),
+    pixelSize_(scaled(size, scalingFactor)),
     scalingFactor_(scalingFactor)
 {
 }
@@ -19,10 +34,7 @@ Vector2i GenericWindow::getSize() const
 
 Vector2i GenericWindow::getScaledSize() const
 {
-    return Vector2i(
-            getWidth() * getScalingFactor(),
-            getHeight() * getScalingFactor()
-            );
+    return pixelSize_;
 }
 
 void GenericWindow::setScalingFactor(float factor)
@@ -31,6 +43,7 @@ void GenericWindow::setScalingFactor(float factor)
         return;
 
     scalingFactor_ = factor;
+    size_ = scaled(pixelSize_, 1.0f / factor);
     if (resizeCallback_)
         resizeCallback_();
 }
@@ -66,9 +79,10 @@ void GenericWindow::notifyClose()
         closeCallback_();
 }
 
-void GenericWindow::resize(Vector2i size)
+void GenericWindow::resize(Vector2i pixelSize)
 {
-    size_ = size;
+    pixelSize_ = pixelSize;
+    size_ = scaled(pixelSize, 1.0f / scalingFactor_);
 
     if (resizeCallback_)
         resizeCallback_();

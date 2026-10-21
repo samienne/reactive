@@ -47,10 +47,7 @@ namespace
 
         float const scale = getWindowScalingFactor(hwnd);
         window.setScalingFactor(scale);
-        window.resize(Vector2i(
-                    std::lround(static_cast<float>(rect.right) / scale),
-                    std::lround(static_cast<float>(rect.bottom) / scale)
-                    ));
+        window.resize(Vector2i(rect.right, rect.bottom));
     }
 
     std::string convertFromUtf16(wchar_t c)

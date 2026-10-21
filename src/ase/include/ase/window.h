@@ -53,8 +53,13 @@ namespace ase
         void setTitle(std::string title);
         std::string const& getTitle() const;
 
+        /** @brief The logical size, in device pixels over the scaling
+         * factor. */
         Vector2i getSize() const;
+
+        /** @brief The framebuffer size: the client area in device pixels. */
         Vector2i getScaledSize() const;
+
         float getScalingFactor() const;
         Framebuffer& getDefaultFramebuffer();
 

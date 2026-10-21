@@ -86,6 +86,11 @@ Vector2i WindowBase::getSize() const
     return genericWindow_.getSize();
 }
 
+Vector2i WindowBase::getScaledSize() const
+{
+    return genericWindow_.getScaledSize();
+}
+
 float WindowBase::getScalingFactor() const
 {
     return genericWindow_.getScalingFactor();
