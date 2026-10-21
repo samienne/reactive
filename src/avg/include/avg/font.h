@@ -20,8 +20,15 @@ namespace avg
     class FontImpl;
     struct TextExtents;
     struct PositionedGlyph;
+    struct GlyphBitmap;
     class Path;
     class FontManager;
+
+    /**
+     * @brief Number of horizontal subpixel offsets Font::rasterizeGlyph
+     * distinguishes.
+     */
+    constexpr int subpixelBins = 4;
 
     class AVG_EXPORT Font
     {
@@ -59,6 +66,19 @@ namespace avg
          */
         std::vector<PositionedGlyph> getGlyphs(utf8::Utf8View text,
                 float height) const;
+
+        /**
+         * @brief Renders one glyph to an antialiased coverage bitmap.
+         *
+         * glyphIndex is a glyph from getGlyphs. pixelSize is the pixels one
+         * unit of height covers, so a glyph that getGlyphs placed with
+         * height h and drawn at scale s is rasterised with pixelSize h * s.
+         * subpixelBin, 0 to subpixelBins - 1, shifts the outline right by
+         * 1 / subpixelBins of a pixel per bin before sampling. Throws
+         * std::invalid_argument for a size below one or a bin out of range.
+         */
+        GlyphBitmap rasterizeGlyph(uint32_t glyphIndex, int pixelSize,
+                int subpixelBin) const;
 
         float getDescender(float height) const;
         float getAscender(float height) const;

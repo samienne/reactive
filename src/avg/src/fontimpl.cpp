@@ -9,6 +9,7 @@ FontImpl::FontImpl(FontManager& manager, std::string const& file,
         unsigned long faceIndex, FT_Face face) :
     manager_(manager),
     face_(face),
+    metricSize_(face->size),
     file_(file),
     faceIndex_(faceIndex),
     descend_((float)face->descender / 6400.0f),

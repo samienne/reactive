@@ -7,6 +7,7 @@
 
 #include <utf8/utf8.h>
 
+#include <cstdint>
 #include <mutex>
 #include <memory>
 #include <vector>
@@ -18,6 +19,7 @@ namespace avg
     class Path;
     struct TextExtents;
     struct PositionedGlyph;
+    struct GlyphBitmap;
     class FontManagerDeferred;
 
     class AVG_EXPORT FontManager
@@ -47,6 +49,8 @@ namespace avg
                 utf8::Utf8View text, float height);
         std::vector<PositionedGlyph> getGlyphs(Lock&, Font const& font,
                 utf8::Utf8View text, float height) const;
+        GlyphBitmap rasterizeGlyph(Lock&, Font const& font,
+                uint32_t glyphIndex, int pixelSize, int subpixelBin) const;
 
         friend class FontImpl;
         void unloadFont(FontImpl const& fontImpl);

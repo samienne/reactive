@@ -5,6 +5,7 @@
 
 #include "textextents.h"
 #include "positionedglyph.h"
+#include "glyphbitmap.h"
 #include "path.h"
 
 #include "transform.h"
@@ -62,6 +63,14 @@ std::vector<PositionedGlyph> Font::getGlyphs(utf8::Utf8View text,
 {
     FontManager::Lock lock(manager.lock());
     return d()->manager_.getGlyphs(lock, *this, text, height);
+}
+
+GlyphBitmap Font::rasterizeGlyph(uint32_t glyphIndex, int pixelSize,
+        int subpixelBin) const
+{
+    FontManager::Lock lock(manager.lock());
+    return d()->manager_.rasterizeGlyph(lock, *this, glyphIndex, pixelSize,
+            subpixelBin);
 }
 
 float Font::getDescender(float height) const

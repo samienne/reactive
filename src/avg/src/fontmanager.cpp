@@ -2,6 +2,7 @@
 
 #include "textextents.h"
 #include "positionedglyph.h"
+#include "glyphbitmap.h"
 #include "font.h"
 #include "fontimpl.h"
 #include "path.h"
@@ -19,10 +20,13 @@
 #include FT_FREETYPE_H
 #include FT_CACHE_H
 #include FT_OUTLINE_H
+#include FT_SIZES_H
 
+#include <algorithm>
 #include <map>
 #include <list>
 #include <mutex>
+#include <stdexcept>
 #include <vector>
 
 namespace avg
@@ -113,6 +117,8 @@ namespace
         PathBuilder pathSpec;
     };
 
+    constexpr size_t maxRasterSizes = 16;
+
     int outlineMoveTo(FT_Vector const* to, void* user);
     int outlineLineTo(FT_Vector const* to, void* user);
     int outlineConicTo(FT_Vector const* control,
@@ -138,6 +144,12 @@ public:
     template <class TOnGlyph>
     GlyphWalk walkGlyphs(Lock& lock, Font const& font, utf8::Utf8View text,
             TOnGlyph&& onGlyph) const;
+
+    // Activates the face size that scales one unit of height to pixelSize
+    // pixels. The metric size must be active again before getGlyph reads
+    // the face.
+    void activateRasterSize(Lock& lock, FontImpl const& font,
+            int pixelSize) const;
 
     pmr::memory_resource* memory_;
 
@@ -389,15 +401,134 @@ std::vector<PositionedGlyph> FontManager::getGlyphs(Lock& lock,
     return result;
 }
 
+GlyphBitmap FontManager::rasterizeGlyph(Lock& lock, Font const& font,
+        uint32_t glyphIndex, int pixelSize, int subpixelBin) const
+{
+    if (pixelSize < 1)
+        throw std::invalid_argument("Glyph pixel size must be positive");
+
+    if (subpixelBin < 0 || subpixelBin >= subpixelBins)
+        throw std::invalid_argument("Glyph subpixel bin out of range");
+
+    FontImpl const& impl = *font.d();
+    FT_Face face = impl.face_;
+
+    struct MetricSizeRestorer
+    {
+        FT_Size size;
+
+        ~MetricSizeRestorer()
+        {
+            FT_Activate_Size(size);
+        }
+    } restorer { impl.metricSize_ };
+
+    d()->activateRasterSize(lock, impl, pixelSize);
+
+    FT_Error error = FT_Load_Glyph(face, glyphIndex,
+            FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP);
+    if (error)
+        throw std::runtime_error("Unable to load glyph");
+
+    FT_Outline_Translate(&face->glyph->outline,
+            subpixelBin * 64 / subpixelBins, 0);
+
+    error = FT_Render_Glyph(face->glyph, FT_RENDER_MODE_NORMAL);
+    if (error)
+        throw std::runtime_error("Unable to render glyph");
+
+    FT_Bitmap const& bitmap = face->glyph->bitmap;
+    if (bitmap.pixel_mode != FT_PIXEL_MODE_GRAY || bitmap.num_grays != 256)
+        throw std::runtime_error("Unexpected glyph bitmap format");
+
+    GlyphBitmap result;
+    result.width = (int)bitmap.width;
+    result.height = (int)bitmap.rows;
+    result.bearingX = face->glyph->bitmap_left;
+    result.bearingY = face->glyph->bitmap_top;
+    result.coverage.resize((size_t)result.width * result.height);
+
+    for (int row = 0; row < result.height; ++row)
+    {
+        unsigned char const* src = bitmap.buffer
+            + (ptrdiff_t)row * bitmap.pitch;
+        std::copy(src, src + result.width,
+                result.coverage.begin() + (ptrdiff_t)row * result.width);
+    }
+
+    return result;
+}
+
 void FontManager::unloadFont(FontImpl const& fontImpl)
 {
     auto locked = lock();
+
+    for (auto const& rasterSize : fontImpl.rasterSizes_)
+        FT_Done_Size(rasterSize.size);
 
     auto i = d()->fonts_.find(FontDesc(fontImpl.file_, fontImpl.faceIndex_));
     if (i == d()->fonts_.end() || !i->second.expired())
         return;
 
     d()->fonts_.erase(i);
+}
+
+void FontManagerDeferred::activateRasterSize(Lock& /*lock*/,
+        FontImpl const& font, int pixelSize) const
+{
+    auto& sizes = font.rasterSizes_;
+
+    auto i = std::find_if(sizes.begin(), sizes.end(),
+            [&](RasterSize const& s)
+            {
+                return s.pixelSize == pixelSize;
+            });
+
+    if (i == sizes.end())
+    {
+        if (sizes.size() >= maxRasterSizes)
+        {
+            auto oldest = std::min_element(sizes.begin(), sizes.end(),
+                    [](RasterSize const& a, RasterSize const& b)
+                    {
+                        return a.lastUse < b.lastUse;
+                    });
+
+            FT_Done_Size(oldest->size);
+            sizes.erase(oldest);
+        }
+
+        FT_Size size = nullptr;
+        if (FT_New_Size(font.face_, &size))
+            throw std::runtime_error("Unable to create font size");
+
+        FT_Activate_Size(size);
+
+        // One unit of height is 1/100 pixel at the metric size (its 26.6
+        // coordinates are divided by 6400), so this is the metric scale
+        // times pixelSize / 100.
+        FT_Size_RequestRec request = {};
+        request.type = FT_SIZE_REQUEST_TYPE_SCALES;
+        request.width = FT_MulDiv(font.metricSize_->metrics.x_scale,
+                pixelSize * 64, 6400);
+        request.height = FT_MulDiv(font.metricSize_->metrics.y_scale,
+                pixelSize * 64, 6400);
+
+        if (FT_Request_Size(font.face_, &request))
+        {
+            FT_Done_Size(size);
+            throw std::runtime_error("Unable to set font size");
+        }
+
+        sizes.push_back(RasterSize { pixelSize, size, 0 });
+        i = std::prev(sizes.end());
+    }
+    else
+    {
+        FT_Activate_Size(i->size);
+    }
+
+    i->lastUse = ++font.rasterUses_;
 }
 
 Path const& FontManager::getGlyphPath(Lock& lock, Font const& font,
