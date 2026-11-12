@@ -212,6 +212,29 @@ touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 - **`tint`** is one Shape pass reading the backdrop and mixing a colour in
   by strength times the colour's alpha; result alpha is always 1, as the
   final pass is opaque by design.
+- **Scratch textures live in a `ScratchPool`** (`scratchpool.h`), one per
+  window: a pool per `ScratchKey`, every texture full-screen at its key's
+  divisor (`targetSize`), each in a framebuffer of its own with no depth
+  attachment. `acquire(slot)` makes the slot's texture on first use, so a
+  frame allocates exactly what its `ScratchPlan` asks for; textures persist
+  across frames, `beginFrame(screenSize)` with a new size drops them all,
+  and `endFrame` drops a texture no frame has acquired for
+  `scratchIdleFrameLimit` (120) frames, so a window that stops showing
+  effects gives the memory back. Apart from a resize, the idle release is
+  the only way the pool shrinks.
+- **Pipelines are cached per (fragment source, target format, geometry)**
+  in `PassPipelineCache` (`passpipelinecache.h`). An entry links
+  `passVertexSource` with the fragment source against the pass's declared
+  interface, resolves the `PassBlock` and `ParamBlock` bindings and the
+  sampler count once, and draws with depth test and write off; a Region
+  pipeline does not blend (the quad overwrites its region), the Shape
+  pipeline blends source alpha over the main target. Parameters are not in
+  the key, so an animated radius keeps its pipelines. Each entry owns a
+  small pool of `UniformSet`s handed out per draw and recycled by
+  `beginFrame`: a set is read when its draw executes, so two draws of one
+  pipeline in a frame sharing a set would both see the last ranges bound.
+  This differs from the painter's single `MatrixBlock` set, which is
+  constant over a frame.
 - Shader compilation and the look are the one thing these tests cannot
   reach: the dummy backend compiles nothing, so the GLSL is only checked
   textually (version line, declared names present, no binding qualifiers)

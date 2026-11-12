@@ -30,6 +30,8 @@ libavgsrc = [
   'src/effect.cpp',
   'src/effectplan.cpp',
   'src/effectshader.cpp',
+  'src/passpipelinecache.cpp',
+  'src/scratchpool.cpp',
   'src/builtineffects.cpp',
   'src/shape.cpp',
   'src/pen.cpp',
