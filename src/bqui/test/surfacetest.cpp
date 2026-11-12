@@ -1,3 +1,6 @@
+#include <bqui/modifier/background.h>
+#include <bqui/modifier/foreground.h>
+#include <bqui/modifier/frame.h>
 #include <bqui/modifier/ondraw.h>
 #include <bqui/modifier/setsizehint.h>
 #include <bqui/modifier/surface.h>
@@ -262,6 +265,96 @@ TEST(Surface, stackPaintsEachLaterChildInItsOwnBackdropScope)
     ASSERT_TRUE(third);
     ASSERT_EQ(1u, third->size());
     EXPECT_EQ(blue, fillColorAt(*third, 0));
+}
+
+TEST(Surface, onDrawBehindPaintsTheWidgetInAScopeOverTheDrawing)
+{
+    auto drawing = draw(realise(probe(green)
+            | modifier::onDrawBehind(&fillArea, bq::signal::constant(red))));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(2u, elements.size());
+
+    EXPECT_EQ(red, fillColorAt(elements, 0));
+
+    auto const* above = scopedElementsAt(elements, 1);
+    ASSERT_TRUE(above);
+    ASSERT_EQ(1u, above->size());
+    EXPECT_EQ(green, fillColorAt(*above, 0));
+}
+
+TEST(Surface, onDrawPaintsTheDrawingInAScopeOverTheWidget)
+{
+    auto drawing = draw(realise(probe(green)
+            | modifier::onDraw(&fillArea, bq::signal::constant(red))));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(2u, elements.size());
+
+    EXPECT_EQ(green, fillColorAt(elements, 0));
+
+    auto const* above = scopedElementsAt(elements, 1);
+    ASSERT_TRUE(above);
+    ASSERT_EQ(1u, above->size());
+    EXPECT_EQ(red, fillColorAt(*above, 0));
+}
+
+TEST(Surface, aDrawnShapeAloneHasNoScope)
+{
+    auto drawing = draw(realise(shape::rectangle().fill(red)));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(1u, elements.size());
+    EXPECT_EQ(red, fillColorAt(elements, 0));
+}
+
+TEST(Surface, backgroundPaintsTheWidgetInAScopeOverTheBackground)
+{
+    auto drawing = draw(realise(probe(green)
+            | modifier::background(bq::signal::constant(avg::Brush(red)))));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(2u, elements.size());
+
+    EXPECT_EQ(red, fillColorAt(elements, 0));
+
+    auto const* above = scopedElementsAt(elements, 1);
+    ASSERT_TRUE(above);
+    ASSERT_EQ(1u, above->size());
+    EXPECT_EQ(green, fillColorAt(*above, 0));
+}
+
+TEST(Surface, foregroundPaintsTheForegroundInAScopeOverTheWidget)
+{
+    auto drawing = draw(realise(probe(green)
+            | modifier::foreground(probe(red))));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(2u, elements.size());
+
+    EXPECT_EQ(green, fillColorAt(elements, 0));
+
+    auto const* above = scopedElementsAt(elements, 1);
+    ASSERT_TRUE(above);
+    ASSERT_EQ(1u, above->size());
+    EXPECT_EQ(red, fillColorAt(*above, 0));
+}
+
+TEST(Surface, framePaintsTheWidgetInAScopeOverTheFrame)
+{
+    auto drawing = draw(realise(probe(green) | modifier::frame()));
+
+    auto const& elements = drawing.getElements();
+    ASSERT_EQ(2u, elements.size());
+
+    auto const* outline = elementAs<avg::Drawing::ShapeElement>(elements, 0);
+    ASSERT_TRUE(outline);
+    EXPECT_TRUE(outline->pen.has_value());
+
+    auto const* above = scopedElementsAt(elements, 1);
+    ASSERT_TRUE(above);
+    ASSERT_EQ(1u, above->size());
+    EXPECT_EQ(green, fillColorAt(*above, 0));
 }
 
 TEST(Surface, vboxPaintsItsChildrenFlat)
