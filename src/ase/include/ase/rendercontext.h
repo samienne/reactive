@@ -109,17 +109,11 @@ namespace ase
         /**
          * @brief A pipeline drawing `program` over `vertexSpec`.
          *
-         * `desc` gives the blend and depth state; the default is opaque,
-         * depth-tested and depth-writing.
+         * `desc` declares the formats of the targets the pipeline draws
+         * into and gives the blend and depth state.
          */
         Pipeline makePipeline(Program program, VertexSpec vertexSpec,
-                PipelineDesc desc = {});
-
-        /**
-         * @brief A blended pipeline that tests but does not write depth.
-         */
-        Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
-                BlendMode srcFactor, BlendMode dstFactor);
+                PipelineDesc desc);
 
         /**
          * @brief A uniform set for the blocks iface declares.

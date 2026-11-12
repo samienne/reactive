@@ -3,6 +3,7 @@
 #include <ase/dummyrendercontext.h>
 #include <ase/namedvertexspec.h>
 #include <ase/pipeline.h>
+#include <ase/pipelinedesc.h>
 #include <ase/platform.h>
 #include <ase/program.h>
 #include <ase/rendercontext.h>
@@ -254,7 +255,7 @@ TEST(shaderInterface, dummyResolvesVertexSpecFromDeclaration)
         .add("pos", 3, TypeFloat, false);
 
     Pipeline pipeline = f.context.makePipeline(program,
-            VertexSpec(program, named));
+            VertexSpec(program, named), PipelineDesc{ FORMAT_SRGBA });
     auto const& specs = pipeline.getVertexSpec().getSpecs();
 
     ASSERT_EQ(2u, specs.size());

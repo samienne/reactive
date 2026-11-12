@@ -113,15 +113,6 @@ Pipeline RenderContext::makePipeline(Program program, VertexSpec vertexSpec,
                 std::move(vertexSpec), desc));
 }
 
-Pipeline RenderContext::makePipelineWithBlend(Program program,
-        VertexSpec vertexSpec, BlendMode srcFactor, BlendMode dstFactor)
-{
-    PipelineDesc desc;
-    desc.blend = BlendFunc{ srcFactor, dstFactor };
-
-    return makePipeline(std::move(program), std::move(vertexSpec), desc);
-}
-
 UniformSet RenderContext::makeUniformSet(ShaderInterface iface)
 {
     return UniformSet(d()->makeUniformSetImpl(std::move(iface)));

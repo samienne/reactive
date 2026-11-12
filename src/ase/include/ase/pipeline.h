@@ -2,15 +2,18 @@
 
 #include "pipelineimpl.h"
 #include "blendmode.h"
+#include "format.h"
 #include "program.h"
 #include "vertexspec.h"
 
 #include "asevisibility.h"
 
 #include <memory>
+#include <optional>
 
 namespace ase
 {
+    class Framebuffer;
     class RenderContext;
 
     class ASE_EXPORT Pipeline
@@ -30,9 +33,21 @@ namespace ase
 
         Program const& getProgram() const;
         VertexSpec const& getVertexSpec() const;
+        Format getColorFormat() const;
+        std::optional<Format> getDepthFormat() const;
         bool isBlendEnabled() const;
         bool isDepthTestEnabled() const;
         bool isDepthWriteEnabled() const;
+
+        /**
+         * @brief Whether `target`'s attachments have the formats this
+         * pipeline declared.
+         *
+         * A depth attachment the target reports as `FORMAT_UNKNOWN` is
+         * present but of a format the backend cannot tell, and matches any
+         * declared depth format.
+         */
+        bool matchesTarget(Framebuffer const& target) const;
 
         template <class T>
         inline T const& getImpl() const

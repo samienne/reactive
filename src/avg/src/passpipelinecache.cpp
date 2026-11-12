@@ -28,9 +28,10 @@ namespace
                 ase::Buffer(source.data(), source.size()));
     }
 
-    ase::PipelineDesc passPipelineDesc(Geometry geometry)
+    ase::PipelineDesc passPipelineDesc(Geometry geometry,
+            ase::Format colorFormat, std::optional<ase::Format> depthFormat)
     {
-        ase::PipelineDesc desc;
+        ase::PipelineDesc desc{ colorFormat, depthFormat };
         desc.depthTest = false;
         desc.depthWrite = false;
 
@@ -43,22 +44,28 @@ namespace
         return desc;
     }
 
-    ase::Pipeline makePassPipeline(ase::RenderContext& context,
-            PassShader const& shader, Geometry geometry)
+    ase::Program makePassProgram(ase::RenderContext& context,
+            PassShader const& shader)
     {
-        ase::NamedVertexSpec namedSpec;
-        namedSpec.add("pos", 2, ase::TypeFloat, false);
-
         auto vs = makeShader(context, ase::ShaderStage::Vertex,
                 passVertexSource());
         auto fs = makeShader(context, ase::ShaderStage::Fragment,
                 shader.fragmentSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
+
+        return context.makeProgram(std::move(vs), std::move(fs),
                 shader.interface);
+    }
+
+    ase::Pipeline makePassPipeline(ase::RenderContext& context,
+            ase::Program program, Geometry geometry, ase::Format colorFormat,
+            std::optional<ase::Format> depthFormat)
+    {
+        ase::NamedVertexSpec namedSpec;
+        namedSpec.add("pos", 2, ase::TypeFloat, false);
         ase::VertexSpec spec(program, namedSpec);
 
         return context.makePipeline(std::move(program), std::move(spec),
-                passPipelineDesc(geometry));
+                passPipelineDesc(geometry, colorFormat, depthFormat));
     }
 } // anonymous namespace
 
@@ -121,10 +128,11 @@ void PassPipeline::beginFrame()
     usedSets_ = 0;
 }
 
-bool PassPipelineCache::Key::operator<(Key const& rhs) const
+bool PassPipelineCache::PipelineKey::operator<(PipelineKey const& rhs) const
 {
-    return std::tie(format, geometry, fragmentSource)
-        < std::tie(rhs.format, rhs.geometry, rhs.fragmentSource);
+    return std::tie(program, geometry, colorFormat, depthFormat)
+        < std::tie(rhs.program, rhs.geometry, rhs.colorFormat,
+                rhs.depthFormat);
 }
 
 PassPipelineCache::PassPipelineCache(ase::RenderContext& context) :
@@ -145,17 +153,31 @@ void PassPipelineCache::beginFrame()
 }
 
 PassPipeline& PassPipelineCache::getPipeline(PassShader const& shader,
-        Geometry geometry, ase::Format targetFormat)
+        Geometry geometry, ase::Format colorFormat,
+        std::optional<ase::Format> depthFormat)
 {
-    Key key{ shader.fragmentSource, targetFormat, geometry };
+    PipelineKey key{ getProgram(shader), geometry, colorFormat, depthFormat };
 
     auto i = pipelines_.find(key);
     if (i == pipelines_.end())
     {
+        ase::Pipeline pipeline = makePassPipeline(context_, key.program,
+                geometry, colorFormat, depthFormat);
         i = pipelines_.emplace(std::move(key),
-                PassPipeline(context_,
-                    makePassPipeline(context_, shader, geometry),
+                PassPipeline(context_, std::move(pipeline),
                     shader.interface)).first;
+    }
+
+    return i->second;
+}
+
+ase::Program const& PassPipelineCache::getProgram(PassShader const& shader)
+{
+    auto i = programs_.find(shader.fragmentSource);
+    if (i == programs_.end())
+    {
+        i = programs_.emplace(shader.fragmentSource,
+                makePassProgram(context_, shader)).first;
     }
 
     return i->second;

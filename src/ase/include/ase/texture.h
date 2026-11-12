@@ -31,7 +31,7 @@ namespace ase
         bool operator<=(Texture const& rhs) const;
         bool operator<(Texture const& rhs) const;
 
-        Format getFormat();
+        Format getFormat() const;
         Vector2i getSize() const;
 
         template <class T>

@@ -19,6 +19,8 @@ GlPipeline::GlPipeline(
         ) :
     program_(std::move(program)),
     vertexSpec_(vertexSpec),
+    colorFormat_(desc.colorFormat),
+    depthFormat_(desc.depthFormat),
     srcFactor_(desc.blend ? desc.blend->srcFactor : BlendMode::Zero),
     dstFactor_(desc.blend ? desc.blend->dstFactor : BlendMode::Zero),
     blendEnabled_(desc.blend.has_value()),
@@ -80,6 +82,16 @@ Program const& GlPipeline::getProgram() const
 VertexSpec const& GlPipeline::getVertexSpec() const
 {
     return vertexSpec_;
+}
+
+Format GlPipeline::getColorFormat() const
+{
+    return colorFormat_;
+}
+
+std::optional<Format> GlPipeline::getDepthFormat() const
+{
+    return depthFormat_;
 }
 
 bool GlPipeline::isBlendEnabled() const

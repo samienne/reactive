@@ -275,14 +275,18 @@ with the rejected alternatives and the places the code departed from it;
   `scratchIdleFrameLimit` (120) frames, so a window that stops showing
   effects gives the memory back. Apart from a resize, the idle release is
   the only way the pool shrinks.
-- **Pipelines are cached per (fragment source, target format, geometry)**
-  in `PassPipelineCache` (`passpipelinecache.h`). An entry links
-  `passVertexSource` with the fragment source against the pass's declared
-  interface, resolves the `PassBlock` and `ParamBlock` bindings and the
-  sampler count once, and draws with depth test and write off; a Region
-  pipeline does not blend (the quad overwrites its region), the Shape
-  pipeline blends source alpha over the main target. Parameters are not in
-  the key, so an animated radius keeps its pipelines. Each entry owns a
+- **Programs are cached per fragment source, pipelines per (program,
+  geometry, colour format, depth format)** in `PassPipelineCache`
+  (`passpipelinecache.h`), so a shader compiles once however many target
+  formats it draws into. A program links `passVertexSource` with the
+  fragment source against the pass's declared interface; a pipeline entry
+  resolves the `PassBlock` and `ParamBlock` bindings and the sampler count
+  once and draws with depth test and write off; a Region pipeline does not
+  blend (the quad overwrites its region) and declares no depth, since
+  scratch targets have none; the Shape pipeline blends source alpha over
+  the main target and declares its depth format, read from the main
+  target's framebuffer. Parameters are in neither key, so an animated
+  radius keeps its pipelines. Each entry owns a
   small pool of `UniformSet`s handed out per draw and recycled by
   `beginFrame`: a set is read when its draw executes, so two draws of one
   pipeline in a frame sharing a set would both see the last ranges bound.
@@ -422,10 +426,16 @@ pushes the present quad and flushes first) submits.
   framebuffer with the target texture at unit 0. The barrier is what keeps
   the run sort from moving the quad ahead of the draws it samples. The
   window is never cleared: the quad covers it and its pipeline neither tests
-  nor writes depth. A frame that painted nothing still presents the target
-  as it was; nothing is presented before the first clear or paint. Image
-  frames (`clearImage`/`paintToImage`) draw straight into the given
-  `TargetImage` and carry no quad. The painter therefore serves one window;
+  nor writes depth. That present pipeline is the one the painter builds
+  lazily, on the first present, because it declares the window framebuffer's
+  colour and depth formats and is rebuilt if a window reports different
+  ones; the content pipelines are built in the constructor and declare
+  `FORMAT_SRGBA` over `TargetImage::depthFormat`, so a `TargetImage` the
+  painter draws into must be `FORMAT_SRGBA`. A frame that painted nothing
+  still presents the target as it was; nothing is presented before the
+  first clear or paint. Image frames (`clearImage`/`paintToImage`) draw
+  straight into the given `TargetImage` and carry no quad. The painter
+  therefore serves one window;
   a second window through the same painter would remake the target every
   frame.
 - **sRGB round trip.** The target and the window are both sRGB surfaces
