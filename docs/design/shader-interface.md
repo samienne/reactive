@@ -8,9 +8,8 @@
 > work (pass uniform blocks, multi-sampler passes) builds on this. Verified
 > against `3c3dfb34` (2026-11-12); the "Why" citations describe `a201d674`, the commit
 > this work started from; the "Vulkan readiness" section records owner
-> decisions of 2026-11-11/12, implemented in `4a31efc0` (the pipeline
-> formats) and `3ceaee0c` (the remaining enablers, 2026-11-12) except the
-> compiler component, which waits for Vulkan work. Migration steps 1 (the
+> decisions of 2026-11-11/12, implemented in `28b2afb6` (2026-11-12) except
+> the compiler component, which waits for Vulkan work. Migration steps 1 (the
 > `ase` declaration, language query and program creation), 2
 > (`UniformBlock<T>`, `UniformValues`, `UniformRing`, the declaration-aware
 > `UniformSet`, and the painter on top of them) and 5 (the Vulkan readiness
@@ -426,7 +425,7 @@ projection carries the adjustment: the effect pass vertex shader
 directly, so a backend whose adjustment is not the identity needs those two
 paths adjusted before it can rely on the matrix.
 
-**Pipelines declare their target formats.** Implemented in `4a31efc0`. The
+**Pipelines declare their target formats.** Implemented in `28b2afb6`. The
 pipeline description is constructed from a required colour format and an
 optional depth format (a sample count can join them later), passed at pipeline
 creation; there is no `makePipelineWithBlend`, since callers build a
@@ -464,9 +463,9 @@ hand-written declarations. The compiler component replaces that one function
 when Vulkan work starts and not before, so glslang and SPIRV-Cross are not a
 dependency of any current build.
 
-**What exists.** No Vulkan backend is implemented. The enablers are: the
-pipeline formats (`4a31efc0`) and, in `3ceaee0c`, texture size and format
-fixed at creation, the clip-space adjustment matrix
+**What exists.** No Vulkan backend is implemented. The enablers are in
+(`28b2afb6`): the pipeline formats, texture size and format fixed at
+creation, the clip-space adjustment matrix
 (`RenderContext::getClipSpaceAdjustment`) consumed by the painter in
 `setSize`, the language-selection seam (`src/avg/src/shadersource.h`), the
 `FORMAT_SRGB` removal, the submission and lifetime contract on
@@ -504,9 +503,8 @@ component and the backend itself are not started.
    size and format fixed at creation, the clip-space adjustment query
    consumed by the painter, the language-selection seam in `avg`, the
    `FORMAT_SRGB` removal, the submission and lifetime contract in the
-   queue's documentation, and dummy tests for each. Done (`4a31efc0`,
-   `3ceaee0c`); the compiler component stays deferred until Vulkan work
-   starts.
+   queue's documentation, and dummy tests for each. Done (`28b2afb6`); the
+   compiler component stays deferred until Vulkan work starts.
 
 Each step is its own PR. Steps 1 and 2 are in: the painter declares its
 interface, keeps the projection in a typed block, writes it through a ring
