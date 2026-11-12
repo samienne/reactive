@@ -21,13 +21,14 @@ WglFramebuffer::WglFramebuffer(WglWindow& window) :
 
 void WglFramebuffer::makeCurrent(Dispatched dispatched,
         GlDispatchedContext& context, GlRenderState& renderState,
-        GlFunctions const& /*gl*/) const
+        GlFunctions const& gl) const
 {
     auto& wglContext = reinterpret_cast<WglDispatchedContext&>(
             context);
 
     wglContext.makeCurrent(dispatched, window_);
 
+    renderState.bindFramebuffer(dispatched, gl, 0);
     renderState.setViewport(dispatched, window_.getScaledSize());
 }
 

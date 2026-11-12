@@ -97,14 +97,14 @@ void GlFramebuffer::makeCurrent(Dispatched d, GlDispatchedContext&,
 {
     if (isDefault_)
     {
-        gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+        renderState.bindFramebuffer(d, gl, framebuffer_);
         return;
     }
 
     if (!framebuffer_)
         gl.glGenFramebuffers(1, &framebuffer_);
 
-    gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_);
+    renderState.bindFramebuffer(d, gl, framebuffer_);
 
     if (dirty_)
     {

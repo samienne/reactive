@@ -229,6 +229,16 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     }
 }
 
+void GlRenderState::bindFramebuffer(Dispatched, GlFunctions const& gl,
+        GLuint framebuffer)
+{
+    if (boundFramebufferObject_ != framebuffer)
+    {
+        boundFramebufferObject_ = framebuffer;
+        gl.glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+    }
+}
+
 void GlRenderState::setScissor(Dispatched,
         std::optional<ScissorRect> const& scissor)
 {
@@ -260,7 +270,9 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         gl.glBindVertexArray(vertexArrayObject_);
     }
 
+    // Framebuffers are deleted outside this state, which rebinds 0 unseen.
     boundFramebuffer_ = nullptr;
+    boundFramebufferObject_ = std::nullopt;
     for (auto i = commands.begin(); i != commands.end(); ++i)
     {
         RenderCommand& renderCommand = *i;
