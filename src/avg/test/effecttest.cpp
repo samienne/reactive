@@ -195,6 +195,42 @@ TEST(Effect, rejectsNegativePadding)
     EXPECT_TRUE(mentions(avg::validate(passes), "negative padding"));
 }
 
+TEST(Effect, rejectsParametersForAnUndeclaredBlock)
+{
+    ase::ShaderInterface declared;
+    declared.block("ParamBlock", 1, ase::BlockLayout::Std140, {
+            { "tint", ase::UniformType::Float4 },
+            });
+
+    std::vector<Pass> passes = { finalPass({ PassInput::backdrop() }) };
+    passes[0].parameters = ase::UniformValues(declared, "ParamBlock");
+
+    EXPECT_TRUE(mentions(avg::validate(passes), "does not declare"));
+
+    passes[0].shader.interface = declared;
+    EXPECT_TRUE(avg::validate(passes).empty());
+}
+
+TEST(Effect, rejectsParametersWhoseLayoutDiffers)
+{
+    ase::ShaderInterface declared;
+    declared.block("ParamBlock", 1, ase::BlockLayout::Std140, {
+            { "tint", ase::UniformType::Float4 },
+            });
+
+    ase::ShaderInterface other;
+    other.block("ParamBlock", 1, ase::BlockLayout::Std140, {
+            { "tint", ase::UniformType::Float4 },
+            { "radius", ase::UniformType::Float },
+            });
+
+    std::vector<Pass> passes = { finalPass({ PassInput::backdrop() }) };
+    passes[0].shader.interface = declared;
+    passes[0].parameters = ase::UniformValues(other, "ParamBlock");
+
+    EXPECT_TRUE(mentions(avg::validate(passes), "layout differs"));
+}
+
 TEST(Effect, constructorThrowsWithEveryError)
 {
     auto passes = blurPasses();

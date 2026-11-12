@@ -180,6 +180,27 @@ std::vector<std::string> validate(std::vector<Pass> const& passes)
                     + std::to_string(pass.padding));
         }
 
+        if (pass.parameters)
+        {
+            ase::ShaderInterface::Block const& block =
+                pass.parameters->getBlock();
+            ase::ShaderInterface::Block const* declared =
+                pass.shader.interface.findBlock(block.name);
+
+            if (!declared)
+            {
+                errors.push_back(passName(i) + " has parameters for block '"
+                        + block.name + "', which its shader does not"
+                        " declare");
+            }
+            else if (*declared != block)
+            {
+                errors.push_back(passName(i) + " has parameters whose"
+                        " layout differs from its shader's block '"
+                        + block.name + "'");
+            }
+        }
+
         for (PassInput const& input : pass.inputs)
         {
             if (input.isBackdrop())
