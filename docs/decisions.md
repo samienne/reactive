@@ -2,10 +2,43 @@
 
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
-(2026-10-22).*
+(2026-10-22); the shader interface entry against `d1633d89` (2026-11-12).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## The shader interface is declared, not introspected
+
+A program's inputs - vertex attributes and their locations, uniform blocks
+with their bindings and std140 members, samplers and their units - are an
+`ase::ShaderInterface` the caller declares and passes to `makeProgram`. Every
+backend consumes the declaration: GL applies the locations, bindings and units
+at link and, in debug builds, reflects the linked program to check that the
+shader agrees; the dummy backend just stores it. Shaders are bytes in a
+language the backend lists, so GLSL text carries no `layout(binding = N)`.
+Block contents are produced from the same declaration, either as a typed
+`UniformBlock<T>` whose struct layout is checked at construction, or by name
+through `UniformValues`, and are written once a frame into a `UniformRing`
+whose upload goes ahead of the draws. `docs/design/shader-interface.md` is the
+full design.
+
+**Why:** the contract used to be split three ways - bindings in the GLSL
+text, integers in C++, attribute names found by GL introspection - and no one
+place owned it. An attribute the shader did not declare was silently dropped,
+the headless backend resolved every name to -1 so tests could not check a
+vertex layout, block bytes were laid out by hand, and every uniform update was
+a `pushUpload` fence that split the draw batch. Backends for WGSL, Metal or
+HLSL bind by slot and have no GL-style introspection to lean on, so names
+could never be the portable contract. Rejected: keeping introspection as the
+truth (GL-only, and the shader text decides what C++ must send); a slot-only
+API (effect parameters arrive by name from the render tree, and a struct per
+user effect is not acceptable); a by-name-only API (the painter's hot path
+pays a lookup per member, or callers cache offsets by hand again); an optional
+"introspect for me" fallback (behaviour would differ by backend, bringing the
+silent drop back); runtime cross-compilation (a compiler toolchain in the
+application, and shipped shaders depending on the device's translator). The
+two setting styles share one layout computation so they cannot drift and one
+validator covers both.
 
 ## Text is drawn from a glyph atlas, not tessellated every frame
 

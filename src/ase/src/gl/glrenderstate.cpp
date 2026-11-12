@@ -4,8 +4,6 @@
 #include "gluniformbuffer.h"
 #include "gluniformset.h"
 #include "glprogram.h"
-#include "glfragmentshader.h"
-#include "glvertexshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gltexture.h"
@@ -498,9 +496,11 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             boundIbo_ = ibo;
         }
 
-        if (boundUniformSet_ != &uniformSet)
+        if (boundUniformSet_ != &uniformSet
+                || boundUniformSetVersion_ != uniformSet.getVersion())
         {
             boundUniformSet_ = &uniformSet;
+            boundUniformSetVersion_ = uniformSet.getVersion();
 
             for (auto const& uniformRange : uniformSet)
             {

@@ -31,6 +31,11 @@ Program const& Pipeline::getProgram() const
     return d()->getProgram();
 }
 
+VertexSpec const& Pipeline::getVertexSpec() const
+{
+    return d()->getVertexSpec();
+}
+
 bool Pipeline::isBlendEnabled() const
 {
     return d()->isBlendEnabled();

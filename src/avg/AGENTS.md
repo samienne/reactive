@@ -1,7 +1,7 @@
 # avg — agent notes
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
-`f3ed6e5` (2026-10-22).*
+`f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -74,6 +74,35 @@ serialisation coupling.
 - The `Animated<T>` explicit template instantiations live in
   `src/avg/src/animated.cpp` and are export-marked — if you add an animated type,
   add it there too (see `docs/conventions.md` on template export vs clang-cl).
+
+## Painter
+
+`Painter` (`painter.h`, `painter.cpp`) owns the pipelines, the glyph atlas,
+the one `UniformSet` every draw binds, and the command buffer the frame is
+recorded into. `clearImage`/`clearWindow`/`paintToImage`/`paintToWindow`
+record; `flush` (and `presentWindow`, which flushes first) submits.
+
+- **The shader interface is declared in `painter.cpp`** (`matrixInterface`:
+  `pos` at location 0, `color` at 1, `MatrixBlock` at binding 0; the text
+  pipeline adds `uv` at 2 and the `atlas` sampler at unit 0). The GLSL
+  carries no binding qualifiers; `ase` applies them from the declaration and
+  validates by reflection in debug builds, so a shader whose names drift from
+  the declaration fails at program creation. Change the declaration and the
+  shader together.
+- **The projection is a typed block through a ring.** `setSize` only sets
+  `MatrixBlock::worldViewProj` in a `UniformBlock`. The first clear or paint
+  after a `flush` opens a frame: `UniformRing::beginFrame`, one `write` of
+  the block, `bindUniformBufferRange("MatrixBlock", range)`; a `setSize`
+  while a frame is open writes and rebinds. `flush` closes the frame with
+  `endFrame` into a separate command buffer and submits that *before* the
+  draw buffer, so the frame's uniform upload precedes every draw that binds
+  into it, and no upload sits among the draws to fence their batching. Since
+  the ring rotates buffers per frame and the set is rebound every frame, a
+  frame never draws with a range from an earlier frame.
+- `avg::render` (`rendering.cpp`) is the free function the painter records
+  through, and tests call it directly with their own command buffer; it does
+  not open a painter frame, so a test that needs the uniform path drives
+  the painter and reads the dummy queue's recorded submissions.
 
 ## Vendored Clipper
 
@@ -175,6 +204,9 @@ square and doubles up to 2048.
   non-draw commands, so an in-line upload is a fence: a later `render()` into
   the same buffer cannot overwrite texels an earlier one's draws still sample.
   Routing the uploads through a separate buffer would lose that ordering.
+  (The painter's uniform upload is the opposite case: written once per frame
+  into its own ring slot and submitted ahead of the whole draw buffer, it
+  needs no place among the draws; see "Painter".)
 - **Overflow is deferred to the frame end.** Quads already emitted reference
   the current texels, so a failed insert only flags the atlas: every further
   miss that frame returns nullopt (hits still serve), and `endFrame` then

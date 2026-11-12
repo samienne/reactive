@@ -4,6 +4,7 @@
 #include "usage.h"
 #include "vector.h"
 #include "format.h"
+#include "shaderstage.h"
 
 #include <memory>
 
@@ -11,8 +12,7 @@ namespace ase
 {
     class GlRenderContext;
     class GlProgram;
-    class GlVertexShader;
-    class GlFragmentShader;
+    class GlShader;
     class GlVertexBuffer;
     class GlIndexBuffer;
     class GlUniformBuffer;
@@ -22,8 +22,8 @@ namespace ase
     class GlUniformSet;
     class GlRenderbuffer;
 
-    class VertexShader;
-    class FragmentShader;
+    class Shader;
+    class ShaderInterface;
     class VertexBuffer;
     class Buffer;
     class Program;
@@ -34,15 +34,14 @@ namespace ase
     public:
         GlObjectManager(GlRenderContext& context);
 
+        std::shared_ptr<GlShader> makeShader(
+                ShaderStage stage,
+                Buffer const& source);
+
         std::shared_ptr<GlProgram> makeProgram(
-                VertexShader const& vertexShader,
-                FragmentShader const& fragmentShader);
-
-        std::shared_ptr<GlVertexShader> makeVertexShader(
-                std::string const& source);
-
-        std::shared_ptr<GlFragmentShader> makeFragmentShader(
-                std::string const& source);
+                Shader const& vertexShader,
+                Shader const& fragmentShader,
+                ShaderInterface iface);
 
         std::shared_ptr<GlVertexBuffer> makeVertexBuffer();
 
@@ -69,7 +68,7 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor);
 
-        std::shared_ptr<GlUniformSet> makeUniformSet();
+        std::shared_ptr<GlUniformSet> makeUniformSet(ShaderInterface iface);
 
     private:
         GlRenderContext& context_;

@@ -124,6 +124,18 @@ namespace
             getProcAddress("glBindBufferRange");
         gl.glGetUniformBlockIndex = (PFNGLGETUNIFORMBLOCKINDEXPROC)
             getProcAddress("glGetUniformBlockIndex");
+        gl.glBindAttribLocation = (PFNGLBINDATTRIBLOCATIONPROC)
+            getProcAddress("glBindAttribLocation");
+        gl.glUniformBlockBinding = (PFNGLUNIFORMBLOCKBINDINGPROC)
+            getProcAddress("glUniformBlockBinding");
+        gl.glGetActiveUniformBlockiv = (PFNGLGETACTIVEUNIFORMBLOCKIVPROC)
+            getProcAddress("glGetActiveUniformBlockiv");
+        gl.glGetActiveUniformBlockName = (PFNGLGETACTIVEUNIFORMBLOCKNAMEPROC)
+            getProcAddress("glGetActiveUniformBlockName");
+        gl.glGetActiveUniformsiv = (PFNGLGETACTIVEUNIFORMSIVPROC)
+            getProcAddress("glGetActiveUniformsiv");
+        gl.glGetUniformiv = (PFNGLGETUNIFORMIVPROC)
+            getProcAddress("glGetUniformiv");
         gl.glActiveTexture = (PFNGLACTIVETEXTUREPROC)
             getProcAddress("glActiveTexture");
         gl.glGenRenderbuffers = (PFNGLGENRENDERBUFFERSPROC)

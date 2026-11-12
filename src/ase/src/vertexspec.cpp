@@ -2,8 +2,10 @@
 
 #include "namedvertexspec.h"
 #include "program.h"
+#include "shaderinterface.h"
 
 #include <algorithm>
+#include <stdexcept>
 
 namespace ase
 {
@@ -14,27 +16,36 @@ VertexSpec::VertexSpec() :
 {
 }
 
-VertexSpec::VertexSpec(Program const& program, NamedVertexSpec const& spec) :
+VertexSpec::VertexSpec(ShaderInterface const& iface,
+        NamedVertexSpec const& spec) :
     primitiveType_(spec.getPrimitiveType()),
     stride_(spec.getStride())
 {
-    std::vector<NamedVertexSpec::Spec> const& specs = spec.getSpecs();
-    for (auto i = specs.begin(); i != specs.end(); ++i)
+    for (auto const& namedSpec : spec.getSpecs())
     {
-        NamedVertexSpec::Spec const& namedSpec = *i;
-        Spec binarySpec;
+        auto const* attribute = iface.findAttribute(namedSpec.attrib);
+        if (!attribute)
+        {
+            throw std::invalid_argument("Vertex attribute '"
+                    + namedSpec.attrib + "' is not declared by the program");
+        }
 
-        binarySpec.attribLoc = program.getAttribLocation(namedSpec.attrib);
+        Spec binarySpec;
+        binarySpec.attribLoc = attribute->location;
         binarySpec.size = namedSpec.size;
         binarySpec.type = namedSpec.type;
         binarySpec.normalized = namedSpec.normalized;
         binarySpec.pointer = namedSpec.pointer;
 
-        if (binarySpec.attribLoc != -1)
-            specs_.push_back(binarySpec);
+        specs_.push_back(binarySpec);
     }
 
     std::sort(specs_.begin(), specs_.end());
+}
+
+VertexSpec::VertexSpec(Program const& program, NamedVertexSpec const& spec) :
+    VertexSpec(program.getInterface(), spec)
+{
 }
 
 VertexSpec::~VertexSpec()
@@ -77,4 +88,3 @@ bool VertexSpec::isEmpty() const
 }
 
 } // namespace
-
