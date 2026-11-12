@@ -4,6 +4,7 @@
 
 #include <ase/format.h>
 #include <ase/shaderinterface.h>
+#include <ase/uniformvalues.h>
 
 #include <cstddef>
 #include <optional>
@@ -114,7 +115,9 @@ namespace avg
      * the pass samples its inputs (a blur reads its radius beyond every
      * edge); the planner grows the inputs' regions by it. A Region pass
      * needs an output; the final Shape pass has none, since it draws into
-     * the main target.
+     * the main target. parameters are the contents of one uniform block
+     * the shader's interface declares, uploaded as they are for every
+     * draw of the pass; a pass whose shader takes none leaves it empty.
      */
     struct AVG_EXPORT Pass
     {
@@ -123,6 +126,7 @@ namespace avg
         std::optional<PassOutput> output;
         Geometry geometry = Geometry::Region;
         int padding = 0;
+        std::optional<ase::UniformValues> parameters;
     };
 
     /**
@@ -134,7 +138,9 @@ namespace avg
      * pass, so no pass reads its own output; every Region pass has an
      * output with a Divisor of 1, 2, 4 or 8 and a format of FORMAT_SRGBA,
      * FORMAT_R8 or FORMAT_RGBA16F; the Shape pass has no output; every
-     * Region pass's output is read by a later pass; no padding is negative.
+     * Region pass's output is read by a later pass; no padding is negative;
+     * a pass's parameters, when present, fill a block its shader's
+     * interface declares with that name and layout.
      */
     AVG_EXPORT std::vector<std::string> validate(
             std::vector<Pass> const& passes);
