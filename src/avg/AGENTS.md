@@ -118,6 +118,18 @@ leaves draw. `avg` deliberately does not serialise it: JSON is a `bqui` concern
 lives in `bqui`'s remote layer, not here. Keep `Snapshot` free of any
 serialisation coupling.
 
+## Effects
+
+- An `Effect` is a list of passes in execution order, so it is a DAG by
+  construction: a pass names its inputs as the backdrop (the enclosing
+  scope's snapshot) or an earlier pass, its output target as a divisor of
+  the screen size (1, 2, 4 or 8) plus a format, and a padding, in pixels of
+  its own output, for how far outside its region it samples. The last pass,
+  and only the last, draws the shape into the main target and has no
+  output. Construction validates and throws listing every broken rule
+  (`validate` returns the same list); an output nobody reads is an error, so
+  the planner never sees dead work.
+
 ## Animation
 
 - `Animated<T>` (`animated.h`): a value plus keyframes; evaluated by timestamp
