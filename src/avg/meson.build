@@ -27,6 +27,7 @@ libavgsrc = [
   'src/pathbuilder.cpp',
   'src/painter.cpp',
   'src/drawing.cpp',
+  'src/effect.cpp',
   'src/shape.cpp',
   'src/pen.cpp',
   'src/softmesh.cpp',
