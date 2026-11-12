@@ -11,6 +11,8 @@ TargetImage::TargetImage(ase::RenderContext& context, Vector2i size,
     depthbuffer_(context.makeRenderbuffer(size, ase::FORMAT_DEPTH24_STENCIL8)),
     framebuffer_(context.makeFramebuffer())
 {
+    framebuffer_.setColorTarget(0, texture_);
+    framebuffer_.setDepthTarget(depthbuffer_);
 }
 
 Vector2i TargetImage::getSize() const
