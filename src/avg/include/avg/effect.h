@@ -139,8 +139,10 @@ namespace avg
      * output with a Divisor of 1, 2, 4 or 8 and a format of FORMAT_SRGBA,
      * FORMAT_R8 or FORMAT_RGBA16F; the Shape pass has no output; every
      * Region pass's output is read by a later pass; no padding is negative;
-     * a pass's parameters, when present, fill a block its shader's
-     * interface declares with that name and layout.
+     * a pass has at most maxPassInputs inputs and its shader's interface
+     * declares one sampler per input; a pass's parameters, when present,
+     * fill a block its shader's interface declares with that name and
+     * layout.
      */
     AVG_EXPORT std::vector<std::string> validate(
             std::vector<Pass> const& passes);

@@ -1,5 +1,6 @@
 #include <avg/effect.h>
 #include <avg/effectplan.h>
+#include <avg/effectshader.h>
 
 #include <gtest/gtest.h>
 
@@ -23,10 +24,20 @@ using avg::Vector2i;
 
 namespace
 {
+    ase::ShaderInterface samplers(size_t count)
+    {
+        ase::ShaderInterface iface;
+        for (size_t i = 0; i < count; ++i)
+            iface.sampler("input" + std::to_string(i), static_cast<int>(i));
+
+        return iface;
+    }
+
     Pass regionPass(std::vector<PassInput> inputs, Divisor divisor,
             ase::Format format, int padding = 0)
     {
         Pass pass;
+        pass.shader.interface = samplers(inputs.size());
         pass.inputs = std::move(inputs);
         pass.output = PassOutput{ divisor, format };
         pass.geometry = Geometry::Region;
@@ -37,6 +48,7 @@ namespace
     Pass finalPass(std::vector<PassInput> inputs, int padding = 0)
     {
         Pass pass;
+        pass.shader.interface = samplers(inputs.size());
         pass.inputs = std::move(inputs);
         pass.geometry = Geometry::Shape;
         pass.padding = padding;
@@ -197,7 +209,7 @@ TEST(Effect, rejectsNegativePadding)
 
 TEST(Effect, rejectsParametersForAnUndeclaredBlock)
 {
-    ase::ShaderInterface declared;
+    ase::ShaderInterface declared = samplers(1);
     declared.block("ParamBlock", 1, ase::BlockLayout::Std140, {
             { "tint", ase::UniformType::Float4 },
             });
@@ -213,7 +225,7 @@ TEST(Effect, rejectsParametersForAnUndeclaredBlock)
 
 TEST(Effect, rejectsParametersWhoseLayoutDiffers)
 {
-    ase::ShaderInterface declared;
+    ase::ShaderInterface declared = samplers(1);
     declared.block("ParamBlock", 1, ase::BlockLayout::Std140, {
             { "tint", ase::UniformType::Float4 },
             });
@@ -229,6 +241,29 @@ TEST(Effect, rejectsParametersWhoseLayoutDiffers)
     passes[0].parameters = ase::UniformValues(other, "ParamBlock");
 
     EXPECT_TRUE(mentions(avg::validate(passes), "layout differs"));
+}
+
+TEST(Effect, rejectsMoreInputsThanAPassCanRead)
+{
+    std::vector<PassInput> const inputs(avg::maxPassInputs + 1,
+            PassInput::backdrop());
+
+    EXPECT_TRUE(avg::validate({ finalPass(std::vector<PassInput>(
+                        avg::maxPassInputs, PassInput::backdrop())) })
+            .empty());
+    EXPECT_TRUE(mentions(avg::validate({ finalPass(inputs) }),
+                "the most is"));
+}
+
+TEST(Effect, rejectsAShaderWithoutASamplerPerInput)
+{
+    std::vector<Pass> passes = { finalPass({ PassInput::backdrop() }) };
+
+    passes[0].shader.interface = samplers(0);
+    EXPECT_TRUE(mentions(avg::validate(passes), "declares 0 samplers"));
+
+    passes[0].shader.interface = samplers(2);
+    EXPECT_TRUE(mentions(avg::validate(passes), "declares 2 samplers"));
 }
 
 TEST(Effect, constructorThrowsWithEveryError)

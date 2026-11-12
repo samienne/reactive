@@ -121,8 +121,10 @@ serialisation coupling.
 ## Effects
 
 `effect.h` holds the value model of a backdrop effect, `effectplan.h` the
-pure planning over it; neither touches `ase` beyond naming a `Format` and a
-`ShaderInterface`, and nothing in avg renders an effect yet.
+pure planning over it, `effectshader.h` the shader contract every pass is
+written against and `builtineffects.h` the effects avg ships; none of them
+touches `ase` beyond naming a `Format`, a `ShaderInterface` and
+`UniformValues`, and nothing in avg renders an effect yet.
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing
@@ -153,6 +155,67 @@ pure planning over it; neither touches `ase` beyond naming a `Format` and a
   textures, and a snapshot stays live until its last reading pass. The plan
   reports per pass the texture of its output and of each input, per value
   its definition and release steps, and per pool the texture count.
+- **Every pass shader shares one contract** (`effectshader.h`,
+  `effectshader.cpp`). The vertex stage is one GLSL 330 shader taking `pos`,
+  a vec2 in the pass's target pixels, and a fragment shader is the prelude
+  `passFragmentPrelude` emits plus a body. The prelude and `passInterface`
+  are generated from the same lists, so the GLSL and the declaration cannot
+  drift: attribute `pos` at location 0; the std140 block `PassBlock` at
+  binding 0 with a fixed layout (`targetSize`, `targetDivisor`, `region`,
+  `texel0..texel3`, 96 bytes) that the renderer fills per draw and the
+  vertex shader declares identically so every program links the same
+  block; `ParamBlock` at binding 1 holding the effect's own parameters, left
+  out when there are none; one `sampler2D` per input, `input0..`, at the
+  unit of the input's index, so the draw's positional texture list is the
+  binding (the ase rule). At most four inputs (`maxPassInputs`); `validate`
+  rejects a pass with more, or whose shader does not declare exactly one
+  sampler per input. The GLSL carries no
+  `layout(binding)` and no 420pack, as `ase` applies the declaration at
+  link.
+- **Fragments locate themselves through `gl_FragCoord`, not a varying.**
+  `screenPos()` is the fragment centre times the pass's divisor, in screen
+  pixels; `inputUv(texel)` divides it by the input's size in screen pixels.
+  With equal divisors a fragment hits its texel's centre; with a finer
+  input it hits the corner shared by the middle 2x2 input texels of the
+  block it covers, and a plain bilinear fetch averages those four. That is
+  a box downsample when the input is twice as fine. When it is four or
+  eight times as fine the fetch reads 4 of the block's 16 or 64 texels and
+  skips the rest, so detail finer than the block aliases. Either way the
+  copy pass needs no padding.
+  Because nothing but `gl_FragCoord` and `PassBlock` place a fragment, the
+  fragment shaders work under any vertex stage the renderer uses for the
+  final Shape pass (the mesh path with depth, for instance).
+- **Parameters travel as bytes.** `Pass::parameters` is an
+  `ase::UniformValues` of the shader's `ParamBlock`, filled when the effect
+  is built and uploaded as it is for every draw; `validate` checks that the
+  block it mirrors is the one the shader declares. This keeps the shader
+  source constant across parameter values, so an animated radius or tint
+  does not defeat a pipeline cache keyed on the source.
+- **`frostedGlass`** (`builtineffects.cpp`) is four passes, all scratch in
+  `FORMAT_RGBA16F` at one divisor: a copy of the backdrop (padding 0, the
+  single bilinear fetch above: a box downsample at divisor 2, the middle
+  2x2 of each block at 4 and 8), a horizontal and a vertical Gaussian
+  (padding = tap radius = ceil(radius / divisor), sigma = half the radius
+  in texels, floored at 0.5 so a zero radius divides by something), and the
+  Shape pass reading only the blurred result (padding divisor / 2, half a
+  blurred texel, for the bilinear upsample). The divisor is the smallest of
+  2, 4, 8 at which the per-pass radius stays within 16 texels
+  (`frostedGlassDivisor`), so a blur pass is at most 33 taps up to radius
+  128 screen pixels; beyond that the tap count grows at divisor 8. The
+  final pass does not read the backdrop, so the snapshot is released after
+  the copy pass instead of living to the end of the effect. Its look is
+  saturation scale, tint by strength (the alpha of the tint and highlight
+  colours is ignored) and an edge highlight blended in over a width
+  measured from the pass's *region* (the shape's screen bounds, clamped):
+  an approximation that an SDF would replace, kept as the
+  parameter slot for one.
+- **`tint`** is one Shape pass reading the backdrop and mixing a colour in
+  by strength times the colour's alpha; result alpha is always 1, as the
+  final pass is opaque by design.
+- Shader compilation and the look are the one thing these tests cannot
+  reach: the dummy backend compiles nothing, so the GLSL is only checked
+  textually (version line, declared names present, no binding qualifiers)
+  until a real GL context runs it.
 
 ## Animation
 
