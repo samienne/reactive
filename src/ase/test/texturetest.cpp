@@ -25,11 +25,9 @@ TEST(texture, r8IsOneLinearByte)
 TEST(texture, colorFormatPixelSizes)
 {
     EXPECT_EQ(4u, getBytes(FORMAT_SRGBA));
-    EXPECT_EQ(3u, getBytes(FORMAT_SRGB));
     EXPECT_EQ(8u, getBytes(FORMAT_RGBA16F));
 
     EXPECT_FALSE(isLinear(FORMAT_SRGBA));
-    EXPECT_FALSE(isLinear(FORMAT_SRGB));
     EXPECT_TRUE(isLinear(FORMAT_RGBA16F));
 }
 

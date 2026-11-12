@@ -10,7 +10,6 @@ namespace ase
     {
         FORMAT_UNKNOWN = 0,
         FORMAT_SRGBA,
-        FORMAT_SRGB,
         FORMAT_R8,
         FORMAT_RGBA16F,
         FORMAT_DEPTH16,
@@ -29,8 +28,6 @@ namespace ase
                 return 1;
             case FORMAT_SRGBA:
                 return 4;
-            case FORMAT_SRGB:
-                return 3;
             case FORMAT_RGBA16F:
                 return 8;
             case FORMAT_DEPTH16:
@@ -52,7 +49,6 @@ namespace ase
         {
             case FORMAT_UNKNOWN:
             case FORMAT_SRGBA:
-            case FORMAT_SRGB:
                 return false;
             case FORMAT_R8:
             case FORMAT_RGBA16F:
