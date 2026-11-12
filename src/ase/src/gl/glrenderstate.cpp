@@ -33,6 +33,15 @@ namespace ase
 
 namespace
 {
+    // Depth settles these among themselves, so they may be drawn in any
+    // order; everything else keeps its z order.
+    bool drawsInAnyOrder(GlPipeline const& pipeline)
+    {
+        return !pipeline.isBlendEnabled()
+            && pipeline.isDepthTestEnabled()
+            && pipeline.isDepthWriteEnabled();
+    }
+
     bool compareCommand(RenderCommand const& c1, RenderCommand const& c2)
     {
         assert(std::holds_alternative<DrawCommand>(c1) &&
@@ -49,10 +58,13 @@ namespace
         GlPipeline const& pipeline1 = d1.getPipeline().getImpl<GlPipeline>();
         GlPipeline const& pipeline2 = d2.getPipeline().getImpl<GlPipeline>();
 
-        if (pipeline1.isBlendEnabled() != pipeline2.isBlendEnabled())
-            return pipeline2.isBlendEnabled();
+        bool const anyOrder1 = drawsInAnyOrder(pipeline1);
+        bool const anyOrder2 = drawsInAnyOrder(pipeline2);
 
-        if (pipeline1.isBlendEnabled())
+        if (anyOrder1 != anyOrder2)
+            return anyOrder1;
+
+        if (!anyOrder1)
         {
             // Back to front: a later-painted draw has the lower z.
             if (d1.getZ() != d2.getZ())
@@ -208,9 +220,9 @@ void GlRenderState::submit(CommandBuffer&& commands)
 
 void GlRenderState::clear(Dispatched, GLbitfield mask)
 {
-    if (!enableDepthWrite_ && (mask & GL_DEPTH_BUFFER_BIT))
+    if (!depthWrite_ && (mask & GL_DEPTH_BUFFER_BIT))
     {
-        enableDepthWrite_ = true;
+        depthWrite_ = true;
         glDepthMask(GL_TRUE);
     }
 
@@ -413,38 +425,40 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         else
             count = vertexBuffer.getSize() / pipeline.getVertexSpec().getStride();
 
-        // Set blend
+        if (depthTest_ != pipeline.isDepthTestEnabled())
+        {
+            depthTest_ = pipeline.isDepthTestEnabled();
+            if (depthTest_)
+                glEnable(GL_DEPTH_TEST);
+            else
+                glDisable(GL_DEPTH_TEST);
+        }
+
+        if (depthWrite_ != pipeline.isDepthWriteEnabled())
+        {
+            depthWrite_ = pipeline.isDepthWriteEnabled();
+            glDepthMask(depthWrite_ ? GL_TRUE : GL_FALSE);
+        }
+
         if (blendEnabled_ != pipeline.isBlendEnabled())
         {
-            if (pipeline.isBlendEnabled())
-            {
-                if (enableDepthWrite_)
-                {
-                    glDepthMask(GL_FALSE);
-                    enableDepthWrite_ = false;
-                }
+            blendEnabled_ = pipeline.isBlendEnabled();
+            if (blendEnabled_)
                 glEnable(GL_BLEND);
-            }
             else
-            {
-                if (!enableDepthWrite_)
-                {
-                    glDepthMask(GL_TRUE);
-                    enableDepthWrite_ = true;
-                }
                 glDisable(GL_BLEND);
-            }
+        }
 
-            if (pipeline.isBlendEnabled() &&
-                    (srcFactor_ != blendModeToGl(pipeline.getSrcFactor())
-                     || dstFactor_ != blendModeToGl(pipeline.getDstFactor())))
+        if (blendEnabled_)
+        {
+            GLenum const src = blendModeToGl(pipeline.getSrcFactor());
+            GLenum const dst = blendModeToGl(pipeline.getDstFactor());
+            if (srcFactor_ != src || dstFactor_ != dst)
             {
-                srcFactor_ = blendModeToGl(pipeline.getSrcFactor());
-                dstFactor_ = blendModeToGl(pipeline.getDstFactor());
+                srcFactor_ = src;
+                dstFactor_ = dst;
                 glBlendFunc(srcFactor_, dstFactor_);
             }
-
-            blendEnabled_ = pipeline.isBlendEnabled();
         }
 
         // Set Textures

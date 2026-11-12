@@ -3,7 +3,7 @@
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `3c3dfb34`
 (2026-11-12); the WGL surface and the format notes against `ede84a6b`
-(2026-11-11).*
+(2026-11-11); the command buffer section against `1da30d6a` (2026-11-11).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -175,6 +175,47 @@ are in the top-level `docs/`.
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
   `AGENTS.md` cover this).
+
+## Command buffer and draw order
+
+A `CommandBuffer` (`commandbuffer.h`) is a vector of `RenderCommand`
+(`rendercommand.h`), a variant of `DrawCommand`, `ClearCommand`,
+`FenceCommand`, `BufferUploadCommand`,
+`TextureUploadCommand` and `TextureSubUploadCommand`. A queue takes the
+buffer whole on `submit`; the dummy queue draws nothing, completes fences
+inline and, with `recordSubmissions(true)`, keeps the buffers for a test to
+read back (avg's `test/renderingtest.cpp`).
+
+- **Runs and the fence rule.** The GL queue reorders draws for state
+  batching, but only within a *run*: the maximal sequence of consecutive
+  `DrawCommand`s. Every non-draw command ends the run before it, so a clear,
+  fence or upload keeps its place relative to the draws on either side.
+- **The sort key.** `compareCommand` splits a run into draws that may go in
+  any order (opaque, depth-tested *and* depth-writing: depth settles them)
+  and the rest, any-order first. Any-order draws then sort by framebuffer,
+  textures, program, vertex buffer, index buffer, uniform set and
+  z. The rest sort by framebuffer, then z descending (the painter assigns a
+  lower z to a later-painted element, so this is paint order), then the same
+  state keys. The key compares
+  handles and integers only; z is the one float, and only as an ordering.
+- **Pipeline state.** `makePipeline(program, spec, PipelineDesc)`
+  (`pipelinedesc.h`) is the one creation path; `makePipelineWithBlend` is a
+  wrapper that sets `blend`. `PipelineDesc` holds an optional `BlendFunc`,
+  `depthTest` (default on) and `depthWrite`, which left unset resolves
+  (`writesDepth()`) to on for an opaque and off for a blended pipeline, the
+  behaviour the GL state used to derive from the blend flag. Every backend's
+  pipeline reports `isBlendEnabled`, `isDepthTestEnabled` and
+  `isDepthWriteEnabled`; the dummy stores the desc. `GlRenderState` tracks
+  depth test, depth mask and blend enable as three separate booleans
+  initialised to the GL defaults it sets up (`GL_DEPTH_TEST` on, mask true,
+  blend off), switches each when the pipeline differs, and compares the
+  blend factors on every blended draw rather than only when blending turns
+  on. A clear with the depth bit forces the mask back on first, since
+  `glClear` obeys it, and the next draw restores its pipeline's mask.
+- **What CI does not run.** All of the above compiles on every leg and the
+  dummy tests cover the pipeline flags, but no GL context runs in CI: the depth switches in
+  `glrenderstate.cpp` have only been compiled. A change there needs a
+  manual run of an app or `bquiheadlesstest` on a machine with a driver.
 
 ## Shader interface and uniforms
 

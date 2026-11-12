@@ -41,5 +41,15 @@ bool Pipeline::isBlendEnabled() const
     return d()->isBlendEnabled();
 }
 
+bool Pipeline::isDepthTestEnabled() const
+{
+    return d()->isDepthTestEnabled();
+}
+
+bool Pipeline::isDepthWriteEnabled() const
+{
+    return d()->isDepthWriteEnabled();
+}
+
 } // namespace ase
 

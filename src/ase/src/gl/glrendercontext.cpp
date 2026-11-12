@@ -204,19 +204,11 @@ std::shared_ptr<FramebufferImpl> GlRenderContext::makeFramebufferImpl()
 
 std::shared_ptr<PipelineImpl> GlRenderContext::makePipeline(
         Program program,
-        VertexSpec spec)
-{
-    return objectManager_.makePipeline(std::move(program), std::move(spec));
-}
-
-std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
-        Program program,
         VertexSpec spec,
-        BlendMode srcFactor,
-        BlendMode dstFactor)
+        PipelineDesc desc)
 {
-    return objectManager_.makePipelineWithBlend(std::move(program),
-            std::move(spec), srcFactor, dstFactor);
+    return objectManager_.makePipeline(std::move(program), std::move(spec),
+            desc);
 }
 
 std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl(

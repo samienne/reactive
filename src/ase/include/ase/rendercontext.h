@@ -4,6 +4,7 @@
 #include "format.h"
 #include "vector.h"
 #include "blendmode.h"
+#include "pipelinedesc.h"
 #include "shaderlanguage.h"
 #include "shaderstage.h"
 
@@ -104,7 +105,19 @@ namespace ase
         Texture makeTexture(Vector2i size, Format format);
         Renderbuffer makeRenderbuffer(Vector2i size, Format format);
         Framebuffer makeFramebuffer();
-        Pipeline makePipeline(Program program, VertexSpec vertexSpec);
+
+        /**
+         * @brief A pipeline drawing `program` over `vertexSpec`.
+         *
+         * `desc` gives the blend and depth state; the default is opaque,
+         * depth-tested and depth-writing.
+         */
+        Pipeline makePipeline(Program program, VertexSpec vertexSpec,
+                PipelineDesc desc = {});
+
+        /**
+         * @brief A blended pipeline that tests but does not write depth.
+         */
         Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
                 BlendMode srcFactor, BlendMode dstFactor);
 
