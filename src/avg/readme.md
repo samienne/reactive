@@ -29,6 +29,23 @@ quads snapped to device pixels. Anything the atlas does not serve — stroked or
 rotated text, very large sizes, a frame that overflows the atlas — falls back
 to the glyph outlines, filled like any other shape.
 
+## Ordering
+
+A drawing paints its elements in order; there are no layers or z values. Two
+additions shape what a frame can do beyond flat painting:
+
+- **Pending shadows.** A surface's shadow belongs under the content of the
+  container that holds the surface, not under the surface alone. A drawing
+  therefore carries its shadows separately as *pending*; they travel with it
+  through concatenation, clipping and transforms, and whoever renders the
+  drawing first flushes them ahead of everything else.
+- **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
+  counts as lying behind it: the frame as it was when the scope was entered,
+  never the scope's own content or its siblings. Whoever paints one child
+  over another composes the two with `Drawing::over`, which scopes the upper
+  child. No element samples its backdrop, so a scope only groups its content
+  and costs nothing; stacks use it unconditionally.
+
 ## Animation
 
 Time-varying values are `Animated<T>` — a value plus keyframes and a curve

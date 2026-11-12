@@ -40,6 +40,15 @@ void collectText(
                     result
                     );
         }
+        else if (auto const* scope =
+                std::get_if<Drawing::BackdropScope>(&element))
+        {
+            collectText(
+                    (*scope->subDrawing).elements,
+                    transform * scope->transform,
+                    result
+                    );
+        }
     }
 }
 

@@ -13,6 +13,16 @@
 
 namespace avg
 {
+    /**
+     * @brief The flat, ordered list of elements a frame rasterises.
+     *
+     * Elements paint in list order. Besides that main list a drawing carries
+     * pending shadows: elements that belong under the content of the
+     * container that will eventually hold them. Pending shadows ride along
+     * through concatenation, clipping and transforms, and flush() moves them
+     * ahead of the main list. Whoever renders a drawing flushes it first: an
+     * unflushed drawing's shadows are silently dropped.
+     */
     class AVG_EXPORT Drawing final
     {
     public:
@@ -21,6 +31,22 @@ namespace avg
         {
             pmr::heap<SubDrawing> subDrawing;
             Rect clipRect;
+            Transform transform;
+        };
+
+        /**
+         * @brief Content whose backdrop effects see only what was painted
+         * before the scope.
+         *
+         * Effects directly inside the scope sample the frame as it was when
+         * the scope was entered, never their siblings inside it. The root of
+         * a drawing is an implicit scope. controlBb is the bounds of
+         * subDrawing in its own space, strokes included, before transform.
+         */
+        struct BackdropScope
+        {
+            pmr::heap<SubDrawing> subDrawing;
+            Rect controlBb;
             Transform transform;
         };
 
@@ -38,7 +64,7 @@ namespace avg
         };
 
         using Element = std::variant<ShapeElement, TextEntry, ClipElement,
-              RegionFill>;
+              RegionFill, BackdropScope>;
 
         struct SubDrawing
         {
@@ -65,9 +91,46 @@ namespace avg
         Drawing operator+(Element&& element) &&;
         Drawing& operator+=(Element&& element);
 
+        /**
+         * @brief Appends the other drawing's elements and pending shadows to
+         * this one's.
+         */
         [[nodiscard]]
         Drawing operator+(Drawing const& drawing) &&;
         Drawing& operator+=(Drawing const& drawing);
+
+        /**
+         * @brief Adds a pending shadow, an element painted under the content
+         * of the enclosing container once the drawing is flushed.
+         */
+        [[nodiscard]]
+        Drawing addShadow(Element&& shadow) &&;
+        Drawing& addShadow(Element&& shadow) &;
+
+        /**
+         * @brief Moves the pending shadows ahead of the main list.
+         */
+        [[nodiscard]]
+        Drawing flush() &&;
+
+        /**
+         * @brief Wraps the main list into one BackdropScope. Pending shadows
+         * stay pending, outside the scope. An empty main list stays empty.
+         */
+        [[nodiscard]]
+        Drawing scope() &&;
+
+        /**
+         * @brief Paints above on top of below.
+         *
+         * The result is below's main list, then above's pending shadows, then
+         * above's main list in a BackdropScope, so above's backdrop effects
+         * see below and the shadows but nothing of above itself. below's
+         * pending shadows stay pending. Use it wherever one child is painted
+         * over another.
+         */
+        [[nodiscard]]
+        static Drawing over(Drawing below, Drawing above);
 
         [[nodiscard]]
         Drawing operator*(float scale) &&;
@@ -79,6 +142,11 @@ namespace avg
         Drawing clip(Obb const& obb) &&;
 
         pmr::vector<Element> const& getElements() const;
+        pmr::vector<Element> const& getPendingShadows() const;
+
+        /**
+         * @brief The bounds of the elements and the pending shadows.
+         */
         Rect getControlBb() const;
 
         [[nodiscard]]
@@ -94,6 +162,7 @@ namespace avg
 
     private:
         pmr::vector<Element> elements_;
+        pmr::vector<Element> shadows_;
         Rect controlBb_;
     };
 }

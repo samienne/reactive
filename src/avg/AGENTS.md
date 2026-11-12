@@ -1,7 +1,9 @@
 # avg — agent notes
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
-`f3ed6e5` (2026-10-22); the painter section against `3c3dfb34` (2026-11-12).*
+`f3ed6e5` (2026-10-22); the painter section against `3c3dfb34` (2026-11-12);
+the effects section against `da7898a9` (2026-11-11); the shapes-and-drawings
+section against `7c52ceeb` (2026-11-11).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -21,12 +23,35 @@ outgrows one file.
   nothing else. It takes either a `Painter*` or a bare `pmr::memory_resource*`,
   so a tree can be drawn and its `Drawing` asserted with no rendering back end.
 - `Drawing` (`drawing.h`) is the flat rasterisable output — a variant of
-  `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill`. **Clipping is
-  rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
-  region/shape clip. (Path-level clipping is deferred — `docs/decisions.md`.)
-- **Trap:** `Shape::getControlBb` applies a composed element's transform twice
-  in its `Operation` branch; the sibling `StrokeToShape` branch is correct.
-  Known and unfixed — geometry derived from it inherits the error.
+  `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill` /
+  `BackdropScope`, painted in list order. **Clipping is rectangular only**:
+  `Drawing::clip` takes `Rect`/`Obb`, and there is no region/shape clip.
+  (Path-level clipping is deferred — `docs/decisions.md`.)
+- **Pending shadows.** A `Drawing` carries a second element list, the pending
+  shadows: elements that belong *under* the content of whatever container ends
+  up holding the drawing. `+=` concatenates both lists, `clip`/`transform`/
+  `filterByRect` apply to both, `getControlBb` covers both, and `flush()` moves
+  the shadows ahead of the main list. Nothing in `avg` flushes: whoever hands a
+  drawing to `render` flushes it first, or the shadows are silently dropped
+  (`render` only sees the main list).
+- **`BackdropScope`** is a sub-drawing with its own transform, shaped like
+  `ClipElement` without the clip; `scope()` wraps the main list into one, and
+  `over(below, above)` is the one composition for painting a child over
+  another: below's main list, above's pending shadows, then above's main list
+  in a scope (below's shadows stay pending). Scopes nest and `+=` never
+  flattens them. A scope caches its contents' bounds (`controlBb`, in scope
+  space, strokes included) so bounds queries do not recurse. The renderer
+  (`rendering.cpp`, next to the `ClipElement` case) treats a scope as a
+  transparent container: it recurses with the transform composed and the
+  culling rect mapped by the inverse transform's bounding rect, changes no
+  clip and takes no backdrop snapshot. **A rotated scope cannot sit under a
+  clip**: the clip rect would map to a larger bounding rect in scope space
+  and content outside the clip would show, so the renderer asserts, as it
+  does for a rotated `ClipElement`. The snapshot text collector
+  (`rendertree/snapshot.cpp`) recurses into scopes like clips.
+- `Shape::getControlBb` composes each sub-element's transform once and bounds
+  an `intersect` by its first operand (`shape.cpp`, `getControlBb`); the
+  `Shape` tests pin this.
 
 ## Render tree
 
@@ -51,7 +76,7 @@ virtual, so adding a node kind means adding that override.
 - **Geometry is resolved, not authored.** A node reports its box already
   composed with every enclosing obb, so a reader places it without a transform
   of its own. It is derived from the nodes' `Animated<Obb>`, never from
-  `Shape::getControlBb`, so it does not inherit that function's trap above.
+  `Shape::getControlBb`.
 - **Text comes from drawing, not from the tree.** A leaf's content lives inside
   its draw function, so a leaf is drawn on its own out of the caller's memory
   and the `TextEntry`s of the result are collected; the drawing is discarded.
