@@ -50,6 +50,12 @@ outgrows one file.
   and content outside the clip would show, so the renderer asserts, as it
   does for a rotated `ClipElement`. The snapshot text collector
   (`rendertree/snapshot.cpp`) recurses into scopes like clips.
+- `btl/optional.h` prints `std::optional` through an `operator<<` at
+  global scope, which unqualified lookup only reaches when no
+  `avg::operator<<` is declared first. `effect.h` declares several, so
+  `TextEntry`'s printer (`textentry.h`) names the global one with
+  `using ::operator<<`; keep that when touching it, or the include order of
+  a test decides whether `drawing.h` compiles.
 - `Shape::getControlBb` composes each sub-element's transform once and bounds
   an `intersect` by its first operand (`shape.cpp`, `getControlBb`); the
   `Shape` tests pin this.

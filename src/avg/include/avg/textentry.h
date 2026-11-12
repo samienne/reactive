@@ -55,6 +55,10 @@ namespace avg
         friend std::ostream& operator<<(std::ostream& stream,
                 TextEntry const& t)
         {
+            // The optional printer lives at global scope, which an
+            // avg::operator<< declared earlier would otherwise hide.
+            using ::operator<<;
+
             return stream << "TextEntry{" << t.font_ << ", "
                 << t.transform_ << ", text: \"" << t.text_ << "\", brush: "
                 << t.brush_ << ", pen: " << t.pen_ << "}";
