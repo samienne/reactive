@@ -2,9 +2,8 @@
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
 `f3ed6e5` (2026-10-22); the painter section against `3c3dfb34` (2026-11-12);
-the effects section against `da7898a9` (2026-11-11); the shapes-and-drawings
-section against `7c52ceeb` (2026-11-11); the render tree section against
-`660a7275` (2026-11-11).*
+the shapes-and-drawings and render tree sections against `8220ce96`
+(2026-11-12).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
