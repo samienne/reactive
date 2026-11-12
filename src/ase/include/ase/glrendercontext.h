@@ -102,6 +102,11 @@ namespace ase
 
         size_t getUniformBufferOffsetAlignment() const override;
 
+        /**
+         * @brief The identity: ase's clip space is GL's.
+         */
+        Matrix4f getClipSpaceAdjustment() const override;
+
     private:
         std::shared_ptr<GlPlatform> platform_;
         std::shared_ptr<GlRenderQueue> mainQueue_;

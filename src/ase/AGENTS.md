@@ -179,6 +179,16 @@ are in the top-level `docs/`.
   `default`, so adding a format fails to compile until it is placed in each
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
   covers only the public contract, not the GL mapping.
+- **Coordinate conventions are GL's; only the clip-space adjustment is
+  queryable.** Scissor rectangles have a bottom-left origin, texel rows
+  upload bottom-up and viewports follow GL; a non-GL backend converts those
+  itself. The one thing it cannot fix after the fact is the depth range and
+  Y direction baked into a caller's projection, so
+  `RenderContext::getClipSpaceAdjustment()` returns the matrix that maps
+  GL clip space to the backend's, for the caller to multiply into its
+  projection once; `GlRenderContext` and `DummyRenderContext` return the
+  identity (`test/rendercontexttest.cpp`), and avg's painter applies it
+  in `Painter::setSize`.
 
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why

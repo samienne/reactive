@@ -460,7 +460,14 @@ pushes the present quad and flushes first) submits.
   declaration fails at program creation. Change the declaration and the
   shader together.
 - **The projection is a typed block through a ring.** `setSize` only sets
-  `MatrixBlock::worldViewProj` in a `UniformBlock`. The first clear or paint
+  `MatrixBlock::worldViewProj` in a `UniformBlock`, as
+  `RenderContext::getClipSpaceAdjustment()` times the pixel-to-clip
+  mapping, so the backend's clip-space convention is folded in once per
+  resize and never per draw; GL and dummy answer the identity, which is
+  what `renderingtest`'s projection bytes assume. Only this projection
+  carries the adjustment: `passVertexSource` and the present quad emit GL
+  clip coordinates as they are, which is right only while it is the
+  identity. The first clear or paint
   after a `flush` opens a frame: `UniformRing::beginFrame`, one `write` of
   the block, `bindUniformBufferRange("MatrixBlock", range)`; a `setSize`
   while a frame is open writes and rebinds. `flush` closes the frame with
