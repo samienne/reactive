@@ -1,5 +1,7 @@
 #include "effect.h"
 
+#include "effectshader.h"
+
 #include <stdexcept>
 #include <string>
 
@@ -199,6 +201,23 @@ std::vector<std::string> validate(std::vector<Pass> const& passes)
                         " layout differs from its shader's block '"
                         + block.name + "'");
             }
+        }
+
+        if (pass.inputs.size() > maxPassInputs)
+        {
+            errors.push_back(passName(i) + " has "
+                    + std::to_string(pass.inputs.size())
+                    + " inputs; the most is "
+                    + std::to_string(maxPassInputs));
+        }
+
+        size_t const samplerCount = pass.shader.interface.getSamplers().size();
+        if (samplerCount != pass.inputs.size())
+        {
+            errors.push_back(passName(i) + " has "
+                    + std::to_string(pass.inputs.size())
+                    + " inputs but its shader declares "
+                    + std::to_string(samplerCount) + " samplers");
         }
 
         for (PassInput const& input : pass.inputs)
