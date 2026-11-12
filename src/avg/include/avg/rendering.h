@@ -4,10 +4,9 @@
 
 #include <avg/drawing.h>
 #include <avg/painter.h>
+#include <avg/targetimage.h>
 
-#include <ase/vector.h>
 #include <ase/commandbuffer.h>
-#include <ase/framebuffer.h>
 
 #include <pmr/memory_resource.h>
 
@@ -15,12 +14,17 @@ namespace avg
 {
     using RenderElement = avg::Drawing::Element;
 
+    /**
+     * @brief Records the draws that paint drawing over target into queue.
+     *
+     * drawing is in logical units, scalingFactor of target's pixels each,
+     * and must be flushed: its pending shadows are not drawn.
+     */
     AVG_EXPORT void render(
             pmr::memory_resource* memory,
             ase::CommandBuffer& queue,
             ase::RenderContext& context,
-            ase::Framebuffer& framebuffer,
-            ase::Vector2i size,
+            TargetImage& target,
             float scalingFactor,
             avg::Painter& painter,
             avg::Drawing const& drawing);

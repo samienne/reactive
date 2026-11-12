@@ -3,6 +3,7 @@
 #include "rendering.h"
 #include "brush.h"
 #include "pen.h"
+#include "effectemitter.h"
 #include "glyphatlas.h"
 
 #include <ase/window.h>
@@ -243,7 +244,9 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
             ase::blockMember<&MatrixBlock::worldViewProj>("worldViewProj"),
         }),
     uniformRing_(context),
-    uniformSet_(context.makeUniformSet(matrixInterface()))
+    uniformSet_(context.makeUniformSet(matrixInterface())),
+    scratchPool_(context),
+    passPipelines_(context)
 {
     matrices_->worldViewProj = ase::Matrix4f::Identity();
 }
@@ -279,6 +282,7 @@ void Painter::beginFrame()
         return;
 
     uniformRing_.beginFrame();
+    passPipelines_.beginFrame();
     frameOpen_ = true;
     writeMatrices();
 }
@@ -339,8 +343,8 @@ void Painter::paintToImage(TargetImage& target, float scalingFactor,
 {
     ZoneScoped;
     beginFrame();
-    render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
-            target.getSize(), scalingFactor, *this, drawing);
+    render(memory_, commandBuffer_, renderContext_, target, scalingFactor,
+            *this, drawing);
 }
 
 void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
@@ -348,8 +352,7 @@ void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
     ZoneScoped;
 
     beginFrame();
-    render(memory_, commandBuffer_, renderContext_,
-            windowTarget(target).getFramebuffer(), target.getSize(),
+    render(memory_, commandBuffer_, renderContext_, windowTarget(target),
             target.getScalingFactor(), *this, drawing);
 }
 
@@ -413,11 +416,28 @@ void Painter::flush()
             renderContext_.getMainRenderQueue().submit(std::move(uploads));
     }
 
+    if (scratchFrameOpen_)
+    {
+        scratchPool_.endFrame();
+        scratchFrameOpen_ = false;
+    }
+
     if (commandBuffer_.size() > 0)
     {
         renderContext_.getMainRenderQueue().submit(std::move(commandBuffer_));
         commandBuffer_ = ase::CommandBuffer();
     }
+}
+
+EffectEmitter Painter::makeEffectEmitter(ase::CommandBuffer& commands,
+        TargetImage& mainTarget)
+{
+    beginFrame();
+    scratchPool_.beginFrame(mainTarget.getSize());
+    scratchFrameOpen_ = true;
+
+    return EffectEmitter(renderContext_, commands, uniformRing_, scratchPool_,
+            passPipelines_, mainTarget);
 }
 
 } // namespace

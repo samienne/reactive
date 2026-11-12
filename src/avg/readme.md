@@ -49,9 +49,10 @@ additions shape what a frame can do beyond flat painting:
 - **Effect elements.** A backdrop effect (`frostedGlass`, `tint`) is one
   element of the drawing, drawn through a shape: the effect's final pass
   paints the shape and the passes before it sample the scope's backdrop
-  around it. The renderer does not draw effect elements yet; they take their
-  place in the drawing so that the stacking and ordering above are already
-  exercised.
+  around it. When a frame is rendered, each scope that holds an effect has
+  the region those effects read copied out of the frame as it stands at the
+  scope's entry, the effect's passes run over that copy, and its final pass
+  is painted into the frame in the element's place in the paint order.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
 optional effect such as frosted glass behind the fill, animated like its
