@@ -46,6 +46,13 @@ additions shape what a frame can do beyond flat painting:
   child. No element samples its backdrop, so a scope only groups its content
   and costs nothing; stacks use it unconditionally.
 
+In the render tree, a `SurfaceNode` (a filled shape under a child) casts its
+shadow as a pending shadow and never opens a scope; a `ContainerNode` built
+with `Stacking::stacked` is the stack that paints its children over one
+another through `over`, while a flat container (vbox, hbox, grid) only
+concatenates. `RenderTree::draw` is the root: it flushes the drawing it
+returns.
+
 ## Animation
 
 Time-varying values are `Animated<T>` — a value plus keyframes and a curve
