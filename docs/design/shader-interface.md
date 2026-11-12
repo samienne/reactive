@@ -6,7 +6,7 @@
 > introspection and hand-computed byte offsets with one declaration that every
 > backend consumes and the GL backend merely validates. The backdrop-effect
 > work (pass uniform blocks, multi-sampler passes) builds on this. Verified
-> against `46124af6` (2026-11-11); the "Why" citations describe `a201d674`, the commit
+> against `3c3dfb34` (2026-11-12); the "Why" citations describe `a201d674`, the commit
 > this work started from. Migration steps 1 (the `ase` declaration, language
 > query and program creation) and 2 (`UniformBlock<T>`, `UniformValues`,
 > `UniformRing`, the declaration-aware `UniformSet`, and the painter on top of

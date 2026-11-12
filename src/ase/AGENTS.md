@@ -1,8 +1,8 @@
 # ase — agent notes
 
 *Last verified against `6b21821` (2026-08-18); the texture note against
-`f3ed6e5` (2026-10-22); the shader interface section against `46124af6`
-(2026-11-11).*
+`f3ed6e5` (2026-10-22); the shader interface section against `3c3dfb34`
+(2026-11-12).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
