@@ -459,6 +459,21 @@ pushes the present quad and flushes first) submits.
   reflection in debug builds, so a shader whose names drift from the
   declaration fails at program creation. Change the declaration and the
   shader together.
+- **Every program is linked through `shadersource.h`.**
+  `makeProgram(context, { vertexGlsl, fragmentGlsl, iface })` is the one
+  path from avg's GLSL to an `ase::Program`; the painter's pipelines
+  and `PassPipelineCache` (the effect passes) all take it, so no other
+  `makeShader` call exists in `avg`. Inside, `selectShaderLanguage` walks
+  avg's preference list, SPIR-V then GLSL 330, against
+  `RenderContext::getShaderLanguages()` and takes the first the context
+  lists *and* avg has bytes for; only GLSL 330 has bytes, so a context
+  listing SPIR-V (the dummy lists everything) falls through to GLSL 330,
+  and a context whose list lacks GLSL 330 throws
+  `ase::UnsupportedShaderLanguage` naming GLSL 330
+  (`test/shadersourcetest.cpp`). `shaderBytes` is today a GLSL passthrough
+  that pairs the text with the hand-written declaration; it is the one
+  function a compiler component replaces when a second language gains
+  sources (`docs/design/shader-interface.md`, "Vulkan readiness").
 - **The projection is a typed block through a ring.** `setSize` only sets
   `MatrixBlock::worldViewProj` in a `UniformBlock`, as
   `RenderContext::getClipSpaceAdjustment()` times the pixel-to-clip
