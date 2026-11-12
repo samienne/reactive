@@ -4,7 +4,9 @@
 `f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12);
 the shapes-and-drawings and render tree sections against `525a40c6`
 (2026-11-12); the effects section, and the effect notes in those two
-sections, against `6379353a` (2026-11-12).*
+sections, against `6379353a` (2026-11-12); the renderer's scope pre-pass and
+effect emission notes against `f541ac65` (2026-11-12); the pipeline cache and
+the painter's target formats against `f541ac65` (2026-11-12).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -43,30 +45,32 @@ outgrows one file.
   in a scope (below's shadows stay pending). Scopes nest and `+=` never
   flattens them. A scope caches its contents' bounds (`controlBb`, in scope
   space, strokes included) so bounds queries do not recurse. The renderer
-  (`rendering.cpp`, next to the `ClipElement` case) treats a scope as a
-  transparent container: it recurses with the transform composed and the
-  culling rect mapped by the inverse transform's bounding rect, changes no
-  clip and takes no backdrop snapshot. **A rotated scope cannot sit under a
-  clip**: the clip rect would map to a larger bounding rect in scope space
-  and content outside the clip would show, so the renderer asserts, as it
-  does for a rotated `ClipElement`. The snapshot text collector
+  (`rendering.cpp`, next to the `ClipElement` case) recurses into a scope
+  with the transform composed and the culling rect mapped by the inverse
+  transform's bounding rect, changes no clip, and opens a scope record that
+  the effect elements directly inside mark used; only a used scope snapshots
+  (see *Effects*). **A rotated scope cannot sit under a clip**: the clip
+  rect would map to a larger bounding rect in scope space and content
+  outside the clip would show, so the renderer asserts, as it does for a
+  rotated `ClipElement`. The snapshot text collector
   (`rendertree/snapshot.cpp`) recurses into scopes like clips.
 - **`EffectElement`** is a `Shape`, a `std::shared_ptr<Effect const>` and a
   `Transform`: the effect's final pass paints the shape, the passes before
   it sample the enclosing scope's backdrop around it. The shape stays in
   the element's own space and `transform`, `translate` and `operator*`
   compose into the element's transform as they do for a scope, so the
-  renderer still sees the scale by which the effect's logical parameters
-  (a blur radius) must be converted. The `Effect` is shared, never copied:
+  renderer still sees the element's own scale. The `Effect` is shared,
+  never copied:
   one effect keeps its identity across elements and frames, which is what
   the emitter's caches key on. Bounds (`getControlBb`, `filterByRect`, the
   renderer's culling) are the transformed shape bounds with no padding;
   the margin the passes sample is derived at render time
-  (`deriveRegions`). `clip` wraps it like any element, so the final pass
-  will clip through the rect-clip path. **The renderer draws nothing for
-  it yet**: the `rendering.cpp` mesh visitor has an empty case, to be
-  replaced by the scope pre-pass that snapshots backdrops and emits the
-  passes. The snapshot text collector ignores it.
+  (`deriveRegions`). `clip` wraps it like any element: the renderer
+  intersects the element's bounds with the clip rect before deriving the
+  regions, so the final pass's scissor is the clipped bounds and the
+  passes sample no further than they need. The renderer turns the element
+  into an effect draw in device pixels (*Effects*); the snapshot text
+  collector ignores it.
 - `btl/optional.h` prints `std::optional` through an `operator<<` at
   global scope, which unqualified lookup only reaches when no
   `avg::operator<<` is declared first. `effect.h` declares several, so
@@ -169,9 +173,11 @@ touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 `effectemitter.h` are the GPU-facing half: they turn a planned effect into
 `ase` commands. A `Drawing::EffectElement` places an effect in a frame
 (see *Shapes and drawings*) and `SurfaceNode` animates one (see *Render
-tree*), but nothing calls the emitter yet: the renderer skips the element
-until the scope pre-pass lands (scope pre-pass in `rendering.cpp`, pool and
-cache on the `Painter`).
+tree*); `rendering.cpp` runs the scope pre-pass that snapshots backdrops
+and drives the emitter, with the pool and the cache owned by the `Painter`
+(the last bullets below). `docs/design/backdrop-effects.md` is the design,
+with the rejected alternatives and the places the code departed from it;
+`docs/decisions.md` records the decisions.
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing
@@ -310,19 +316,72 @@ cache on the `Painter`).
   whose std140 placement `ase::UniformBlock` checks against `passInterface`
   when the emitter is constructed, so a layout drift fails at the first
   frame, not on the GPU.
-- **What the renderer wiring must supply.** `rendering.cpp` will keep a
-  scope stack while flattening elements, build a `ScratchTimeline` (one
-  snapshot per scope that has effects, one effect per element), run
-  `planScratch`, and per effect derive regions from the shape's device
-  bounds and tessellate the shape to a pixel-space triangle list. At scope
-  entry it calls `emitSnapshot` with the union of the scope's effects'
-  `backdropRegion`s; at the element it calls `emitEffect`. The `Painter`
-  owns the pool and the cache next to its pipelines, begins their frames
-  alongside `uniformRing_.beginFrame()`, ends the pool's frame at flush,
-  and exposes its window target so the snapshot can sample it. The depth
-  the mesh path assigns from paint order does not reach the Shape pass
-  (depth test off); ordering against the surrounding elements rests on the
-  barriers, which also split the opaque-first sort into runs.
+- **The scope pre-pass is the mesh pass.** `rendering.cpp` flattens a
+  drawing once, in paint order, into items that are meshes, text quads, a
+  `ScopeEntry` or an `EffectDraw`. `render` opens the root scope (the
+  implicit one every effect outside a `BackdropScope` reads) and puts its
+  entry first; the `BackdropScope` visitor appends a scope record, emits
+  its entry and recurses with that scope as the current one, while a
+  `ClipElement` keeps its parent's. The `EffectElement` visitor maps the
+  element's bounds (intersected with the clip rect when inside a clip)
+  through `toRoot` and the scaling factor to a `PixelRect`, clamps it to
+  the target and drops the element when nothing is left; otherwise it
+  fills the shape to a region at the element's point size, triangulates
+  it into a device-pixel triangle list and drops the element when the
+  list is empty (a shape without area), so such an effect costs no
+  snapshot. Only then does it derive the regions, mark the current scope
+  used and union the effect's `backdropRegion` into the scope's. Culling
+  applies to scopes and effects as to any element, so a culled scope has
+  no record and a culled effect uses none. The culling rect is the target
+  in logical units (its pixel size over the scaling factor); the effect
+  regions and `screenSize` are in pixels.
+- **A clip cuts an effect with a device-pixel scissor only.** The clip
+  rect shrinks the bounds the regions are derived from, and every pass
+  draw is scissored to its region, but the final pass still draws the
+  unclipped shape. The scissor is axis-aligned and snapped outward to
+  whole pixels, so a clip with a fractional edge lets the effect through
+  by up to a pixel, and a clip inside a rotated `BackdropScope` lets it
+  fill the corners of the clip's bounding box.
+- **Effect parameters are device pixels.** An `Effect` is built before any
+  scaling factor is known and its divisor, paddings and parameter bytes
+  are fixed at construction, so the renderer scales the shape and the
+  regions but not a blur radius or highlight width.
+- **Timeline, plan and emission.** After the walk, `render` builds the
+  `ScratchTimeline` from the items in order (a snapshot per *used* scope
+  entry, an effect per draw naming its scope's snapshot), and when it holds
+  no effect draws everything as one batch: no emitter is made and the
+  commands are those of a drawing without scopes. Otherwise `planScratch`
+  runs once, `Painter::makeEffectEmitter` hands out the emitter over the
+  frame's command buffer and target, and `drawItems` walks the items:
+  meshes gather into a segment; a used scope entry and an effect draw each
+  **flush the segment into draws first** and then call `emitSnapshot` with
+  the scope's union, or `emitEffect` with the next `plan.effects` entry.
+  The emitter's barriers bracket every one of its draws, so the flushed
+  content is a run of its own before the snapshot and the next segment a
+  run after the final pass: the snapshot sees exactly what paint order put
+  below the scope, and the final pass lies between the content below and
+  above it. Z is still assigned over the whole frame (`generateElements`
+  takes the segment's first index and the frame's mesh count), so the
+  depth test orders opaque content across segments, and a frame
+  with no effects is one segment with the same z values and no barrier.
+  This was chosen over giving the final pass a z: the Shape pipeline
+  neither tests nor writes depth, so z would not order it against opaque
+  content anyway, and a run boundary costs nothing when no effect is drawn.
+- **The painter's share.** `Painter` owns the `ScratchPool` and the
+  `PassPipelineCache` next to its pipelines. `beginFrame` begins the cache's
+  frame with the uniform ring's; `makeEffectEmitter(commands, mainTarget)`
+  opens the painter frame if needed, begins the pool's frame at the
+  target's size (a no-op while the size holds) and builds the emitter over
+  the ring, pool, cache and target; `flush` ends the pool's frame when one
+  was begun. `render` therefore takes the `TargetImage` it draws into, not
+  a framebuffer and a size: the window path passes `windowTarget_`, the
+  image path the caller's image, and the emitter samples that target.
+- `effectrenderingtest.cpp` pins the command structure of frames with
+  effects on the dummy backend (clear, content, barrier, snapshot, passes,
+  final pass, content; one snapshot per used scope, none for an unused
+  one; the innermost scope's snapshot; the root snapshot; a clipped
+  effect's regions; a `SurfaceNode` in a stack end to end), and that a
+  drawing with unused scopes renders byte-for-byte like one without.
 - Shader compilation and the look are the one thing these tests cannot
   reach: the dummy backend compiles nothing, so the GLSL is only checked
   textually (version line, declared names present, no binding qualifiers)
@@ -345,8 +404,9 @@ cache on the `Painter`).
 ## Painter
 
 `Painter` (`painter.h`, `painter.cpp`) owns the pipelines, the glyph atlas,
-the `UniformSet` every content draw binds, the window's offscreen target and
-the command buffer the frame is recorded into. `clearImage`/`clearWindow`/
+the `UniformSet` every content draw binds, the window's offscreen target,
+the effects' scratch pool and pipeline cache (see *Effects*) and the command
+buffer the frame is recorded into. `clearImage`/`clearWindow`/
 `paintToImage`/`paintToWindow` record; `flush` (and `presentWindow`, which
 pushes the present quad and flushes first) submits.
 
@@ -400,9 +460,11 @@ pushes the present quad and flushes first) submits.
   the ring rotates buffers per frame and the set is rebound every frame, a
   frame never draws with a range from an earlier frame.
 - `avg::render` (`rendering.cpp`) is the free function the painter records
-  through, and tests call it directly with their own command buffer; it does
-  not open a painter frame, so a test that needs the uniform path drives
-  the painter and reads the dummy queue's recorded submissions.
+  through, and tests call it directly with their own command buffer; it
+  opens a painter frame only when the drawing has effects (through
+  `makeEffectEmitter`), so a test that needs the uniform path drives the
+  painter and reads the dummy queue's recorded submissions. It asserts that
+  the drawing has no pending shadows: whoever renders a drawing flushes it.
 
 ## Vendored Clipper
 

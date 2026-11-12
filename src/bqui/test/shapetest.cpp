@@ -132,11 +132,14 @@ TEST(shape, factoriesInstantiate)
     widget::AnyWidget e2 =
             shape::ellipse().rotate(0.5f).fillAndStroke(testBrush(), testPen());
     shape::AnyShape masked = shape::circle().clip(shape::rectangle());
+    bq::signal::AnySignal<avg::ShapeFunction> function =
+            shape::rectangle().getShapeFunction();
 
     (void)e;
     (void)c;
     (void)e2;
     (void)masked;
+    (void)function;
 
     SUCCEED();
 }

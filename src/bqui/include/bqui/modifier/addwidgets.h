@@ -10,6 +10,8 @@
 #include <bq/signal/signal.h>
 #include <bq/signal/combine.h>
 
+#include <avg/rendertree/containernode.h>
+
 #include <btl/all.h>
 #include <btl/typetraits.h>
 #include <btl/sequence.h>
@@ -19,11 +21,22 @@
 
 namespace bqui::modifier
 {
+    /**
+     * @brief Adds the instances' render trees, input areas, focusable
+     * inputs and introspection to the instance, after its own.
+     *
+     * A flat container is for children laid out side by side; a stacked one
+     * paints each child over the ones before it, which is what a modifier
+     * that draws behind or over its widget is.
+     */
     inline auto addWidgets(widget::Instance i,
-            std::vector<widget::Instance> const& instances)
+            std::vector<widget::Instance> const& instances,
+            avg::ContainerNode::Stacking stacking =
+                avg::ContainerNode::Stacking::flat)
     {
         auto container = std::make_shared<avg::ContainerNode>(
-                i.getObb()
+                i.getObb(),
+                stacking
                 );
 
         container->addChild(i.getRenderTree().getRoot());
@@ -58,11 +71,16 @@ namespace bqui::modifier
             ;
     }
 
-    inline auto addWidgets(std::vector<bq::signal::AnySignal<widget::Instance>> instances)
+    inline auto addWidgets(
+            std::vector<bq::signal::AnySignal<widget::Instance>> instances,
+            avg::ContainerNode::Stacking stacking =
+                avg::ContainerNode::Stacking::flat)
     {
-        return makeInstanceModifier([](widget::Instance instance, auto instances)
+        return makeInstanceModifier([stacking](widget::Instance instance,
+                    auto instances)
                 {
-                    return addWidgets(std::move(instance), std::move(instances));
+                    return addWidgets(std::move(instance),
+                            std::move(instances), stacking);
                 },
                 bq::signal::combine(std::move(instances))
                 );
@@ -71,22 +89,28 @@ namespace bqui::modifier
 
 
     template <typename T>
-    auto addWidgets(bq::signal::Signal<T, std::vector<widget::Instance>> instances)
+    auto addWidgets(
+            bq::signal::Signal<T, std::vector<widget::Instance>> instances,
+            avg::ContainerNode::Stacking stacking =
+                avg::ContainerNode::Stacking::flat)
     {
-        return makeInstanceModifier([](widget::Instance instance, auto instances)
+        return makeInstanceModifier([stacking](widget::Instance instance,
+                    auto instances)
                 {
-                    return addWidgets(std::move(instance), std::move(instances));
+                    return addWidgets(std::move(instance),
+                            std::move(instances), stacking);
                 },
                 std::move(instances)
                 );
     }
 
-    inline auto addWidget(bq::signal::AnySignal<widget::Instance> instance)
+    inline auto addWidget(bq::signal::AnySignal<widget::Instance> instance,
+            avg::ContainerNode::Stacking stacking =
+                avg::ContainerNode::Stacking::flat)
     {
         std::vector<bq::signal::AnySignal<widget::Instance>> instances;
         instances.push_back(std::move(instance));
 
-        return addWidgets(std::move(instances));
+        return addWidgets(std::move(instances), stacking);
     }
 }
-

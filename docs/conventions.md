@@ -1,6 +1,7 @@
 # Conventions & gotchas
 
-*Last verified against `9d252ef` (2026-08-15).*
+*Last verified against `f541ac65` (2026-11-12); the `Drawing::over` section
+against `f541ac65` (2026-11-12).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
@@ -137,6 +138,21 @@ parameters — must be built as a *constant* instead of via an empty `merge`
 (see the `if constexpr (sizeof...(Ts) == 0)` branch in
 `src/bqui/include/bqui/shape/shape.h`). The principled fix would be a
 `signal<void>` identity element for `merge`; see `docs/decisions.md`.
+
+## Painting over a child goes through `Drawing::over`
+
+Depth in an `avg::Drawing` is element order, and a backdrop effect samples
+only what its enclosing `BackdropScope` had painted before it (the mechanism
+is in `src/avg/AGENTS.md`, *Shapes and drawings*). So **whoever paints one
+child over another is a stack**: compose the two through
+`avg::Drawing::over(below, above)` or an `avg::ContainerNode` with
+`Stacking::stacked`, which calls `over` for each child after the first -
+never by `+=` of the two drawings. In `bqui` a modifier that draws behind or
+over its widget builds a stacked container (`modifier/ondraw.h`,
+`modifier/addwidgets.h`), and only side-by-side layouts (`vbox`, `hbox`, the
+grid) concatenate flat. An unused scope costs nothing, so the rule is
+unconditional rather than "only when an effect is present": the author of a
+modifier cannot know what its child will hold.
 
 ## Compiler warnings
 

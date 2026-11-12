@@ -17,6 +17,7 @@
 #include <bqui/modifier/onclick.h>
 #include <bqui/modifier/setgravity.h>
 #include <bqui/modifier/transform.h>
+#include <bqui/modifier/surface.h>
 
 #include <bqui/widget/scrollbar.h>
 #include <bqui/widget/scrollview.h>
@@ -28,6 +29,7 @@
 #include <bqui/widget/uniformgrid.h>
 #include <bqui/widget/hbox.h>
 #include <bqui/widget/vbox.h>
+#include <bqui/widget/stack.h>
 
 #include <bqui/shape/rectangle.h>
 
@@ -46,6 +48,9 @@
 #include <bq/signal/signal.h>
 #include <bq/signal/signalcontext.h>
 
+#include <avg/brush.h>
+#include <avg/builtineffects.h>
+#include <avg/color.h>
 #include <avg/curve/curves.h>
 
 #include <ase/vector.h>
@@ -76,6 +81,45 @@ std::vector<std::pair<std::string, avg::Curve>> curves = {
     { "easeOutBounce", avg::curve::easeOutBounce },
     { "easeInOutBounce", avg::curve::easeInOutBounce },
 };
+
+/**
+ * @brief A frosted-glass card over a colourful background.
+ */
+widget::AnyWidget frostedCard()
+{
+    using bq::signal::constant;
+
+    auto stripes = widget::hbox({
+        shape::rectangle().fill(avg::Color(0.9f, 0.2f, 0.2f)),
+        shape::rectangle().fill(avg::Color(0.2f, 0.8f, 0.3f)),
+        shape::rectangle().fill(avg::Color(0.2f, 0.4f, 0.9f)),
+        shape::rectangle().fill(avg::Color(0.95f, 0.8f, 0.2f))
+    });
+
+    avg::FrostedGlassOptions glass;
+    glass.radius = 24.0f;
+    glass.tint = avg::Color(1.0f, 1.0f, 1.0f, 1.0f);
+    glass.tintStrength = 0.15f;
+
+    auto card = widget::label("Frosted glass")
+        | modifier::margin(20.0f)
+        | modifier::surface(
+                shape::rectangle(constant(12.0f)),
+                constant(avg::Brush(avg::Color(1.0f, 1.0f, 1.0f, 0.25f))),
+                modifier::SurfaceShadow{
+                    constant(avg::Vector2f(0.0f, -4.0f)),
+                    constant(6.0f),
+                    constant(avg::Brush(avg::Color(0.0f, 0.0f, 0.0f, 0.4f)))
+                },
+                modifier::SurfaceFrostedGlass{ constant(glass) }
+                )
+        | modifier::margin(30.0f)
+        ;
+
+    return widget::stack({ std::move(stripes), std::move(card) })
+        | modifier::setSizeHint({ 300, 150 })
+        ;
+}
 
 void openSecondWindow()
 {
@@ -276,6 +320,7 @@ int main()
                         )
                 , widget::label("AbcTest")
                     | modifier::frame()
+                , frostedCard()
                 , widget::textEdit(textState.handle,
                         textState.signal.cast<widget::TextEditState>())
                 , widget::vfiller()

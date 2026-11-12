@@ -29,7 +29,7 @@ AnyWidgetModifier frame(
 
 AnyWidgetModifier frame(bq::signal::AnySignal<avg::Color> color)
 {
-    return frame(bq::signal::constant(10.0f), std::move(color));
+    return frame(bq::signal::constant(frameCornerRadius), std::move(color));
 }
 
 AnyWidgetModifier frame(bq::signal::AnySignal<float> cornerRadius)
@@ -43,7 +43,7 @@ AnyWidgetModifier frame(bq::signal::AnySignal<float> cornerRadius)
 AnyWidgetModifier frame()
 {
     return frame(
-            bq::signal::constant(10.0f),
+            bq::signal::constant(frameCornerRadius),
             bq::signal::constant(Theme().getBackgroundHighlight())
             );
 }
