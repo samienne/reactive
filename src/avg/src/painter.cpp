@@ -6,7 +6,6 @@
 #include "glyphatlas.h"
 
 #include <ase/window.h>
-#include <ase/uniformbufferrange.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
 #include <ase/shader.h>
@@ -22,9 +21,8 @@
 
 static char const* simpleVsSource =
 "#version 330\n"
-"#extension GL_ARB_shading_language_420pack : require\n"
 "\n"
-"layout(std140, binding = 0) uniform MatrixBlock\n"
+"layout(std140) uniform MatrixBlock\n"
 "{\n"
 "   mat4 worldViewProj;\n"
 "} matrices;\n"
@@ -52,9 +50,8 @@ static char const* simpleFsSource =
 
 static char const* textVsSource =
 "#version 330\n"
-"#extension GL_ARB_shading_language_420pack : require\n"
 "\n"
-"layout(std140, binding = 0) uniform MatrixBlock\n"
+"layout(std140) uniform MatrixBlock\n"
 "{\n"
 "   mat4 worldViewProj;\n"
 "} matrices;\n"
@@ -81,9 +78,8 @@ static std::string textFsSource()
 {
     return std::string()
         + "#version 330\n"
-        + "#extension GL_ARB_shading_language_420pack : require\n"
         + "\n"
-        + "layout(binding = 0) uniform sampler2D atlas;\n"
+        + "uniform sampler2D atlas;\n"
         + "\n"
         + "in vec4 vColor;\n"
         + "in vec2 vUv;\n"
@@ -172,12 +168,13 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     transparentPipeline_(makePipeline(context, false)),
     textPipeline_(makeTextPipeline(context)),
     glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
-    buffer_(),
-    uniformSet_(context.makeUniformSet(matrixInterface())),
-    uniformBuffer_(context.makeUniformBuffer())
+    matrices_(matrixInterface(), "MatrixBlock", {
+            ase::blockMember<&MatrixBlock::worldViewProj>("worldViewProj"),
+        }),
+    uniformRing_(context),
+    uniformSet_(context.makeUniformSet(matrixInterface()))
 {
-    uniformSet_.bindUniformBufferRange(0,
-            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+    matrices_->worldViewProj = ase::Matrix4f::Identity();
 }
 
 Painter::~Painter()
@@ -193,21 +190,32 @@ pmr::memory_resource* Painter::getResource() const
 
 void Painter::setSize(ase::Vector2i pixelSize, float scalingFactor)
 {
-    buffer_.resize(16*sizeof(float));
-    char* data = buffer_.mapWrite<char>();
-
     ase::Matrix4f m = ase::Matrix4f::Identity();
     m(0,0) = 2.0f * scalingFactor / (float)pixelSize[0];
     m(1,1) = 2.0f * scalingFactor / (float)pixelSize[1];
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    std::memcpy(data, m.data(), 16 * sizeof(float));
+    matrices_->worldViewProj = m;
 
-    commandBuffer_.pushUpload(uniformBuffer_, buffer_, ase::Usage::StreamRead);
+    if (frameOpen_)
+        writeMatrices();
+}
 
-    uniformSet_.bindUniformBufferRange(0,
-            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+void Painter::beginFrame()
+{
+    if (frameOpen_)
+        return;
+
+    uniformRing_.beginFrame();
+    frameOpen_ = true;
+    writeMatrices();
+}
+
+void Painter::writeMatrices()
+{
+    uniformSet_.bindUniformBufferRange("MatrixBlock",
+            uniformRing_.write(matrices_));
 }
 
 ase::UniformSet const& Painter::getUniformSet() const
@@ -244,12 +252,14 @@ GlyphAtlas& Painter::getGlyphAtlas()
 void Painter::clearImage(TargetImage& target)
 {
     ZoneScoped;
+    beginFrame();
     commandBuffer_.pushClear(target.getFramebuffer());
 }
 
 void Painter::clearWindow(ase::Window& target)
 {
     ZoneScoped;
+    beginFrame();
     commandBuffer_.pushClear(target.getDefaultFramebuffer());
 }
 
@@ -257,6 +267,7 @@ void Painter::paintToImage(TargetImage& target, float scalingFactor,
         Drawing const& drawing)
 {
     ZoneScoped;
+    beginFrame();
     render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
             target.getSize(), scalingFactor, *this, drawing);
 }
@@ -265,6 +276,7 @@ void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
 {
     ZoneScoped;
 
+    beginFrame();
     render(memory_, commandBuffer_, renderContext_,
             target.getDefaultFramebuffer(), target.getSize(),
             target.getScalingFactor(), *this, drawing);
@@ -281,6 +293,16 @@ void Painter::presentWindow(ase::Window& target)
 void Painter::flush()
 {
     ZoneScoped;
+
+    if (frameOpen_)
+    {
+        ase::CommandBuffer uploads;
+        uniformRing_.endFrame(uploads);
+        frameOpen_ = false;
+
+        if (uploads.size() > 0)
+            renderContext_.getMainRenderQueue().submit(std::move(uploads));
+    }
 
     if (commandBuffer_.size() > 0)
     {
