@@ -1,6 +1,6 @@
 # bqui — agent notes
 
-*Last verified against `9ba8b44c` (2026-11-12), for the surface modifiers and
+*Last verified against `4d8e996e` (2026-11-12), for the surface modifiers and
 stacking.*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in

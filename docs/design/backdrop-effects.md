@@ -6,7 +6,7 @@
 > child over another; an effect such as frosted glass is a small graph of
 > shader passes that reads a snapshot of the frame taken when its scope was
 > entered and paints its shape back into the frame in paint order.
-> Verified against `77ffaccf` (2026-11-12). The pass uniform blocks and
+> Verified against `4d8e996e` (2026-11-12). The pass uniform blocks and
 > multi-sampler passes build on `shader-interface.md`.
 
 ## Why

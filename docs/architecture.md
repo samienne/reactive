@@ -1,7 +1,7 @@
 # Architecture
 
 *Last verified against `d2e8954` (2026-07-13); the rendering paragraph against
-`77ffaccf` (2026-11-12).*
+`4d8e996e` (2026-11-12).*
 
 The cross-cutting overview: how the libraries fit together and the ideas that
 span them. Per-library depth lives in each library's own docs (indexed below);

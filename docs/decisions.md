@@ -3,9 +3,9 @@
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
 (2026-10-22); the shader interface entry against `3c3dfb34` (2026-11-12); the
-seven Vulkan readiness entries against `15d5fb63` (2026-11-12), of which only
-the pipeline formats are implemented (`79e0a275`, 2026-11-12); the five
-backdrop-effect entries against `77ffaccf` (2026-11-12).*
+seven Vulkan readiness entries against `4d8e996e` (2026-11-12), of which only
+the pipeline formats are implemented (`4d8e996e`, 2026-11-12); the five
+backdrop-effect entries against `4d8e996e` (2026-11-12).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
