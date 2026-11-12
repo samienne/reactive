@@ -1,6 +1,7 @@
 # bqui — agent notes
 
-*Last verified against `55f2e55` (2026-08-15), for the headless offscreen rework.*
+*Last verified against `9ba8b44c` (2026-11-12), for the surface modifiers and
+stacking.*
 
 Internals, entry points, and traps for the UI toolkit. Concepts and usage are in
 `readme.md`; project-wide conventions are in the top-level `docs/`. This file is
@@ -30,6 +31,41 @@ Two layers (`shape/`): `avg::ShapeFunction` is the animatable engine;
 Transforms/composition return a new `Shape`; `fill`/`stroke`/`fillAndStroke`
 terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 (the layout axis is separate — `docs/decisions.md`).
+
+## Surfaces and stacking
+
+Depth is element order in a flat `avg::Drawing`, and a backdrop effect
+samples only what its enclosing `BackdropScope` had painted before it. bqui
+never builds a scope by hand; it chooses the `avg::ContainerNode` stacking
+flag:
+
+- **Whoever paints one child over another is a stack.** `addWidgets`
+  (`modifier/addwidgets.h`) and `widget::layout` take
+  `ContainerNode::Stacking`; `widget::stack` passes `stacked`.
+  A stacked container paints its
+  first child flat and each later one through `Drawing::over`, so the
+  painted-over content lands in a scope of its own. `vbox`, `hbox`,
+  `uniformGrid` and every single-child wrapper (`clip`, `transition`,
+  `margin`, `transform`) stay flat. A new modifier that draws behind or
+  over its widget takes the same route - a stacked container or
+  `addWidgets(..., Stacking::stacked)`, never a flat `+=` of two drawings.
+  A scope with no effect inside
+  costs nothing, which is why this is unconditional.
+- **`modifier::surface`** (`modifier/surface.h`, `src/modifier/surface.cpp`)
+  wraps the widget's render tree in an `avg::SurfaceNode`. The
+  `shape::AnyShape` gives up its shape-function signal through
+  `Shape::getShapeFunction()`; the fill, shadow and effect signals are
+  merged into one instance modifier, and each value is handed to the node
+  as a fresh `Animated`, so the render tree interpolates it the way it does
+  a `ShapeNode`'s parameters. Which of fill, shadow and effect exist is
+  fixed when the modifier is built; only their values animate. `backdrop`,
+  `frostedGlass` and `tint` are shorthands for an effect alone. A surface
+  adds no scope of its own: it is layered by the `stack` it sits in.
+- `test/surfacetest.cpp` realises a widget with `BuildParams()` and a
+  constant size, draws its render tree through `RenderTree::draw` (which
+  flushes the pending shadows) and asserts on the `Drawing`'s elements: the
+  node a modifier yields, the shadow-effect-fill-child order, and which
+  modifiers put a scope around their child.
 
 ## Layout, environment, animation
 

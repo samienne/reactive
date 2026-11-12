@@ -22,7 +22,7 @@ namespace bqui::widget
             return obbs;
         };
 
-        return layout(stackSizeHints, obbMap, std::move(widgets));
+        return layout(stackSizeHints, obbMap, std::move(widgets),
+                avg::ContainerNode::Stacking::stacked);
     }
 }
-

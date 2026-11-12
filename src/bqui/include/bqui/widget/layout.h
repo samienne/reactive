@@ -6,6 +6,8 @@
 
 #include <bq/signal/arraysignal.h>
 
+#include <avg/rendertree/containernode.h>
+
 #include <btl/function.h>
 
 #include <vector>
@@ -42,8 +44,13 @@ namespace bqui::widget
      * for a given container size. Children go through
      * modifier::handleGravity() first, and a child keeps its state when others
      * are added or removed.
+     *
+     * Children placed side by side paint flat; pass `Stacking::stacked` when
+     * the obbs overlap and later children paint over earlier ones, as
+     * stack() does.
      */
     BQUI_EXPORT AnyWidget layout(SizeHintMap sizeHintMap,
-            ObbMap obbMap, bq::signal::ArraySignal<AnyWidget> widgets);
+            ObbMap obbMap, bq::signal::ArraySignal<AnyWidget> widgets,
+            avg::ContainerNode::Stacking stacking =
+                avg::ContainerNode::Stacking::flat);
 }
-
