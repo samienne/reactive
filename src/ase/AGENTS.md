@@ -53,8 +53,12 @@ are in the top-level `docs/`.
   legacy `wglCreateContext` context.
   `GlRenderState` enables `GL_FRAMEBUFFER_SRGB` on every GL backend that
   reports `GL_ARB_framebuffer_sRGB`; the enable only converts on an
-  sRGB-capable surface, which is why the pixel format matters. Nothing checks the chosen format at run time: verifying it
-  takes a manual run on a machine with a GL driver.
+  sRGB-capable surface, which is why the pixel format matters. Nothing
+  checks the chosen format at run time: verifying it takes a manual run on
+  a machine with a GL driver. A window's framebuffer reports the formats
+  the request asked for (`FORMAT_SRGBA`; depth `FORMAT_DEPTH24_STENCIL8` on
+  WGL, `FORMAT_DEPTH24` on GLX), which is what a pipeline presenting to the
+  window declares.
 - **The platform does not own its run loop.** The `btl::RunLoop` is created by
   the caller (bqui's `App`, a test) and injected at construction; `PlatformBase`
   holds it by reference and `runLoop()` returns it. The loop must outlive the
@@ -224,19 +228,37 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   clear is limited to a region. The viewport is separate: the framebuffer
   sets it to its full size on bind, and the scissor never changes it.
 - **Pipeline state.** `makePipeline(program, spec, PipelineDesc)`
-  (`pipelinedesc.h`) is the one creation path; `makePipelineWithBlend` is a
-  wrapper that sets `blend`. `PipelineDesc` holds an optional `BlendFunc`,
-  `depthTest` (default on) and `depthWrite`, which left unset resolves
-  (`writesDepth()`) to on for an opaque and off for a blended pipeline, the
-  behaviour the GL state used to derive from the blend flag. Every backend's
-  pipeline reports `isBlendEnabled`, `isDepthTestEnabled` and
-  `isDepthWriteEnabled`; the dummy stores the desc. `GlRenderState` tracks
+  (`pipelinedesc.h`) is the one creation path. A `PipelineDesc` is
+  constructed from the target's colour `Format` and an optional depth
+  `Format` (unset: no depth attachment), so there is no default description
+  and no pipeline without declared formats; it then holds an optional
+  `BlendFunc`, `depthTest` (default on) and `depthWrite`, which left unset
+  resolves (`writesDepth()`) to on for an opaque and off for a blended
+  pipeline. Every backend's pipeline reports `getColorFormat`,
+  `getDepthFormat`, `isBlendEnabled`, `isDepthTestEnabled` and
+  `isDepthWriteEnabled`; the dummy stores the desc. GL ignores the formats
+  for state. `GlRenderState` tracks
   depth test, depth mask and blend enable as three separate booleans
   initialised to the GL defaults it sets up (`GL_DEPTH_TEST` on, mask true,
   blend off), switches each when the pipeline differs, and compares the
   blend factors on every blended draw rather than only when blending turns
   on. A clear with the depth bit forces the mask back on first, since
   `glClear` obeys it, and the next draw restores its pipeline's mask.
+- **Declared formats are checked at draw time, in debug builds.** Every
+  framebuffer reports `getColorFormat()` (attachment 0, `FORMAT_UNKNOWN`
+  when empty) and `getDepthFormat()` (unset when there is none);
+  `GlFramebuffer` reads them off its attachments, the WGL/GLX window
+  framebuffers answer with their platform's pixel-format request, and the
+  dummy window's framebuffer answers `FORMAT_SRGBA` over
+  `FORMAT_DEPTH24_STENCIL8`. `Pipeline::matchesTarget(framebuffer)` is the
+  predicate: colour formats equal, depth present on both sides or neither,
+  and equal when the target's is known (a target reporting
+  `FORMAT_UNKNOWN` depth, as the context-level `GlFramebuffer` for
+  framebuffer 0 does, accepts any declared depth). `GlRenderState` and
+  `DummyRenderQueue` `assert` it for every draw command, so the check costs
+  nothing once `NDEBUG` is defined; note Meson's default `b_ndebug=false`
+  leaves asserts on in every buildtype unless the option is set. Tests
+  exercise the predicate directly rather than death-testing the assert.
 - **What CI does not run.** All of the above compiles on every leg and the
   dummy tests cover the command shapes, the run splitting and the pipeline
   flags, but no GL context runs in CI: the scissor and depth switches in

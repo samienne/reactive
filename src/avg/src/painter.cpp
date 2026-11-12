@@ -7,6 +7,7 @@
 #include "glyphatlas.h"
 
 #include <ase/window.h>
+#include <ase/framebuffer.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
 #include <ase/shader.h>
@@ -157,6 +158,11 @@ namespace
         return iface;
     }
 
+    constexpr ase::Format targetFormat = ase::FORMAT_SRGBA;
+
+    ase::BlendFunc const overBlend{ ase::BlendMode::One,
+        ase::BlendMode::OneMinusSrcAlpha };
+
     ase::Pipeline makePipeline(ase::RenderContext& context, bool solid)
     {
         ase::NamedVertexSpec namedSpec;
@@ -170,13 +176,11 @@ namespace
                 matrixInterface());
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        if (solid)
-            return context.makePipeline(program, spec);
-        else
-        {
-            return context.makePipelineWithBlend(program, spec,
-                    ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
-        }
+        ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
+        if (!solid)
+            desc.blend = overBlend;
+
+        return context.makePipeline(program, spec, desc);
     }
 
     ase::Pipeline makeTextPipeline(ase::RenderContext& context)
@@ -196,8 +200,10 @@ namespace
                 std::move(iface));
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        return context.makePipelineWithBlend(program, spec,
-                ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
+        ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
+        desc.blend = overBlend;
+
+        return context.makePipeline(program, spec, desc);
     }
 
     ase::ShaderInterface presentInterface()
@@ -210,7 +216,8 @@ namespace
         return iface;
     }
 
-    ase::Pipeline makePresentPipeline(ase::RenderContext& context)
+    ase::Pipeline makePresentPipeline(ase::RenderContext& context,
+            ase::Framebuffer const& target)
     {
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("pos", 2, ase::TypeFloat, false)
@@ -223,7 +230,8 @@ namespace
                 presentInterface());
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        ase::PipelineDesc desc;
+        ase::PipelineDesc desc{ target.getColorFormat(),
+            target.getDepthFormat() };
         desc.depthTest = false;
         desc.depthWrite = false;
 
@@ -237,7 +245,6 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     solidPipeline_(makePipeline(context, true)),
     transparentPipeline_(makePipeline(context, false)),
     textPipeline_(makeTextPipeline(context)),
-    presentPipeline_(makePresentPipeline(context)),
     presentUniformSet_(context.makeUniformSet(presentInterface())),
     glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
     matrices_(matrixInterface(), "MatrixBlock", {
@@ -372,8 +379,7 @@ TargetImage& Painter::windowTarget(ase::Window& window)
     auto const pixelSize = window.getScaledSize();
     if (!windowTarget_ || windowTarget_->getSize() != pixelSize)
     {
-        windowTarget_.emplace(renderContext_, pixelSize,
-                ase::FORMAT_SRGBA);
+        windowTarget_.emplace(renderContext_, pixelSize, targetFormat);
     }
 
     return *windowTarget_;
@@ -381,6 +387,10 @@ TargetImage& Painter::windowTarget(ase::Window& window)
 
 void Painter::pushPresent(ase::Window& window)
 {
+    ase::Framebuffer& target = window.getDefaultFramebuffer();
+    if (!presentPipeline_ || !presentPipeline_->matchesTarget(target))
+        presentPipeline_ = makePresentPipeline(renderContext_, target);
+
     if (!presentVertices_)
     {
         presentVertices_ = renderContext_.makeVertexBuffer();
@@ -397,7 +407,7 @@ void Painter::pushPresent(ase::Window& window)
     // The quad samples what this frame drew, so the sort must not move it
     // ahead of those draws.
     commandBuffer_.pushBarrier();
-    commandBuffer_.push(window.getDefaultFramebuffer(), presentPipeline_,
+    commandBuffer_.push(target, *presentPipeline_,
             presentUniformSet_, *presentVertices_, *presentIndices_,
             { windowTarget_->getTexture() }, 0.0f);
 }

@@ -20,6 +20,12 @@ namespace avg
     class AVG_EXPORT TargetImage
     {
     public:
+        /**
+         * @brief The depth-stencil format every target carries; a pipeline
+         * drawing into a target declares it.
+         */
+        static constexpr ase::Format depthFormat = ase::FORMAT_DEPTH24_STENCIL8;
+
         TargetImage(ase::RenderContext& context, Vector2i size,
                 ase::Format format);
         Vector2i getSize() const;

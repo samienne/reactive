@@ -5,6 +5,7 @@
 
 #include <ase/format.h>
 #include <ase/pipeline.h>
+#include <ase/program.h>
 #include <ase/rendercontext.h>
 #include <ase/shaderinterface.h>
 #include <ase/uniformset.h>
@@ -73,12 +74,12 @@ namespace avg
      *
      *     cache.beginFrame();
      *     PassPipeline& pipeline = cache.getPipeline(pass.shader,
-     *             pass.geometry, format);
+     *             pass.geometry, colorFormat, depthFormat);
      *
-     * The same fragment source, target format and geometry give the same
-     * pipeline, so an effect whose parameters change keeps its pipelines.
-     * A Region pipeline overwrites its target; a Shape one blends source
-     * alpha over the main target.
+     * The same fragment source, geometry and target colour and depth
+     * formats give the same pipeline, so an effect whose parameters change
+     * keeps its pipelines. A Region pipeline overwrites its target; a Shape
+     * one blends source alpha over the main target.
      */
     class AVG_EXPORT PassPipelineCache
     {
@@ -97,21 +98,26 @@ namespace avg
         void beginFrame();
 
         PassPipeline& getPipeline(PassShader const& shader, Geometry geometry,
-                ase::Format targetFormat);
+                ase::Format colorFormat,
+                std::optional<ase::Format> depthFormat);
 
         size_t getPipelineCount() const;
 
     private:
-        struct Key
+        struct PipelineKey
         {
-            std::string fragmentSource;
-            ase::Format format;
+            ase::Program program;
             Geometry geometry;
+            ase::Format colorFormat;
+            std::optional<ase::Format> depthFormat;
 
-            bool operator<(Key const& rhs) const;
+            bool operator<(PipelineKey const& rhs) const;
         };
 
+        ase::Program const& getProgram(PassShader const& shader);
+
         ase::RenderContext& context_;
-        std::map<Key, PassPipeline> pipelines_;
+        std::map<std::string, ase::Program> programs_;
+        std::map<PipelineKey, PassPipeline> pipelines_;
     };
 }

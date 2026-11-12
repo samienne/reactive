@@ -37,6 +37,9 @@ namespace ase
         void setStencilTarget(Renderbuffer buffer) override;
         void unsetStencilTarget() override;
 
+        Format getColorFormat() const override;
+        std::optional<Format> getDepthFormat() const override;
+
     private:
         GlxWindow& window_;
     };
