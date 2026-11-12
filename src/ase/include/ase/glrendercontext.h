@@ -105,6 +105,8 @@ namespace ase
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
                 ShaderInterface iface) override;
 
+        size_t getUniformBufferOffsetAlignment() const override;
+
     private:
         std::shared_ptr<GlPlatform> platform_;
         std::shared_ptr<GlRenderQueue> mainQueue_;
@@ -113,6 +115,7 @@ namespace ase
         GlFramebuffer defaultFramebuffer_;
         GlFramebuffer sharedFramebuffer_;
         Vector2i viewportSize_;
+        size_t uniformBufferOffsetAlignment_ = 0;
     };
 }
 

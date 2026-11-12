@@ -83,5 +83,7 @@ namespace ase
 
         virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
                 ShaderInterface iface) = 0;
+
+        virtual size_t getUniformBufferOffsetAlignment() const = 0;
     };
 }

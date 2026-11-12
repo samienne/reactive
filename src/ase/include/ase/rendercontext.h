@@ -113,6 +113,12 @@ namespace ase
          */
         UniformSet makeUniformSet(ShaderInterface iface);
 
+        /**
+         * @brief The alignment, in bytes, a bound uniform buffer range's
+         * offset must have on this context.
+         */
+        size_t getUniformBufferOffsetAlignment() const;
+
         /** @brief A co-owning handle to this context's implementation.
          *
          * Same-binary only.

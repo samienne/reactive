@@ -45,14 +45,22 @@ GlRenderContext::GlRenderContext(
     defaultFramebuffer_(*this, nullptr),
     sharedFramebuffer_(*this)
 {
-    dispatch([bgEnabled=platform.isBackgroundQueueEnabled()](GlFunctions const&)
+    dispatch([this, bgEnabled=platform.isBackgroundQueueEnabled()]
+        (GlFunctions const&)
     {
         std::cout << "GlVendor: " << glGetString(GL_VENDOR) << std::endl;
         std::cout << "GlRenderer: " << glGetString(GL_RENDERER) << std::endl;
         std::cout << "GlVersion: " << glGetString(GL_VERSION) << std::endl;
         std::cout << "BackgroundQueueEnabled: "
             << (bgEnabled ? "yes" : "no") << std::endl;
+
+        GLint alignment = 0;
+        glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &alignment);
+        uniformBufferOffsetAlignment_ = alignment > 0
+            ? static_cast<size_t>(alignment) : 256;
     });
+
+    wait();
 }
 
 GlRenderContext::~GlRenderContext()
@@ -215,6 +223,11 @@ std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl(
         ShaderInterface iface)
 {
     return objectManager_.makeUniformSet(std::move(iface));
+}
+
+size_t GlRenderContext::getUniformBufferOffsetAlignment() const
+{
+    return uniformBufferOffsetAlignment_;
 }
 
 } // namespace

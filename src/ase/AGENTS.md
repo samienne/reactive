@@ -170,6 +170,18 @@ samplers with their units. `docs/design/shader-interface.md` is the design;
   the main context is not guaranteed to see program state set after it.
   The dummy backend stores the declaration and reflects nothing, so headless
   tests see the same resolved vertex specs as GL (`Pipeline::getVertexSpec`).
+- **Block contents come from one layout computation.** `UniformBlock<T>`
+  (`uniformblock.h`) mirrors a block as a C++ struct and checks the struct's
+  size and each `blockMember`'s offset against the computed std140 layout at
+  construction; `UniformValues` (`uniformvalues.h`) is a by-name shadow of a
+  block for parameters that arrive as names (the effect scheduler). Both
+  give the same bytes for the same block.
+- **Per-frame storage is a `UniformRing`** (`uniformring.h`): one
+  `UniformBuffer` per frame in flight, `beginFrame`, `write` a block to the
+  next slot aligned to `getUniformBufferOffsetAlignment` (GL reads it from
+  the context, dummy fixes 256), `endFrame` pushes the frame's one upload
+  into a command buffer the owner submits *before* the frame's draws. A
+  constant change is therefore not a `pushUpload` fence in the draw stream.
 - **`UniformSet` knows its interface.** It is made by `makeUniformSet(iface)`,
   binds a range by block name or declared binding, throws
   `std::invalid_argument` for an undeclared block or a range smaller than the

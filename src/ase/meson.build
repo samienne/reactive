@@ -118,6 +118,9 @@ libasesrc = [
   'src/textevent.cpp',
   'src/keycode.cpp',
   'src/uniformset.cpp',
+  'src/uniformblock.cpp',
+  'src/uniformvalues.cpp',
+  'src/uniformring.cpp',
   'src/renderbuffer.cpp',
   'src/renderqueue.cpp',
   'src/platformbase.cpp'

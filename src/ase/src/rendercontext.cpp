@@ -125,4 +125,9 @@ UniformSet RenderContext::makeUniformSet(ShaderInterface iface)
     return UniformSet(d()->makeUniformSetImpl(std::move(iface)));
 }
 
+size_t RenderContext::getUniformBufferOffsetAlignment() const
+{
+    return d()->getUniformBufferOffsetAlignment();
+}
+
 } // namespace ase
