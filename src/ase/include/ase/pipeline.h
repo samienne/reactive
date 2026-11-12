@@ -11,8 +11,6 @@
 
 namespace ase
 {
-    class NamedVertexSpec;
-    class Program;
     class RenderContext;
 
     class ASE_EXPORT Pipeline
@@ -31,13 +29,8 @@ namespace ase
         bool operator<(Pipeline const& rhs) const;
 
         Program const& getProgram() const;
+        VertexSpec const& getVertexSpec() const;
         bool isBlendEnabled() const;
-
-        /*
-        VertexSpec const& getSpec() const;
-        BlendMode getSrcFactor() const;
-        BlendMode getDstFactor() const;
-        */
 
         template <class T>
         inline T const& getImpl() const

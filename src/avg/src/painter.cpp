@@ -9,9 +9,10 @@
 #include <ase/uniformbufferrange.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
-#include <ase/vertexshader.h>
-#include <ase/fragmentshader.h>
+#include <ase/shader.h>
+#include <ase/shaderinterface.h>
 #include <ase/program.h>
+#include <ase/buffer.h>
 #include <ase/blendmode.h>
 #include <ase/renderqueue.h>
 
@@ -101,14 +102,36 @@ namespace avg
 
 namespace
 {
+    ase::Shader makeShader(ase::RenderContext& context, ase::ShaderStage stage,
+            std::string const& source)
+    {
+        return context.makeShader(stage, ase::ShaderLanguage::Glsl330,
+                ase::Buffer(source.data(), source.size()));
+    }
+
+    ase::ShaderInterface matrixInterface()
+    {
+        ase::ShaderInterface iface;
+        iface.attribute("pos", 0, ase::TypeFloat, 3)
+            .attribute("color", 1, ase::TypeFloat, 4)
+            .block("MatrixBlock", 0, ase::BlockLayout::Std140, {
+                    { "worldViewProj", ase::UniformType::Mat4 },
+                });
+
+        return iface;
+    }
+
     ase::Pipeline makePipeline(ase::RenderContext& context, bool solid)
     {
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        auto vs = context.makeVertexShader(simpleVsSource);
-        auto fs = context.makeFragmentShader(simpleFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs));
+        auto vs = makeShader(context, ase::ShaderStage::Vertex,
+                simpleVsSource);
+        auto fs = makeShader(context, ase::ShaderStage::Fragment,
+                simpleFsSource);
+        auto program = context.makeProgram(std::move(vs), std::move(fs),
+                matrixInterface());
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         if (solid)
@@ -126,9 +149,15 @@ namespace
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = context.makeVertexShader(textVsSource);
-        auto fs = context.makeFragmentShader(textFsSource());
-        auto program = context.makeProgram(std::move(vs), std::move(fs));
+        auto vs = makeShader(context, ase::ShaderStage::Vertex,
+                textVsSource);
+        auto fs = makeShader(context, ase::ShaderStage::Fragment,
+                textFsSource());
+        auto iface = matrixInterface();
+        iface.attribute("uv", 2, ase::TypeFloat, 2)
+            .sampler("atlas", 0);
+        auto program = context.makeProgram(std::move(vs), std::move(fs),
+                std::move(iface));
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         return context.makePipelineWithBlend(program, spec,

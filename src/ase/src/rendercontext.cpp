@@ -6,14 +6,16 @@
 #include "rendercontextimpl.h"
 #include "uniformset.h"
 #include "buffer.h"
-#include "fragmentshader.h"
-#include "vertexshader.h"
+#include "shader.h"
+#include "shaderinterface.h"
+#include "program.h"
 #include "commandbuffer.h"
 #include "window.h"
 #include "platform.h"
 
 #include "debug.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace ase
@@ -43,21 +45,35 @@ RenderQueue RenderContext::getTransferQueue()
     return RenderQueue(d()->getTransferQueue());
 }
 
-VertexShader RenderContext::makeVertexShader(std::string const& source)
+std::vector<ShaderLanguage> const& RenderContext::getShaderLanguages() const
 {
-    return d()->makeVertexShaderImpl(source);
+    return d()->getShaderLanguages();
 }
 
-FragmentShader RenderContext::makeFragmentShader(std::string const& source)
+Shader RenderContext::makeShader(ShaderStage stage, ShaderLanguage language,
+        Buffer const& source)
 {
-    return d()->makeFragmentShaderImpl(source);
+    auto const& languages = d()->getShaderLanguages();
+    if (std::find(languages.begin(), languages.end(), language)
+            == languages.end())
+    {
+        throw UnsupportedShaderLanguage(language);
+    }
+
+    return Shader(d()->makeShaderImpl(stage, language, source));
 }
 
-Program RenderContext::makeProgram(VertexShader vertexShader,
-        FragmentShader fragmentShader)
+Program RenderContext::makeProgram(Shader vertexShader, Shader fragmentShader,
+        ShaderInterface iface)
 {
-    return d()->makeProgramImpl(std::move(vertexShader),
-            std::move(fragmentShader));
+    if (vertexShader.getStage() != ShaderStage::Vertex)
+        throw std::invalid_argument("Vertex shader is of another stage");
+
+    if (fragmentShader.getStage() != ShaderStage::Fragment)
+        throw std::invalid_argument("Fragment shader is of another stage");
+
+    return Program(d()->makeProgramImpl(vertexShader, fragmentShader,
+                std::move(iface)));
 }
 
 VertexBuffer RenderContext::makeVertexBuffer()
@@ -110,4 +126,3 @@ UniformSet RenderContext::makeUniformSet()
 }
 
 } // namespace ase
-

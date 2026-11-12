@@ -12,7 +12,17 @@ namespace ase
 {
     class Program;
     class NamedVertexSpec;
+    class ShaderInterface;
 
+    /**
+     * @brief A vertex layout with its attributes resolved to locations.
+     *
+     * Resolve a NamedVertexSpec against the program's interface:
+     *
+     *     ase::VertexSpec spec(program, namedSpec);
+     *
+     * A name the interface does not declare throws std::invalid_argument.
+     */
     class ASE_EXPORT VertexSpec
     {
     public:
@@ -53,6 +63,7 @@ namespace ase
         };
 
         VertexSpec();
+        VertexSpec(ShaderInterface const& iface, NamedVertexSpec const& spec);
         VertexSpec(Program const& program, NamedVertexSpec const& spec);
         VertexSpec(VertexSpec const& rhs) = default;
         VertexSpec(VertexSpec&& rhs) = default;
@@ -77,4 +88,3 @@ namespace ase
         size_t stride_;
     };
 }
-

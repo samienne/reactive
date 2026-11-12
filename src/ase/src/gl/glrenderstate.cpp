@@ -4,8 +4,6 @@
 #include "gluniformbuffer.h"
 #include "gluniformset.h"
 #include "glprogram.h"
-#include "glfragmentshader.h"
-#include "glvertexshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gltexture.h"

@@ -1,8 +1,7 @@
 #include "globjectmanager.h"
 
 #include "glprogram.h"
-#include "glfragmentshader.h"
-#include "glvertexshader.h"
+#include "glshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gluniformbuffer.h"
@@ -17,8 +16,8 @@
 #include "glrenderbuffer.h"
 
 #include "usage.h"
-#include "vertexshader.h"
-#include "fragmentshader.h"
+#include "shader.h"
+#include "shaderinterface.h"
 #include "buffer.h"
 
 namespace ase
@@ -29,26 +28,23 @@ GlObjectManager::GlObjectManager(GlRenderContext& context) :
 {
 }
 
+std::shared_ptr<GlShader> GlObjectManager::makeShader(
+        ShaderStage stage,
+        Buffer const& source)
+{
+    return std::make_shared<GlShader>(context_, stage, source);
+}
+
 std::shared_ptr<GlProgram> GlObjectManager::makeProgram(
-        VertexShader const& vertexShader,
-        FragmentShader const& fragmentShader)
+        Shader const& vertexShader,
+        Shader const& fragmentShader,
+        ShaderInterface iface)
 {
     return std::make_shared<GlProgram>(context_,
-            vertexShader.getImpl<GlVertexShader>(),
-            fragmentShader.getImpl<GlFragmentShader>()
+            vertexShader.getImpl<GlShader>(),
+            fragmentShader.getImpl<GlShader>(),
+            std::move(iface)
             );
-}
-
-std::shared_ptr<GlVertexShader> GlObjectManager::makeVertexShader(
-        std::string const& source)
-{
-    return std::make_shared<GlVertexShader>(context_, source);
-}
-
-std::shared_ptr<GlFragmentShader> GlObjectManager::makeFragmentShader(
-        std::string const& source)
-{
-    return std::make_shared<GlFragmentShader>(context_, source);
 }
 
 std::shared_ptr<GlVertexBuffer> GlObjectManager::makeVertexBuffer()
