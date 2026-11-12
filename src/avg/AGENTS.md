@@ -120,6 +120,10 @@ serialisation coupling.
 
 ## Effects
 
+`effect.h` holds the value model of a backdrop effect, `effectplan.h` the
+pure planning over it; neither touches `ase` beyond naming a `Format` and a
+`ShaderInterface`, and nothing in avg renders an effect yet.
+
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing
   scope's snapshot) or an earlier pass, its output target as a divisor of
@@ -129,6 +133,26 @@ serialisation coupling.
   output. Construction validates and throws listing every broken rule
   (`validate` returns the same list); an output nobody reads is an error, so
   the planner never sees dead work.
+- **Regions are derived backwards.** `deriveRegions` starts from the
+  shape's screen bounds and walks to the first pass: a pass writes the union
+  of what its readers sample, each grown by that reader's padding and
+  rescaled to the pass's divisor with the origin floored and the far edge
+  ceiled, then clamped to the pass's own target (`targetSize`, the screen
+  size divided and rounded up). The union of the backdrop reads, at full
+  size, is what the scope's snapshot copy must cover.
+- **Scratch is allocated by liveness over one timeline.** A
+  `ScratchTimeline` lists a frame's scope snapshots and effects in order,
+  each effect naming the snapshot it reads. `planScratch` numbers every
+  snapshot and pass as a step, finds each value's last reader, and runs a
+  linear scan per (divisor, format) pool: a pass takes its output texture
+  *before* its inputs are released, so an output never aliases an input of
+  the same pass (the GL feedback-loop rule holds without a barrier), the
+  lowest free texture is reused first, and a value nobody reads is released
+  at its own step. A chain therefore ping-pongs between two textures, a
+  wide graph takes one per live value, consecutive effects reuse the same
+  textures, and a snapshot stays live until its last reading pass. The plan
+  reports per pass the texture of its output and of each input, per value
+  its definition and release steps, and per pool the texture count.
 
 ## Animation
 
