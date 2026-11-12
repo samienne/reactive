@@ -1,6 +1,7 @@
 # Conventions & gotchas
 
-*Last verified against `9ba8b44c` (2026-11-12).*
+*Last verified against `f541ac65` (2026-11-12); the `Drawing::over` section
+against `f541ac65` (2026-11-12).*
 
 Idioms and traps that are not obvious from reading a single file. Know these
 before editing the corresponding area.
