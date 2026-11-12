@@ -143,6 +143,7 @@ libasedep = declare_dependency(
   )
 
 asetest = executable('asetest',
+  'test/commandbuffertest.cpp',
   'test/framebuffertest.cpp',
   'test/genericwindowtest.cpp',
   'test/pipelinetest.cpp',

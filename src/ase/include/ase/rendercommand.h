@@ -26,6 +26,17 @@ namespace ase
         btl::future::Promise<> promise;
     };
 
+    /**
+     * @brief Ends the run of draws before it; otherwise does nothing.
+     *
+     * Draws between two non-draw commands may be reordered against each
+     * other. A barrier separates draws that must stay in order, such as
+     * a draw into a texture and a later draw that samples it.
+     */
+    struct BarrierCommand
+    {
+    };
+
     struct BufferUploadCommand
     {
         std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target;
@@ -53,6 +64,7 @@ namespace ase
         DrawCommand,
         ClearCommand,
         FenceCommand,
+        BarrierCommand,
         BufferUploadCommand,
         TextureUploadCommand,
         TextureSubUploadCommand

@@ -150,9 +150,9 @@ are in the top-level `docs/`.
   once at setup so its odd-width rows upload tightly packed.
   `CommandBuffer::pushSubUpload` replaces a rectangle of an existing texture
   (`glTexSubImage2D`). Both uploads are non-draw
-  commands, and the GL queue (`src/gl/glrenderstate.cpp`) sorts only the runs
-  of draw commands between non-draw commands, so an upload keeps its place
-  relative to the draws around it. Uploads bind on texture unit 0 and record
+  commands, so they end a run of draws (see "Command buffer and draw
+  order") and keep their place relative to the draws around them.
+  Uploads bind on texture unit 0 and record
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
@@ -180,19 +180,33 @@ are in the top-level `docs/`.
 
 A `CommandBuffer` (`commandbuffer.h`) is a vector of `RenderCommand`
 (`rendercommand.h`), a variant of `DrawCommand`, `ClearCommand`,
-`FenceCommand`, `BufferUploadCommand`,
+`FenceCommand`, `BarrierCommand`, `BufferUploadCommand`,
 `TextureUploadCommand` and `TextureSubUploadCommand`. A queue takes the
 buffer whole on `submit`; the dummy queue draws nothing, completes fences
 inline and, with `recordSubmissions(true)`, keeps the buffers for a test to
-read back (avg's `test/renderingtest.cpp`).
+read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
 
 - **Runs and the fence rule.** The GL queue reorders draws for state
   batching, but only within a *run*: the maximal sequence of consecutive
-  `DrawCommand`s. Every non-draw command ends the run before it, so a clear,
-  fence or upload keeps its place relative to the draws on either side.
+  depth-tested `DrawCommand`s. Every other command ends the run before it,
+  so a clear, fence or upload keeps its place relative to the draws on
+  either side. So does a draw whose pipeline has `depthTest = false`: depth
+  cannot settle it against its neighbours, so it stays in submission order.
+  `pushBarrier()` adds the command whose only effect is that split: the GL
+  loop skips it without a GL call, since a framebuffer write is already
+  visible to the draws submitted after it. A draw that samples a texture an
+  earlier draw in the same frame rendered needs a barrier between them, or
+  the sort may swap them. The splitting is `sortDrawRuns` in
+  `commandbuffer.h`, a template the GL state instantiates with
+  `compareCommand` (`src/gl/glrenderstate.cpp`) and the test with a z
+  comparator. It stable-sorts a permutation of iterators and moves the
+  commands into place: MSVC's `std::stable_sort` refuses a temporary buffer
+  of the 16-byte-aligned `RenderCommand`, and the stability means draws with
+  equal keys stay in submission order.
 - **The sort key.** `compareCommand` splits a run into draws that may go in
   any order (opaque, depth-tested *and* depth-writing: depth settles them)
-  and the rest, any-order first. Any-order draws then sort by framebuffer,
+  and the rest (depth-tested but blended or not depth-writing), any-order
+  first. Any-order draws then sort by framebuffer,
   textures, program, vertex buffer, index buffer, uniform set and
   z. The rest sort by framebuffer, then z descending (the painter assigns a
   lower z to a later-painted element, so this is paint order), then the same
@@ -213,7 +227,8 @@ read back (avg's `test/renderingtest.cpp`).
   on. A clear with the depth bit forces the mask back on first, since
   `glClear` obeys it, and the next draw restores its pipeline's mask.
 - **What CI does not run.** All of the above compiles on every leg and the
-  dummy tests cover the pipeline flags, but no GL context runs in CI: the depth switches in
+  dummy tests cover the command shapes, the run splitting and the pipeline
+  flags, but no GL context runs in CI: the depth switches in
   `glrenderstate.cpp` have only been compiled. A change there needs a
   manual run of an app or `bquiheadlesstest` on a machine with a driver.
 

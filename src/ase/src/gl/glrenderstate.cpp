@@ -194,24 +194,9 @@ void GlRenderState::submit(CommandBuffer&& commands)
     dispatcher_.dispatch([this, commands=std::move(commands)]
             (GlFunctions const& gl) mutable
     {
-        auto b = commands.begin();
-        auto e = b;
-
         {
             ZoneScopedN("Sort commands");
-            while (e != commands.end())
-            {
-                while (b != commands.end() && !std::holds_alternative<DrawCommand>(*b))
-                    ++b;
-
-                e = b;
-
-                while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
-                    ++e;
-
-                std::sort(b, e, compareCommand);
-                b = e;
-            }
+            sortDrawRuns(commands.begin(), commands.end(), compareCommand);
         }
 
         dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
@@ -295,6 +280,10 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             fences_.push_back(std::move(fence));
 
+            continue;
+        }
+        else if (std::holds_alternative<BarrierCommand>(renderCommand))
+        {
             continue;
         }
         else if (std::holds_alternative<BufferUploadCommand>(renderCommand))
