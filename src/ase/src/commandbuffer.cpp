@@ -59,6 +59,11 @@ btl::future::Future<> CommandBuffer::pushFence()
     return { std::move(control) };
 }
 
+void CommandBuffer::pushBarrier()
+{
+    commands_.push_back(BarrierCommand{});
+}
+
 void CommandBuffer::pushUpload(
         std::variant<VertexBuffer, IndexBuffer, UniformBuffer> target,
         Buffer data,
