@@ -124,7 +124,10 @@ serialisation coupling.
 pure planning over it, `effectshader.h` the shader contract every pass is
 written against and `builtineffects.h` the effects avg ships; none of them
 touches `ase` beyond naming a `Format`, a `ShaderInterface` and
-`UniformValues`, and nothing in avg renders an effect yet.
+`UniformValues`. `scratchpool.h`, `passpipelinecache.h` and
+`effectemitter.h` are the GPU-facing half: they turn a planned effect into
+`ase` commands. Nothing calls them yet; the renderer wiring (scope pre-pass
+in `rendering.cpp`, pool and cache on the `Painter`) is the next job.
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing
@@ -235,10 +238,57 @@ touches `ase` beyond naming a `Format`, a `ShaderInterface` and
   pipeline in a frame sharing a set would both see the last ranges bound.
   This differs from the painter's single `MatrixBlock` set, which is
   constant over a frame.
+- **`EffectEmitter`** (`effectemitter.h`) records a frame's effect draws
+  into the painter's command buffer. It is built per frame over the
+  context, the command buffer, the `UniformRing`, the pool, the cache and
+  the main `TargetImage`, whose size is the screen size the regions and
+  plan were derived for. `emitSnapshot(slot, region)` is one quad draw with
+  the copy shader, sampling the main target's texture into the divisor-1
+  slot, scissored to the scope's backdrop union, between two barriers.
+  `emitEffect(effect, regions, allocation, triangles)` then, per pass in
+  order: acquires the input textures the allocation names (a backdrop input
+  is the snapshot's slot, resolved by `planScratch`), fills `PassBlock`
+  (`targetSize` at the pass divisor, `targetDivisor`, `region`, one
+  `texel` per input with `1/size` and the input's divisor, zero beyond),
+  writes it and the pass's `ParamBlock` bytes into the ring, binds them by
+  number on a fresh uniform set, uploads a vertex buffer (six `pos` vertices
+  for a Region quad; the caller's pixel-space triangle list for the Shape
+  pass), pushes the draw with the pass's textures in input order and a
+  scissor on the region (the Shape draw too, so stray triangles never leave
+  the derived bounds), and ends with a barrier. A barrier is skipped when
+  the buffer already ends in one, so a snapshot followed by its effect is
+  `barrier, copy, barrier, pass, barrier, ...`. No pass clears: a Region
+  quad overwrites its whole region and the Shape pass draws over the main
+  target. An effect whose Shape region is empty records nothing; a pass
+  with an empty region is skipped. `getPassCount` and `getSnapshotCount`
+  count the pass and snapshot draws the emitter has recorded.
+- **PassBlock in C++** is `avg::PassBlock`, a plain struct of float arrays
+  whose std140 placement `ase::UniformBlock` checks against `passInterface`
+  when the emitter is constructed, so a layout drift fails at the first
+  frame, not on the GPU.
+- **What the renderer wiring must supply.** `rendering.cpp` will keep a
+  scope stack while flattening elements, build a `ScratchTimeline` (one
+  snapshot per scope that has effects, one effect per element), run
+  `planScratch`, and per effect derive regions from the shape's device
+  bounds and tessellate the shape to a pixel-space triangle list. At scope
+  entry it calls `emitSnapshot` with the union of the scope's effects'
+  `backdropRegion`s; at the element it calls `emitEffect`. The `Painter`
+  owns the pool and the cache next to its pipelines, begins their frames
+  alongside `uniformRing_.beginFrame()`, ends the pool's frame at flush,
+  and exposes its window target so the snapshot can sample it. The depth
+  the mesh path assigns from paint order does not reach the Shape pass
+  (depth test off); ordering against the surrounding elements rests on the
+  barriers, which also split the opaque-first sort into runs.
 - Shader compilation and the look are the one thing these tests cannot
   reach: the dummy backend compiles nothing, so the GLSL is only checked
   textually (version line, declared names present, no binding qualifiers)
-  until a real GL context runs it.
+  until a real GL context runs it. `effectemittertest.cpp` checks the
+  command structure on the dummy: framebuffer, textures, scissor and
+  PassBlock bytes per draw, the barriers, pool reuse across frames and
+  re-creation on resize, and pipeline sharing. Whether the blur looks
+  right, whether sampling a texture written two draws earlier needs more
+  than the FBO switch, and the cost of a pass on real hardware are manual
+  WGL/GLX checks.
 
 ## Animation
 
