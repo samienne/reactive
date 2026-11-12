@@ -5,15 +5,14 @@
 #include "pen.h"
 #include "effectemitter.h"
 #include "glyphatlas.h"
+#include "shadersource.h"
 
 #include <ase/window.h>
 #include <ase/framebuffer.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
-#include <ase/shader.h>
 #include <ase/shaderinterface.h>
 #include <ase/program.h>
-#include <ase/buffer.h>
 #include <ase/blendmode.h>
 #include <ase/pipelinedesc.h>
 #include <ase/renderqueue.h>
@@ -139,13 +138,6 @@ namespace
 
     constexpr uint32_t presentQuadIndices[] = { 0, 1, 2, 0, 2, 3 };
 
-    ase::Shader makeShader(ase::RenderContext& context, ase::ShaderStage stage,
-            std::string const& source)
-    {
-        return context.makeShader(stage, ase::ShaderLanguage::Glsl330,
-                ase::Buffer(source.data(), source.size()));
-    }
-
     ase::ShaderInterface matrixInterface()
     {
         ase::ShaderInterface iface;
@@ -168,12 +160,8 @@ namespace
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                simpleVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                simpleFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                matrixInterface());
+        auto program = makeProgram(context,
+                { simpleVsSource, simpleFsSource, matrixInterface() });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
@@ -189,15 +177,11 @@ namespace
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                textVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                textFsSource());
         auto iface = matrixInterface();
         iface.attribute("uv", 2, ase::TypeFloat, 2)
             .sampler("atlas", 0);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                std::move(iface));
+        auto program = makeProgram(context,
+                { textVsSource, textFsSource(), std::move(iface) });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
@@ -222,12 +206,8 @@ namespace
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("pos", 2, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                presentVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                presentFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                presentInterface());
+        auto program = makeProgram(context,
+                { presentVsSource, presentFsSource, presentInterface() });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         ase::PipelineDesc desc{ target.getColorFormat(),

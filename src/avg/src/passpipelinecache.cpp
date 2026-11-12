@@ -1,15 +1,12 @@
 #include "passpipelinecache.h"
 
 #include "effectshader.h"
+#include "shadersource.h"
 
 #include <ase/blendmode.h>
-#include <ase/buffer.h>
 #include <ase/namedvertexspec.h>
 #include <ase/pipelinedesc.h>
 #include <ase/program.h>
-#include <ase/shader.h>
-#include <ase/shaderlanguage.h>
-#include <ase/shaderstage.h>
 #include <ase/vertexspec.h>
 
 #include <stdexcept>
@@ -21,13 +18,6 @@ namespace avg
 
 namespace
 {
-    ase::Shader makeShader(ase::RenderContext& context, ase::ShaderStage stage,
-            std::string const& source)
-    {
-        return context.makeShader(stage, ase::ShaderLanguage::Glsl330,
-                ase::Buffer(source.data(), source.size()));
-    }
-
     ase::PipelineDesc passPipelineDesc(Geometry geometry,
             ase::Format colorFormat, std::optional<ase::Format> depthFormat)
     {
@@ -47,13 +37,9 @@ namespace
     ase::Program makePassProgram(ase::RenderContext& context,
             PassShader const& shader)
     {
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                passVertexSource());
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                shader.fragmentSource);
-
-        return context.makeProgram(std::move(vs), std::move(fs),
-                shader.interface);
+        return makeProgram(context,
+                { passVertexSource(), shader.fragmentSource,
+                    shader.interface });
     }
 
     ase::Pipeline makePassPipeline(ase::RenderContext& context,
