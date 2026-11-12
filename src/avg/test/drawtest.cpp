@@ -1,7 +1,9 @@
 #include <avg/brush.h>
+#include <avg/builtineffects.h>
 #include <avg/color.h>
 #include <avg/drawcontext.h>
 #include <avg/drawing.h>
+#include <avg/effect.h>
 #include <avg/obb.h>
 #include <avg/pathbuilder.h>
 #include <avg/pen.h>
@@ -151,6 +153,27 @@ avg::Drawing::Element stroked(avg::Drawing::Element element, float width)
     return element;
 }
 
+avg::Drawing::Element glass(std::shared_ptr<avg::Effect const> effect,
+        float x, float size)
+{
+    return avg::Drawing::EffectElement{
+        avg::Shape(avg::PathBuilder(pmr::new_delete_resource())
+                .start(x, 0.0f)
+                .lineTo(x + size, 0.0f)
+                .lineTo(x + size, size)
+                .lineTo(x, size)
+                .close()
+                .build()),
+        std::move(effect),
+        avg::Transform()
+    };
+}
+
+std::shared_ptr<avg::Effect const> frosted()
+{
+    return std::make_shared<avg::Effect const>(avg::frostedGlass());
+}
+
 avg::Drawing drawing(std::vector<avg::Drawing::Element> elements)
 {
     avg::Drawing result(pmr::new_delete_resource());
@@ -187,6 +210,18 @@ avg::Drawing::ClipElement const& clipAt(
         pmr::vector<avg::Drawing::Element> const& elements, size_t i)
 {
     return std::get<avg::Drawing::ClipElement>(elements.at(i));
+}
+
+avg::Drawing::EffectElement const& effectAt(
+        pmr::vector<avg::Drawing::Element> const& elements, size_t i)
+{
+    return std::get<avg::Drawing::EffectElement>(elements.at(i));
+}
+
+avg::Rect boundsOf(avg::Drawing::EffectElement const& effect)
+{
+    return (effect.transform * avg::Obb(effect.shape.getControlBb()))
+        .getBoundingRect();
 }
 
 } // anonymous namespace
@@ -341,4 +376,67 @@ TEST(Drawing, overPaintsBelowThenShadowsThenScopedAbove)
     auto flat = avg::Drawing::over(drawing({ square(0.0f, 10.0f) }),
             avg::Drawing(pmr::new_delete_resource()));
     EXPECT_EQ((std::vector<float>{ 0.0f }), lefts(flat.getElements()));
+}
+
+TEST(Drawing, effectElementKeepsItsPlaceAndEffectThroughConcatenation)
+{
+    auto effect = frosted();
+
+    auto d = drawing({ square(0.0f, 10.0f) });
+    d += glass(effect, 20.0f, 10.0f);
+    d += drawing({ square(40.0f, 10.0f) })
+        .addShadow(glass(effect, 60.0f, 10.0f));
+
+    EXPECT_EQ((std::vector<float>{ 0.0f, -1.0f, 40.0f }),
+            lefts(d.getElements()));
+    EXPECT_EQ(effect, effectAt(d.getElements(), 1).effect);
+    EXPECT_EQ(effect, effectAt(d.getPendingShadows(), 0).effect);
+    expectRect(boundsOf(effectAt(d.getElements(), 1)),
+            20.0f, 0.0f, 10.0f, 10.0f);
+}
+
+TEST(Drawing, effectElementBoundsAreItsShapesBounds)
+{
+    auto d = drawing({ glass(frosted(), 20.0f, 10.0f) });
+
+    expectRect(d.getControlBb(), 20.0f, 0.0f, 10.0f, 10.0f);
+    expectRect(boundsOf(effectAt(d.getElements(), 0)),
+            20.0f, 0.0f, 10.0f, 10.0f);
+
+    auto kept = drawing({ glass(frosted(), 0.0f, 10.0f),
+            glass(frosted(), 50.0f, 10.0f) })
+        .filterByRect(avg::Rect(avg::Vector2f(0.0f, 0.0f),
+                    avg::Vector2f(20.0f, 20.0f)));
+    ASSERT_EQ(1u, kept.getElements().size());
+    expectRect(kept.getControlBb(), 0.0f, 0.0f, 10.0f, 10.0f);
+}
+
+TEST(Drawing, effectElementIsTransformedAndClippedLikeAScope)
+{
+    auto effect = frosted();
+
+    auto moved = drawing({ glass(effect, 20.0f, 10.0f) })
+        .translate(avg::Vector2f(5.0f, 7.0f));
+
+    auto const& e = effectAt(moved.getElements(), 0);
+    EXPECT_FLOAT_EQ(5.0f, e.transform.getTranslation().x());
+    EXPECT_FLOAT_EQ(7.0f, e.transform.getTranslation().y());
+    expectRect(e.shape.getControlBb(), 20.0f, 0.0f, 10.0f, 10.0f);
+    expectRect(boundsOf(e), 25.0f, 7.0f, 10.0f, 10.0f);
+    expectRect(moved.getControlBb(), 25.0f, 7.0f, 10.0f, 10.0f);
+
+    auto scaled = drawing({ glass(effect, 20.0f, 10.0f) }) * 2.0f;
+    EXPECT_FLOAT_EQ(2.0f,
+            effectAt(scaled.getElements(), 0).transform.getScale());
+    expectRect(scaled.getControlBb(), 40.0f, 0.0f, 20.0f, 20.0f);
+
+    auto clipped = drawing({ glass(effect, 0.0f, 30.0f) })
+        .clip(avg::Rect(avg::Vector2f(0.0f, 0.0f),
+                    avg::Vector2f(20.0f, 20.0f)));
+
+    ASSERT_EQ(1u, clipped.getElements().size());
+    auto const& inside = clipAt(clipped.getElements(), 0).subDrawing->elements;
+    ASSERT_EQ(1u, inside.size());
+    EXPECT_EQ(effect, effectAt(inside, 0).effect);
+    expectRect(clipped.getControlBb(), 0.0f, 0.0f, 20.0f, 20.0f);
 }
