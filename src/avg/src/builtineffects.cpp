@@ -1,6 +1,7 @@
 #include "builtineffects.h"
 
 #include "effectshader.h"
+#include "lerp.h"
 
 #include <ase/uniformvalues.h>
 #include <ase/vector.h>
@@ -134,6 +135,40 @@ namespace
         return pass;
     }
 } // anonymous namespace
+
+bool operator==(FrostedGlassOptions const& lhs,
+        FrostedGlassOptions const& rhs)
+{
+    return lhs.radius == rhs.radius
+        && lhs.tint == rhs.tint
+        && lhs.tintStrength == rhs.tintStrength
+        && lhs.saturation == rhs.saturation
+        && lhs.highlight == rhs.highlight
+        && lhs.highlightStrength == rhs.highlightStrength
+        && lhs.highlightWidth == rhs.highlightWidth
+        ;
+}
+
+bool operator!=(FrostedGlassOptions const& lhs,
+        FrostedGlassOptions const& rhs)
+{
+    return !(lhs == rhs);
+}
+
+FrostedGlassOptions lerp(FrostedGlassOptions const& a,
+        FrostedGlassOptions const& b, float t)
+{
+    FrostedGlassOptions result;
+    result.radius = lerp(a.radius, b.radius, t);
+    result.tint = lerp(a.tint, b.tint, t);
+    result.tintStrength = lerp(a.tintStrength, b.tintStrength, t);
+    result.saturation = lerp(a.saturation, b.saturation, t);
+    result.highlight = lerp(a.highlight, b.highlight, t);
+    result.highlightStrength = lerp(a.highlightStrength,
+            b.highlightStrength, t);
+    result.highlightWidth = lerp(a.highlightWidth, b.highlightWidth, t);
+    return result;
+}
 
 Divisor frostedGlassDivisor(float radius)
 {

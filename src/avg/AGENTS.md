@@ -24,9 +24,9 @@ outgrows one file.
   so a tree can be drawn and its `Drawing` asserted with no rendering back end.
 - `Drawing` (`drawing.h`) is the flat rasterisable output — a variant of
   `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill` /
-  `BackdropScope`, painted in list order. **Clipping is rectangular only**:
-  `Drawing::clip` takes `Rect`/`Obb`, and there is no region/shape clip.
-  (Path-level clipping is deferred — `docs/decisions.md`.)
+  `BackdropScope` / `EffectElement`, painted in list order. **Clipping is
+  rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
+  region/shape clip. (Path-level clipping is deferred — `docs/decisions.md`.)
 - **Pending shadows.** A `Drawing` carries a second element list, the pending
   shadows: elements that belong *under* the content of whatever container ends
   up holding the drawing. `+=` concatenates both lists, `clip`/`transform`/
@@ -50,6 +50,22 @@ outgrows one file.
   and content outside the clip would show, so the renderer asserts, as it
   does for a rotated `ClipElement`. The snapshot text collector
   (`rendertree/snapshot.cpp`) recurses into scopes like clips.
+- **`EffectElement`** is a `Shape`, a `std::shared_ptr<Effect const>` and a
+  `Transform`: the effect's final pass paints the shape, the passes before
+  it sample the enclosing scope's backdrop around it. The shape stays in
+  the element's own space and `transform`, `translate` and `operator*`
+  compose into the element's transform as they do for a scope, so the
+  renderer still sees the scale by which the effect's logical parameters
+  (a blur radius) must be converted. The `Effect` is shared, never copied:
+  one effect keeps its identity across elements and frames, which is what
+  the emitter's caches key on. Bounds (`getControlBb`, `filterByRect`, the
+  renderer's culling) are the transformed shape bounds with no padding;
+  the margin the passes sample is derived at render time
+  (`deriveRegions`). `clip` wraps it like any element, so the final pass
+  will clip through the rect-clip path. **The renderer draws nothing for
+  it yet**: the `rendering.cpp` mesh visitor has an empty case, to be
+  replaced by the scope pre-pass that snapshots backdrops and emits the
+  passes. The snapshot text collector ignores it.
 - `btl/optional.h` prints `std::optional` through an `operator<<` at
   global scope, which unqualified lookup only reaches when no
   `avg::operator<<` is declared first. `effect.h` declares several, so
@@ -67,7 +83,7 @@ outgrows one file.
   `ShapeNode`/`RectNode` (animated leaves), `TransitionNode` (enter/leave),
   `ClipNode` (clips a child to an `Animated<Obb>` — **rectangle only**),
   `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with
-  a shadow under a child subtree).
+  a shadow and an optional backdrop effect under a child subtree).
 - `oldTree.update(newTree, options, time)` splices trees (creating animated
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
@@ -85,17 +101,35 @@ outgrows one file.
 - **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
   (the shape for the node's size, animated like a `ShapeNode`'s parameters),
   an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
-  (animated offset, spread and brush) and a child. `draw` adds the shadow as
-  a **pending shadow** (the shape translated by the offset, filled with the
-  shadow brush and, for a positive spread, stroked with a pen of width
-  `2 * spread` in the same brush), then the fill and the child's drawing in
-  the main list, in that order. The node's own animation options drive its
-  obb, shape, fill and shadow only; like every other node it hands the
-  inherited options to its child. It never adds a scope: that would give
-  every card in a vbox a private backdrop. The backdrop effect element
-  planned for surfaces is not there yet; it belongs in the main list ahead of
-  the fill, in `SurfaceNode::draw`, with the effect description as one more
-  animated member.
+  (animated offset, spread and brush), an optional `SurfaceEffect` and a
+  child. `draw` adds the shadow as a **pending shadow** (the shape translated
+  by the offset, filled with the shadow brush and, for a positive spread,
+  stroked with a pen of width `2 * spread` in the same brush), then the
+  effect element, the fill and the child's drawing in the main list, in that
+  order. The node's own animation options drive its obb, shape, fill, shadow
+  and effect only; like every other node it hands the inherited options to
+  its child. It never adds a scope: that would give every card in a vbox a
+  private backdrop.
+- **`SurfaceEffect`** is `std::variant<SurfaceFrostedGlass, SurfaceTint>`,
+  each alternative holding `Animated` members (`Animated<FrostedGlassOptions>`;
+  `Animated<Color>` plus `Animated<float>` strength), so effect parameters
+  animate as values and never change the drawing's structure. `draw` turns
+  the members' values at the frame's time into an `Effect` through
+  `frostedGlass`/`tint` and wraps it in a fresh `shared_ptr` for the
+  `EffectElement`; `update` interpolates member by member when both trees
+  hold the same alternative and takes the new value otherwise. A curve
+  that overshoots (`easeOutBack`) carries interpolated values out of the
+  range the built-ins accept, so `makeEffect` (`surfacenode.cpp`) clamps
+  strengths to [0, 1] and the radius, saturation and highlight width to
+  non-negative before building; the built-ins themselves still throw on
+  such input. Rebuilding
+  the `Effect` every frame is deliberate for now: the shader source does
+  not depend on parameter values, so an emitter cache keyed on source is
+  unaffected, and only the parameter bytes change; caching the `Effect` per
+  node while the options are unchanged is a later optimisation.
+  `FrostedGlassOptions` has `==` and a memberwise `lerp` (`builtineffects.h`)
+  to satisfy `Animated`; like `Animated<std::optional<Brush>>` it is
+  instantiated implicitly, not in `animated.cpp`.
 
 ## Render tree snapshots
 
@@ -132,8 +166,11 @@ written against and `builtineffects.h` the effects avg ships; none of them
 touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 `UniformValues`. `scratchpool.h`, `passpipelinecache.h` and
 `effectemitter.h` are the GPU-facing half: they turn a planned effect into
-`ase` commands. Nothing calls them yet; the renderer wiring (scope pre-pass
-in `rendering.cpp`, pool and cache on the `Painter`) is the next job.
+`ase` commands. A `Drawing::EffectElement` places an effect in a frame
+(see *Shapes and drawings*) and `SurfaceNode` animates one (see *Render
+tree*), but nothing calls the emitter yet: the renderer skips the element
+until the scope pre-pass lands (scope pre-pass in `rendering.cpp`, pool and
+cache on the `Painter`).
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing

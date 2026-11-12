@@ -28,6 +28,18 @@ namespace avg
         float highlightWidth = 1.5f;
     };
 
+    AVG_EXPORT bool operator==(FrostedGlassOptions const& lhs,
+            FrostedGlassOptions const& rhs);
+    AVG_EXPORT bool operator!=(FrostedGlassOptions const& lhs,
+            FrostedGlassOptions const& rhs);
+
+    /**
+     * @brief Interpolates every option member by t, so the options can be
+     * animated.
+     */
+    AVG_EXPORT FrostedGlassOptions lerp(FrostedGlassOptions const& a,
+            FrostedGlassOptions const& b, float t);
+
     /**
      * @brief The divisor frostedGlass blurs at for a radius in screen
      * pixels: the smallest of 2, 4 and 8 at which the radius is at most

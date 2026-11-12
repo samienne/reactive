@@ -381,6 +381,11 @@ Rect getElementRect(Drawing::Element const& e)
             {
                 return (scope.transform * Obb(scope.controlBb))
                     .getBoundingRect();
+            },
+            [](Drawing::EffectElement const& effect) -> Rect
+            {
+                return (effect.transform * Obb(effect.shape.getControlBb()))
+                    .getBoundingRect();
             }
             }, e);
 }
@@ -511,6 +516,11 @@ pmr::vector<Item> generateMeshesForElements(
                             rectInScopeSpace,
                             clip
                             );
+                },
+                [&](Drawing::EffectElement const&) -> pmr::vector<Item>
+                {
+                    // Effects are not rendered yet.
+                    return pmr::vector<Item>(memory);
                 }
                 }, element);
 

@@ -1,6 +1,7 @@
 #include "drawing.h"
 
 #include "debug.h"
+#include "effect.h"
 
 #include <pmr/new_delete_resource.h>
 #include <pmr/heap.h>
@@ -62,6 +63,12 @@ namespace
                     {
                         return (scope.transform *
                                 avg::Obb(scope.controlBb)).getBoundingRect();
+                    },
+                    [](Drawing::EffectElement const& effect) -> Rect
+                    {
+                        return (effect.transform *
+                                avg::Obb(effect.shape.getControlBb()))
+                            .getBoundingRect();
                     }
                     },
                 e
@@ -144,6 +151,11 @@ namespace
                     [](Drawing::BackdropScope const& scope) -> pmr::memory_resource*
                     {
                         return scope.subDrawing.resource();
+                    },
+                    [](Drawing::EffectElement const& effect)
+                        -> pmr::memory_resource*
+                    {
+                        return effect.shape.getResource();
                     }},
                 e);
     }
@@ -215,6 +227,15 @@ namespace
                                     ),
                             scope.controlBb,
                             scope.transform
+                        };
+                    },
+                    [&](Drawing::EffectElement const& effect)
+                        -> Drawing::Element
+                    {
+                        return Drawing::EffectElement {
+                            effect.shape.with_resource(memory),
+                            effect.effect,
+                            effect.transform
                         };
                     }},
                 e);
@@ -316,6 +337,10 @@ namespace
                 [&](Drawing::BackdropScope& scope)
                 {
                     scope.transform = avg::scale(factor) * scope.transform;
+                },
+                [&](Drawing::EffectElement& effect)
+                {
+                    effect.transform = avg::scale(factor) * effect.transform;
                 }},
                 e);
     }
@@ -347,6 +372,10 @@ namespace
                 [&](Drawing::BackdropScope& scope)
                 {
                     scope.transform = t * scope.transform;
+                },
+                [&](Drawing::EffectElement& effect)
+                {
+                    effect.transform = t * effect.transform;
                 }},
                 e);
     }
