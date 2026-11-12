@@ -126,4 +126,9 @@ std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl(
     return std::make_shared<DummyUniformSet>(std::move(iface));
 }
 
+size_t DummyRenderContext::getUniformBufferOffsetAlignment() const
+{
+    return 256;
+}
+
 } // namespace ase

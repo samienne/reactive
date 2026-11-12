@@ -19,41 +19,44 @@ namespace
     {
         return (value + alignment - 1) / alignment * alignment;
     }
+} // anonymous namespace
 
-    int componentCount(UniformType type)
+int componentCount(UniformType type)
+{
+    switch (type)
     {
-        switch (type)
-        {
-            case UniformType::Float:
-            case UniformType::Int:
-            case UniformType::UInt:
-                return 1;
-            case UniformType::Float2:
-            case UniformType::Int2:
-            case UniformType::UInt2:
-            case UniformType::Mat2:
-                return 2;
-            case UniformType::Float3:
-            case UniformType::Int3:
-            case UniformType::UInt3:
-            case UniformType::Mat3:
-                return 3;
-            case UniformType::Float4:
-            case UniformType::Int4:
-            case UniformType::UInt4:
-            case UniformType::Mat4:
-                return 4;
-        }
-
-        return 0;
+        case UniformType::Float:
+        case UniformType::Int:
+        case UniformType::UInt:
+            return 1;
+        case UniformType::Float2:
+        case UniformType::Int2:
+        case UniformType::UInt2:
+        case UniformType::Mat2:
+            return 2;
+        case UniformType::Float3:
+        case UniformType::Int3:
+        case UniformType::UInt3:
+        case UniformType::Mat3:
+            return 3;
+        case UniformType::Float4:
+        case UniformType::Int4:
+        case UniformType::UInt4:
+        case UniformType::Mat4:
+            return 4;
     }
 
-    bool isMatrix(UniformType type)
-    {
-        return type == UniformType::Mat2 || type == UniformType::Mat3
-            || type == UniformType::Mat4;
-    }
+    return 0;
+}
 
+bool isMatrix(UniformType type)
+{
+    return type == UniformType::Mat2 || type == UniformType::Mat3
+        || type == UniformType::Mat4;
+}
+
+namespace
+{
     // A matrix column is an array element in std140, so it is padded to vec4.
     Std140Type std140Type(UniformType type)
     {
@@ -177,6 +180,14 @@ bool ShaderInterface::Attribute::operator==(Attribute const& rhs) const
 bool ShaderInterface::Attribute::operator!=(Attribute const& rhs) const
 {
     return !(*this == rhs);
+}
+
+size_t ShaderInterface::Member::getSize() const
+{
+    if (arraySize > 0)
+        return arrayStride * static_cast<size_t>(arraySize);
+
+    return std140Type(type).size;
 }
 
 bool ShaderInterface::Member::operator==(Member const& rhs) const

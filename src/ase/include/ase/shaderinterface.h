@@ -52,6 +52,13 @@ namespace ase
 
     ASE_EXPORT std::string_view toString(UniformType type);
 
+    /**
+     * @brief Components per vector, or rows (and columns) of a matrix.
+     */
+    ASE_EXPORT int componentCount(UniformType type);
+
+    ASE_EXPORT bool isMatrix(UniformType type);
+
     class ShaderInterface;
 
     /**
@@ -120,6 +127,12 @@ namespace ase
             int arraySize;
             size_t offset;
             size_t arrayStride;
+
+            /**
+             * @brief The bytes the member spans from its offset, padding
+             * between array elements and matrix columns included.
+             */
+            size_t getSize() const;
 
             bool operator==(Member const& rhs) const;
             bool operator!=(Member const& rhs) const;
