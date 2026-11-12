@@ -1,7 +1,7 @@
 # avg — agent notes
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
-`f3ed6e5` (2026-10-22); the painter section against `46124af6` (2026-11-11).*
+`f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
