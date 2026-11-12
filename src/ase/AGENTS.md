@@ -180,6 +180,16 @@ are in the top-level `docs/`.
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
   covers only the public contract, not the GL mapping. There is no
   three-byte RGB format.
+- **Submission executes now or later; no backend thread is promised.**
+  `RenderQueue::submit` promises only that the commands execute in order.
+  The GL queue runs them on a dedicated thread (`GlRenderQueue::dispatch`)
+  because a GL context is bound to one thread; the dummy queue runs
+  `submit` inline. Neither is the contract, and nothing outside
+  `src/gl/` may depend on the thread (the `Dispatched` tag marks what runs
+  there). The backend keeps everything a submitted frame references alive
+  until that frame completes, where completion is the frame's fence and
+  the number of frames in flight is bounded by the window's `canAcquire`
+  budget, so a caller may drop its handles after `submit`.
 - **Coordinate conventions are GL's; only the clip-space adjustment is
   queryable.** Scissor rectangles have a bottom-left origin, texel rows
   upload bottom-up and viewports follow GL; a non-GL backend converts those

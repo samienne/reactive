@@ -21,6 +21,18 @@ namespace ase
 
         void flush();
         void finish();
+
+        /**
+         * @brief Hand the recorded commands to the backend, to execute in
+         * order.
+         *
+         * They may run now, on the calling thread, or later; assume
+         * neither. Everything a submitted buffer references - buffers,
+         * textures, framebuffers, uniform ranges - stays alive in the
+         * backend until those commands have completed, so the caller may
+         * drop its handles right after submit. Completion is observed
+         * through a fence pushed into the buffer.
+         */
         void submit(CommandBuffer&& commandBuffer);
 
         template <class T>

@@ -3,12 +3,144 @@
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
 (2026-10-22); the shader interface entry against `3c3dfb34` (2026-11-12); the
-seven Vulkan readiness entries against `4d8e996e` (2026-11-12), of which only
-the pipeline formats are implemented (`4d8e996e`, 2026-11-12); the five
-backdrop-effect entries against `4d8e996e` (2026-11-12).*
+seven Vulkan readiness entries against `4d8e996e` (2026-11-12), implemented
+in `3ceaee0c` (2026-11-12) except the compiler component, which waits for
+Vulkan work; the five backdrop-effect entries against `4d8e996e`
+(2026-11-12).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
+
+## `avg` selects its shader language through one seam
+
+`avg` walks a preference list - SPIR-V first, then GLSL 330 - against
+`RenderContext::getShaderLanguages()` and takes the first match, instead of
+hardcoding GLSL 330. One `avg` function takes the chosen language and returns
+the shader bytes together with the `ShaderInterface`; today it is a GLSL
+passthrough over the hand-written declarations. Implemented in `3ceaee0c`
+(`src/avg/src/shadersource.h`).
+
+**Why:** the compiler component (see "Shader compilation lives in a component
+above `ase`") is deferred until Vulkan work starts, but the place it plugs in
+should exist now so that it replaces one function rather than every program
+creation site. Because the seam is a passthrough, glslang and SPIRV-Cross are
+not a dependency of any current build, and the dummy backend's tests exercise
+the language walk without a compiler. Rejected: pulling the component in now
+(a toolchain dependency for a backend that does not exist).
+
+## Swapchain recreation is backend-internal
+
+`PresentStatus` does not gain suboptimal or out-of-date values. A Vulkan window
+recreates its swapchain inside present or resize without the caller knowing,
+as the GL window's default framebuffer already resizes itself; `avg` and `bqui`
+keep ignoring the status.
+
+**Why:** swapchain staleness is a condition only the window can act on, so
+reporting it to a caller who would hand it straight back is noise. The status
+remains for failures the caller must act on, such as a lost device, which is
+what "`present` returns `PresentStatus`" introduced it for. Rejected: adding
+the values and documenting that the caller may ignore them (a contract with
+nothing on the other side).
+
+## `FORMAT_SRGB` is removed
+
+The three-byte RGB8 `Format` is removed from `ase`. Implemented in `3ceaee0c`.
+
+**Why:** it has no Vulkan mapping (RGB8 is not a required format for anything),
+and nothing uses it outside the format tables and one unit test. Removing it
+keeps the exhaustive format switches honest. Rejected: defining it as
+"emulated as SRGBA" (a format whose byte size lies).
+
+## Pipelines declare their target formats
+
+`PipelineDesc` is constructed from a required colour `Format` and an optional
+depth `Format` (a sample count can be added later) and passed at
+`makePipeline`; there is no `makePipelineWithBlend`, callers build a
+`PipelineDesc`. GL and dummy ignore the formats for state and, in debug
+builds, assert that every draw's framebuffer matches them. Implemented in
+`4a31efc0`.
+
+**Why:** Vulkan, Metal and WebGPU all need the attachment formats at pipeline
+creation, Vulkan even with dynamic rendering. With the formats declared, a
+Vulkan backend creates its pipeline eagerly at `makePipeline`, with no lazy
+per-format variants and no first-draw hitch. There is no GL-side cache of
+format-only variants: a GL pipeline is a shared program handle plus a few bytes
+of state, nothing worth caching. Deduplicating programs across formats is
+`avg`'s job, in `PassPipelineCache` (programs keyed by shader source,
+pipelines by program, geometry and format). Corollary: a texture's size and
+format are fixed at creation, not mutable through upload (implemented in
+`3ceaee0c`); `avg` already recreates textures to grow. Rejected: a
+format-free `PipelineDesc` with per-format pipeline variants cached lazily
+inside the backend.
+
+## `ase` keeps GL's conventions; only the clip-space adjustment is queryable
+
+Scissor origin bottom-left, texel rows bottom-up at upload, GL viewport
+semantics: these stay `ase`'s API conventions, and a non-GL backend converts
+(on Vulkan: a negative viewport height, scissor arithmetic on the CPU, row
+order at upload). The one convention a backend cannot absorb is the clip-space
+depth range and Y direction baked into the caller's projection, so
+`RenderContext` exposes a single clip-space adjustment matrix - identity on GL;
+a Y flip and z' = z * 0.5 + 0.5 on Vulkan - that `avg`'s painter multiplies
+into its projection once, when the projection is built (`Painter::setSize`).
+Implemented in `3ceaee0c` (`RenderContext::getClipSpaceAdjustment`).
+
+Only the painter's projection carries the adjustment. The effect pass vertex
+shader (`passVertexSource`) and the painter's present quad emit GL clip
+coordinates directly, so a backend whose adjustment is not the identity
+cannot rely on it alone: those two paths have to be adjusted first.
+
+**Why:** the conversions a backend can do are free or one-time, and the
+projection is the only place the caller holds the data. Fragment-coordinate
+sampling inside effect shaders needs nothing: written and sampled textures
+share one memory orientation within a backend, so it is self-consistent.
+Rejected: a full queryable convention struct (origin, depth range, row order)
+that every `ase` consumer, including the per-pixel paths in effect shaders,
+would have to branch on; and moving `ase` to top-left/[0,1], which touches the
+painter's projection, every scissor caller and the GL backend for no gain.
+
+## Shader compilation lives in a component above `ase`
+
+`ase` lists the languages a backend accepts, creates shaders from bytes in one
+of them, and takes a declared `ShaderInterface`; it never compiles,
+cross-compiles or reflects shader source. A separate compiler library between
+`ase` and `avg` in the dependency order turns GLSL source into bytes for a
+requested language and returns the `ShaderInterface` it reflected from the
+SPIR-V it compiled on the way (glslang and SPIRV-Cross as subprojects; `ase`
+and the dummy backend never link them). For GL 3.3 it passes GLSL 330 through
+or cross-compiles to it.
+
+**Why:** SPIR-V bakes binding decorations into the module, so a backend cannot
+remap them after the fact the way GL does with `glBindAttribLocation` and
+`glUniformBlockBinding`; when one component produces both the module and the
+interface, they agree by construction. `avg` generates its effect shaders as
+GLSL text at runtime, and this keeps that path valid on every backend. It
+refines the "runtime cross-compilation" rejection in the shader interface
+entry rather than reversing it: what stays rejected is a compiler inside a
+backend; ahead-of-time compilation with committed outputs remains right for
+the painter's fixed shaders, and the component is the runtime path. Rejected:
+a GLSL-to-SPIR-V compiler inside the Vulkan backend as an exception to "a
+backend never transpiles" (the toolchain lands in `ase` and the listed
+languages stop meaning what they say); a finite precompiled effect set (gives
+up runtime effect generation); emitting SPIR-V directly from the effect
+generator (a second generator to keep in step with the GLSL one).
+
+## A submission may execute now or later; no backend thread is promised
+
+`RenderQueue::submit` hands the backend a recorded command buffer and promises
+only that it executes, in order, now or later. Whether that happens inline on
+the caller's thread or on a thread the backend owns is the backend's business.
+The backend keeps everything a submitted frame references alive until that
+frame completes (its fence), and the number of frames in flight is bounded by
+the window's existing `canAcquire` budget.
+
+**Why:** the GL backend runs submissions on a dedicated thread only because a
+GL context is bound to one thread, and the dummy backend already runs them
+inline, so neither shape was ever a contract callers could rely on. A Vulkan
+backend records and submits on the calling thread and keeps the per-queue
+external synchronisation Vulkan requires inside the backend. Rejected: making
+the GL shape (a submit thread per queue) the contract, which the dummy breaks
+and Vulkan has no use for.
 
 ## The shader interface is declared, not introspected
 
