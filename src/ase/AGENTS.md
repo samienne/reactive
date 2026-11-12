@@ -165,11 +165,11 @@ are in the top-level `docs/`.
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
-- **Formats.** `format.h` has four colour formats and five depth formats.
+- **Formats.** `format.h` has three colour formats and five depth formats.
   Colour formats make textures and are all colour-renderable under a core
   profile (`src/gl/glformat.h` maps them to sized internal formats):
-  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_SRGB` -> `GL_SRGB8`,
-  `FORMAT_R8` -> `GL_R8` (all uploaded as `GL_UNSIGNED_BYTE`), and
+  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_R8` -> `GL_R8` (both uploaded
+  as `GL_UNSIGNED_BYTE`), and
   `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
   8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
   `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
@@ -178,7 +178,8 @@ are in the top-level `docs/`.
   buffer checks use. Every switch over `Format` lists each enumerator with no
   `default`, so adding a format fails to compile until it is placed in each
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
-  covers only the public contract, not the GL mapping.
+  covers only the public contract, not the GL mapping. There is no
+  three-byte RGB format.
 - **Coordinate conventions are GL's; only the clip-space adjustment is
   queryable.** Scissor rectangles have a bottom-left origin, texel rows
   upload bottom-up and viewports follow GL; a non-GL backend converts those

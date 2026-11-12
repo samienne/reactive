@@ -16,7 +16,7 @@ using namespace ase;
 namespace
 {
     Format const colorFormats[] = {
-        FORMAT_SRGBA, FORMAT_SRGB, FORMAT_R8, FORMAT_RGBA16F
+        FORMAT_SRGBA, FORMAT_R8, FORMAT_RGBA16F
     };
 
     Format const depthFormats[] = {
