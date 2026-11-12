@@ -75,7 +75,8 @@ into a full-window offscreen image of the window's pixel size (an sRGB colour
 texture with a depth buffer, remade when the window is resized), then copies
 that image onto the window with one textured quad. Every frame takes this one
 path whether or not it uses effects, and the offscreen image is what later
-backdrop effects such as frosted glass sample from.
+backdrop effects such as frosted glass sample from. The design behind the
+scopes, the effects and this target is `docs/design/backdrop-effects.md`.
 
 ## The render tree
 

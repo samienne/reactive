@@ -35,8 +35,9 @@ terminate to `AnyWidget`. Transforms are **paint-time and never affect layout**
 ## Surfaces and stacking
 
 Depth is element order in a flat `avg::Drawing`, and a backdrop effect
-samples only what its enclosing `BackdropScope` had painted before it. bqui
-never builds a scope by hand; it chooses the `avg::ContainerNode` stacking
+samples only what its enclosing `BackdropScope` had painted before it
+(`docs/design/backdrop-effects.md` is the design). bqui never builds a
+scope by hand; it chooses the `avg::ContainerNode` stacking
 flag:
 
 - **Whoever paints one child over another is a stack.** `addWidgets`

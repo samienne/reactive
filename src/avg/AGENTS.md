@@ -173,7 +173,9 @@ touches `ase` beyond naming a `Format`, a `ShaderInterface` and
 (see *Shapes and drawings*) and `SurfaceNode` animates one (see *Render
 tree*); `rendering.cpp` runs the scope pre-pass that snapshots backdrops
 and drives the emitter, with the pool and the cache owned by the `Painter`
-(the last bullets below).
+(the last bullets below). `docs/design/backdrop-effects.md` is the design,
+with the rejected alternatives and the places the code departed from it;
+`docs/decisions.md` records the decisions.
 
 - An `Effect` is a list of passes in execution order, so it is a DAG by
   construction: a pass names its inputs as the backdrop (the enclosing
