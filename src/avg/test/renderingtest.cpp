@@ -349,6 +349,55 @@ TEST(rendering, blendedDrawsKeepPaintOrder)
     EXPECT_GT(draws[1].command->getZ(), draws[2].command->getZ());
 }
 
+TEST(rendering, aBackdropScopeDrawsLikeItsContent)
+{
+    Fixture f;
+    avg::Brush const scrim(avg::Color(0.0f, 0.0f, 0.0f, 0.5f));
+    auto rect = avg::Drawing::ShapeElement{
+        avg::Shape(avg::PathBuilder(pmr::new_delete_resource())
+                .start(0.0f, 0.0f)
+                .lineTo(200.0f, 0.0f)
+                .lineTo(200.0f, 100.0f)
+                .lineTo(0.0f, 100.0f)
+                .close()
+                .build()),
+        scrim,
+        std::nullopt
+    };
+
+    auto drawing = avg::Drawing::over(
+            f.drawing(f.entry("Hi")),
+            avg::Drawing(pmr::new_delete_resource(), std::move(rect))
+                + avg::Drawing::Element(f.entry("Ho")));
+    ASSERT_EQ(2u, drawing.getElements().size());
+    ASSERT_TRUE(std::holds_alternative<avg::Drawing::BackdropScope>(
+                drawing.getElements()[1]));
+
+    auto commands = f.render(drawing);
+    auto draws = f.draws(commands);
+    ASSERT_EQ(3u, draws.size());
+    EXPECT_EQ(f.painter.getTextPipeline(), draws[0].command->getPipeline());
+    EXPECT_EQ(f.painter.getPipeline(scrim), draws[1].command->getPipeline());
+    EXPECT_EQ(f.painter.getTextPipeline(), draws[2].command->getPipeline());
+    EXPECT_GT(draws[0].command->getZ(), draws[1].command->getZ());
+    EXPECT_GT(draws[1].command->getZ(), draws[2].command->getZ());
+}
+
+TEST(rendering, aTranslatedScopePlacesTextLikeATranslatedDrawing)
+{
+    Fixture f;
+    avg::Vector2f const shift(5.0f, 3.0f);
+
+    auto plain = f.textDraws(f.render(
+                f.drawing(f.entry("Hi")).translate(shift)));
+    auto scoped = f.textDraws(f.render(
+                f.drawing(f.entry("Hi")).scope().translate(shift)));
+
+    ASSERT_EQ(1u, plain.size());
+    ASSERT_EQ(1u, scoped.size());
+    EXPECT_EQ(plain[0].vertices, scoped[0].vertices);
+}
+
 TEST(rendering, quadMatchesTheGlyphBitmap)
 {
     Fixture f;
