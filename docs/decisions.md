@@ -4,7 +4,7 @@
 entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
 (2026-10-22); the shader interface entry against `d1633d89` (2026-11-12); the
 seven Vulkan readiness entries against `f541ac65` (2026-11-12), implemented
-in `3ceaee0c` (2026-11-12) except the compiler component, which waits for
+in `e640ee69` (2026-11-12) except the compiler component, which waits for
 Vulkan work; the five backdrop-effect entries against `f541ac65`
 (2026-11-12).*
 
@@ -17,7 +17,7 @@ Each entry is intentionally short: the decision and its rationale.
 `RenderContext::getShaderLanguages()` and takes the first match, instead of
 hardcoding GLSL 330. One `avg` function takes the chosen language and returns
 the shader bytes together with the `ShaderInterface`; today it is a GLSL
-passthrough over the hand-written declarations. Implemented in `3ceaee0c`
+passthrough over the hand-written declarations. Implemented in `e640ee69`
 (`src/avg/src/shadersource.h`).
 
 **Why:** the compiler component (see "Shader compilation lives in a component
@@ -44,7 +44,7 @@ nothing on the other side).
 
 ## `FORMAT_SRGB` is removed
 
-The three-byte RGB8 `Format` is removed from `ase`. Implemented in `3ceaee0c`.
+The three-byte RGB8 `Format` is removed from `ase`. Implemented in `e640ee69`.
 
 **Why:** it has no Vulkan mapping (RGB8 is not a required format for anything),
 and nothing uses it outside the format tables and one unit test. Removing it
@@ -58,7 +58,7 @@ depth `Format` (a sample count can be added later) and passed at
 `makePipeline`; there is no `makePipelineWithBlend`, callers build a
 `PipelineDesc`. GL and dummy ignore the formats for state and, in debug
 builds, assert that every draw's framebuffer matches them. Implemented in
-`4a31efc0`.
+`e640ee69`.
 
 **Why:** Vulkan, Metal and WebGPU all need the attachment formats at pipeline
 creation, Vulkan even with dynamic rendering. With the formats declared, a
@@ -69,7 +69,7 @@ of state, nothing worth caching. Deduplicating programs across formats is
 `avg`'s job, in `PassPipelineCache` (programs keyed by shader source,
 pipelines by program, geometry and format). Corollary: a texture's size and
 format are fixed at creation, not mutable through upload (implemented in
-`3ceaee0c`); `avg` already recreates textures to grow. Rejected: a
+`e640ee69`); `avg` already recreates textures to grow. Rejected: a
 format-free `PipelineDesc` with per-format pipeline variants cached lazily
 inside the backend.
 
@@ -83,7 +83,7 @@ depth range and Y direction baked into the caller's projection, so
 `RenderContext` exposes a single clip-space adjustment matrix - identity on GL;
 a Y flip and z' = z * 0.5 + 0.5 on Vulkan - that `avg`'s painter multiplies
 into its projection once, when the projection is built (`Painter::setSize`).
-Implemented in `3ceaee0c` (`RenderContext::getClipSpaceAdjustment`).
+Implemented in `e640ee69` (`RenderContext::getClipSpaceAdjustment`).
 
 Only the painter's projection carries the adjustment. The effect pass vertex
 shader (`passVertexSource`) and the painter's present quad emit GL clip

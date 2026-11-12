@@ -3,7 +3,10 @@
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `d1633d89`
 (2026-11-12); the WGL surface and the format notes against `0a7233e5`
-(2026-11-12); the command buffer section against `0a7233e5` (2026-11-12).*
+(2026-11-12); the command buffer section against `0a7233e5` (2026-11-12); the
+pipeline state and target format notes against `e640ee69` (2026-11-12); the
+submission contract, clip-space, texture and format notes against `e640ee69`
+(2026-11-12).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
