@@ -33,6 +33,7 @@ namespace ase
     {
     public:
         explicit UnsupportedShaderLanguage(ShaderLanguage language);
+        ~UnsupportedShaderLanguage() override;
 
         ShaderLanguage getLanguage() const;
 
