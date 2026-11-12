@@ -10,6 +10,7 @@
 #include <ase/program.h>
 #include <ase/rendercommand.h>
 #include <ase/rendercontext.h>
+#include <ase/scissorrect.h>
 #include <ase/shader.h>
 #include <ase/shaderinterface.h>
 #include <ase/shaderlanguage.h>
@@ -69,10 +70,11 @@ namespace
             return VertexSpec(program, named);
         }
 
-        void pushDraw(CommandBuffer& commands, float z)
+        void pushDraw(CommandBuffer& commands, float z,
+                std::optional<ScissorRect> scissor = std::nullopt)
         {
             commands.push(framebuffer, pipeline, uniforms,
-                    context.makeVertexBuffer(), std::nullopt, {}, z);
+                    context.makeVertexBuffer(), std::nullopt, {}, z, scissor);
         }
 
         void pushDrawWithoutDepthTest(CommandBuffer& commands, float z)
@@ -81,7 +83,8 @@ namespace
             desc.depthTest = false;
             commands.push(framebuffer,
                     context.makePipeline(program, vertexSpec(), desc),
-                    uniforms, context.makeVertexBuffer(), std::nullopt, {}, z);
+                    uniforms, context.makeVertexBuffer(), std::nullopt, {}, z,
+                    std::nullopt);
         }
     };
 
@@ -216,4 +219,43 @@ TEST(commandBuffer, drawsWithoutABarrierFormOneRun)
 
     EXPECT_EQ((std::vector<float>{ 1.0f, 2.0f, 3.0f, 4.0f }),
             drawOrder(commands));
+}
+
+TEST(commandBuffer, drawsAreUnscissoredByDefault)
+{
+    Fixture f;
+    CommandBuffer commands;
+    f.pushDraw(commands, 1.0f);
+    commands.pushClear(f.framebuffer);
+
+    EXPECT_FALSE(std::get<DrawCommand>(*commands.begin()).getScissor());
+    EXPECT_FALSE(std::get<ClearCommand>(*(commands.begin() + 1)).scissor);
+}
+
+TEST(commandBuffer, drawAndClearCarryTheirScissor)
+{
+    Fixture f;
+    CommandBuffer commands;
+    ScissorRect const rect{ 8, 16, 32, 24 };
+    f.pushDraw(commands, 1.0f, rect);
+    commands.pushClear(f.framebuffer, 0.0f, 0.0f, 0.0f, 0.0f, true, false,
+            false, rect);
+
+    auto const& draw = std::get<DrawCommand>(*commands.begin());
+    auto const& clear = std::get<ClearCommand>(*(commands.begin() + 1));
+    ASSERT_TRUE(draw.getScissor());
+    EXPECT_EQ(rect, *draw.getScissor());
+    ASSERT_TRUE(clear.scissor);
+    EXPECT_EQ(rect, *clear.scissor);
+    EXPECT_FALSE(clear.depth);
+}
+
+TEST(scissorRect, ordersByEachField)
+{
+    ScissorRect const a{ 0, 0, 10, 10 };
+    EXPECT_EQ(a, (ScissorRect{ 0, 0, 10, 10 }));
+    EXPECT_NE(a, (ScissorRect{ 0, 0, 10, 11 }));
+    EXPECT_LT(a, (ScissorRect{ 0, 0, 10, 11 }));
+    EXPECT_LT(a, (ScissorRect{ 1, 0, 0, 0 }));
+    EXPECT_FALSE(a < a);
 }

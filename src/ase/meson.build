@@ -114,6 +114,7 @@ libasesrc = [
   'src/framebuffer.cpp',
   'src/pipeline.cpp',
   'src/pipelinedesc.cpp',
+  'src/scissorrect.cpp',
   'src/pointerbuttonevent.cpp',
   'src/keyevent.cpp',
   'src/textevent.cpp',

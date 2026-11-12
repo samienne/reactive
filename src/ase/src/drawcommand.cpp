@@ -10,14 +10,16 @@ DrawCommandDeferred::DrawCommandDeferred(
         VertexBuffer vertexBuffer,
         std::optional<IndexBuffer> indexBuffer,
         UniformSet uniforms,
-        float z) :
+        float z,
+        std::optional<ScissorRect> scissor) :
     framebuffer_(std::move(framebuffer)),
     textures_(std::move(textures)),
     pipeline_(std::move(pipeline)),
     vertexBuffer_(std::move(vertexBuffer)),
     indexBuffer_(std::move(indexBuffer)),
     uniforms_(std::move(uniforms)),
-    z_(z)
+    z_(z),
+    scissor_(scissor)
 {
 }
 
@@ -28,7 +30,8 @@ DrawCommand::DrawCommand(
         VertexBuffer vertexBuffer,
         std::optional<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
-        float z)
+        float z,
+        std::optional<ScissorRect> scissor)
     : deferred_(
             std::move(framebuffer),
             std::move(textures),
@@ -36,7 +39,8 @@ DrawCommand::DrawCommand(
             std::move(vertexBuffer),
             std::move(indexBuffer),
             std::move(uniforms),
-            z)
+            z,
+            scissor)
 {
 }
 
