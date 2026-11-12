@@ -41,15 +41,16 @@ flag:
 
 - **Whoever paints one child over another is a stack.** `addWidgets`
   (`modifier/addwidgets.h`) and `widget::layout` take
-  `ContainerNode::Stacking`; `widget::stack` passes `stacked`.
-  A stacked container paints its
+  `ContainerNode::Stacking`; `widget::stack` passes `stacked`, and so do
+  `onDraw`/`onDrawBehind` (`modifier/ondraw.h`), `background` and
+  `foreground` (`frame` is a `background`). A stacked container paints its
   first child flat and each later one through `Drawing::over`, so the
   painted-over content lands in a scope of its own. `vbox`, `hbox`,
   `uniformGrid` and every single-child wrapper (`clip`, `transition`,
   `margin`, `transform`) stay flat. A new modifier that draws behind or
   over its widget takes the same route - a stacked container or
-  `addWidgets(..., Stacking::stacked)`, never a flat `+=` of two drawings.
-  A scope with no effect inside
+  `addWidgets(..., Stacking::stacked)`, never a flat `+=` of two drawings
+  (the rule is in `docs/conventions.md`). A scope with no effect inside
   costs nothing, which is why this is unconditional.
 - **`modifier::surface`** (`modifier/surface.h`, `src/modifier/surface.cpp`)
   wraps the widget's render tree in an `avg::SurfaceNode`. The
@@ -60,7 +61,10 @@ flag:
   a `ShapeNode`'s parameters. Which of fill, shadow and effect exist is
   fixed when the modifier is built; only their values animate. `backdrop`,
   `frostedGlass` and `tint` are shorthands for an effect alone. A surface
-  adds no scope of its own: it is layered by the `stack` it sits in.
+  adds no scope of its own: it is layered by the `stack` or `background`
+  it sits in.
+- The window root is `widget | background()` (`src/windowbridge.cpp`), so a
+  window's content already sits in one scope over the window background.
 - `test/surfacetest.cpp` realises a widget with `BuildParams()` and a
   constant size, draws its render tree through `RenderTree::draw` (which
   flushes the pending shadows) and asserts on the `Drawing`'s elements: the
