@@ -78,16 +78,49 @@ serialisation coupling.
 ## Painter
 
 `Painter` (`painter.h`, `painter.cpp`) owns the pipelines, the glyph atlas,
-the one `UniformSet` every draw binds, and the command buffer the frame is
-recorded into. `clearImage`/`clearWindow`/`paintToImage`/`paintToWindow`
-record; `flush` (and `presentWindow`, which flushes first) submits.
+the `UniformSet` every content draw binds, the window's offscreen target and
+the command buffer the frame is recorded into. `clearImage`/`clearWindow`/
+`paintToImage`/`paintToWindow` record; `flush` (and `presentWindow`, which
+pushes the present quad and flushes first) submits.
 
-- **The shader interface is declared in `painter.cpp`** (`matrixInterface`:
+- **Window frames always render offscreen.** `clearWindow` and
+  `paintToWindow` name the framebuffer of `windowTarget_`, a `TargetImage`
+  (`FORMAT_SRGBA` colour texture over a `FORMAT_DEPTH24_STENCIL8`
+  renderbuffer, both attached in the `TargetImage` constructor) of the
+  window's `getScaledSize()`. `Painter::windowTarget` makes it on first use
+  and replaces it whenever that pixel size differs from the texture's, since
+  nothing resizes in place; two frames at one size share the texture handle.
+  `presentWindow` then pushes `pushBarrier()` and one draw of a static
+  clip-space quad (uploaded once, `StaticDraw`) into the window's default
+  framebuffer with the target texture at unit 0. The barrier is what keeps
+  the run sort from moving the quad ahead of the draws it samples. The
+  window is never cleared: the quad covers it and its pipeline neither tests
+  nor writes depth. A frame that painted nothing still presents the target
+  as it was; nothing is presented before the first clear or paint. Image
+  frames (`clearImage`/`paintToImage`) draw straight into the given
+  `TargetImage` and carry no quad. The painter therefore serves one window;
+  a second window through the same painter would remake the target every
+  frame.
+- **sRGB round trip.** The target and the window are both sRGB surfaces
+  under `GL_FRAMEBUFFER_SRGB`, so content blends linearly in the target, the
+  present quad's `texture()` decodes, and the window write re-encodes. If a
+  platform cannot give an sRGB window format, the present fragment shader
+  (`presentFsSource`) is where a manual encode belongs; none is implemented.
+  No GL context runs in CI, so the quad's pixels are a manual check
+  (`lw run app`); `test/renderingtest.cpp` asserts the command shape on the
+  dummy backend: clear of the target, draws naming it, barrier, one present
+  draw naming the window with the target texture bound, and the target
+  handle surviving a same-size frame and changing on a
+  `DummyWindow::resize`.
+- **The shader interfaces are declared in `painter.cpp`** (`matrixInterface`:
   `pos` at location 0, `color` at 1, `MatrixBlock` at binding 0; the text
-  pipeline adds `uv` at 2 and the `atlas` sampler at unit 0). The GLSL
-  carries no binding qualifiers; `ase` applies them from the declaration and
-  validates by reflection in debug builds, so a shader whose names drift from
-  the declaration fails at program creation. Change the declaration and the
+  pipeline adds `uv` at 2 and the `atlas` sampler at unit 0;
+  `presentInterface`: `pos` at 0, `uv` at 1, the `source` sampler at unit 0
+  and no block, so the present draw binds an empty `UniformSet` and its
+  vertices are already in clip space). The GLSL carries no binding
+  qualifiers; `ase` applies them from the declaration and validates by
+  reflection in debug builds, so a shader whose names drift from the
+  declaration fails at program creation. Change the declaration and the
   shader together.
 - **The projection is a typed block through a ring.** `setSize` only sets
   `MatrixBlock::worldViewProj` in a `UniformBlock`. The first clear or paint

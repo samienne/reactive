@@ -22,10 +22,13 @@
 #include <ase/dummyplatform.h>
 #include <ase/dummyrenderqueue.h>
 #include <ase/dummyuniformset.h>
+#include <ase/dummywindow.h>
 #include <ase/platform.h>
 #include <ase/rendercontext.h>
 #include <ase/renderqueue.h>
 #include <ase/format.h>
+#include <ase/texture.h>
+#include <ase/window.h>
 #include <ase/uniformbuffer.h>
 #include <ase/uniformbufferimpl.h>
 #include <ase/uniformset.h>
@@ -217,6 +220,67 @@ namespace
     {
         return ase::VertexSpec::Spec{ location, size, ase::TypeFloat, false,
             offset };
+    }
+
+    // The commands of a frame other than the uploads feeding its draws
+    std::vector<ase::RenderCommand const*> nonUploads(
+            ase::CommandBuffer const& commands)
+    {
+        std::vector<ase::RenderCommand const*> result;
+        for (auto const& command : commands)
+        {
+            if (!std::holds_alternative<ase::BufferUploadCommand>(command)
+                    && !std::holds_alternative<ase::TextureUploadCommand>(
+                        command)
+                    && !std::holds_alternative<ase::TextureSubUploadCommand>(
+                        command))
+            {
+                result.push_back(&command);
+            }
+        }
+
+        return result;
+    }
+
+    bool hasBarrier(ase::CommandBuffer const& commands)
+    {
+        return std::any_of(commands.begin(), commands.end(),
+                [](ase::RenderCommand const& c)
+                {
+                    return std::holds_alternative<ase::BarrierCommand>(c);
+                });
+    }
+
+    // The last draw of a window frame: the one that presents
+    ase::DrawCommand const* lastDraw(ase::CommandBuffer const& commands)
+    {
+        ase::DrawCommand const* result = nullptr;
+        for (auto const& command : commands)
+        {
+            if (auto const* draw = std::get_if<ase::DrawCommand>(&command))
+                result = draw;
+        }
+
+        return result;
+    }
+
+    // One window frame as bqui drives it, returning the frame's draw buffer
+    ase::CommandBuffer const& windowFrame(Fixture& f, ase::Window& window,
+            avg::Drawing const& drawing)
+    {
+        auto& queue = f.context.getMainRenderQueue()
+            .getImpl<ase::DummyRenderQueue>();
+        queue.recordSubmissions(true);
+        size_t const before = queue.getSubmissions().size();
+
+        f.painter.setSize(window.getScaledSize(), window.getScalingFactor());
+        f.painter.clearWindow(window);
+        f.painter.paintToWindow(window, drawing);
+        f.painter.presentWindow(window);
+
+        // The projection upload, then the draws
+        EXPECT_EQ(before + 2, queue.getSubmissions().size());
+        return queue.getSubmissions().back();
     }
 } // anonymous namespace
 
@@ -511,6 +575,94 @@ TEST(rendering, frameUploadsItsProjectionAheadOfItsDraws)
     EXPECT_NE(uploadTarget(*upload), uploadTarget(*next[0]));
     EXPECT_EQ(uploadTarget(*next[0]), implOf(bindings.at(0).buffer));
     EXPECT_TRUE(uniformUploads(submitted[3]).empty());
+}
+
+TEST(rendering, windowFrameDrawsOffscreenAndPresentsOneQuad)
+{
+    Fixture f;
+    auto window = f.platform.makeWindow(f.context, ase::Vector2i(200, 100),
+            false);
+    auto const& frame = windowFrame(f, window, f.drawing(f.entry("Hi")));
+
+    // Clear the target, draw into it, barrier, present onto the window.
+    auto commands = nonUploads(frame);
+    ASSERT_GE(commands.size(), 4u);
+
+    auto const* clear = std::get_if<ase::ClearCommand>(commands.front());
+    ASSERT_TRUE(clear);
+    EXPECT_NE(window.getDefaultFramebuffer(), clear->target);
+    EXPECT_TRUE(clear->color);
+    EXPECT_TRUE(clear->depth);
+
+    for (size_t i = 1; i + 2 < commands.size(); ++i)
+    {
+        auto const* draw = std::get_if<ase::DrawCommand>(commands[i]);
+        ASSERT_TRUE(draw) << i;
+        EXPECT_EQ(clear->target, draw->getFramebuffer());
+    }
+
+    EXPECT_TRUE(std::holds_alternative<ase::BarrierCommand>(
+                *commands[commands.size() - 2]));
+
+    auto const* present = std::get_if<ase::DrawCommand>(commands.back());
+    ASSERT_TRUE(present);
+    EXPECT_EQ(window.getDefaultFramebuffer(), present->getFramebuffer());
+    EXPECT_FALSE(present->getPipeline().isBlendEnabled());
+    EXPECT_FALSE(present->getPipeline().isDepthTestEnabled());
+    EXPECT_FALSE(present->getPipeline().isDepthWriteEnabled());
+    ASSERT_EQ(1u, present->getTextures().size());
+
+    ase::Texture target = present->getTextures()[0];
+    EXPECT_NE(f.painter.getGlyphAtlas().getTexture(), target);
+    EXPECT_EQ(ase::Vector2i(200, 100), target.getSize());
+    EXPECT_EQ(ase::FORMAT_SRGBA, target.getFormat());
+
+    // The quad is the window's only command: no clear precedes it.
+    for (auto const* command : commands)
+    {
+        if (auto const* c = std::get_if<ase::ClearCommand>(command))
+            EXPECT_NE(window.getDefaultFramebuffer(), c->target);
+    }
+}
+
+TEST(rendering, windowTargetIsRemadeOnlyWhenThePixelSizeChanges)
+{
+    Fixture f;
+    auto window = f.platform.makeWindow(f.context, ase::Vector2i(200, 100),
+            false);
+    auto drawing = f.drawing(f.entry("Hi"));
+
+    ase::Texture first = lastDraw(windowFrame(f, window, drawing))
+        ->getTextures().at(0);
+    ase::Texture second = lastDraw(windowFrame(f, window, drawing))
+        ->getTextures().at(0);
+    EXPECT_EQ(first, second);
+
+    window.getImpl<ase::DummyWindow>().resize(ase::Vector2i(400, 100));
+    ase::Texture resized = lastDraw(windowFrame(f, window, drawing))
+        ->getTextures().at(0);
+    EXPECT_NE(first, resized);
+    EXPECT_EQ(ase::Vector2i(400, 100), resized.getSize());
+}
+
+TEST(rendering, imageFramesCarryNoPresent)
+{
+    Fixture f;
+    auto& queue = f.context.getMainRenderQueue()
+        .getImpl<ase::DummyRenderQueue>();
+    queue.recordSubmissions(true);
+
+    f.painter.clearImage(f.target);
+    f.painter.paintToImage(f.target, 1.0f, f.drawing(f.entry("Hi")));
+    f.painter.flush();
+
+    ASSERT_EQ(2u, queue.getSubmissions().size());
+    auto const& frame = queue.getSubmissions()[1];
+    EXPECT_FALSE(hasBarrier(frame));
+    auto draws = f.draws(frame);
+    ASSERT_FALSE(draws.empty());
+    for (auto const& draw : draws)
+        EXPECT_EQ(f.target.getFramebuffer(), draw.command->getFramebuffer());
 }
 
 TEST(rendering, resizingDoesNotSubmit)

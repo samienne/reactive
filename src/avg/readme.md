@@ -35,6 +35,15 @@ Time-varying values are `Animated<T>` — a value plus keyframes and a curve
 (`avg::curve`). Anything that can be animated (a transform, a color, a corner
 radius, a whole shape) is expressed this way, and interpolated by timestamp.
 
+## Rendering a window
+
+A window frame is never drawn onto the window directly. The painter draws it
+into a full-window offscreen image of the window's pixel size (an sRGB colour
+texture with a depth buffer, remade when the window is resized), then copies
+that image onto the window with one textured quad. Every frame takes this one
+path whether or not it uses effects, and the offscreen image is what later
+backdrop effects such as frosted glass sample from.
+
 ## The render tree
 
 Drawing is organised as an **immutable render tree** of nodes carrying animated
