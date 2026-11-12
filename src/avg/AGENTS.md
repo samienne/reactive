@@ -3,7 +3,8 @@
 *Last verified against `44d4091` (2026-07-22); the text sections against
 `f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12);
 the effects section against `da7898a9` (2026-11-11); the shapes-and-drawings
-section against `7c52ceeb` (2026-11-11).*
+section against `7c52ceeb` (2026-11-11); the render tree section against
+`660a7275` (2026-11-11).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -31,9 +32,10 @@ outgrows one file.
   shadows: elements that belong *under* the content of whatever container ends
   up holding the drawing. `+=` concatenates both lists, `clip`/`transform`/
   `filterByRect` apply to both, `getControlBb` covers both, and `flush()` moves
-  the shadows ahead of the main list. Nothing in `avg` flushes: whoever hands a
-  drawing to `render` flushes it first, or the shadows are silently dropped
-  (`render` only sees the main list).
+  the shadows ahead of the main list. `RenderTree::draw` flushes the root
+  drawing; anything that renders a node's drawing directly (tests, snapshot
+  paths) must flush it first, or the shadows are silently dropped (`render`
+  only sees the main list).
 - **`BackdropScope`** is a sub-drawing with its own transform, shaped like
   `ClipElement` without the clip; `scope()` wraps the main list into one, and
   `over(below, above)` is the one composition for painting a child over
@@ -59,11 +61,36 @@ outgrows one file.
   `ContainerNode` (matches children by id; diffs insert/remove/reorder),
   `ShapeNode`/`RectNode` (animated leaves), `TransitionNode` (enter/leave),
   `ClipNode` (clips a child to an `Animated<Obb>` — **rectangle only**),
-  `IdNode` (stable identity for matching).
+  `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with
+  a shadow under a child subtree).
 - `oldTree.update(newTree, options, time)` splices trees (creating animated
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
-  next need a redraw.
+  next need a redraw. `RenderTree::draw` is the root: it flushes the drawing
+  (pending shadows ahead of the content) before returning it.
+- **Stacking.** `ContainerNode` takes a `Stacking` flag. `flat` (the default,
+  what vbox/hbox/grid use) concatenates the children's drawings with `+=` and
+  passes their pending shadows up unchanged, so nested flat containers draw
+  the same elements as one flat container. `stacked` paints the first child
+  flat and each later child with `Drawing::over`, i.e. its pending shadows
+  then its content in a `BackdropScope`, so a child's backdrop effects sample
+  the children below it and their shadows but nothing of itself, and a nested
+  stack's scopes stay inside its own scope. `update` keeps the new tree's
+  flag; the snapshot still reports a stacked container as `ContainerNode`.
+- **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
+  (the shape for the node's size, animated like a `ShapeNode`'s parameters),
+  an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
+  (animated offset, spread and brush) and a child. `draw` adds the shadow as
+  a **pending shadow** (the shape translated by the offset, filled with the
+  shadow brush and, for a positive spread, stroked with a pen of width
+  `2 * spread` in the same brush), then the fill and the child's drawing in
+  the main list, in that order. The node's own animation options drive its
+  obb, shape, fill and shadow only; like every other node it hands the
+  inherited options to its child. It never adds a scope: that would give
+  every card in a vbox a private backdrop. The backdrop effect element
+  planned for surfaces is not there yet; it belongs in the main list ahead of
+  the fill, in `SurfaceNode::draw`, with the effect description as one more
+  animated member.
 
 ## Render tree snapshots
 
