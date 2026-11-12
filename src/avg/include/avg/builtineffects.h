@@ -9,13 +9,17 @@ namespace avg
     /**
      * @brief How frostedGlass looks.
      *
-     * radius is the blur radius in screen pixels. tint is blended over the
-     * blurred backdrop by tintStrength: 0 leaves the backdrop, 1 replaces
-     * it. saturation scales the colourfulness of the blurred backdrop, 1
+     * radius is the blur radius. tint is blended over the blurred
+     * backdrop by tintStrength: 0 leaves the backdrop, 1 replaces it.
+     * saturation scales the colourfulness of the blurred backdrop, 1
      * keeping it. highlight is blended in by highlightStrength over the
      * highlightWidth pixels nearest the edge of the shape's bounds; the
      * default strength of 0 draws none. Only the strengths weigh tint and
      * highlight: the alpha of either colour is ignored.
+     *
+     * radius and highlightWidth are in pixels of the target, not in
+     * logical units: the scaling factor of the display does not apply to
+     * them.
      */
     struct AVG_EXPORT FrostedGlassOptions
     {

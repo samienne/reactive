@@ -5,6 +5,9 @@
 #include "glyphatlas.h"
 
 #include <avg/softmesh.h>
+#include <avg/effect.h>
+#include <avg/effectemitter.h>
+#include <avg/effectplan.h>
 #include <avg/obb.h>
 #include <avg/region.h>
 #include <avg/jointype.h>
@@ -37,6 +40,7 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
+#include <stdexcept>
 #include <variant>
 
 namespace avg
@@ -79,7 +83,23 @@ struct TextQuads
     pmr::vector<uint32_t> indices;
 };
 
-using Item = std::variant<SoftMesh, TextQuads>;
+// An effect element in device pixels: the regions its passes write and its
+// shape as a triangle list, reading the snapshot of scope.
+struct EffectDraw
+{
+    Effect const* effect;
+    size_t scope;
+    EffectRegions regions;
+    std::vector<Vector2f> triangles;
+};
+
+// Where a backdrop scope is entered in paint order.
+struct ScopeEntry
+{
+    size_t scope;
+};
+
+using Item = std::variant<SoftMesh, TextQuads, EffectDraw, ScopeEntry>;
 
 struct TextContext
 {
@@ -88,6 +108,65 @@ struct TextContext
     ase::Texture texture;
     ase::Vector2i textureSize;
 };
+
+// A backdrop scope of the frame: used once an effect directly inside it
+// reads its snapshot, whose region is the union of those reads.
+struct Scope
+{
+    PixelRect backdropRegion;
+    bool used = false;
+    size_t snapshot = 0;
+};
+
+struct EffectContext
+{
+    float scalingFactor;
+    Vector2i screenSize;
+    std::vector<Scope> scopes;
+};
+
+bool isMesh(Item const& item)
+{
+    return std::holds_alternative<SoftMesh>(item)
+        || std::holds_alternative<TextQuads>(item);
+}
+
+PixelRect toDevicePixels(Rect const& r, float scalingFactor)
+{
+    // Larger than any target and exact in a float, so the casts and the
+    // differences below cannot overflow.
+    float const limit = 16777216.0f;
+    auto toPixel = [limit](float v)
+    {
+        return (int)std::clamp(v, -limit, limit);
+    };
+
+    int const left = toPixel(std::floor(r.getLeft() * scalingFactor));
+    int const bottom = toPixel(std::floor(r.getBottom() * scalingFactor));
+    int const right = toPixel(std::ceil(r.getRight() * scalingFactor));
+    int const top = toPixel(std::ceil(r.getTop() * scalingFactor));
+
+    return PixelRect{ left, bottom, right - left, top - bottom };
+}
+
+// The filled shape as a triangle list in device pixels; toRoot maps the
+// shape's space to the root of the drawing.
+std::vector<Vector2f> triangulateToDevice(pmr::memory_resource* memory,
+        Shape const& shape, Transform const& toRoot, Vector2f pointSize,
+        float scalingFactor)
+{
+    ZoneScoped;
+    pmr::monotonic_buffer_resource mono(memory);
+    auto [vertices, indices] = shape.fillToRegion(&mono, pointSize)
+        .triangulate(&mono);
+
+    std::vector<Vector2f> result;
+    result.reserve(indices.size());
+    for (auto index : indices)
+        result.push_back(Vector2f((toRoot * vertices[index]) * scalingFactor));
+
+    return result;
+}
 
 Color premultiply(Color c)
 {
@@ -393,10 +472,13 @@ Rect getElementRect(Drawing::Element const& e)
 // Transform is applied after clipping with rect. Rect is not transformed.
 // toRoot is the product of transform and every enclosing one: it maps the
 // elements' space to the root of the drawing, where text quads are made.
+// scopeIndex is the backdrop scope the elements are directly inside.
 pmr::vector<Item> generateMeshesForElements(
         pmr::memory_resource* memory,
         Painter const& painter,
         TextContext& text,
+        EffectContext& effects,
+        size_t scopeIndex,
         Transform const& toRoot,
         Transform const& transform,
         pmr::vector<Drawing::Element> const& elements,
@@ -476,6 +558,8 @@ pmr::vector<Item> generateMeshesForElements(
                             memory,
                             painter,
                             text,
+                            effects,
+                            scopeIndex,
                             toRoot * clipElement.transform,
                             clipElement.transform,
                             clipElement.subDrawing->elements,
@@ -505,10 +589,18 @@ pmr::vector<Item> generateMeshesForElements(
                     auto rectInScopeSpace = (scope.transform.inverse()
                             * Obb(rect)).getBoundingRect();
 
-                    return generateMeshesForElements(
+                    size_t const index = effects.scopes.size();
+                    effects.scopes.push_back(Scope{});
+
+                    pmr::vector<Item> result(memory);
+                    result.push_back(ScopeEntry{ index });
+
+                    auto inner = generateMeshesForElements(
                             memory,
                             painter,
                             text,
+                            effects,
+                            index,
                             toRoot * scope.transform,
                             scope.transform,
                             scope.subDrawing->elements,
@@ -516,11 +608,53 @@ pmr::vector<Item> generateMeshesForElements(
                             rectInScopeSpace,
                             clip
                             );
+
+                    for (auto&& item : inner)
+                        result.push_back(std::move(item));
+
+                    return result;
                 },
-                [&](Drawing::EffectElement const&) -> pmr::vector<Item>
+                [&](Drawing::EffectElement const& effect) -> pmr::vector<Item>
                 {
-                    // Effects are not rendered yet.
-                    return pmr::vector<Item>(memory);
+                    assert(effect.effect);
+                    pmr::vector<Item> result(memory);
+
+                    Rect const bounds = clip
+                        ? elementRect.intersected(rect)
+                        : elementRect;
+
+                    PixelRect const deviceBounds = toDevicePixels(
+                            (toRoot * Obb(bounds)).getBoundingRect(),
+                            effects.scalingFactor)
+                        .clamped(effects.screenSize);
+
+                    if (deviceBounds.isEmpty())
+                        return result;
+
+                    std::vector<Vector2f> triangles = triangulateToDevice(
+                            memory, effect.shape, toRoot * effect.transform,
+                            newPointSize / effect.transform.getScale(),
+                            effects.scalingFactor);
+
+                    if (triangles.empty())
+                        return result;
+
+                    EffectRegions regions = deriveRegions(*effect.effect,
+                            deviceBounds, effects.screenSize);
+
+                    Scope& owner = effects.scopes[scopeIndex];
+                    owner.used = true;
+                    owner.backdropRegion = owner.backdropRegion.unionWith(
+                            regions.backdropRegion);
+
+                    result.push_back(EffectDraw{
+                            effect.effect.get(),
+                            scopeIndex,
+                            std::move(regions),
+                            std::move(triangles)
+                            });
+
+                    return result;
                 }
                 }, element);
 
@@ -624,12 +758,14 @@ void renderElements(ase::CommandBuffer& commandBuffer,
         pushElements(*previous);
 }
 
+// z descends in paint order over all of the frame's total meshes, of which
+// first precede items, so the depth test keeps the order across segments.
 pmr::vector<Element> generateElements(pmr::memory_resource* memory,
         Painter const& painter, TextContext const& text,
-        pmr::vector<Item>&& items)
+        pmr::vector<Item>&& items, size_t first, size_t total)
 {
     ZoneScoped;
-    float step = 0.5f / (float)(items.size() + 1u);
+    float step = 0.5f / (float)(total + 1u);
 
     pmr::vector<Element> elements(memory);
     elements.reserve(items.size());
@@ -637,7 +773,7 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
     uint32_t i = 1;
     for (auto&& item : items)
     {
-        float const z = 1.0f - (float)i * step;
+        float const z = 1.0f - (float)(first + i) * step;
 
         elements.push_back(std::visit(Overloaded{
                 [&](SoftMesh const& mesh) -> Element
@@ -665,6 +801,14 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
                         std::move(quads.vertices),
                         std::move(quads.indices)
                         };
+                },
+                [&](EffectDraw const&) -> Element
+                {
+                    throw std::logic_error("an effect is not an element");
+                },
+                [&](ScopeEntry const&) -> Element
+                {
+                    throw std::logic_error("a scope entry is not an element");
                 }
                 }, item));
         ++i;
@@ -673,16 +817,85 @@ pmr::vector<Element> generateElements(pmr::memory_resource* memory,
     return elements;
 }
 
+// The meshes gathered so far must become draws before each snapshot and
+// each effect: the emitter's barriers order only what is already pushed.
+void drawItems(pmr::memory_resource* memory, ase::CommandBuffer& commandBuffer,
+        ase::RenderContext& context, ase::Framebuffer& framebuffer,
+        Painter const& painter, TextContext const& text,
+        std::vector<Scope> const& scopes, ScratchPlan const& plan,
+        EffectEmitter* emitter, pmr::vector<Item>&& items)
+{
+    ZoneScoped;
+
+    size_t total = 0;
+    for (auto const& item : items)
+    {
+        if (isMesh(item))
+            ++total;
+    }
+
+    pmr::vector<Item> segment(memory);
+    size_t first = 0;
+    size_t gathered = 0;
+
+    auto flushSegment = [&]()
+    {
+        if (segment.empty())
+            return;
+
+        pmr::vector<Element> elements = generateElements(memory, painter,
+                text, std::move(segment), first, total);
+        segment.clear();
+        first = gathered;
+
+        renderElements(commandBuffer, context, framebuffer, painter,
+                std::move(elements));
+    };
+
+    size_t effectIndex = 0;
+    for (auto&& item : items)
+    {
+        if (isMesh(item))
+        {
+            segment.push_back(std::move(item));
+            ++gathered;
+        }
+        else if (auto const* entry = std::get_if<ScopeEntry>(&item))
+        {
+            Scope const& scope = scopes[entry->scope];
+            if (!scope.used)
+                continue;
+
+            assert(emitter);
+            flushSegment();
+            emitter->emitSnapshot(plan.snapshots[scope.snapshot].slot,
+                    scope.backdropRegion);
+        }
+        else if (auto const* draw = std::get_if<EffectDraw>(&item))
+        {
+            assert(emitter);
+            flushSegment();
+            emitter->emitEffect(*draw->effect, draw->regions,
+                    plan.effects[effectIndex++], draw->triangles);
+        }
+    }
+
+    flushSegment();
+}
+
 } // anonymous namespace
 
 void render(pmr::memory_resource* memory,
         ase::CommandBuffer& commandBuffer, ase::RenderContext& context,
-        ase::Framebuffer& framebuffer, ase::Vector2i size,
+        TargetImage& target,
         float scalingFactor,
         avg::Painter& painter,
         avg::Drawing const& drawing)
 {
     ZoneScoped;
+    assert(drawing.getPendingShadows().empty());
+
+    ase::Vector2i const size = target.getSize();
 
     GlyphAtlas& atlas = painter.getGlyphAtlas();
     atlas.beginFrame();
@@ -699,22 +912,56 @@ void render(pmr::memory_resource* memory,
     auto const pointSize = pixelSize / resPerPixel;
     avg::Vector2f sizef((float)size[0], (float)size[1]);
 
-    Rect rect(Vector2f(0.0f, 0.0f), sizef);
+    Rect rect(Vector2f(0.0f, 0.0f), sizef / scalingFactor);
 
-    pmr::vector<Item> items = generateMeshesForElements(memory, painter,
-            text, Transform(), Transform(), drawing.getElements(), pointSize,
-            rect, false);
+    // The root is the implicit scope every effect outside one reads.
+    EffectContext effects{ scalingFactor, size, {} };
+    effects.scopes.push_back(Scope{});
+
+    pmr::vector<Item> items(memory);
+    items.push_back(ScopeEntry{ 0 });
+
+    pmr::vector<Item> content = generateMeshesForElements(memory, painter,
+            text, effects, 0, Transform(), Transform(), drawing.getElements(),
+            pointSize, rect, false);
+
+    for (auto&& item : content)
+        items.push_back(std::move(item));
 
     // The glyph uploads precede this frame's draws in the one buffer, so a
     // later render() into the same buffer cannot overwrite texels these
     // draws still sample.
     atlas.endFrame(commandBuffer);
 
-    pmr::vector<Element> elements = generateElements(memory, painter, text,
-            std::move(items));
+    ScratchTimeline timeline;
+    for (auto const& item : items)
+    {
+        if (auto const* entry = std::get_if<ScopeEntry>(&item))
+        {
+            Scope& scope = effects.scopes[entry->scope];
+            if (scope.used)
+                scope.snapshot = timeline.addSnapshot();
+        }
+        else if (auto const* draw = std::get_if<EffectDraw>(&item))
+        {
+            timeline.addEffect(*draw->effect,
+                    effects.scopes[draw->scope].snapshot);
+        }
+    }
 
-    renderElements(commandBuffer, context, framebuffer, painter,
-            std::move(elements));
+    if (timeline.getEffectCount() == 0)
+    {
+        drawItems(memory, commandBuffer, context, target.getFramebuffer(),
+                painter, text, effects.scopes, ScratchPlan(), nullptr,
+                std::move(items));
+        return;
+    }
+
+    ScratchPlan const plan = planScratch(timeline);
+    EffectEmitter emitter = painter.makeEffectEmitter(commandBuffer, target);
+
+    drawItems(memory, commandBuffer, context, target.getFramebuffer(),
+            painter, text, effects.scopes, plan, &emitter, std::move(items));
 }
 
 } // namespace
