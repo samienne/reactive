@@ -1,6 +1,7 @@
 # Architecture
 
-*Last verified against `d2e8954` (2026-07-13).*
+*Last verified against `d2e8954` (2026-07-13); the rendering paragraph against
+`77ffaccf` (2026-11-12).*
 
 The cross-cutting overview: how the libraries fit together and the ideas that
 span them. Per-library depth lives in each library's own docs (indexed below);
@@ -33,6 +34,18 @@ An application describes its UI as `bqui` widgets whose content is derived from
 realises those widgets it lowers them through a pipeline (`Widget → Builder →
 Element → Instance`) into an **`avg` render tree** — an immutable, animated scene
 graph. `ase` rasterises the resulting drawing through OpenGL.
+
+A drawing is a flat list painted in order. A window frame is drawn into one
+full-window offscreen image and copied onto the window with a single quad, so
+the frame exists as a texture while it is being painted. That is what lets a
+**backdrop effect** (frosted glass behind a card) show what lies below it: a
+container that paints one child over another wraps the upper child in a
+*backdrop scope*; an effect inside the scope reads a snapshot of the image as
+it stood when the scope was entered, runs a few shader passes over that
+snapshot, and paints the result through its shape in its own place in the
+paint order. Nothing is analysed per element, and a scope with no effect in
+it costs nothing. The design is
+[`design/backdrop-effects.md`](design/backdrop-effects.md).
 
 Because signals are stateless graph descriptions (their state lives in an
 evaluation context), and the render tree and drawings are immutable, there is no

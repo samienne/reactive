@@ -2,7 +2,10 @@
 
 *Last verified against `7429b35` (2026-08-17); the `Collection` and `forEach`
 entries against `3ba9415` (2026-09-28); the text entries against `f3ed6e5`
-(2026-10-22); the shader interface entry against `d1633d89` (2026-11-12).*
+(2026-10-22); the shader interface entry against `d1633d89` (2026-11-12); the
+seven Vulkan readiness entries against `15d5fb63` (2026-11-12), of which only
+the pipeline formats are implemented (`79e0a275`, 2026-11-12); the five
+backdrop-effect entries against `77ffaccf` (2026-11-12).*
 
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
@@ -39,6 +42,123 @@ silent drop back); runtime cross-compilation (a compiler toolchain in the
 application, and shipped shaders depending on the device's translator). The
 two setting styles share one layout computation so they cannot drift and one
 validator covers both.
+
+## Effect ordering is segment flushing, not a depth value
+
+The renderer keeps paint order around an effect by splitting the frame's
+draws into segments: the content before a used scope's entry is flushed
+into draws before the snapshot copy, and the content before an effect is
+flushed before its passes, with the emitter's barriers bracketing the copy
+and every pass so the draw sort cannot cross them. Z is still assigned over
+the whole frame, so the depth test orders opaque content across segments,
+and a frame without effects is one segment with no barrier.
+`docs/design/backdrop-effects.md` is the full design.
+
+**Why:** the effect's final pass neither tests nor writes depth (it blends
+its shape over the main target), so a z value would not order it against
+opaque content, and a run boundary costs nothing when no effect is drawn.
+Rejected: giving the final pass a depth value and drawing it opaque through
+the mesh path (it ties the pass to the mesh pipeline's depth rules); a CPU
+wait or GL texture barrier between a pass and its reader (no pass samples
+the texture it writes, so the FBO switch is the only synchronisation
+needed).
+
+## Stacking is declared by containers; surfaces never open a scope
+
+A `ContainerNode` carries a stacking flag. A flat container (vbox, hbox,
+grid) concatenates its children's drawings; a stacked one paints its first
+child flat and each later child through `Drawing::over`, which puts the
+child's pending shadows then its content in a `BackdropScope`. A
+`SurfaceNode` adds its shadow, effect, fill and child to the lists and
+never a scope. In `bqui` every modifier that paints behind or over its
+widget builds a stacked container, so the rule in `conventions.md` is
+"whoever paints one child over another is a stack", applied
+unconditionally.
+
+**Why:** a scope's meaning is "effects in here see what was painted before
+the scope", and only the code that places one child over another knows
+that relation; a surface placing a scope around itself would give every
+card in a vbox a private snapshot and no backdrop. Scopes are free when no
+effect is inside, so the rule needs no "only when glass is present"
+exception, which a container author could not evaluate anyway. Shadows go
+before the scope so a glass sibling samples the shadow rings; placing them
+after the scope was considered and not chosen. Rejected: a separate stack
+node class (the flag is the only difference); inferring stacking from
+geometric overlap (see the next entry).
+
+## Backdrop visibility is a scope in a flat drawing, not a z
+
+A `Drawing` stays a flat, ordered list and elements carry no ordering
+data. One nesting element, `BackdropScope`, wraps a sub-drawing: an effect
+directly inside it samples the frame as it stood when the scope was
+entered, the root is an implicit scope, scopes nest, and concatenation
+keeps them whole. A `Drawing` also carries pending shadows as a second
+list that `flush` moves ahead of the content.
+
+**Why:** a glass surface must see what lies below it and never its own
+content or its siblings, and a nested stack must not change what the
+siblings after it see. A scope states exactly that and composes under
+`+=`, clip and transform without bookkeeping. Rejected: an explicit
+integer z per element with a stable sort (ordinal, not geometric;
+serialises vbox siblings with glass and breaks batches); a geometric
+dependency scheduler over bounding boxes with layers, deferral and a soft
+padding ring (correct but approximate and unnecessary once containers
+declare stacking); elevation levels inside the drawing (duplicates the
+render tree's hierarchy and needs level counts in stacks); a flat barrier
+element or per-element barrier flag (a nested stack's barrier leaks to the
+following siblings, and the flag is lost on concatenation); push/pop
+barrier pairs (unbalanced on concatenation); named barriers (id uniqueness
+across independently composed drawings); author-declared parallel sibling
+branches (authors cannot know pixel overlap).
+
+## Effects are pass graphs over a scope snapshot, with pooled scratch
+
+An `Effect` is a list of passes in execution order - a DAG by
+construction - each reading the enclosing scope's snapshot or an earlier
+pass's output and writing a scratch texture at an integer divisor of the
+screen (1, 2, 4 or 8) in a declared format, until a final pass draws the
+effect's shape into the main target. Regions are derived backwards from
+the shape's device bounds through each pass's padding, so each pass writes
+exactly what its readers sample and the snapshot copies only the union of
+what the scope's effects read. Scratch textures are pooled per window and
+allocated by liveness over the frame's timeline of snapshots and passes;
+a pass takes its output before its inputs are released, so no pass ever
+reads the texture it writes. The pool releases a texture no frame has
+acquired for 120 frames.
+
+**Why:** the cost scales with the effects on screen, not with the elements
+under them, and nothing is analysed per item. A chain ping-pongs between
+two textures and a snapshot lives only until its last reader, so the pool
+is small and reused across frames. Rejected: region passes that re-render
+the overlapped items into a per-effect texture (analysis cost proportional
+to items times effects, items drawn once per covering effect, text
+re-laid-out per pass); a second colour target through MRT (double colour
+bandwidth on every draw for a rare feature); window framebuffer read-back
+(GL window surfaces are not reliably readable, and it couples effects to
+the platform surface); ping-pong full-screen main targets (a full-screen
+copy per effect where the graph copies a region); a pool that never
+shrinks (a window that stops showing effects would keep the memory).
+
+## Every window frame renders offscreen and is presented with a quad
+
+The painter draws each window frame into one full-screen offscreen target
+of the window's pixel size - an sRGB colour texture over a depth-stencil
+renderbuffer, remade on resize - and ends the frame with a barrier and one
+textured quad into the window's default framebuffer. Every frame takes
+this path, with or without effects; the window itself is never cleared.
+WGL asks for an sRGB-capable pixel format and a 3.3 context, as GLX
+does.
+
+**Why:** a backdrop effect needs the frame as a texture, and a window's
+default framebuffer is not one; drawing into a texture always, rather than
+only when an effect is present, keeps one set of command shapes to test and
+no mode switch when the first glass appears. The target and window being
+both sRGB lets content blend in linear light and the present quad decode
+and re-encode without shaders handling gamma. The extra cost is one
+full-screen draw a frame. Rejected: rendering to the window and switching
+to a texture only when an effect appears (two code paths, a mid-animation
+mode switch); a blit instead of the quad (the quad reuses the draw path and
+needs no new `ase` operation; a copy-image path remains a later option).
 
 ## Text is drawn from a glyph atlas, not tessellated every frame
 
