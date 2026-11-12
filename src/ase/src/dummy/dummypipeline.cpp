@@ -6,16 +6,26 @@ namespace ase
 {
 
 DummyPipeline::DummyPipeline(Program program, VertexSpec vertexSpec,
-        bool blendEnabled) :
+        PipelineDesc desc) :
     program_(std::move(program)),
     vertexSpec_(std::move(vertexSpec)),
-    blendEnabled_(blendEnabled)
+    desc_(desc)
 {
 }
 
 bool DummyPipeline::isBlendEnabled() const
 {
-    return blendEnabled_;
+    return desc_.blend.has_value();
+}
+
+bool DummyPipeline::isDepthTestEnabled() const
+{
+    return desc_.depthTest;
+}
+
+bool DummyPipeline::isDepthWriteEnabled() const
+{
+    return desc_.writesDepth();
 }
 
 Program const& DummyPipeline::getProgram() const

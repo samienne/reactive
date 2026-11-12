@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blendmode.h"
+#include "pipelinedesc.h"
 #include "format.h"
 #include "shaderlanguage.h"
 #include "shaderstage.h"
@@ -73,13 +74,8 @@ namespace ase
 
         virtual std::shared_ptr<PipelineImpl> makePipeline(
                 Program program,
-                VertexSpec spec) = 0;
-
-        virtual std::shared_ptr<PipelineImpl> makePipelineWithBlend(
-                Program program,
                 VertexSpec spec,
-                BlendMode srcFactor,
-                BlendMode dstFactor) = 0;
+                PipelineDesc desc) = 0;
 
         virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
                 ShaderInterface iface) = 0;

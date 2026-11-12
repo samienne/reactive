@@ -1,6 +1,7 @@
 #include "glplatform.h"
 
 #include <ase/pipelineimpl.h>
+#include <ase/pipelinedesc.h>
 #include <ase/dispatcher.h>
 
 #include <btl/visibility.h>
@@ -18,14 +19,8 @@ namespace ase
         GlPipeline(
                 GlRenderContext& context,
                 Program program,
-                VertexSpec vertexSpec);
-
-        GlPipeline(
-                GlRenderContext& context,
-                Program program,
                 VertexSpec vertexSpec,
-                BlendMode srcFactor,
-                BlendMode dstFactor);
+                PipelineDesc desc);
 
         GlPipeline(GlPipeline const& rhs) = default;
         GlPipeline(GlPipeline&& rhs) noexcept = default;
@@ -40,6 +35,8 @@ namespace ase
         virtual Program const& getProgram() const override;
         VertexSpec const& getVertexSpec() const override;
         bool isBlendEnabled() const override;
+        bool isDepthTestEnabled() const override;
+        bool isDepthWriteEnabled() const override;
         BlendMode getSrcFactor() const;
         BlendMode getDstFactor() const;
 
@@ -49,6 +46,8 @@ namespace ase
         BlendMode srcFactor_;
         BlendMode dstFactor_;
         bool blendEnabled_;
+        bool depthTest_;
+        bool depthWrite_;
     };
 } // namespace ase
 

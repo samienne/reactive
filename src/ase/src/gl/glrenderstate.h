@@ -64,7 +64,8 @@ namespace ase
         uint64_t boundUniformSetVersion_ = 0;
         std::vector<GLint> activeAttribs_;
         std::vector<GLuint> activeTextures_;
-        bool enableDepthWrite_ = false;
+        bool depthTest_ = true;
+        bool depthWrite_ = true;
         bool blendEnabled_ = false;
     };
 } // namespace ase
