@@ -179,7 +179,8 @@ TEST(Font, rasterizeGlyphSubpixelBins)
 TEST(Font, rasterizeGlyphKeepsTextExtents)
 {
     avg::Font font(fontPath, 0);
-    auto text = utf8::asUtf8("Ab\ncd");
+    std::string const str = "Ab\ncd";
+    auto text = utf8::asUtf8(str);
 
     auto before = font.getTextExtents(text, 18.0f);
     auto path = font.textToPath(pmr::new_delete_resource(), text, 18.0f,
