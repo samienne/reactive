@@ -2,7 +2,7 @@
 
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `d1633d89`
-(2026-11-12).*
+(2026-11-12); the WGL surface note against `ede84a6b` (2026-11-11).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -39,6 +39,21 @@ are in the top-level `docs/`.
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
+- **WGL surface and context.** `WglPlatform` picks one pixel format at
+  construction and `setPixelFormat(dc)` applies it to the dummy DC and every
+  window: the shared contexts are created against the dummy DC, so the two
+  must agree. It bootstraps a legacy context on a throwaway window to load
+  `wglChoosePixelFormatARB` and `wglCreateContextAttribsARB`, then asks for a
+  double-buffered RGBA8 format with 24/8 depth/stencil and
+  `WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB` (GLX asks for
+  `GLX_FRAMEBUFFER_SRGB_CAPABLE_EXT`); when the entry point is missing or no
+  such format exists it keeps the `ChoosePixelFormat` result and says so on
+  `DBG`. Contexts request 3.3 core and fall back, with a `DBG` line, to a
+  legacy `wglCreateContext` context.
+  `GlRenderState` enables `GL_FRAMEBUFFER_SRGB` on every GL backend that
+  reports `GL_ARB_framebuffer_sRGB`; the enable only converts on an
+  sRGB-capable surface, which is why the pixel format matters. Nothing checks the chosen format at run time: verifying it
+  takes a manual run on a machine with a GL driver.
 - **The platform does not own its run loop.** The `btl::RunLoop` is created by
   the caller (bqui's `App`, a test) and injected at construction; `PlatformBase`
   holds it by reference and `runLoop()` returns it. The loop must outlive the
