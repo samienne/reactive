@@ -81,6 +81,7 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor) = 0;
 
-        virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl() = 0;
+        virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
+                ShaderInterface iface) = 0;
     };
 }

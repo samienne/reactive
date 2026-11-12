@@ -170,5 +170,13 @@ samplers with their units. `docs/design/shader-interface.md` is the design;
   the main context is not guaranteed to see program state set after it.
   The dummy backend stores the declaration and reflects nothing, so headless
   tests see the same resolved vertex specs as GL (`Pipeline::getVertexSpec`).
+- **`UniformSet` knows its interface.** It is made by `makeUniformSet(iface)`,
+  binds a range by block name or declared binding, throws
+  `std::invalid_argument` for an undeclared block or a range smaller than the
+  block, and a rebind overwrites (the GL set used to insert and keep the
+  first). `GlRenderState` skips re-binding the ranges of the set it bound
+  last, keyed on the set and its version, which every bind bumps; a cache on
+  the pointer alone would keep a rebound set's old ranges. The dummy set
+  records its bindings for tests.
 - Textures stay positional on the draw: index i binds unit i, and the
   declaration says which sampler lives there.

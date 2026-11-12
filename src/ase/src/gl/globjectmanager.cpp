@@ -105,9 +105,10 @@ std::shared_ptr<GlPipeline> GlObjectManager::makePipelineWithBlend(
             );
 }
 
-std::shared_ptr<GlUniformSet> GlObjectManager::makeUniformSet()
+std::shared_ptr<GlUniformSet> GlObjectManager::makeUniformSet(
+        ShaderInterface iface)
 {
-    return std::make_shared<GlUniformSet>(context_);
+    return std::make_shared<GlUniformSet>(context_, std::move(iface));
 }
 
 } // namespace ase

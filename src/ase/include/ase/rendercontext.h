@@ -108,7 +108,10 @@ namespace ase
         Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
                 BlendMode srcFactor, BlendMode dstFactor);
 
-        UniformSet makeUniformSet();
+        /**
+         * @brief A uniform set for the blocks iface declares.
+         */
+        UniformSet makeUniformSet(ShaderInterface iface);
 
         /** @brief A co-owning handle to this context's implementation.
          *
