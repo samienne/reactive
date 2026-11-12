@@ -1,38 +1,38 @@
 #pragma once
 
+#include "shaderimpl.h"
 #include "dispatcher.h"
 
 #include "asevisibility.h"
 
 #include "systemgl.h"
 
-#include <string>
-
 namespace ase
 {
-    class GlPlatform;
+    class Buffer;
     class GlRenderContext;
 
-    class ASE_EXPORT GlShader
+    class ASE_EXPORT GlShader : public ShaderImpl
     {
     public:
-        GlShader(GlRenderContext& context, std::string const& source,
-                GLenum shaderType);
+        GlShader(GlRenderContext& context, ShaderStage stage,
+                Buffer const& source);
         GlShader(GlShader const& other) = delete;
         GlShader(GlShader&& other) = delete;
-        virtual ~GlShader();
+        ~GlShader() override;
 
         GlShader& operator=(GlShader const& other) = delete;
         GlShader& operator=(GlShader&& other) = delete;
 
+        ShaderStage getStage() const override;
+
     private:
-        void create(Dispatched);
         void destroy();
 
     private:
         friend class GlProgram;
         GlRenderContext& context_;
-        GLuint shader_;
+        ShaderStage stage_;
+        GLuint shader_ = 0;
     };
 }
-

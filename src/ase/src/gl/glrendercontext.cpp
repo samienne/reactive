@@ -2,8 +2,7 @@
 
 #include "glplatform.h"
 #include "glprogram.h"
-#include "glfragmentshader.h"
-#include "glvertexshader.h"
+#include "glshader.h"
 #include "glvertexbuffer.h"
 #include "glindexbuffer.h"
 #include "gluniformbuffer.h"
@@ -19,8 +18,8 @@
 
 #include "commandbuffer.h"
 #include "rendercommand.h"
-#include "vertexshader.h"
-#include "fragmentshader.h"
+#include "shader.h"
+#include "shaderinterface.h"
 #include "buffer.h"
 #include "debug.h"
 
@@ -136,23 +135,31 @@ GlFramebuffer& GlRenderContext::getSharedFramebuffer(Dispatched)
     return sharedFramebuffer_;
 }
 
+std::vector<ShaderLanguage> const& GlRenderContext::getShaderLanguages()
+    const
+{
+    static std::vector<ShaderLanguage> const languages = {
+        ShaderLanguage::Glsl330
+    };
+
+    return languages;
+}
+
+std::shared_ptr<ShaderImpl> GlRenderContext::makeShaderImpl(
+        ShaderStage stage,
+        ShaderLanguage /*language*/,
+        Buffer const& source)
+{
+    return objectManager_.makeShader(stage, source);
+}
+
 std::shared_ptr<ProgramImpl> GlRenderContext::makeProgramImpl(
-        VertexShader const& vertexShader,
-        FragmentShader const& fragmentShader)
+        Shader const& vertexShader,
+        Shader const& fragmentShader,
+        ShaderInterface iface)
 {
-    return objectManager_.makeProgram(vertexShader, fragmentShader);
-}
-
-std::shared_ptr<VertexShaderImpl> GlRenderContext::makeVertexShaderImpl(
-        std::string const& source)
-{
-    return objectManager_.makeVertexShader(source);
-}
-
-std::shared_ptr<FragmentShaderImpl> GlRenderContext::makeFragmentShaderImpl(
-        std::string const& source)
-{
-    return objectManager_.makeFragmentShader(source);
+    return objectManager_.makeProgram(vertexShader, fragmentShader,
+            std::move(iface));
 }
 
 std::shared_ptr<VertexBufferImpl> GlRenderContext::makeVertexBufferImpl()

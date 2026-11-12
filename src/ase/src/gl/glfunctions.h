@@ -56,6 +56,13 @@ namespace ase
         PFNGLDELETEVERTEXARRAYSPROC glDeleteVertexArrays = nullptr;
         PFNGLBINDBUFFERRANGEPROC glBindBufferRange = nullptr;
         PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = nullptr;
+        PFNGLBINDATTRIBLOCATIONPROC glBindAttribLocation = nullptr;
+        PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding = nullptr;
+        PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = nullptr;
+        PFNGLGETACTIVEUNIFORMBLOCKNAMEPROC glGetActiveUniformBlockName
+            = nullptr;
+        PFNGLGETACTIVEUNIFORMSIVPROC glGetActiveUniformsiv = nullptr;
+        PFNGLGETUNIFORMIVPROC glGetUniformiv = nullptr;
         PFNGLACTIVETEXTUREPROC glActiveTexture = nullptr;
         PFNGLRENDERBUFFERSTORAGEPROC glRenderbufferStorage = nullptr;
         PFNGLDELETERENDERBUFFERSPROC glDeleteRenderbuffers = nullptr;

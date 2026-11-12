@@ -4,6 +4,8 @@
 #include "format.h"
 #include "vector.h"
 #include "blendmode.h"
+#include "shaderlanguage.h"
+#include "shaderstage.h"
 
 #include "asevisibility.h"
 
@@ -17,8 +19,8 @@ namespace ase
     class RenderContextImpl;
     class Platform;
     class CommandBuffer;
-    class VertexShader;
-    class FragmentShader;
+    class Shader;
+    class ShaderInterface;
     class Program;
     class VertexBuffer;
     class IndexBuffer;
@@ -68,10 +70,34 @@ namespace ase
         RenderQueue getMainRenderQueue();
         RenderQueue getTransferQueue();
 
-        VertexShader makeVertexShader(std::string const& source);
-        FragmentShader makeFragmentShader(std::string const& source);
-        Program makeProgram(VertexShader vertexShader,
-                FragmentShader fragmentShader);
+        /**
+         * @brief The shader languages this context compiles, most preferred
+         * first.
+         */
+        std::vector<ShaderLanguage> const& getShaderLanguages() const;
+
+        /**
+         * @brief Compiles the source bytes of one stage.
+         *
+         * Throws UnsupportedShaderLanguage when the language is not in
+         * getShaderLanguages(), and std::runtime_error when the source does
+         * not compile.
+         */
+        Shader makeShader(ShaderStage stage, ShaderLanguage language,
+                Buffer const& source);
+
+        /**
+         * @brief Links a vertex and a fragment shader into a program whose
+         * inputs are those the interface declares.
+         *
+         * Throws std::invalid_argument when a shader is of the wrong stage
+         * and std::runtime_error when the program does not link or, where
+         * the backend can check, when the compiled program disagrees with
+         * the interface.
+         */
+        Program makeProgram(Shader vertexShader, Shader fragmentShader,
+                ShaderInterface iface);
+
         VertexBuffer makeVertexBuffer();
         IndexBuffer makeIndexBuffer();
         UniformBuffer makeUniformBuffer();
@@ -108,4 +134,3 @@ namespace ase
         inline RenderContextImpl const* d() const { return deferred_.get(); }
     };
 }
-

@@ -9,12 +9,13 @@
 #include "dummyuniformbuffer.h"
 #include "dummyindexbuffer.h"
 #include "dummyvertexbuffer.h"
-#include "dummyvertexshader.h"
-#include "dummyfragmentshader.h"
+#include "dummyshader.h"
 #include "dummyprogram.h"
 
 #include "buffer.h"
 #include "program.h"
+#include "shader.h"
+#include "shaderinterface.h"
 #include "vertexspec.h"
 #include <memory>
 
@@ -37,23 +38,35 @@ std::shared_ptr<RenderQueueImpl> DummyRenderContext::getTransferQueue()
     return std::make_shared<DummyRenderQueue>();
 }
 
+std::vector<ShaderLanguage> const& DummyRenderContext::getShaderLanguages()
+    const
+{
+    static std::vector<ShaderLanguage> const languages = {
+        ShaderLanguage::Glsl330,
+        ShaderLanguage::GlslEs300,
+        ShaderLanguage::Glsl450,
+        ShaderLanguage::SpirV,
+        ShaderLanguage::Wgsl,
+        ShaderLanguage::Msl
+    };
+
+    return languages;
+}
+
+std::shared_ptr<ShaderImpl> DummyRenderContext::makeShaderImpl(
+        ShaderStage stage,
+        ShaderLanguage /*language*/,
+        Buffer const& /*source*/)
+{
+    return std::make_shared<DummyShader>(stage);
+}
+
 std::shared_ptr<ProgramImpl> DummyRenderContext::makeProgramImpl(
-        VertexShader const& /*vertexShader*/,
-        FragmentShader const& /*fragmentShader*/)
+        Shader const& /*vertexShader*/,
+        Shader const& /*fragmentShader*/,
+        ShaderInterface iface)
 {
-    return std::make_shared<DummyProgram>();
-}
-
-std::shared_ptr<VertexShaderImpl> DummyRenderContext::makeVertexShaderImpl(
-        std::string const& /*source*/)
-{
-    return std::make_shared<DummyVertexShader>();
-}
-
-std::shared_ptr<FragmentShaderImpl> DummyRenderContext::makeFragmentShaderImpl(
-        std::string const& /*source*/)
-{
-    return std::make_shared<DummyFragmentShader>();
+    return std::make_shared<DummyProgram>(std::move(iface));
 }
 
 std::shared_ptr<VertexBufferImpl> DummyRenderContext::makeVertexBufferImpl()
@@ -91,18 +104,20 @@ std::shared_ptr<FramebufferImpl> DummyRenderContext::makeFramebufferImpl()
 
 std::shared_ptr<PipelineImpl> DummyRenderContext::makePipeline(
         Program program,
-        VertexSpec /*spec*/)
+        VertexSpec spec)
 {
-    return std::make_shared<DummyPipeline>(std::move(program), false);
+    return std::make_shared<DummyPipeline>(std::move(program),
+            std::move(spec), false);
 }
 
 std::shared_ptr<PipelineImpl> DummyRenderContext::makePipelineWithBlend(
         Program program,
-        VertexSpec /*spec*/,
+        VertexSpec spec,
         BlendMode /*srcFactor*/,
         BlendMode /*dstFactor*/)
 {
-    return std::make_shared<DummyPipeline>(std::move(program), true);
+    return std::make_shared<DummyPipeline>(std::move(program),
+            std::move(spec), true);
 }
 
 std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()
@@ -111,4 +126,3 @@ std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()
 }
 
 } // namespace ase
-

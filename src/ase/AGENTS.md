@@ -1,7 +1,8 @@
 # ase — agent notes
 
 *Last verified against `6b21821` (2026-08-18); the texture note against
-`f3ed6e5` (2026-10-22).*
+`f3ed6e5` (2026-10-22); the shader interface section against `46124af6`
+(2026-11-11).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -139,7 +140,35 @@ are in the top-level `docs/`.
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
+
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
   `AGENTS.md` cover this).
+
+## Shader interface and uniforms
+
+The contract between a program and the C++ that feeds it is a
+`ShaderInterface` (`shaderinterface.h`) the caller declares: vertex attributes
+with their locations, uniform blocks with their bindings and std140 members,
+samplers with their units. `docs/design/shader-interface.md` is the design;
+`docs/decisions.md` records why it is declared rather than introspected.
+
+- **Shaders are bytes in a declared language.**
+  `RenderContext::getShaderLanguages` lists what a backend compiles (GL:
+  GLSL 330; dummy: everything) and `makeShader` takes a stage, a language
+  and a `Buffer`, so a caller picks its variant from the list instead of
+  assuming GLSL. `makeProgram` takes the two shaders and the interface.
+- **GL applies the declaration at link; reflection only validates.** The GL
+  backend sets attribute locations before linking and the block bindings and
+  sampler units after it, straight from the declaration, so GLSL 330 source
+  needs no `layout(binding = N)` and no 420pack extension. In debug builds it
+  then reflects the linked program and compares: a declared name the shader
+  lacks, or a location, binding, unit or std140 offset that differs, fails
+  loudly instead of rendering garbage. Release builds skip the comparison.
+  All of it runs on the background context, whose `glFlush` must come last:
+  the main context is not guaranteed to see program state set after it.
+  The dummy backend stores the declaration and reflects nothing, so headless
+  tests see the same resolved vertex specs as GL (`Pipeline::getVertexSpec`).
+- Textures stay positional on the draw: index i binds unit i, and the
+  declaration says which sampler lives there.

@@ -2,6 +2,8 @@
 
 #include "blendmode.h"
 #include "format.h"
+#include "shaderlanguage.h"
+#include "shaderstage.h"
 #include "usage.h"
 #include "vector.h"
 
@@ -17,8 +19,7 @@ namespace ase
     class CommandBuffer;
 
     class ProgramImpl;
-    class VertexShaderImpl;
-    class FragmentShaderImpl;
+    class ShaderImpl;
     class VertexBufferImpl;
     class IndexBufferImpl;
     class UniformBufferImpl;
@@ -28,8 +29,8 @@ namespace ase
     class Buffer;
     class PipelineImpl;
     class Program;
-    class FragmentShader;
-    class VertexShader;
+    class Shader;
+    class ShaderInterface;
     class VertexSpec;
     class UniformSet;
     class RenderbufferImpl;
@@ -43,15 +44,18 @@ namespace ase
         virtual std::shared_ptr<RenderQueueImpl> getMainRenderQueue() = 0;
         virtual std::shared_ptr<RenderQueueImpl> getTransferQueue() = 0;
 
+        virtual std::vector<ShaderLanguage> const& getShaderLanguages()
+            const = 0;
+
+        virtual std::shared_ptr<ShaderImpl> makeShaderImpl(
+                ShaderStage stage,
+                ShaderLanguage language,
+                Buffer const& source) = 0;
+
         virtual std::shared_ptr<ProgramImpl> makeProgramImpl(
-                VertexShader const& vertexShader,
-                FragmentShader const& fragmentShader) = 0;
-
-        virtual std::shared_ptr<VertexShaderImpl> makeVertexShaderImpl(
-                std::string const& source) = 0;
-
-        virtual std::shared_ptr<FragmentShaderImpl> makeFragmentShaderImpl(
-                std::string const& source) = 0;
+                Shader const& vertexShader,
+                Shader const& fragmentShader,
+                ShaderInterface iface) = 0;
 
         virtual std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl() = 0;
 
@@ -80,4 +84,3 @@ namespace ase
         virtual std::shared_ptr<UniformSetImpl> makeUniformSetImpl() = 0;
     };
 }
-
