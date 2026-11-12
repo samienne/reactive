@@ -58,7 +58,8 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor) override;
 
-        std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
+        std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
+                ShaderInterface iface) override;
 
     private:
         // Upward-strong ref to the platform this context was made by; keeps the

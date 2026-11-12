@@ -120,9 +120,9 @@ Pipeline RenderContext::makePipelineWithBlend(Program program,
                 dstFactor));
 }
 
-UniformSet RenderContext::makeUniformSet()
+UniformSet RenderContext::makeUniformSet(ShaderInterface iface)
 {
-    return UniformSet(d()->makeUniformSetImpl());
+    return UniformSet(d()->makeUniformSetImpl(std::move(iface)));
 }
 
 } // namespace ase

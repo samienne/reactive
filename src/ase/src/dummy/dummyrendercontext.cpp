@@ -120,9 +120,10 @@ std::shared_ptr<PipelineImpl> DummyRenderContext::makePipelineWithBlend(
             std::move(spec), true);
 }
 
-std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl()
+std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl(
+        ShaderInterface iface)
 {
-    return std::make_shared<DummyUniformSet>();
+    return std::make_shared<DummyUniformSet>(std::move(iface));
 }
 
 } // namespace ase

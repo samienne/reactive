@@ -211,9 +211,10 @@ std::shared_ptr<PipelineImpl> GlRenderContext::makePipelineWithBlend(
             std::move(spec), srcFactor, dstFactor);
 }
 
-std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl()
+std::shared_ptr<UniformSetImpl> GlRenderContext::makeUniformSetImpl(
+        ShaderInterface iface)
 {
-    return objectManager_.makeUniformSet();
+    return objectManager_.makeUniformSet(std::move(iface));
 }
 
 } // namespace

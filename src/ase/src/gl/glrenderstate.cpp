@@ -496,9 +496,11 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             boundIbo_ = ibo;
         }
 
-        if (boundUniformSet_ != &uniformSet)
+        if (boundUniformSet_ != &uniformSet
+                || boundUniformSetVersion_ != uniformSet.getVersion())
         {
             boundUniformSet_ = &uniformSet;
+            boundUniformSetVersion_ = uniformSet.getVersion();
 
             for (auto const& uniformRange : uniformSet)
             {

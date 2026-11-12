@@ -142,6 +142,7 @@ asetest = executable('asetest',
   'test/genericwindowtest.cpp',
   'test/shaderinterfacetest.cpp',
   'test/texturetest.cpp',
+  'test/uniformtest.cpp',
   dependencies: [gtestdep, libasedep],
   )
 

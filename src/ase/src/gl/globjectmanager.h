@@ -68,7 +68,7 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor);
 
-        std::shared_ptr<GlUniformSet> makeUniformSet();
+        std::shared_ptr<GlUniformSet> makeUniformSet(ShaderInterface iface);
 
     private:
         GlRenderContext& context_;

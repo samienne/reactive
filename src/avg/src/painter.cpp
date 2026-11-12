@@ -173,7 +173,7 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     textPipeline_(makeTextPipeline(context)),
     glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
     buffer_(),
-    uniformSet_(context.makeUniformSet()),
+    uniformSet_(context.makeUniformSet(matrixInterface())),
     uniformBuffer_(context.makeUniformBuffer())
 {
     uniformSet_.bindUniformBufferRange(0,
