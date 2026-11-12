@@ -2,7 +2,8 @@
 
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `3c3dfb34`
-(2026-11-12); the WGL surface note against `ede84a6b` (2026-11-11).*
+(2026-11-12); the WGL surface and the format notes against `ede84a6b`
+(2026-11-11).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -155,6 +156,20 @@ are in the top-level `docs/`.
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
+- **Formats.** `format.h` has four colour formats and five depth formats.
+  Colour formats make textures and are all colour-renderable under a core
+  profile (`src/gl/glformat.h` maps them to sized internal formats):
+  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_SRGB` -> `GL_SRGB8`,
+  `FORMAT_R8` -> `GL_R8` (all uploaded as `GL_UNSIGNED_BYTE`), and
+  `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
+  8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
+  `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
+  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; `GlFramebuffer`
+  has no separate stencil target. `getBytes` is the upload pixel size the
+  buffer checks use. Every switch over `Format` lists each enumerator with no
+  `default`, so adding a format fails to compile until it is placed in each
+  of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
+  covers only the public contract, not the GL mapping.
 
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
