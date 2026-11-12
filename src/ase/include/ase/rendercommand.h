@@ -2,9 +2,11 @@
 
 #include "window.h"
 #include "drawcommand.h"
+#include "scissorrect.h"
 
 #include <btl/future/promise.h>
 
+#include <optional>
 #include <variant>
 
 namespace ase
@@ -19,11 +21,23 @@ namespace ase
         bool color = true;
         bool depth = true;
         bool stencil = true;
+        std::optional<ScissorRect> scissor;
     };
 
     struct FenceCommand
     {
         btl::future::Promise<> promise;
+    };
+
+    /**
+     * @brief Ends the run of draws before it; otherwise does nothing.
+     *
+     * Draws between two non-draw commands may be reordered against each
+     * other. A barrier separates draws that must stay in order, such as
+     * a draw into a texture and a later draw that samples it.
+     */
+    struct BarrierCommand
+    {
     };
 
     struct BufferUploadCommand
@@ -53,6 +67,7 @@ namespace ase
         DrawCommand,
         ClearCommand,
         FenceCommand,
+        BarrierCommand,
         BufferUploadCommand,
         TextureUploadCommand,
         TextureSubUploadCommand

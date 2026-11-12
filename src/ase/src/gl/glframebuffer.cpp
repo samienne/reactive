@@ -2,6 +2,7 @@
 
 #include "gltexture.h"
 #include "glrenderbuffer.h"
+#include "glformat.h"
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "glfunctions.h"
@@ -126,13 +127,19 @@ void GlFramebuffer::makeCurrent(Dispatched d, GlDispatchedContext&,
             ++index;
         }
 
+        // The attachment point follows the target's format, so a target
+        // replaced by one of another format would stay attached.
+        gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+
         if (depthTarget_.has_value())
         {
             GlRenderbuffer& depth = const_cast<GlRenderbuffer&>(
                     depthTarget_->getImpl<GlRenderbuffer>());
             depth.makeCurrent(d, gl);
 
-            gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+            gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                    formatToGlDepthAttachment(depth.getFormat()),
                     GL_RENDERBUFFER, depth.getGlObject());
         }
     }

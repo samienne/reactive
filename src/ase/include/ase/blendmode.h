@@ -21,5 +21,17 @@ namespace ase
         ConstantAlpha,
         OneMinusConstantAlpha
     };
+
+    /**
+     * @brief The source and destination factors of a blended pipeline.
+     *
+     * `BlendFunc{ BlendMode::One, BlendMode::OneMinusSrcAlpha }` is
+     * premultiplied over.
+     */
+    struct BlendFunc
+    {
+        BlendMode srcFactor;
+        BlendMode dstFactor;
+    };
 }
 

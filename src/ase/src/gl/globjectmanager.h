@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blendmode.h"
+#include "pipelinedesc.h"
 #include "usage.h"
 #include "vector.h"
 #include "format.h"
@@ -60,13 +61,8 @@ namespace ase
 
         std::shared_ptr<GlPipeline> makePipeline(
                 Program program,
-                VertexSpec spec);
-
-        std::shared_ptr<GlPipeline> makePipelineWithBlend(
-                Program program,
                 VertexSpec spec,
-                BlendMode srcFactor,
-                BlendMode dstFactor);
+                PipelineDesc desc);
 
         std::shared_ptr<GlUniformSet> makeUniformSet(ShaderInterface iface);
 

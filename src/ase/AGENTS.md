@@ -2,7 +2,8 @@
 
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `d1633d89`
-(2026-11-12).*
+(2026-11-12); the WGL surface and the format notes against `0a7233e5`
+(2026-11-12); the command buffer section against `0a7233e5` (2026-11-12).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -39,6 +40,21 @@ are in the top-level `docs/`.
   returns the native backend where one exists (GLX/WGL) and the dummy otherwise;
   a dependent that must avoid opening a real window (e.g. `apptest` in
   `src/bqui/meson.build`) keys off the target OS.
+- **WGL surface and context.** `WglPlatform` picks one pixel format at
+  construction and `setPixelFormat(dc)` applies it to the dummy DC and every
+  window: the shared contexts are created against the dummy DC, so the two
+  must agree. It bootstraps a legacy context on a throwaway window to load
+  `wglChoosePixelFormatARB` and `wglCreateContextAttribsARB`, then asks for a
+  double-buffered RGBA8 format with 24/8 depth/stencil and
+  `WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB` (GLX asks for
+  `GLX_FRAMEBUFFER_SRGB_CAPABLE_EXT`); when the entry point is missing or no
+  such format exists it keeps the `ChoosePixelFormat` result and says so on
+  `DBG`. Contexts request 3.3 core and fall back, with a `DBG` line, to a
+  legacy `wglCreateContext` context.
+  `GlRenderState` enables `GL_FRAMEBUFFER_SRGB` on every GL backend that
+  reports `GL_ARB_framebuffer_sRGB`; the enable only converts on an
+  sRGB-capable surface, which is why the pixel format matters. Nothing checks the chosen format at run time: verifying it
+  takes a manual run on a machine with a GL driver.
 - **The platform does not own its run loop.** The `btl::RunLoop` is created by
   the caller (bqui's `App`, a test) and injected at construction; `PlatformBase`
   holds it by reference and `runLoop()` returns it. The loop must outlive the
@@ -134,17 +150,98 @@ are in the top-level `docs/`.
   once at setup so its odd-width rows upload tightly packed.
   `CommandBuffer::pushSubUpload` replaces a rectangle of an existing texture
   (`glTexSubImage2D`). Both uploads are non-draw
-  commands, and the GL queue (`src/gl/glrenderstate.cpp`) sorts only the runs
-  of draw commands between non-draw commands, so an upload keeps its place
-  relative to the draws around it. Uploads bind on texture unit 0 and record
+  commands, so they end a run of draws (see "Command buffer and draw
+  order") and keep their place relative to the draws around them.
+  Uploads bind on texture unit 0 and record
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
+- **Formats.** `format.h` has four colour formats and five depth formats.
+  Colour formats make textures and are all colour-renderable under a core
+  profile (`src/gl/glformat.h` maps them to sized internal formats):
+  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_SRGB` -> `GL_SRGB8`,
+  `FORMAT_R8` -> `GL_R8` (all uploaded as `GL_UNSIGNED_BYTE`), and
+  `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
+  8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
+  `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
+  `FORMAT_DEPTH24_STENCIL8` at `GL_DEPTH_STENCIL_ATTACHMENT`; `GlFramebuffer`
+  has no separate stencil target. `getBytes` is the upload pixel size the
+  buffer checks use. Every switch over `Format` lists each enumerator with no
+  `default`, so adding a format fails to compile until it is placed in each
+  of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
+  covers only the public contract, not the GL mapping.
 
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
   clang must be `clang-cl`, not `clang++` (the build notes in the repo-root
   `AGENTS.md` cover this).
+
+## Command buffer and draw order
+
+A `CommandBuffer` (`commandbuffer.h`) is a vector of `RenderCommand`
+(`rendercommand.h`), a variant of `DrawCommand`, `ClearCommand`,
+`FenceCommand`, `BarrierCommand`, `BufferUploadCommand`,
+`TextureUploadCommand` and `TextureSubUploadCommand`. A queue takes the
+buffer whole on `submit`; the dummy queue draws nothing, completes fences
+inline and, with `recordSubmissions(true)`, keeps the buffers for a test to
+read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
+
+- **Runs and the fence rule.** The GL queue reorders draws for state
+  batching, but only within a *run*: the maximal sequence of consecutive
+  depth-tested `DrawCommand`s. Every other command ends the run before it,
+  so a clear, fence or upload keeps its place relative to the draws on
+  either side. So does a draw whose pipeline has `depthTest = false`: depth
+  cannot settle it against its neighbours, so it stays in submission order.
+  `pushBarrier()` adds the command whose only effect is that split: the GL
+  loop skips it without a GL call, since a framebuffer write is already
+  visible to the draws submitted after it. A draw that samples a texture an
+  earlier draw in the same frame rendered needs a barrier between them, or
+  the sort may swap them. The splitting is `sortDrawRuns` in
+  `commandbuffer.h`, a template the GL state instantiates with
+  `compareCommand` (`src/gl/glrenderstate.cpp`) and the test with a z
+  comparator. It stable-sorts a permutation of iterators and moves the
+  commands into place: MSVC's `std::stable_sort` refuses a temporary buffer
+  of the 16-byte-aligned `RenderCommand`, and the stability means draws with
+  equal keys stay in submission order.
+- **The sort key.** `compareCommand` splits a run into draws that may go in
+  any order (opaque, depth-tested *and* depth-writing: depth settles them)
+  and the rest (depth-tested but blended or not depth-writing), any-order
+  first. Any-order draws then sort by framebuffer,
+  scissor, textures, program, vertex buffer, index buffer, uniform set and
+  z. The rest sort by framebuffer, then z descending (the painter assigns a
+  lower z to a later-painted element, so this is paint order), then the same
+  state keys with the scissor last, so two draws with different scissors
+  only reorder when nothing else distinguishes them. The key compares
+  handles and integers only; z is the one float, and only as an ordering.
+- **Scissor.** `DrawCommand` and `ClearCommand` carry an
+  `std::optional<ScissorRect>` (`scissorrect.h`: `x, y, width, height` in
+  framebuffer pixels, origin bottom-left as `gl_FragCoord` has it);
+  `push` and `pushClear` take it as a trailing argument, unset by default.
+  `GlRenderState::setScissor` enables `GL_SCISSOR_TEST` and calls
+  `glScissor` when a command carries a rectangle, disables the test when
+  one does not, and tracks the current value so a run of equally scissored
+  commands costs nothing. `glClear` honours the scissor, which is how a
+  clear is limited to a region. The viewport is separate: the framebuffer
+  sets it to its full size on bind, and the scissor never changes it.
+- **Pipeline state.** `makePipeline(program, spec, PipelineDesc)`
+  (`pipelinedesc.h`) is the one creation path; `makePipelineWithBlend` is a
+  wrapper that sets `blend`. `PipelineDesc` holds an optional `BlendFunc`,
+  `depthTest` (default on) and `depthWrite`, which left unset resolves
+  (`writesDepth()`) to on for an opaque and off for a blended pipeline, the
+  behaviour the GL state used to derive from the blend flag. Every backend's
+  pipeline reports `isBlendEnabled`, `isDepthTestEnabled` and
+  `isDepthWriteEnabled`; the dummy stores the desc. `GlRenderState` tracks
+  depth test, depth mask and blend enable as three separate booleans
+  initialised to the GL defaults it sets up (`GL_DEPTH_TEST` on, mask true,
+  blend off), switches each when the pipeline differs, and compares the
+  blend factors on every blended draw rather than only when blending turns
+  on. A clear with the depth bit forces the mask back on first, since
+  `glClear` obeys it, and the next draw restores its pipeline's mask.
+- **What CI does not run.** All of the above compiles on every leg and the
+  dummy tests cover the command shapes, the run splitting and the pipeline
+  flags, but no GL context runs in CI: the scissor and depth switches in
+  `glrenderstate.cpp` have only been compiled. A change there needs a
+  manual run of an app or `bquiheadlesstest` on a machine with a driver.
 
 ## Shader interface and uniforms
 
