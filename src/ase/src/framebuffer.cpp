@@ -62,5 +62,15 @@ void Framebuffer::unsetStencilTarget()
     d()->unsetStencilTarget();
 }
 
+Format Framebuffer::getColorFormat() const
+{
+    return d()->getColorFormat();
+}
+
+std::optional<Format> Framebuffer::getDepthFormat() const
+{
+    return d()->getDepthFormat();
+}
+
 } // namespace ase
 

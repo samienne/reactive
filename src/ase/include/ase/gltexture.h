@@ -43,8 +43,6 @@ namespace ase
         GLuint getGlObject() const;
 
         // From TextureImpl
-        void setSize(Vector2i size) override;
-        void setFormat(Format format) override;
         Vector2i getSize() const override;
         Format getFormat() const override;
 

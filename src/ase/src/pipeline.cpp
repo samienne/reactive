@@ -1,5 +1,6 @@
 #include "pipeline.h"
 
+#include "framebuffer.h"
 #include "rendercontext.h"
 #include "platform.h"
 
@@ -36,6 +37,16 @@ VertexSpec const& Pipeline::getVertexSpec() const
     return d()->getVertexSpec();
 }
 
+Format Pipeline::getColorFormat() const
+{
+    return d()->getColorFormat();
+}
+
+std::optional<Format> Pipeline::getDepthFormat() const
+{
+    return d()->getDepthFormat();
+}
+
 bool Pipeline::isBlendEnabled() const
 {
     return d()->isBlendEnabled();
@@ -49,6 +60,19 @@ bool Pipeline::isDepthTestEnabled() const
 bool Pipeline::isDepthWriteEnabled() const
 {
     return d()->isDepthWriteEnabled();
+}
+
+bool Pipeline::matchesTarget(Framebuffer const& target) const
+{
+    if (target.getColorFormat() != getColorFormat())
+        return false;
+
+    std::optional<Format> const targetDepth = target.getDepthFormat();
+    std::optional<Format> const depth = getDepthFormat();
+    if (targetDepth.has_value() != depth.has_value())
+        return false;
+
+    return !depth || *targetDepth == FORMAT_UNKNOWN || *targetDepth == *depth;
 }
 
 } // namespace ase

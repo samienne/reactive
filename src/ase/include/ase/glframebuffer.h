@@ -67,6 +67,9 @@ namespace ase
         void setStencilTarget(Renderbuffer buffer) override;
         void unsetStencilTarget() override;
 
+        Format getColorFormat() const override;
+        std::optional<Format> getDepthFormat() const override;
+
     private:
         friend class GlRenderContext;
         GlFramebuffer(GlRenderContext& context, std::nullptr_t);

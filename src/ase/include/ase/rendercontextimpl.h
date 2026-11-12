@@ -3,6 +3,7 @@
 #include "blendmode.h"
 #include "pipelinedesc.h"
 #include "format.h"
+#include "matrix.h"
 #include "shaderlanguage.h"
 #include "shaderstage.h"
 #include "usage.h"
@@ -81,5 +82,7 @@ namespace ase
                 ShaderInterface iface) = 0;
 
         virtual size_t getUniformBufferOffsetAlignment() const = 0;
+
+        virtual Matrix4f getClipSpaceAdjustment() const = 0;
     };
 }

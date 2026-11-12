@@ -95,16 +95,6 @@ GLuint GlTexture::getGlObject() const
     return texture_;
 }
 
-void GlTexture::setSize(Vector2i size)
-{
-    size_ = size;
-}
-
-void GlTexture::setFormat(Format format)
-{
-    format_ = format;
-}
-
 Vector2i GlTexture::getSize() const
 {
     return size_;

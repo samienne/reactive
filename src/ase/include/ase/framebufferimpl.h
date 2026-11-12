@@ -1,8 +1,11 @@
 #pragma once
 
+#include "format.h"
+
 #include "asevisibility.h"
 
 #include <memory>
+#include <optional>
 
 namespace ase
 {
@@ -23,6 +26,9 @@ namespace ase
 
         virtual void setStencilTarget(Renderbuffer buffer) = 0;
         virtual void unsetStencilTarget() = 0;
+
+        virtual Format getColorFormat() const = 0;
+        virtual std::optional<Format> getDepthFormat() const = 0;
     };
 } // namespace ase
 

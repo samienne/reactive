@@ -3,7 +3,10 @@
 *Last verified against `6b21821` (2026-08-18); the texture note against
 `f3ed6e5` (2026-10-22); the shader interface section against `d1633d89`
 (2026-11-12); the WGL surface and the format notes against `0a7233e5`
-(2026-11-12); the command buffer section against `0a7233e5` (2026-11-12).*
+(2026-11-12); the command buffer section against `0a7233e5` (2026-11-12); the
+pipeline state and target format notes against `e640ee69` (2026-11-12); the
+submission contract, clip-space, texture and format notes against `e640ee69`
+(2026-11-12).*
 
 The GPU + platform layer. Concepts are in `readme.md`; project-wide conventions
 are in the top-level `docs/`.
@@ -53,8 +56,12 @@ are in the top-level `docs/`.
   legacy `wglCreateContext` context.
   `GlRenderState` enables `GL_FRAMEBUFFER_SRGB` on every GL backend that
   reports `GL_ARB_framebuffer_sRGB`; the enable only converts on an
-  sRGB-capable surface, which is why the pixel format matters. Nothing checks the chosen format at run time: verifying it
-  takes a manual run on a machine with a GL driver.
+  sRGB-capable surface, which is why the pixel format matters. Nothing
+  checks the chosen format at run time: verifying it takes a manual run on
+  a machine with a GL driver. A window's framebuffer reports the formats
+  the request asked for (`FORMAT_SRGBA`; depth `FORMAT_DEPTH24_STENCIL8` on
+  WGL, `FORMAT_DEPTH24` on GLX), which is what a pipeline presenting to the
+  window declares.
 - **The platform does not own its run loop.** The `btl::RunLoop` is created by
   the caller (bqui's `App`, a test) and injected at construction; `PlatformBase`
   holds it by reference and `runLoop()` returns it. The loop must outlive the
@@ -145,22 +152,27 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
-- **Textures and uploads.** `FORMAT_R8` is a linear single-channel 8-bit
-  format (avg's glyph coverage); the GL context sets `GL_UNPACK_ALIGNMENT` to 1
-  once at setup so its odd-width rows upload tightly packed.
-  `CommandBuffer::pushSubUpload` replaces a rectangle of an existing texture
-  (`glTexSubImage2D`). Both uploads are non-draw
+- **Textures and uploads.** A texture's size and format are fixed by
+  `makeTexture`: `TextureImpl` has no setters, `CommandBuffer::pushUpload`
+  of a whole texture asserts that the size and format it is given are the
+  texture's (and `GlTexture::setData` asserts it again on the render
+  thread), and a consumer that needs a bigger texture makes a new one, as
+  avg's glyph atlas and `TargetImage` do. `FORMAT_R8` is a linear
+  single-channel 8-bit format (avg's glyph coverage); the GL context sets
+  `GL_UNPACK_ALIGNMENT` to 1 once at setup so its odd-width rows upload
+  tightly packed. `CommandBuffer::pushSubUpload` replaces a rectangle of an
+  existing texture (`glTexSubImage2D`). Both uploads are non-draw
   commands, so they end a run of draws (see "Command buffer and draw
   order") and keep their place relative to the draws around them.
   Uploads bind on texture unit 0 and record
   the binding there, because the draw path compares each texture against its
   own unit's recorded binding; an upload on another unit leaves that record
   stale and a later draw skips a bind it needed.
-- **Formats.** `format.h` has four colour formats and five depth formats.
+- **Formats.** `format.h` has three colour formats and five depth formats.
   Colour formats make textures and are all colour-renderable under a core
   profile (`src/gl/glformat.h` maps them to sized internal formats):
-  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_SRGB` -> `GL_SRGB8`,
-  `FORMAT_R8` -> `GL_R8` (all uploaded as `GL_UNSIGNED_BYTE`), and
+  `FORMAT_SRGBA` -> `GL_SRGB8_ALPHA8`, `FORMAT_R8` -> `GL_R8` (both uploaded
+  as `GL_UNSIGNED_BYTE`), and
   `FORMAT_RGBA16F` -> `GL_RGBA16F` (uploaded as `GL_HALF_FLOAT`, linear,
   8 bytes a pixel). Depth formats make renderbuffers only: `FORMAT_DEPTH16`,
   `_DEPTH24`, `_DEPTH32`, `_DEPTH32F` attach at `GL_DEPTH_ATTACHMENT` and
@@ -169,7 +181,28 @@ are in the top-level `docs/`.
   buffer checks use. Every switch over `Format` lists each enumerator with no
   `default`, so adding a format fails to compile until it is placed in each
   of them; the dummy backend accepts any format, so `test/framebuffertest.cpp`
-  covers only the public contract, not the GL mapping.
+  covers only the public contract, not the GL mapping. There is no
+  three-byte RGB format.
+- **Submission executes now or later; no backend thread is promised.**
+  `RenderQueue::submit` promises only that the commands execute in order.
+  The GL queue runs them on a dedicated thread (`GlRenderQueue::dispatch`)
+  because a GL context is bound to one thread; the dummy queue runs
+  `submit` inline. Neither is the contract, and nothing outside
+  `src/gl/` may depend on the thread (the `Dispatched` tag marks what runs
+  there). The backend keeps everything a submitted frame references alive
+  until that frame completes, where completion is the frame's fence and
+  the number of frames in flight is bounded by the window's `canAcquire`
+  budget, so a caller may drop its handles after `submit`.
+- **Coordinate conventions are GL's; only the clip-space adjustment is
+  queryable.** Scissor rectangles have a bottom-left origin, texel rows
+  upload bottom-up and viewports follow GL; a non-GL backend converts those
+  itself. The one thing it cannot fix after the fact is the depth range and
+  Y direction baked into a caller's projection, so
+  `RenderContext::getClipSpaceAdjustment()` returns the matrix that maps
+  GL clip space to the backend's, for the caller to multiply into its
+  projection once; `GlRenderContext` and `DummyRenderContext` return the
+  identity (`test/rendercontexttest.cpp`), and avg's painter applies it
+  in `Painter::setSize`.
 
 - The root `meson.build` adds MSVC-style flags (`/wd4251`, `/bigobj`, `/UNICODE`)
   for any Windows build; those assume an MSVC-compatible driver, which is why
@@ -224,19 +257,37 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   clear is limited to a region. The viewport is separate: the framebuffer
   sets it to its full size on bind, and the scissor never changes it.
 - **Pipeline state.** `makePipeline(program, spec, PipelineDesc)`
-  (`pipelinedesc.h`) is the one creation path; `makePipelineWithBlend` is a
-  wrapper that sets `blend`. `PipelineDesc` holds an optional `BlendFunc`,
-  `depthTest` (default on) and `depthWrite`, which left unset resolves
-  (`writesDepth()`) to on for an opaque and off for a blended pipeline, the
-  behaviour the GL state used to derive from the blend flag. Every backend's
-  pipeline reports `isBlendEnabled`, `isDepthTestEnabled` and
-  `isDepthWriteEnabled`; the dummy stores the desc. `GlRenderState` tracks
+  (`pipelinedesc.h`) is the one creation path. A `PipelineDesc` is
+  constructed from the target's colour `Format` and an optional depth
+  `Format` (unset: no depth attachment), so there is no default description
+  and no pipeline without declared formats; it then holds an optional
+  `BlendFunc`, `depthTest` (default on) and `depthWrite`, which left unset
+  resolves (`writesDepth()`) to on for an opaque and off for a blended
+  pipeline. Every backend's pipeline reports `getColorFormat`,
+  `getDepthFormat`, `isBlendEnabled`, `isDepthTestEnabled` and
+  `isDepthWriteEnabled`; the dummy stores the desc. GL ignores the formats
+  for state. `GlRenderState` tracks
   depth test, depth mask and blend enable as three separate booleans
   initialised to the GL defaults it sets up (`GL_DEPTH_TEST` on, mask true,
   blend off), switches each when the pipeline differs, and compares the
   blend factors on every blended draw rather than only when blending turns
   on. A clear with the depth bit forces the mask back on first, since
   `glClear` obeys it, and the next draw restores its pipeline's mask.
+- **Declared formats are checked at draw time, in debug builds.** Every
+  framebuffer reports `getColorFormat()` (attachment 0, `FORMAT_UNKNOWN`
+  when empty) and `getDepthFormat()` (unset when there is none);
+  `GlFramebuffer` reads them off its attachments, the WGL/GLX window
+  framebuffers answer with their platform's pixel-format request, and the
+  dummy window's framebuffer answers `FORMAT_SRGBA` over
+  `FORMAT_DEPTH24_STENCIL8`. `Pipeline::matchesTarget(framebuffer)` is the
+  predicate: colour formats equal, depth present on both sides or neither,
+  and equal when the target's is known (a target reporting
+  `FORMAT_UNKNOWN` depth, as the context-level `GlFramebuffer` for
+  framebuffer 0 does, accepts any declared depth). `GlRenderState` and
+  `DummyRenderQueue` `assert` it for every draw command, so the check costs
+  nothing once `NDEBUG` is defined; note Meson's default `b_ndebug=false`
+  leaves asserts on in every buildtype unless the option is set. Tests
+  exercise the predicate directly rather than death-testing the assert.
 - **What CI does not run.** All of the above compiles on every leg and the
   dummy tests cover the command shapes, the run splitting and the pipeline
   flags, but no GL context runs in CI: the scissor and depth switches in

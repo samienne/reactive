@@ -65,5 +65,15 @@ void GlxFramebuffer::unsetStencilTarget()
     assert(false);
 }
 
+Format GlxFramebuffer::getColorFormat() const
+{
+    return FORMAT_SRGBA;
+}
+
+std::optional<Format> GlxFramebuffer::getDepthFormat() const
+{
+    return FORMAT_DEPTH24;
+}
+
 } // namespace ase
 

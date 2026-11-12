@@ -13,6 +13,16 @@ DummyPipeline::DummyPipeline(Program program, VertexSpec vertexSpec,
 {
 }
 
+Format DummyPipeline::getColorFormat() const
+{
+    return desc_.colorFormat;
+}
+
+std::optional<Format> DummyPipeline::getDepthFormat() const
+{
+    return desc_.depthFormat;
+}
+
 bool DummyPipeline::isBlendEnabled() const
 {
     return desc_.blend.has_value();
