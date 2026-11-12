@@ -34,8 +34,24 @@ namespace avg
         };
 
     public:
+        /**
+         * @brief How the children paint over each other.
+         *
+         * A flat container concatenates its children's drawings, so the
+         * children's backdrop effects all sample the enclosing scope. A
+         * stacking container paints each child over the ones before it with
+         * Drawing::over, so a child's backdrop effects see the children
+         * below it, their shadows included, and nothing of itself.
+         */
+        enum class Stacking
+        {
+            flat,
+            stacked
+        };
+
         ContainerNode(
                 Animated<Obb> obb,
+                Stacking stacking = Stacking::flat,
                 std::vector<Child> children = {}
                 );
 
@@ -65,7 +81,10 @@ namespace avg
         std::type_index getType() const override;
         std::shared_ptr<RenderTreeNode> clone() const override;
 
+        Stacking getStacking() const;
+
     private:
+        Stacking stacking_;
         std::vector<Child> children_;
     };
 } // namespace avg

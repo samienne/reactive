@@ -1,7 +1,9 @@
 # avg — agent notes
 
 *Last verified against `44d4091` (2026-07-22); the text sections against
-`f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12).*
+`f3ed6e5` (2026-10-22); the painter section against `d1633d89` (2026-11-12);
+the shapes-and-drawings and render tree sections against `525a40c6`
+(2026-11-12).*
 
 Internals, entry points, and traps for the vector-graphics layer. Concepts and
 usage are in `readme.md`; project-wide conventions are in the top-level `docs/`.
@@ -21,12 +23,36 @@ outgrows one file.
   nothing else. It takes either a `Painter*` or a bare `pmr::memory_resource*`,
   so a tree can be drawn and its `Drawing` asserted with no rendering back end.
 - `Drawing` (`drawing.h`) is the flat rasterisable output — a variant of
-  `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill`. **Clipping is
-  rectangular only**: `Drawing::clip` takes `Rect`/`Obb`, and there is no
-  region/shape clip. (Path-level clipping is deferred — `docs/decisions.md`.)
-- **Trap:** `Shape::getControlBb` applies a composed element's transform twice
-  in its `Operation` branch; the sibling `StrokeToShape` branch is correct.
-  Known and unfixed — geometry derived from it inherits the error.
+  `ShapeElement` / `TextEntry` / `ClipElement` / `RegionFill` /
+  `BackdropScope`, painted in list order. **Clipping is rectangular only**:
+  `Drawing::clip` takes `Rect`/`Obb`, and there is no region/shape clip.
+  (Path-level clipping is deferred — `docs/decisions.md`.)
+- **Pending shadows.** A `Drawing` carries a second element list, the pending
+  shadows: elements that belong *under* the content of whatever container ends
+  up holding the drawing. `+=` concatenates both lists, `clip`/`transform`/
+  `filterByRect` apply to both, `getControlBb` covers both, and `flush()` moves
+  the shadows ahead of the main list. `RenderTree::draw` flushes the root
+  drawing; anything that renders a node's drawing directly (tests, snapshot
+  paths) must flush it first, or the shadows are silently dropped (`render`
+  only sees the main list).
+- **`BackdropScope`** is a sub-drawing with its own transform, shaped like
+  `ClipElement` without the clip; `scope()` wraps the main list into one, and
+  `over(below, above)` is the one composition for painting a child over
+  another: below's main list, above's pending shadows, then above's main list
+  in a scope (below's shadows stay pending). Scopes nest and `+=` never
+  flattens them. A scope caches its contents' bounds (`controlBb`, in scope
+  space, strokes included) so bounds queries do not recurse. The renderer
+  (`rendering.cpp`, next to the `ClipElement` case) treats a scope as a
+  transparent container: it recurses with the transform composed and the
+  culling rect mapped by the inverse transform's bounding rect, changes no
+  clip and takes no backdrop snapshot. **A rotated scope cannot sit under a
+  clip**: the clip rect would map to a larger bounding rect in scope space
+  and content outside the clip would show, so the renderer asserts, as it
+  does for a rotated `ClipElement`. The snapshot text collector
+  (`rendertree/snapshot.cpp`) recurses into scopes like clips.
+- `Shape::getControlBb` composes each sub-element's transform once and bounds
+  an `intersect` by its first operand (`shape.cpp`, `getControlBb`); the
+  `Shape` tests pin this.
 
 ## Render tree
 
@@ -34,11 +60,36 @@ outgrows one file.
   `ContainerNode` (matches children by id; diffs insert/remove/reorder),
   `ShapeNode`/`RectNode` (animated leaves), `TransitionNode` (enter/leave),
   `ClipNode` (clips a child to an `Animated<Obb>` — **rectangle only**),
-  `IdNode` (stable identity for matching).
+  `IdNode` (stable identity for matching), `SurfaceNode` (a filled shape with
+  a shadow under a child subtree).
 - `oldTree.update(newTree, options, time)` splices trees (creating animated
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
-  next need a redraw.
+  next need a redraw. `RenderTree::draw` is the root: it flushes the drawing
+  (pending shadows ahead of the content) before returning it.
+- **Stacking.** `ContainerNode` takes a `Stacking` flag. `flat` (the default,
+  what vbox/hbox/grid use) concatenates the children's drawings with `+=` and
+  passes their pending shadows up unchanged, so nested flat containers draw
+  the same elements as one flat container. `stacked` paints the first child
+  flat and each later child with `Drawing::over`, i.e. its pending shadows
+  then its content in a `BackdropScope`, so a child's backdrop effects sample
+  the children below it and their shadows but nothing of itself, and a nested
+  stack's scopes stay inside its own scope. `update` keeps the new tree's
+  flag; the snapshot still reports a stacked container as `ContainerNode`.
+- **`SurfaceNode`** (`rendertree/surfacenode.h`) holds a `ShapeFunction`
+  (the shape for the node's size, animated like a `ShapeNode`'s parameters),
+  an `Animated<std::optional<Brush>>` fill, an optional `SurfaceShadow`
+  (animated offset, spread and brush) and a child. `draw` adds the shadow as
+  a **pending shadow** (the shape translated by the offset, filled with the
+  shadow brush and, for a positive spread, stroked with a pen of width
+  `2 * spread` in the same brush), then the fill and the child's drawing in
+  the main list, in that order. The node's own animation options drive its
+  obb, shape, fill and shadow only; like every other node it hands the
+  inherited options to its child. It never adds a scope: that would give
+  every card in a vbox a private backdrop. The backdrop effect element
+  planned for surfaces is not there yet; it belongs in the main list ahead of
+  the fill, in `SurfaceNode::draw`, with the effect description as one more
+  animated member.
 
 ## Render tree snapshots
 
@@ -51,7 +102,7 @@ virtual, so adding a node kind means adding that override.
 - **Geometry is resolved, not authored.** A node reports its box already
   composed with every enclosing obb, so a reader places it without a transform
   of its own. It is derived from the nodes' `Animated<Obb>`, never from
-  `Shape::getControlBb`, so it does not inherit that function's trap above.
+  `Shape::getControlBb`.
 - **Text comes from drawing, not from the tree.** A leaf's content lives inside
   its draw function, so a leaf is drawn on its own out of the caller's memory
   and the `TextEntry`s of the result are collected; the drawing is discarded.
@@ -78,16 +129,49 @@ serialisation coupling.
 ## Painter
 
 `Painter` (`painter.h`, `painter.cpp`) owns the pipelines, the glyph atlas,
-the one `UniformSet` every draw binds, and the command buffer the frame is
-recorded into. `clearImage`/`clearWindow`/`paintToImage`/`paintToWindow`
-record; `flush` (and `presentWindow`, which flushes first) submits.
+the `UniformSet` every content draw binds, the window's offscreen target and
+the command buffer the frame is recorded into. `clearImage`/`clearWindow`/
+`paintToImage`/`paintToWindow` record; `flush` (and `presentWindow`, which
+pushes the present quad and flushes first) submits.
 
-- **The shader interface is declared in `painter.cpp`** (`matrixInterface`:
+- **Window frames always render offscreen.** `clearWindow` and
+  `paintToWindow` name the framebuffer of `windowTarget_`, a `TargetImage`
+  (`FORMAT_SRGBA` colour texture over a `FORMAT_DEPTH24_STENCIL8`
+  renderbuffer, both attached in the `TargetImage` constructor) of the
+  window's `getScaledSize()`. `Painter::windowTarget` makes it on first use
+  and replaces it whenever that pixel size differs from the texture's, since
+  nothing resizes in place; two frames at one size share the texture handle.
+  `presentWindow` then pushes `pushBarrier()` and one draw of a static
+  clip-space quad (uploaded once, `StaticDraw`) into the window's default
+  framebuffer with the target texture at unit 0. The barrier is what keeps
+  the run sort from moving the quad ahead of the draws it samples. The
+  window is never cleared: the quad covers it and its pipeline neither tests
+  nor writes depth. A frame that painted nothing still presents the target
+  as it was; nothing is presented before the first clear or paint. Image
+  frames (`clearImage`/`paintToImage`) draw straight into the given
+  `TargetImage` and carry no quad. The painter therefore serves one window;
+  a second window through the same painter would remake the target every
+  frame.
+- **sRGB round trip.** The target and the window are both sRGB surfaces
+  under `GL_FRAMEBUFFER_SRGB`, so content blends linearly in the target, the
+  present quad's `texture()` decodes, and the window write re-encodes. If a
+  platform cannot give an sRGB window format, the present fragment shader
+  (`presentFsSource`) is where a manual encode belongs; none is implemented.
+  No GL context runs in CI, so the quad's pixels are a manual check
+  (`lw run app`); `test/renderingtest.cpp` asserts the command shape on the
+  dummy backend: clear of the target, draws naming it, barrier, one present
+  draw naming the window with the target texture bound, and the target
+  handle surviving a same-size frame and changing on a
+  `DummyWindow::resize`.
+- **The shader interfaces are declared in `painter.cpp`** (`matrixInterface`:
   `pos` at location 0, `color` at 1, `MatrixBlock` at binding 0; the text
-  pipeline adds `uv` at 2 and the `atlas` sampler at unit 0). The GLSL
-  carries no binding qualifiers; `ase` applies them from the declaration and
-  validates by reflection in debug builds, so a shader whose names drift from
-  the declaration fails at program creation. Change the declaration and the
+  pipeline adds `uv` at 2 and the `atlas` sampler at unit 0;
+  `presentInterface`: `pos` at 0, `uv` at 1, the `source` sampler at unit 0
+  and no block, so the present draw binds an empty `UniformSet` and its
+  vertices are already in clip space). The GLSL carries no binding
+  qualifiers; `ase` applies them from the declaration and validates by
+  reflection in debug builds, so a shader whose names drift from the
+  declaration fails at program creation. Change the declaration and the
   shader together.
 - **The projection is a typed block through a ring.** `setSize` only sets
   `MatrixBlock::worldViewProj` in a `UniformBlock`. The first clear or paint

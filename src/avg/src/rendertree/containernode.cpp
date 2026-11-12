@@ -18,9 +18,11 @@ namespace avg
 
 ContainerNode::ContainerNode(
         Animated<Obb> obb,
+        Stacking stacking,
         std::vector<Child> children
         ) :
     RenderTreeNode(std::nullopt, obb),
+    stacking_(stacking),
     children_(std::move(children))
 {
 }
@@ -213,6 +215,7 @@ UpdateResult ContainerNode::update(
         std::make_shared<ContainerNode>(
                 oldContainer.getObb().updated(newContainer.getObb(),
                     animationOptions, time),
+                newContainer.stacking_,
                 std::move(nodes)
                 ),
         nextUpdate
@@ -229,11 +232,19 @@ std::pair<Drawing, bool> ContainerNode::draw(DrawContext const& context,
 
     auto obb = parentObb.getTransform() * getObb().getValue(time);
 
+    bool first = true;
+
     for (auto const& child : children_)
     {
         auto [drawing, childCont] = child.node->draw(context, obb, time);
         cont = cont || childCont;
-        result += std::move(drawing);
+
+        if (stacking_ == Stacking::stacked && !first)
+            result = Drawing::over(std::move(result), std::move(drawing));
+        else
+            result += std::move(drawing);
+
+        first = false;
     }
 
     return std::make_pair(
@@ -270,6 +281,11 @@ std::type_index ContainerNode::getType() const
 std::shared_ptr<RenderTreeNode> ContainerNode::clone() const
 {
     return std::make_shared<ContainerNode>(*this);
+}
+
+ContainerNode::Stacking ContainerNode::getStacking() const
+{
+    return stacking_;
 }
 
 } // namespace avg
