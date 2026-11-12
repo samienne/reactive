@@ -207,11 +207,22 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   any order (opaque, depth-tested *and* depth-writing: depth settles them)
   and the rest (depth-tested but blended or not depth-writing), any-order
   first. Any-order draws then sort by framebuffer,
-  textures, program, vertex buffer, index buffer, uniform set and
+  scissor, textures, program, vertex buffer, index buffer, uniform set and
   z. The rest sort by framebuffer, then z descending (the painter assigns a
   lower z to a later-painted element, so this is paint order), then the same
-  state keys. The key compares
+  state keys with the scissor last, so two draws with different scissors
+  only reorder when nothing else distinguishes them. The key compares
   handles and integers only; z is the one float, and only as an ordering.
+- **Scissor.** `DrawCommand` and `ClearCommand` carry an
+  `std::optional<ScissorRect>` (`scissorrect.h`: `x, y, width, height` in
+  framebuffer pixels, origin bottom-left as `gl_FragCoord` has it);
+  `push` and `pushClear` take it as a trailing argument, unset by default.
+  `GlRenderState::setScissor` enables `GL_SCISSOR_TEST` and calls
+  `glScissor` when a command carries a rectangle, disables the test when
+  one does not, and tracks the current value so a run of equally scissored
+  commands costs nothing. `glClear` honours the scissor, which is how a
+  clear is limited to a region. The viewport is separate: the framebuffer
+  sets it to its full size on bind, and the scissor never changes it.
 - **Pipeline state.** `makePipeline(program, spec, PipelineDesc)`
   (`pipelinedesc.h`) is the one creation path; `makePipelineWithBlend` is a
   wrapper that sets `blend`. `PipelineDesc` holds an optional `BlendFunc`,
@@ -228,7 +239,7 @@ read back (`test/commandbuffertest.cpp`, avg's `test/renderingtest.cpp`).
   `glClear` obeys it, and the next draw restores its pipeline's mask.
 - **What CI does not run.** All of the above compiles on every leg and the
   dummy tests cover the command shapes, the run splitting and the pipeline
-  flags, but no GL context runs in CI: the depth switches in
+  flags, but no GL context runs in CI: the scissor and depth switches in
   `glrenderstate.cpp` have only been compiled. A change there needs a
   manual run of an app or `bquiheadlesstest` on a machine with a driver.
 

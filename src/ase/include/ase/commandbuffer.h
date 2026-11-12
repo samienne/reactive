@@ -18,6 +18,9 @@ namespace ase
         using Iterator = std::vector<RenderCommand>::iterator;
         using ConstIterator = std::vector<RenderCommand>::const_iterator;
 
+        /**
+         * @brief Push a draw, limited to `scissor` when one is given.
+         */
         void push(
                 Framebuffer framebuffer,
                 Pipeline pipeline,
@@ -25,8 +28,13 @@ namespace ase
                 VertexBuffer vertexBuffer,
                 std::optional<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
-                float z);
+                float z,
+                std::optional<ScissorRect> scissor = std::nullopt);
 
+        /**
+         * @brief Clear the chosen buffers of `target`, limited to `scissor`
+         * when one is given.
+         */
         void pushClear(Framebuffer target,
                 float r = 0.0f,
                 float g = 0.0f,
@@ -34,7 +42,8 @@ namespace ase
                 float a = 1.0f,
                 bool color = true,
                 bool depth = true,
-                bool stencil = false
+                bool stencil = false,
+                std::optional<ScissorRect> scissor = std::nullopt
                 );
 
         void pushFence(std::function<void()> completeCb);

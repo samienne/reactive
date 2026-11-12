@@ -2,9 +2,11 @@
 
 #include "window.h"
 #include "drawcommand.h"
+#include "scissorrect.h"
 
 #include <btl/future/promise.h>
 
+#include <optional>
 #include <variant>
 
 namespace ase
@@ -19,6 +21,7 @@ namespace ase
         bool color = true;
         bool depth = true;
         bool stencil = true;
+        std::optional<ScissorRect> scissor;
     };
 
     struct FenceCommand

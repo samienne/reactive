@@ -70,6 +70,8 @@ namespace
             if (d1.getZ() != d2.getZ())
                 return d1.getZ() > d2.getZ();
         }
+        else if (d1.getScissor() != d2.getScissor())
+            return d1.getScissor() < d2.getScissor();
 
         // Sort by textures
         if (d1.getTextures() != d2.getTextures())
@@ -89,6 +91,9 @@ namespace
         // Sort by uniforms
         if (d1.getUniforms() != d2.getUniforms())
             return d1.getUniforms() < d2.getUniforms();
+
+        if (d1.getScissor() != d2.getScissor())
+            return d1.getScissor() < d2.getScissor();
 
         return d1.getZ() > d2.getZ();
     }
@@ -224,6 +229,26 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
     }
 }
 
+void GlRenderState::setScissor(Dispatched,
+        std::optional<ScissorRect> const& scissor)
+{
+    if (scissor_ == scissor)
+        return;
+
+    if (scissor.has_value() != scissor_.has_value())
+    {
+        if (scissor)
+            glEnable(GL_SCISSOR_TEST);
+        else
+            glDisable(GL_SCISSOR_TEST);
+    }
+
+    if (scissor)
+        glScissor(scissor->x, scissor->y, scissor->width, scissor->height);
+
+    scissor_ = scissor;
+}
+
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         CommandBuffer&& commands)
 {
@@ -261,6 +286,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 framebuffer.makeCurrent(d, dispatcher_, *this, gl);
             }
 
+            setScissor(d, clearCommand.scissor);
             glClearColor(clearCommand.r, clearCommand.g, clearCommand.b,
                     clearCommand.a);
 
@@ -399,6 +425,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             boundFramebuffer_ = &framebuffer;
             framebuffer.makeCurrent(Dispatched(), dispatcher_, *this, gl);
         }
+
+        setScissor(d, command.getScissor());
 
         vbo = vertexBuffer.getBuffer().getBuffer();
         mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());

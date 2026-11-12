@@ -1,12 +1,15 @@
 #pragma once
 
 #include "vector.h"
+#include "scissorrect.h"
 
 #include "asevisibility.h"
 
 #include "systemgl.h"
 
 #include <btl/future/promise.h>
+
+#include <optional>
 
 namespace ase
 {
@@ -30,6 +33,7 @@ namespace ase
         void submit(CommandBuffer&& commands);
         void clear(Dispatched, GLbitfield mask);
         void setViewport(Dispatched, Vector2i size);
+        void setScissor(Dispatched, std::optional<ScissorRect> const& scissor);
 
     private:
         // These functions need to be called in dispatched context.
@@ -53,6 +57,7 @@ namespace ase
 
         // Current state
         Vector2i viewportSize_ = Vector2i(0, 0);
+        std::optional<ScissorRect> scissor_;
         GlBaseFramebuffer const* boundFramebuffer_ = nullptr;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
