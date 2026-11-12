@@ -123,4 +123,9 @@ size_t RenderContext::getUniformBufferOffsetAlignment() const
     return d()->getUniformBufferOffsetAlignment();
 }
 
+Matrix4f RenderContext::getClipSpaceAdjustment() const
+{
+    return d()->getClipSpaceAdjustment();
+}
+
 } // namespace ase

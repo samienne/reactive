@@ -255,7 +255,7 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     scratchPool_(context),
     passPipelines_(context)
 {
-    matrices_->worldViewProj = ase::Matrix4f::Identity();
+    matrices_->worldViewProj = context.getClipSpaceAdjustment();
 }
 
 Painter::~Painter()
@@ -277,7 +277,7 @@ void Painter::setSize(ase::Vector2i pixelSize, float scalingFactor)
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    matrices_->worldViewProj = m;
+    matrices_->worldViewProj = renderContext_.getClipSpaceAdjustment() * m;
 
     if (frameOpen_)
         writeMatrices();
