@@ -117,14 +117,14 @@ namespace
                 newOp.elements.push_back(withResource(std::move(rhs), memory));
 
                 return Shape(memory, Shape::SubElement{
-                        Transform(),
+                        lhs.transform,
                         std::move(newOp)
                         });
             }
         }
 
         Shape::Operation op{
-            OperationType::intersect,
+            type,
             pmr::vector<Shape::SubElement>(
                     {
                         withResource(std::move(lhs), memory),
@@ -161,27 +161,25 @@ namespace
             case OperationType::add:
                 for (auto const& e : op.elements)
                 {
-                    result += getControlBb(transform * e.transform, e);
+                    result += getControlBb(transform, e);
                 }
 
                 break;
 
             case OperationType::intersect:
-                for (auto const& e : op.elements)
+                for (auto i = op.elements.begin(); i != op.elements.end(); ++i)
                 {
-                    result = result.intersected(
-                            getControlBb(transform * e.transform, e)
-                            );
+                    Rect bb = getControlBb(transform, *i);
+                    result = i == op.elements.begin()
+                        ? bb
+                        : result.intersected(bb);
                 }
 
                 break;
 
             case OperationType::subtract:
                 if (!op.elements.empty())
-                    result = getControlBb(
-                            transform * op.elements.front().transform,
-                            op.elements.front()
-                            );
+                    result = getControlBb(transform, op.elements.front());
 
                 break;
             }
