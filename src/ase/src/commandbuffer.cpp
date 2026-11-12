@@ -1,7 +1,6 @@
 #include "commandbuffer.h"
 
 #include "rendercommand.h"
-#include "textureimpl.h"
 
 #include <cassert>
 #include <iostream>
@@ -83,8 +82,8 @@ void CommandBuffer::pushUpload(
 
 void CommandBuffer::pushUpload(Texture target, Buffer data, Vector2i size, Format format)
 {
-    target.getImpl<TextureImpl>().setSize(size);
-    target.getImpl<TextureImpl>().setFormat(format);
+    assert(size == target.getSize());
+    assert(format == target.getFormat());
 
     commands_.push_back(TextureUploadCommand
             {

@@ -9,16 +9,6 @@ DummyTexture::DummyTexture(Vector2i size, Format format) :
 {
 }
 
-void DummyTexture::setSize(Vector2i size)
-{
-    size_ = size;
-}
-
-void DummyTexture::setFormat(Format format)
-{
-    format_ = format;
-}
-
 Vector2i DummyTexture::getSize() const
 {
     return size_;

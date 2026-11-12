@@ -149,11 +149,16 @@ are in the top-level `docs/`.
   keep-alive into the task so the window outlives it. `PresentStatus` is
   `Ok`-only on GL; it exists so a backend whose present can fail (a lost
   swapchain) is not a `void`-return retrofit.
-- **Textures and uploads.** `FORMAT_R8` is a linear single-channel 8-bit
-  format (avg's glyph coverage); the GL context sets `GL_UNPACK_ALIGNMENT` to 1
-  once at setup so its odd-width rows upload tightly packed.
-  `CommandBuffer::pushSubUpload` replaces a rectangle of an existing texture
-  (`glTexSubImage2D`). Both uploads are non-draw
+- **Textures and uploads.** A texture's size and format are fixed by
+  `makeTexture`: `TextureImpl` has no setters, `CommandBuffer::pushUpload`
+  of a whole texture asserts that the size and format it is given are the
+  texture's (and `GlTexture::setData` asserts it again on the render
+  thread), and a consumer that needs a bigger texture makes a new one, as
+  avg's glyph atlas and `TargetImage` do. `FORMAT_R8` is a linear
+  single-channel 8-bit format (avg's glyph coverage); the GL context sets
+  `GL_UNPACK_ALIGNMENT` to 1 once at setup so its odd-width rows upload
+  tightly packed. `CommandBuffer::pushSubUpload` replaces a rectangle of an
+  existing texture (`glTexSubImage2D`). Both uploads are non-draw
   commands, so they end a run of draws (see "Command buffer and draw
   order") and keep their place relative to the draws around them.
   Uploads bind on texture unit 0 and record
