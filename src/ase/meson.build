@@ -142,6 +142,7 @@ libasedep = declare_dependency(
   )
 
 asetest = executable('asetest',
+  'test/framebuffertest.cpp',
   'test/genericwindowtest.cpp',
   'test/shaderinterfacetest.cpp',
   'test/texturetest.cpp',

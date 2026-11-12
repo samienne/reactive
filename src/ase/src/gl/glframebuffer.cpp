@@ -2,6 +2,7 @@
 
 #include "gltexture.h"
 #include "glrenderbuffer.h"
+#include "glformat.h"
 #include "glrendercontext.h"
 #include "glplatform.h"
 #include "glfunctions.h"
@@ -132,7 +133,8 @@ void GlFramebuffer::makeCurrent(Dispatched d, GlDispatchedContext&,
                     depthTarget_->getImpl<GlRenderbuffer>());
             depth.makeCurrent(d, gl);
 
-            gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+            gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                    formatToGlDepthAttachment(depth.getFormat()),
                     GL_RENDERBUFFER, depth.getGlObject());
         }
     }

@@ -30,7 +30,7 @@ void GlTexture::allocate(Dispatched, GlFunctions const& /*gl*/)
     glBindTexture(GL_TEXTURE_2D, texture_);
     glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format_),
             static_cast<GLsizei>(size_[0]), static_cast<GLsizei>(size_[1]),
-            0, formatToGl(format_), GL_UNSIGNED_BYTE, nullptr);
+            0, formatToGl(format_), formatToGlType(format_), nullptr);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -60,7 +60,7 @@ void GlTexture::setData(Dispatched, GlFunctions const& /*gl*/,
     glBindTexture(GL_TEXTURE_2D, texture_);
     glTexImage2D(GL_TEXTURE_2D, 0, formatToGlInternal(format),
             static_cast<GLsizei>(size[0]), static_cast<GLsizei>(size[1]),
-            0, formatToGl(format), GL_UNSIGNED_BYTE, buffer.data());
+            0, formatToGl(format), formatToGlType(format), buffer.data());
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -87,7 +87,7 @@ void GlTexture::setSubData(Dispatched d, GlFunctions const& gl,
     glTexSubImage2D(GL_TEXTURE_2D, 0,
             static_cast<GLint>(offset[0]), static_cast<GLint>(offset[1]),
             static_cast<GLsizei>(size[0]), static_cast<GLsizei>(size[1]),
-            formatToGl(format_), GL_UNSIGNED_BYTE, buffer.data());
+            formatToGl(format_), formatToGlType(format_), buffer.data());
 }
 
 GLuint GlTexture::getGlObject() const
