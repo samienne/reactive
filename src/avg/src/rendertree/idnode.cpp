@@ -113,37 +113,7 @@ UpdateResult IdNode::update(
     auto const& oldId = reinterpret_cast<IdNode const&>(*oldNode);
     auto const& newId = reinterpret_cast<IdNode const&>(*newNode);
 
-    std::optional<std::chrono::milliseconds> nextUpdate;
-
-    if (oldId.childNode_->getId() != newId.childNode_->getId())
-    {
-        auto [newChild, nextNewUpdate] = newNode->update(
-                oldTree,
-                newTree,
-                nullptr,
-                newId.childNode_,
-                animationOptions,
-                time
-                );
-
-        //nextUpdate = earlier(nextOldUpdate, nextNewUpdate);
-        nextUpdate = nextNewUpdate;
-
-        return {
-            std::make_shared<IdNode>(
-                    *oldId.getId(),
-                    oldId.getObb().updated(
-                        newId.getObb(),
-                        animationOptions,
-                        time
-                        ),
-                    std::move(newChild)
-                    ),
-            nextUpdate
-        };
-    }
-
-    auto [newChild, nextChildUpdate] = oldId.childNode_->update(
+    auto [newChild, nextChildUpdate] = updateNode(
             oldTree,
             newTree,
             oldId.childNode_,
@@ -159,7 +129,7 @@ UpdateResult IdNode::update(
                     animationOptions, time),
                 std::move(newChild)
                 ),
-        earlier(nextUpdate, nextChildUpdate)
+        nextChildUpdate
     };
 }
 

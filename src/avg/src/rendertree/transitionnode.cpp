@@ -134,7 +134,7 @@ UpdateResult TransitionNode::update(
     assert(newActive && newTransitioned && oldActive);
     assert(oldActive->getId() == newActive->getId());
 
-    auto [resultNode, nextChildUpdate] = newActive->update(
+    auto [resultNode, nextChildUpdate] = updateNode(
             oldTree,
             newTree,
             oldActive,

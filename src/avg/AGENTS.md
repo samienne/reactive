@@ -38,6 +38,12 @@ outgrows one file.
   transitions); `draw(context, obb, time)` is a **pure** function of the
   timestamp and returns whether animation continues, so nodes report when they
   next need a redraw.
+- **Pairing old and new nodes.** Each node's `update` casts the old node to
+  its own type unchecked, so an old and a new node are paired only when
+  `canUpdate` holds (same id and `getType()`). Containers pair unnamed
+  children by position; a pair that fails `canUpdate` becomes the old child
+  leaving and the new one arriving. Single-child nodes and the root go
+  through `updateNode`, which drops the old node and lets the new one appear.
 
 ## Render tree snapshots
 

@@ -71,4 +71,29 @@ namespace avg
         std::optional<UniqueId> id_;
         Animated<Obb> obb_;
     };
+
+    /**
+     * @brief Whether update() can carry @p oldNode over into @p newNode.
+     *
+     * Only nodes with the same id and of the same kind can; any other pair is
+     * one node leaving and another arriving.
+     */
+    AVG_EXPORT bool canUpdate(RenderTreeNode const& oldNode,
+            RenderTreeNode const& newNode);
+
+    /**
+     * @brief Updates the one node a place in the tree holds from @p oldNode
+     * to @p newNode, either of which may be null.
+     *
+     * When canUpdate() fails, the old node is dropped and the new one
+     * appears.
+     */
+    AVG_EXPORT UpdateResult updateNode(
+            RenderTree const& oldTree,
+            RenderTree const& newTree,
+            std::shared_ptr<RenderTreeNode> const& oldNode,
+            std::shared_ptr<RenderTreeNode> const& newNode,
+            std::optional<AnimationOptions> const& animationOptions,
+            std::chrono::milliseconds time
+            );
 } // namespace avg
