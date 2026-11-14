@@ -77,6 +77,12 @@ void GlDispatchedContext::setGlFunctions(GlFunctions gl)
     assert(gl.glDeleteVertexArrays);
     assert(gl.glBindBufferRange);
     assert(gl.glGetUniformBlockIndex);
+    assert(gl.glBindAttribLocation);
+    assert(gl.glUniformBlockBinding);
+    assert(gl.glGetActiveUniformBlockiv);
+    assert(gl.glGetActiveUniformBlockName);
+    assert(gl.glGetActiveUniformsiv);
+    assert(gl.glGetUniformiv);
     assert(gl.glActiveTexture);
     assert(gl.glGenRenderbuffers);
     assert(gl.glRenderbufferStorage);

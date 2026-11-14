@@ -5,8 +5,10 @@
 namespace ase
 {
 
-DummyPipeline::DummyPipeline(Program program, bool blendEnabled) :
+DummyPipeline::DummyPipeline(Program program, VertexSpec vertexSpec,
+        bool blendEnabled) :
     program_(std::move(program)),
+    vertexSpec_(std::move(vertexSpec)),
     blendEnabled_(blendEnabled)
 {
 }
@@ -19,6 +21,11 @@ bool DummyPipeline::isBlendEnabled() const
 Program const& DummyPipeline::getProgram() const
 {
     return program_;
+}
+
+VertexSpec const& DummyPipeline::getVertexSpec() const
+{
+    return vertexSpec_;
 }
 
 } // namespace ase

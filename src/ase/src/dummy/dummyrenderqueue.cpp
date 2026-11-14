@@ -24,6 +24,19 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
     for (auto& command : commandBuffer)
         if (std::holds_alternative<FenceCommand>(command))
             std::get<FenceCommand>(command).promise.set();
+
+    if (recording_)
+        submissions_.push_back(std::move(commandBuffer));
+}
+
+void DummyRenderQueue::recordSubmissions(bool record)
+{
+    recording_ = record;
+}
+
+std::vector<CommandBuffer> const& DummyRenderQueue::getSubmissions() const
+{
+    return submissions_;
 }
 
 } // namespace

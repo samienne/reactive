@@ -17,15 +17,21 @@ namespace ase
         std::shared_ptr<RenderQueueImpl> getMainRenderQueue() override;
         std::shared_ptr<RenderQueueImpl> getTransferQueue() override;
 
+        /**
+         * @brief Every language, since nothing is compiled.
+         */
+        std::vector<ShaderLanguage> const& getShaderLanguages()
+            const override;
+
+        std::shared_ptr<ShaderImpl> makeShaderImpl(
+                ShaderStage stage,
+                ShaderLanguage language,
+                Buffer const& source) override;
+
         std::shared_ptr<ProgramImpl> makeProgramImpl(
-                VertexShader const& vertexShader,
-                FragmentShader const& fragmentShader) override;
-
-        std::shared_ptr<VertexShaderImpl> makeVertexShaderImpl(
-                std::string const& source) override;
-
-        std::shared_ptr<FragmentShaderImpl> makeFragmentShaderImpl(
-                std::string const& source) override;
+                Shader const& vertexShader,
+                Shader const& fragmentShader,
+                ShaderInterface iface) override;
 
         std::shared_ptr<VertexBufferImpl> makeVertexBufferImpl() override;
 
@@ -52,7 +58,14 @@ namespace ase
                 BlendMode srcFactor,
                 BlendMode dstFactor) override;
 
-        std::shared_ptr<UniformSetImpl> makeUniformSetImpl() override;
+        std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
+                ShaderInterface iface) override;
+
+        /**
+         * @brief 256, the strictest alignment a GL implementation may
+         * require.
+         */
+        size_t getUniformBufferOffsetAlignment() const override;
 
     private:
         // Upward-strong ref to the platform this context was made by; keeps the
@@ -64,4 +77,3 @@ namespace ase
         std::shared_ptr<RenderQueueImpl> mainQueue_;
     };
 } // namespace ase
-

@@ -4,18 +4,38 @@
 #include "glplatform.h"
 #include "glfunctions.h"
 
+#include "buffer.h"
 #include "rendercontext.h"
 
 #include "debug.h"
 
 #include "systemgl.h"
 
+#include <string>
+
 namespace ase
 {
 
-GlShader::GlShader(GlRenderContext& context, std::string const& source,
-        GLenum shaderType) :
-    context_(context)
+namespace
+{
+    GLenum stageToGl(ShaderStage stage)
+    {
+        switch (stage)
+        {
+            case ShaderStage::Vertex:
+                return GL_VERTEX_SHADER;
+            case ShaderStage::Fragment:
+                return GL_FRAGMENT_SHADER;
+        }
+
+        return GL_VERTEX_SHADER;
+    }
+} // anonymous namespace
+
+GlShader::GlShader(GlRenderContext& context, ShaderStage stage,
+        Buffer const& source) :
+    context_(context),
+    stage_(stage)
 {
     try
     {
@@ -23,13 +43,14 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
         std::string logStr;
 
         context.dispatchBg([this, &logStr, &source, &failed,
-                shaderType](GlFunctions const& gl)
+                stage](GlFunctions const& gl)
             {
-                shader_ = gl.glCreateShader(shaderType);
+                shader_ = gl.glCreateShader(stageToGl(stage));
 
-                char const* str = source.c_str();
+                char const* str = source.mapRead<char>();
+                GLint const len = static_cast<GLint>(source.getSize());
 
-                gl.glShaderSource(shader_, 1, &str, 0);
+                gl.glShaderSource(shader_, 1, &str, &len);
                 gl.glCompileShader(shader_);
 
                 GLint status;
@@ -39,16 +60,16 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
 
                 if (status == GL_FALSE)
                 {
+                    GLsizei logLen;
+                    gl.glGetShaderiv(shader_, GL_INFO_LOG_LENGTH, &logLen);
+
+                    std::string log(static_cast<size_t>(logLen), '\0');
+                    gl.glGetShaderInfoLog(shader_, logLen, &logLen,
+                            log.data());
+                    log.resize(static_cast<size_t>(logLen));
+
                     failed = true;
-                    char* log;
-                    GLsizei len;
-                    gl.glGetShaderiv(shader_, GL_INFO_LOG_LENGTH, &len);
-
-                    log = new char[len];
-                    gl.glGetShaderInfoLog(shader_, len, &len, log);
-                    logStr = log;
-
-                    delete [] log;
+                    logStr = std::move(log);
                 }
             });
 
@@ -56,7 +77,8 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
 
         if (failed)
         {
-            DBG("Failed to compile shader:\n%1\n%2", logStr, source);
+            DBG("Failed to compile shader:\n%1\n%2", logStr,
+                    std::string(source.mapRead<char>(), source.getSize()));
             throw std::runtime_error(" shader compilation error:\n"
                     + logStr);
         }
@@ -67,12 +89,16 @@ GlShader::GlShader(GlRenderContext& context, std::string const& source,
 
         throw;
     }
-
 }
 
 GlShader::~GlShader()
 {
     destroy();
+}
+
+ShaderStage GlShader::getStage() const
+{
+    return stage_;
 }
 
 void GlShader::destroy()
@@ -90,4 +116,3 @@ void GlShader::destroy()
 }
 
 } // namespace
-

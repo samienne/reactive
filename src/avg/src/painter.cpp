@@ -6,12 +6,12 @@
 #include "glyphatlas.h"
 
 #include <ase/window.h>
-#include <ase/uniformbufferrange.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
-#include <ase/vertexshader.h>
-#include <ase/fragmentshader.h>
+#include <ase/shader.h>
+#include <ase/shaderinterface.h>
 #include <ase/program.h>
+#include <ase/buffer.h>
 #include <ase/blendmode.h>
 #include <ase/renderqueue.h>
 
@@ -21,9 +21,8 @@
 
 static char const* simpleVsSource =
 "#version 330\n"
-"#extension GL_ARB_shading_language_420pack : require\n"
 "\n"
-"layout(std140, binding = 0) uniform MatrixBlock\n"
+"layout(std140) uniform MatrixBlock\n"
 "{\n"
 "   mat4 worldViewProj;\n"
 "} matrices;\n"
@@ -51,9 +50,8 @@ static char const* simpleFsSource =
 
 static char const* textVsSource =
 "#version 330\n"
-"#extension GL_ARB_shading_language_420pack : require\n"
 "\n"
-"layout(std140, binding = 0) uniform MatrixBlock\n"
+"layout(std140) uniform MatrixBlock\n"
 "{\n"
 "   mat4 worldViewProj;\n"
 "} matrices;\n"
@@ -80,9 +78,8 @@ static std::string textFsSource()
 {
     return std::string()
         + "#version 330\n"
-        + "#extension GL_ARB_shading_language_420pack : require\n"
         + "\n"
-        + "layout(binding = 0) uniform sampler2D atlas;\n"
+        + "uniform sampler2D atlas;\n"
         + "\n"
         + "in vec4 vColor;\n"
         + "in vec2 vUv;\n"
@@ -101,14 +98,36 @@ namespace avg
 
 namespace
 {
+    ase::Shader makeShader(ase::RenderContext& context, ase::ShaderStage stage,
+            std::string const& source)
+    {
+        return context.makeShader(stage, ase::ShaderLanguage::Glsl330,
+                ase::Buffer(source.data(), source.size()));
+    }
+
+    ase::ShaderInterface matrixInterface()
+    {
+        ase::ShaderInterface iface;
+        iface.attribute("pos", 0, ase::TypeFloat, 3)
+            .attribute("color", 1, ase::TypeFloat, 4)
+            .block("MatrixBlock", 0, ase::BlockLayout::Std140, {
+                    { "worldViewProj", ase::UniformType::Mat4 },
+                });
+
+        return iface;
+    }
+
     ase::Pipeline makePipeline(ase::RenderContext& context, bool solid)
     {
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        auto vs = context.makeVertexShader(simpleVsSource);
-        auto fs = context.makeFragmentShader(simpleFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs));
+        auto vs = makeShader(context, ase::ShaderStage::Vertex,
+                simpleVsSource);
+        auto fs = makeShader(context, ase::ShaderStage::Fragment,
+                simpleFsSource);
+        auto program = context.makeProgram(std::move(vs), std::move(fs),
+                matrixInterface());
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         if (solid)
@@ -126,9 +145,15 @@ namespace
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = context.makeVertexShader(textVsSource);
-        auto fs = context.makeFragmentShader(textFsSource());
-        auto program = context.makeProgram(std::move(vs), std::move(fs));
+        auto vs = makeShader(context, ase::ShaderStage::Vertex,
+                textVsSource);
+        auto fs = makeShader(context, ase::ShaderStage::Fragment,
+                textFsSource());
+        auto iface = matrixInterface();
+        iface.attribute("uv", 2, ase::TypeFloat, 2)
+            .sampler("atlas", 0);
+        auto program = context.makeProgram(std::move(vs), std::move(fs),
+                std::move(iface));
         ase::VertexSpec spec(program, std::move(namedSpec));
 
         return context.makePipelineWithBlend(program, spec,
@@ -143,12 +168,13 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     transparentPipeline_(makePipeline(context, false)),
     textPipeline_(makeTextPipeline(context)),
     glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
-    buffer_(),
-    uniformSet_(context.makeUniformSet()),
-    uniformBuffer_(context.makeUniformBuffer())
+    matrices_(matrixInterface(), "MatrixBlock", {
+            ase::blockMember<&MatrixBlock::worldViewProj>("worldViewProj"),
+        }),
+    uniformRing_(context),
+    uniformSet_(context.makeUniformSet(matrixInterface()))
 {
-    uniformSet_.bindUniformBufferRange(0,
-            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+    matrices_->worldViewProj = ase::Matrix4f::Identity();
 }
 
 Painter::~Painter()
@@ -164,21 +190,32 @@ pmr::memory_resource* Painter::getResource() const
 
 void Painter::setSize(ase::Vector2i pixelSize, float scalingFactor)
 {
-    buffer_.resize(16*sizeof(float));
-    char* data = buffer_.mapWrite<char>();
-
     ase::Matrix4f m = ase::Matrix4f::Identity();
     m(0,0) = 2.0f * scalingFactor / (float)pixelSize[0];
     m(1,1) = 2.0f * scalingFactor / (float)pixelSize[1];
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    std::memcpy(data, m.data(), 16 * sizeof(float));
+    matrices_->worldViewProj = m;
 
-    commandBuffer_.pushUpload(uniformBuffer_, buffer_, ase::Usage::StreamRead);
+    if (frameOpen_)
+        writeMatrices();
+}
 
-    uniformSet_.bindUniformBufferRange(0,
-            ase::UniformBufferRange{ 0, 16*sizeof(float), uniformBuffer_ });
+void Painter::beginFrame()
+{
+    if (frameOpen_)
+        return;
+
+    uniformRing_.beginFrame();
+    frameOpen_ = true;
+    writeMatrices();
+}
+
+void Painter::writeMatrices()
+{
+    uniformSet_.bindUniformBufferRange("MatrixBlock",
+            uniformRing_.write(matrices_));
 }
 
 ase::UniformSet const& Painter::getUniformSet() const
@@ -215,12 +252,14 @@ GlyphAtlas& Painter::getGlyphAtlas()
 void Painter::clearImage(TargetImage& target)
 {
     ZoneScoped;
+    beginFrame();
     commandBuffer_.pushClear(target.getFramebuffer());
 }
 
 void Painter::clearWindow(ase::Window& target)
 {
     ZoneScoped;
+    beginFrame();
     commandBuffer_.pushClear(target.getDefaultFramebuffer());
 }
 
@@ -228,6 +267,7 @@ void Painter::paintToImage(TargetImage& target, float scalingFactor,
         Drawing const& drawing)
 {
     ZoneScoped;
+    beginFrame();
     render(memory_, commandBuffer_, renderContext_, target.getFramebuffer(),
             target.getSize(), scalingFactor, *this, drawing);
 }
@@ -236,6 +276,7 @@ void Painter::paintToWindow(ase::Window& target, Drawing const& drawing)
 {
     ZoneScoped;
 
+    beginFrame();
     render(memory_, commandBuffer_, renderContext_,
             target.getDefaultFramebuffer(), target.getSize(),
             target.getScalingFactor(), *this, drawing);
@@ -252,6 +293,16 @@ void Painter::presentWindow(ase::Window& target)
 void Painter::flush()
 {
     ZoneScoped;
+
+    if (frameOpen_)
+    {
+        ase::CommandBuffer uploads;
+        uniformRing_.endFrame(uploads);
+        frameOpen_ = false;
+
+        if (uploads.size() > 0)
+            renderContext_.getMainRenderQueue().submit(std::move(uploads));
+    }
 
     if (commandBuffer_.size() > 0)
     {

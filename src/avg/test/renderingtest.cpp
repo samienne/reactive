@@ -20,9 +20,16 @@
 #include <ase/rendercommand.h>
 #include <ase/drawcommand.h>
 #include <ase/dummyplatform.h>
+#include <ase/dummyrenderqueue.h>
+#include <ase/dummyuniformset.h>
 #include <ase/platform.h>
 #include <ase/rendercontext.h>
+#include <ase/renderqueue.h>
 #include <ase/format.h>
+#include <ase/uniformbuffer.h>
+#include <ase/uniformbufferimpl.h>
+#include <ase/uniformset.h>
+#include <ase/vertexspec.h>
 #include <ase/vector.h>
 
 #include <btl/runloop.h>
@@ -175,6 +182,41 @@ namespace
                     return std::holds_alternative<ase::TextureSubUploadCommand>(
                             c);
                 });
+    }
+
+    std::vector<ase::BufferUploadCommand const*> uniformUploads(
+            ase::CommandBuffer const& commands)
+    {
+        std::vector<ase::BufferUploadCommand const*> result;
+        for (auto const& command : commands)
+        {
+            auto const* upload = std::get_if<ase::BufferUploadCommand>(
+                    &command);
+            if (upload && std::holds_alternative<ase::UniformBuffer>(
+                        upload->target))
+            {
+                result.push_back(upload);
+            }
+        }
+
+        return result;
+    }
+
+    ase::UniformBufferImpl const* implOf(ase::UniformBuffer const& buffer)
+    {
+        return &buffer.getImpl<ase::UniformBufferImpl>();
+    }
+
+    ase::UniformBufferImpl const* uploadTarget(
+            ase::BufferUploadCommand const& upload)
+    {
+        return implOf(std::get<ase::UniformBuffer>(upload.target));
+    }
+
+    ase::VertexSpec::Spec attribute(int location, int size, size_t offset)
+    {
+        return ase::VertexSpec::Spec{ location, size, ase::TypeFloat, false,
+            offset };
     }
 } // anonymous namespace
 
@@ -368,4 +410,108 @@ TEST(rendering, blankTextDrawsNothing)
     auto commands = f.render(f.drawing(f.entry(" ")));
 
     EXPECT_TRUE(f.draws(commands).empty());
+}
+
+TEST(rendering, pipelinesResolveVerticesAgainstTheDeclaration)
+{
+    Fixture f;
+
+    // Vertices are rgba, xyz (and uv for text): pos at location 0, color
+    // at 1, uv at 2.
+    auto const& solid = f.painter.getPipeline(
+            avg::Brush(avg::Color(1.0f, 0.0f, 0.0f, 1.0f))).getVertexSpec();
+    ASSERT_EQ(2u, solid.getSpecs().size());
+    EXPECT_EQ(attribute(0, 3, 4 * sizeof(float)), solid.getSpecs()[0]);
+    EXPECT_EQ(attribute(1, 4, 0), solid.getSpecs()[1]);
+    EXPECT_EQ(7 * sizeof(float), solid.getStride());
+
+    auto const& text = f.painter.getTextPipeline().getVertexSpec();
+    ASSERT_EQ(3u, text.getSpecs().size());
+    EXPECT_EQ(attribute(0, 3, 4 * sizeof(float)), text.getSpecs()[0]);
+    EXPECT_EQ(attribute(1, 4, 0), text.getSpecs()[1]);
+    EXPECT_EQ(attribute(2, 2, 7 * sizeof(float)), text.getSpecs()[2]);
+    EXPECT_EQ(textVertexFloats * sizeof(float), text.getStride());
+}
+
+TEST(rendering, frameUploadsItsProjectionAheadOfItsDraws)
+{
+    Fixture f;
+    auto& queue = f.context.getMainRenderQueue()
+        .getImpl<ase::DummyRenderQueue>();
+    queue.recordSubmissions(true);
+
+    f.painter.setSize(ase::Vector2i(200, 100), 2.0f);
+    f.painter.paintToImage(f.target, 1.0f, f.drawing(f.entry("Hi")));
+    f.painter.flush();
+
+    auto const& submitted = queue.getSubmissions();
+    ASSERT_EQ(2u, submitted.size());
+
+    // The first submission is the frame's one uniform upload: the
+    // projection, column-major, mapping 200x100 device pixels at scale 2.
+    ASSERT_EQ(1u, submitted[0].size());
+    auto const* upload = std::get_if<ase::BufferUploadCommand>(
+            &*submitted[0].begin());
+    ASSERT_TRUE(upload);
+    ASSERT_TRUE(std::holds_alternative<ase::UniformBuffer>(upload->target));
+    ASSERT_EQ(16 * sizeof(float), upload->data.getSize());
+    float const* m = upload->data.mapRead<float>();
+    EXPECT_FLOAT_EQ(2.0f * 2.0f / 200.0f, m[0]);
+    EXPECT_FLOAT_EQ(2.0f * 2.0f / 100.0f, m[5]);
+    EXPECT_EQ(1.0f, m[10]);
+    EXPECT_EQ(-1.0f, m[12]);
+    EXPECT_EQ(-1.0f, m[13]);
+    EXPECT_EQ(1.0f, m[15]);
+    EXPECT_EQ(0.0f, m[1]);
+    EXPECT_EQ(0.0f, m[4]);
+
+    // The second holds the draws, every one binding the painter's set, with
+    // no uniform upload among them to fence the batch.
+    auto const& frame = submitted[1];
+    EXPECT_TRUE(uniformUploads(frame).empty());
+    auto draws = f.draws(frame);
+    ASSERT_FALSE(draws.empty());
+    for (auto const& draw : draws)
+        EXPECT_EQ(f.painter.getUniformSet(), draw.command->getUniforms());
+
+    auto const& bindings = f.painter.getUniformSet()
+        .getImpl<ase::DummyUniformSet>().getBindings();
+    ASSERT_EQ(1u, bindings.count(0));
+    EXPECT_EQ(0u, bindings.at(0).offset);
+    EXPECT_EQ(16 * sizeof(float), bindings.at(0).size);
+    EXPECT_EQ(uploadTarget(*upload), implOf(bindings.at(0).buffer));
+
+    // The next frame writes and binds another buffer of the ring.
+    f.painter.paintToImage(f.target, 1.0f, f.drawing(f.entry("Ho")));
+    f.painter.flush();
+
+    ASSERT_EQ(4u, submitted.size());
+    auto next = uniformUploads(submitted[2]);
+    ASSERT_EQ(1u, next.size());
+    EXPECT_NE(uploadTarget(*upload), uploadTarget(*next[0]));
+    EXPECT_EQ(uploadTarget(*next[0]), implOf(bindings.at(0).buffer));
+    EXPECT_TRUE(uniformUploads(submitted[3]).empty());
+}
+
+TEST(rendering, resizingDoesNotSubmit)
+{
+    Fixture f;
+    auto& queue = f.context.getMainRenderQueue()
+        .getImpl<ase::DummyRenderQueue>();
+    queue.recordSubmissions(true);
+
+    f.painter.setSize(ase::Vector2i(200, 100), 1.0f);
+    f.painter.setSize(ase::Vector2i(400, 100), 1.0f);
+    f.painter.flush();
+    EXPECT_TRUE(queue.getSubmissions().empty());
+
+    f.painter.clearImage(f.target);
+    f.painter.flush();
+
+    // A frame that only clears still carries its projection.
+    ASSERT_EQ(2u, queue.getSubmissions().size());
+    ASSERT_EQ(1u, uniformUploads(queue.getSubmissions()[0]).size());
+    float const* m = uniformUploads(queue.getSubmissions()[0])[0]
+        ->data.mapRead<float>();
+    EXPECT_FLOAT_EQ(2.0f / 400.0f, m[0]);
 }

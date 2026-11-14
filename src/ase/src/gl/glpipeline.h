@@ -38,7 +38,7 @@ namespace ase
         bool operator<(GlPipeline const& rhs) const;
 
         virtual Program const& getProgram() const override;
-        VertexSpec const& getVertexSpec() const;
+        VertexSpec const& getVertexSpec() const override;
         bool isBlendEnabled() const override;
         BlendMode getSrcFactor() const;
         BlendMode getDstFactor() const;

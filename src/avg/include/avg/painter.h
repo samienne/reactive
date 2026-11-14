@@ -6,9 +6,10 @@
 #include "avgvisibility.h"
 
 #include <ase/commandbuffer.h>
-#include <ase/buffer.h>
+#include <ase/matrix.h>
+#include <ase/uniformblock.h>
+#include <ase/uniformring.h>
 #include <ase/uniformset.h>
-#include <ase/uniformbuffer.h>
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
 #include <ase/vector.h>
@@ -23,6 +24,12 @@ namespace avg
     class Brush;
     class GlyphAtlas;
 
+    /**
+     * @brief Records drawing into frames and submits them.
+     *
+     * A frame is everything recorded from the first clear or paint up to
+     * flush.
+     */
     class AVG_EXPORT Painter final
     {
     public:
@@ -74,16 +81,25 @@ namespace avg
         void flush();
 
     private:
+        struct MatrixBlock
+        {
+            ase::Matrix4f worldViewProj;
+        };
+
+        void beginFrame();
+        void writeMatrices();
+
         pmr::memory_resource* memory_;
         ase::RenderContext& renderContext_;
         ase::Pipeline solidPipeline_;
         ase::Pipeline transparentPipeline_;
         ase::Pipeline textPipeline_;
         std::unique_ptr<GlyphAtlas> glyphAtlas_;
-        ase::Buffer buffer_;
+        ase::UniformBlock<MatrixBlock> matrices_;
+        ase::UniformRing uniformRing_;
         ase::UniformSet uniformSet_;
-        ase::UniformBuffer uniformBuffer_;
         ase::CommandBuffer commandBuffer_;
+        bool frameOpen_ = false;
     };
 }
 

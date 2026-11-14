@@ -61,6 +61,7 @@ namespace ase
         GLenum srcFactor_ = 0;
         GLenum dstFactor_ = 0;
         GlUniformSet const* boundUniformSet_ = nullptr;
+        uint64_t boundUniformSetVersion_ = 0;
         std::vector<GLint> activeAttribs_;
         std::vector<GLuint> activeTextures_;
         bool enableDepthWrite_ = false;

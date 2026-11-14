@@ -4,6 +4,7 @@
 #include "uniformsetimpl.h"
 #include "uniformbufferrange.h"
 
+#include <cstdint>
 #include <unordered_map>
 
 namespace ase
@@ -16,7 +17,7 @@ namespace ase
         using ConstIterator = std::unordered_map<size_t,
               UniformBufferRange>::const_iterator;
 
-        explicit GlUniformSet(GlRenderContext& context);
+        GlUniformSet(GlRenderContext& context, ShaderInterface iface);
 
         void bindUniformBufferRange(
                 int binding,
@@ -26,8 +27,14 @@ namespace ase
         ConstIterator begin() const;
         ConstIterator end() const;
 
+        /**
+         * @brief Changes on every bind.
+         */
+        uint64_t getVersion() const;
+
     private:
         std::unordered_map<size_t, UniformBufferRange> bindings_;
+        uint64_t version_ = 0;
 
     };
 } // namespace

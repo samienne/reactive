@@ -1,14 +1,7 @@
 #include "program.h"
 
 #include "programimpl.h"
-#include "vertexshader.h"
-#include "fragmentshader.h"
-#include "rendercontext.h"
-#include "platform.h"
-
-#include "debug.h"
-
-#include <stdexcept>
+#include "shaderinterface.h"
 
 namespace ase
 {
@@ -38,6 +31,16 @@ int Program::getAttribLocation(std::string const& name) const
     return -1;
 }
 
+ShaderInterface const& Program::getInterface() const
+{
+    return d()->getInterface();
+}
+
+std::optional<ShaderInterface> Program::reflect() const
+{
+    return d()->reflect();
+}
+
 bool Program::operator==(Program const& rhs) const
 {
     return deferred_ == rhs.deferred_;
@@ -54,4 +57,3 @@ bool Program::operator<(Program const& rhs) const
 }
 
 } // namespace
-
