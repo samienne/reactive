@@ -41,17 +41,25 @@ additions shape what a frame can do beyond flat painting:
   drawing first flushes them ahead of everything else.
 - **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
   counts as lying behind it: the frame as it was when the scope was entered,
-  never the scope's own content or its siblings. Whoever paints one child
-  over another composes the two with `Drawing::over`, which scopes the upper
-  child. No element samples its backdrop, so a scope only groups its content
-  and costs nothing; stacks use it unconditionally.
+  never the scope's own content or its siblings. Effects that sample what
+  lies behind them (frosted glass) see that backdrop. Whoever paints one
+  child over another composes the two with `Drawing::over`, which scopes the
+  upper child; a scope without effects only groups its content and costs
+  nothing, so stacks use it unconditionally.
+- **Effect elements.** A backdrop effect (`frostedGlass`, `tint`) is one
+  element of the drawing, drawn through a shape: the effect's final pass
+  paints the shape and the passes before it sample the scope's backdrop
+  around it. The renderer does not draw effect elements yet; they take their
+  place in the drawing so that the stacking and ordering above are already
+  exercised.
 
-In the render tree, a `SurfaceNode` (a filled shape under a child) casts its
-shadow as a pending shadow and never opens a scope; a `ContainerNode` built
-with `Stacking::stacked` is the stack that paints its children over one
-another through `over`, while a flat container (vbox, hbox, grid) only
-concatenates. `RenderTree::draw` is the root: it flushes the drawing it
-returns.
+In the render tree, a `SurfaceNode` (a filled shape under a child, with an
+optional effect such as frosted glass behind the fill, animated like its
+shadow) casts its shadow as a pending shadow and never opens a scope; a
+`ContainerNode` built with `Stacking::stacked` is the stack that paints its
+children over one another through `over`, while a flat container (vbox, hbox,
+grid) only concatenates. `RenderTree::draw` is the root: it flushes the
+drawing it returns.
 
 ## Animation
 

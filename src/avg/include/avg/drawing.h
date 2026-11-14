@@ -9,10 +9,13 @@
 #include <pmr/heap.h>
 #include <pmr/memory_resource.h>
 
+#include <memory>
 #include <variant>
 
 namespace avg
 {
+    class Effect;
+
     /**
      * @brief The flat, ordered list of elements a frame rasterises.
      *
@@ -63,8 +66,24 @@ namespace avg
             std::optional<Pen> pen;
         };
 
+        /**
+         * @brief A backdrop effect drawn through shape.
+         *
+         * The effect's final pass paints shape; the passes before it sample
+         * the enclosing scope's backdrop around shape's bounds. shape is in
+         * the element's own space and transform maps it, together with the
+         * effect's logical units, into the drawing's space. Build the
+         * effect once and share the pointer across elements and frames.
+         */
+        struct EffectElement
+        {
+            Shape shape;
+            std::shared_ptr<Effect const> effect;
+            Transform transform;
+        };
+
         using Element = std::variant<ShapeElement, TextEntry, ClipElement,
-              RegionFill, BackdropScope>;
+              RegionFill, BackdropScope, EffectElement>;
 
         struct SubDrawing
         {
@@ -146,6 +165,9 @@ namespace avg
 
         /**
          * @brief The bounds of the elements and the pending shadows.
+         *
+         * An effect element counts as its shape's bounds; the margin its
+         * passes sample beyond them is added when the frame is rendered.
          */
         Rect getControlBb() const;
 

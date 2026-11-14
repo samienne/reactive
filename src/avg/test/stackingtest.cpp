@@ -1,9 +1,11 @@
 #include <avg/animationoptions.h>
 #include <avg/brush.h>
+#include <avg/builtineffects.h>
 #include <avg/color.h>
 #include <avg/curve/curves.h>
 #include <avg/drawcontext.h>
 #include <avg/drawing.h>
+#include <avg/effect.h>
 #include <avg/obb.h>
 #include <avg/rect.h>
 #include <avg/rendertree.h>
@@ -17,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -66,9 +69,18 @@ avg::SurfaceShadow shadowAt(float dx, float dy, float spread = 0.0f)
     };
 }
 
+avg::SurfaceEffect glass(float radius)
+{
+    avg::FrostedGlassOptions options;
+    options.radius = radius;
+
+    return avg::SurfaceFrostedGlass{ options };
+}
+
 std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
         std::optional<avg::SurfaceShadow> shadow,
         std::shared_ptr<avg::RenderTreeNode> child = nullptr,
+        std::optional<avg::SurfaceEffect> effect = std::nullopt,
         std::optional<avg::AnimationOptions> options = std::nullopt)
 {
     return std::make_shared<avg::SurfaceNode>(
@@ -77,6 +89,7 @@ std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
             avg::makeShapeFunction(&box),
             std::make_optional(avg::Brush(white)),
             std::move(shadow),
+            std::move(effect),
             std::move(child)
             );
 }
@@ -112,8 +125,9 @@ avg::Drawing drawTree(avg::RenderTree const& tree,
 }
 
 /**
- * @brief One letter per element: S for a shape, [ ] around the contents of
- * a scope, ( ) around the contents of a clip, T for text, R for a region.
+ * @brief One letter per element: S for a shape, E for an effect, [ ] around
+ * the contents of a scope, ( ) around the contents of a clip, T for text, R
+ * for a region.
  */
 std::string structureOf(pmr::vector<avg::Drawing::Element> const& elements)
 {
@@ -133,6 +147,9 @@ std::string structureOf(pmr::vector<avg::Drawing::Element> const& elements)
                     result += '(' + structureOf(e.subDrawing->elements) + ')';
                 else if constexpr (std::is_same_v<T, avg::TextEntry>)
                     result += 'T';
+                else if constexpr (std::is_same_v<T,
+                        avg::Drawing::EffectElement>)
+                    result += 'E';
                 else
                     result += 'R';
             },
@@ -178,6 +195,31 @@ avg::Drawing::BackdropScope const& scopeAt(
         pmr::vector<avg::Drawing::Element> const& elements, size_t i)
 {
     return std::get<avg::Drawing::BackdropScope>(elements.at(i));
+}
+
+avg::Drawing::EffectElement const& effectAt(
+        pmr::vector<avg::Drawing::Element> const& elements, size_t i)
+{
+    return std::get<avg::Drawing::EffectElement>(elements.at(i));
+}
+
+avg::Rect boundsOf(avg::Drawing::EffectElement const& effect)
+{
+    return (effect.transform * avg::Obb(effect.shape.getControlBb()))
+        .getBoundingRect();
+}
+
+/**
+ * @brief The parameter bytes of one pass of an effect.
+ */
+std::vector<char> parameterBytes(avg::Effect const& effect, size_t pass)
+{
+    auto const& parameters = effect.getPasses().at(pass).parameters;
+    if (!parameters)
+        return {};
+
+    auto const* data = static_cast<char const*>(parameters->data());
+    return std::vector<char>(data, data + parameters->getSize());
 }
 
 void expectRect(avg::Rect const& r, float x, float y,
@@ -412,4 +454,166 @@ TEST(SurfaceNode, animatingAShadowChangesValuesNotStructure)
                 duration / 2).second);
     EXPECT_FALSE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
                 duration).second);
+}
+
+TEST(SurfaceNode, effectGoesAheadOfTheFillWhileTheShadowStaysPending)
+{
+    auto node = surface(placed(10.0f, 20.0f, 100.0f, 50.0f),
+            shadowAt(5.0f, -5.0f),
+            rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
+            glass(8.0f));
+
+    auto d = drawNode(*node);
+
+    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
+    ASSERT_EQ("ESS", structureOf(d.getElements()));
+
+    auto const& effect = effectAt(d.getElements(), 0);
+    expectRect(boundsOf(effect), 10.0f, 20.0f, 100.0f, 50.0f);
+    ASSERT_TRUE(effect.effect);
+    EXPECT_EQ(4u, effect.effect->getPasses().size());
+    expectRect(shapeAt(d.getElements(), 1).shape.getControlBb(),
+            10.0f, 20.0f, 100.0f, 50.0f);
+}
+
+TEST(SurfaceNode, tintIsOneShapePass)
+{
+    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+            nullptr, avg::SurfaceTint{ black, 0.5f });
+
+    auto d = drawNode(*node);
+
+    ASSERT_EQ("ES", structureOf(d.getElements()));
+    EXPECT_EQ(1u, effectAt(d.getElements(), 0).effect->getPasses().size());
+}
+
+TEST(StackingContainer, aStackOfGlassSurfacesScopesEachLaterSurface)
+{
+    auto stack = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
+            avg::ContainerNode::Stacking::stacked, {
+            surface(placed(0.0f, 0.0f, 100.0f, 50.0f), shadowAt(1.0f, 0.0f),
+                    rect(placed(0.0f, 0.0f, 20.0f, 20.0f)), glass(8.0f)),
+            surface(placed(200.0f, 0.0f, 100.0f, 50.0f), shadowAt(2.0f, 0.0f),
+                    rect(placed(0.0f, 0.0f, 20.0f, 20.0f)), glass(8.0f))
+            });
+
+    auto d = drawNode(*stack);
+
+    EXPECT_EQ("ESSS[ESS]", structureOf(d.getElements()));
+    EXPECT_EQ((std::vector<float>{ 0.0f, 0.0f, 202.0f, 200.0f, 200.0f }),
+            lefts(d.getElements()));
+    expectRect(boundsOf(effectAt(d.getElements(), 0)),
+            0.0f, 0.0f, 100.0f, 50.0f);
+    expectRect(boundsOf(effectAt(
+                    scopeAt(d.getElements(), 4).subDrawing->elements, 0)),
+            200.0f, 0.0f, 100.0f, 50.0f);
+    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
+}
+
+TEST(SurfaceNode, animatingTheEffectChangesParametersNotStructure)
+{
+    std::chrono::milliseconds const duration(1000);
+    avg::AnimationOptions const options{ duration, avg::curve::linear };
+
+    avg::RenderTree tree(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
+                shadowAt(0.0f, 0.0f), rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
+                glass(8.0f)));
+
+    avg::RenderTree next(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
+                shadowAt(0.0f, 0.0f), rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
+                glass(16.0f)));
+
+    auto [updated, nextUpdate] = std::move(tree).update(std::move(next),
+            options, zero);
+
+    auto start = drawTree(updated, zero);
+    auto halfway = drawTree(updated, duration / 2);
+    auto end = drawTree(updated, duration);
+
+    EXPECT_EQ("SESS", structureOf(start.getElements()));
+    EXPECT_EQ("SESS", structureOf(halfway.getElements()));
+    EXPECT_EQ("SESS", structureOf(end.getElements()));
+
+    auto const& startEffect = *effectAt(start.getElements(), 1).effect;
+    auto const& halfwayEffect = *effectAt(halfway.getElements(), 1).effect;
+    auto const& endEffect = *effectAt(end.getElements(), 1).effect;
+
+    ASSERT_EQ(startEffect.getPasses().size(), halfwayEffect.getPasses().size());
+    for (size_t i = 0; i < startEffect.getPasses().size(); ++i)
+    {
+        EXPECT_EQ(startEffect.getPasses()[i].geometry,
+                halfwayEffect.getPasses()[i].geometry);
+        EXPECT_EQ(startEffect.getPasses()[i].shader.fragmentSource,
+                halfwayEffect.getPasses()[i].shader.fragmentSource);
+    }
+
+    // The blur passes carry the radius.
+    EXPECT_NE(parameterBytes(startEffect, 1), parameterBytes(halfwayEffect, 1));
+    EXPECT_NE(parameterBytes(halfwayEffect, 1), parameterBytes(endEffect, 1));
+    EXPECT_EQ(parameterBytes(startEffect, 3), parameterBytes(halfwayEffect, 3));
+
+    avg::DrawContext context(pmr::new_delete_resource());
+    EXPECT_TRUE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
+                duration / 2).second);
+    EXPECT_FALSE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
+                duration).second);
+}
+
+TEST(SurfaceNode, anOvershootingCurveDrawsTheEffectClamped)
+{
+    std::chrono::milliseconds const duration(1000);
+    ASSERT_GT(avg::curve::easeOutBack(0.6f), 1.0f);
+    ASSERT_LT(avg::curve::easeInBack(0.4f), 0.0f);
+
+    auto tinted = [](float strength)
+    {
+        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+                nullptr, avg::SurfaceTint{ black, strength });
+    };
+
+    auto glassy = [](float radius)
+    {
+        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+                nullptr, glass(radius));
+    };
+
+    auto [past, pastUpdate] = avg::RenderTree(tinted(0.0f)).update(
+            avg::RenderTree(tinted(1.0f)),
+            avg::AnimationOptions{ duration, avg::curve::easeOutBack }, zero);
+    auto [below, belowUpdate] = avg::RenderTree(glassy(0.0f)).update(
+            avg::RenderTree(glassy(8.0f)),
+            avg::AnimationOptions{ duration, avg::curve::easeInBack }, zero);
+
+    for (int i = 0; i <= 10; ++i)
+    {
+        EXPECT_NO_THROW(drawTree(past, duration * i / 10)) << "step " << i;
+        EXPECT_NO_THROW(drawTree(below, duration * i / 10)) << "step " << i;
+    }
+
+    auto overshot = drawTree(past, duration * 6 / 10);
+    auto end = drawTree(past, duration);
+    EXPECT_EQ(parameterBytes(*effectAt(end.getElements(), 0).effect, 0),
+            parameterBytes(*effectAt(overshot.getElements(), 0).effect, 0));
+}
+
+TEST(SurfaceNode, frostedGlassOptionsInterpolateMemberwise)
+{
+    avg::FrostedGlassOptions a;
+    a.radius = 8.0f;
+    a.tintStrength = 0.0f;
+    a.tint = black;
+
+    avg::FrostedGlassOptions b;
+    b.radius = 16.0f;
+    b.tintStrength = 1.0f;
+    b.tint = white;
+
+    auto mid = avg::lerp(a, b, 0.5f);
+    EXPECT_FLOAT_EQ(12.0f, mid.radius);
+    EXPECT_FLOAT_EQ(0.5f, mid.tintStrength);
+    EXPECT_FLOAT_EQ(0.5f, mid.tint.getRed());
+    EXPECT_FLOAT_EQ(a.saturation, mid.saturation);
+
+    EXPECT_TRUE(a == avg::lerp(a, b, 0.0f));
+    EXPECT_TRUE(a != b);
 }
