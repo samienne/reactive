@@ -34,6 +34,8 @@ namespace ase
 
         virtual Program const& getProgram() const override;
         VertexSpec const& getVertexSpec() const override;
+        Format getColorFormat() const override;
+        std::optional<Format> getDepthFormat() const override;
         bool isBlendEnabled() const override;
         bool isDepthTestEnabled() const override;
         bool isDepthWriteEnabled() const override;
@@ -43,6 +45,8 @@ namespace ase
     private:
         Program program_;
         VertexSpec vertexSpec_;
+        Format colorFormat_;
+        std::optional<Format> depthFormat_;
         BlendMode srcFactor_;
         BlendMode dstFactor_;
         bool blendEnabled_;

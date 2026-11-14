@@ -33,6 +33,10 @@ UnsupportedShaderLanguage::UnsupportedShaderLanguage(ShaderLanguage language) :
 {
 }
 
+/* Out of line so the type info lives in this library alone; a copy emitted
+ * in another image is not matched by a catch on macOS. */
+UnsupportedShaderLanguage::~UnsupportedShaderLanguage() = default;
+
 ShaderLanguage UnsupportedShaderLanguage::getLanguage() const
 {
     return language_;

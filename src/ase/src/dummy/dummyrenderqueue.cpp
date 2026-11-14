@@ -1,8 +1,10 @@
 #include "dummyrenderqueue.h"
 
 #include "commandbuffer.h"
+#include "drawcommand.h"
 #include "rendercommand.h"
 
+#include <cassert>
 #include <variant>
 
 namespace ase
@@ -22,8 +24,13 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
     // frames in flight by a fence per submit, so leaving them pending would
     // wedge its backpressure.
     for (auto& command : commandBuffer)
+    {
         if (std::holds_alternative<FenceCommand>(command))
             std::get<FenceCommand>(command).promise.set();
+
+        if (DrawCommand const* draw = std::get_if<DrawCommand>(&command))
+            assert(draw->getPipeline().matchesTarget(draw->getFramebuffer()));
+    }
 
     if (recording_)
         submissions_.push_back(std::move(commandBuffer));

@@ -5,14 +5,14 @@
 #include "pen.h"
 #include "effectemitter.h"
 #include "glyphatlas.h"
+#include "shadersource.h"
 
 #include <ase/window.h>
+#include <ase/framebuffer.h>
 #include <ase/matrix.h>
 #include <ase/namedvertexspec.h>
-#include <ase/shader.h>
 #include <ase/shaderinterface.h>
 #include <ase/program.h>
-#include <ase/buffer.h>
 #include <ase/blendmode.h>
 #include <ase/pipelinedesc.h>
 #include <ase/renderqueue.h>
@@ -138,13 +138,6 @@ namespace
 
     constexpr uint32_t presentQuadIndices[] = { 0, 1, 2, 0, 2, 3 };
 
-    ase::Shader makeShader(ase::RenderContext& context, ase::ShaderStage stage,
-            std::string const& source)
-    {
-        return context.makeShader(stage, ase::ShaderLanguage::Glsl330,
-                ase::Buffer(source.data(), source.size()));
-    }
-
     ase::ShaderInterface matrixInterface()
     {
         ase::ShaderInterface iface;
@@ -157,26 +150,25 @@ namespace
         return iface;
     }
 
+    constexpr ase::Format targetFormat = ase::FORMAT_SRGBA;
+
+    ase::BlendFunc const overBlend{ ase::BlendMode::One,
+        ase::BlendMode::OneMinusSrcAlpha };
+
     ase::Pipeline makePipeline(ase::RenderContext& context, bool solid)
     {
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                simpleVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                simpleFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                matrixInterface());
+        auto program = makeProgram(context,
+                { simpleVsSource, simpleFsSource, matrixInterface() });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        if (solid)
-            return context.makePipeline(program, spec);
-        else
-        {
-            return context.makePipelineWithBlend(program, spec,
-                    ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
-        }
+        ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
+        if (!solid)
+            desc.blend = overBlend;
+
+        return context.makePipeline(program, spec, desc);
     }
 
     ase::Pipeline makeTextPipeline(ase::RenderContext& context)
@@ -185,19 +177,17 @@ namespace
         namedSpec.add("color", 4, ase::TypeFloat, false)
             .add("pos", 3, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                textVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                textFsSource());
         auto iface = matrixInterface();
         iface.attribute("uv", 2, ase::TypeFloat, 2)
             .sampler("atlas", 0);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                std::move(iface));
+        auto program = makeProgram(context,
+                { textVsSource, textFsSource(), std::move(iface) });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        return context.makePipelineWithBlend(program, spec,
-                ase::BlendMode::One, ase::BlendMode::OneMinusSrcAlpha);
+        ase::PipelineDesc desc{ targetFormat, TargetImage::depthFormat };
+        desc.blend = overBlend;
+
+        return context.makePipeline(program, spec, desc);
     }
 
     ase::ShaderInterface presentInterface()
@@ -210,20 +200,18 @@ namespace
         return iface;
     }
 
-    ase::Pipeline makePresentPipeline(ase::RenderContext& context)
+    ase::Pipeline makePresentPipeline(ase::RenderContext& context,
+            ase::Framebuffer const& target)
     {
         ase::NamedVertexSpec namedSpec;
         namedSpec.add("pos", 2, ase::TypeFloat, false)
             .add("uv", 2, ase::TypeFloat, false);
-        auto vs = makeShader(context, ase::ShaderStage::Vertex,
-                presentVsSource);
-        auto fs = makeShader(context, ase::ShaderStage::Fragment,
-                presentFsSource);
-        auto program = context.makeProgram(std::move(vs), std::move(fs),
-                presentInterface());
+        auto program = makeProgram(context,
+                { presentVsSource, presentFsSource, presentInterface() });
         ase::VertexSpec spec(program, std::move(namedSpec));
 
-        ase::PipelineDesc desc;
+        ase::PipelineDesc desc{ target.getColorFormat(),
+            target.getDepthFormat() };
         desc.depthTest = false;
         desc.depthWrite = false;
 
@@ -237,7 +225,6 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     solidPipeline_(makePipeline(context, true)),
     transparentPipeline_(makePipeline(context, false)),
     textPipeline_(makeTextPipeline(context)),
-    presentPipeline_(makePresentPipeline(context)),
     presentUniformSet_(context.makeUniformSet(presentInterface())),
     glyphAtlas_(std::make_unique<GlyphAtlas>(context)),
     matrices_(matrixInterface(), "MatrixBlock", {
@@ -248,7 +235,7 @@ Painter::Painter(pmr::memory_resource* memory, ase::RenderContext& context) :
     scratchPool_(context),
     passPipelines_(context)
 {
-    matrices_->worldViewProj = ase::Matrix4f::Identity();
+    matrices_->worldViewProj = context.getClipSpaceAdjustment();
 }
 
 Painter::~Painter()
@@ -270,7 +257,7 @@ void Painter::setSize(ase::Vector2i pixelSize, float scalingFactor)
     m(0,3) = -1.0f;
     m(1,3) = -1.0f;
 
-    matrices_->worldViewProj = m;
+    matrices_->worldViewProj = renderContext_.getClipSpaceAdjustment() * m;
 
     if (frameOpen_)
         writeMatrices();
@@ -372,8 +359,7 @@ TargetImage& Painter::windowTarget(ase::Window& window)
     auto const pixelSize = window.getScaledSize();
     if (!windowTarget_ || windowTarget_->getSize() != pixelSize)
     {
-        windowTarget_.emplace(renderContext_, pixelSize,
-                ase::FORMAT_SRGBA);
+        windowTarget_.emplace(renderContext_, pixelSize, targetFormat);
     }
 
     return *windowTarget_;
@@ -381,6 +367,10 @@ TargetImage& Painter::windowTarget(ase::Window& window)
 
 void Painter::pushPresent(ase::Window& window)
 {
+    ase::Framebuffer& target = window.getDefaultFramebuffer();
+    if (!presentPipeline_ || !presentPipeline_->matchesTarget(target))
+        presentPipeline_ = makePresentPipeline(renderContext_, target);
+
     if (!presentVertices_)
     {
         presentVertices_ = renderContext_.makeVertexBuffer();
@@ -397,7 +387,7 @@ void Painter::pushPresent(ase::Window& window)
     // The quad samples what this frame drew, so the sort must not move it
     // ahead of those draws.
     commandBuffer_.pushBarrier();
-    commandBuffer_.push(window.getDefaultFramebuffer(), presentPipeline_,
+    commandBuffer_.push(target, *presentPipeline_,
             presentUniformSet_, *presentVertices_, *presentIndices_,
             { windowTarget_->getTexture() }, 0.0f);
 }

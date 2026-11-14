@@ -8,8 +8,6 @@ namespace ase
     {
     public:
         DummyTexture(Vector2i size, Format format);
-        void setSize(Vector2i size) override;
-        void setFormat(Format format) override;
         Vector2i getSize() const override;
         Format getFormat() const override;
 

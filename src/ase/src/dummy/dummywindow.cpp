@@ -9,7 +9,8 @@ namespace ase
 
 DummyWindow::DummyWindow(RenderContext& context, Vector2i size) :
     WindowBase(context, size, 1.0f),
-    defaultFramebuffer_(std::make_shared<DummyFramebuffer>())
+    defaultFramebuffer_(std::make_shared<DummyFramebuffer>(FORMAT_SRGBA,
+                FORMAT_DEPTH24_STENCIL8))
 {
 }
 

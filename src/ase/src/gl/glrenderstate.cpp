@@ -432,6 +432,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         size_t count = 0;
         GLenum mode;
 
+        assert(command.getPipeline().matchesTarget(command.getFramebuffer()));
+
         if (boundFramebuffer_ != &framebuffer)
         {
             boundFramebuffer_ = &framebuffer;

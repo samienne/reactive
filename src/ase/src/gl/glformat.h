@@ -10,8 +10,6 @@ namespace ase
     {
         switch (format)
         {
-            case FORMAT_SRGB:
-                return GL_RGB;
             case FORMAT_SRGBA:
             case FORMAT_RGBA16F:
                 return GL_RGBA;
@@ -33,8 +31,6 @@ namespace ase
     {
         switch (format)
         {
-            case FORMAT_SRGB:
-                return GL_SRGB8;
             case FORMAT_SRGBA:
                 return GL_SRGB8_ALPHA8;
             case FORMAT_R8:
@@ -62,7 +58,6 @@ namespace ase
     {
         switch (format)
         {
-            case FORMAT_SRGB:
             case FORMAT_SRGBA:
             case FORMAT_R8:
                 return GL_UNSIGNED_BYTE;
@@ -92,7 +87,6 @@ namespace ase
             case FORMAT_DEPTH24_STENCIL8:
                 return GL_DEPTH_STENCIL_ATTACHMENT;
             case FORMAT_UNKNOWN:
-            case FORMAT_SRGB:
             case FORMAT_SRGBA:
             case FORMAT_R8:
             case FORMAT_RGBA16F:

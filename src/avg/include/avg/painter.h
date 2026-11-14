@@ -84,7 +84,16 @@ namespace avg
          */
         GlyphAtlas& getGlyphAtlas();
 
+        /**
+         * @brief Clear an offscreen target: colour to opaque black and
+         * depth.
+         */
         void clearImage(TargetImage& target);
+
+        /**
+         * @brief Draw into an offscreen target of `FORMAT_SRGBA`, the
+         * format the painter's pipelines declare.
+         */
         void paintToImage(TargetImage& target, float scalingFactor, Drawing const& drawing);
 
         /**
@@ -137,7 +146,7 @@ namespace avg
         ase::Pipeline solidPipeline_;
         ase::Pipeline transparentPipeline_;
         ase::Pipeline textPipeline_;
-        ase::Pipeline presentPipeline_;
+        std::optional<ase::Pipeline> presentPipeline_;
         ase::UniformSet presentUniformSet_;
         std::optional<TargetImage> windowTarget_;
         std::optional<ase::VertexBuffer> presentVertices_;

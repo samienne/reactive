@@ -1,16 +1,21 @@
 #include <ase/blendmode.h>
 #include <ase/buffer.h>
 #include <ase/dummyplatform.h>
+#include <ase/format.h>
+#include <ase/framebuffer.h>
 #include <ase/namedvertexspec.h>
 #include <ase/pipeline.h>
 #include <ase/pipelinedesc.h>
 #include <ase/platform.h>
 #include <ase/program.h>
+#include <ase/renderbuffer.h>
 #include <ase/rendercontext.h>
 #include <ase/shader.h>
 #include <ase/shaderinterface.h>
 #include <ase/shaderlanguage.h>
+#include <ase/texture.h>
 #include <ase/vertexspec.h>
+#include <ase/window.h>
 
 #include <btl/runloop.h>
 
@@ -39,7 +44,7 @@ namespace
             bool depthTest = true,
             std::optional<bool> depthWrite = std::nullopt)
     {
-        PipelineDesc desc;
+        PipelineDesc desc{ FORMAT_SRGBA, FORMAT_DEPTH24_STENCIL8 };
         desc.blend = blend;
         desc.depthTest = depthTest;
         desc.depthWrite = depthWrite;
@@ -55,6 +60,7 @@ namespace
         VertexSpec spec = vertexSpec();
         BlendFunc const over{ BlendMode::One, BlendMode::OneMinusSrcAlpha };
         PipelineDesc const blendedDesc = describe(over);
+        Vector2i const size{ 16, 8 };
 
         Program makeProgram()
         {
@@ -71,13 +77,32 @@ namespace
             named.add("pos", 3, TypeFloat, false);
             return VertexSpec(program, named);
         }
+
+        Pipeline pipeline(Format color, std::optional<Format> depth)
+        {
+            return context.makePipeline(program, spec,
+                    PipelineDesc{ color, depth });
+        }
+
+        Framebuffer target(Format color, std::optional<Format> depth)
+        {
+            Framebuffer framebuffer = context.makeFramebuffer();
+            framebuffer.setColorTarget(0, context.makeTexture(size, color));
+            if (depth)
+            {
+                framebuffer.setDepthTarget(
+                        context.makeRenderbuffer(size, *depth));
+            }
+            return framebuffer;
+        }
     };
 } // anonymous namespace
 
-TEST(pipeline, defaultIsOpaqueAndTestsAndWritesDepth)
+TEST(pipeline, opaqueTestsAndWritesDepth)
 {
     Fixture f;
-    Pipeline pipeline = f.context.makePipeline(f.program, f.spec);
+    Pipeline pipeline = f.context.makePipeline(f.program, f.spec,
+            describe(std::nullopt));
 
     EXPECT_FALSE(pipeline.isBlendEnabled());
     EXPECT_TRUE(pipeline.isDepthTestEnabled());
@@ -87,17 +112,12 @@ TEST(pipeline, defaultIsOpaqueAndTestsAndWritesDepth)
 TEST(pipeline, blendedLeavesDepthAloneByDefault)
 {
     Fixture f;
-    Pipeline withBlend = f.context.makePipelineWithBlend(f.program, f.spec,
-            BlendMode::One, BlendMode::OneMinusSrcAlpha);
-    Pipeline described = f.context.makePipeline(f.program, f.spec,
+    Pipeline pipeline = f.context.makePipeline(f.program, f.spec,
             f.blendedDesc);
 
-    for (Pipeline const& pipeline : { withBlend, described })
-    {
-        EXPECT_TRUE(pipeline.isBlendEnabled());
-        EXPECT_TRUE(pipeline.isDepthTestEnabled());
-        EXPECT_FALSE(pipeline.isDepthWriteEnabled());
-    }
+    EXPECT_TRUE(pipeline.isBlendEnabled());
+    EXPECT_TRUE(pipeline.isDepthTestEnabled());
+    EXPECT_FALSE(pipeline.isDepthWriteEnabled());
 }
 
 TEST(pipeline, depthFlagsAreExplicit)
@@ -122,10 +142,56 @@ TEST(pipeline, depthFlagsAreExplicit)
     EXPECT_FALSE(opaque.isDepthWriteEnabled());
 }
 
+TEST(pipeline, recordsItsTargetFormats)
+{
+    Fixture f;
+
+    Pipeline withDepth = f.pipeline(FORMAT_SRGBA, FORMAT_DEPTH24_STENCIL8);
+    EXPECT_EQ(FORMAT_SRGBA, withDepth.getColorFormat());
+    EXPECT_EQ(FORMAT_DEPTH24_STENCIL8, withDepth.getDepthFormat());
+
+    Pipeline colorOnly = f.pipeline(FORMAT_RGBA16F, std::nullopt);
+    EXPECT_EQ(FORMAT_RGBA16F, colorOnly.getColorFormat());
+    EXPECT_FALSE(colorOnly.getDepthFormat().has_value());
+}
+
+TEST(pipeline, matchesTargetsOfItsDeclaredFormats)
+{
+    Fixture f;
+
+    Pipeline withDepth = f.pipeline(FORMAT_SRGBA, FORMAT_DEPTH24_STENCIL8);
+    EXPECT_TRUE(withDepth.matchesTarget(
+                f.target(FORMAT_SRGBA, FORMAT_DEPTH24_STENCIL8)));
+    EXPECT_FALSE(withDepth.matchesTarget(
+                f.target(FORMAT_RGBA16F, FORMAT_DEPTH24_STENCIL8)));
+    EXPECT_FALSE(withDepth.matchesTarget(
+                f.target(FORMAT_SRGBA, FORMAT_DEPTH24)));
+    EXPECT_FALSE(withDepth.matchesTarget(f.target(FORMAT_SRGBA, std::nullopt)));
+
+    Pipeline colorOnly = f.pipeline(FORMAT_RGBA16F, std::nullopt);
+    EXPECT_TRUE(colorOnly.matchesTarget(
+                f.target(FORMAT_RGBA16F, std::nullopt)));
+    EXPECT_FALSE(colorOnly.matchesTarget(
+                f.target(FORMAT_RGBA16F, FORMAT_DEPTH16)));
+    EXPECT_FALSE(colorOnly.matchesTarget(f.target(FORMAT_R8, std::nullopt)));
+}
+
+TEST(pipeline, matchesTheWindowFramebufferItWasDeclaredFor)
+{
+    Fixture f;
+    Window window = f.platform.makeWindow(f.context, f.size, true);
+    Framebuffer const& target = window.getDefaultFramebuffer();
+
+    EXPECT_TRUE(f.pipeline(target.getColorFormat(), target.getDepthFormat())
+            .matchesTarget(target));
+    EXPECT_FALSE(f.pipeline(target.getColorFormat(), std::nullopt)
+            .matchesTarget(target));
+}
+
 TEST(pipelineDesc, resolvesDepthWriteFromBlend)
 {
     BlendFunc const add{ BlendMode::One, BlendMode::One };
-    EXPECT_TRUE(PipelineDesc{}.writesDepth());
+    EXPECT_TRUE(PipelineDesc{ FORMAT_SRGBA }.writesDepth());
     EXPECT_FALSE(describe(add).writesDepth());
     EXPECT_TRUE(describe(add, true, true).writesDepth());
     EXPECT_FALSE(describe(std::nullopt, true, false).writesDepth());

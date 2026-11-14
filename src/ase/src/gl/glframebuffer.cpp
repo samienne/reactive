@@ -193,6 +193,27 @@ void GlFramebuffer::unsetStencilTarget()
     assert(false);
 }
 
+Format GlFramebuffer::getColorFormat() const
+{
+    if (isDefault_)
+        return FORMAT_SRGBA;
+
+    return colorTargets_[0] ? colorTargets_[0]->getFormat() : FORMAT_UNKNOWN;
+}
+
+std::optional<Format> GlFramebuffer::getDepthFormat() const
+{
+    // Framebuffer 0 belongs to whichever window is current; its depth
+    // buffer's format is the platform's choice, not known here.
+    if (isDefault_)
+        return FORMAT_UNKNOWN;
+
+    if (!depthTarget_)
+        return std::nullopt;
+
+    return depthTarget_->getFormat();
+}
+
 GlFramebuffer::GlFramebuffer(GlRenderContext& context, std::nullptr_t) :
     context_(context),
     framebuffer_(0),

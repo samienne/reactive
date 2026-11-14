@@ -3,6 +3,7 @@
 #include "effectshader.h"
 
 #include <ase/buffer.h>
+#include <ase/framebuffer.h>
 #include <ase/rendercommand.h>
 #include <ase/scissorrect.h>
 #include <ase/uniformbufferrange.h>
@@ -107,9 +108,8 @@ void EffectEmitter::emitSnapshot(ScratchSlot const& slot,
     if (region.isEmpty())
         return;
 
-    ase::Format const format = mainTarget_.getTexture().getFormat();
     PassPipeline& pipeline = pipelines_.getPipeline(snapshotShader(),
-            Geometry::Region, format);
+            Geometry::Region, slot.key.format, std::nullopt);
     ScratchTarget target = scratch_.acquire(slot);
 
     std::vector<Input> inputs;
@@ -171,7 +171,8 @@ void EffectEmitter::emitEffect(Effect const& effect,
         if (pass.geometry == Geometry::Shape)
         {
             PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
-                    Geometry::Shape, mainFormat);
+                    Geometry::Shape, mainFormat,
+                    mainTarget_.getFramebuffer().getDepthFormat());
             draw(pipeline, mainTarget_.getFramebuffer(), mainTarget_.getSize(),
                     Divisor::One, region, inputs, pass.parameters,
                     triangleVertices(shapeTriangles));
@@ -185,7 +186,7 @@ void EffectEmitter::emitEffect(Effect const& effect,
             }
 
             PassPipeline& pipeline = pipelines_.getPipeline(pass.shader,
-                    Geometry::Region, pass.output->format);
+                    Geometry::Region, pass.output->format, std::nullopt);
             ScratchTarget target = scratch_.acquire(
                     passAllocation.output->slot);
             draw(pipeline, target.framebuffer, target.size,

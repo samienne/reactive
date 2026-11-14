@@ -422,6 +422,25 @@ TEST(EffectEmitter, offscreenEffectRecordsNothing)
     EXPECT_EQ(0u, f.pool.getTextureCount());
 }
 
+TEST(EffectEmitter, snapshotPipelineDeclaresTheScratchFormat)
+{
+    Fixture f;
+    avg::TargetImage floatTarget{ f.context, screenSize,
+        ase::FORMAT_RGBA16F };
+
+    f.beginFrame();
+    avg::EffectEmitter emitter(f.context, f.commands, f.ring, f.pool,
+            f.cache, floatTarget);
+    emitter.emitSnapshot(slot(Divisor::One, ase::FORMAT_SRGBA, 0),
+            glassBounds);
+    f.endFrame();
+
+    auto draws = f.draws();
+    ASSERT_EQ(1u, draws.size());
+    EXPECT_TRUE(draws[0]->getPipeline().matchesTarget(
+                draws[0]->getFramebuffer()));
+}
+
 TEST(EffectEmitter, rejectsMismatchedRegions)
 {
     Fixture f;
@@ -527,9 +546,9 @@ TEST(PassPipelineCache, returnsOnePipelinePerShaderFormatAndGeometry)
     avg::Pass const& blurV = glass.getPasses()[2];
 
     avg::PassPipeline& first = f.cache.getPipeline(copy.shader,
-            Geometry::Region, ase::FORMAT_RGBA16F);
+            Geometry::Region, ase::FORMAT_RGBA16F, std::nullopt);
     avg::PassPipeline& again = f.cache.getPipeline(copy.shader,
-            Geometry::Region, ase::FORMAT_RGBA16F);
+            Geometry::Region, ase::FORMAT_RGBA16F, std::nullopt);
     EXPECT_EQ(&first, &again);
     EXPECT_EQ(first.getPipeline(), again.getPipeline());
     EXPECT_EQ(1u, f.cache.getPipelineCount());
@@ -539,18 +558,48 @@ TEST(PassPipelineCache, returnsOnePipelinePerShaderFormatAndGeometry)
 
     // The two blurs share a source and differ only in parameters.
     avg::PassPipeline& blur = f.cache.getPipeline(blurH.shader,
-            Geometry::Region, ase::FORMAT_RGBA16F);
+            Geometry::Region, ase::FORMAT_RGBA16F, std::nullopt);
     EXPECT_EQ(&blur, &f.cache.getPipeline(blurV.shader, Geometry::Region,
-                ase::FORMAT_RGBA16F));
+                ase::FORMAT_RGBA16F, std::nullopt));
     EXPECT_EQ(2u, f.cache.getPipelineCount());
     ASSERT_TRUE(blur.getParamBlockBinding().has_value());
     EXPECT_EQ(1, *blur.getParamBlockBinding());
 
     EXPECT_NE(first.getPipeline(), f.cache.getPipeline(copy.shader,
-                Geometry::Region, ase::FORMAT_SRGBA).getPipeline());
+                Geometry::Region, ase::FORMAT_SRGBA, std::nullopt)
+            .getPipeline());
     EXPECT_NE(first.getPipeline(), f.cache.getPipeline(copy.shader,
-                Geometry::Shape, ase::FORMAT_RGBA16F).getPipeline());
-    EXPECT_EQ(4u, f.cache.getPipelineCount());
+                Geometry::Shape, ase::FORMAT_RGBA16F, std::nullopt)
+            .getPipeline());
+    EXPECT_NE(first.getPipeline(), f.cache.getPipeline(copy.shader,
+                Geometry::Region, ase::FORMAT_RGBA16F,
+                avg::TargetImage::depthFormat).getPipeline());
+    EXPECT_EQ(5u, f.cache.getPipelineCount());
+}
+
+TEST(PassPipelineCache, sharesOneProgramAcrossTargetFormats)
+{
+    Fixture f;
+    Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
+    avg::PassShader const& shader = glass.getPasses()[0].shader;
+
+    ase::Pipeline const& half = f.cache.getPipeline(shader, Geometry::Region,
+            ase::FORMAT_RGBA16F, std::nullopt).getPipeline();
+    ase::Pipeline const& full = f.cache.getPipeline(shader, Geometry::Region,
+            ase::FORMAT_SRGBA, std::nullopt).getPipeline();
+    ase::Pipeline const& onMain = f.cache.getPipeline(shader, Geometry::Shape,
+            ase::FORMAT_SRGBA, avg::TargetImage::depthFormat).getPipeline();
+
+    EXPECT_NE(half, full);
+    EXPECT_NE(full, onMain);
+    EXPECT_EQ(half.getProgram(), full.getProgram());
+    EXPECT_EQ(half.getProgram(), onMain.getProgram());
+    EXPECT_EQ(3u, f.cache.getPipelineCount());
+
+    EXPECT_EQ(ase::FORMAT_RGBA16F, half.getColorFormat());
+    EXPECT_FALSE(half.getDepthFormat().has_value());
+    EXPECT_EQ(ase::FORMAT_SRGBA, onMain.getColorFormat());
+    EXPECT_EQ(avg::TargetImage::depthFormat, onMain.getDepthFormat());
 }
 
 TEST(PassPipelineCache, handsOutUniformSetsPerDrawAndAgainEachFrame)
@@ -559,7 +608,7 @@ TEST(PassPipelineCache, handsOutUniformSetsPerDrawAndAgainEachFrame)
     Effect glass = avg::frostedGlass(glassWithRadius(24.0f));
     avg::PassPipeline& pipeline = f.cache.getPipeline(
             glass.getPasses()[0].shader, Geometry::Region,
-            ase::FORMAT_RGBA16F);
+            ase::FORMAT_RGBA16F, std::nullopt);
 
     f.cache.beginFrame();
     ase::UniformSet a = pipeline.acquireUniformSet();
@@ -579,14 +628,14 @@ TEST(PassPipelineCache, pipelinesDrawWithDepthOffAndBlendOnlyForShapes)
 
     ase::Pipeline const& region = f.cache.getPipeline(
             glass.getPasses()[0].shader, Geometry::Region,
-            ase::FORMAT_RGBA16F).getPipeline();
+            ase::FORMAT_RGBA16F, std::nullopt).getPipeline();
     EXPECT_FALSE(region.isBlendEnabled());
     EXPECT_FALSE(region.isDepthTestEnabled());
     EXPECT_FALSE(region.isDepthWriteEnabled());
 
     ase::Pipeline const& shape = f.cache.getPipeline(
             glass.getFinalPass().shader, Geometry::Shape,
-            ase::FORMAT_SRGBA).getPipeline();
+            ase::FORMAT_SRGBA, avg::TargetImage::depthFormat).getPipeline();
     EXPECT_TRUE(shape.isBlendEnabled());
     EXPECT_FALSE(shape.isDepthTestEnabled());
     EXPECT_FALSE(shape.isDepthWriteEnabled());

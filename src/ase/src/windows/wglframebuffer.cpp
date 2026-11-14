@@ -67,5 +67,15 @@ void WglFramebuffer::unsetStencilTarget()
     assert(false);
 }
 
+Format WglFramebuffer::getColorFormat() const
+{
+    return FORMAT_SRGBA;
+}
+
+std::optional<Format> WglFramebuffer::getDepthFormat() const
+{
+    return FORMAT_DEPTH24_STENCIL8;
+}
+
 } // namespace ase
 

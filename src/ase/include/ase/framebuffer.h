@@ -1,8 +1,11 @@
 #pragma once
 
+#include "format.h"
+
 #include "asevisibility.h"
 
 #include <memory>
+#include <optional>
 
 namespace ase
 {
@@ -33,6 +36,24 @@ namespace ase
 
         void setStencilTarget(Renderbuffer buffer);
         void unsetStencilTarget();
+
+        /**
+         * @brief The format of colour attachment 0, `FORMAT_UNKNOWN` when
+         * nothing is attached there.
+         *
+         * A window's framebuffer reports the format its platform asked the
+         * pixel format for, which nothing verifies against the driver's
+         * choice.
+         */
+        Format getColorFormat() const;
+
+        /**
+         * @brief The depth attachment's format, unset when there is none.
+         *
+         * `FORMAT_UNKNOWN` is a depth attachment of a format the backend
+         * cannot tell.
+         */
+        std::optional<Format> getDepthFormat() const;
 
         /**
          * @brief Casts the internal implementation to requested type.

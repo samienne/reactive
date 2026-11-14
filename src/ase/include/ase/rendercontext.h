@@ -2,6 +2,7 @@
 
 #include "usage.h"
 #include "format.h"
+#include "matrix.h"
 #include "vector.h"
 #include "blendmode.h"
 #include "pipelinedesc.h"
@@ -109,17 +110,11 @@ namespace ase
         /**
          * @brief A pipeline drawing `program` over `vertexSpec`.
          *
-         * `desc` gives the blend and depth state; the default is opaque,
-         * depth-tested and depth-writing.
+         * `desc` declares the formats of the targets the pipeline draws
+         * into and gives the blend and depth state.
          */
         Pipeline makePipeline(Program program, VertexSpec vertexSpec,
-                PipelineDesc desc = {});
-
-        /**
-         * @brief A blended pipeline that tests but does not write depth.
-         */
-        Pipeline makePipelineWithBlend(Program program, VertexSpec vertexSpec,
-                BlendMode srcFactor, BlendMode dstFactor);
+                PipelineDesc desc);
 
         /**
          * @brief A uniform set for the blocks iface declares.
@@ -131,6 +126,18 @@ namespace ase
          * offset must have on this context.
          */
         size_t getUniformBufferOffsetAlignment() const;
+
+        /**
+         * @brief The matrix that maps GL clip space to this backend's.
+         *
+         * Projections are written for GL's clip space: y up, depth in
+         * [-1, 1]. Multiply this into a projection once, when the
+         * projection is built, and the result lands where the backend
+         * expects it; it is the identity on GL, and a backend with a
+         * top-left origin or a [0, 1] depth range answers with the flip or
+         * remap that gets there.
+         */
+        Matrix4f getClipSpaceAdjustment() const;
 
         /** @brief A co-owning handle to this context's implementation.
          *

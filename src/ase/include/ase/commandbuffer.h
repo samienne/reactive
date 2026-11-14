@@ -63,7 +63,15 @@ namespace ase
                 Usage usage
                 );
 
-        void pushUpload(Texture target, Buffer data, Vector2i size, Format format);
+        /**
+         * @brief Upload `data` as the whole of `target`.
+         *
+         * `data` holds `size` tightly packed pixels in `format`, which
+         * must be the size and format `target` was made with: a texture
+         * never changes either after `makeTexture`.
+         */
+        void pushUpload(Texture target, Buffer data, Vector2i size,
+                Format format);
 
         /**
          * @brief Upload `data` into the `size` region of `target` at `offset`.

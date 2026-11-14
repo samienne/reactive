@@ -37,7 +37,7 @@ bool Texture::operator<(Texture const& rhs) const
     return deferred_ < rhs.deferred_;
 }
 
-Format Texture::getFormat()
+Format Texture::getFormat() const
 {
     return d()->getFormat();
 }

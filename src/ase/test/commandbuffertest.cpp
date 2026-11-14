@@ -2,6 +2,7 @@
 #include <ase/commandbuffer.h>
 #include <ase/drawcommand.h>
 #include <ase/dummyplatform.h>
+#include <ase/format.h>
 #include <ase/framebuffer.h>
 #include <ase/namedvertexspec.h>
 #include <ase/pipeline.h>
@@ -50,9 +51,18 @@ namespace
         Platform platform = makeDummyPlatform(loop);
         RenderContext context = platform.makeRenderContext();
         Program program = makeProgram();
-        Pipeline pipeline = context.makePipeline(program, vertexSpec());
-        Framebuffer framebuffer = context.makeFramebuffer();
+        Pipeline pipeline = context.makePipeline(program, vertexSpec(),
+                PipelineDesc{ FORMAT_SRGBA });
+        Framebuffer framebuffer = makeFramebuffer();
         UniformSet uniforms = context.makeUniformSet(positionInterface());
+
+        Framebuffer makeFramebuffer()
+        {
+            Framebuffer framebuffer = context.makeFramebuffer();
+            framebuffer.setColorTarget(0, context.makeTexture(Vector2i(4, 4),
+                        FORMAT_SRGBA));
+            return framebuffer;
+        }
 
         Program makeProgram()
         {
@@ -79,7 +89,7 @@ namespace
 
         void pushDrawWithoutDepthTest(CommandBuffer& commands, float z)
         {
-            PipelineDesc desc;
+            PipelineDesc desc{ FORMAT_SRGBA };
             desc.depthTest = false;
             commands.push(framebuffer,
                     context.makePipeline(program, vertexSpec(), desc),

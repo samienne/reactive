@@ -222,5 +222,10 @@ size_t GlRenderContext::getUniformBufferOffsetAlignment() const
     return uniformBufferOffsetAlignment_;
 }
 
+Matrix4f GlRenderContext::getClipSpaceAdjustment() const
+{
+    return Matrix4f::Identity();
+}
+
 } // namespace
 

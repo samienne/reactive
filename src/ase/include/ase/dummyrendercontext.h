@@ -62,6 +62,11 @@ namespace ase
          */
         size_t getUniformBufferOffsetAlignment() const override;
 
+        /**
+         * @brief The identity, since nothing is drawn.
+         */
+        Matrix4f getClipSpaceAdjustment() const override;
+
     private:
         // Upward-strong ref to the platform this context was made by; keeps the
         // platform alive for as long as any window holds this context.

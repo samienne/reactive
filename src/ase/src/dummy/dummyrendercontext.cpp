@@ -122,4 +122,9 @@ size_t DummyRenderContext::getUniformBufferOffsetAlignment() const
     return 256;
 }
 
+Matrix4f DummyRenderContext::getClipSpaceAdjustment() const
+{
+    return Matrix4f::Identity();
+}
+
 } // namespace ase

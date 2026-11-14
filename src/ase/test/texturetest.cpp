@@ -25,12 +25,29 @@ TEST(texture, r8IsOneLinearByte)
 TEST(texture, colorFormatPixelSizes)
 {
     EXPECT_EQ(4u, getBytes(FORMAT_SRGBA));
-    EXPECT_EQ(3u, getBytes(FORMAT_SRGB));
     EXPECT_EQ(8u, getBytes(FORMAT_RGBA16F));
 
     EXPECT_FALSE(isLinear(FORMAT_SRGBA));
-    EXPECT_FALSE(isLinear(FORMAT_SRGB));
     EXPECT_TRUE(isLinear(FORMAT_RGBA16F));
+}
+
+TEST(texture, fullUploadKeepsSizeAndFormat)
+{
+    btl::RunLoop loop;
+    Platform platform = makeDummyPlatform(loop);
+    RenderContext context = platform.makeRenderContext();
+
+    Texture texture = context.makeTexture(Vector2i(8, 4), FORMAT_R8);
+
+    std::vector<uint8_t> pixels(8 * 4, 128);
+    CommandBuffer commands;
+    commands.pushUpload(texture, Buffer(pixels), Vector2i(8, 4), FORMAT_R8);
+    EXPECT_EQ(1u, commands.size());
+
+    context.getMainRenderQueue().submit(std::move(commands));
+
+    EXPECT_EQ(Vector2i(8, 4), texture.getSize());
+    EXPECT_EQ(FORMAT_R8, texture.getFormat());
 }
 
 TEST(texture, subUploadKeepsSizeAndFormat)

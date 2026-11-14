@@ -5,6 +5,7 @@
 #include <ase/renderbuffer.h>
 #include <ase/rendercontext.h>
 #include <ase/texture.h>
+#include <ase/window.h>
 
 #include <btl/runloop.h>
 
@@ -15,7 +16,7 @@ using namespace ase;
 namespace
 {
     Format const colorFormats[] = {
-        FORMAT_SRGBA, FORMAT_SRGB, FORMAT_R8, FORMAT_RGBA16F
+        FORMAT_SRGBA, FORMAT_R8, FORMAT_RGBA16F
     };
 
     Format const depthFormats[] = {
@@ -38,8 +39,15 @@ TEST(framebuffer, colorFormatsAttachAlone)
         EXPECT_EQ(size, texture.getSize());
 
         Framebuffer framebuffer = context.makeFramebuffer();
+        EXPECT_EQ(FORMAT_UNKNOWN, framebuffer.getColorFormat());
+        EXPECT_FALSE(framebuffer.getDepthFormat().has_value());
+
         framebuffer.setColorTarget(0, texture);
+        EXPECT_EQ(format, framebuffer.getColorFormat());
+        EXPECT_FALSE(framebuffer.getDepthFormat().has_value());
+
         framebuffer.unsetColorTarget(0);
+        EXPECT_EQ(FORMAT_UNKNOWN, framebuffer.getColorFormat());
     }
 }
 
@@ -60,8 +68,30 @@ TEST(framebuffer, colorFormatsAttachWithDepth)
             Framebuffer framebuffer = context.makeFramebuffer();
             framebuffer.setColorTarget(0, context.makeTexture(size, format));
             framebuffer.setDepthTarget(depth);
+            EXPECT_EQ(format, framebuffer.getColorFormat());
+            EXPECT_EQ(depthFormat, framebuffer.getDepthFormat());
+
             framebuffer.unsetDepthTarget();
+            EXPECT_FALSE(framebuffer.getDepthFormat().has_value());
             framebuffer.unsetColorTarget(0);
         }
     }
+}
+
+TEST(framebuffer, windowReportsItsPixelFormat)
+{
+    btl::RunLoop loop;
+    Platform platform = makeDummyPlatform(loop);
+    RenderContext context = platform.makeRenderContext();
+
+    Window window = platform.makeWindow(context, size, false);
+    Framebuffer const& framebuffer = window.getDefaultFramebuffer();
+    EXPECT_EQ(FORMAT_SRGBA, framebuffer.getColorFormat());
+    EXPECT_EQ(FORMAT_DEPTH24_STENCIL8, framebuffer.getDepthFormat());
+
+    // A headless window draws into attachments it made itself.
+    Window headless = platform.makeWindow(context, size, true);
+    Framebuffer const& offscreen = headless.getDefaultFramebuffer();
+    EXPECT_EQ(FORMAT_SRGBA, offscreen.getColorFormat());
+    EXPECT_EQ(FORMAT_DEPTH16, offscreen.getDepthFormat());
 }
