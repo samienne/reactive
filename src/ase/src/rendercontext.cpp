@@ -106,18 +106,20 @@ Framebuffer RenderContext::makeFramebuffer()
     return Framebuffer(d()->makeFramebufferImpl());
 }
 
-Pipeline RenderContext::makePipeline(Program program, VertexSpec vertexSpec)
+Pipeline RenderContext::makePipeline(Program program, VertexSpec vertexSpec,
+        PipelineDesc desc)
 {
     return Pipeline(d()->makePipeline(std::move(program),
-                std::move(vertexSpec)));
+                std::move(vertexSpec), desc));
 }
 
 Pipeline RenderContext::makePipelineWithBlend(Program program,
         VertexSpec vertexSpec, BlendMode srcFactor, BlendMode dstFactor)
 {
-    return Pipeline(d()->makePipelineWithBlend(
-                std::move(program), std::move(vertexSpec), srcFactor,
-                dstFactor));
+    PipelineDesc desc;
+    desc.blend = BlendFunc{ srcFactor, dstFactor };
+
+    return makePipeline(std::move(program), std::move(vertexSpec), desc);
 }
 
 UniformSet RenderContext::makeUniformSet(ShaderInterface iface)

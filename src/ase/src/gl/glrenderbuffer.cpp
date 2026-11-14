@@ -1,6 +1,7 @@
 #include "glrenderbuffer.h"
 
 #include "glrendercontext.h"
+#include "glformat.h"
 #include "glfunctions.h"
 
 namespace ase
@@ -12,7 +13,7 @@ GlRenderbuffer::GlRenderbuffer(GlRenderContext& context, Vector2i size, Format f
     glObject_(0),
     size_(size)
 {
-    assert(format == FORMAT_DEPTH16);
+    assert(formatToGlDepthAttachment(format) != 0);
 
 }
 
@@ -45,7 +46,7 @@ void GlRenderbuffer::makeCurrent(Dispatched&, GlFunctions const& gl)
 
     gl.glRenderbufferStorage(
             GL_RENDERBUFFER,
-            GL_DEPTH_COMPONENT16,
+            formatToGlInternal(format_),
             static_cast<GLsizei>(size_[0]),
             static_cast<GLsizei>(size_[1]));
 }

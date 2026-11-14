@@ -12,6 +12,7 @@ namespace ase
         FORMAT_SRGBA,
         FORMAT_SRGB,
         FORMAT_R8,
+        FORMAT_RGBA16F,
         FORMAT_DEPTH16,
         FORMAT_DEPTH24,
         FORMAT_DEPTH32,
@@ -30,6 +31,8 @@ namespace ase
                 return 4;
             case FORMAT_SRGB:
                 return 3;
+            case FORMAT_RGBA16F:
+                return 8;
             case FORMAT_DEPTH16:
                 return 2;
             case FORMAT_DEPTH24:
@@ -52,6 +55,7 @@ namespace ase
             case FORMAT_SRGB:
                 return false;
             case FORMAT_R8:
+            case FORMAT_RGBA16F:
             case FORMAT_DEPTH16:
             case FORMAT_DEPTH24:
             case FORMAT_DEPTH32:

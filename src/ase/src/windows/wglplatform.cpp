@@ -81,32 +81,34 @@ HWND createDummyWindow()
     return hwnd;
 }
 
-HGLRC createDummyContext(PIXELFORMATDESCRIPTOR pfd, HWND dummyWindow)
+template <typename T>
+T getWglProc(char const* name)
 {
-    HDC dummyDc = GetDC(dummyWindow);
-    int dummyPixelFormat = ChoosePixelFormat(dummyDc, &pfd);
-    SetPixelFormat(dummyDc, dummyPixelFormat, &pfd);
-
-    HGLRC dummyContext = wglCreateContext(dummyDc);
-
-    return dummyContext;
+    return reinterpret_cast<T>(wglGetProcAddress(name));
 }
 
-PFNWGLCREATECONTEXTATTRIBSARBPROC getWglCreateContextAttribsARB(
-        HDC dc, HGLRC context)
+int chooseSrgbPixelFormat(HDC dc, PFNWGLCHOOSEPIXELFORMATARBPROC choose)
 {
-    wglMakeCurrent(dc, context);
+    int const attribs[] = {
+        WGL_DRAW_TO_WINDOW_ARB, TRUE,
+        WGL_SUPPORT_OPENGL_ARB, TRUE,
+        WGL_DOUBLE_BUFFER_ARB, TRUE,
+        WGL_ACCELERATION_ARB, WGL_FULL_ACCELERATION_ARB,
+        WGL_PIXEL_TYPE_ARB, WGL_TYPE_RGBA_ARB,
+        WGL_COLOR_BITS_ARB, 24,
+        WGL_ALPHA_BITS_ARB, 8,
+        WGL_DEPTH_BITS_ARB, 24,
+        WGL_STENCIL_BITS_ARB, 8,
+        WGL_FRAMEBUFFER_SRGB_CAPABLE_ARB, TRUE,
+        0
+    };
 
-    PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB =
-        (PFNWGLCREATECONTEXTATTRIBSARBPROC) wglGetProcAddress(
-                "wglCreateContextAttribsARB");
+    int format = 0;
+    UINT count = 0;
+    if (!choose(dc, attribs, nullptr, 1, &format, &count) || count == 0)
+        return 0;
 
-    wglMakeCurrent(NULL, NULL);
-
-    if (!wglCreateContextAttribsARB)
-        throw std::runtime_error("Unable to get wglCreateContextAttribsARB.");
-
-    return wglCreateContextAttribsARB;
+    return format;
 }
 
 
@@ -117,21 +119,58 @@ WglPlatform::WglPlatform(btl::RunLoop& loop) :
     {
         SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
 
-        dummyWindow_ = createDummyWindow();
-        if (!dummyWindow_)
-            throw std::runtime_error("Unable to create a dummy window.");
+        // A window takes a pixel format only once, so the context that
+        // loads the WGL entry points gets a throwaway window.
+        PIXELFORMATDESCRIPTOR const pfd = getPixelFormatDescriptor();
+        HWND bootstrapWindow = createDummyWindow();
+        HDC bootstrapDc = GetDC(bootstrapWindow);
+        pixelFormat_ = ChoosePixelFormat(bootstrapDc, &pfd);
+        HGLRC bootstrapContext = nullptr;
+        if (pixelFormat_ && SetPixelFormat(bootstrapDc, pixelFormat_, &pfd))
+            bootstrapContext = wglCreateContext(bootstrapDc);
 
+        if (!bootstrapContext)
+        {
+            std::string const error = getLastErrorString();
+            DestroyWindow(bootstrapWindow);
+            throw std::runtime_error(
+                    "Unable to create a bootstrap context: " + error);
+        }
+
+        wglMakeCurrent(bootstrapDc, bootstrapContext);
+        wglCreateContextAttribsARB_ =
+            getWglProc<PFNWGLCREATECONTEXTATTRIBSARBPROC>(
+                    "wglCreateContextAttribsARB");
+        auto wglChoosePixelFormatARB =
+            getWglProc<PFNWGLCHOOSEPIXELFORMATARBPROC>(
+                    "wglChoosePixelFormatARB");
+
+        if (!wglChoosePixelFormatARB)
+            DBG("WglPlatform: wglChoosePixelFormatARB unavailable, "
+                    "keeping the legacy pixel format");
+        else if (int format = chooseSrgbPixelFormat(bootstrapDc,
+                    wglChoosePixelFormatARB))
+            pixelFormat_ = format;
+        else
+            DBG("WglPlatform: no sRGB-capable pixel format, "
+                    "keeping the legacy pixel format");
+
+        wglMakeCurrent(nullptr, nullptr);
+        wglDeleteContext(bootstrapContext);
+        DestroyWindow(bootstrapWindow);
+
+        if (!wglCreateContextAttribsARB_)
+            throw std::runtime_error("Unable to get wglCreateContextAttribsARB.");
+
+        dummyWindow_ = createDummyWindow();
         dummyDc_ = GetDC(dummyWindow_);
         if (!dummyDc_)
             throw std::runtime_error("No dummy DC available.");
 
-        dummyContext_ = createDummyContext(getPixelFormatDescriptor(),
-                dummyWindow_);
+        setPixelFormat(dummyDc_);
+        dummyContext_ = wglCreateContext(dummyDc_);
         if (!dummyContext_)
             throw std::runtime_error("Unable to create a dummy context");
-
-        wglCreateContextAttribsARB_ = getWglCreateContextAttribsARB(
-                dummyDc_, dummyContext_);
     }
     catch(std::exception& e)
     {
@@ -171,26 +210,43 @@ bool WglPlatform::isBackgroundQueueEnabled() const
     return false;
 }
 
-HGLRC WglPlatform::createRawContext(int minor, int major)
+HGLRC WglPlatform::createRawContext(int major, int minor)
 {
-    static const int attribs[] = {
-        WGL_CONTEXT_MAJOR_VERSION_ARB, minor,
-        WGL_CONTEXT_MINOR_VERSION_ARB, major,
-        NULL
+    int const attribs[] = {
+        WGL_CONTEXT_MAJOR_VERSION_ARB, major,
+        WGL_CONTEXT_MINOR_VERSION_ARB, minor,
+        WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+        0
     };
 
     wglMakeCurrent(dummyDc_, dummyContext_);
     HGLRC context = wglCreateContextAttribsARB_(dummyDc_, NULL, attribs);
+    DWORD const error = ::GetLastError();
+    wglMakeCurrent(nullptr, nullptr);
 
+    // The caller reports a failed creation, not the reset above.
     if (!context)
+        ::SetLastError(error);
+
+    return context;
+}
+
+HGLRC WglPlatform::createContext()
+{
+    if (gl3Enabled_)
     {
-        auto error = getLastErrorString();
-        wglMakeCurrent(nullptr, nullptr);
-        std::cout << error << std::endl;
-        throw std::runtime_error("Unable to create context: " + error);
+        if (HGLRC context = createRawContext(3, 3))
+            return context;
+
+        gl3Enabled_ = false;
+        DBG("WglPlatform: Failed to create OpenGl 3.3 core context: %1",
+                getLastErrorString());
     }
 
-    wglMakeCurrent(nullptr, nullptr);
+    HGLRC context = wglCreateContext(dummyDc_);
+    if (!context)
+        throw std::runtime_error("Unable to create context: "
+                + getLastErrorString());
 
     return context;
 }
@@ -212,6 +268,16 @@ PIXELFORMATDESCRIPTOR WglPlatform::getPixelFormatDescriptor() const
     pfd.cStencilBits = 8;
 
     return pfd;
+}
+
+void WglPlatform::setPixelFormat(HDC dc) const
+{
+    PIXELFORMATDESCRIPTOR pfd = {};
+    DescribePixelFormat(dc, pixelFormat_, sizeof(pfd), &pfd);
+
+    if (!SetPixelFormat(dc, pixelFormat_, &pfd))
+        throw std::runtime_error("Unable to set pixel format: "
+                + getLastErrorString());
 }
 
 std::string WglPlatform::getLastErrorString()
@@ -297,8 +363,8 @@ void WglPlatform::handleEvents()
 
 RenderContext WglPlatform::makeRenderContext()
 {
-    HGLRC fgContext = createRawContext(3, 0);
-    HGLRC bgContext = createRawContext(3, 0);
+    HGLRC fgContext = createContext();
+    HGLRC bgContext = createContext();
 
     wglShareLists(bgContext, fgContext);
 

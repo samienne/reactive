@@ -30,9 +30,10 @@ namespace ase
 
         bool isBackgroundQueueEnabled() const override;
 
-        HGLRC createRawContext(int minor, int major);
+        HGLRC createRawContext(int major, int minor);
         HDC getDummyDc() const;
         PIXELFORMATDESCRIPTOR getPixelFormatDescriptor() const;
+        void setPixelFormat(HDC dc) const;
 
         static std::string getLastErrorString();
 
@@ -47,9 +48,13 @@ namespace ase
         std::vector<std::weak_ptr<WindowBase>>& getRenderWindows() override;
 
     private:
+        HGLRC createContext();
+
         HWND dummyWindow_ = nullptr;
         HGLRC dummyContext_ = nullptr;
         HDC dummyDc_ = nullptr;
+        int pixelFormat_ = 0;
+        bool gl3Enabled_ = true;
         PFNWGLCREATECONTEXTATTRIBSARBPROC wglCreateContextAttribsARB_ = nullptr;
 
         // Every window this platform makes, real or offscreen; the run loop

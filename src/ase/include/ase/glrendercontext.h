@@ -94,13 +94,8 @@ namespace ase
 
         std::shared_ptr<PipelineImpl> makePipeline(
                 Program program,
-                VertexSpec spec) override;
-
-        std::shared_ptr<PipelineImpl> makePipelineWithBlend(
-                Program program,
                 VertexSpec spec,
-                BlendMode srcFactor,
-                BlendMode dstFactor) override;
+                PipelineDesc desc) override;
 
         std::shared_ptr<UniformSetImpl> makeUniformSetImpl(
                 ShaderInterface iface) override;

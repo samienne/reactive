@@ -9,6 +9,7 @@
 #include "vertexspec.h"
 #include "framebuffer.h"
 #include "uniformset.h"
+#include "scissorrect.h"
 #include "asevisibility.h"
 
 #include <vector>
@@ -26,7 +27,8 @@ namespace ase
                 VertexBuffer vertexBuffer,
                 std::optional<IndexBuffer> indexBuffer,
                 UniformSet uniforms,
-                float z);
+                float z,
+                std::optional<ScissorRect> scissor);
 
         DrawCommandDeferred(DrawCommandDeferred const&) = default;
         DrawCommandDeferred(DrawCommandDeferred&&) noexcept = default;
@@ -49,6 +51,7 @@ namespace ase
         UniformSet uniforms_;
 
         float z_;
+        std::optional<ScissorRect> scissor_;
     };
 
     class ASE_EXPORT DrawCommand
@@ -61,7 +64,8 @@ namespace ase
                 VertexBuffer vertexBuffer,
                 std::optional<IndexBuffer> indexBuffer,
                 std::vector<Texture> textures,
-                float z);
+                float z,
+                std::optional<ScissorRect> scissor = std::nullopt);
 
         DrawCommand(DrawCommand const&) = default;
         DrawCommand(DrawCommand&&) = default;
@@ -103,6 +107,11 @@ namespace ase
         inline float getZ() const
         {
             return d()->z_;
+        }
+
+        inline std::optional<ScissorRect> const& getScissor() const
+        {
+            return d()->scissor_;
         }
 
     private:

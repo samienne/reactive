@@ -33,6 +33,15 @@ namespace ase
 
 namespace
 {
+    // Depth settles these among themselves, so they may be drawn in any
+    // order; everything else keeps its z order.
+    bool drawsInAnyOrder(GlPipeline const& pipeline)
+    {
+        return !pipeline.isBlendEnabled()
+            && pipeline.isDepthTestEnabled()
+            && pipeline.isDepthWriteEnabled();
+    }
+
     bool compareCommand(RenderCommand const& c1, RenderCommand const& c2)
     {
         assert(std::holds_alternative<DrawCommand>(c1) &&
@@ -49,15 +58,20 @@ namespace
         GlPipeline const& pipeline1 = d1.getPipeline().getImpl<GlPipeline>();
         GlPipeline const& pipeline2 = d2.getPipeline().getImpl<GlPipeline>();
 
-        if (pipeline1.isBlendEnabled() != pipeline2.isBlendEnabled())
-            return pipeline2.isBlendEnabled();
+        bool const anyOrder1 = drawsInAnyOrder(pipeline1);
+        bool const anyOrder2 = drawsInAnyOrder(pipeline2);
 
-        if (pipeline1.isBlendEnabled())
+        if (anyOrder1 != anyOrder2)
+            return anyOrder1;
+
+        if (!anyOrder1)
         {
             // Back to front: a later-painted draw has the lower z.
             if (d1.getZ() != d2.getZ())
                 return d1.getZ() > d2.getZ();
         }
+        else if (d1.getScissor() != d2.getScissor())
+            return d1.getScissor() < d2.getScissor();
 
         // Sort by textures
         if (d1.getTextures() != d2.getTextures())
@@ -77,6 +91,9 @@ namespace
         // Sort by uniforms
         if (d1.getUniforms() != d2.getUniforms())
             return d1.getUniforms() < d2.getUniforms();
+
+        if (d1.getScissor() != d2.getScissor())
+            return d1.getScissor() < d2.getScissor();
 
         return d1.getZ() > d2.getZ();
     }
@@ -182,24 +199,9 @@ void GlRenderState::submit(CommandBuffer&& commands)
     dispatcher_.dispatch([this, commands=std::move(commands)]
             (GlFunctions const& gl) mutable
     {
-        auto b = commands.begin();
-        auto e = b;
-
         {
             ZoneScopedN("Sort commands");
-            while (e != commands.end())
-            {
-                while (b != commands.end() && !std::holds_alternative<DrawCommand>(*b))
-                    ++b;
-
-                e = b;
-
-                while (e != commands.end() && std::holds_alternative<DrawCommand>(*e))
-                    ++e;
-
-                std::sort(b, e, compareCommand);
-                b = e;
-            }
+            sortDrawRuns(commands.begin(), commands.end(), compareCommand);
         }
 
         dispatchedRenderQueue(Dispatched(), gl, std::move(commands));
@@ -208,9 +210,9 @@ void GlRenderState::submit(CommandBuffer&& commands)
 
 void GlRenderState::clear(Dispatched, GLbitfield mask)
 {
-    if (!enableDepthWrite_ && (mask & GL_DEPTH_BUFFER_BIT))
+    if (!depthWrite_ && (mask & GL_DEPTH_BUFFER_BIT))
     {
-        enableDepthWrite_ = true;
+        depthWrite_ = true;
         glDepthMask(GL_TRUE);
     }
 
@@ -225,6 +227,26 @@ void GlRenderState::setViewport(Dispatched, Vector2i size)
         glViewport(0, 0, static_cast<GLsizei>(size[0]),
                 static_cast<GLsizei>(size[1]));
     }
+}
+
+void GlRenderState::setScissor(Dispatched,
+        std::optional<ScissorRect> const& scissor)
+{
+    if (scissor_ == scissor)
+        return;
+
+    if (scissor.has_value() != scissor_.has_value())
+    {
+        if (scissor)
+            glEnable(GL_SCISSOR_TEST);
+        else
+            glDisable(GL_SCISSOR_TEST);
+    }
+
+    if (scissor)
+        glScissor(scissor->x, scissor->y, scissor->width, scissor->height);
+
+    scissor_ = scissor;
 }
 
 void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
@@ -264,6 +286,7 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
                 framebuffer.makeCurrent(d, dispatcher_, *this, gl);
             }
 
+            setScissor(d, clearCommand.scissor);
             glClearColor(clearCommand.r, clearCommand.g, clearCommand.b,
                     clearCommand.a);
 
@@ -283,6 +306,10 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
 
             fences_.push_back(std::move(fence));
 
+            continue;
+        }
+        else if (std::holds_alternative<BarrierCommand>(renderCommand))
+        {
             continue;
         }
         else if (std::holds_alternative<BufferUploadCommand>(renderCommand))
@@ -399,6 +426,8 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
             framebuffer.makeCurrent(Dispatched(), dispatcher_, *this, gl);
         }
 
+        setScissor(d, command.getScissor());
+
         vbo = vertexBuffer.getBuffer().getBuffer();
         mode = primitiveToGl(pipeline.getVertexSpec().getPrimitiveType());
 
@@ -413,38 +442,40 @@ void GlRenderState::dispatchedRenderQueue(Dispatched d, GlFunctions const& gl,
         else
             count = vertexBuffer.getSize() / pipeline.getVertexSpec().getStride();
 
-        // Set blend
+        if (depthTest_ != pipeline.isDepthTestEnabled())
+        {
+            depthTest_ = pipeline.isDepthTestEnabled();
+            if (depthTest_)
+                glEnable(GL_DEPTH_TEST);
+            else
+                glDisable(GL_DEPTH_TEST);
+        }
+
+        if (depthWrite_ != pipeline.isDepthWriteEnabled())
+        {
+            depthWrite_ = pipeline.isDepthWriteEnabled();
+            glDepthMask(depthWrite_ ? GL_TRUE : GL_FALSE);
+        }
+
         if (blendEnabled_ != pipeline.isBlendEnabled())
         {
-            if (pipeline.isBlendEnabled())
-            {
-                if (enableDepthWrite_)
-                {
-                    glDepthMask(GL_FALSE);
-                    enableDepthWrite_ = false;
-                }
+            blendEnabled_ = pipeline.isBlendEnabled();
+            if (blendEnabled_)
                 glEnable(GL_BLEND);
-            }
             else
-            {
-                if (!enableDepthWrite_)
-                {
-                    glDepthMask(GL_TRUE);
-                    enableDepthWrite_ = true;
-                }
                 glDisable(GL_BLEND);
-            }
+        }
 
-            if (pipeline.isBlendEnabled() &&
-                    (srcFactor_ != blendModeToGl(pipeline.getSrcFactor())
-                     || dstFactor_ != blendModeToGl(pipeline.getDstFactor())))
+        if (blendEnabled_)
+        {
+            GLenum const src = blendModeToGl(pipeline.getSrcFactor());
+            GLenum const dst = blendModeToGl(pipeline.getDstFactor());
+            if (srcFactor_ != src || dstFactor_ != dst)
             {
-                srcFactor_ = blendModeToGl(pipeline.getSrcFactor());
-                dstFactor_ = blendModeToGl(pipeline.getDstFactor());
+                srcFactor_ = src;
+                dstFactor_ = dst;
                 glBlendFunc(srcFactor_, dstFactor_);
             }
-
-            blendEnabled_ = pipeline.isBlendEnabled();
         }
 
         // Set Textures

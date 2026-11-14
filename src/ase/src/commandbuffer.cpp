@@ -16,7 +16,8 @@ void CommandBuffer::push(
         VertexBuffer vertexBuffer,
         std::optional<IndexBuffer> indexBuffer,
         std::vector<Texture> textures,
-        float z)
+        float z,
+        std::optional<ScissorRect> scissor)
 {
     commands_.push_back(DrawCommand(
                 std::move(framebuffer),
@@ -25,7 +26,8 @@ void CommandBuffer::push(
                 std::move(vertexBuffer),
                 std::move(indexBuffer),
                 std::move(textures),
-                z
+                z,
+                scissor
                 ));
 }
 
@@ -36,12 +38,13 @@ void CommandBuffer::pushClear(Framebuffer target,
         float a,
         bool color,
         bool depth,
-        bool stencil
+        bool stencil,
+        std::optional<ScissorRect> scissor
         )
 {
     commands_.push_back(ClearCommand{
             std::move(target),
-            r, g, b, a, color, depth, stencil
+            r, g, b, a, color, depth, stencil, scissor
             });
 }
 
@@ -57,6 +60,11 @@ btl::future::Future<> CommandBuffer::pushFence()
     commands_.push_back(FenceCommand{ { control } });
 
     return { std::move(control) };
+}
+
+void CommandBuffer::pushBarrier()
+{
+    commands_.push_back(BarrierCommand{});
 }
 
 void CommandBuffer::pushUpload(

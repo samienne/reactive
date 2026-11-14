@@ -104,20 +104,11 @@ std::shared_ptr<FramebufferImpl> DummyRenderContext::makeFramebufferImpl()
 
 std::shared_ptr<PipelineImpl> DummyRenderContext::makePipeline(
         Program program,
-        VertexSpec spec)
-{
-    return std::make_shared<DummyPipeline>(std::move(program),
-            std::move(spec), false);
-}
-
-std::shared_ptr<PipelineImpl> DummyRenderContext::makePipelineWithBlend(
-        Program program,
         VertexSpec spec,
-        BlendMode /*srcFactor*/,
-        BlendMode /*dstFactor*/)
+        PipelineDesc desc)
 {
     return std::make_shared<DummyPipeline>(std::move(program),
-            std::move(spec), true);
+            std::move(spec), desc);
 }
 
 std::shared_ptr<UniformSetImpl> DummyRenderContext::makeUniformSetImpl(

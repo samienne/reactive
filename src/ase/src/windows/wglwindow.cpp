@@ -410,11 +410,7 @@ WglWindow::WglWindow(WglPlatform& platform, RenderContext& context,
         throw std::runtime_error("Unable to create window");
 
     hdc_ = GetDC(hwnd_);
-
-    auto pfd = platform_.getPixelFormatDescriptor();
-
-    int n = ChoosePixelFormat(hdc_, &pfd);
-    SetPixelFormat(hdc_, n, &pfd);
+    platform_.setPixelFormat(hdc_);
 
     UINT const dpi = GetDpiForWindow(hwnd_);
     float const scale = static_cast<float>(dpi) / 96.0f;

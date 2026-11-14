@@ -25,6 +25,12 @@ namespace ase
         /** @brief No-op: the dummy backend never draws or swaps. */
         PresentStatus present() override;
 
+        /**
+         * @brief Set the client area in device pixels, as the platform would
+         * on a resize.
+         */
+        void resize(Vector2i pixelSize);
+
     private:
         // Drive the stored frame callback for one frame, so the platform's
         // frame loop can advance this window.

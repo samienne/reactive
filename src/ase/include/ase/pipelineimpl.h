@@ -17,5 +17,7 @@ namespace ase
         virtual Program const& getProgram() const = 0;
         virtual VertexSpec const& getVertexSpec() const = 0;
         virtual bool isBlendEnabled() const = 0;
+        virtual bool isDepthTestEnabled() const = 0;
+        virtual bool isDepthWriteEnabled() const = 0;
     };
 } // namespace ase

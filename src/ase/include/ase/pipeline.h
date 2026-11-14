@@ -31,6 +31,8 @@ namespace ase
         Program const& getProgram() const;
         VertexSpec const& getVertexSpec() const;
         bool isBlendEnabled() const;
+        bool isDepthTestEnabled() const;
+        bool isDepthWriteEnabled() const;
 
         template <class T>
         inline T const& getImpl() const

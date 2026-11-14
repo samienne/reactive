@@ -236,6 +236,26 @@ TEST(rendering, unrotatedTextDrawsAtlasQuads)
     EXPECT_EQ(1u, f.draws(commands).size());
 }
 
+TEST(rendering, painterPipelinesKeepTheirDepthState)
+{
+    Fixture f;
+    avg::Brush const solid(avg::Color(1.0f, 0.0f, 0.0f, 1.0f));
+    avg::Brush const scrim(avg::Color(0.0f, 0.0f, 0.0f, 0.5f));
+
+    ase::Pipeline const opaque = f.painter.getPipeline(solid);
+    EXPECT_FALSE(opaque.isBlendEnabled());
+    EXPECT_TRUE(opaque.isDepthTestEnabled());
+    EXPECT_TRUE(opaque.isDepthWriteEnabled());
+
+    for (ase::Pipeline const& blended : { f.painter.getPipeline(scrim),
+            f.painter.getTextPipeline() })
+    {
+        EXPECT_TRUE(blended.isBlendEnabled());
+        EXPECT_TRUE(blended.isDepthTestEnabled());
+        EXPECT_FALSE(blended.isDepthWriteEnabled());
+    }
+}
+
 TEST(rendering, blendedDrawsKeepPaintOrder)
 {
     Fixture f;

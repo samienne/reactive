@@ -14,28 +14,16 @@ namespace ase
 GlPipeline::GlPipeline(
         GlRenderContext& /*context*/,
         Program program,
-        VertexSpec vertexSpec
-        ) :
-    program_(std::move(program)),
-    vertexSpec_(vertexSpec),
-    srcFactor_(BlendMode::Zero),
-    dstFactor_(BlendMode::Zero),
-    blendEnabled_(false)
-{
-}
-
-GlPipeline::GlPipeline(
-        GlRenderContext& /*context*/,
-        Program program,
         VertexSpec vertexSpec,
-        BlendMode srcFactor,
-        BlendMode dstFactor
+        PipelineDesc desc
         ) :
     program_(std::move(program)),
     vertexSpec_(vertexSpec),
-    srcFactor_(srcFactor),
-    dstFactor_(dstFactor),
-    blendEnabled_(true)
+    srcFactor_(desc.blend ? desc.blend->srcFactor : BlendMode::Zero),
+    dstFactor_(desc.blend ? desc.blend->dstFactor : BlendMode::Zero),
+    blendEnabled_(desc.blend.has_value()),
+    depthTest_(desc.depthTest),
+    depthWrite_(desc.writesDepth())
 {
 }
 
@@ -45,7 +33,9 @@ bool GlPipeline::operator==(GlPipeline const& rhs) const
         && vertexSpec_ == rhs.vertexSpec_
         && blendEnabled_ == rhs.blendEnabled_
         && srcFactor_ == rhs.srcFactor_
-        && dstFactor_ == rhs.dstFactor_;
+        && dstFactor_ == rhs.dstFactor_
+        && depthTest_ == rhs.depthTest_
+        && depthWrite_ == rhs.depthWrite_;
 }
 
 bool GlPipeline::operator!=(GlPipeline const& rhs) const
@@ -54,7 +44,9 @@ bool GlPipeline::operator!=(GlPipeline const& rhs) const
         || vertexSpec_ != rhs.vertexSpec_
         || blendEnabled_ != rhs.blendEnabled_
         || srcFactor_ != rhs.srcFactor_
-        || dstFactor_ != rhs.dstFactor_;
+        || dstFactor_ != rhs.dstFactor_
+        || depthTest_ != rhs.depthTest_
+        || depthWrite_ != rhs.depthWrite_;
 }
 
 bool GlPipeline::operator<(GlPipeline const& rhs) const
@@ -67,6 +59,12 @@ bool GlPipeline::operator<(GlPipeline const& rhs) const
 
     if (dstFactor_ != rhs.dstFactor_)
         return dstFactor_ < rhs.dstFactor_;
+
+    if (depthTest_ != rhs.depthTest_)
+        return !depthTest_;
+
+    if (depthWrite_ != rhs.depthWrite_)
+        return !depthWrite_;
 
     if (program_ != rhs.program_)
         return program_ < rhs.program_;
@@ -87,6 +85,16 @@ VertexSpec const& GlPipeline::getVertexSpec() const
 bool GlPipeline::isBlendEnabled() const
 {
     return blendEnabled_;
+}
+
+bool GlPipeline::isDepthTestEnabled() const
+{
+    return depthTest_;
+}
+
+bool GlPipeline::isDepthWriteEnabled() const
+{
+    return depthWrite_;
 }
 
 BlendMode GlPipeline::getSrcFactor() const

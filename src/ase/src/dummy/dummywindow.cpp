@@ -53,4 +53,9 @@ PresentStatus DummyWindow::present()
     return PresentStatus::Ok;
 }
 
+void DummyWindow::resize(Vector2i pixelSize)
+{
+    genericWindow_.resize(pixelSize);
+}
+
 } // namespace ase

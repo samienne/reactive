@@ -81,27 +81,14 @@ std::shared_ptr<GlFramebuffer> GlObjectManager::makeFramebuffer()
 
 std::shared_ptr<GlPipeline> GlObjectManager::makePipeline(
         Program program,
-        VertexSpec spec)
-{
-    return std::make_shared<GlPipeline>(
-            context_,
-            std::move(program),
-            std::move(spec)
-            );
-}
-
-std::shared_ptr<GlPipeline> GlObjectManager::makePipelineWithBlend(
-        Program program,
         VertexSpec spec,
-        BlendMode srcFactor,
-        BlendMode dstFactor)
+        PipelineDesc desc)
 {
     return std::make_shared<GlPipeline>(
             context_,
             std::move(program),
             std::move(spec),
-            srcFactor,
-            dstFactor
+            desc
             );
 }
 

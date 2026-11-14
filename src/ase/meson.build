@@ -113,6 +113,8 @@ libasesrc = [
   'src/texture.cpp',
   'src/framebuffer.cpp',
   'src/pipeline.cpp',
+  'src/pipelinedesc.cpp',
+  'src/scissorrect.cpp',
   'src/pointerbuttonevent.cpp',
   'src/keyevent.cpp',
   'src/textevent.cpp',
@@ -142,7 +144,10 @@ libasedep = declare_dependency(
   )
 
 asetest = executable('asetest',
+  'test/commandbuffertest.cpp',
+  'test/framebuffertest.cpp',
   'test/genericwindowtest.cpp',
+  'test/pipelinetest.cpp',
   'test/shaderinterfacetest.cpp',
   'test/texturetest.cpp',
   'test/uniformtest.cpp',

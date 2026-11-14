@@ -1,6 +1,7 @@
 #pragma once
 
 #include "pipelineimpl.h"
+#include "pipelinedesc.h"
 
 namespace ase
 {
@@ -8,14 +9,16 @@ namespace ase
     {
     public:
         DummyPipeline(Program program, VertexSpec vertexSpec,
-                bool blendEnabled);
+                PipelineDesc desc);
         Program const& getProgram() const override;
         VertexSpec const& getVertexSpec() const override;
         bool isBlendEnabled() const override;
+        bool isDepthTestEnabled() const override;
+        bool isDepthWriteEnabled() const override;
 
     private:
         Program program_;
         VertexSpec vertexSpec_;
-        bool blendEnabled_;
+        PipelineDesc desc_;
     };
 } // namespace ase
