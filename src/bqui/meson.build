@@ -32,6 +32,7 @@ libbquisrc = [
   'src/modifier/setsize.cpp',
   'src/modifier/setsizehint.cpp',
   'src/modifier/setwidgetintrospection.cpp',
+  'src/modifier/surface.cpp',
   'src/modifier/trackfocus.cpp',
   'src/modifier/transform.cpp',
 
@@ -116,6 +117,7 @@ bquitestsrc = [
   'test/rendertreetest.cpp',
   'test/sessiontest.cpp',
   'test/shapetest.cpp',
+  'test/surfacetest.cpp',
   'test/transporttest.cpp',
   'test/widgetinstancemodifiertest.cpp',
   'test/widgettest.cpp',

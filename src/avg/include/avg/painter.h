@@ -1,6 +1,8 @@
 #pragma once
 
 #include "drawing.h"
+#include "passpipelinecache.h"
+#include "scratchpool.h"
 #include "targetimage.h"
 
 #include "avgvisibility.h"
@@ -26,6 +28,7 @@ namespace avg
     class Pen;
     class Brush;
     class GlyphAtlas;
+    class EffectEmitter;
 
     /**
      * @brief Records drawing into frames and submits them.
@@ -109,6 +112,15 @@ namespace avg
 
         void flush();
 
+        /**
+         * @brief The emitter that records this frame's backdrop effects
+         * into commands, over mainTarget.
+         *
+         * Opens the frame if none is open.
+         */
+        EffectEmitter makeEffectEmitter(ase::CommandBuffer& commands,
+                TargetImage& mainTarget);
+
     private:
         struct MatrixBlock
         {
@@ -134,8 +146,11 @@ namespace avg
         ase::UniformBlock<MatrixBlock> matrices_;
         ase::UniformRing uniformRing_;
         ase::UniformSet uniformSet_;
+        ScratchPool scratchPool_;
+        PassPipelineCache passPipelines_;
         ase::CommandBuffer commandBuffer_;
         bool frameOpen_ = false;
+        bool scratchFrameOpen_ = false;
     };
 }
 

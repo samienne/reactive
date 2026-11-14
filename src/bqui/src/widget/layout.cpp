@@ -38,7 +38,8 @@ bq::signal::AnySignal<widget::Instance> buildChild(
 }
 
 auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
-        bq::signal::ArraySignal<widget::AnyBuilder> array)
+        bq::signal::ArraySignal<widget::AnyBuilder> array,
+        avg::ContainerNode::Stacking stacking)
 {
     auto hints = bq::signal::join(array.map(
                 [](widget::AnyBuilder const& builder)
@@ -47,7 +48,8 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                 })).share();
 
     auto widget = makeWidgetWithSize(
-            [](auto size, auto obbMap, auto hints, auto array)
+            [](auto size, auto obbMap, auto hints, auto array,
+                avg::ContainerNode::Stacking stacking)
             {
                 auto obbs = merge(std::move(size), std::move(hints))
                     .map(std::move(obbMap));
@@ -56,14 +58,15 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
                             std::move(array), std::move(obbs), &buildChild));
 
                 return widget::makeWidget()
-                    | modifier::addWidgets(std::move(instances))
+                    | modifier::addWidgets(std::move(instances), stacking)
                     | modifier::setRole("Layout")
                     ;
             }
             ,
             std::move(obbMap),
             hints,
-            std::move(array)
+            std::move(array),
+            stacking
             );
 
     return std::move(widget)
@@ -74,10 +77,12 @@ auto layout(SizeHintMap sizeHintMap, ObbMap obbMap,
 } // anonymous namespace
 
 widget::AnyWidget layout(SizeHintMap sizeHintMap,
-        ObbMap obbMap, bq::signal::ArraySignal<widget::AnyWidget> widgets)
+        ObbMap obbMap, bq::signal::ArraySignal<widget::AnyWidget> widgets,
+        avg::ContainerNode::Stacking stacking)
 {
     return makeWidget([](BuildParams const& params,
-                SizeHintMap sizeHintMap, ObbMap obbMap, auto widgets)
+                SizeHintMap sizeHintMap, ObbMap obbMap, auto widgets,
+                avg::ContainerNode::Stacking stacking)
     {
         auto builders = widgets.map(
                 [params](widget::AnyWidget const& widget)
@@ -91,13 +96,15 @@ widget::AnyWidget layout(SizeHintMap sizeHintMap,
         return layout(
                 std::move(sizeHintMap),
                 std::move(obbMap),
-                std::move(builders)
+                std::move(builders),
+                stacking
                 );
     },
     provider::provideBuildParams(),
     std::move(sizeHintMap),
     std::move(obbMap),
-    std::move(widgets)
+    std::move(widgets),
+    stacking
     );
 }
 }

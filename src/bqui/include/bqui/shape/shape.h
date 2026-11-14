@@ -355,6 +355,16 @@ namespace bqui::shape
                     );
         }
 
+        /**
+         * @brief The signal of shape functions the shape is built from,
+         * for a modifier that draws the shape itself rather than
+         * styling it.
+         */
+        T getShapeFunction() &&
+        {
+            return std::move(func_);
+        }
+
         operator AnyShape() const&
         {
             return AnyShape(ShapeBuildTag{}, func_);

@@ -32,7 +32,10 @@ namespace detail
                         std::forward<decltype(ts)>(ts)...
                         );
 
-                auto container = std::make_shared<avg::ContainerNode>(avg::Obb());
+                auto container = std::make_shared<avg::ContainerNode>(
+                        avg::Obb(),
+                        avg::ContainerNode::Stacking::stacked
+                        );
 
                 if constexpr (reverse)
                 {

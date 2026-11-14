@@ -8,7 +8,7 @@ against.
 ## Widgets and layout
 
 A widget is a **description** (`AnyWidget`), realised by the framework. Combine
-ready-made widgets — `label`, `button`, `textEdit`, `hbox`/`vbox`,
+ready-made widgets — `label`, `button`, `textEdit`, `hbox`/`vbox`, `stack`,
 `uniformGrid`, `scrollView`, scrollbars, and the flexible spacers — with layout
 containers:
 
@@ -33,6 +33,19 @@ widget::label("Hi") | modifier::margin(10.0f) | modifier::frame()
 
 Modifiers cover framing, background, margins, clipping, transforms, sizing,
 gravity, input handlers (`onClick`, `onHover`, the pointer handlers), and theming.
+
+A **surface** puts a widget on a shape that can be filled, cast a shadow and
+show a backdrop effect such as frosted glass:
+
+```cpp
+widget::label("Card") | modifier::margin(20.0f) | modifier::frostedGlass()
+```
+
+`modifier::surface(shape, fill, shadow, effect)` is the general form;
+`frostedGlass`, `tint` and `backdrop` are its shorthands. An effect shows
+what lies *below* the widget, so layer a surface over other content with
+`widget::stack({ background, card })`, which paints its children bottom to
+top; `vbox` and `hbox` place children side by side, never over each other.
 
 ## Shapes
 

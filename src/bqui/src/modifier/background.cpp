@@ -58,7 +58,8 @@ namespace bqui::modifier
                         [](auto fgInstance, auto bgInstance)
                         {
                             return addWidgets(std::move(bgInstance),
-                                    { std::move(fgInstance) });
+                                    { std::move(fgInstance) },
+                                    avg::ContainerNode::Stacking::stacked);
                         });
 
                 return makeWidgetFromElement(

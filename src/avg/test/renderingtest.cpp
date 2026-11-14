@@ -9,8 +9,6 @@
 #include <avg/glyphbitmap.h>
 #include <avg/positionedglyph.h>
 #include <avg/brush.h>
-#include <avg/builtineffects.h>
-#include <avg/effect.h>
 #include <avg/pen.h>
 #include <avg/pathbuilder.h>
 #include <avg/shape.h>
@@ -80,8 +78,7 @@ namespace
         {
             ase::CommandBuffer commands;
             avg::render(pmr::new_delete_resource(), commands, context,
-                    target.getFramebuffer(), target.getSize(),
-                    scalingFactor, painter, drawing);
+                    target, scalingFactor, painter, drawing);
 
             return commands;
         }
@@ -383,47 +380,6 @@ TEST(rendering, aBackdropScopeDrawsLikeItsContent)
     EXPECT_EQ(f.painter.getTextPipeline(), draws[2].command->getPipeline());
     EXPECT_GT(draws[0].command->getZ(), draws[1].command->getZ());
     EXPECT_GT(draws[1].command->getZ(), draws[2].command->getZ());
-}
-
-TEST(rendering, anEffectElementDrawsNothingYet)
-{
-    Fixture f;
-    avg::Brush const scrim(avg::Color(0.0f, 0.0f, 0.0f, 0.5f));
-    auto box = avg::Shape(avg::PathBuilder(pmr::new_delete_resource())
-            .start(0.0f, 0.0f)
-            .lineTo(200.0f, 0.0f)
-            .lineTo(200.0f, 100.0f)
-            .lineTo(0.0f, 100.0f)
-            .close()
-            .build());
-
-    auto plain = f.drawing(f.entry("Hi"))
-        + avg::Drawing::Element(avg::Drawing::ShapeElement{ box, scrim,
-                std::nullopt })
-        + avg::Drawing::Element(f.entry("Ho"));
-
-    auto withEffect = f.drawing(f.entry("Hi"))
-        + avg::Drawing::Element(avg::Drawing::EffectElement{ box,
-                std::make_shared<avg::Effect const>(avg::frostedGlass()),
-                avg::Transform() })
-        + avg::Drawing::Element(avg::Drawing::ShapeElement{ box, scrim,
-                std::nullopt })
-        + avg::Drawing::Element(f.entry("Ho"));
-
-    auto expectedCommands = f.render(plain);
-    auto actualCommands = f.render(withEffect);
-    auto expected = f.draws(expectedCommands);
-    auto actual = f.draws(actualCommands);
-
-    ASSERT_EQ(3u, expected.size());
-    ASSERT_EQ(expected.size(), actual.size());
-    for (size_t i = 0; i < expected.size(); ++i)
-    {
-        EXPECT_EQ(expected[i].command->getPipeline(),
-                actual[i].command->getPipeline());
-        EXPECT_FLOAT_EQ(expected[i].command->getZ(), actual[i].command->getZ());
-        EXPECT_EQ(expected[i].vertices, actual[i].vertices);
-    }
 }
 
 TEST(rendering, aTranslatedScopePlacesTextLikeATranslatedDrawing)
