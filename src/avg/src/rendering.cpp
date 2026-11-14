@@ -5,6 +5,7 @@
 #include "glyphatlas.h"
 
 #include <avg/softmesh.h>
+#include <avg/obb.h>
 #include <avg/region.h>
 #include <avg/jointype.h>
 #include <avg/endtype.h>
@@ -375,6 +376,11 @@ Rect getElementRect(Drawing::Element const& e)
             [](Drawing::RegionFill const& regionFill) -> Rect
             {
                 return regionFill.region.getBoundingBox();
+            },
+            [](Drawing::BackdropScope const& scope) -> Rect
+            {
+                return (scope.transform * Obb(scope.controlBb))
+                    .getBoundingRect();
             }
             }, e);
 }
@@ -486,6 +492,25 @@ pmr::vector<Item> generateMeshesForElements(
                             clip));
 
                     return result;
+                },
+                [&](Drawing::BackdropScope const& scope) -> pmr::vector<Item>
+                {
+                    assert(!clip || isUnrotated(scope.transform));
+
+                    auto rectInScopeSpace = (scope.transform.inverse()
+                            * Obb(rect)).getBoundingRect();
+
+                    return generateMeshesForElements(
+                            memory,
+                            painter,
+                            text,
+                            toRoot * scope.transform,
+                            scope.transform,
+                            scope.subDrawing->elements,
+                            newPointSize,
+                            rectInScopeSpace,
+                            clip
+                            );
                 }
                 }, element);
 

@@ -21,12 +21,13 @@ void GlxFramebuffer::makeCurrent(
         Dispatched dispatched,
         GlDispatchedContext& context,
         GlRenderState& renderState,
-        GlFunctions const& /*gl*/) const
+        GlFunctions const& gl) const
 {
     auto& glxContext = reinterpret_cast<GlxDispatchedContext&>(context);
 
     glxContext.makeCurrent(dispatched, window_);
 
+    renderState.bindFramebuffer(dispatched, gl, 0);
     renderState.setViewport(dispatched, window_.getScaledSize());
 }
 

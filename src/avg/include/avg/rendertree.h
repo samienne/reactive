@@ -9,5 +9,6 @@
 #include "rendertree/rectnode.h"
 #include "rendertree/transitionnode.h"
 #include "rendertree/clipnode.h"
+#include "rendertree/surfacenode.h"
 #include "rendertree/idnode.h"
 #include "rendertree/rendertree.h"

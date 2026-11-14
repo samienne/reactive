@@ -29,11 +29,44 @@ quads snapped to device pixels. Anything the atlas does not serve — stroked or
 rotated text, very large sizes, a frame that overflows the atlas — falls back
 to the glyph outlines, filled like any other shape.
 
+## Ordering
+
+A drawing paints its elements in order; there are no layers or z values. Two
+additions shape what a frame can do beyond flat painting:
+
+- **Pending shadows.** A surface's shadow belongs under the content of the
+  container that holds the surface, not under the surface alone. A drawing
+  therefore carries its shadows separately as *pending*; they travel with it
+  through concatenation, clipping and transforms, and whoever renders the
+  drawing first flushes them ahead of everything else.
+- **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
+  counts as lying behind it: the frame as it was when the scope was entered,
+  never the scope's own content or its siblings. Whoever paints one child
+  over another composes the two with `Drawing::over`, which scopes the upper
+  child. No element samples its backdrop, so a scope only groups its content
+  and costs nothing; stacks use it unconditionally.
+
+In the render tree, a `SurfaceNode` (a filled shape under a child) casts its
+shadow as a pending shadow and never opens a scope; a `ContainerNode` built
+with `Stacking::stacked` is the stack that paints its children over one
+another through `over`, while a flat container (vbox, hbox, grid) only
+concatenates. `RenderTree::draw` is the root: it flushes the drawing it
+returns.
+
 ## Animation
 
 Time-varying values are `Animated<T>` — a value plus keyframes and a curve
 (`avg::curve`). Anything that can be animated (a transform, a color, a corner
 radius, a whole shape) is expressed this way, and interpolated by timestamp.
+
+## Rendering a window
+
+A window frame is never drawn onto the window directly. The painter draws it
+into a full-window offscreen image of the window's pixel size (an sRGB colour
+texture with a depth buffer, remade when the window is resized), then copies
+that image onto the window with one textured quad. Every frame takes this one
+path whether or not it uses effects, and the offscreen image is what later
+backdrop effects such as frosted glass sample from.
 
 ## The render tree
 

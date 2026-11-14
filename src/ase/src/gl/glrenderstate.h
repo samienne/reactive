@@ -33,6 +33,14 @@ namespace ase
         void submit(CommandBuffer&& commands);
         void clear(Dispatched, GLbitfield mask);
         void setViewport(Dispatched, Vector2i size);
+
+        /**
+         * @brief Binds a framebuffer object as the draw and read target.
+         *
+         * Name 0 is the current drawable's own framebuffer.
+         */
+        void bindFramebuffer(Dispatched, GlFunctions const& gl,
+                GLuint framebuffer);
         void setScissor(Dispatched, std::optional<ScissorRect> const& scissor);
 
     private:
@@ -59,6 +67,7 @@ namespace ase
         Vector2i viewportSize_ = Vector2i(0, 0);
         std::optional<ScissorRect> scissor_;
         GlBaseFramebuffer const* boundFramebuffer_ = nullptr;
+        std::optional<GLuint> boundFramebufferObject_;
         GLuint vertexArrayObject_ = 0;
         GLuint boundProgram_ = 0;
         GLuint boundVbo_ = 0;

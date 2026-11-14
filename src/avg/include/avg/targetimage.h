@@ -11,6 +11,12 @@
 
 namespace avg
 {
+    /**
+     * @brief An offscreen render target: a colour texture of the given
+     * format over a depth-stencil buffer, in a framebuffer draws can name.
+     *
+     * A target cannot be resized; make a new one when the size changes.
+     */
     class AVG_EXPORT TargetImage
     {
     public:

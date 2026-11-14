@@ -51,8 +51,6 @@ void GlRenderQueue::finish()
 
 void GlRenderQueue::submit(CommandBuffer&& renderQueue)
 {
-    if (renderQueue.size() > 10)
-        std::cout << "submit queue commands: " << renderQueue.size() << std::endl;
     renderState_.submit(std::move(renderQueue));
 }
 

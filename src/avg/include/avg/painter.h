@@ -6,6 +6,7 @@
 #include "avgvisibility.h"
 
 #include <ase/commandbuffer.h>
+#include <ase/indexbuffer.h>
 #include <ase/matrix.h>
 #include <ase/uniformblock.h>
 #include <ase/uniformring.h>
@@ -13,10 +14,12 @@
 #include <ase/pipeline.h>
 #include <ase/rendercontext.h>
 #include <ase/vector.h>
+#include <ase/vertexbuffer.h>
 
 #include <pmr/memory_resource.h>
 
 #include <memory>
+#include <optional>
 
 namespace avg
 {
@@ -29,6 +32,11 @@ namespace avg
      *
      * A frame is everything recorded from the first clear or paint up to
      * flush.
+     *
+     * A painter serves one window: window frames are drawn into an
+     * offscreen target of the window's pixel size that `presentWindow`
+     * copies onto the window, so painting two windows through one painter
+     * would re-create that target every frame.
      */
     class AVG_EXPORT Painter final
     {
@@ -74,10 +82,31 @@ namespace avg
         GlyphAtlas& getGlyphAtlas();
 
         void clearImage(TargetImage& target);
-        void clearWindow(ase::Window& target);
         void paintToImage(TargetImage& target, float scalingFactor, Drawing const& drawing);
+
+        /**
+         * @brief Clear the window's offscreen target: colour to opaque
+         * black and depth.
+         *
+         * The window itself is never cleared; `presentWindow` covers it.
+         */
+        void clearWindow(ase::Window& target);
+
+        /**
+         * @brief Draw into the window's offscreen target.
+         */
         void paintToWindow(ase::Window& target, Drawing const& drawing);
+
+        /**
+         * @brief Copy the offscreen target onto the window with a
+         * full-window quad, flush, and present the window.
+         *
+         * Nothing is copied before the first `clearWindow` or
+         * `paintToWindow`; after that a frame that painted nothing presents
+         * the target as it was.
+         */
         void presentWindow(ase::Window& target);
+
         void flush();
 
     private:
@@ -88,12 +117,19 @@ namespace avg
 
         void beginFrame();
         void writeMatrices();
+        TargetImage& windowTarget(ase::Window& window);
+        void pushPresent(ase::Window& window);
 
         pmr::memory_resource* memory_;
         ase::RenderContext& renderContext_;
         ase::Pipeline solidPipeline_;
         ase::Pipeline transparentPipeline_;
         ase::Pipeline textPipeline_;
+        ase::Pipeline presentPipeline_;
+        ase::UniformSet presentUniformSet_;
+        std::optional<TargetImage> windowTarget_;
+        std::optional<ase::VertexBuffer> presentVertices_;
+        std::optional<ase::IndexBuffer> presentIndices_;
         std::unique_ptr<GlyphAtlas> glyphAtlas_;
         ase::UniformBlock<MatrixBlock> matrices_;
         ase::UniformRing uniformRing_;

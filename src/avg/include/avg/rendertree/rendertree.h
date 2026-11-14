@@ -35,6 +35,12 @@ namespace avg
                 std::chrono::milliseconds time
                 ) &&;
 
+        /**
+         * @brief Draws the tree into @p obb at @p time, ready to render.
+         *
+         * The drawing is flushed: the tree's pending shadows are ahead of
+         * its content. Also returns whether an animation is still running.
+         */
         std::pair<Drawing, bool> draw(DrawContext const& drawContext,
                 avg::Obb const& obb,
                 std::chrono::milliseconds time) const;
