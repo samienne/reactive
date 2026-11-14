@@ -429,6 +429,8 @@ Ordering:
   wide, relative to the content, on a 2x display. Converting from logical
   units needs the effect built, or its pixel quantities resolved, per
   scale at render time.
+  `effect-brushes-and-shadows.md` decides this: sizes in logical units,
+  converted when the renderer lowers the effect.
 - **Per-node effect cache.** The surface node rebuilds its effect each
   frame from the animated options; caching it while the options are
   unchanged is pending a measured need. The shader source does not depend
