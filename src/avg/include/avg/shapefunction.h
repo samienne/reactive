@@ -106,11 +106,15 @@ namespace avg
                     std::optional<AnimationOptions> animationOptions,
                     std::chrono::milliseconds time) override
             {
-                auto const& newShape = static_cast<ShapeFunctionWithParams&>(*newBase);
+                auto const* newShape =
+                    dynamic_cast<ShapeFunctionWithParams const*>(newBase.get());
+
+                if (!newShape)
+                    return newBase;
 
                 return std::make_shared<ShapeFunctionWithParams>(
-                        newShape.func_,
-                        getUpdatedAnimation(params_, newShape.params_,
+                        newShape->func_,
+                        getUpdatedAnimation(params_, newShape->params_,
                             animationOptions, time)
                         );
             }

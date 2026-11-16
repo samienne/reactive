@@ -156,6 +156,12 @@ outgrows one file.
   recipe (see *Effects*). The fill is also an `Animated` brush but has no
   such check: a fill changing kind returns the new brush at once yet
   still asks for frames for the animation's length.
+- **Pairing old and new nodes.** Each node's `update` casts the old node to
+  its own type unchecked, so an old and a new node are paired only when
+  `canUpdate` holds (same id and `getType()`). Containers pair unnamed
+  children by position; a pair that fails `canUpdate` becomes the old child
+  leaving and the new one arriving. Single-child nodes and the root go
+  through `updateNode`, which drops the old node and lets the new one appear.
 
 ## Render tree snapshots
 

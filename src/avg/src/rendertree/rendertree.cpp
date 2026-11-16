@@ -48,7 +48,7 @@ std::pair<RenderTree, std::optional<std::chrono::milliseconds>> RenderTree::upda
                 );
     }
 
-    auto [updatedNode, nextUpdate] = tree.root_->update(
+    auto [updatedNode, nextUpdate] = updateNode(
             *this,
             tree,
             root_,

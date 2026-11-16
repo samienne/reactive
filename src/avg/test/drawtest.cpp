@@ -527,3 +527,38 @@ TEST(Drawing, effectElementChecksItsInputs)
     EXPECT_THROW((void)avg::Drawing::effect(pmr::new_delete_resource(),
                 elementPass(), std::move(backdrop)), std::invalid_argument);
 }
+
+TEST(Draw, aChildThatChangesKindIsReplaced)
+{
+    avg::DrawContext context(pmr::new_delete_resource());
+    avg::Obb const obb(avg::Vector2f(300.0f, 50.0f));
+
+    auto makeTree = [&](std::shared_ptr<avg::RenderTreeNode> child)
+    {
+        auto root = std::make_shared<avg::ContainerNode>(obb);
+        root->addChild(std::move(child));
+        return avg::RenderTree(std::move(root));
+    };
+
+    auto nested = std::make_shared<avg::ContainerNode>(
+            placed(20.0f, 0.0f, 100.0f, 50.0f));
+    nested->addChild(rect(placed(0.0f, 0.0f, 10.0f, 10.0f)));
+
+    auto [nestedTree, nestedUpdate] = makeTree(
+            rect(placed(0.0f, 0.0f, 10.0f, 10.0f))).update(
+                makeTree(nested), std::nullopt, zero);
+
+    auto nestedBounds = shapeBounds(nestedTree.draw(context, obb, zero).first);
+
+    ASSERT_EQ(1u, nestedBounds.size());
+    expectRect(nestedBounds[0], 20.0f, 0.0f, 10.0f, 10.0f);
+
+    auto [rectTree, rectUpdate] = std::move(nestedTree).update(
+            makeTree(rect(placed(40.0f, 0.0f, 10.0f, 10.0f))),
+            std::nullopt, zero);
+
+    auto rectBounds = shapeBounds(rectTree.draw(context, obb, zero).first);
+
+    ASSERT_EQ(1u, rectBounds.size());
+    expectRect(rectBounds[0], 40.0f, 0.0f, 10.0f, 10.0f);
+}
