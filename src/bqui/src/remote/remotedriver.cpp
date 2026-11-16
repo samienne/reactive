@@ -748,7 +748,7 @@ private:
                 return windowIntrospect(p);
             } });
 
-        dispatcher_.add({ "window.renderTree",
+        Method renderTree{ "window.renderTree",
             "The window's render-tree snapshot; with `asBlob`, a blob holding "
             "the same reply.",
             {
@@ -758,8 +758,9 @@ private:
             [this](json const& p, Responder&)
             {
                 return windowRenderTree(p);
-            },
-            true });
+            } };
+        renderTree.returnsBlob = true;
+        dispatcher_.add(std::move(renderTree));
 
         dispatcher_.add({ "window.inject",
             "Queue input events onto a window for the next step.",

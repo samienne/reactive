@@ -1247,8 +1247,6 @@ TEST(session, shutdownGivesUpOnAClientThatStopsReading)
 
 namespace
 {
-    // One scripted session: the requests are queued up front, then the driver
-    // runs until the client's input ends.
     struct BlobSession
     {
         explicit BlobSession(BlobLimits limits = {}) :

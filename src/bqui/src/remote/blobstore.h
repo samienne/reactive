@@ -46,11 +46,12 @@ namespace bqui::remote
         void clear();
 
     private:
-        std::unordered_map<uint64_t, std::string>::const_iterator find(
-                nlohmann::json const& params) const;
+        using Blobs = std::unordered_map<uint64_t, std::string>;
+
+        Blobs::const_iterator find(nlohmann::json const& params) const;
 
         BlobLimits limits_;
-        std::unordered_map<uint64_t, std::string> blobs_;
+        Blobs blobs_;
         uint64_t nextId_ = 1;
         size_t outstanding_ = 0;
     };

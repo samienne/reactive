@@ -135,8 +135,7 @@ void BlobStore::clear()
     outstanding_ = 0;
 }
 
-std::unordered_map<uint64_t, std::string>::const_iterator BlobStore::find(
-        json const& params) const
+BlobStore::Blobs::const_iterator BlobStore::find(json const& params) const
 {
     uint64_t id = requireIndex(params, "id");
 
