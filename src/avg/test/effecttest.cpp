@@ -842,3 +842,131 @@ TEST(ElementPass, reachesItsPaddingUnlessGivenLessPerAxis)
     EXPECT_THROW(avg::makeElementPass(pass, nullptr, avg::Vector2i(0, -1)),
             std::invalid_argument);
 }
+
+TEST(PassGraph, anElementPassGrowsTheSourcesItReads)
+{
+    using Kind = PassGraph::Kind;
+    using Source = PassGraph::Source;
+
+    // A blur at divisor two reading a sub-drawing, composited by a final
+    // pass reading the blur and the backdrop.
+    Pass blur = regionPass({ PassInput::pass(0) }, Divisor::Two,
+            ase::FORMAT_RGBA16F, 4);
+    Pass composite = finalPass({ PassInput::pass(0), PassInput::backdrop() },
+            1);
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    size_t const content = graph.addSubDrawing();
+    size_t const blurred = graph.addElement(blur, snapshot,
+            { Source{ Kind::SubDrawing, content } }, PixelRect());
+    graph.addElement(composite, snapshot,
+            { Source{ Kind::Element, blurred },
+            Source{ Kind::Snapshot, 0 } }, shape);
+
+    auto const& nodes = graph.getNodes();
+    ASSERT_EQ(3u, nodes.size());
+    EXPECT_TRUE(nodes[0].subDrawing);
+    EXPECT_EQ(shape, nodes[2].region);
+    // The final region grown by 1, at divisor two.
+    EXPECT_EQ(rect(49, 39, 102, 22), nodes[1].region);
+    // The blur's region grown by 4, back at divisor one.
+    EXPECT_EQ(rect(90, 70, 220, 60), nodes[0].region);
+    EXPECT_EQ(shape.grown(1), graph.getBackdropRegion(snapshot));
+}
+
+TEST(PassGraph, subDrawingsNeverMergeButEqualElementPassesDo)
+{
+    using Kind = PassGraph::Kind;
+    using Source = PassGraph::Source;
+
+    Pass copy = regionPass({ PassInput::backdrop() }, Divisor::Two,
+            ase::FORMAT_RGBA16F);
+    Pass draw = finalPass({ PassInput::pass(0) });
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    size_t const first = graph.addSubDrawing();
+    size_t const second = graph.addSubDrawing();
+    EXPECT_EQ(2u, graph.getSubDrawingCount());
+
+    size_t const a = graph.addElement(copy, snapshot,
+            { Source{ Kind::Snapshot, 0 } }, PixelRect());
+    size_t const b = graph.addElement(copy, snapshot,
+            { Source{ Kind::Snapshot, 0 } }, PixelRect());
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, a } },
+            shape);
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, b } },
+            rect(0, 0, 10, 10));
+
+    EXPECT_NE(first, second);
+    // Two sub-drawings, one shared copy and two final passes.
+    EXPECT_EQ(5u, graph.getNodes().size());
+    EXPECT_EQ(rect(0, 0, 150, 60), graph.getNodes()[2].region);
+
+    EXPECT_THROW(graph.addElement(draw, snapshot,
+                { Source{ Kind::SubDrawing, 2 } }, shape),
+            std::invalid_argument);
+}
+
+TEST(PassGraph, equalElementPassesOverDifferentSubDrawingsDoNotMerge)
+{
+    using Kind = PassGraph::Kind;
+    using Source = PassGraph::Source;
+
+    Pass copy = regionPass({ PassInput::pass(0) }, Divisor::Two,
+            ase::FORMAT_RGBA16F);
+    Pass draw = finalPass({ PassInput::pass(0) });
+
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    size_t const first = graph.addSubDrawing();
+    size_t const second = graph.addSubDrawing();
+
+    size_t const a = graph.addElement(copy, snapshot,
+            { Source{ Kind::SubDrawing, first } }, PixelRect());
+    size_t const b = graph.addElement(copy, snapshot,
+            { Source{ Kind::SubDrawing, second } }, PixelRect());
+    size_t const c = graph.addElement(copy, snapshot,
+            { Source{ Kind::SubDrawing, first } }, PixelRect());
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, a } },
+            shape);
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, b } },
+            shape);
+    graph.addElement(draw, snapshot, { Source{ Kind::Element, c } },
+            shape);
+
+    // Two sub-drawings, a copy of each, the second copy of the first
+    // merged, and three final passes.
+    EXPECT_EQ(7u, graph.getNodes().size());
+}
+
+TEST(ScratchPlan, aSubDrawingLivesUntilItsReaderAndAcrossItsContent)
+{
+    using Kind = PassGraph::Kind;
+    using Source = PassGraph::Source;
+
+    Effect blur = avg::makeEffect(blurPasses());
+    Pass draw = finalPass({ PassInput::pass(0) });
+
+    // The sub-drawing holds a blur over the snapshot; an element then
+    // composites the sub-drawing.
+    PassGraph graph(screen);
+    size_t const snapshot = graph.addSnapshot();
+    size_t const content = graph.addSubDrawing();
+    graph.addEffect(blur, snapshot, shape);
+    graph.addElement(draw, snapshot,
+            { Source{ Kind::SubDrawing, content } }, shape);
+
+    ScratchPlan plan = avg::planScratch(graph);
+    ASSERT_EQ(1u, plan.subDrawings.size());
+    ASSERT_EQ(2u, plan.effects.size());
+
+    avg::ValueAllocation const& sub = plan.subDrawings[0];
+    EXPECT_EQ(1u, sub.definedAt);
+    EXPECT_EQ(plan.effects[1].passes.at(0).step, sub.lastUse);
+    EXPECT_EQ(ScratchKey{}, sub.slot.key);
+    EXPECT_NE(plan.snapshots[0].slot, sub.slot);
+    EXPECT_EQ(sub.slot, plan.effects[1].passes.at(0).inputs.at(0));
+}
+
