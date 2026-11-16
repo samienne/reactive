@@ -12,7 +12,11 @@ void captureOnLoop(RemoteWindow& window, btl::RunLoop& loop,
             [&loop, alive = std::move(alive), done = std::move(done)](
                 ase::CaptureResult result) mutable
             {
-                loop.post([alive = std::move(alive), done = std::move(done),
+                // libc++ leaves a moved-from std::function holding a copy of
+                // a small target, which would die with this callback, off the
+                // loop thread.
+                loop.post([alive = std::move(alive),
+                        done = std::exchange(done, nullptr),
                         result = std::move(result)](
                             btl::RunLoop::Controller& controller) mutable
                     {
