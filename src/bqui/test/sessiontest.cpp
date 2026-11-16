@@ -1,3 +1,4 @@
+#include "remote/dispatcher.h"
 #include "remote/tcptransport.h"
 #include "scriptedtransport.h"
 
@@ -1307,12 +1308,13 @@ namespace
         int rendered = 0;
         std::vector<QueuedReply> replies;
 
-        explicit SteppedPlatformFixture(std::string const& name)
+        explicit SteppedPlatformFixture(std::string const& name,
+                std::chrono::milliseconds stepTimeout = kStepTimeout)
         {
             auto endpoint = uniqueEndpoint(name);
             listener = listen(endpoint);
 
-            serverThread = std::thread([this]
+            serverThread = std::thread([this, stepTimeout]
                 {
                     auto server = listener->accept();
 
@@ -1345,7 +1347,7 @@ namespace
                     app.liveWindows = [] { return RemoteWindows(); };
 
                     driver.emplace(loop, transport, std::move(app),
-                            platform.pause());
+                            platform.pause(), stepTimeout);
 
                     platform.run([this](ase::Frame const&)
                         {
@@ -1538,4 +1540,67 @@ TEST(session, stepResumedAfterTheDriverIsGoneDoesNothing)
 
     for (auto const& reply : s.queuedReplies())
         EXPECT_NE(stepId, reply.id);
+}
+
+TEST(session, stepFailsWhenItsFrameDoesNotRenderInTime)
+{
+    SteppedPlatformFixture s("stepdeadline", std::chrono::milliseconds(100));
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int pauseId = s.send("app.pause");
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto pause = awaitResponse(*s.client, pauseId);
+    EXPECT_EQ(kInternalError, step.at("error").at("code").get<int>());
+    EXPECT_EQ(3u, pause.at("result").at("frame").get<uint64_t>());
+
+    // The wake from the freed slot comes after the step gave up, and finds
+    // nothing to resume.
+    std::mutex mutex;
+    std::condition_variable woken;
+    bool wakeDone = false;
+    s.loop.post([&](btl::RunLoop::Controller& controller)
+        {
+            s.context->releaseFences();
+            controller.post([&](btl::RunLoop::Controller&)
+                {
+                    {
+                        std::lock_guard<std::mutex> lock(mutex);
+                        wakeDone = true;
+                    }
+                    woken.notify_all();
+                });
+        });
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        woken.wait(lock, [&] { return wakeDone; });
+    }
+
+    EXPECT_EQ(3u, s.queuedReplies().size());
+    EXPECT_EQ(2, s.renderedCount());
+
+    // The next step first renders the frame the window was still owed.
+    EXPECT_EQ(4u, s.call("app.step").at("result").at("frame")
+            .get<uint64_t>());
+    EXPECT_EQ(4, s.renderedCount());
+}
+
+TEST(session, shutdownBehindAHungStepGoesAheadAtTheDeadline)
+{
+    SteppedPlatformFixture s("stephung", std::chrono::milliseconds(100));
+
+    s.call("app.step", { { "count", 2 } });
+
+    int stepId = s.send("app.step");
+    int shutdownId = s.send("app.shutdown");
+
+    auto step = awaitResponse(*s.client, stepId);
+    auto shutdown = awaitResponse(*s.client, shutdownId);
+    EXPECT_EQ(kInternalError, step.at("error").at("code").get<int>());
+    EXPECT_TRUE(shutdown.at("result").is_object());
+
+    s.serverThread.join();
+    EXPECT_EQ(2, s.renderedCount());
 }

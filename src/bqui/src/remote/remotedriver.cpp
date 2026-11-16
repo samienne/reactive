@@ -184,11 +184,13 @@ class RemoteDriver::Impl
 {
 public:
     Impl(btl::RunLoop& loop, Transport& transport, RemoteApp app,
-            std::optional<ase::PauseToken> pauseToken) :
+            std::optional<ase::PauseToken> pauseToken,
+            std::chrono::milliseconds stepTimeout) :
         loop_(loop),
         transport_(&transport),
         app_(std::move(app)),
         pauseToken_(std::move(pauseToken)),
+        stepTimeout_(stepTimeout),
         dispatcher_([this](std::string const& frame) { safeSend(frame); })
     {
 #ifdef SIGPIPE
@@ -370,6 +372,7 @@ private:
         shuttingDown_ = true;
         dispatcher_.end();
         pendingStep_.reset();
+        stepDeadline_ = btl::RunLoop::Timer();
     }
 
     void close(char const* reason)
@@ -520,12 +523,13 @@ private:
 
         pendingStep_.emplace(PendingStep{ count, dt, std::move(responder),
                 dispatcher_.holdGate() });
+        armStepDeadline();
         return pending;
     }
 
     // Advances `remaining` frames, each only once the one before it has
     // rendered every window it was due in. Reports false when it has to stop
-    // for a window with no free in-flight slot; the platform's wake resumes it.
+    // for a window with no free in-flight slot.
     bool advanceSteps(int64_t& remaining, std::chrono::microseconds dt)
     {
         for (;;)
@@ -546,14 +550,45 @@ private:
 
     void resumeStep()
     {
-        if (!pendingStep_
-                || !advanceSteps(pendingStep_->remaining, pendingStep_->dt))
+        if (!pendingStep_)
             return;
 
+        int64_t before = pendingStep_->remaining;
+        if (!advanceSteps(pendingStep_->remaining, pendingStep_->dt))
+        {
+            if (pendingStep_->remaining != before)
+                armStepDeadline();
+            return;
+        }
+
+        endStep([this](Responder& responder)
+            {
+                responder.resolve(stepResult());
+            });
+    }
+
+    void armStepDeadline()
+    {
+        stepDeadline_ = controller_->addTimer(stepTimeout_,
+                [this](btl::RunLoop::Controller& controller)
+                {
+                    ControllerScope scope(controller_, controller);
+                    endStep([](Responder& responder)
+                        {
+                            responder.reject(RpcError{ kInternalError,
+                                "the frame did not finish rendering" });
+                        });
+                });
+    }
+
+    // Answers the pending step and lets the requests behind it go ahead.
+    void endStep(std::function<void(Responder&)> const& answer)
+    {
         PendingStep step = std::move(*pendingStep_);
         pendingStep_.reset();
+        stepDeadline_ = btl::RunLoop::Timer();
 
-        step.responder.resolve(stepResult());
+        answer(step.responder);
         step.gate.release();
 
         if (shuttingDown_)
@@ -713,6 +748,7 @@ private:
     Transport* transport_ = nullptr;
     RemoteApp app_;
     std::optional<ase::PauseToken> pauseToken_;
+    std::chrono::milliseconds stepTimeout_;
     Dispatcher dispatcher_;
     std::optional<PendingStep> pendingStep_;
     std::shared_ptr<bool> alive_ = std::make_shared<bool>(true);
@@ -725,12 +761,14 @@ private:
     btl::RunLoop::Source readable_;
     btl::RunLoop::Source writable_;
     btl::RunLoop::Timer flushTimeout_;
+    btl::RunLoop::Timer stepDeadline_;
 };
 
 RemoteDriver::RemoteDriver(btl::RunLoop& loop, Transport& transport,
-        RemoteApp app, std::optional<ase::PauseToken> pauseToken) :
+        RemoteApp app, std::optional<ase::PauseToken> pauseToken,
+        std::chrono::milliseconds stepTimeout) :
     impl_(std::make_unique<Impl>(loop, transport, std::move(app),
-                std::move(pauseToken)))
+                std::move(pauseToken), stepTimeout))
 {
 }
 
