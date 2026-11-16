@@ -43,6 +43,8 @@ namespace ase
         void pauseFrames() override;
         void resumeFrames() override;
         bool stepFrame(std::chrono::microseconds dt) override;
+        bool finishStepFrame() override;
+        void setPausedWake(std::function<void()> callback) override;
         void requestFrame() override;
         btl::RunLoop& runLoop() override;
 
@@ -106,7 +108,20 @@ namespace ase
         std::chrono::microseconds frameStep_{ 0 };
 
     private:
-        void renderDirtyWindows(Frame const& frame);
+        // Appends each due window passed over for want of an in-flight slot to
+        // `skipped`, when given.
+        void renderDirtyWindows(Frame const& frame,
+                std::vector<std::weak_ptr<WindowBase>>* skipped = nullptr);
+
+        void renderWindow(WindowBase& window, Frame const& frame);
+
+        // The windows the last stepped frame is still owed, and that frame's
+        // time and dt.
+        std::vector<std::weak_ptr<WindowBase>> stepSkipped_;
+        std::chrono::microseconds stepTime_{ 0 };
+        std::chrono::microseconds stepDt_{ 0 };
+
+        std::function<void()> pausedWake_;
 
         // The earliest frame time a renderable window wants its next frame at,
         // or nullopt if none does; the loop schedules its next tick to this.

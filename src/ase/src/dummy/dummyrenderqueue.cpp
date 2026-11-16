@@ -22,8 +22,32 @@ void DummyRenderQueue::submit(CommandBuffer&& commandBuffer)
     // frames in flight by a fence per submit, so leaving them pending would
     // wedge its backpressure.
     for (auto& command : commandBuffer)
-        if (std::holds_alternative<FenceCommand>(command))
-            std::get<FenceCommand>(command).promise.set();
+    {
+        if (!std::holds_alternative<FenceCommand>(command))
+            continue;
+
+        auto& promise = std::get<FenceCommand>(command).promise;
+        if (holding_)
+            held_.push_back(std::move(promise));
+        else
+            promise.set();
+    }
+}
+
+void DummyRenderQueue::holdFences()
+{
+    holding_ = true;
+}
+
+void DummyRenderQueue::releaseFences()
+{
+    holding_ = false;
+
+    auto held = std::move(held_);
+    held_.clear();
+
+    for (auto& promise : held)
+        promise.set();
 }
 
 } // namespace

@@ -48,11 +48,33 @@ namespace ase
          */
         bool step(std::chrono::microseconds dt);
 
+        /**
+         * @brief Render the windows the last `step` left unrendered.
+         *
+         * A step skips a due window whose frames in flight are at their limit.
+         * Reports whether the stepped frame is complete, which it is at once
+         * when nothing was skipped. While it reports false, call it again from
+         * the `onWake` callback.
+         */
+        bool finishStep();
+
+        /**
+         * @brief Call `callback` on the loop thread each time the loop is
+         * woken while paused, as a window finishing a frame in flight wakes it.
+         *
+         * The platform holds one such callback for all its tokens. Destroying
+         * the token that set it clears it.
+         */
+        void onWake(std::function<void()> callback);
+
     private:
         friend class Platform;
         explicit PauseToken(std::shared_ptr<PlatformImpl> platform);
 
+        void release();
+
         std::shared_ptr<PlatformImpl> platform_;
+        bool hasWake_ = false;
     };
 
     class ASE_EXPORT Platform
