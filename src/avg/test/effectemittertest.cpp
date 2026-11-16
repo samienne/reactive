@@ -530,6 +530,33 @@ TEST(ScratchPool, releasesATextureIdleForTheLimit)
     f.pool.endFrame();
 }
 
+TEST(ScratchPool, sharesOneDepthBufferPerTargetSize)
+{
+    Fixture f;
+    ScratchSlot const first = slot(Divisor::One, ase::FORMAT_SRGBA, 0);
+    ScratchSlot const second = slot(Divisor::One, ase::FORMAT_SRGBA, 1);
+
+    f.pool.beginFrame(screenSize);
+    avg::ScratchTarget a = f.pool.acquireWithDepth(first);
+    avg::ScratchTarget b = f.pool.acquireWithDepth(second);
+    avg::ScratchTarget plain = f.pool.acquire(first);
+    f.pool.endFrame();
+
+    EXPECT_EQ(1u, f.pool.getDepthBufferCount());
+    EXPECT_EQ(avg::TargetImage::depthFormat, a.framebuffer.getDepthFormat());
+    EXPECT_EQ(avg::TargetImage::depthFormat, b.framebuffer.getDepthFormat());
+    EXPECT_NE(a.texture, b.texture);
+    EXPECT_EQ(a.texture, plain.texture);
+    EXPECT_NE(a.framebuffer, plain.framebuffer);
+    EXPECT_FALSE(plain.framebuffer.getDepthFormat().has_value());
+
+    f.pool.beginFrame(screenSize);
+    EXPECT_EQ(a.framebuffer, f.pool.acquireWithDepth(first).framebuffer);
+    f.pool.acquireWithDepth(slot(Divisor::Two, ase::FORMAT_SRGBA, 0));
+    f.pool.endFrame();
+    EXPECT_EQ(2u, f.pool.getDepthBufferCount());
+}
+
 TEST(PassPipelineCache, returnsOnePipelinePerShaderFormatAndGeometry)
 {
     Fixture f;

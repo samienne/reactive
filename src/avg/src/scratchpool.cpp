@@ -1,5 +1,8 @@
 #include "scratchpool.h"
 
+#include "targetimage.h"
+
+#include <algorithm>
 #include <stdexcept>
 
 namespace avg
@@ -21,6 +24,7 @@ void ScratchPool::beginFrame(Vector2i screenSize)
     if (!sized_ || screenSize != screenSize_)
     {
         pools_.clear();
+        depths_.clear();
         screenSize_ = screenSize;
         sized_ = true;
     }
@@ -44,12 +48,44 @@ ScratchTarget ScratchPool::acquire(ScratchSlot const& slot)
         framebuffer.setColorTarget(0, texture);
 
         entry = Entry{ ScratchTarget{ std::move(texture),
-            std::move(framebuffer), size }, 0 };
+            std::move(framebuffer), size }, std::nullopt, 0 };
     }
 
     entry->idleFrames = 0;
 
     return entry->target;
+}
+
+ScratchTarget ScratchPool::acquireWithDepth(ScratchSlot const& slot)
+{
+    ScratchTarget target = acquire(slot);
+
+    auto depth = std::find_if(depths_.begin(), depths_.end(),
+            [&](Depth const& d)
+            {
+                return d.size == target.size;
+            });
+
+    if (depth == depths_.end())
+    {
+        depths_.push_back(Depth{ target.size, context_.makeRenderbuffer(
+                    target.size, TargetImage::depthFormat), 0 });
+        depth = depths_.end() - 1;
+    }
+
+    depth->idleFrames = 0;
+
+    std::optional<Entry>& entry = poolFor(slot.key).entries[slot.index];
+    if (!entry->depthFramebuffer)
+    {
+        ase::Framebuffer framebuffer = context_.makeFramebuffer();
+        framebuffer.setColorTarget(0, entry->target.texture);
+        framebuffer.setDepthTarget(depth->buffer);
+        entry->depthFramebuffer = std::move(framebuffer);
+    }
+
+    target.framebuffer = *entry->depthFramebuffer;
+    return target;
 }
 
 void ScratchPool::endFrame()
@@ -66,6 +102,32 @@ void ScratchPool::endFrame()
                 entry.reset();
         }
     }
+
+    std::vector<Depth> kept;
+    for (Depth& depth : depths_)
+    {
+        if (++depth.idleFrames <= scratchIdleFrameLimit)
+        {
+            kept.push_back(std::move(depth));
+            continue;
+        }
+
+        for (Pool& pool : pools_)
+        {
+            for (std::optional<Entry>& entry : pool.entries)
+            {
+                if (entry && entry->target.size == depth.size)
+                    entry->depthFramebuffer.reset();
+            }
+        }
+    }
+
+    depths_ = std::move(kept);
+}
+
+size_t ScratchPool::getDepthBufferCount() const
+{
+    return depths_.size();
 }
 
 Vector2i ScratchPool::getScreenSize() const
