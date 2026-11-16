@@ -215,6 +215,17 @@ blob holds exactly the inline result. The client reads ranges with `blob.read`
 - **`base64Encode` (`src/remote/base64.h`) is the chunk encoding**, exported
   for its tests.
 
+**A capture result comes back on the render thread, not the loop.**
+`RemoteWindow::captureNextFrame` keeps the ase contract (the callback runs on
+any thread; `WindowBridge` passes it straight to its `ase::Window`), and
+`window.list` reports `canCapture` from the same seam. The driver arms a
+capture only through `captureOnLoop` (`src/remote/capture.h`, exported for its
+tests), which posts the result to the loop and drops it if the driver is gone
+by then. A handler resolving a responder from it must still enter a driver
+callback first, as the deferred `app.step` does, since `safeSend` needs the
+`Controller`. On the dummy backend the result is `Unsupported`, delivered by a
+post rather than inline.
+
 The impls are released by a scope guard in `run`, not at the end of it. They
 outlive the call — they are the app's — but the `ase::Platform` and
 `ase::RenderContext` they are made of do not, so a run that ends by exception
