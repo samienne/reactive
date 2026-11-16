@@ -6,6 +6,25 @@ entries against `3ba9415` (2026-09-28).*
 Why non-obvious choices were made, so they are not re-litigated. Newest first.
 Each entry is intentionally short: the decision and its rationale.
 
+## Bulk remote results are blobs the client pulls
+
+A remote method with a large result can answer with a blob descriptor instead
+of the inline result. The client pulls the bytes with `blob.read` and frees
+them with `blob.release`. A chunk is base64 inside an ordinary JSON reply. A
+session caps the bytes held in unreleased blobs (256 MiB) and clamps a read to
+1 MiB, 256 KiB by default; a blob lives until it is released or the session
+ends.
+
+**Why:** pulling gives flow control without a second channel. Each chunk is
+one bounded reply, so the outgoing queue never holds a whole image, and other
+requests interleave between the chunks. Base64 keeps the framing pure JSON;
+the encoding sits behind `blob.read` and is named in each reply and in
+`system.describe`, so a binary frame kind can replace it without changing the
+methods. Release is explicit rather than on reading the last byte, so a
+client can re-read a range. The cap bounds what a client that never releases
+can make the app hold, and failing the producer, not evicting an older blob,
+keeps every handed-out id valid until its owner lets go.
+
 ## The remote driver ends a session whose outgoing queue passes its cap
 
 Replies and notifications wait in a per-transport queue capped at
