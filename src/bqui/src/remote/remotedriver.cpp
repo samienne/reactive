@@ -418,6 +418,7 @@ public:
         endSession();
 
         std::unique_lock<std::mutex> lock(encodes_->mutex);
+        encodes_->stopped = true;
         encodes_->done.wait(lock, [this] { return encodes_->running == 0; });
     }
 
@@ -446,12 +447,28 @@ private:
     };
 
     // The encodes running on worker threads, which the destructor waits for
-    // so that none posts to a loop being torn down.
+    // so that none posts to a loop being torn down. One that has not started
+    // by then does nothing.
     struct EncodeJobs
     {
         std::mutex mutex;
         std::condition_variable done;
         int running = 0;
+        bool stopped = false;
+    };
+
+    struct RunningEncode
+    {
+        EncodeJobs& jobs;
+
+        ~RunningEncode()
+        {
+            {
+                std::lock_guard<std::mutex> lock(jobs.mutex);
+                --jobs.running;
+            }
+            jobs.done.notify_all();
+        }
     };
 
     // The loop-thread Controller, valid only during a callback.
@@ -1061,16 +1078,19 @@ private:
 
     void encode(uint64_t key, ase::FrameCapture capture, ScreenshotPlan plan)
     {
-        {
-            std::lock_guard<std::mutex> lock(encodes_->mutex);
-            ++encodes_->running;
-        }
-
         btl::ThreadPool::getInstance().async(
                 [this, key, plan, jobs = encodes_,
                 alive = std::weak_ptr<bool>(alive_),
                 capture = std::move(capture)]() mutable
                 {
+                    {
+                        std::lock_guard<std::mutex> lock(jobs->mutex);
+                        if (jobs->stopped)
+                            return;
+                        ++jobs->running;
+                    }
+                    RunningEncode running{ *jobs };
+
                     std::string png;
                     std::string error;
                     try
@@ -1098,12 +1118,6 @@ private:
                             onEncoded(key, plan, presentIndex, std::move(png),
                                     error);
                         });
-
-                    {
-                        std::lock_guard<std::mutex> lock(jobs->mutex);
-                        --jobs->running;
-                    }
-                    jobs->done.notify_all();
                 });
     }
 
