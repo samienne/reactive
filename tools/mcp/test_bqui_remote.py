@@ -36,7 +36,9 @@ class FakeApp:
         return json.loads(await self.reader.readexactly(length))
 
     async def send(self, msg: dict) -> None:
-        data = json.dumps(msg).encode("utf-8")
+        await self.send_raw(json.dumps(msg).encode("utf-8"))
+
+    async def send_raw(self, data: bytes) -> None:
         self.writer.write(struct.pack(">I", len(data)) + data)
         await self.writer.drain()
 
@@ -187,18 +189,148 @@ class ConnectionTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(store.released, ["b1"])
 
 
+    async def test_raising_notification_handler_is_logged(self) -> None:
+        def handler(method: str, params: Any) -> None:
+            raise ValueError("boom")
+
+        self.conn._on_notification = handler
+        pending = asyncio.create_task(self.conn.request("ping"))
+        msg = await self.app.recv()
+        with self.assertLogs("bqui_remote", "ERROR") as logs:
+            await self.app.send({"jsonrpc": "2.0", "method": "frame"})
+            await self.app.reply(msg, "pong")
+            self.assertEqual(await asyncio.wait_for(pending, 5), "pong")
+        self.assertIn("notification handler failed", logs.output[0])
+
+    async def test_graceful_close(self) -> None:
+        seen: list[str] = []
+
+        def handler(msg: dict) -> dict:
+            seen.append(msg["method"])
+            return result(msg, None)
+
+        served = await self.serve(handler)
+        await asyncio.wait_for(self.conn.close(timeout=5), 5)
+        await asyncio.wait_for(served, 5)
+        self.assertEqual(seen, [])
+        self.assertFalse(self.conn._server.is_serving())
+
+    async def test_close_with_silent_app(self) -> None:
+        with self.assertLogs("bqui_remote", "WARNING") as logs:
+            await asyncio.wait_for(self.conn.close(timeout=0.1), 5)
+        self.assertIn("no reply", logs.output[0])
+        self.assertEqual(self.conn._pending, {})
+        await self.conn.close(timeout=0.1)
+
+
+class ProtocolErrorTest(unittest.IsolatedAsyncioTestCase):
+    """Each malformed frame fails the connection; nothing hangs."""
+
+    CASES = {
+        "bad JSON": b"{nope",
+        "empty frame": b"",
+        "not an object": b"[1]",
+        "not UTF-8": b"\xff\xfe",
+        "frame too long": b"x" * 17,
+        "neither reply nor notification": b'{"jsonrpc": "2.0", "id": 1}',
+    }
+
+    async def test_malformed_frames(self) -> None:
+        for name, frame in self.CASES.items():
+            with self.subTest(name):
+                conn = Connection(max_frame=16)
+                app = await FakeApp.connect(await conn.listen())
+                await conn.wait_connected(5)
+                pending = asyncio.create_task(conn.request("x"))
+                await app.recv()
+                with self.assertLogs("bqui_remote", "ERROR"):
+                    await app.send_raw(frame)
+                    with self.assertRaisesRegex(ConnectionLost, "protocol error"):
+                        await asyncio.wait_for(pending, 5)
+                with self.assertRaisesRegex(ConnectionLost, "protocol error"):
+                    await conn.request("y")
+                await asyncio.wait_for(conn.close(timeout=1), 5)
+                await app.close()
+
+
 class LaunchTest(unittest.IsolatedAsyncioTestCase):
+    def assertCleanedUp(self, conn: Connection) -> None:
+        if conn._proc is not None:
+            self.assertIsNotNone(conn._proc.returncode)
+        self.assertFalse(conn._server.is_serving())
+
     async def test_app_exits_before_connecting(self) -> None:
         conn = Connection()
-        try:
-            with self.assertRaisesRegex(RuntimeError, "exited with code 3"):
-                await conn.launch([sys.executable, "-c", "raise SystemExit(3)"],
-                                  timeout=30)
-        finally:
-            await conn.close()
+        with self.assertRaisesRegex(RuntimeError, "exited with code 3"):
+            await conn.launch([sys.executable, "-c", "raise SystemExit(3)"],
+                              timeout=30)
+        self.assertCleanedUp(conn)
+        await conn.close()
+
+    async def test_timeout_stops_the_app(self) -> None:
+        conn = Connection()
+        with self.assertRaisesRegex(RuntimeError, "did not connect within 0.2s"):
+            await conn.launch([sys.executable, "-c", "import time; time.sleep(30)"],
+                              timeout=0.2)
+        self.assertCleanedUp(conn)
+        await conn.close()
+
+    async def test_bad_path(self) -> None:
+        conn = Connection()
+        with self.assertRaises(OSError):
+            await conn.launch([sys.executable + ".missing"], timeout=5)
+        self.assertIsNone(conn._proc)
+        self.assertCleanedUp(conn)
+        await conn.close()
+
+    async def test_close_terminates_a_silent_app(self) -> None:
+        conn = Connection()
+        endpoint = await conn.listen()
+        host, port = endpoint.removeprefix("tcp://").rsplit(":", 1)
+        await conn.launch([sys.executable, "-c",
+                           "import socket, time; "
+                           f"s = socket.create_connection(({host!r}, {port})); "
+                           "time.sleep(30)"], timeout=30)
+        with self.assertLogs("bqui_remote", "WARNING"):
+            await asyncio.wait_for(conn.close(timeout=0.1), 10)
+        self.assertCleanedUp(conn)
 
 
 class SyncConnectionTest(unittest.TestCase):
+    def start_app(self, endpoint: str, handler: Handler,
+                  ignore_first: bool = False) -> threading.Thread:
+        async def app() -> None:
+            fake = await FakeApp.connect(endpoint)
+            if ignore_first:
+                await fake.recv()
+            await fake.serve(handler)
+
+        thread = threading.Thread(target=asyncio.run, args=(app(),))
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        return thread
+
+    def test_request_timeout(self) -> None:
+        with SyncConnection() as conn:
+            self.start_app(conn.listen(), lambda msg: result(msg, "late"),
+                           ignore_first=True)
+            conn.wait_connected(5)
+            with self.assertRaisesRegex(TimeoutError, "slow timed out after 0.1s"):
+                conn.request("slow", timeout=0.1)
+            self.assertEqual(conn.connection._pending, {})
+            self.assertEqual(conn.request("next", timeout=5), "late")
+
+    def test_use_after_close(self) -> None:
+        conn = SyncConnection()
+        self.start_app(conn.listen(), lambda msg: result(msg, None))
+        conn.wait_connected(5)
+        conn.close()
+        with self.assertRaisesRegex(ConnectionLost, "closed"):
+            conn.request("x")
+        with self.assertRaises(ConnectionLost):
+            conn.read_blob({"id": "b1", "size": 0})
+        conn.close()
+
     def test_request_and_blob(self) -> None:
         conn = SyncConnection()
         endpoint = conn.listen()
