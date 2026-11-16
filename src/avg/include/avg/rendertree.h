@@ -12,4 +12,5 @@
 #include "rendertree/surfacenode.h"
 #include "rendertree/idnode.h"
 #include "rendertree/outlinenode.h"
+#include "rendertree/shadowboundarynode.h"
 #include "rendertree/rendertree.h"

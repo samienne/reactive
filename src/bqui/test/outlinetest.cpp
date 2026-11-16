@@ -328,14 +328,36 @@ TEST(Outline, anEffectFillSetsNone)
     EXPECT_EQ(1u, result.getElements().size());
 }
 
-TEST(Outline, anOpaqueSurfaceSetsNone)
+TEST(Outline, anOpaqueSurfaceSetsItsShape)
 {
     auto result = draw(makeWidget() | modifier::surface(shape::rectangle(),
                 bq::signal::AnySignal<avg::Brush>(
                     bq::signal::constant(avg::Brush(opaque))),
-                std::nullopt, std::nullopt));
+                std::nullopt));
 
     EXPECT_FALSE(result.getElements().empty());
+    EXPECT_EQ((std::vector<avg::Rect>{ rectAt(0.0f, 0.0f, 100.0f, 50.0f) }),
+            boundsOf(result.getOutlines()));
+}
+
+TEST(Outline, aTranslucentSurfaceSetsNone)
+{
+    auto result = draw(makeWidget() | modifier::surface(shape::rectangle(),
+                bq::signal::AnySignal<avg::Brush>(
+                    bq::signal::constant(avg::Brush(translucent))),
+                std::nullopt));
+
+    EXPECT_TRUE(result.getOutlines().isEmpty());
+}
+
+TEST(Outline, anOpaqueGlassSurfaceSetsNone)
+{
+    auto result = draw(makeWidget() | modifier::surface(shape::rectangle(),
+                bq::signal::AnySignal<avg::Brush>(
+                    bq::signal::constant(avg::Brush(opaque))),
+                bq::signal::AnySignal<avg::Effect>(bq::signal::constant(
+                        avg::frostedGlass(avg::FrostedGlassOptions())))));
+
     EXPECT_TRUE(result.getOutlines().isEmpty());
 }
 

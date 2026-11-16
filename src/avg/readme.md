@@ -36,16 +36,15 @@ to the glyph outlines, filled like any other shape.
 A drawing paints its elements in order; there are no layers or z values. Two
 additions shape what a frame can do beyond flat painting:
 
-- **Pending shadows.** A surface's shadow belongs under the content of the
-  container that holds the surface, not under the surface alone. A drawing
-  therefore carries its shadows separately as *pending*; they travel with it
-  through concatenation, clipping and transforms, and whoever renders the
-  drawing first flushes them ahead of everything else.
-- **Outlines.** A drawing also carries the outline shapes its content
-  casts shadows with. They are never painted; they are transformed and
-  clipped with the drawing, and wrapping a drawing into a scope moves them
-  onto the drawing that holds the scope, so they always sit on the
-  outermost drawing.
+- **Outlines and shadows.** A drawing also carries the outline shapes its
+  content casts shadows with. They are never painted; they are transformed
+  and clipped with the drawing, and wrapping a drawing into a scope moves
+  them onto the drawing that holds the scope, so they always sit on the
+  outermost drawing. A *shadow boundary* (`ShadowBoundaryNode`) consumes
+  the outlines of everything under it: their union, moved by the light's
+  offset, is filled once with the shadow colour, blurred and painted
+  under the boundary's content, so overlapping casters do not darken
+  twice. Outlines that reach no boundary are dropped.
 - **Backdrop scopes.** A *scope* encloses part of a drawing and fixes what
   counts as lying behind it: the frame as it was when the scope was entered,
   never the scope's own content or its siblings. Effects that sample what
@@ -64,12 +63,11 @@ additions shape what a frame can do beyond flat painting:
   is drawn the same way.
 
 In the render tree, a `SurfaceNode` (a filled shape under a child, with an
-optional effect such as frosted glass behind the fill, animated like its
-shadow) casts its shadow as a pending shadow and never opens a scope; a
-`ContainerNode` built with `Stacking::stacked` is the stack that paints its
-children over one another through `over`, while a flat container (vbox, hbox,
-grid) only concatenates. `RenderTree::draw` is the root: it flushes the
-drawing it returns and drops its outlines.
+optional effect such as frosted glass behind the fill) never opens a scope;
+a `ContainerNode` built with `Stacking::stacked` is the stack that paints
+its children over one another through `over`, while a flat container (vbox,
+hbox, grid) only concatenates. `RenderTree::draw` is the root: it drops the
+outlines of the drawing it returns.
 
 ## Animation
 

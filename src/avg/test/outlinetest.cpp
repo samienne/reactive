@@ -347,9 +347,7 @@ TEST(DrawingOutlines, concatenationAndOverKeepThemOnTheOuterDrawing)
 TEST(DrawingOutlines, liftSubDrawingMovesThemOntoTheHolder)
 {
     auto inner = filledBoxAt(0.0f, 0.0f, 10.0f, 10.0f)
-        .addOutline(boxAt(0.0f, 0.0f, 10.0f, 10.0f))
-        .addShadow(avg::Drawing::ShapeElement{ boxAt(1.0f, 1.0f, 10.0f, 10.0f),
-                avg::Brush(white), std::nullopt });
+        .addOutline(boxAt(0.0f, 0.0f, 10.0f, 10.0f));
 
     avg::Drawing outer(pmr::new_delete_resource());
     auto transform = avg::translate(50.0f, 0.0f);
@@ -359,10 +357,6 @@ TEST(DrawingOutlines, liftSubDrawingMovesThemOntoTheHolder)
     EXPECT_EQ(1u, subDrawing->elements.size());
     EXPECT_EQ((std::vector<avg::Rect>{ rectAt(50.0f, 0.0f, 10.0f, 10.0f) }),
             boundsOf(outer.getOutlines()));
-    ASSERT_EQ(1u, outer.getPendingShadows().size());
-    EXPECT_EQ(rectAt(51.0f, 1.0f, 10.0f, 10.0f), std::get<
-            avg::Drawing::ShapeElement>(outer.getPendingShadows()[0])
-            .shape.getControlBb());
 }
 
 TEST(DrawingOutlines, effectElementsLiftTheirInputsOutlines)
@@ -437,11 +431,11 @@ TEST(OutlineTree, idTransitionAndSurfaceNodesPassThemThrough)
             avg::makeShapeFunction(&box),
             std::make_optional(avg::Brush(white)),
             std::nullopt,
-            std::nullopt,
             transition
             );
 
-    EXPECT_EQ((std::vector<avg::Rect>{ rectAt(10.0f, 10.0f, 10.0f, 10.0f) }),
+    EXPECT_EQ((std::vector<avg::Rect>{ rectAt(0.0f, 0.0f, 400.0f, 400.0f),
+                rectAt(10.0f, 10.0f, 10.0f, 10.0f) }),
             boundsOf(outlinesOf(*surface)));
 }
 

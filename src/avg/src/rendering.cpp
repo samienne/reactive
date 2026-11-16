@@ -1393,7 +1393,6 @@ RenderCounters render(pmr::memory_resource* memory,
         avg::Drawing const& drawing)
 {
     ZoneScoped;
-    assert(drawing.getPendingShadows().empty());
 
     size_t const firstCommand = commandBuffer.size();
 

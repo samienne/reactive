@@ -464,6 +464,19 @@ Each stage lands on its own and leaves `master` working.
    pending-shadow list, `SurfaceShadow`, the surface modifier's shadow
    argument and the shadow half of `Drawing::over` are removed in the same
    PR, since the two mechanisms cannot both own shadow placement.
+   *Implemented* (`avg::ShadowBoundaryNode`, `bqui::modifier::shadowBoundary`
+   and `shadowAndBackdropBoundary`), with these readings of the decisions:
+   the light is an offset, a blur radius and a colour whose alpha is the
+   opacity, with no spread; the light's sizes are logical and reach pixels
+   through the content blur's recipe at lowering, so the boundary itself
+   converts nothing; the shadow goes under everything inside the boundary,
+   a background inside it included, and is not clipped to the boundary's
+   bounds, nor are casters culled by them (content may overflow), so only
+   the renderer culls a shadow, against the target; an opaquely filled
+   surface or background casts its shape like any opaque fill, and only
+   the window's own background opts out; there is no standalone
+   backdrop-boundary modifier, since a stack already scopes its later
+   children.
 8. **Cost options** from decision 5, one PR each, each justified by the
    counters: region-sized scratch first. GPU timer queries (decision 10)
    are added at this point if the counters cannot settle a choice.
@@ -542,7 +555,8 @@ is `std::abs(alpha - 1.0f) < 0.0001f`.
   at fill time at the frame's point size (`src/avg/src/shape.cpp:229-230`,
   `src/avg/src/region.cpp:231-255`). A boundary with many casters (a list)
   unions all of them every frame while anything animates. This is why
-  "shadow union" has its own CPU zone; no cache is designed.
+  the union has its own CPU zone, "Shape operation fill", where Clipper
+  evaluates it; no cache is designed.
 - **A wide shared region can cost more than the sharing saves.** Pass
   count drops when two far-apart panels share a chain, while the pixels
   blurred grow to the box that spans them (decision 4). The pixels-shaded

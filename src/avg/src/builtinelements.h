@@ -1,6 +1,9 @@
 #pragma once
 
+#include <avg/color.h>
 #include <avg/drawing.h>
+#include <avg/outlines.h>
+#include <avg/vector.h>
 #include <avg/avgvisibility.h>
 
 #include <pmr/memory_resource.h>
@@ -21,4 +24,11 @@ namespace avg
     // A radius of zero returns content as it is.
     AVG_EXPORT Drawing contentBlur(pmr::memory_resource* memory,
             Drawing content, float radius);
+
+    // The shadow outlines cast: their union moved by offset, filled with
+    // colour and blurred by contentBlur(radius); no blur runs for a radius
+    // of zero or less. Empty for no outline or a transparent colour.
+    AVG_EXPORT Drawing shadowOf(pmr::memory_resource* memory,
+            Outlines outlines, Vector2f offset, float radius,
+            Color const& colour);
 }

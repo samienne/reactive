@@ -62,13 +62,6 @@ avg::Shape box(avg::DrawContext const& context, avg::Vector2f size)
             .build());
 }
 
-avg::SurfaceShadow shadowAt(float dx, float dy, float spread = 0.0f)
-{
-    return avg::SurfaceShadow{
-        avg::Vector2f(dx, dy), spread, avg::Brush(black)
-    };
-}
-
 avg::Effect glass(float radius)
 {
     avg::FrostedGlassOptions options;
@@ -78,7 +71,6 @@ avg::Effect glass(float radius)
 }
 
 std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
-        std::optional<avg::SurfaceShadow> shadow,
         std::shared_ptr<avg::RenderTreeNode> child = nullptr,
         std::optional<avg::Effect> effect = std::nullopt,
         std::optional<avg::AnimationOptions> options = std::nullopt)
@@ -88,7 +80,6 @@ std::shared_ptr<avg::SurfaceNode> surface(avg::Obb const& obb,
             std::move(options),
             avg::makeShapeFunction(&box),
             std::make_optional(avg::Brush(white)),
-            std::move(shadow),
             effect
                 ? std::make_optional(avg::Animated<avg::Brush>(
                         avg::Brush(*effect)))
@@ -255,19 +246,12 @@ void expectRect(avg::Rect const& r, float x, float y,
 
 } // anonymous namespace
 
-TEST(SurfaceNode, shadowIsPendingWhileFillAndChildAreContent)
+TEST(SurfaceNode, drawsTheFillThenTheChild)
 {
     auto node = surface(placed(10.0f, 20.0f, 100.0f, 50.0f),
-            shadowAt(5.0f, -5.0f),
             rect(placed(0.0f, 0.0f, 20.0f, 20.0f)));
 
     auto d = drawNode(*node);
-
-    ASSERT_EQ("S", structureOf(d.getPendingShadows()));
-    expectRect(shapeAt(d.getPendingShadows(), 0).shape.getControlBb(),
-            15.0f, 15.0f, 100.0f, 50.0f);
-    EXPECT_FALSE(shapeAt(d.getPendingShadows(), 0).pen.has_value());
-    EXPECT_EQ(black, shapeAt(d.getPendingShadows(), 0).brush->getColor());
 
     ASSERT_EQ("SS", structureOf(d.getElements()));
     expectRect(shapeAt(d.getElements(), 0).shape.getControlBb(),
@@ -277,27 +261,23 @@ TEST(SurfaceNode, shadowIsPendingWhileFillAndChildAreContent)
             10.0f, 20.0f, 20.0f, 20.0f);
 }
 
-TEST(SurfaceNode, spreadGrowsTheShadowWithAPenOfTheShadowBrush)
+TEST(SurfaceNode, anOpaqueFillCastsTheShapeAndAnEffectCastsNothing)
 {
-    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-            shadowAt(0.0f, 0.0f, 4.0f));
+    auto card = drawNode(*surface(placed(10.0f, 20.0f, 100.0f, 50.0f)));
+    auto glassy = drawNode(*surface(placed(10.0f, 20.0f, 100.0f, 50.0f),
+                nullptr, glass(8.0f)));
 
-    auto d = drawNode(*node);
-
-    ASSERT_EQ(1u, d.getPendingShadows().size());
-    auto const& shadow = shapeAt(d.getPendingShadows(), 0);
-    ASSERT_TRUE(shadow.pen.has_value());
-    EXPECT_FLOAT_EQ(8.0f, shadow.pen->getWidth());
-    EXPECT_EQ(black, shadow.pen->getBrush().getColor());
+    ASSERT_EQ(1u, card.getOutlines().getShapes().size());
+    expectRect(card.getOutlines().getControlBb(), 10.0f, 20.0f, 100.0f, 50.0f);
+    EXPECT_TRUE(glassy.getOutlines().isEmpty());
 }
 
-TEST(SurfaceNode, withoutAShadowOrChildOnlyTheFillIsDrawn)
+TEST(SurfaceNode, withoutAChildOnlyTheFillIsDrawn)
 {
-    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt);
+    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f));
 
     auto d = drawNode(*node);
 
-    EXPECT_EQ("", structureOf(d.getPendingShadows()));
     EXPECT_EQ("S", structureOf(d.getElements()));
 }
 
@@ -306,7 +286,6 @@ TEST(SurfaceNode, snapshotReportsTheChild)
     avg::DrawContext context(pmr::new_delete_resource());
 
     auto node = surface(placed(10.0f, 20.0f, 100.0f, 50.0f),
-            shadowAt(5.0f, -5.0f),
             rect(placed(0.0f, 0.0f, 20.0f, 20.0f)));
 
     auto snapshot = node->snapshot(context,
@@ -319,73 +298,64 @@ TEST(SurfaceNode, snapshotReportsTheChild)
             10.0f, 20.0f, 20.0f, 20.0f);
 }
 
-TEST(StackingContainer, laterChildrenPaintOverEarlierOnesBehindTheirShadows)
+TEST(StackingContainer, laterChildrenPaintOverEarlierOnes)
 {
     auto stack = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::stacked, {
-            surface(placed(0.0f, 0.0f, 100.0f, 50.0f), shadowAt(1.0f, 0.0f),
+            surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
                     rect(placed(0.0f, 0.0f, 20.0f, 20.0f))),
-            surface(placed(200.0f, 0.0f, 100.0f, 50.0f), shadowAt(2.0f, 0.0f),
+            surface(placed(200.0f, 0.0f, 100.0f, 50.0f),
                     rect(placed(0.0f, 0.0f, 20.0f, 20.0f)))
             });
 
     auto d = drawNode(*stack);
 
-    // First surface flat, then the second's shadow, then its content scoped.
-    EXPECT_EQ("SSS[SS]", structureOf(d.getElements()));
-    EXPECT_EQ((std::vector<float>{ 0.0f, 0.0f, 202.0f, 200.0f, 200.0f }),
+    // First surface flat, then the second scoped.
+    EXPECT_EQ("SS[SS]", structureOf(d.getElements()));
+    EXPECT_EQ((std::vector<float>{ 0.0f, 0.0f, 200.0f, 200.0f }),
             lefts(d.getElements()));
-
-    // The first surface's shadow waits for the enclosing container.
-    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
-    EXPECT_EQ((std::vector<float>{ 1.0f }), lefts(d.getPendingShadows()));
 }
 
 TEST(StackingContainer, aNestedStackStaysInsideItsSiblingScope)
 {
     auto inner = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::stacked, {
-            surface(placed(100.0f, 0.0f, 50.0f, 50.0f), shadowAt(1.0f, 0.0f)),
-            surface(placed(200.0f, 0.0f, 50.0f, 50.0f), shadowAt(2.0f, 0.0f))
+            surface(placed(100.0f, 0.0f, 50.0f, 50.0f)),
+            surface(placed(200.0f, 0.0f, 50.0f, 50.0f))
             });
 
     auto outer = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::stacked, {
-            surface(placed(0.0f, 0.0f, 50.0f, 50.0f), shadowAt(1.0f, 0.0f)),
+            surface(placed(0.0f, 0.0f, 50.0f, 50.0f)),
             inner,
-            surface(placed(300.0f, 0.0f, 50.0f, 50.0f), shadowAt(3.0f, 0.0f))
+            surface(placed(300.0f, 0.0f, 50.0f, 50.0f))
             });
 
     auto d = drawNode(*outer);
 
-    EXPECT_EQ("SS[SS[S]]S[S]", structureOf(d.getElements()));
+    EXPECT_EQ("S[S[S]][S]", structureOf(d.getElements()));
     EXPECT_EQ((std::vector<float>{
                 0.0f,           // first surface, flat
-                101.0f,         // the inner stack's pending shadow
-                100.0f, 202.0f, 200.0f,  // the inner stack, scoped
-                303.0f,         // the last surface's shadow
+                100.0f, 200.0f, // the inner stack, scoped
                 300.0f          // the last surface, scoped
                 }),
             lefts(d.getElements()));
 
-    auto const& innerScope = scopeAt(d.getElements(), 2);
-    EXPECT_EQ("SS[S]", structureOf(innerScope.subDrawing->elements));
-    EXPECT_EQ("S", structureOf(scopeAt(d.getElements(), 4).subDrawing->elements));
-
-    EXPECT_EQ((std::vector<float>{ 1.0f }), lefts(d.getPendingShadows()));
+    auto const& innerScope = scopeAt(d.getElements(), 1);
+    EXPECT_EQ("S[S]", structureOf(innerScope.subDrawing->elements));
+    EXPECT_EQ("S", structureOf(scopeAt(d.getElements(), 2).subDrawing->elements));
 }
 
 TEST(StackingContainer, aStackOfOneChildIsFlat)
 {
     auto stack = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::stacked, {
-            surface(placed(0.0f, 0.0f, 100.0f, 50.0f), shadowAt(1.0f, 0.0f))
+            surface(placed(0.0f, 0.0f, 100.0f, 50.0f))
             });
 
     auto d = drawNode(*stack);
 
     EXPECT_EQ("S", structureOf(d.getElements()));
-    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
 }
 
 TEST(FlatContainer, nestedFlatContainersDrawLikeOneFlatContainer)
@@ -394,21 +364,21 @@ TEST(FlatContainer, nestedFlatContainersDrawLikeOneFlatContainer)
             avg::ContainerNode::Stacking::flat, {
             container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
                 avg::ContainerNode::Stacking::flat, {
-                surface(placed(0.0f, 0.0f, 50.0f, 50.0f), shadowAt(1.0f, 0.0f)),
+                surface(placed(0.0f, 0.0f, 50.0f, 50.0f)),
                 rect(placed(100.0f, 0.0f, 50.0f, 50.0f))
                 }),
             container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
                 avg::ContainerNode::Stacking::flat, {
-                surface(placed(200.0f, 0.0f, 50.0f, 50.0f), shadowAt(2.0f, 0.0f)),
+                surface(placed(200.0f, 0.0f, 50.0f, 50.0f)),
                 rect(placed(300.0f, 0.0f, 50.0f, 50.0f))
                 })
             });
 
     auto flat = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::flat, {
-            surface(placed(0.0f, 0.0f, 50.0f, 50.0f), shadowAt(1.0f, 0.0f)),
+            surface(placed(0.0f, 0.0f, 50.0f, 50.0f)),
             rect(placed(100.0f, 0.0f, 50.0f, 50.0f)),
-            surface(placed(200.0f, 0.0f, 50.0f, 50.0f), shadowAt(2.0f, 0.0f)),
+            surface(placed(200.0f, 0.0f, 50.0f, 50.0f)),
             rect(placed(300.0f, 0.0f, 50.0f, 50.0f))
             });
 
@@ -418,76 +388,16 @@ TEST(FlatContainer, nestedFlatContainersDrawLikeOneFlatContainer)
     EXPECT_EQ("SSSS", structureOf(a.getElements()));
     EXPECT_EQ(structureOf(b.getElements()), structureOf(a.getElements()));
     EXPECT_EQ(lefts(b.getElements()), lefts(a.getElements()));
-    EXPECT_EQ("SS", structureOf(a.getPendingShadows()));
-    EXPECT_EQ(lefts(b.getPendingShadows()), lefts(a.getPendingShadows()));
 }
 
-TEST(RenderTree, drawFlushesPendingShadowsAheadOfTheContent)
-{
-    auto stack = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
-            avg::ContainerNode::Stacking::stacked, {
-            surface(placed(0.0f, 0.0f, 100.0f, 50.0f), shadowAt(1.0f, 0.0f)),
-            surface(placed(200.0f, 0.0f, 100.0f, 50.0f), shadowAt(2.0f, 0.0f))
-            });
-
-    auto d = drawTree(avg::RenderTree(std::move(stack)));
-
-    EXPECT_EQ("SSS[S]", structureOf(d.getElements()));
-    EXPECT_EQ((std::vector<float>{ 1.0f, 0.0f, 202.0f, 200.0f }),
-            lefts(d.getElements()));
-    EXPECT_TRUE(d.getPendingShadows().empty());
-}
-
-TEST(SurfaceNode, animatingAShadowChangesValuesNotStructure)
-{
-    std::chrono::milliseconds const duration(1000);
-    avg::AnimationOptions const options{ duration, avg::curve::linear };
-
-    avg::RenderTree tree(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                shadowAt(0.0f, 0.0f), rect(placed(0.0f, 0.0f, 20.0f, 20.0f))));
-
-    avg::RenderTree next(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                shadowAt(10.0f, 0.0f, 4.0f),
-                rect(placed(0.0f, 0.0f, 20.0f, 20.0f))));
-
-    auto [updated, nextUpdate] = std::move(tree).update(std::move(next),
-            options, zero);
-
-    auto start = drawTree(updated, zero);
-    auto halfway = drawTree(updated, duration / 2);
-    auto end = drawTree(updated, duration);
-
-    EXPECT_EQ("SSS", structureOf(start.getElements()));
-    EXPECT_EQ("SSS", structureOf(halfway.getElements()));
-    EXPECT_EQ("SSS", structureOf(end.getElements()));
-
-    EXPECT_FLOAT_EQ(0.0f, shapeAt(start.getElements(), 0).shape.getControlBb()
-            .getLeft());
-    EXPECT_FLOAT_EQ(5.0f, shapeAt(halfway.getElements(), 0).shape.getControlBb()
-            .getLeft());
-    EXPECT_FLOAT_EQ(10.0f, shapeAt(end.getElements(), 0).shape.getControlBb()
-            .getLeft());
-
-    ASSERT_TRUE(shapeAt(halfway.getElements(), 0).pen.has_value());
-    EXPECT_FLOAT_EQ(4.0f, shapeAt(halfway.getElements(), 0).pen->getWidth());
-
-    avg::DrawContext context(pmr::new_delete_resource());
-    EXPECT_TRUE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
-                duration / 2).second);
-    EXPECT_FALSE(updated.draw(context, avg::Obb(avg::Vector2f(400.0f, 400.0f)),
-                duration).second);
-}
-
-TEST(SurfaceNode, effectGoesAheadOfTheFillWhileTheShadowStaysPending)
+TEST(SurfaceNode, effectGoesAheadOfTheFill)
 {
     auto node = surface(placed(10.0f, 20.0f, 100.0f, 50.0f),
-            shadowAt(5.0f, -5.0f),
             rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
             glass(8.0f));
 
     auto d = drawNode(*node);
 
-    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
     ASSERT_EQ("ESS", structureOf(d.getElements()));
 
     auto const& effect = effectAt(d.getElements(), 0);
@@ -500,7 +410,7 @@ TEST(SurfaceNode, effectGoesAheadOfTheFillWhileTheShadowStaysPending)
 
 TEST(SurfaceNode, tintIsOneShapePass)
 {
-    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+    auto node = surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
             nullptr, avg::tint(black, 0.5f));
 
     auto d = drawNode(*node);
@@ -513,23 +423,22 @@ TEST(StackingContainer, aStackOfGlassSurfacesScopesEachLaterSurface)
 {
     auto stack = container(avg::Obb(avg::Vector2f(400.0f, 400.0f)),
             avg::ContainerNode::Stacking::stacked, {
-            surface(placed(0.0f, 0.0f, 100.0f, 50.0f), shadowAt(1.0f, 0.0f),
+            surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
                     rect(placed(0.0f, 0.0f, 20.0f, 20.0f)), glass(8.0f)),
-            surface(placed(200.0f, 0.0f, 100.0f, 50.0f), shadowAt(2.0f, 0.0f),
+            surface(placed(200.0f, 0.0f, 100.0f, 50.0f),
                     rect(placed(0.0f, 0.0f, 20.0f, 20.0f)), glass(8.0f))
             });
 
     auto d = drawNode(*stack);
 
-    EXPECT_EQ("ESSS[ESS]", structureOf(d.getElements()));
-    EXPECT_EQ((std::vector<float>{ 0.0f, 0.0f, 202.0f, 200.0f, 200.0f }),
+    EXPECT_EQ("ESS[ESS]", structureOf(d.getElements()));
+    EXPECT_EQ((std::vector<float>{ 0.0f, 0.0f, 200.0f, 200.0f }),
             lefts(d.getElements()));
     expectRect(boundsOf(effectAt(d.getElements(), 0)),
             0.0f, 0.0f, 100.0f, 50.0f);
     expectRect(boundsOf(effectAt(
-                    scopeAt(d.getElements(), 4).subDrawing->elements, 0)),
+                    scopeAt(d.getElements(), 3).subDrawing->elements, 0)),
             200.0f, 0.0f, 100.0f, 50.0f);
-    EXPECT_EQ("S", structureOf(d.getPendingShadows()));
 }
 
 TEST(SurfaceNode, animatingTheEffectChangesParametersNotStructure)
@@ -538,11 +447,11 @@ TEST(SurfaceNode, animatingTheEffectChangesParametersNotStructure)
     avg::AnimationOptions const options{ duration, avg::curve::linear };
 
     avg::RenderTree tree(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                shadowAt(0.0f, 0.0f), rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
+                rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
                 glass(8.0f)));
 
     avg::RenderTree next(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                shadowAt(0.0f, 0.0f), rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
+                rect(placed(0.0f, 0.0f, 20.0f, 20.0f)),
                 glass(16.0f)));
 
     auto [updated, nextUpdate] = std::move(tree).update(std::move(next),
@@ -552,13 +461,13 @@ TEST(SurfaceNode, animatingTheEffectChangesParametersNotStructure)
     auto halfway = drawTree(updated, duration / 2);
     auto end = drawTree(updated, duration);
 
-    EXPECT_EQ("SESS", structureOf(start.getElements()));
-    EXPECT_EQ("SESS", structureOf(halfway.getElements()));
-    EXPECT_EQ("SESS", structureOf(end.getElements()));
+    EXPECT_EQ("ESS", structureOf(start.getElements()));
+    EXPECT_EQ("ESS", structureOf(halfway.getElements()));
+    EXPECT_EQ("ESS", structureOf(end.getElements()));
 
-    auto const& startEffect = *effectAt(start.getElements(), 1).effect;
-    auto const& halfwayEffect = *effectAt(halfway.getElements(), 1).effect;
-    auto const& endEffect = *effectAt(end.getElements(), 1).effect;
+    auto const& startEffect = *effectAt(start.getElements(), 0).effect;
+    auto const& halfwayEffect = *effectAt(halfway.getElements(), 0).effect;
+    auto const& endEffect = *effectAt(end.getElements(), 0).effect;
 
     ASSERT_EQ(startEffect.getPasses().size(), halfwayEffect.getPasses().size());
     for (size_t i = 0; i < startEffect.getPasses().size(); ++i)
@@ -589,13 +498,13 @@ TEST(SurfaceNode, anOvershootingCurveDrawsTheEffectClamped)
 
     auto tinted = [](float strength)
     {
-        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
                 nullptr, avg::tint(black, strength));
     };
 
     auto glassy = [](float radius)
     {
-        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f), std::nullopt,
+        return surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
                 nullptr, glass(radius));
     };
 
@@ -646,9 +555,9 @@ TEST(SurfaceNode, changingTheEffectKindSwitchesWithoutAnimating)
     avg::AnimationOptions const options{ duration, avg::curve::linear };
 
     avg::RenderTree tree(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                std::nullopt, nullptr, glass(8.0f)));
+                nullptr, glass(8.0f)));
     avg::RenderTree next(surface(placed(0.0f, 0.0f, 100.0f, 50.0f),
-                std::nullopt, nullptr, avg::tint(black, 0.5f)));
+                nullptr, avg::tint(black, 0.5f)));
 
     auto [updated, nextUpdate] = std::move(tree).update(std::move(next),
             options, zero);

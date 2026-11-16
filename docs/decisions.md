@@ -200,9 +200,8 @@ needed).
 A `ContainerNode` carries a stacking flag. A flat container (vbox, hbox,
 grid) concatenates its children's drawings; a stacked one paints its first
 child flat and each later child through `Drawing::over`, which puts the
-child's pending shadows then its content in a `BackdropScope`. A
-`SurfaceNode` adds its shadow, effect, fill and child to the lists and
-never a scope. In `bqui` every modifier that paints behind or over its
+child's content in a `BackdropScope`. A `SurfaceNode` adds its effect,
+fill and child to the drawing and never a scope. In `bqui` every modifier that paints behind or over its
 widget builds a stacked container, so the rule in `conventions.md` is
 "whoever paints one child over another is a stack", applied
 unconditionally.
@@ -212,9 +211,7 @@ the scope", and only the code that places one child over another knows
 that relation; a surface placing a scope around itself would give every
 card in a vbox a private snapshot and no backdrop. Scopes are free when no
 effect is inside, so the rule needs no "only when glass is present"
-exception, which a container author could not evaluate anyway. Shadows go
-before the scope so a glass sibling samples the shadow rings; placing them
-after the scope was considered and not chosen. Rejected: a separate stack
+exception, which a container author could not evaluate anyway. Rejected: a separate stack
 node class (the flag is the only difference); inferring stacking from
 geometric overlap (see the next entry).
 
@@ -224,8 +221,7 @@ A `Drawing` stays a flat, ordered list and elements carry no ordering
 data. One nesting element, `BackdropScope`, wraps a sub-drawing: an effect
 directly inside it samples the frame as it stood when the scope was
 entered, the root is an implicit scope, scopes nest, and concatenation
-keeps them whole. A `Drawing` also carries pending shadows as a second
-list that `flush` moves ahead of the content.
+keeps them whole.
 
 **Why:** a glass surface must see what lies below it and never its own
 content or its siblings, and a nested stack must not change what the

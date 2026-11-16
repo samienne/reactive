@@ -4,6 +4,8 @@
 #include "region.h"
 #include "drawing.h"
 
+#include <tracy/Tracy.hpp>
+
 namespace avg
 {
 
@@ -215,6 +217,8 @@ namespace
             Transform transform,
             Shape::Operation const& operation)
     {
+        ZoneScopedN("Shape operation fill");
+
         if (operation.elements.empty())
             return Region(memory);
 

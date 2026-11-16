@@ -52,7 +52,6 @@ using Elements = pmr::vector<avg::Drawing::Element>;
 avg::Color const red(1.0f, 0.0f, 0.0f, 1.0f);
 avg::Color const green(0.0f, 1.0f, 0.0f, 1.0f);
 avg::Color const blue(0.0f, 0.0f, 1.0f, 1.0f);
-avg::Color const black(0.0f, 0.0f, 0.0f, 1.0f);
 
 avg::Vector2f const size(100.0f, 50.0f);
 Milliseconds const now(0);
@@ -93,8 +92,7 @@ Instance realise(AnyWidget widget)
 }
 
 /**
- * @brief Draws the realised widget the way the window loop does, pending
- * shadows flushed ahead of the content.
+ * @brief Draws the realised widget the way the window loop does.
  */
 avg::Drawing draw(Instance const& instance)
 {
@@ -153,11 +151,6 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
             | modifier::surface(
                 shape::rectangle(),
                 constant(avg::Brush(red)),
-                modifier::SurfaceShadow{
-                    constant(avg::Vector2f(2.0f, -3.0f)),
-                    constant(4.0f),
-                    constant(avg::Brush(black))
-                },
                 constant(avg::frostedGlass(glassOptions()))
                 ));
 
@@ -167,12 +160,6 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
     ASSERT_TRUE(node->getFill().getValue(now).has_value());
     EXPECT_EQ(red, node->getFill().getValue(now)->getColor());
 
-    ASSERT_TRUE(node->getShadow().has_value());
-    EXPECT_EQ(avg::Vector2f(2.0f, -3.0f),
-            node->getShadow()->offset.getValue(now));
-    EXPECT_FLOAT_EQ(4.0f, node->getShadow()->spread.getValue(now));
-    EXPECT_EQ(black, node->getShadow()->brush.getValue(now).getColor());
-
     ASSERT_TRUE(node->getEffect().has_value());
     EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())),
             node->getEffect()->getValue(now));
@@ -180,7 +167,7 @@ TEST(Surface, surfaceYieldsASurfaceNodeWithWhatItWasGiven)
     ASSERT_TRUE(node->getChild());
 }
 
-TEST(Surface, surfaceDrawsShadowThenEffectThenFillThenChild)
+TEST(Surface, surfaceDrawsEffectThenFillThenChild)
 {
     using bq::signal::constant;
 
@@ -188,24 +175,17 @@ TEST(Surface, surfaceDrawsShadowThenEffectThenFillThenChild)
             | modifier::surface(
                 shape::rectangle(),
                 constant(avg::Brush(red)),
-                modifier::SurfaceShadow{
-                    constant(avg::Vector2f(2.0f, -3.0f)),
-                    constant(4.0f),
-                    constant(avg::Brush(black))
-                },
                 constant(avg::frostedGlass(glassOptions()))
                 )));
 
     auto const& elements = drawing.getElements();
-    ASSERT_EQ(4u, elements.size());
-    EXPECT_TRUE(drawing.getPendingShadows().empty());
+    ASSERT_EQ(3u, elements.size());
 
-    EXPECT_EQ(black, fillColorAt(elements, 0));
-    auto const* glass = elementAs<avg::Drawing::ShapeElement>(elements, 1);
+    auto const* glass = elementAs<avg::Drawing::ShapeElement>(elements, 0);
     ASSERT_TRUE(glass && glass->brush);
     EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())), *glass->brush);
-    EXPECT_EQ(red, fillColorAt(elements, 2));
-    EXPECT_EQ(green, fillColorAt(elements, 3));
+    EXPECT_EQ(red, fillColorAt(elements, 1));
+    EXPECT_EQ(green, fillColorAt(elements, 2));
 }
 
 TEST(Surface, frostedGlassSetsAFrostedGlassEffectAndNothingElse)
@@ -217,7 +197,6 @@ TEST(Surface, frostedGlassSetsAFrostedGlassEffectAndNothingElse)
     ASSERT_TRUE(node);
 
     EXPECT_FALSE(node->getFill().getValue(now).has_value());
-    EXPECT_FALSE(node->getShadow().has_value());
 
     ASSERT_TRUE(node->getEffect().has_value());
     EXPECT_EQ(avg::Brush(avg::frostedGlass(glassOptions())),
